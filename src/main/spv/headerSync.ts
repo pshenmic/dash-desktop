@@ -117,15 +117,6 @@ export class HeaderSync {
       console.log(`[spv] peerconnect ${peer.host}:${peer.port}`)
     })
 
-    // Diagnostic: any traffic from peers (other than the ones we already
-    // handle below) shows up here so we can tell whether the receive
-    // pipeline is alive or peers are simply silent.
-    const trafficEvents = ['peerping', 'peerpong', 'peeraddr', 'peerreject', 'peergetheaders']
-    for (const ev of trafficEvents) {
-      this.pool.on(ev, (peer: Peer) => {
-        console.log(`[spv] ${ev} from ${peer.host}`)
-      })
-    }
 
     // Detailed inv logging: if peers are replying to getheaders with `inv`
     // of BLOCK hashes (legacy getblocks-style behavior), we'll see TYPE=2

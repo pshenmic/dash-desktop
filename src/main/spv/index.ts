@@ -82,7 +82,7 @@ async function handleStart(cmd: Extract<SpvCommand, { type: 'start' }>): Promise
   }
   if (!resumeHash) {
     resumeHash = GENESIS_HASH[cmd.network]
-    resumeHeight = 1400000
+    resumeHeight = 1
     console.log(`[spv] genesis fallback: height=${resumeHeight} hash=${resumeHash}`)
   }
   console.log(`[spv] starting sync from height=${resumeHeight} hash=${resumeHash}`)
