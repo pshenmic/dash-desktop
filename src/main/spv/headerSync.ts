@@ -11,7 +11,7 @@ import {
 } from './pow'
 
 const HEADER_SYNC_TIMEOUT_MS = 30_000
-const HEADER_RACE_PEERS = 6
+const HEADER_RACE_PEERS = 12
 const REFILL_INTERVAL_MS = 5_000
 
 const INV_TYPE_NAMES: Record<number, string> = {
