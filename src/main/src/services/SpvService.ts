@@ -3,7 +3,8 @@ import path from 'path'
 import os from 'os'
 import {ChainStorageFilename, HomeFolderName} from '../constants'
 import {WalletDAO} from '../database/WalletDAO'
-import {SpvCommand, SpvEvent, SpvStatus} from '../../spv/messages'
+import {AddressDAO} from '../database/AddressDAO'
+import {SpvCommand, SpvEvent, SpvStatus, SpvUtxoSummary} from '../../spv/messages'
 
 // NOTE: Preferences-based checkpoint plumbing is temporarily detached. The
 // checkpoint is hardcoded in startSync below until the SPV path needs the
@@ -11,12 +12,15 @@ import {SpvCommand, SpvEvent, SpvStatus} from '../../spv/messages'
 // in via the constructor and read `preferences.chain[network]`.
 export class SpvService {
   private walletDAO: WalletDAO
+  private addressDAO: AddressDAO
   private child: UtilityProcess | null = null
   private status: SpvStatus | null = null
   private activeWalletId: string | null = null
+  private utxos: SpvUtxoSummary[] = []
 
-  constructor(walletDAO: WalletDAO) {
+  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO) {
     this.walletDAO = walletDAO
+    this.addressDAO = addressDAO
   }
 
   private ensureChild(): UtilityProcess {
@@ -28,6 +32,8 @@ export class SpvService {
     child.on('message', (data: SpvEvent) => {
       if (data.type === 'status') {
         this.status = data.status
+      } else if (data.type === 'utxos') {
+        this.utxos = data.utxos
       } else if (data.type === 'error') {
         console.log(data)
         console.error('[spv] utility process error:', data.message)
@@ -39,6 +45,7 @@ export class SpvService {
       this.child = null
       this.status = null
       this.activeWalletId = null
+      this.utxos = []
     })
 
     this.child = child
@@ -60,14 +67,24 @@ export class SpvService {
       this.send({ type: 'stop' })
     }
 
+    // Watch every address from every wallet on this network — the chain.db is
+    // network-scoped, and matching across wallets means a single scan covers
+    // all loaded wallets without re-running for each.
+    const watchAddresses = await this.addressDAO.getAllAddressesForNetwork(network)
+
     this.activeWalletId = walletId
-    // TODO: Checkpoints
+    this.utxos = []
+    // TODO: Checkpoints + per-wallet birthday height
     this.send({
       type: 'start',
       network,
       chainDbPath: path.join(os.homedir(), HomeFolderName, ChainStorageFilename),
       startHeight: 1,
       startHash: '0000047d24635e347be3aaaeb66c26be94901a2f962feccd4f95090191f208c1',
+      watchAddresses,
+      // birthdayHeight is intentionally undefined — defaults to genesis in the
+      // utility process. Replace with a per-wallet birthday once the wallet
+      // schema captures it.
     })
 
     return this.status
@@ -77,10 +94,23 @@ export class SpvService {
     if (!this.child) return
     this.send({ type: 'stop' })
     this.activeWalletId = null
+    this.utxos = []
+  }
+
+  // Hot-add addresses to the live cfilter watch set. No-op when no SPV child
+  // is running. The utility process filters by network, so callers don't need
+  // to gate on the active wallet's network.
+  addWatchAddresses = (network: 'mainnet' | 'testnet', addresses: string[]): void => {
+    if (!this.child || addresses.length === 0) return
+    this.send({ type: 'addWatchAddresses', network, addresses })
   }
 
   getStatus = (): SpvStatus | null => {
     return this.status
+  }
+
+  getUtxos = (): SpvUtxoSummary[] => {
+    return this.utxos
   }
 
   shutdown = (): void => {
@@ -89,6 +119,7 @@ export class SpvService {
       this.child = null
       this.status = null
       this.activeWalletId = null
+      this.utxos = []
     }
   }
 }

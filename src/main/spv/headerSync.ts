@@ -38,6 +38,10 @@ export interface HeaderSyncOptions {
   initialTipHeight: number
   initialTipHash: string
   emit: (status: HeaderSyncStatus) => void
+  // Fires after each successful append (initial sync rounds AND post-sync
+  // tip-follow). Lets cfilter sync extend its in-memory chain index in real
+  // time without polling chain.db.
+  onChainExtended?: (headers: PersistedHeader[]) => void
 }
 
 interface HeaderRace {
@@ -51,6 +55,7 @@ export class HeaderSync {
   private network: Network
   private chainDAO: ChainDAO
   private emitStatus: (status: HeaderSyncStatus) => void
+  private onChainExtendedCb?: (headers: PersistedHeader[]) => void
 
   private chainTipHeight: number
   private chainTipHash: string
@@ -67,6 +72,7 @@ export class HeaderSync {
     this.network = opts.network
     this.chainDAO = opts.chainDAO
     this.emitStatus = opts.emit
+    this.onChainExtendedCb = opts.onChainExtended
     this.chainTipHeight = opts.initialTipHeight
     this.chainTipHash = opts.initialTipHash
 
@@ -292,7 +298,7 @@ export class HeaderSync {
       const incomingPrev = rawPrevHash(raw)
 
       if (incomingPrev !== prevHash) {
-        console.warn(`[spv] reject ~h=${h + 1} prev mismatch got=${incomingPrev.slice(0, 16)} want=${prevHash.slice(0, 16)}`)
+        console.warn(`[spv] reject ~h=${h + 1} prev mismatch got=${incomingPrev} want=${prevHash}`)
         return false
       }
       if (time > futureLimit) {
@@ -317,16 +323,26 @@ export class HeaderSync {
       prevHash = hashHex
     }
 
+    // Advance the in-memory tip BEFORE awaiting the DB write. While we await,
+    // racing peers' peerheaders handlers re-enter processHeaders; if they read
+    // the old tip they all pass validation and queue duplicate appendHeaders
+    // batches (12× write amplification per advance). Updating tip first makes
+    // the prev-hash check reject those duplicates synchronously.
+    this.chainTipHeight = h
+    this.chainTipHash = prevHash
+
     const nextState: ChainTipState = {
       tipHeight: h,
       tipHash: prevHash,
     }
     await this.chainDAO.appendHeaders(this.network, accepted, nextState)
 
-    this.chainTipHeight = h
-    this.chainTipHash = prevHash
-
     this.emit('syncing-headers')
+    if (this.onChainExtendedCb) {
+      try { this.onChainExtendedCb(accepted) } catch (err) {
+        console.error('[spv] onChainExtended callback threw:', err)
+      }
+    }
     return true
   }
 }

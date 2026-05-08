@@ -19,6 +19,14 @@ interface StoredState extends ChainTipState {
   updatedAt: number
 }
 
+export interface PersistedUtxo {
+  txid: string         // display-order hex
+  vout: number
+  satoshis: string     // bigint serialized as decimal string
+  address: string
+  height: number
+}
+
 const HEIGHT_KEY_WIDTH = 12
 
 function headerKey(height: number): string {
@@ -27,6 +35,18 @@ function headerKey(height: number): string {
 
 function stateKey(network: Network): string {
   return `s:${network}`
+}
+
+function utxoKey(network: Network, txid: string, vout: number): string {
+  return `u:${network}:${txid}:${vout}`
+}
+
+function utxoPrefix(network: Network): string {
+  return `u:${network}:`
+}
+
+function cfilterCursorKey(network: Network): string {
+  return `cfcursor:${network}`
 }
 
 export class ChainDAO {
@@ -113,6 +133,89 @@ export class ChainDAO {
       if ((err as { code?: string }).code === 'LEVEL_NOT_FOUND') return null
       throw err
     }
+  }
+
+  // Iterates raw 80-byte headers in [from, to] inclusive, ascending. Used by
+  // CFilterSync to build its in-memory height↔hash maps without recomputing
+  // PoW or re-walking from genesis.
+  iterateHeadersInRange = async (from: number, to: number): Promise<Array<{ height: number; raw: Uint8Array }>> => {
+    if (to < from) return []
+    const out: Array<{ height: number; raw: Uint8Array }> = []
+    const iter = this.db.iterator({
+      gte: headerKey(from),
+      lte: headerKey(to),
+    })
+    try {
+      for await (const [key, value] of iter) {
+        const height = parseInt(key.slice(2), 10)
+        out.push({height, raw: value})
+      }
+    } finally {
+      await iter.close()
+    }
+    return out
+  }
+
+  putUtxo = async (network: Network, utxo: PersistedUtxo): Promise<void> => {
+    await this.db.put(utxoKey(network, utxo.txid, utxo.vout), encodeJson(utxo))
+  }
+
+  deleteUtxo = async (network: Network, txid: string, vout: number): Promise<void> => {
+    try {
+      await this.db.del(utxoKey(network, txid, vout))
+    } catch (err) {
+      if ((err as { code?: string }).code === 'LEVEL_NOT_FOUND') return
+      throw err
+    }
+  }
+
+  // Atomic apply: spends + new outputs land together with the cfilter cursor
+  // bump. Without this you can race the writer and emit a UTXO snapshot that
+  // mid-batch reflects a spend without its companion receive.
+  applyBlockUtxos = async (
+    network: Network,
+    spends: Array<{ txid: string; vout: number }>,
+    received: PersistedUtxo[],
+    cursorHeight: number,
+  ): Promise<void> => {
+    const batch = this.db.batch()
+    for (const s of spends) batch.del(utxoKey(network, s.txid, s.vout))
+    for (const u of received) batch.put(utxoKey(network, u.txid, u.vout), encodeJson(u))
+    batch.put(cfilterCursorKey(network), encodeJson({height: cursorHeight}))
+    await batch.write()
+  }
+
+  getAllUtxos = async (network: Network): Promise<PersistedUtxo[]> => {
+    const prefix = utxoPrefix(network)
+    const out: PersistedUtxo[] = []
+    const iter = this.db.iterator({
+      gte: prefix,
+      lte: prefix + '\xff',
+    })
+    try {
+      for await (const [, value] of iter) {
+        out.push(JSON.parse(Buffer.from(value).toString('utf8')) as PersistedUtxo)
+      }
+    } finally {
+      await iter.close()
+    }
+    return out
+  }
+
+  getCFilterCursor = async (network: Network): Promise<number | null> => {
+    try {
+      const buf = await this.db.get(cfilterCursorKey(network))
+      if (buf == null) return null
+      const parsed = JSON.parse(Buffer.from(buf).toString('utf8')) as { height: number }
+      return parsed.height
+    } catch (err) {
+      if ((err as { code?: string }).code === 'LEVEL_NOT_FOUND') return null
+      throw err
+    }
+  }
+
+  setCFilterCursor = async (network: Network, height: number): Promise<void> => {
+    await this.db.put(cfilterCursorKey(network), encodeJson({height}))
   }
 }
 

@@ -6,15 +6,30 @@ export interface SpvStartMessage {
   chainDbPath: string
   startHeight: number
   startHash: string | null
+  watchAddresses: string[]
+  birthdayHeight?: number
 }
 
 export interface SpvStopMessage {
   type: 'stop'
 }
 
-export type SpvCommand = SpvStartMessage | SpvStopMessage
+export interface SpvAddWatchAddressesMessage {
+  type: 'addWatchAddresses'
+  network: Network
+  addresses: string[]
+}
 
-export type SpvPhase = 'idle' | 'connecting' | 'syncing-headers' | 'synced' | 'stopped'
+export type SpvCommand = SpvStartMessage | SpvStopMessage | SpvAddWatchAddressesMessage
+
+export type SpvPhase =
+  | 'idle'
+  | 'connecting'
+  | 'syncing-headers'
+  | 'synced-headers'
+  | 'syncing-cfilters'
+  | 'synced'
+  | 'stopped'
 
 export interface SpvStatus {
   phase: SpvPhase
@@ -22,7 +37,17 @@ export interface SpvStatus {
   tipHeight: number
   tipHash: string | null
   peerCount: number
+  cfilterHeight: number
+  utxoCount: number
   updatedAt: number
+}
+
+export interface SpvUtxoSummary {
+  txid: string
+  vout: number
+  satoshis: string
+  address: string
+  height: number
 }
 
 export interface SpvStatusMessage {
@@ -30,9 +55,14 @@ export interface SpvStatusMessage {
   status: SpvStatus
 }
 
+export interface SpvUtxosMessage {
+  type: 'utxos'
+  utxos: SpvUtxoSummary[]
+}
+
 export interface SpvErrorMessage {
   type: 'error'
   message: string
 }
 
-export type SpvEvent = SpvStatusMessage | SpvErrorMessage
+export type SpvEvent = SpvStatusMessage | SpvUtxosMessage | SpvErrorMessage
