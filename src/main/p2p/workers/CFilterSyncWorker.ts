@@ -1,22 +1,19 @@
-// Compact-filter (BIP 157/158) UTXO scan, ported from the dash-core-p2p
-// `wallet_sync_cfilters` example into our utility process. Phases:
+// Compact-filter (BIP 157/158) UTXO scan worker. Phases:
 //   1. cfcheckpt   anchor filter-header chain at every 1000-block boundary
-//   2. cfheaders   walk birthday→tip, derive each filter header locally, verify
-//                  vs. checkpoints
+//   2. cfheaders   walk birthday→tip, derive filter headers locally, verify
+//                  against checkpoints; persist to chain.db (network-shared)
 //   3. cfilters    pull GCS payloads, match watched scripts/outpoints, fetch
-//                  matched blocks, apply tx effects to the UTXO set
-// Persisted in chain.db: `u:<network>:<txid>:<vout>` UTXOs and a
-// `cfcursor:<network>` resume marker. Filter headers are re-derived per run.
+//                  matched blocks, apply tx effects to the per-wallet UTXO set
 //
-// Caveats inherited from the example: requires +CF peers, no reorg handling,
-// trusts header chain as already-authenticated by HeaderSync.
+// Persists to chain.db:
+//   - f:<height>           filter headers (network-scoped, reusable)
+//   - n:<height>           wire-byte block hashes (network-scoped)
+//   - u:<walletId>:…       UTXOs (per-wallet)
+//   - cfcursor:<walletId>  resume marker (per-wallet)
 
 import {
   CompactFilter,
   Inventory,
-  Messages,
-  NODE_COMPACT_FILTERS,
-  Pool,
   type CFCheckptArgs,
   type CFHeadersArgs,
   type CFilterArgs,
@@ -26,9 +23,12 @@ import {
 import {Block, utils as sdkUtils} from 'dash-core-sdk'
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
-import {Network} from '../src/types'
-import {ChainDAO, PersistedHeader, PersistedUtxo} from './ChainDAO'
-import {GENESIS_HASH} from './genesis'
+import {Network} from '../../src/types'
+import {PersistedHeader, PersistedUtxo} from '../ChainDAO'
+import {ChainStore} from '../ChainStore'
+import {PeerPool} from '../PeerPool'
+import {GENESIS_HASH} from '../genesis'
+import {Worker} from './Worker'
 
 const {doubleSHA256, hexToBytes, bytesToHex, addressToPublicKeyHash} = sdkUtils
 
@@ -40,8 +40,6 @@ const CFHEADERS_RACE_TIMEOUT_MS = 15_000
 const CFILTER_BATCH_TIMEOUT_MS = 15_000
 const BLOCK_REQUEST_TIMEOUT_MS = 15_000
 const MAX_INFLIGHT_BATCHES = 4
-// Dash Core silently drops getcf* whose stop_hash isn't in its active chain
-// (reorgs / peer lag), so cap stop hashes a fixed depth below the synced tip.
 const SCAN_TIP_DEPTH = 100
 
 export type CFilterPhase =
@@ -52,33 +50,26 @@ export type CFilterPhase =
   | 'synced'
   | 'stopped'
 
-export interface CFilterSyncStatus {
+export interface CFilterSyncWorkerStatus {
   phase: CFilterPhase
-  // Frontier of the cfheaders walk: highest height with a verified filter
-  // header. Lags chain tip during walk, equal afterward.
   cfheadersHeight: number
-  // Cursor of the cfilter scan: highest height whose cfilter has been
-  // matched against the watch set.
   cfilterScanHeight: number
   utxoCount: number
-  // Sum of utxo.satoshis as decimal string (bigint doesn't survive JSON).
   totalBalance: string
-  // Matched blocks awaiting fetch+apply.
   matchedBlocksPending: number
   peerCount: number
   filterCapablePeerCount: number
 }
 
-export interface CFilterSyncOptions {
+export interface CFilterSyncWorkerOptions {
   network: Network
   walletId: string
-  chainDAO: ChainDAO
+  chainStore: ChainStore
+  peerPool: PeerPool
   chainTipHeight: number
   chainTipHashDisplayHex: string
   watchAddresses: string[]
   birthdayHeight: number
-  emitStatus: (status: CFilterSyncStatus) => void
-  emitUtxos: (utxos: PersistedUtxo[]) => void
 }
 
 interface CFilterBatch {
@@ -86,6 +77,13 @@ interface CFilterBatch {
   stopHeight: number
   stopHashWire: Uint8Array
   remaining: Set<number>
+  timer: ReturnType<typeof setTimeout> | null
+}
+
+interface BlockRequest {
+  hashWire: Uint8Array
+  height: number
+  triedPeers: Set<Peer>
   timer: ReturnType<typeof setTimeout> | null
 }
 
@@ -101,6 +99,7 @@ function wireToDisplayHex(wire: Uint8Array): string {
 
 function x11Wire(raw: Uint8Array): Uint8Array {
   const buf = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new Uint8Array((x11 as any).digest(buf, 1, 1) as number[])
 }
 
@@ -129,30 +128,25 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
-export class CFilterSync {
+export class CFilterSyncWorker extends Worker {
+  readonly name = 'CFilterSyncWorker'
+
   private network: Network
   private walletId: string
-  private chainDAO: ChainDAO
-  private emitStatusCb: (status: CFilterSyncStatus) => void
-  private emitUtxosCb: (utxos: PersistedUtxo[]) => void
+  private chainStore: ChainStore
+  private peerPool: PeerPool
 
   private chainTipHeight: number
   private chainTipWire: Uint8Array
   private birthdayHeight: number
 
-  private pool: Pool
-  private messages: Messages
-  private M: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly M: any
 
   private phase: CFilterPhase = 'connecting'
   private stopped = false
-
-  private peerServices = new WeakMap<Peer, bigint>()
-  private filterCapablePeers = new Set<Peer>()
-  private readyPeers = new Set<Peer>()
   private leader: Peer | null = null
 
-  // Wire-byte chain index built lazily from ChainDAO at start.
   private heightToBlockHash = new Map<number, Uint8Array>()
   private wireHexToHeight = new Map<string, number>()
   private heightToFilterHeader = new Map<number, Uint8Array>()
@@ -162,12 +156,10 @@ export class CFilterSync {
   private watchedItems: Uint8Array[] = []
   private watchedAddressSet = new Set<string>()
 
-  // cfcheckpt race state
   private cfcheckptResponded = false
   private cfcheckptRaceTimer: ReturnType<typeof setTimeout> | null = null
   private cfcheckptTriedPeers = new Set<Peer>()
 
-  // cfheaders walk state
   private cfHeadersWalkStart = 0
   private pendingCFHeaders = new Map<number, {
     startHeight: number
@@ -175,31 +167,32 @@ export class CFilterSync {
     raceTimer: ReturnType<typeof setTimeout> | null
   }>()
 
-  // cfilter scan state
   private cfilterCursor = 0
   private inflightBatches = new Map<number, CFilterBatch>()
-  // Each in-flight block request remembers the wire-bytes hash, the height
-  // (for logging), the peer we asked, and a retry timer. If the peer doesn't
-  // deliver within BLOCK_REQUEST_TIMEOUT_MS we re-ask a different one — a
-  // single unresponsive leader otherwise freezes maybeDrainAndFinish.
-  private blockRequestsInflight = new Map<string, {
-    hashWire: Uint8Array
-    height: number
-    triedPeers: Set<Peer>
-    timer: ReturnType<typeof setTimeout> | null
-  }>()
+  private blockRequestsInflight = new Map<string, BlockRequest>()
   private matchedBlocks = new Map<number, Block>()
 
-  // UTXO state — keyed `${txid}:${vout}`. Mirrors persisted state in chain.db.
   private utxos = new Map<string, PersistedUtxo>()
   private seenOwnOutpoints = new Set<string>()
 
-  constructor(opts: CFilterSyncOptions) {
+  // Bound listener references — kept as fields so stop() can detach.
+  private onPeerReady = (peer: Peer): void => this.handlePeerReady(peer)
+  private onPeerDisconnect = (peer: Peer): void => this.handlePeerDisconnect(peer)
+  private onPeerCheckpt = (peer: Peer, msg: Message): void =>
+    this.onCheckpoints(msg as Message & CFCheckptArgs, peer)
+  private onPeerCFHeaders = (peer: Peer, msg: Message): void =>
+    this.onCFHeaders(msg as Message & CFHeadersArgs, peer)
+  private onPeerCFilter = (_peer: Peer, msg: Message): void =>
+    this.onCFilter(msg as Message & CFilterArgs)
+  private onPeerBlock = (peer: Peer, msg: Message & { block?: unknown }): void =>
+    this.handlePeerBlock(peer, msg)
+
+  constructor(opts: CFilterSyncWorkerOptions) {
+    super()
     this.network = opts.network
     this.walletId = opts.walletId
-    this.chainDAO = opts.chainDAO
-    this.emitStatusCb = opts.emitStatus
-    this.emitUtxosCb = opts.emitUtxos
+    this.chainStore = opts.chainStore
+    this.peerPool = opts.peerPool
     this.chainTipHeight = opts.chainTipHeight
     this.chainTipWire = displayHexToWire(opts.chainTipHashDisplayHex)
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
@@ -209,52 +202,36 @@ export class CFilterSync {
       this.watchedItems.push(p2pkhScript(a))
     }
 
-    this.messages = new Messages({network: this.network} as any)
-    this.M = this.messages
-    this.pool = new Pool({
-      network: this.network,
-      maxSize: 256,
-      relay: false,
-      messages: this.messages,
-      dnsSeed: true,
-    } as any)
-
-    this.bindHandlers()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.M = this.peerPool.messages as any
   }
 
   start = async (): Promise<void> => {
-    // Restore prior progress: if we've scanned past the birthday in a previous
-    // run, resume from the cursor. Already-persisted UTXOs are loaded so the
-    // first emission to the renderer reflects on-disk state immediately.
-    const cursor = await this.chainDAO.getCFilterCursor(this.walletId)
-    const persistedUtxos = await this.chainDAO.getAllUtxos(this.walletId)
+    // Restore prior progress (per-wallet state).
+    const cursor = await this.chainStore.getCFilterCursor(this.walletId)
+    const persistedUtxos = await this.chainStore.getAllUtxos(this.walletId)
     for (const u of persistedUtxos) {
       const k = `${u.txid}:${u.vout}`
       this.utxos.set(k, u)
       this.seenOwnOutpoints.add(k)
       this.watchedItems.push(bip158Outpoint(u.txid, u.vout))
     }
-    if (persistedUtxos.length > 0) this.emitUtxosCb(persistedUtxos)
+    if (persistedUtxos.length > 0) this.emit('utxos', persistedUtxos)
 
     const resumeHeight = cursor != null ? Math.max(this.birthdayHeight, cursor + 1) : this.birthdayHeight
     this.cfilterCursor = resumeHeight
 
-    await this.buildChainIndex(resumeHeight)
+    await this.buildChainIndex()
 
-    // Seed the initial chain anchor (genesis at height 1) into the index.
-    // HeaderSync starts WITH this header as its tip and only persists headers
-    // received afterward, so it's not in chain.db. Without this, cfilter
-    // responses for block 1 can't be mapped to a height and the batch
-    // covering height 1 stays stuck forever (mirrors the example's seed at
-    // INITIAL_TIP_HEIGHT/HASH).
+    // Seed genesis (height 1) into the index — HeaderSync starts WITH this
+    // header as its tip and only persists subsequent ones, so it's not in
+    // chain.db.
     const genesisWire = displayHexToWire(GENESIS_HASH[this.network])
     this.heightToBlockHash.set(1, genesisWire)
     this.wireHexToHeight.set(bytesToHex(genesisWire), 1)
 
-    // Load cached filter headers — network-scoped, populated by previous runs
-    // (possibly under different wallets). Cross-validated against cfcheckpt
-    // before use. Anything past the validated point is re-walked.
-    const cachedFilterHeaders = await this.chainDAO.iterateFilterHeadersInRange(1, this.chainTipHeight)
+    // Network-shared filter-header cache.
+    const cachedFilterHeaders = await this.chainStore.iterateFilterHeadersInRange(1, this.chainTipHeight)
     for (const {height, header} of cachedFilterHeaders) {
       this.heightToFilterHeader.set(height, header)
     }
@@ -262,22 +239,35 @@ export class CFilterSync {
       console.log(`[cfilter] loaded ${cachedFilterHeaders.length} filter headers from cache`)
     }
 
-    this.emit('connecting')
-    this.pool.connect()
+    // Subscribe to peer events from the shared pool.
+    this.peerPool.on('peerready', this.onPeerReady)
+    this.peerPool.on('peerdisconnect', this.onPeerDisconnect)
+    this.peerPool.on('peercfcheckpt', this.onPeerCheckpt)
+    this.peerPool.on('peercfheaders', this.onPeerCFHeaders)
+    this.peerPool.on('peercfilter', this.onPeerCFilter)
+    this.peerPool.on('peerblock', this.onPeerBlock)
+
+    this.emitStatus('connecting')
+
+    // Already-ready filter-capable peers? Kick off cfcheckpt now.
+    if (this.peerPool.filterCapablePeers.size > 0) this.requestCheckpoints()
   }
 
   stop = (): void => {
     if (this.stopped) return
     this.stopped = true
     this.clearTimers()
-    try { this.pool.disconnect() } catch { /* ignore */ }
+    this.peerPool.off('peerready', this.onPeerReady)
+    this.peerPool.off('peerdisconnect', this.onPeerDisconnect)
+    this.peerPool.off('peercfcheckpt', this.onPeerCheckpt)
+    this.peerPool.off('peercfheaders', this.onPeerCFHeaders)
+    this.peerPool.off('peercfilter', this.onPeerCFilter)
+    this.peerPool.off('peerblock', this.onPeerBlock)
     this.phase = 'stopped'
-    this.emit('stopped')
+    this.emitStatus('stopped')
   }
 
-  // Called by HeaderSync after each persisted tip extension. We update the
-  // in-memory chain index and, if the initial scan is finished, pump cfilters
-  // for any heights that just buried past SCAN_TIP_DEPTH.
+  // Called by the Orchestrator when HeaderSyncWorker emits 'chainExtended'.
   onChainExtended = (headers: PersistedHeader[]): void => {
     if (this.stopped || headers.length === 0) return
     for (const h of headers) {
@@ -290,20 +280,16 @@ export class CFilterSync {
       this.chainTipHeight = last.height
       this.chainTipWire = displayHexToWire(last.hash)
     }
-    // Initial sync isn't done — earlier phases will pick up the new tip when
-    // they progress naturally.
     if (this.phase !== 'synced' && this.phase !== 'cfilters') return
     if (this.cfilterCursor <= this.effectiveScanTipHeight()) {
-      // Re-enter the scanning phase so status reflects the live work.
-      if (this.phase === 'synced') this.emit('cfilters')
+      if (this.phase === 'synced') this.emitStatus('cfilters')
       this.phase = 'cfilters'
       this.pumpCFilters()
     }
   }
 
-  // Hot-add of newly created wallet addresses. Existing UTXOs stay; we rewind
-  // the cfilter cursor to birthday so the new addresses get matched against
-  // historical filters. cfheaders are reused from cache when available.
+  // Hot-add of newly created wallet addresses. Cursor is rewound to birthday
+  // so historical filters are re-matched against the new addresses.
   addWatchAddresses = (addresses: string[]): void => {
     if (this.stopped) return
     let added = 0
@@ -316,8 +302,6 @@ export class CFilterSync {
     if (added === 0) return
     console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); re-scanning from birthday`)
 
-    // Cancel in-flight cfilter batches — they're scanning with the old watch
-    // set, and re-issuing covers the same range with the new one anyway.
     for (const b of this.inflightBatches.values()) {
       if (b.timer) clearTimeout(b.timer)
     }
@@ -326,17 +310,35 @@ export class CFilterSync {
     this.cfilterCursor = this.birthdayHeight
 
     if (this.phase === 'cfheaders' || this.phase === 'cfcheckpt' || this.phase === 'connecting') {
-      // The walking phases will hit cfilters naturally; nothing to do.
       return
     }
     if (this.heightToFilterHeader.size === 0) {
-      // We never finished cfheaders; restart from checkpoints.
       this.requestCheckpoints()
       return
     }
     this.phase = 'cfilters'
-    this.emit('cfilters')
+    this.emitStatus('cfilters')
     this.pumpCFilters()
+  }
+
+  // ── status ────────────────────────────────────────────────────────────────
+
+  private emitStatus(phase: CFilterPhase): void {
+    this.phase = phase
+    let totalBalance = 0n
+    for (const u of this.utxos.values()) totalBalance += BigInt(u.satoshis)
+    const matchedBlocksPending = this.matchedBlocks.size + this.blockRequestsInflight.size
+    const status: CFilterSyncWorkerStatus = {
+      phase,
+      cfheadersHeight: Math.max(0, this.cfHeadersWalkStart - 1),
+      cfilterScanHeight: Math.max(0, this.cfilterCursor - 1),
+      utxoCount: this.utxos.size,
+      totalBalance: totalBalance.toString(),
+      matchedBlocksPending,
+      peerCount: this.peerPool.readyPeers.size,
+      filterCapablePeerCount: this.peerPool.filterCapablePeers.size,
+    }
+    this.emit('status', status)
   }
 
   private clearTimers(): void {
@@ -356,42 +358,18 @@ export class CFilterSync {
     this.blockRequestsInflight.clear()
   }
 
-  private emit(phase: CFilterPhase): void {
-    this.phase = phase
-    let totalBalance = 0n
-    for (const u of this.utxos.values()) totalBalance += BigInt(u.satoshis)
-    const matchedBlocksPending = this.matchedBlocks.size + this.blockRequestsInflight.size
-    this.emitStatusCb({
-      phase,
-      cfheadersHeight: Math.max(0, this.cfHeadersWalkStart - 1),
-      cfilterScanHeight: Math.max(0, this.cfilterCursor - 1),
-      utxoCount: this.utxos.size,
-      totalBalance: totalBalance.toString(),
-      matchedBlocksPending,
-      peerCount: this.readyPeers.size,
-      filterCapablePeerCount: this.filterCapablePeers.size,
-    })
-  }
+  // ── chain index ───────────────────────────────────────────────────────────
 
-  // Build the height ↔ wire-hash maps from persisted headers. We need both
-  // directions: cfilter responses identify blocks by hash, cfheader requests
-  // identify them by stop-height.
-  private async buildChainIndex(_resumeHeight: number): Promise<void> {
-    // Always cover the whole chain from genesis to tip. The narrow
-    // [resumeHeight-1, tip] window is tempting but breaks two things:
-    //   1. cfcheckpt's stop-hash sits at floor((tip-100)/1000)*1000, well
-    //      below cursor — no hash → request never sent.
-    //   2. addWatchAddresses resets the cursor to birthday for re-scan, so
-    //      cfilter scan suddenly needs hashes for the full chain.
-    // With the n: hash cache the full load is a fast LevelDB range scan,
-    // so the optimization isn't worth the resume hazards.
+  private async buildChainIndex(): Promise<void> {
+    // Always cover the full chain (1..chainTip). Optimizing to a narrow
+    // resume window breaks cfcheckpt's stop-hash lookup and addWatchAddresses
+    // re-scan from birthday. The n: cache makes this a fast range scan.
     const from = 1
     const to = this.chainTipHeight
     const expected = to - from + 1
     console.log(`[cfilter] building chain index ${from}..${to}`)
 
-    // Fast path: hashes were persisted on prior runs. No x11 needed.
-    const cached = await this.chainDAO.iterateHashesInRange(from, to)
+    const cached = await this.chainStore.iterateHashesInRange(from, to)
     if (cached.length === expected) {
       for (const {height, wire} of cached) {
         this.heightToBlockHash.set(height, wire)
@@ -402,14 +380,13 @@ export class CFilterSync {
       return
     }
 
-    // Fallback / one-time backfill: chain.db predates the n: keyspace, or has
-    // gaps. x11 every missing header and persist the hash so next launch hits
-    // the fast path. Existing cached hashes are reused.
+    // Fallback: x11 + backfill. One-time cost on chain.db that predates the
+    // n: keyspace.
     console.log(`[cfilter] no hash cache (${cached.length}/${expected}); hashing + backfilling`)
     const cachedByHeight = new Map<number, Uint8Array>()
     for (const {height, wire} of cached) cachedByHeight.set(height, wire)
 
-    const headers = await this.chainDAO.iterateHeadersInRange(from, to)
+    const headers = await this.chainStore.iterateHeadersInRange(from, to)
     let processed = 0
     let backfill: Array<{height: number; wire: Uint8Array}> = []
     for (const {height, raw} of headers) {
@@ -418,18 +395,16 @@ export class CFilterSync {
       this.wireHexToHeight.set(bytesToHex(wire), height)
       if (!cachedByHeight.has(height)) backfill.push({height, wire})
       processed++
-      // Flush backfill chunks + yield the event loop so console.log flushes
-      // and incoming peer messages get processed during the rebuild.
       if (processed % 50_000 === 0) {
         console.log(`[cfilter] chain index ${processed}/${headers.length}`)
         if (backfill.length > 0) {
-          await this.chainDAO.writeBackfillHashes(backfill)
+          await this.chainStore.writeBackfillHashes(backfill)
           backfill = []
         }
         await new Promise(resolve => setImmediate(resolve))
       }
     }
-    if (backfill.length > 0) await this.chainDAO.writeBackfillHashes(backfill)
+    if (backfill.length > 0) await this.chainStore.writeBackfillHashes(backfill)
     console.log(`[cfilter] chain index built (${processed} entries, hashes cached)`)
     this.ensureTipInIndex()
   }
@@ -441,10 +416,6 @@ export class CFilterSync {
     }
   }
 
-  private peerServesFilters(peer: Peer): boolean {
-    return this.filterCapablePeers.has(peer)
-  }
-
   private effectiveScanTipHeight(): number {
     return Math.max(this.birthdayHeight, this.chainTipHeight - SCAN_TIP_DEPTH)
   }
@@ -453,81 +424,51 @@ export class CFilterSync {
     return Math.floor(this.effectiveScanTipHeight() / 1000) * 1000
   }
 
-  private bindHandlers(): void {
-    this.pool.on('peerversion', (peer: Peer, message: Message & { services?: bigint }) => {
-      const services = message.services ?? 0n
-      this.peerServices.set(peer, services)
-      if ((services & BigInt(NODE_COMPACT_FILTERS)) !== 0n) {
-        this.filterCapablePeers.add(peer)
-      }
-    })
+  // ── peer event handlers ───────────────────────────────────────────────────
 
-    this.pool.on('peerready', (peer: Peer) => {
-      if (this.stopped) return
-      this.readyPeers.add(peer)
-      const cf = this.peerServesFilters(peer) ? '+CF' : '-CF'
-      console.log(`[cfilter] peerready ${peer.host}:${peer.port} ${cf} ready=${this.readyPeers.size}`)
-      if (this.phase === 'connecting' && this.filterCapablePeers.size > 0) {
-        this.requestCheckpoints()
-      }
-    })
+  private handlePeerReady(peer: Peer): void {
+    if (this.stopped) return
+    const cf = this.peerPool.filterCapablePeers.has(peer) ? '+CF' : '-CF'
+    console.log(`[cfilter] peerready ${peer.host}:${peer.port} ${cf} ready=${this.peerPool.readyPeers.size}`)
+    if (this.phase === 'connecting' && this.peerPool.filterCapablePeers.size > 0) {
+      this.requestCheckpoints()
+    }
+  }
 
-    this.pool.on('peerdisconnect', (peer: Peer) => {
-      this.readyPeers.delete(peer)
-      this.filterCapablePeers.delete(peer)
-      if (peer === this.leader) {
-        this.leader = null
-        if (this.phase === 'cfcheckpt') this.requestCheckpoints()
-      }
-    })
+  private handlePeerDisconnect(peer: Peer): void {
+    if (peer === this.leader) {
+      this.leader = null
+      if (this.phase === 'cfcheckpt') this.requestCheckpoints()
+    }
+  }
 
-    this.pool.on('peercfcheckpt', (peer: Peer, message: Message & CFCheckptArgs) => {
-      if (this.stopped) return
-      this.onCheckpoints(message, peer)
-    })
-
-    this.pool.on('peercfheaders', (peer: Peer, message: Message & CFHeadersArgs) => {
-      if (this.stopped) return
-      this.onCFHeaders(message, peer)
-    })
-
-    this.pool.on('peercfilter', (_peer: Peer, message: Message & CFilterArgs) => {
-      if (this.stopped) return
-      this.onCFilter(message)
-    })
-
-    this.pool.on('peerblock', (peer: Peer, message: Message & { block?: Block }) => {
-      if (this.stopped) return
-      const block = message.block
-      if (!block) {
-        console.warn(`[cfilter] peerblock from ${peer.host} missing block payload`)
-        return
-      }
-      const blockHashHex = block.hash()
-      const blockHashWire = displayHexToWire(blockHashHex)
-      const key = bytesToHex(blockHashWire)
-      const height = this.wireHexToHeight.get(key) ?? -1
-      const pending = this.blockRequestsInflight.get(key)
-      if (pending) {
-        if (pending.timer) clearTimeout(pending.timer)
-        this.blockRequestsInflight.delete(key)
-      }
-      if (height < 0) {
-        console.warn(`[cfilter] peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
-        return
-      }
-      console.log(`[cfilter] peerblock h=${height} from ${peer.host}  inflight-blocks=${this.blockRequestsInflight.size}`)
-      if (this.phase === 'cfilters') {
-        this.matchedBlocks.set(height, block)
-        this.maybeDrainAndFinish().catch(err => console.error('[cfilter] drain failed:', err))
-      } else {
-        this.applyBlock(block, height).catch(err => console.error('[cfilter] applyBlock failed:', err))
-      }
-    })
-
-    this.pool.on('seederror', (err: Error) => {
-      console.error('[cfilter] seed error:', err.message)
-    })
+  private handlePeerBlock(peer: Peer, message: Message & { block?: unknown }): void {
+    if (this.stopped) return
+    const block = message.block as Block | undefined
+    if (!block) {
+      console.warn(`[cfilter] peerblock from ${peer.host} missing block payload`)
+      return
+    }
+    const blockHashHex = block.hash()
+    const blockHashWire = displayHexToWire(blockHashHex)
+    const key = bytesToHex(blockHashWire)
+    const height = this.wireHexToHeight.get(key) ?? -1
+    const pending = this.blockRequestsInflight.get(key)
+    if (pending) {
+      if (pending.timer) clearTimeout(pending.timer)
+      this.blockRequestsInflight.delete(key)
+    }
+    if (height < 0) {
+      console.warn(`[cfilter] peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
+      return
+    }
+    console.log(`[cfilter] peerblock h=${height} from ${peer.host}  inflight-blocks=${this.blockRequestsInflight.size}`)
+    if (this.phase === 'cfilters') {
+      this.matchedBlocks.set(height, block)
+      this.maybeDrainAndFinish().catch(err => console.error('[cfilter] drain failed:', err))
+    } else {
+      this.applyBlock(block, height).catch(err => console.error('[cfilter] applyBlock failed:', err))
+    }
   }
 
   // ── cfcheckpt ──────────────────────────────────────────────────────────────
@@ -542,17 +483,17 @@ export class CFilterSync {
       console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
       return
     }
-    let candidates = [...this.filterCapablePeers].filter(p => !this.cfcheckptTriedPeers.has(p))
+    let candidates = [...this.peerPool.filterCapablePeers].filter(p => !this.cfcheckptTriedPeers.has(p))
     if (candidates.length === 0) {
       this.cfcheckptTriedPeers.clear()
-      candidates = [...this.filterCapablePeers]
+      candidates = [...this.peerPool.filterCapablePeers]
     }
     if (candidates.length === 0) {
       console.warn('[cfilter] cfcheckpt: no +CF peers — waiting')
       return
     }
     const picks = candidates.slice(0, CFCHECKPT_RACE_PEERS)
-    console.log(`[cfilter] cfcheckpt stopHeight=${stopHeight} picks=${picks.length} pool=${this.filterCapablePeers.size}`)
+    console.log(`[cfilter] cfcheckpt stopHeight=${stopHeight} picks=${picks.length} pool=${this.peerPool.filterCapablePeers.size}`)
     const msg = this.M.GetCFCheckpt({filterType: FILTER_TYPE, stopHash: stopHashWire})
     for (const p of picks) {
       this.cfcheckptTriedPeers.add(p)
@@ -564,10 +505,11 @@ export class CFilterSync {
       console.warn('[cfilter] cfcheckpt timeout — rotating')
       this.requestCheckpoints()
     }, CFCHECKPT_RACE_TIMEOUT_MS)
-    this.emit('cfcheckpt')
+    this.emitStatus('cfcheckpt')
   }
 
   private onCheckpoints(msg: CFCheckptArgs, fromPeer: Peer): void {
+    if (this.stopped) return
     if (this.cfcheckptResponded) return
     this.cfcheckptResponded = true
     this.cfcheckptTriedPeers.clear()
@@ -582,10 +524,7 @@ export class CFilterSync {
       this.checkpointHeaders.set((i + 1) * 1000, headers[i]!)
     }
 
-    // Cross-validate any cached filter headers against the just-received
-    // checkpoints. If the cache contradicts a checkpoint, drop everything
-    // from that height onward — chain may have reorged or the cache is from
-    // a different fork. Without this we'd skip the walk and trust stale data.
+    // Cross-validate cached filter headers against checkpoints.
     let firstBadCheckpoint = Infinity
     for (const [ckptHeight, ckptHeader] of this.checkpointHeaders) {
       const cached = this.heightToFilterHeader.get(ckptHeight)
@@ -598,7 +537,7 @@ export class CFilterSync {
       for (const h of [...this.heightToFilterHeader.keys()]) {
         if (h >= firstBadCheckpoint) this.heightToFilterHeader.delete(h)
       }
-      this.chainDAO.deleteFilterHeadersFrom(firstBadCheckpoint).catch(err =>
+      this.chainStore.deleteFilterHeadersFrom(firstBadCheckpoint).catch(err =>
         console.error('[cfilter] failed to drop stale filter headers:', err)
       )
     }
@@ -622,9 +561,6 @@ export class CFilterSync {
     if (this.stopped) return
     const effectiveTip = this.effectiveScanTipHeight()
 
-    // Fast-forward past any windows we already have fully cached. Cache
-    // entries were either persisted by a previous run (any wallet on the
-    // same chain) or just cross-validated against cfcheckpt.
     while (this.cfHeadersWalkStart <= effectiveTip) {
       const startHeight = this.cfHeadersWalkStart
       const nextCkpt = (Math.floor((startHeight - 1) / 1000) + 1) * 1000
@@ -653,7 +589,7 @@ export class CFilterSync {
     }
     if (this.pendingCFHeaders.has(stopHeight)) return
 
-    const racers = [...this.filterCapablePeers]
+    const racers = [...this.peerPool.filterCapablePeers]
     if (racers.length === 0) {
       console.warn('[cfilter] cfheaders: no +CF peers — waiting')
       return
@@ -671,6 +607,7 @@ export class CFilterSync {
   }
 
   private onCFHeaders(msg: CFHeadersArgs, fromPeer: Peer): void {
+    if (this.stopped) return
     const stopHashWire = msg.stopHash ?? new Uint8Array(32)
     const stopHeight = this.wireHexToHeight.get(bytesToHex(stopHashWire)) ?? -1
     const pending = stopHeight >= 0 ? this.pendingCFHeaders.get(stopHeight) : undefined
@@ -692,9 +629,6 @@ export class CFilterSync {
       console.warn(`[cfilter] cfheaders prev mismatch at h=${pending.startHeight - 1}`)
       return
     }
-    // Derive headers into a buffer first; only commit to the in-memory map
-    // and persist after the checkpoint validation passes. Otherwise a
-    // dishonest peer's hashes would leak into our cache.
     const derived: Array<{ height: number; header: Uint8Array }> = []
     for (let i = 0; i < filterHashes.length; i++) {
       const concat = new Uint8Array(64)
@@ -710,10 +644,8 @@ export class CFilterSync {
       return
     }
 
-    // Validation passed. Commit and persist for reuse on next launch / by
-    // other wallets on this chain.
     for (const e of derived) this.heightToFilterHeader.set(e.height, e.header)
-    this.chainDAO.writeFilterHeaders(derived).catch(err =>
+    this.chainStore.writeFilterHeaders(derived).catch(err =>
       console.error('[cfilter] failed to persist filter headers:', err)
     )
 
@@ -729,12 +661,12 @@ export class CFilterSync {
     this.phase = 'cfilters'
     this.cfilterCursor = Math.max(this.birthdayHeight, this.cfilterCursor, this.anchorHeight + 1)
     console.log(`[cfilter] scanning ${this.cfilterCursor}..${this.effectiveScanTipHeight()}`)
-    this.emit('cfilters')
+    this.emitStatus('cfilters')
     this.pumpCFilters()
   }
 
   private dispatchCFilterBatch(batch: CFilterBatch): void {
-    const racers = [...this.filterCapablePeers]
+    const racers = [...this.peerPool.filterCapablePeers]
     if (racers.length === 0) return
     const msg = this.M.GetCFilters({
       filterType: FILTER_TYPE,
@@ -790,11 +722,12 @@ export class CFilterSync {
       await this.applyBlock(this.matchedBlocks.get(h)!, h)
     }
     this.matchedBlocks.clear()
-    await this.chainDAO.setCFilterCursor(this.walletId, this.effectiveScanTipHeight())
+    await this.chainStore.setCFilterCursor(this.walletId, this.effectiveScanTipHeight())
     this.finishScan()
   }
 
   private onCFilter(msg: CFilterArgs): void {
+    if (this.stopped) return
     const blockHashWire = msg.blockHash ?? new Uint8Array(32)
     const height = this.wireHexToHeight.get(bytesToHex(blockHashWire)) ?? -1
     if (height < 0) return
@@ -818,8 +751,7 @@ export class CFilterSync {
         console.log(`[cfilters] batch ${owner.startHeight}..${owner.stopHeight} done  inflight-batches=${this.inflightBatches.size}`)
       }
       if (this.phase === 'cfilters') {
-        // Surface scan progress to the renderer once per completed batch.
-        this.emit('cfilters')
+        this.emitStatus('cfilters')
         this.pumpCFilters()
       }
     }
@@ -830,12 +762,7 @@ export class CFilterSync {
     if (this.blockRequestsInflight.has(key)) return
     const target = this.pickBlockPeer(new Set())
     if (!target) return
-    const entry: {
-      hashWire: Uint8Array
-      height: number
-      triedPeers: Set<Peer>
-      timer: ReturnType<typeof setTimeout> | null
-    } = {
+    const entry: BlockRequest = {
       hashWire: blockHashWire,
       height,
       triedPeers: new Set([target]),
@@ -847,28 +774,19 @@ export class CFilterSync {
   }
 
   private pickBlockPeer(exclude: Set<Peer>): Peer | undefined {
-    for (const p of this.readyPeers) {
+    for (const p of this.peerPool.readyPeers) {
       if (!exclude.has(p)) return p
     }
     return undefined
   }
 
-  private armBlockRequestTimer(
-    key: string,
-    entry: NonNullable<ReturnType<Map<string, {
-      hashWire: Uint8Array
-      height: number
-      triedPeers: Set<Peer>
-      timer: ReturnType<typeof setTimeout> | null
-    }>['get']>>,
-  ): void {
+  private armBlockRequestTimer(key: string, entry: BlockRequest): void {
     if (entry.timer) clearTimeout(entry.timer)
     entry.timer = setTimeout(() => {
       if (this.stopped) return
       if (!this.blockRequestsInflight.has(key)) return
       const next = this.pickBlockPeer(entry.triedPeers)
       if (!next) {
-        // Tried everyone; clear triedPeers and try again from any ready peer.
         entry.triedPeers.clear()
         const fallback = this.pickBlockPeer(entry.triedPeers)
         if (!fallback) return
@@ -919,15 +837,14 @@ export class CFilterSync {
         this.utxos.set(k, u)
         received.push(u)
         mutated = true
-        // From now on a spend of this output also matches the filter.
         this.watchedItems.push(bip158Outpoint(txid, vout))
         console.log(`[cfilter] received ${txid.slice(0, 16)}…:${vout} +${u.satoshis} h=${height} (${address})`)
       }
     }
 
     if (mutated) {
-      await this.chainDAO.applyBlockUtxos(this.walletId, spends, received, height)
-      this.emitUtxosCb([...this.utxos.values()])
+      await this.chainStore.applyBlockUtxos(this.walletId, spends, received, height)
+      this.emit('utxos', [...this.utxos.values()])
     }
   }
 
@@ -935,6 +852,6 @@ export class CFilterSync {
     if (this.stopped) return
     const balance = [...this.utxos.values()].reduce((s, u) => s + BigInt(u.satoshis), 0n)
     console.log(`[cfilter] scan complete utxos=${this.utxos.size} balance=${balance.toString()} sats`)
-    this.emit('synced')
+    this.emitStatus('synced')
   }
 }

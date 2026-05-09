@@ -4,19 +4,24 @@ import os from 'os'
 import {ChainStorageFilename, HomeFolderName} from '../constants'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
-import {SpvCommand, SpvEvent, SpvStatus, SpvUtxoSummary} from '../../spv/messages'
+import {P2PCommand, P2PEvent, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/messages'
 
+// Main-process facade for wallet sync. Forks the p2p utility process,
+// translates wallet-domain calls (startSync(walletId), addWatchAddresses,
+// getStatus, getUtxos) into the internal P2P protocol, and caches the
+// most recent status / UTXO snapshot for synchronous IPC reads.
+//
 // NOTE: Preferences-based checkpoint plumbing is temporarily detached. The
-// checkpoint is hardcoded in startSync below until the SPV path needs the
-// configurable trust anchor again — at which point pass `Preferences` back
-// in via the constructor and read `preferences.chain[network]`.
-export class SpvService {
+// checkpoint is hardcoded in startSync below until the wallet sync path
+// needs the configurable trust anchor again — at which point pass
+// `Preferences` back in via the constructor and read `preferences.chain[network]`.
+export class WalletSyncService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private child: UtilityProcess | null = null
-  private status: SpvStatus | null = null
+  private status: WalletSyncStatus | null = null
   private activeWalletId: string | null = null
-  private utxos: SpvUtxoSummary[] = []
+  private utxos: WalletSyncUtxo[] = []
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO) {
     this.walletDAO = walletDAO
@@ -26,22 +31,22 @@ export class SpvService {
   private ensureChild(): UtilityProcess {
     if (this.child) return this.child
 
-    const scriptPath = path.join(__dirname, 'spv.js')
-    const child = utilityProcess.fork(scriptPath, [], { serviceName: 'spv' })
+    const scriptPath = path.join(__dirname, 'p2p.js')
+    const child = utilityProcess.fork(scriptPath, [], { serviceName: 'p2p' })
 
-    child.on('message', (data: SpvEvent) => {
+    child.on('message', (data: P2PEvent) => {
       if (data.type === 'status') {
         this.status = data.status
       } else if (data.type === 'utxos') {
         this.utxos = data.utxos
       } else if (data.type === 'error') {
         console.log(data)
-        console.error('[spv] utility process error:', data.message)
+        console.error('[p2p] utility process error:', data.message)
       }
     })
 
     child.on('exit', code => {
-      console.log(`[spv] utility process exited code=${code}`)
+      console.log(`[p2p] utility process exited code=${code}`)
       this.child = null
       this.status = null
       this.activeWalletId = null
@@ -52,11 +57,11 @@ export class SpvService {
     return child
   }
 
-  private send(command: SpvCommand): void {
+  private send(command: P2PCommand): void {
     this.ensureChild().postMessage(command)
   }
 
-  startSync = async (walletId: string): Promise<SpvStatus | null> => {
+  startSync = async (walletId: string): Promise<WalletSyncStatus | null> => {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) {
       throw new Error(`Wallet ${walletId} not found`)
@@ -99,7 +104,7 @@ export class SpvService {
     this.utxos = []
   }
 
-  // Hot-add addresses to the live cfilter watch set. No-op when no SPV child
+  // Hot-add addresses to the live cfilter watch set. No-op when no p2p child
   // is running OR when the active sync is for a different wallet — the
   // utility process gates on walletId match.
   addWatchAddresses = (walletId: string, addresses: string[]): void => {
@@ -107,11 +112,11 @@ export class SpvService {
     this.send({ type: 'addWatchAddresses', walletId, addresses })
   }
 
-  getStatus = (): SpvStatus | null => {
+  getStatus = (): WalletSyncStatus | null => {
     return this.status
   }
 
-  getUtxos = (): SpvUtxoSummary[] => {
+  getUtxos = (): WalletSyncUtxo[] => {
     return this.utxos
   }
 

@@ -30,7 +30,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          spv: resolve('src/main/spv/index.ts'),
+          p2p: resolve('src/main/p2p/index.ts'),
         },
       },
     },

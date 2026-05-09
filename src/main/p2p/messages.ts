@@ -1,6 +1,10 @@
 import {Network} from '../src/types'
 
-export interface SpvStartMessage {
+// Internal protocol between main process and the p2p utility process.
+// Commands/envelopes are P2P-named (they describe the wire); the status
+// payload is WalletSync-named (it's the consumer-facing concept).
+
+export interface P2PStartMessage {
   type: 'start'
   network: Network
   walletId: string
@@ -11,19 +15,22 @@ export interface SpvStartMessage {
   birthdayHeight?: number
 }
 
-export interface SpvStopMessage {
+export interface P2PStopMessage {
   type: 'stop'
 }
 
-export interface SpvAddWatchAddressesMessage {
+export interface P2PAddWatchAddressesMessage {
   type: 'addWatchAddresses'
   walletId: string
   addresses: string[]
 }
 
-export type SpvCommand = SpvStartMessage | SpvStopMessage | SpvAddWatchAddressesMessage
+export type P2PCommand =
+  | P2PStartMessage
+  | P2PStopMessage
+  | P2PAddWatchAddressesMessage
 
-export type SpvPhase =
+export type WalletSyncPhase =
   | 'idle'
   | 'connecting'
   | 'syncing-headers'
@@ -34,8 +41,8 @@ export type SpvPhase =
   | 'synced'
   | 'stopped'
 
-export interface SpvStatus {
-  phase: SpvPhase
+export interface WalletSyncStatus {
+  phase: WalletSyncPhase
   network: Network | null
   walletId: string | null
 
@@ -73,7 +80,7 @@ export interface SpvStatus {
   updatedAt: number
 }
 
-export interface SpvUtxoSummary {
+export interface WalletSyncUtxo {
   txid: string
   vout: number
   satoshis: string
@@ -81,19 +88,19 @@ export interface SpvUtxoSummary {
   height: number
 }
 
-export interface SpvStatusMessage {
+export interface P2PStatusMessage {
   type: 'status'
-  status: SpvStatus
+  status: WalletSyncStatus
 }
 
-export interface SpvUtxosMessage {
+export interface P2PUtxosMessage {
   type: 'utxos'
-  utxos: SpvUtxoSummary[]
+  utxos: WalletSyncUtxo[]
 }
 
-export interface SpvErrorMessage {
+export interface P2PErrorMessage {
   type: 'error'
   message: string
 }
 
-export type SpvEvent = SpvStatusMessage | SpvUtxosMessage | SpvErrorMessage
+export type P2PEvent = P2PStatusMessage | P2PUtxosMessage | P2PErrorMessage
