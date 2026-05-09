@@ -28,19 +28,20 @@ import {PersistedHeader, PersistedUtxo} from '../ChainDAO'
 import {ChainStore} from '../ChainStore'
 import {PeerPool} from '../PeerPool'
 import {GENESIS_HASH} from '../genesis'
+import {
+  BLOCK_REQUEST_TIMEOUT_MS,
+  CFCHECKPT_RACE_PEERS,
+  CFCHECKPT_RACE_TIMEOUT_MS,
+  CFHEADERS_RACE_TIMEOUT_MS,
+  CFILTER_BATCH,
+  CFILTER_BATCH_TIMEOUT_MS,
+  FILTER_TYPE,
+  MAX_INFLIGHT_BATCHES,
+  SCAN_TIP_DEPTH,
+} from '../constants'
 import {Worker} from './Worker'
 
 const {doubleSHA256, hexToBytes, bytesToHex, addressToPublicKeyHash} = sdkUtils
-
-const FILTER_TYPE = 0
-const CFILTER_BATCH = 800
-const CFCHECKPT_RACE_PEERS = 12
-const CFCHECKPT_RACE_TIMEOUT_MS = 15_000
-const CFHEADERS_RACE_TIMEOUT_MS = 15_000
-const CFILTER_BATCH_TIMEOUT_MS = 15_000
-const BLOCK_REQUEST_TIMEOUT_MS = 15_000
-const MAX_INFLIGHT_BATCHES = 4
-const SCAN_TIP_DEPTH = 100
 
 export type CFilterPhase =
   | 'connecting'

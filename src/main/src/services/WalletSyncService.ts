@@ -5,6 +5,7 @@ import {ChainStorageFilename, HomeFolderName} from '../constants'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {P2PCommand, P2PEvent, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/messages'
+import {GENESIS} from '../../p2p/genesis'
 
 // Main-process facade for wallet sync. Forks the p2p utility process,
 // translates wallet-domain calls (startSync(walletId), addWatchAddresses,
@@ -19,7 +20,26 @@ export class WalletSyncService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private child: UtilityProcess | null = null
-  private status: WalletSyncStatus | null = null
+  // Always populated. Before the utility process is forked (and after it
+  // exits) we hold a 'stopped' snapshot — same shape the orchestrator emits
+  // on teardown — so the renderer never sees null.
+  private status: WalletSyncStatus = {
+    phase: 'stopped',
+    network: null,
+    walletId: null,
+    tipHeight: 0,
+    tipHash: null,
+    estimatedChainHeight: 0,
+    cfheadersHeight: 0,
+    cfilterScanHeight: 0,
+    matchedBlocksPending: 0,
+    utxoCount: 0,
+    totalBalance: '0',
+    peerCount: 0,
+    filterCapablePeerCount: 0,
+    lastError: null,
+    updatedAt: Date.now(),
+  }
   private activeWalletId: string | null = null
   private utxos: WalletSyncUtxo[] = []
 
@@ -48,7 +68,23 @@ export class WalletSyncService {
     child.on('exit', code => {
       console.log(`[p2p] utility process exited code=${code}`)
       this.child = null
-      this.status = null
+      this.status = {
+        phase: 'stopped',
+        network: null,
+        walletId: null,
+        tipHeight: 0,
+        tipHash: null,
+        estimatedChainHeight: 0,
+        cfheadersHeight: 0,
+        cfilterScanHeight: 0,
+        matchedBlocksPending: 0,
+        utxoCount: 0,
+        totalBalance: '0',
+        peerCount: 0,
+        filterCapablePeerCount: 0,
+        lastError: null,
+        updatedAt: Date.now(),
+      }
       this.activeWalletId = null
       this.utxos = []
     })
@@ -61,7 +97,7 @@ export class WalletSyncService {
     this.ensureChild().postMessage(command)
   }
 
-  startSync = async (walletId: string): Promise<WalletSyncStatus | null> => {
+  startSync = async (walletId: string): Promise<WalletSyncStatus> => {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) {
       throw new Error(`Wallet ${walletId} not found`)
@@ -80,14 +116,17 @@ export class WalletSyncService {
 
     this.activeWalletId = walletId
     this.utxos = []
-    // TODO: Checkpoints + per-wallet birthday height
+    // TODO: Checkpoints + per-wallet birthday height. For now we anchor at
+    // genesis for the wallet's network — header sync resumes from chain.db
+    // tip if it's higher.
+    const anchor = GENESIS[network]
     this.send({
       type: 'start',
       network,
       walletId,
       chainDbPath: path.join(os.homedir(), HomeFolderName, ChainStorageFilename),
-      startHeight: 1,
-      startHash: '0000047d24635e347be3aaaeb66c26be94901a2f962feccd4f95090191f208c1',
+      startHeight: anchor.height,
+      startHash: anchor.hash,
       watchAddresses,
       // birthdayHeight is intentionally undefined — defaults to genesis in the
       // utility process. Replace with a per-wallet birthday once the wallet
@@ -112,7 +151,7 @@ export class WalletSyncService {
     this.send({ type: 'addWatchAddresses', walletId, addresses })
   }
 
-  getStatus = (): WalletSyncStatus | null => {
+  getStatus = (): WalletSyncStatus => {
     return this.status
   }
 
@@ -124,7 +163,23 @@ export class WalletSyncService {
     if (this.child) {
       this.child.kill()
       this.child = null
-      this.status = null
+      this.status = {
+        phase: 'stopped',
+        network: null,
+        walletId: null,
+        tipHeight: 0,
+        tipHash: null,
+        estimatedChainHeight: 0,
+        cfheadersHeight: 0,
+        cfilterScanHeight: 0,
+        matchedBlocksPending: 0,
+        utxoCount: 0,
+        totalBalance: '0',
+        peerCount: 0,
+        filterCapablePeerCount: 0,
+        lastError: null,
+        updatedAt: Date.now(),
+      }
       this.activeWalletId = null
       this.utxos = []
     }

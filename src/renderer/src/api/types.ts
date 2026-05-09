@@ -51,7 +51,7 @@ export interface AppStatus {
   ready: boolean
   selectedWalletId: string | null
   network: Network | null
-  walletSync: WalletSyncStatus | null
+  walletSync: WalletSyncStatus
 }
 
 // getAllWallets

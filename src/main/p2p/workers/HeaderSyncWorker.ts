@@ -11,9 +11,7 @@ import {
   rawPrevHash,
 } from '../pow'
 import {Worker} from './Worker'
-
-const HEADER_SYNC_TIMEOUT_MS = 30_000
-const HEADER_RACE_PEERS = 12
+import {HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS} from '../constants'
 
 const INV_TYPE_NAMES: Record<number, string> = {
   0: 'ERROR', 1: 'TX', 2: 'BLOCK', 3: 'FILTERED_BLOCK',

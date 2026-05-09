@@ -9,11 +9,14 @@ import {Network} from "../types";
 // than exposed via a separate IPC so the renderer has a single poll
 // surface — when other status sources land (Platform sync, etc.) they'll
 // nest under here too.
+//
+// `walletSync` is always populated (phase === 'stopped' when no utility
+// process is running) — renderer never has to special-case null.
 export interface AppStatus {
   ready: boolean
   selectedWalletId: string | null
   network: Network | null
-  walletSync: WalletSyncStatus | null
+  walletSync: WalletSyncStatus
 }
 
 export class GetStatusHandler {

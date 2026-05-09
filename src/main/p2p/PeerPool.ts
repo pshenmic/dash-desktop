@@ -1,6 +1,7 @@
 import {EventEmitter} from 'events'
 import {Message, Messages, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../src/types'
+import {HEADER_RACE_PEERS, POOL_MAX_SIZE, POOL_REFILL_INTERVAL_MS} from './constants'
 
 // Shared peer pool for all workers in the utility process. Tracks ready
 // peers and the +CF subset; re-emits the dash-core-p2p Pool events through
@@ -10,10 +11,6 @@ import {Network} from '../src/types'
 // fights for the same peer addresses, doubles socket usage, and makes
 // peer-state coordination (which peers serve filters, who's the leader)
 // impossible. One pool, many subscribers.
-
-const POOL_MAX_SIZE = 256
-const REFILL_INTERVAL_MS = 5_000
-const HEADER_RACE_PEERS_HINT = 12
 
 export interface PeerPoolEventMap {
   peerconnect: (peer: Peer) => void
@@ -68,7 +65,7 @@ export class PeerPool extends EventEmitter {
     this.pool.connect()
     this.refillTimer = setInterval(() => {
       if (this.stopped) return
-      if (this.readyPeers.size < HEADER_RACE_PEERS_HINT) {
+      if (this.readyPeers.size < HEADER_RACE_PEERS) {
         const before = this.pool.numberConnected()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(this.pool as any)._fillConnections()
@@ -77,7 +74,7 @@ export class PeerPool extends EventEmitter {
           console.log(`[pool] refill connected=${before}->${after} ready=${this.readyPeers.size}`)
         }
       }
-    }, REFILL_INTERVAL_MS)
+    }, POOL_REFILL_INTERVAL_MS)
     this.refillTimer.unref?.()
   }
 
