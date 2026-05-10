@@ -66,10 +66,33 @@ export class TransactionDAO {
           .ignore()
       }
 
+      // Collect addresses to mark used. Receive side: outputs paying our
+      // watched addresses. Send side: previous outputs being spent here —
+      // SELECT each one's address right before flipping spent_in_txid so
+      // we don't have to re-issue the lookup.
+      const usedAddresses = new Set<string>()
+      for (const tx of block.txs) {
+        for (const o of tx.outputs) {
+          if (o.isMine && o.address) usedAddresses.add(o.address)
+        }
+      }
       for (const s of block.spends) {
+        const row = await trx('transaction_outputs')
+          .select('address')
+          .where({wallet_id: block.walletId, txid: s.prevTxid, vout: s.prevVout})
+          .first()
+        if (row?.address) usedAddresses.add(row.address as string)
         await trx('transaction_outputs')
           .where({wallet_id: block.walletId, txid: s.prevTxid, vout: s.prevVout})
           .update({spent_in_txid: s.spentInTxid, spent_at_height: block.height})
+      }
+      if (usedAddresses.size > 0) {
+        const updated = await trx('addresses')
+          .where('wallet_id', block.walletId)
+          .whereIn('address', [...usedAddresses])
+          .andWhere('is_used', false)
+          .update({is_used: true})
+        console.log(`[walletSync] marked ${updated} address(es) used at h=${block.height} (${usedAddresses.size} candidate(s))`)
       }
 
       await trx('wallet_sync_state')

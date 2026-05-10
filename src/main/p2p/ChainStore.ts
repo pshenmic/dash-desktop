@@ -1,13 +1,13 @@
 import {ChainDAO, ChainTipState, PersistedHeader} from './database/ChainDAO'
 import {Network} from '../src/types'
 
-// Single-owner facade over chain.db. All workers read/write chain state
+// Single-owner facade over chain storage. All workers read/write chain state
 // through this — never reach into ChainDAO directly.
 //
-// chain.db now holds ONLY network-scoped data (headers, hash cache, filter
+// chain storage now holds ONLY network-scoped data (headers, hash cache, filter
 // headers). Wallet-scoped state (UTXOs, transactions, cfilter cursor) lives
 // in the SQL database in the main process — see TransactionDAO. The split
-// keeps chain.db free of anything that needs to be encrypted under the
+// keeps chain storage free of anything that needs to be encrypted under the
 // user's key when SQLCipher lands.
 export class ChainStore {
   constructor(private readonly chainDAO: ChainDAO, readonly network: Network) {}

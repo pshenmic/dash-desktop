@@ -6,6 +6,7 @@ export type WalletAddressDto = {
   derivationPath: string
   index: number
   isChange: number
+  isUsed: boolean
   balance: bigint
   label: string | null
   usdBalance: string | null

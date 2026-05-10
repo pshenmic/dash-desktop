@@ -100,6 +100,7 @@ export class WalletService {
         derivationPath: `m/44'/${coinType}'/${accountId}'/0/${i}`,
         index: i,
         isChange: false,
+        isUsed: false,
         label: null
       })
     }
@@ -115,6 +116,7 @@ export class WalletService {
         derivationPath: `m/44'/${coinType}'/${accountId}'/1/${i}`,
         index: i,
         isChange: true,
+        isUsed: false,
         label: null
       })
     }

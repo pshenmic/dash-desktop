@@ -6,11 +6,13 @@ import knex, {Knex} from 'knex'
 import * as migration0000 from '../migrations/0000_init'
 import * as migration0001 from '../migrations/0001_identities'
 import * as migration0002 from '../migrations/0002_transactions'
+import * as migration0003 from '../migrations/0003_address_used'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
   { name: '0001_identities.ts', migration: migration0001 },
   { name: '0002_transactions.ts', migration: migration0002 },
+  { name: '0003_address_used.ts', migration: migration0003 },
 ]
 
 const inlineMigrationSource = {
