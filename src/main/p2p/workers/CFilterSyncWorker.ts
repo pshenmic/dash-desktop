@@ -24,7 +24,7 @@ import {
   type Message,
   type Peer,
 } from 'dash-core-p2p'
-import {Block, utils as sdkUtils} from 'dash-core-sdk'
+import {Block, OutPoint, Script, utils as sdkUtils} from 'dash-core-sdk'
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
 import {Network} from '../../src/types'
@@ -100,22 +100,13 @@ function x11Wire(raw: Uint8Array): Uint8Array {
 }
 
 function p2pkhScript(address: string): Uint8Array {
-  const hash160 = addressToPublicKeyHash(address)
-  const out = new Uint8Array(25)
-  out[0] = 0x76
-  out[1] = 0xa9
-  out[2] = 0x14
-  out.set(hash160, 3)
-  out[23] = 0x88
-  out[24] = 0xac
-  return out
-}
-
-function bip158Outpoint(txidDisplay: string, vout: number): Uint8Array {
-  const out = new Uint8Array(36)
-  out.set(displayHexToWire(txidDisplay), 0)
-  new DataView(out.buffer).setUint32(32, vout, true)
-  return out
+  const s = new Script()
+  s.pushOpCode('OP_DUP')
+  s.pushOpCode('OP_HASH160')
+  s.pushOpCode('OP_PUSHBYTES_20', addressToPublicKeyHash(address))
+  s.pushOpCode('OP_EQUALVERIFY')
+  s.pushOpCode('OP_CHECKSIG')
+  return s.bytes()
 }
 
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -235,7 +226,7 @@ export class CFilterSyncWorker extends Worker {
     // Restore prior per-wallet state from seed (sourced from SQL by main).
     for (const u of this.seedUtxos) {
       this.utxos.set(`${u.txid}:${u.vout}`, u)
-      this.watchedItems.push(bip158Outpoint(u.txid, u.vout))
+      this.watchedItems.push(new OutPoint(u.txid, u.vout).bytes())
     }
 
     this.cfilter.cursor = this.initialCfilterCursor != null
@@ -808,7 +799,7 @@ export class CFilterSyncWorker extends Worker {
         if (this.utxos.has(k)) continue
         const u: WalletSyncUtxo = {txid, vout, satoshis: output.satoshis.toString(), address: address!, height}
         this.utxos.set(k, u)
-        this.watchedItems.push(bip158Outpoint(txid, vout))
+        this.watchedItems.push(new OutPoint(txid, vout).bytes())
         isOurs = true
         console.log(`[cfilter] received ${txid.slice(0, 16)}…:${vout} +${u.satoshis} h=${height} (${address})`)
       }
