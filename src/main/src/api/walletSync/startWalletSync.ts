@@ -1,6 +1,6 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
 import {WalletSyncService} from '../../services/WalletSyncService'
-import {WalletSyncStatus} from '../../../p2p/types/walletSync'
+import {QueryStatus} from '../../types/QueryStatus'
 
 export class StartWalletSyncHandler {
   private walletSyncService: WalletSyncService
@@ -9,7 +9,7 @@ export class StartWalletSyncHandler {
     this.walletSyncService = walletSyncService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<WalletSyncStatus | null> => {
+  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<QueryStatus> => {
     return this.walletSyncService.startSync(walletId)
   }
 }

@@ -8,6 +8,7 @@ import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
 import {WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import {GENESIS} from '../../p2p/constants'
+import {QueryStatus} from '../types/QueryStatus'
 
 // Main-process facade for wallet sync. Forks the p2p utility process,
 // translates wallet-domain calls into the internal P2P protocol, and
@@ -98,10 +99,14 @@ export class WalletSyncService {
     this.ensureChild().postMessage(command)
   }
 
-  startSync = async (walletId: string): Promise<WalletSyncStatus> => {
+  // Returns ack only — phase progression streams via getStatus, not the
+  // return value. Returning a status snapshot here gave the renderer the
+  // stale 'stopped' state because the utility process hadn't yet emitted
+  // its 'connecting' update.
+  startSync = async (walletId: string): Promise<QueryStatus> => {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) {
-      throw new Error(`Wallet ${walletId} not found`)
+      return {success: false, errorMessage: `Wallet ${walletId} not found`}
     }
     const network = wallet.network as 'mainnet' | 'testnet'
 
@@ -133,7 +138,7 @@ export class WalletSyncService {
       // schema captures it.
     })
 
-    return this.status
+    return {success: true, errorMessage: null}
   }
 
   stopSync = (): void => {
