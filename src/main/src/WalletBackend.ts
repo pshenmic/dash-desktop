@@ -33,6 +33,7 @@ import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {WalletSyncService} from './services/WalletSyncService'
+import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
@@ -96,10 +97,11 @@ export class WalletBackend {
 
 
     this.applicationService = new ApplicationService()
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, dashPlatformSDK, calibratedIterations)
-    this.addressesService = new AddressesService(walletDAO, addressDAO)
     this.preferences = preferences
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+    const providerFactory = new WalletProviderFactory(preferences, transactionDAO, addressDAO)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, dashPlatformSDK, calibratedIterations, providerFactory)
+    this.addressesService = new AddressesService(walletDAO, addressDAO, providerFactory)
     this.addressDAO = addressDAO
 
     this.initHandlers()

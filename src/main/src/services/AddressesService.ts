@@ -1,15 +1,17 @@
 import {AddressDAO} from '../database/AddressDAO'
 import {GroupedAddresses} from "../types/GroupedAddresses";
 import {WalletDAO} from "../database/WalletDAO";
-import {InsightWalletProvider} from "../providers/InsightWalletProvider";
+import {WalletProviderFactory} from "../providers/WalletProviderFactory";
 
 export class AddressesService {
   private addressDAO: AddressDAO
   private walletDAO: WalletDAO
+  private providerFactory: WalletProviderFactory
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO) {
+  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, providerFactory: WalletProviderFactory) {
     this.addressDAO = addressDAO
     this.walletDAO = walletDAO
+    this.providerFactory = providerFactory
   }
 
   async getAddressesByWalletId(walletId: string): Promise<GroupedAddresses> {
@@ -21,7 +23,7 @@ export class AddressesService {
 
     const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
 
-    const provider = new InsightWalletProvider(wallet.network)
+    const provider = this.providerFactory.for(wallet.walletId, wallet.network)
 
     // TODO: add real usd balance
     const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({

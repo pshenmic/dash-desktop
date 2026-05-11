@@ -1,5 +1,6 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 
 // Re-exported so callers (services, future API handlers) can stay decoupled
 // from the p2p IPC types if/when the protocol drifts.
@@ -19,6 +20,7 @@ export class TransactionDAO {
       await this.advanceCursor(block.walletId, block.height)
       return
     }
+
     await this.knex.transaction(async trx => {
       const txRows = block.txs.map(t => ({
         wallet_id: block.walletId,
@@ -150,12 +152,225 @@ export class TransactionDAO {
       .where('o.wallet_id', walletId)
       .andWhere('o.is_mine', true)
       .whereNull('o.spent_in_txid')
-    return rows.map(r => ({
-      txid: r.txid,
-      vout: r.vout,
-      address: r.address as string,
-      satoshis: r.satoshis,
-      height: r.height,
+
+    return rows.map(row => ({
+      txid: row.txid,
+      vout: row.vout,
+      address: row.address as string,
+      satoshis: row.satoshis,
+      height: row.height,
     }))
   }
+
+  getUtxosByAddress = async (walletId: string, address: string): Promise<WalletSyncUtxo[]> => {
+    const rows = await this.knex('transaction_outputs as o')
+      .innerJoin('transactions as t', function() {
+        this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
+      })
+      .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height')
+      .where('o.wallet_id', walletId)
+      .andWhere('o.address', address)
+      .whereNull('o.spent_in_txid')
+
+    return rows.map(row => ({
+      txid: row.txid,
+      vout: row.vout,
+      address: row.address as string,
+      satoshis: row.satoshis,
+      height: row.height,
+    }))
+  }
+
+  getBalanceForAddresses = async (walletId: string, addresses: string[]): Promise<bigint> => {
+    if (addresses.length === 0) return 0n
+
+    const rows = await this.knex('transaction_outputs')
+      .select('satoshis')
+      .where('wallet_id', walletId)
+      .whereIn('address', addresses)
+      .whereNull('spent_in_txid')
+
+    return rows.reduce((sum: bigint, row: {satoshis: string}) => sum + BigInt(row.satoshis), 0n)
+  }
+
+  // Single SQL query: every (tx × output × input × prev-output) row for
+  // txs that touch `address` (received or spent from). Pivots in JS to
+  // one Transaction per txid before returning.
+  getTransactionsByAddress = async (walletId: string, address: string): Promise<Transaction[]> => {
+    const txidsForAddress = this.knex('transaction_outputs')
+      .select('txid')
+      .where({wallet_id: walletId, address})
+      .union(builder => builder
+        .select('spent_in_txid as txid')
+        .from('transaction_outputs')
+        .where({wallet_id: walletId, address})
+        .whereNotNull('spent_in_txid'))
+
+    const rows = await this.knex('transactions as t')
+      .leftJoin('transaction_outputs as o', function() {
+        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_inputs as i', function() {
+        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_outputs as prev', function() {
+        this.on('prev.wallet_id', '=', 't.wallet_id')
+          .andOn('prev.txid', '=', 'i.prev_txid')
+          .andOn('prev.vout', '=', 'i.prev_vout')
+      })
+      .select(
+        't.txid as t_txid',
+        't.block_height as t_block_height',
+        't.block_time as t_block_time',
+        this.knex.raw('length(t.raw) as t_size'),
+        'o.vout as o_vout',
+        'o.address as o_address',
+        'o.satoshis as o_satoshis',
+        'o.is_mine as o_is_mine',
+        'o.spent_in_txid as o_spent_in_txid',
+        'o.spent_at_height as o_spent_at_height',
+        'i.vin as i_vin',
+        'i.prev_txid as i_prev_txid',
+        'i.prev_vout as i_prev_vout',
+        'i.sequence as i_sequence',
+        'prev.address as i_prev_address',
+        'prev.satoshis as i_prev_satoshis',
+        'prev.is_mine as i_prev_is_mine',
+      )
+      .where('t.wallet_id', walletId)
+      .whereIn('t.txid', txidsForAddress)
+      .orderBy(['t.txid', 'o.vout', 'i.vin'])
+
+    return shapeRowsToTransactions(rows, walletId)
+  }
+
+  // Same JOIN as above, scoped to one txid. Returns undefined if the tx
+  // isn't recorded for this wallet.
+  getTransactionByTxid = async (walletId: string, txid: string): Promise<Transaction | undefined> => {
+    const rows = await this.knex('transactions as t')
+      .leftJoin('transaction_outputs as o', function() {
+        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_inputs as i', function() {
+        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_outputs as prev', function() {
+        this.on('prev.wallet_id', '=', 't.wallet_id')
+          .andOn('prev.txid', '=', 'i.prev_txid')
+          .andOn('prev.vout', '=', 'i.prev_vout')
+      })
+      .select(
+        't.txid as t_txid',
+        't.block_height as t_block_height',
+        't.block_time as t_block_time',
+        this.knex.raw('length(t.raw) as t_size'),
+        'o.vout as o_vout',
+        'o.address as o_address',
+        'o.satoshis as o_satoshis',
+        'o.is_mine as o_is_mine',
+        'o.spent_in_txid as o_spent_in_txid',
+        'o.spent_at_height as o_spent_at_height',
+        'i.vin as i_vin',
+        'i.prev_txid as i_prev_txid',
+        'i.prev_vout as i_prev_vout',
+        'i.sequence as i_sequence',
+        'prev.address as i_prev_address',
+        'prev.satoshis as i_prev_satoshis',
+        'prev.is_mine as i_prev_is_mine',
+      )
+      .where('t.wallet_id', walletId)
+      .andWhere('t.txid', txid)
+      .orderBy(['o.vout', 'i.vin'])
+
+    return shapeRowsToTransactions(rows, walletId)[0]
+  }
+}
+
+// Pivot the cartesian-product join rows (one per output × input combo
+// within each tx) into one Transaction per txid. Determines wallet-side
+// direction/amounts/primary address using the is_mine column on each
+// output (and on the prev output for inputs).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; outputs: Map<number, any>; inputs: Map<number, any>}>()
+
+  for (const row of rows) {
+    let acc = byTxid.get(row.t_txid)
+    if (!acc) {
+      acc = {
+        blockHeight: row.t_block_height,
+        blockTime: row.t_block_time,
+        size: row.t_size,
+        outputs: new Map(),
+        inputs: new Map(),
+      }
+      byTxid.set(row.t_txid, acc)
+    }
+    if (row.o_vout != null && !acc.outputs.has(row.o_vout)) acc.outputs.set(row.o_vout, row)
+    if (row.i_vin != null && !acc.inputs.has(row.i_vin)) acc.inputs.set(row.i_vin, row)
+  }
+
+  const out: Transaction[] = []
+  for (const [txid, acc] of byTxid) {
+    const inputRows = [...acc.inputs.values()].sort((a, b) => a.i_vin - b.i_vin)
+    const outputRows = [...acc.outputs.values()].sort((a, b) => a.o_vout - b.o_vout)
+
+    const ourInputsTotal: bigint = inputRows
+      .filter(r => r.i_prev_is_mine === 1)
+      .reduce((sum: bigint, r) => sum + BigInt(r.i_prev_satoshis ?? '0'), 0n)
+    const ourOutputsTotal: bigint = outputRows
+      .filter(r => r.o_is_mine === 1)
+      .reduce((sum: bigint, r) => sum + BigInt(r.o_satoshis ?? '0'), 0n)
+
+    const direction = ourInputsTotal > ourOutputsTotal ? -1 : 1
+    const transferAmount = direction === -1
+      ? ourInputsTotal - ourOutputsTotal
+      : ourOutputsTotal - ourInputsTotal
+
+    let primaryAddress = ''
+    if (direction === -1) {
+      primaryAddress = inputRows.find(r => r.i_prev_is_mine === 1)?.i_prev_address ?? ''
+    } else {
+      primaryAddress = outputRows.find(r => r.o_is_mine === 1)?.o_address ?? ''
+    }
+
+    const vin: TransactionInput[] = inputRows.map(r => ({
+      value: ((Number(r.i_prev_satoshis ?? '0')) / 1e8).toFixed(8),
+      n: r.i_vin ?? 0,
+      addr: r.i_prev_address ?? '',
+      prevTxId: r.i_prev_txid ?? '',
+      prevVout: r.i_prev_vout ?? 0,
+      sequence: r.i_sequence ?? 0,
+    }))
+
+    const vout: TransactionOutput[] = outputRows.map(r => ({
+      value: ((Number(r.o_satoshis ?? '0')) / 1e8).toFixed(8),
+      n: r.o_vout ?? 0,
+      address: r.o_address ?? '',
+      spentTxId: r.o_spent_in_txid ?? '',
+      spentIndex: 0,
+      spentHeight: r.o_spent_at_height ?? 0,
+    }))
+
+    out.push({
+      address: primaryAddress,
+      direction,
+      inAmount: ourInputsTotal,
+      outAmount: ourOutputsTotal,
+      transferAmount,
+      usdAmount: '0.0',
+      date: new Date(acc.blockTime * 1000),
+      size: acc.size,
+      blockHeight: acc.blockHeight,
+      status: 'Pending',
+      walletId,
+      confirmations: 0,
+      txid,
+      vin,
+      vout,
+    })
+  }
+
+  return out
 }

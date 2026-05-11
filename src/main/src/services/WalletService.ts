@@ -3,7 +3,7 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
-import {InsightWalletProvider} from '../providers/InsightWalletProvider'
+import {WalletProviderFactory} from '../providers/WalletProviderFactory'
 import {Network} from '../types'
 import {Address} from '../types/Address'
 import {Identity, IdentityInfo} from '../types/Identity'
@@ -13,7 +13,7 @@ import {BlockJSON} from "dash-core-sdk/src/types";
 import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
-import {deriveKeyFromPassword, processProviderTransactions} from "../utils";
+import {deriveKeyFromPassword} from "../utils";
 import {createDecipheriv} from "node:crypto";
 
 const ADDRESS_LOOKAHEAD = 20
@@ -59,13 +59,22 @@ export class WalletService {
   private identityDAO: IdentityDAO
   private sdk: DashPlatformSDK
   private pbkdf2Iterations: number
+  private providerFactory: WalletProviderFactory
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, identityDAO: IdentityDAO, sdk: DashPlatformSDK, pbkdf2Iterations: number) {
+  constructor(
+    walletDAO: WalletDAO,
+    addressDAO: AddressDAO,
+    identityDAO: IdentityDAO,
+    sdk: DashPlatformSDK,
+    pbkdf2Iterations: number,
+    providerFactory: WalletProviderFactory,
+  ) {
     this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
     this.sdk = sdk
+    this.providerFactory = providerFactory
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
@@ -229,11 +238,10 @@ export class WalletService {
 
     const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
     const allAddresses = [...addresses.change, ...addresses.receiving]
-    const provider = new InsightWalletProvider(wallet.network)
+    const provider = this.providerFactory.for(wallet.walletId, wallet.network)
     const txArrays = await Promise.all(allAddresses.map(a => provider.getTransactions(a.address)))
-    const txFlat = txArrays.flat()
 
-    return processProviderTransactions(txFlat, wallet.walletId, allAddresses)
+    return txArrays.flat()
   }
 
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
@@ -241,23 +249,15 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const provider = new InsightWalletProvider(network)
-
     const wallet = await this.walletDAO.getSelectedWallet()
 
     if (wallet == null) {
       throw new Error('No selected wallet found')
     }
 
-    const addresses = await this.addressDAO.getAddressesByWalletId(wallet.walletId)
-    const allAddresses = [...addresses.change, ...addresses.receiving]
+    const provider = this.providerFactory.for(wallet.walletId, network)
 
-
-    const transaction = await provider.getTransactionByHash(hash)
-
-    const [tx] = processProviderTransactions([transaction], wallet.walletId, allAddresses)
-
-    return tx
+    return provider.getTransactionByHash(hash)
   }
 
   async getBlockByHash(hash: string, network: Network): Promise<BlockJSON> {
@@ -265,7 +265,12 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const provider = new InsightWalletProvider(network)
+    // Routed via factory — throws Error('Unimplemented') in p2p mode.
+    const wallet = await this.walletDAO.getSelectedWallet()
+    if (wallet == null) {
+      throw new Error('No selected wallet found')
+    }
+    const provider = this.providerFactory.for(wallet.walletId, network)
 
     const block = await provider.getBlockByHash(hash)
 
@@ -284,7 +289,7 @@ export class WalletService {
 
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
 
-    const provider = new InsightWalletProvider(wallet.network)
+    const provider = this.providerFactory.for(wallet.walletId, wallet.network)
 
     const addressesBalance = await provider.getBalance(addresses.map(addr => addr.address))
 
@@ -308,7 +313,11 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const provider = new InsightWalletProvider(network)
+    const wallet = await this.walletDAO.getSelectedWallet()
+    if (wallet == null) {
+      throw new Error('No selected wallet found')
+    }
+    const provider = this.providerFactory.for(wallet.walletId, network)
 
     return await provider.getBalance(address)
   }

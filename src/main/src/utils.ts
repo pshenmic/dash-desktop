@@ -187,9 +187,18 @@ export const processProviderTransactions = (txs: TransactionWalletProviderJSON[]
         spentTxId: vout.spentTxId,
         spentIndex: vout.spentIndex,
         spentHeight: vout.spentHeight,
-        address: address ?? null,
+        address: address ?? '',
       };
     })
+
+    const txVin = tx.vin.map(vin => ({
+      value: vin.value.toString(),
+      n: vin.n,
+      addr: vin.addr ?? '',
+      prevTxId: vin.txid,
+      prevVout: vin.vout,
+      sequence: vin.sequence,
+    }))
 
     // TODO: Implement usd amount
     return {
@@ -207,7 +216,7 @@ export const processProviderTransactions = (txs: TransactionWalletProviderJSON[]
       date: new Date(tx.time * 1000),
       confirmations: tx.confirmations,
       txid: tx.txid,
-      vin: tx.vin,
+      vin: txVin,
       vout: txVout
     }
   })

@@ -1,5 +1,13 @@
 import {TransactionStatus} from "../enums/TransactionStatus";
-import {InputWalletProviderJSON} from "../providers/types";
+
+export interface TransactionInput {
+  value: string,
+  n: number,
+  addr: string,
+  prevTxId: string,
+  prevVout: number,
+  sequence: number
+}
 
 export interface TransactionOutput {
   value: string,
@@ -24,6 +32,6 @@ export interface Transaction {
   walletId: string
   confirmations: number
   txid: string
-  vin: InputWalletProviderJSON[]
+  vin: TransactionInput[]
   vout: TransactionOutput[]
 }

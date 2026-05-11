@@ -20,6 +20,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   setLanguage: (language: string) => ipcRenderer.invoke('setLanguage', language),
   setFiatCurrency: (currency: string) => ipcRenderer.invoke('setFiatCurrency', currency),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
+
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),
   stopWalletSync: () => ipcRenderer.invoke('stopWalletSync'),
   getUtxos: () => ipcRenderer.invoke('getUtxos'),
