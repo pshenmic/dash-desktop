@@ -24,5 +24,6 @@ export const apiDefinitions = (ipcRenderer) => ({
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),
   stopWalletSync: () => ipcRenderer.invoke('stopWalletSync'),
+  resetWalletSync: () => ipcRenderer.invoke('resetWalletSync'),
   getUtxos: () => ipcRenderer.invoke('getUtxos'),
 })

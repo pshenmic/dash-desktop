@@ -37,6 +37,7 @@ import {WalletSyncService} from './services/WalletSyncService'
 import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
+import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
 
 export class WalletBackend {
@@ -76,6 +77,7 @@ export class WalletBackend {
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.preferences).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
+    ipcMain.handle('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletSyncService).handle)
   }
 

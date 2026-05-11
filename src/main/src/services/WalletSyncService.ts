@@ -1,6 +1,7 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import os from 'os'
+import fs from 'fs'
 import {ChainStorageFilename, HomeFolderName} from '../constants'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
@@ -176,6 +177,12 @@ export class WalletSyncService {
     return this.transactionDAO.getUtxos(this.activeWalletId)
   }
 
+  resetSync = async (): Promise<void> => {
+    this.shutdown()
+    await this.transactionDAO.resetAllSyncData()
+    const chainDbPath = path.join(os.homedir(), HomeFolderName, ChainStorageFilename)
+    await fs.promises.rm(chainDbPath, {recursive: true, force: true})
+  }
   shutdown = (): void => {
     if (this.child) {
       this.child.kill()

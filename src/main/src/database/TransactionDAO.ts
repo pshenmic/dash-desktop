@@ -162,6 +162,15 @@ export class TransactionDAO {
     }))
   }
 
+  resetAllSyncData = async (): Promise<void> => {
+    await this.knex.transaction(async trx => {
+      await trx('transaction_inputs').delete()
+      await trx('transaction_outputs').delete()
+      await trx('transactions').delete()
+      await trx('wallet_sync_state').delete()
+      await trx('addresses').update({is_used: false})
+    })
+  }
   getUtxosByAddress = async (walletId: string, address: string): Promise<WalletSyncUtxo[]> => {
     const rows = await this.knex('transaction_outputs as o')
       .innerJoin('transactions as t', function() {
