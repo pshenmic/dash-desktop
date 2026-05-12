@@ -1,14 +1,14 @@
 import {AddressDAO} from '../database/AddressDAO'
 import {GroupedAddresses} from "../types/GroupedAddresses";
 import {WalletDAO} from "../database/WalletDAO";
-import {WalletProviderFactory} from "../providers/WalletProviderFactory";
+import {WalletProviderResolver} from "../providers/WalletProviderResolver";
 
 export class AddressesService {
   private addressDAO: AddressDAO
   private walletDAO: WalletDAO
-  private providerFactory: WalletProviderFactory
+  private providerFactory: WalletProviderResolver
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, providerFactory: WalletProviderFactory) {
+  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, providerFactory: WalletProviderResolver) {
     this.addressDAO = addressDAO
     this.walletDAO = walletDAO
     this.providerFactory = providerFactory

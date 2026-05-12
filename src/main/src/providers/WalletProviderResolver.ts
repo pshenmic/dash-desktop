@@ -13,7 +13,7 @@ import {AddressDAO} from '../database/AddressDAO'
 // Methods unsupported by the chosen backend (notably broadcastTx and
 // getBlockByHash on the p2p provider) throw Error('Unimplemented') —
 // callers can try/catch or surface the error to the user.
-export class WalletProviderFactory {
+export class WalletProviderResolver {
   constructor(
     private readonly preferences: Preferences,
     private readonly transactionDAO: TransactionDAO,

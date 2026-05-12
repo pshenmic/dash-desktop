@@ -3,7 +3,7 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
-import {WalletProviderFactory} from '../providers/WalletProviderFactory'
+import {WalletProviderResolver} from '../providers/WalletProviderResolver'
 import {Network} from '../types'
 import {Address} from '../types/Address'
 import {Identity, IdentityInfo} from '../types/Identity'
@@ -59,7 +59,7 @@ export class WalletService {
   private identityDAO: IdentityDAO
   private sdk: DashPlatformSDK
   private pbkdf2Iterations: number
-  private providerFactory: WalletProviderFactory
+  private providerFactory: WalletProviderResolver
 
   constructor(
     walletDAO: WalletDAO,
@@ -67,7 +67,7 @@ export class WalletService {
     identityDAO: IdentityDAO,
     sdk: DashPlatformSDK,
     pbkdf2Iterations: number,
-    providerFactory: WalletProviderFactory,
+    providerFactory: WalletProviderResolver,
   ) {
     this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
