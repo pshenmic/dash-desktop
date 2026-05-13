@@ -17,10 +17,10 @@ export class GeneralPreferences {
   currency: string
   connectionType: ConnectionType
 
-  constructor(language: string, currency: string, walletInfoProvider: ConnectionType) {
+  constructor(language: string, currency: string, connectionType: ConnectionType) {
     this.language = language
     this.currency = currency
-    this.connectionType = walletInfoProvider
+    this.connectionType = connectionType
   }
 
   toJSON(): GeneralPreferencesJSON {

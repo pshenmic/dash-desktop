@@ -19,7 +19,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getPreferences: () => ipcRenderer.invoke('getPreferences'),
   setLanguage: (language: string) => ipcRenderer.invoke('setLanguage', language),
   setFiatCurrency: (currency: string) => ipcRenderer.invoke('setFiatCurrency', currency),
-  setWalletInfoProvider: (walletInfoProvider: 'p2p' | 'rpc') => ipcRenderer.invoke('setWalletInfoProvider', walletInfoProvider),
+  setConnectionType: (connectionType: 'p2p' | 'rpc') => ipcRenderer.invoke('setConnectionType', connectionType),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),

@@ -31,7 +31,7 @@ import {SetLanguageHandler} from "./api/setLanguage";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
-import {SetWalletInfoProviderHandler} from "./api/setWalletInfoProvider";
+import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/WalletSyncService'
 import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
@@ -69,7 +69,7 @@ export class WalletBackend {
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
-    ipcMain.handle('setWalletInfoProvider', new SetWalletInfoProviderHandler(this.applicationService).handle)
+    ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)

@@ -4,21 +4,21 @@ import {ZodError} from "zod";
 import {ConnectionType} from "../preferences/general";
 import {ApplicationService} from "../services/ApplicationService";
 
-export class SetWalletInfoProviderHandler {
+export class SetConnectionTypeHandler {
   private applicationService: ApplicationService
 
   constructor(applicationService: ApplicationService) {
     this.applicationService = applicationService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletInfoProvider: ConnectionType): Promise<QueryStatus> => {
+  handle = async (_event: IpcMainInvokeEvent, connectionType: ConnectionType): Promise<QueryStatus> => {
     try {
       const preferences = this.applicationService.preferences
       await preferences.apply({
         ...preferences,
         general: {
           ...preferences.general,
-          walletInfoProvider,
+          connectionType,
         }
       })
 
