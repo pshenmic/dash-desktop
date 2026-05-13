@@ -1,13 +1,13 @@
 import {z} from 'zod'
 import {SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES} from "../constants";
 
-export const WalletInfoProviderSchema = z.enum(['p2p', 'rpc'])
-export type WalletInfoProvider = z.infer<typeof WalletInfoProviderSchema>
+export const ConnectionTypeSchema = z.enum(['p2p', 'rpc'])
+export type ConnectionType = z.infer<typeof ConnectionTypeSchema>
 
 export const GeneralPreferencesSchema = z.object({
   language: z.enum(SUPPORTED_LANGUAGES),
   currency: z.enum(SUPPORTED_CURRENCIES),
-  walletInfoProvider: WalletInfoProviderSchema,
+  connectionType: ConnectionTypeSchema,
 })
 
 export type GeneralPreferencesJSON = z.infer<typeof GeneralPreferencesSchema>
@@ -15,25 +15,25 @@ export type GeneralPreferencesJSON = z.infer<typeof GeneralPreferencesSchema>
 export class GeneralPreferences {
   language: string
   currency: string
-  walletInfoProvider: WalletInfoProvider
+  connectionType: ConnectionType
 
-  constructor(language: string, currency: string, walletInfoProvider: WalletInfoProvider) {
+  constructor(language: string, currency: string, walletInfoProvider: ConnectionType) {
     this.language = language
     this.currency = currency
-    this.walletInfoProvider = walletInfoProvider
+    this.connectionType = walletInfoProvider
   }
 
   toJSON(): GeneralPreferencesJSON {
     return {
       language: this.language,
       currency: this.currency,
-      walletInfoProvider: this.walletInfoProvider,
+      connectionType: this.connectionType,
     }
   }
 
   static fromObject(value: unknown): GeneralPreferences {
-    const {language, currency, walletInfoProvider} = GeneralPreferencesSchema.parse(value)
-    return new GeneralPreferences(language, currency, walletInfoProvider)
+    const {language, currency, connectionType} = GeneralPreferencesSchema.parse(value)
+    return new GeneralPreferences(language, currency, connectionType)
   }
 
   static default(): GeneralPreferences {

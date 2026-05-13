@@ -3,9 +3,14 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
-import {WalletProviderResolver} from '../providers/WalletProviderResolver'
+import {TransactionDAO} from '../database/TransactionDAO'
+import {ApplicationService} from './ApplicationService'
+import {WalletProvider} from '../providers/WalletProvider'
+import {InsightWalletProvider} from '../providers/InsightWalletProvider'
+import {P2PWalletProvider} from '../providers/P2PWalletProvider'
 import {Network} from '../types'
 import {Address} from '../types/Address'
+import {GroupedAddresses} from '../types/GroupedAddresses'
 import {Identity, IdentityInfo} from '../types/Identity'
 import {Wallet} from '../types/Wallet'
 import {PrivateKeyWASM} from 'pshenmic-dpp'
@@ -57,24 +62,34 @@ export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
+  private transactionDAO: TransactionDAO
+  private applicationService: ApplicationService
   private sdk: DashPlatformSDK
   private pbkdf2Iterations: number
-  private providerFactory: WalletProviderResolver
 
   constructor(
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
+    transactionDAO: TransactionDAO,
+    applicationService: ApplicationService,
     sdk: DashPlatformSDK,
     pbkdf2Iterations: number,
-    providerFactory: WalletProviderResolver,
   ) {
     this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
+    this.transactionDAO = transactionDAO
+    this.applicationService = applicationService
     this.sdk = sdk
-    this.providerFactory = providerFactory
+  }
+
+  private getProvider(walletId: string, network: Network): WalletProvider {
+    if (this.applicationService.preferences.general.connectionType === 'p2p') {
+      return new P2PWalletProvider(this.transactionDAO, walletId)
+    }
+    return new InsightWalletProvider(network, walletId, this.addressDAO)
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
@@ -229,6 +244,38 @@ export class WalletService {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }
 
+  async getAddressesByWalletId(walletId: string): Promise<GroupedAddresses> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
+
+    const provider = this.getProvider(wallet.walletId, wallet.network)
+
+    // TODO: add real usd balance
+    const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({
+        ...address,
+        balance: await provider.getBalance(address.address),
+        usdBalance: '0.0'
+      })
+    ))
+
+    const changeAddressesWithBalance = await Promise.all(addresses.change.map(async (address) => ({
+        ...address,
+        balance: await provider.getBalance(address.address),
+        usdBalance: '0.0'
+      })
+    ))
+
+    return {
+      receiving: receivingAddressesWithBalance,
+      change: changeAddressesWithBalance
+    }
+  }
+
   async getTransactions(walletId: string): Promise<Transaction[]> {
     const wallet = await this.walletDAO.getWalletById(walletId)
 
@@ -238,7 +285,7 @@ export class WalletService {
 
     const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
     const allAddresses = [...addresses.change, ...addresses.receiving]
-    const provider = this.providerFactory.for(wallet.walletId, wallet.network)
+    const provider = this.getProvider(wallet.walletId, wallet.network)
     const txArrays = await Promise.all(allAddresses.map(a => provider.getTransactions(a.address)))
 
     return txArrays.flat().sort((a, b) => b?.date?.getTime() - a?.date?.getTime())
@@ -255,7 +302,7 @@ export class WalletService {
       throw new Error('No selected wallet found')
     }
 
-    const provider = this.providerFactory.for(wallet.walletId, network)
+    const provider = this.getProvider(wallet.walletId, network)
 
     return provider.getTransactionByHash(hash)
   }
@@ -270,7 +317,7 @@ export class WalletService {
     if (wallet == null) {
       throw new Error('No selected wallet found')
     }
-    const provider = this.providerFactory.for(wallet.walletId, network)
+    const provider = this.getProvider(wallet.walletId, network)
 
     const block = await provider.getBlockByHash(hash)
 
@@ -289,7 +336,7 @@ export class WalletService {
 
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
 
-    const provider = this.providerFactory.for(wallet.walletId, wallet.network)
+    const provider = this.getProvider(wallet.walletId, wallet.network)
 
     const addressesBalance = await provider.getBalance(addresses.map(addr => addr.address))
 
@@ -317,7 +364,7 @@ export class WalletService {
     if (wallet == null) {
       throw new Error('No selected wallet found')
     }
-    const provider = this.providerFactory.for(wallet.walletId, network)
+    const provider = this.getProvider(wallet.walletId, network)
 
     return await provider.getBalance(address)
   }

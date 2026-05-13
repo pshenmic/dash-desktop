@@ -91,7 +91,7 @@ export class Preferences {
     instance.general = new GeneralPreferences(
       rawGeneral.language ?? defaults.general.language,
       rawGeneral.currency ?? defaults.general.currency,
-      rawGeneral.walletInfoProvider ?? defaults.general.walletInfoProvider,
+      rawGeneral.connectionType ?? defaults.general.connectionType,
     )
 
     return instance
