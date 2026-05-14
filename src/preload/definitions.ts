@@ -1,6 +1,7 @@
 export const apiDefinitions = (ipcRenderer) => ({
   createWallet: (seedphrase: string, network: string, password: string) => ipcRenderer.invoke('createWallet', seedphrase, network, password),
   deleteWallet: (walletId: string) => ipcRenderer.invoke('deleteWallet', walletId),
+  verifyWalletPassword: (walletId: string, password: string) => ipcRenderer.invoke('verifyWalletPassword', password, walletId),
   getAddresses: (walletId: string) => ipcRenderer.invoke('getAddresses', walletId),
   getStatus: () => ipcRenderer.invoke('getStatus'),
   selectWallet: (walletId: string) => ipcRenderer.invoke('selectWallet', walletId),
@@ -14,4 +15,9 @@ export const apiDefinitions = (ipcRenderer) => ({
   getIdentityBalance: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityBalance', identifier),
   getIdentityNonce: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityNonce', identifier),
   setAddressLabel: (walletId: string, address: string, label: string) => ipcRenderer.invoke('setAddressLabel', walletId, address, label),
+  // preferencess
+  getPreferences: () => ipcRenderer.invoke('getPreferences'),
+  setLanguage: (language: string) => ipcRenderer.invoke('setLanguage', language),
+  setFiatCurrency: (currency: string) => ipcRenderer.invoke('setFiatCurrency', currency),
+  resetPreferences: () => ipcRenderer.invoke('resetPreferences')
 })

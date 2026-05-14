@@ -1,0 +1,57 @@
+name: Publish
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build_linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+    - name: Install dependencies
+      run: yarn
+    - name: Build Linux
+      run: yarn build:linux
+    - name: Upload Linux artifacts
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*.{AppImage,deb}
+
+  build_mac:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+    - name: Install dependencies
+      run: yarn
+    - name: Build Mac
+      run: yarn build:mac
+    - name: Upload Mac artifacts
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*.dmg
+
+  build_win:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+    - name: Install dependencies
+      run: yarn
+    - name: Build Windows
+      run: yarn build:win
+    - name: Upload Windows artifacts
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*.exe

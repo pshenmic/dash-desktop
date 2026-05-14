@@ -1,4 +1,4 @@
-import {createCipheriv, randomBytes, scryptSync} from 'crypto'
+import {createCipheriv, randomBytes} from 'crypto'
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
@@ -13,20 +13,44 @@ import {BlockJSON} from "dash-core-sdk/src/types";
 import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
-import {processProviderTransactions} from "../utils";
+import {deriveKeyFromPassword, processProviderTransactions} from "../utils";
+import {createDecipheriv} from "node:crypto";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 
-function encryptMnemonic(mnemonic: string, password: string): string {
+function encryptMnemonic(mnemonic: string, password: string, iterations: number): string {
   const salt = randomBytes(32)
+  const passwordKey = deriveKeyFromPassword(password, iterations, salt)
+
   const iv = randomBytes(12)
-  const key = scryptSync(password, salt, 32, {N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024})
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const cipher = createCipheriv('aes-256-gcm', passwordKey, iv)
   const ciphertext = Buffer.concat([cipher.update(mnemonic, 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
-  return Buffer.concat([iv, salt, ciphertext, tag]).toString('hex')
+
+  const iterBuf = Buffer.alloc(4)
+  iterBuf.writeUInt32BE(iterations)
+
+  return Buffer.concat([iv, salt, iterBuf, ciphertext, tag]).toString('hex')
+}
+
+function decryptMnemonic(encryptedHex: string, password: string): string {
+  const data = Buffer.from(encryptedHex, 'hex')
+
+  const iv = data.slice(0, 12)
+  const salt = data.slice(12, 44)
+  const iterations = data.readUInt32BE(44)
+  const tag = data.slice(data.length - 16)
+  const ciphertext = data.slice(48, data.length - 16)
+
+  const passwordKey = deriveKeyFromPassword(password, iterations, salt)
+
+  const decipher = createDecipheriv('aes-256-gcm', passwordKey, iv)
+  decipher.setAuthTag(tag)
+
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+  return decrypted.toString('utf8')
 }
 
 export class WalletService {
@@ -34,8 +58,10 @@ export class WalletService {
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
   private sdk: DashPlatformSDK
+  private pbkdf2Iterations: number
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, identityDAO: IdentityDAO, sdk: DashPlatformSDK) {
+  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, identityDAO: IdentityDAO, sdk: DashPlatformSDK, pbkdf2Iterations: number) {
+    this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
@@ -52,7 +78,7 @@ export class WalletService {
     }
 
     const walletId = randomBytes(4).toString('hex')
-    const encryptedMnemonic = encryptMnemonic(seedphrase, password)
+    const encryptedMnemonic = encryptMnemonic(seedphrase, password, this.pbkdf2Iterations)
 
     await this.walletDAO.saveWallet(encryptedMnemonic, walletId, network, null)
 
@@ -156,6 +182,36 @@ export class WalletService {
 
   async setSelectedWallet(walletId: string): Promise<QueryStatus> {
     return this.walletDAO.setSelectedWallet(walletId)
+  }
+
+  async verifyWalletPassword(walletId: string, password: string): Promise<boolean> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+
+    if (wallet == null) {
+      throw new Error('No selected wallet found')
+    }
+
+    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
+    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
+
+    let decryptedMnemonic: string
+
+    try {
+       decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      return false
+    }
+
+    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, wallet.network)
+    const coinType = COIN_TYPE[wallet.network]
+
+    const key = await this.sdk.keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
+    if (!key.publicKey) throw new Error(`Failed to derive public key at index ${referenceWalletAddress.index}`)
+
+    const address = this.sdk.keyPair.p2pkhAddress(key.publicKey, wallet.network)
+
+    return address === referenceWalletAddress.address;
   }
 
   async setAddressLabel(walletId: string, address: string, label: string): Promise<QueryStatus> {

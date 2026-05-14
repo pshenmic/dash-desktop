@@ -8,7 +8,7 @@ const backend = new WalletBackend()
 
 let mainWindow: BrowserWindow | null = null;
 
-const createWindow = () => {
+const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     width: 1366,
     height: 768,
