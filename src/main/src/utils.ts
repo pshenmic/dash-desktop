@@ -3,6 +3,23 @@ import os from 'os'
 import path from 'path'
 import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from './constants'
 import knex, {Knex} from 'knex'
+import * as migration0000 from '../migrations/0000_init'
+import * as migration0001 from '../migrations/0001_identities'
+import * as migration0002 from '../migrations/0002_transactions'
+import * as migration0003 from '../migrations/0003_address_used'
+
+const migrations = [
+  { name: '0000_init.ts', migration: migration0000 },
+  { name: '0001_identities.ts', migration: migration0001 },
+  { name: '0002_transactions.ts', migration: migration0002 },
+  { name: '0003_address_used.ts', migration: migration0003 },
+]
+
+const inlineMigrationSource = {
+  getMigrations: () => Promise.resolve(migrations),
+  getMigrationName: (m: typeof migrations[number]) => m.name,
+  getMigration: (m: typeof migrations[number]) => Promise.resolve(m.migration),
+}
 import {TransactionWalletProviderJSON} from "./providers/types";
 import {Address} from "./types/Address";
 import {TransactionStatus} from "./enums/TransactionStatus";
@@ -52,10 +69,8 @@ export function getKnex (path?: string): Knex {
   })
 }
 
-export async function migrateKnex (knex, migrationsPath): Promise<void> {
-  await knex.migrate.latest({
-    directory: migrationsPath.toString()
-  })
+export async function migrateKnex (knex: Knex): Promise<void> {
+  await knex.migrate.latest({ migrationSource: inlineMigrationSource })
 }
 
 export function ensureHomeFolder (): void {
@@ -172,9 +187,18 @@ export const processProviderTransactions = (txs: TransactionWalletProviderJSON[]
         spentTxId: vout.spentTxId,
         spentIndex: vout.spentIndex,
         spentHeight: vout.spentHeight,
-        address: address ?? null,
+        address: address ?? '',
       };
     })
+
+    const txVin = tx.vin.map(vin => ({
+      value: (vin.value ?? 0).toString(),
+      n: vin.n,
+      addr: vin.addr ?? '',
+      prevTxId: vin.txid,
+      prevVout: vin.vout,
+      sequence: vin.sequence,
+    }))
 
     // TODO: Implement usd amount
     return {
@@ -192,7 +216,7 @@ export const processProviderTransactions = (txs: TransactionWalletProviderJSON[]
       date: new Date(tx.time * 1000),
       confirmations: tx.confirmations,
       txid: tx.txid,
-      vin: tx.vin,
+      vin: txVin,
       vout: txVout
     }
   })

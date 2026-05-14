@@ -1,6 +1,7 @@
 export const HOME_FOLDER_NAME = '.dash-platform-wallet'
 export const HomeFolderName = '.dash-platform-wallet'
 export const StorageFilename = 'storage.db'
+export const ChainStorageFilename = 'ChainStorage'
 
 export const PreferencesFilename = 'preferences.json'
 

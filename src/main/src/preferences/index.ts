@@ -9,7 +9,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 1
+  static readonly CURRENT_VERSION = 4
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
@@ -78,6 +78,10 @@ export class Preferences {
     return preferences
   }
 
+  // Forgiving construction: any missing field falls back to the current
+  // default. Used by both on-disk migration (when a stored prefs.json was
+  // written by an older app version and lacks new fields) and by the
+  // in-memory fromObject() entrypoint.
   private static migrate(raw: Record<string, unknown>): Preferences {
     const defaults = Preferences.default()
     const rawGeneral = (raw.general ?? {}) as Partial<GeneralPreferencesJSON>
@@ -87,6 +91,7 @@ export class Preferences {
     instance.general = new GeneralPreferences(
       rawGeneral.language ?? defaults.general.language,
       rawGeneral.currency ?? defaults.general.currency,
+      rawGeneral.connectionType ?? defaults.general.connectionType,
     )
 
     return instance
@@ -137,14 +142,9 @@ export class Preferences {
     return instance
   }
 
+  // Same forgiving logic as the on-disk migration path — any missing field
+  // falls back to defaults, so callers can pass partial v(N-k) shapes.
   static fromObject(value: unknown): Preferences {
-    const {general} = PreferencesSchema.parse(value)
-
-    const instance = new Preferences()
-
-    instance.version = Preferences.CURRENT_VERSION
-    instance.general = GeneralPreferences.fromObject(general)
-
-    return instance
+    return Preferences.migrate((value ?? {}) as Record<string, unknown>)
   }
 }

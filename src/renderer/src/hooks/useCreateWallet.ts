@@ -61,7 +61,7 @@ export interface TypeUseCreateWallet {
   goToPassword: () => void
   goToImportSeedPhrase: () => void
   submitImportSeedPhrase: (phrase: string[]) => void
-  createImportedWallet: () => void
+  createImportedWallet: () => Promise<void>
 }
 
 const PREV_STEP: Partial<Record<CreateWalletStep, CreateWalletStep>> = {
@@ -176,14 +176,14 @@ export function useCreateWallet(): TypeUseCreateWallet {
     setImportSeedPhrase(true)
   }, [setImportSeedPhrase])
 
-  const createImportedWallet = useCallback(() => {
-    API.createWallet(importedSeedPhrase.join(' '), network, password)
-    .then(() => setStep('success'))
-    .catch((err) => {
-      console.error('createWallet failed:', err)
-      const message = err instanceof Error ? err.message : couldNotCreateWallet
-      toast.error(couldNotCreateWallet + " " + message)
-    })
+  const createImportedWallet = useCallback((): Promise<void> => {
+    return API.createWallet(importedSeedPhrase.join(' '), network, password)
+      .then(() => setStep('success'))
+      .catch((err) => {
+        console.error('createWallet failed:', err)
+        const message = err instanceof Error ? err.message : couldNotCreateWallet
+        toast.error(couldNotCreateWallet + " " + message)
+      })
   }, [importedSeedPhrase, network, password])
 
   const submitImportSeedPhrase = useCallback((phrase: string[]) => {

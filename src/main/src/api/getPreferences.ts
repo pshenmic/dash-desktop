@@ -1,14 +1,15 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import {Preferences, PreferencesJSON} from "../preferences";
+import {PreferencesJSON} from "../preferences";
+import {ApplicationService} from "../services/ApplicationService";
 
 export class GetPreferencesHandler {
-  private preferences: Preferences
+  private applicationService: ApplicationService
 
-  constructor(preferences: Preferences) {
-    this.preferences = preferences
+  constructor(applicationService: ApplicationService) {
+    this.applicationService = applicationService
   }
 
   handle = async (_event: IpcMainInvokeEvent): Promise<PreferencesJSON> => {
-    return this.preferences.toJSON()
+    return this.applicationService.preferences.toJSON()
   }
 }

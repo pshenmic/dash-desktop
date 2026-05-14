@@ -2,19 +2,20 @@ import { IpcMainInvokeEvent } from 'electron/utility'
 import {Preferences} from "../preferences";
 import {QueryStatus} from "../types/QueryStatus";
 import {ZodError} from "zod";
+import {ApplicationService} from "../services/ApplicationService";
 
 export class ResetPreferencesHandler {
-  private preferences: Preferences
+  private applicationService: ApplicationService
 
-  constructor(preferences: Preferences) {
-    this.preferences = preferences
+  constructor(applicationService: ApplicationService) {
+    this.applicationService = applicationService
   }
 
   handle = async (_event: IpcMainInvokeEvent): Promise<QueryStatus> => {
     try {
       const defaults = Preferences.default()
       console.log(defaults)
-      await this.preferences.apply(defaults.toJSON())
+      await this.applicationService.preferences.apply(defaults.toJSON())
 
       return {success: true, errorMessage: null}
     } catch (err) {

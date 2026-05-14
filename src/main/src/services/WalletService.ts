@@ -3,9 +3,14 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
+import {TransactionDAO} from '../database/TransactionDAO'
+import {ApplicationService} from './ApplicationService'
+import {WalletProvider} from '../providers/WalletProvider'
 import {InsightWalletProvider} from '../providers/InsightWalletProvider'
+import {P2PWalletProvider} from '../providers/P2PWalletProvider'
 import {Network} from '../types'
 import {Address} from '../types/Address'
+import {GroupedAddresses} from '../types/GroupedAddresses'
 import {Identity, IdentityInfo} from '../types/Identity'
 import {Wallet} from '../types/Wallet'
 import {PrivateKeyWASM} from 'pshenmic-dpp'
@@ -13,7 +18,7 @@ import {BlockJSON} from "dash-core-sdk/src/types";
 import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
-import {deriveKeyFromPassword, processProviderTransactions} from "../utils";
+import {deriveKeyFromPassword} from "../utils";
 import {createDecipheriv} from "node:crypto";
 
 const ADDRESS_LOOKAHEAD = 20
@@ -57,15 +62,34 @@ export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
+  private transactionDAO: TransactionDAO
+  private applicationService: ApplicationService
   private sdk: DashPlatformSDK
   private pbkdf2Iterations: number
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, identityDAO: IdentityDAO, sdk: DashPlatformSDK, pbkdf2Iterations: number) {
+  constructor(
+    walletDAO: WalletDAO,
+    addressDAO: AddressDAO,
+    identityDAO: IdentityDAO,
+    transactionDAO: TransactionDAO,
+    applicationService: ApplicationService,
+    sdk: DashPlatformSDK,
+    pbkdf2Iterations: number,
+  ) {
     this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
+    this.transactionDAO = transactionDAO
+    this.applicationService = applicationService
     this.sdk = sdk
+  }
+
+  private getProvider(walletId: string, network: Network): WalletProvider {
+    if (this.applicationService.preferences.general.connectionType === 'p2p') {
+      return new P2PWalletProvider(this.transactionDAO, walletId)
+    }
+    return new InsightWalletProvider(network, walletId, this.addressDAO)
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
@@ -100,6 +124,7 @@ export class WalletService {
         derivationPath: `m/44'/${coinType}'/${accountId}'/0/${i}`,
         index: i,
         isChange: false,
+        isUsed: false,
         label: null
       })
     }
@@ -115,6 +140,7 @@ export class WalletService {
         derivationPath: `m/44'/${coinType}'/${accountId}'/1/${i}`,
         index: i,
         isChange: true,
+        isUsed: false,
         label: null
       })
     }
@@ -218,6 +244,38 @@ export class WalletService {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }
 
+  async getAddressesByWalletId(walletId: string): Promise<GroupedAddresses> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
+
+    const provider = this.getProvider(wallet.walletId, wallet.network)
+
+    // TODO: add real usd balance
+    const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({
+        ...address,
+        balance: await provider.getBalance(address.address),
+        usdBalance: '0.0'
+      })
+    ))
+
+    const changeAddressesWithBalance = await Promise.all(addresses.change.map(async (address) => ({
+        ...address,
+        balance: await provider.getBalance(address.address),
+        usdBalance: '0.0'
+      })
+    ))
+
+    return {
+      receiving: receivingAddressesWithBalance,
+      change: changeAddressesWithBalance
+    }
+  }
+
   async getTransactions(walletId: string): Promise<Transaction[]> {
     const wallet = await this.walletDAO.getWalletById(walletId)
 
@@ -227,11 +285,10 @@ export class WalletService {
 
     const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
     const allAddresses = [...addresses.change, ...addresses.receiving]
-    const provider = new InsightWalletProvider(wallet.network)
+    const provider = this.getProvider(wallet.walletId, wallet.network)
     const txArrays = await Promise.all(allAddresses.map(a => provider.getTransactions(a.address)))
-    const txFlat = txArrays.flat()
 
-    return processProviderTransactions(txFlat, wallet.walletId, allAddresses)
+    return txArrays.flat().sort((a, b) => b?.date?.getTime() - a?.date?.getTime())
   }
 
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
@@ -239,23 +296,15 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const provider = new InsightWalletProvider(network)
-
     const wallet = await this.walletDAO.getSelectedWallet()
 
     if (wallet == null) {
       throw new Error('No selected wallet found')
     }
 
-    const addresses = await this.addressDAO.getAddressesByWalletId(wallet.walletId)
-    const allAddresses = [...addresses.change, ...addresses.receiving]
+    const provider = this.getProvider(wallet.walletId, network)
 
-
-    const transaction = await provider.getTransactionByHash(hash)
-
-    const [tx] = processProviderTransactions([transaction], wallet.walletId, allAddresses)
-
-    return tx
+    return provider.getTransactionByHash(hash)
   }
 
   async getBlockByHash(hash: string, network: Network): Promise<BlockJSON> {
@@ -263,7 +312,12 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const provider = new InsightWalletProvider(network)
+    // Routed via factory — throws Error('Unimplemented') in p2p mode.
+    const wallet = await this.walletDAO.getSelectedWallet()
+    if (wallet == null) {
+      throw new Error('No selected wallet found')
+    }
+    const provider = this.getProvider(wallet.walletId, network)
 
     const block = await provider.getBlockByHash(hash)
 
@@ -282,7 +336,7 @@ export class WalletService {
 
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
 
-    const provider = new InsightWalletProvider(wallet.network)
+    const provider = this.getProvider(wallet.walletId, wallet.network)
 
     const addressesBalance = await provider.getBalance(addresses.map(addr => addr.address))
 
@@ -306,7 +360,11 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const provider = new InsightWalletProvider(network)
+    const wallet = await this.walletDAO.getSelectedWallet()
+    if (wallet == null) {
+      throw new Error('No selected wallet found')
+    }
+    const provider = this.getProvider(wallet.walletId, network)
 
     return await provider.getBalance(address)
   }

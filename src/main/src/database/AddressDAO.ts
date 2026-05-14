@@ -3,14 +3,15 @@ import {Address} from '../types/Address'
 import {GroupedAddresses} from "../types/GroupedAddresses";
 import {QueryStatus} from "../types/QueryStatus";
 
-function fromRow({wallet_id, account_id, address, derivation_path, index, is_change, label}): Address {
+function fromRow({wallet_id, account_id, address, derivation_path, index, is_change, is_used, label}): Address {
   return {
     walletId: wallet_id,
     accountId: account_id,
     address,
     derivationPath: derivation_path,
     index,
-    isChange: is_change,
+    isChange: Boolean(is_change),
+    isUsed: Boolean(is_used),
     balance: null,
     label
   }
@@ -39,7 +40,7 @@ export class AddressDAO {
 
   getAddressesByWalletId = async (walletId: string): Promise<GroupedAddresses> => {
     const rows = await this.knex('addresses')
-      .select('wallet_id', 'account_id', 'address', 'derivation_path', 'index', 'is_change', 'label')
+      .select('wallet_id', 'account_id', 'address', 'derivation_path', 'index', 'is_change', 'is_used', 'label')
       .where('wallet_id', walletId)
       .orderBy('index', 'asc')
 

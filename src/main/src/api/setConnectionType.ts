@@ -1,26 +1,26 @@
-import { IpcMainInvokeEvent } from 'electron/utility'
+import {IpcMainInvokeEvent} from 'electron/utility'
 import {QueryStatus} from "../types/QueryStatus";
 import {ZodError} from "zod";
+import {ConnectionType} from "../preferences/general";
 import {ApplicationService} from "../services/ApplicationService";
 
-export class SetLanguageHandler {
+export class SetConnectionTypeHandler {
   private applicationService: ApplicationService
 
   constructor(applicationService: ApplicationService) {
     this.applicationService = applicationService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, language: string): Promise<QueryStatus> => {
+  handle = async (_event: IpcMainInvokeEvent, connectionType: ConnectionType): Promise<QueryStatus> => {
     try {
       const preferences = this.applicationService.preferences
       await preferences.apply({
         ...preferences,
         general: {
           ...preferences.general,
-          language,
+          connectionType,
         }
       })
-
 
       return {success: true, errorMessage: null}
     } catch (err) {

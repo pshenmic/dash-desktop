@@ -53,6 +53,7 @@ function getPasswordValidationError(password: string): string | null {
 export default function  CreateWallet({ password, setPassword, generateSeedPhrase, createImportedWallet, data } : CreateWalletProps): React.JSX.Element {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const { theme } = useTheme()
   const iconColor = theme === 'dark' ? '#ffffff' : ''
 
@@ -71,9 +72,10 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
       toast.error(msg)
       return
     }
+    setLoading(true)
     try {
       if (createImportedWallet) {
-        createImportedWallet()
+        await createImportedWallet()
       } else {
         if (generateSeedPhrase) {
           await generateSeedPhrase()
@@ -87,6 +89,8 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
           : errorMessage
       setError(message)
       toast.error(errorTitle + " " + message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -145,7 +149,7 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
         colorScheme={"primary"}
         size={"md"}
         className={"rounded-[.9375rem] p-4.5"}
-        disabled={tooShortOrEmpty}
+        disabled={tooShortOrEmpty || loading}
       >
         {data.buttonNext}
       </Button>

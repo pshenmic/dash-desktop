@@ -1,0 +1,57 @@
+appId: org.pshenmic.dashdesktop
+productName: Dash Desktop
+directories:
+  buildResources: buildResources
+#files:
+#  - '!**/.vscode/*'
+#  - '!src/*'
+#  - '!electron.vite.config.{js,ts,mjs,cjs}'
+#  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+#  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+#  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+#asarUnpack:
+#  - resources/**
+#afterSign: build/notarize.js
+#  executableName: vue-ts
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  artifactName: ${name}-${version}-${os}-${arch}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+dmg:
+  artifactName: ${name}-${version}-${os}-${arch}.${ext}
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  maintainer: pshenmic.dev
+  category: Office;Finance;
+appImage:
+  artifactName: ${name}-${version}-${os}-${arch}.${ext}
+deb:
+  artifactName: ${name}-${version}-${os}-${arch}.${ext}
+#  entitlementsInherit: build/entitlements.mac.plist
+#  extendInfo:
+#    - NSCameraUsageDescription: Application requests access to the device's camera.
+#    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+#    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+#    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+#npmRebuild: false
+#publish:
+#  provider: generic
+#  url: https://example.com/auto-updates

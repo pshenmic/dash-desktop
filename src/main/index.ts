@@ -1,8 +1,9 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
+import packageJSON from '../../package.json'
 
 const backend = new WalletBackend()
 
@@ -17,6 +18,7 @@ const createWindow = (): void => {
     show: false,
     autoHideMenuBar: true,
     icon: icon,
+    title: `Dash Desktop Wallet (${packageJSON.version})`,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false
@@ -65,13 +67,21 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  createWindow()
-
-  backend.start().catch(console.error)
+  backend.start()
+    .then(createWindow)
+    .catch((err) => {
+      console.error(err)
+      dialog.showErrorBox('Startup failed', String(err))
+    })
 
   app.on('activate', () => {
     if (mainWindow === null) {
-      createWindow()
+      backend.start()
+        .then(createWindow)
+        .catch((err) => {
+          console.error(err)
+          dialog.showErrorBox('Startup failed', String(err))
+        })
     }
   })
 })
