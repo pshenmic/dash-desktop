@@ -1,10 +1,10 @@
 {
   "name": "dash-desktop",
   "version": "0.0.1-dev.5",
-  "description": "dash-desktop",
+  "description": "Desktop wallet (cross-platform) for Dash network",
   "main": "./out/main/index.js",
-  "author": "",
-  "license": "ISC",
+  "author": "pshenmic",
+  "license": "MIT",
   "homepage": "https://github.com/pshenmic/electron-desktop-wallet#readme",
   "scripts": {
     "start": "electron-vite preview",
