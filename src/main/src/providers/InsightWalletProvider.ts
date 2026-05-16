@@ -1,4 +1,5 @@
 import {Block, Script, Transaction as SDKTransaction} from 'dash-core-sdk'
+import { net } from 'electron'
 import {UTXO} from '../types/UTXO'
 import {WalletProvider} from './WalletProvider'
 import {Network} from '../types'
@@ -34,7 +35,7 @@ export class InsightWalletProvider implements WalletProvider {
   }
 
   async sendRequest(url: string, params?: RequestInit): Promise<Response> {
-    const response = await fetch(url, params)
+    const response = await net.fetch(url, params as RequestInit)
 
     if (!response.ok) {
       throw new Error(`Insight API error: ${response.status}`)
@@ -104,6 +105,15 @@ export class InsightWalletProvider implements WalletProvider {
     const data = await response.json() as { txid: string }
 
     return data.txid
+  }
+
+  // TODO: walk receiving addresses and return the first one with no on-chain
+  // history via the Insight API. For the first release we just return the
+  // first receiving address.
+  async nextUnusedAddress(): Promise<string> {
+    const { receiving } = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    if (receiving.length === 0) throw new Error('Wallet has no receiving addresses')
+    return receiving[0].address
   }
 
   private async allWalletAddresses() {

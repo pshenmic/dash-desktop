@@ -1,6 +1,9 @@
 import { ReceivePageType } from "@renderer/constants";
 import Header from "../transfer/Header";
 import ReceiveAddressCard from "./ReceiveAddressCard";
+import { useAuth } from "@renderer/contexts/AuthContext";
+import { API } from "@renderer/api";
+import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
 
 const selectedAsset = {
   id: 'dash',
@@ -11,6 +14,16 @@ const selectedAsset = {
 }
 
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
+  const { status } = useAuth()
+  const walletId = status?.selectedWalletId ?? undefined
+  const { data: address } = useAsyncWithCache<string | null>(
+    'receiveAddress',
+    walletId,
+    () => API.getReceiveAddress(walletId!),
+    null,
+    { errorMessage: 'Failed to load receive address' }
+  )
+
   return (
     <div className={`relative flex flex-col pb-12`}>
         <Header data={{...pageData.header, description:
@@ -21,7 +34,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
            </span>}}
           selectedAsset={selectedAsset}
         />
-        <ReceiveAddressCard address={'Xk81u1LoHtvMATkD1DStguNYbNRHeXvs9d'} data={pageData.receiveAddressCard} />
+        {address && <ReceiveAddressCard address={address} data={pageData.receiveAddressCard} />}
     </div>
   )
 }

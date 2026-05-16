@@ -13,6 +13,7 @@ import { ApplicationService } from './services/ApplicationService'
 import {Preferences} from "./preferences";
 import { CreateWalletHandler } from './api/wallet/createWallet'
 import { GetWalletAddressesHandler } from './api/wallet/getAddresses'
+import { GetReceiveAddressHandler } from './api/wallet/getReceiveAddress'
 import { GetStatusHandler } from './api/getStatus'
 import { GetAllWalletsHandler } from './api/wallet/getAllWallets'
 import { GetTransactionsHandler } from './api/wallet/getTransactions'
@@ -56,6 +57,7 @@ export class WalletBackend {
     ipcMain.handle('selectWallet', new SelectWallet(this.walletService).handle)
     ipcMain.handle('getWalletBalance', new GetWalletBalance(this.walletService).handle)
     ipcMain.handle('getAddresses', new GetWalletAddressesHandler(this.walletService).handle)
+    ipcMain.handle('getReceiveAddress', new GetReceiveAddressHandler(this.walletService).handle)
     ipcMain.handle('getStatus', new GetStatusHandler(this.walletService, this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('getTransactions', new GetTransactionsHandler(this.walletService).handle)
     ipcMain.handle('getBalance', new GetBalance(this.walletService).handle)

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
+import { useAsyncWithCache } from './useAsyncWithCache'
 
 export type IdentityApiDto = {
   identityIndex: number
@@ -13,36 +13,12 @@ export type IdentityApiDto = {
 }
 
 export function useIdentities(walletId?: string) {
-  const [identities, setIdentities] = useState<IdentityApiDto[]>([])
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!walletId) {
-      setIdentities([])
-      return
-    }
-
-    let dead = false
-    setLoading(true)
-    setErr(null)
-
-    API.getIdentities(walletId)
-      .then((data) => {
-        if (dead) return
-        setIdentities((data ?? []) as IdentityApiDto[])
-      })
-      .catch((e) => {
-        if (!dead) setErr(e instanceof Error ? e.message : 'Failed to load identities')
-      })
-      .finally(() => {
-        if (!dead) setLoading(false)
-      })
-
-    return () => {
-      dead = true
-    }
-  }, [walletId])
-
+  const { data: identities, loading, err } = useAsyncWithCache<IdentityApiDto[]>(
+    'identities',
+    walletId,
+    () => API.getIdentities(walletId!).then((d) => (d ?? []) as IdentityApiDto[]),
+    [],
+    { errorMessage: 'Failed to load identities' }
+  )
   return { identities, loading, err }
 }

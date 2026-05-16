@@ -11,6 +11,10 @@ export class API {
     return this.api.getAddresses(walletId)
   }
 
+  static async getReceiveAddress(walletId: string): Promise<string | null> {
+    return this.api.getReceiveAddress(walletId)
+  }
+
   static async getStatus() {
     return this.api.getStatus()
   }

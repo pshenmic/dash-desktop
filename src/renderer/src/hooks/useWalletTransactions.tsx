@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { formatCreationDate } from '@renderer/utils/date'
+import { useAsyncWithCache } from './useAsyncWithCache'
 
 export type WalletTxDto = {
   walletId: string
@@ -53,10 +53,7 @@ function groupTransactionsByDay(items: WalletTxItem[]) {
     arr.push(tx)
     map.set(key, arr)
   }
-  return Array.from(map.entries()).map(([label, transactions]) => ({
-    date: label,
-    transactions
-  }))
+  return Array.from(map.entries()).map(([label, transactions]) => ({ date: label, transactions }))
 }
 
 function mapStatus(status: string, confirmations: number): UiStatus {
@@ -67,11 +64,10 @@ function mapStatus(status: string, confirmations: number): UiStatus {
 
 function mapTx(raw: WalletTxDto): WalletTxItem {
   const direction: 'in' | 'out' = raw.direction === 1 ? 'in' : 'out'
-  const rawConfirmations = raw.confirmations
   return {
     id: raw.txid,
-    status: mapStatus(raw.status, rawConfirmations),
-    confirmations: rawConfirmations,
+    status: mapStatus(raw.status, raw.confirmations),
+    confirmations: raw.confirmations,
     kind: 'core',
     blockHeight: raw.blockHeight,
     size: raw.size,
@@ -88,40 +84,13 @@ function mapTx(raw: WalletTxDto): WalletTxItem {
 }
 
 export function useWalletTransactions(walletId: string | undefined) {
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [groups, setGroups] = useState<TransactionGroup[]>([])
-
-  useEffect(() => {
-    if (!walletId) {
-      setGroups([])
-      setErr(null)
-      setLoading(false)
-      return
-    }
-
-    let dead = false
-    setLoading(true)
-    setErr(null)
-
-    API.getTransactions(walletId)
-      .then((raw) => {
-        if(dead) return
-        const items = ((raw ?? []) as WalletTxDto[]).map(mapTx)
-        const groups = groupTransactionsByDay(items)
-        setGroups(groups)
-      })
-      .catch((e) => {
-        console.error('error', e)
-        if (!dead) setErr(e instanceof Error ? e.message : 'Failed')
-      })
-      .finally(() => {
-        if (!dead) setLoading(false)
-      })
-    return () => {
-      dead = true
-    }
-  }, [walletId])
-
+  const { data: groups, loading, err } = useAsyncWithCache<TransactionGroup[]>(
+    'transactions',
+    walletId,
+    () => API.getTransactions(walletId!)
+      .then((raw) => groupTransactionsByDay(((raw ?? []) as WalletTxDto[]).map(mapTx))),
+    [],
+    { errorMessage: 'Failed to load transactions' }
+  )
   return { groups, loading, err }
 }

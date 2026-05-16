@@ -51,6 +51,10 @@ export class P2PWalletProvider implements WalletProvider {
     throw new Error('Unimplemented: getBlockByHash is not available in p2p mode')
   }
 
+  async nextUnusedAddress(): Promise<string> {
+    throw new Error('Not implemented')
+  }
+
   private p2pkhScript(address: string): Script {
     const s = new Script()
     s.pushOpCode('OP_DUP')

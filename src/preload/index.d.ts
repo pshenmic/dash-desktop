@@ -8,6 +8,7 @@ declare global {
       createWallet: (seedphrase: string, network: string, password: string) => Promise<unknown>
       verifyWalletPassword: (walletId: string, password: string) => Promise<boolean>
       getAddresses: (walletId: string) => Promise<unknown>
+      getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
       getTransactions: (walletId: string) => Promise<unknown>

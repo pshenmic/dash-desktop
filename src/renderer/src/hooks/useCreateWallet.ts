@@ -155,7 +155,10 @@ export function useCreateWallet(): TypeUseCreateWallet {
       if (prev === 'verify') setVerifyPhrase([])
       if (prev === 'seed-phrase') {
         setSeedPhrase([])
-        setPassword('')
+        setPasswordState('')
+      }
+      if (prev === 'password' || prev === 'password-import') {
+        setPasswordState('')
       }
       return prevStep
     })

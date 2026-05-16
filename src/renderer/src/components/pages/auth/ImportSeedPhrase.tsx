@@ -4,9 +4,10 @@ import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
 import { Switch } from "dash-ui-kit/react"
 import { BaseTexts, ImportSeedPhraseTexts } from "@renderer/constants"
 import { TypeUseCreateWallet, WordCount } from "@renderer/hooks/useCreateWallet"
-import { validateMnemonic } from '@scure/bip39'
 import { wordlist } from '@scure/bip39/wordlists/english.js'
 import { toast } from "@renderer/components/ui/Toast"
+
+const WORDLIST_SET = new Set(wordlist)
 
 type ImportSeedPhraseData = Pick<ImportSeedPhraseTexts, 'buttonContinue'> & {
   seedPhraseWarning: BaseTexts
@@ -67,10 +68,9 @@ export default function ImportSeedPhrase({ submitImportSeedPhrase, data }: Impor
   words.length === wordCount &&
   words.every((w) => w.trim().length > 0)
 
-  const isMnemonicValid = validateMnemonic(
-    words.map((w) => w.trim().toLowerCase()).join(' '),
-    wordlist
-  )
+  const isMnemonicValid =
+    words.length === wordCount &&
+    words.every((w) => WORDLIST_SET.has(w.trim().toLowerCase()))
 
   const handleContinue = () => {
     if (!isMnemonicValid) {
