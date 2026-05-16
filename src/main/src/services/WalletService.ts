@@ -87,7 +87,7 @@ export class WalletService {
 
   private getProvider(walletId: string, network: Network): WalletProvider {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
-      return new P2PWalletProvider(this.transactionDAO, walletId)
+      return new P2PWalletProvider(this.transactionDAO, walletId, this.addressDAO)
     }
     return new InsightWalletProvider(network, walletId, this.addressDAO)
   }
@@ -248,9 +248,8 @@ export class WalletService {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) throw new Error('Wallet not found')
 
-    const { receiving } = await this.addressDAO.getAddressesByWalletId(walletId)
     const provider = this.getProvider(wallet.walletId, wallet.network)
-    return provider.nextUnusedAddress(receiving.map(a => a.address))
+    return provider.nextUnusedAddress()
   }
 
   async getAddressesByWalletId(walletId: string): Promise<GroupedAddresses> {

@@ -107,9 +107,13 @@ export class InsightWalletProvider implements WalletProvider {
     return data.txid
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async nextUnusedAddress(_addresses: string[]): Promise<string> {
-    throw new Error('Not implemented')
+  // TODO: walk receiving addresses and return the first one with no on-chain
+  // history via the Insight API. For the first release we just return the
+  // first receiving address.
+  async nextUnusedAddress(): Promise<string> {
+    const { receiving } = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    if (receiving.length === 0) throw new Error('Wallet has no receiving addresses')
+    return receiving[0].address
   }
 
   private async allWalletAddresses() {

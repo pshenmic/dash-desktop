@@ -9,8 +9,11 @@ export interface WalletProvider {
   getBlockByHash(hash: string): Promise<Block>
   getUTXOs(address: string): Promise<UTXO[]>
   broadcastTx(tx: SDKTransaction): Promise<string>
-  // Returns the first address from the given set that has no on-chain history
-  // — used by Receive (next unused receiving address) and change-output
-  // selection. Determined by the provider, not by local DB state.
-  nextUnusedAddress(addresses: string[]): Promise<string>
+  // Returns the next unused receiving address for the wallet — used by the
+  // Receive tab and change-output selection. The provider decides what
+  // "unused" means against its source of truth (chain state via API,
+  // local SPV-synced DB, etc.). For the first release this is simplified
+  // to "the first receiving address"; full chain-history iteration is a
+  // follow-up.
+  nextUnusedAddress(): Promise<string>
 }
