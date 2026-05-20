@@ -1,11 +1,11 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {WalletService} from '../../services/WalletService'
+import {TransactionService} from '../../services/TransactionService'
 
 export class SendCoinsHandler {
-  private walletService: WalletService
+  private transactionService: TransactionService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(transactionService: TransactionService) {
+    this.transactionService = transactionService
   }
 
   handle = async (
@@ -15,6 +15,6 @@ export class SendCoinsHandler {
     amountSatoshis: string,
     password: string,
   ): Promise<string> => {
-    return this.walletService.sendCoins(walletId, toAddress, amountSatoshis, password)
+    return this.transactionService.sendCoins(walletId, toAddress, amountSatoshis, password)
   }
 }

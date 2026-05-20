@@ -27,7 +27,7 @@ import {Transaction} from "./types/Transaction";
 import {IdentityWASM, PrivateKeyWASM} from "pshenmic-dpp";
 import {DashPlatformSDK} from "dash-platform-sdk";
 import {Network} from "./types";
-import {pbkdf2Sync, randomBytes} from "node:crypto";
+import {createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
 export function calibratePBKDF2Iterations(targetMs: number): number {
   const testPassword = 'benchmark';
@@ -57,6 +57,28 @@ export function deriveKeyFromPassword(password: string, iterations: number, salt
     PBKDF2_KEY_LENGTH,
     PBKDF2_DIGEST
   )
+}
+
+// Reverse of WalletService.encryptMnemonic: AES-256-GCM with the PBKDF2-derived
+// key. Layout: iv(12) | salt(32) | iterations(u32 BE) | ciphertext | tag(16).
+// Throws if the password is wrong (GCM auth tag mismatch) or the blob is shorter
+// than the fixed header — callers translate to user-facing errors.
+export function decryptMnemonic(encryptedHex: string, password: string): string {
+  const data = Buffer.from(encryptedHex, 'hex')
+
+  const iv = data.slice(0, 12)
+  const salt = data.slice(12, 44)
+  const iterations = data.readUInt32BE(44)
+  const tag = data.slice(data.length - 16)
+  const ciphertext = data.slice(48, data.length - 16)
+
+  const passwordKey = deriveKeyFromPassword(password, iterations, salt)
+
+  const decipher = createDecipheriv('aes-256-gcm', passwordKey, iv)
+  decipher.setAuthTag(tag)
+
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
+  return decrypted.toString('utf8')
 }
 
 export function getKnex (path?: string): Knex {
