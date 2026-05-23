@@ -17,6 +17,8 @@ import SelectNetwork from "@renderer/components/pages/auth/SelectNetwork";
 import WelcomeDashDesktopWallet from "@renderer/components/pages/auth/WelcomeDashDesktopWallet"
 import ImportSeedPhrase from "@renderer/components/pages/auth/ImportSeedPhrase";
 import NetworkBadge from "@renderer/components/ui/NetworkBadge";
+import { useAuth } from "@renderer/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateWalletWrapper(): React.JSX.Element {
   const {createWallet, saveYourSeedPhrase, fillInYourSeedPhrase, seedPhraseWarning, success, successImport, selectNetwork, welcome, importSeedPhrase} = authTexts
@@ -45,6 +47,18 @@ export default function CreateWalletWrapper(): React.JSX.Element {
     path
   } = useCreateWallet()
   const hoverAnimation = useRipple()
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+
+  const canExitToDashboard = step === 'select-network' && isAuthenticated
+  const showBackButton = step !== 'select-network' || canExitToDashboard
+  const handleBack = (): void => {
+    if (canExitToDashboard) {
+      navigate('/')
+      return
+    }
+    goBack()
+  }
 
   const title = step === 'password' ? createWallet.title :
   step === 'seed-phrase' ? saveYourSeedPhrase.title :
@@ -83,7 +97,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
         className={"dash-bg-image-auth"}
       />
 
-      {step !== 'select-network' &&
+      {showBackButton &&
         <button
           onMouseEnter={hoverAnimation.onMouseEnter}
           onMouseMove={hoverAnimation.onMouseMove}
@@ -103,7 +117,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
             bg-white/12
             backdrop-blur-[.5rem]
           `}
-          onClick={goBack}
+          onClick={handleBack}
         >
           <ChevronIcon
             size={17}
