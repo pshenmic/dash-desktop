@@ -89,10 +89,10 @@ export function useCreateWallet(): TypeUseCreateWallet {
   }, [])
 
   const setWordCount = useCallback((count: WordCount) => {
-    setWordCountState(count)
-    setSeedPhrase((prev) => {
-      if (prev.length === 0) return prev
-      return generateMnemonicWords(count)
+    setWordCountState((prevCount) => {
+      if (prevCount === count) return prevCount
+      setSeedPhrase((prev) => (prev.length === 0 ? prev : generateMnemonicWords(count)))
+      return count
     })
   }, [])
 
