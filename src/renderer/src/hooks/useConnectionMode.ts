@@ -49,6 +49,29 @@ export function useConnectionMode(): UseConnectionMode {
     API.setConnectionType(target).catch(() => { lastApplied.current = previous })
   }, [desired, phase])
 
+  const autoStartedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!walletId) return
+    if (desired !== 'p2p') return
+    if (autoStartedFor.current === walletId) return
+    if (!isP2pInactive(phaseRef.current)) {
+      autoStartedFor.current = walletId
+      return
+    }
+    let cancelled = false
+    API.hasSyncProgress(walletId)
+      .then(hasProgress => {
+        if (cancelled) return
+        if (!hasProgress) return
+        if (autoStartedFor.current === walletId) return
+        if (!isP2pInactive(phaseRef.current)) return
+        autoStartedFor.current = walletId
+        API.startWalletSync(walletId).catch(err => console.error('auto startWalletSync failed', err))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [walletId, desired, phase])
+
   const setDesired = useCallback((next: ConnectionType) => {
     localStorage.setItem(LS_DESIRED_KEY, next)
     setDesiredState(next)

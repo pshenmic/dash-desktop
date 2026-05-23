@@ -178,6 +178,11 @@ export class WalletSyncService {
     return this.status
   }
 
+  hasSyncProgress = async (walletId: string): Promise<boolean> => {
+    const cursor = await this.transactionDAO.getCursor(walletId)
+    return cursor !== null
+  }
+
   // Always sourced from SQL — no main-process cache. Returns [] when no
   // wallet is active.
   getUtxos = async (): Promise<WalletSyncUtxo[]> => {

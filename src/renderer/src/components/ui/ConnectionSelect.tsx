@@ -45,7 +45,7 @@ export function StatusDot({ active }: { active: boolean }): React.JSX.Element {
 
 const dropdownStyles = cva(
   `absolute top-0 left-0 z-50
-   min-w-[3rem]
+   w-full
    rounded-[.9375rem]
    overflow-hidden
    dash-card-base
@@ -92,7 +92,7 @@ export default function ConnectionSelect({
   const hoverNotification = useRipple()
 
   return (
-    <div ref={containerRef} className={`relative inline-block ${className}`}>
+    <div ref={containerRef} className={`relative inline-block w-[10.5rem] ${className}`}>
       <button
         onMouseEnter={hoverNotification.onMouseEnter}
         onMouseMove={hoverNotification.onMouseMove}
@@ -102,7 +102,7 @@ export default function ConnectionSelect({
         className={`
           relative
           overflow-hidden
-          flex items-center gap-3 px-4 h-12
+          flex items-center gap-3 px-4 h-12 w-full
           rounded-[.9375rem]
           dash-block-3
           dash-black-border
@@ -111,17 +111,17 @@ export default function ConnectionSelect({
         `}
       >
         <StatusDot active={true} />
-        <div className={"flex flex-col items-start gap-[.125rem]"}>
-          <Text size={14} weight={"medium"} color={"brand"}>
+        <div className={"flex flex-col items-start gap-[.125rem] min-w-0 flex-1 text-left"}>
+          <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
             {selectedOption?.label}
           </Text>
           {selectedOption?.description && (
-            <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
+            <Text size={10} weight={"medium"} color={"brand"} opacity={50} className={"truncate max-w-full"}>
               {selectedOption.description}
             </Text>
           )}
         </div>
-        <ChevronIcon size={12} color={"currentColor"} className={"dash-text-default"} />
+        <ChevronIcon size={12} color={"currentColor"} className={"dash-text-default shrink-0"} />
       </button>
 
       <div className={dropdownStyles({ isOpen })}>
@@ -141,14 +141,14 @@ export default function ConnectionSelect({
                   : ''}
               `}
             >
-              <div className={"flex items-center gap-3"}>
+              <div className={"flex items-center gap-3 min-w-0 flex-1"}>
                 <StatusDot active={isSelected} />
-                <div className={"flex flex-col gap-[.125rem]"}>
-                  <Text size={14} weight={"medium"} color={"brand"}>
+                <div className={"flex flex-col gap-[.125rem] min-w-0 flex-1"}>
+                  <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
                     {option.label}
                   </Text>
                   {option.description && (
-                    <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
+                    <Text size={10} weight={"medium"} color={"brand"} opacity={50} className={"truncate max-w-full"}>
                       {option.description}
                     </Text>
                   )}
