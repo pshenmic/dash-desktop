@@ -81,7 +81,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
   )
 
   const walletOptions = useMemo(
-    () => toDropdownOptions(wallets.filter((w) => w.network === currentNetwork)),
+    () => toDropdownOptions(wallets, (w) => w.network === currentNetwork),
     [wallets, currentNetwork]
   )
 
