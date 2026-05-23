@@ -93,8 +93,9 @@ export class WalletService {
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
-    if (seedphrase.trim().split(/\s+/).length !== 12) {
-      throw new Error('Seedphrase must be 12 words')
+    const wordCount = seedphrase.trim().split(/\s+/).length
+    if (![12, 15, 18, 21, 24].includes(wordCount)) {
+      throw new Error('Seedphrase must be 12, 15, 18, 21, or 24 words')
     }
 
     if (network !== 'mainnet' && network !== 'testnet') {

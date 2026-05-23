@@ -23,7 +23,7 @@ export default function ImportSeedPhrase({ submitImportSeedPhrase, data }: Impor
 
   const options = [
     { label: "12 words", value: 12 as const },
-    { label: "24 words", value: 24 as const, disabled: true },
+    { label: "24 words", value: 24 as const },
   ]
 
   const normalize = (v: string) => v.trim().toLowerCase()
@@ -81,7 +81,7 @@ export default function ImportSeedPhrase({ submitImportSeedPhrase, data }: Impor
   }
 
   return (
-    <div className={"flex flex-col w-full gap-6 [&>div>button:nth-child(2)]:pointer-events-none [&>div>button:nth-child(2)]:opacity-40"}>
+    <div className={"flex flex-col w-full gap-6"}>
       <Switch
         options={options}
         value={wordCount}
