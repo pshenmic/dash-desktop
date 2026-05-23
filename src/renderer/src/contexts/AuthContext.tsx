@@ -35,7 +35,7 @@ interface AuthContextValue {
   refreshStatus: () => Promise<void>
   loginSuccess: () => Promise<void>
   setPreselectedWalletId: (walletId: string | null) => void
-  switchWallet: (walletId: string) => void
+  switchWallet: (walletId: string) => Promise<void>
   goToCreateWallet: () => void
 }
 
@@ -70,12 +70,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setPreselectedWalletId(null)
   }, [refreshStatus])
 
-  const switchWallet = useCallback((walletId: string) => {
+  const switchWallet = useCallback(async (walletId: string) => {
     if (!walletId) return
     setPreselectedWalletId(walletId)
-    setStatus(null)
+    try {
+      await API.selectWallet(walletId)
+    } catch (e) {
+      console.error('Failed to switch wallet', e)
+      return
+    }
+    await refreshStatus()
     navigate('/')
-  }, [navigate])
+  }, [navigate, refreshStatus])
 
   const goToCreateWallet = useCallback(() => {
     setPreselectedWalletId(null)
