@@ -38,6 +38,7 @@ import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
+import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -77,6 +78,7 @@ export class WalletBackend {
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletSyncService).handle)
+    ipcMain.handle('hasSyncProgress', new HasSyncProgressHandler(this.walletSyncService).handle)
   }
 
   async start(): Promise<void> {

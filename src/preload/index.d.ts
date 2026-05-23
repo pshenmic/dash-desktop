@@ -31,6 +31,7 @@ declare global {
       stopWalletSync: () => Promise<void>
       resetWalletSync: (network: 'mainnet' | 'testnet') => Promise<unknown>
       getUtxos: () => Promise<unknown>
+      hasSyncProgress: (walletId: string) => Promise<boolean>
     }
     darkMode: {
       get: () => Promise<boolean>

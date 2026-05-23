@@ -25,6 +25,10 @@ export class API {
     await this.api.resetWalletSync(network)
   }
 
+  static async hasSyncProgress(walletId: string): Promise<boolean> {
+    return this.api.hasSyncProgress(walletId) as Promise<boolean>
+  }
+
   static async createWallet(seedphrase: string, network: string, password: string) {
     return this.api.createWallet(seedphrase, network, password)
   }
