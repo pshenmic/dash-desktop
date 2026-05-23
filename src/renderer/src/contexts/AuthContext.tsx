@@ -79,7 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   const goToCreateWallet = useCallback(() => {
     setPreselectedWalletId(null)
-    setStatus(null)
     navigate('/create-wallet')
   }, [navigate])
 
