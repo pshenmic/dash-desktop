@@ -26,12 +26,6 @@ export interface SuccessTexts extends BaseTexts {
   buttonContinue: string
 }
 
-export interface SelectNetworkTexts extends BaseTexts {
-  mainnet: string
-  testnet: string
-  buttonNext: string
-}
-
 export interface WelcomeTexts {
   titlePrefix: string
   titleHighlight: string
@@ -53,7 +47,6 @@ export interface AuthTexts {
   seedPhraseWarning: BaseTexts
   success: SuccessTexts,
   successImport: SuccessTexts,
-  selectNetwork: SelectNetworkTexts,
   welcome: WelcomeTexts,
   importSeedPhrase: ImportSeedPhraseTexts,
 }
@@ -95,13 +88,6 @@ export const authTexts: AuthTexts = {
     subtitle: 'Succesfully Imported',
     description: 'Enjoy the best Desktop Experience for Dash!',
     buttonContinue: 'Continue'
-  },
-  selectNetwork: {
-    title: 'Select Network',
-    description: 'Choose the network you want to use your wallet for.',
-    mainnet: 'Dash Mainnet',
-    testnet: 'Dash Testnet',
-    buttonNext: 'Next'
   },
   welcome: {
     titlePrefix: 'Welcome to',

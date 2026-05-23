@@ -8,11 +8,12 @@ import { WalletDto } from '@renderer/api/types'
 import DeleteWallet from './modal/DeleteWallet'
 import DropdownSelect from './ui/DropdownSelect'
 import ConnectionSelect from './ui/ConnectionSelect'
+import NetworkSelect from './ui/NetworkSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
 import { useTheme } from 'dash-ui-kit/react'
 import { useConnectionMode } from '@renderer/hooks/useConnectionMode'
-import type { ConnectionType } from '@renderer/api/types'
+import type { ConnectionType, Network } from '@renderer/api/types'
 import {
   CONNECTION_LABELS,
   CONNECTION_DESCRIPTIONS,
@@ -68,7 +69,29 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     }
   }, [status?.selectedWalletId, wallets, selectedWallet])
 
-  const walletOptions = useMemo(() => toDropdownOptions(wallets), [wallets])
+  const walletCounts = useMemo<Record<Network, number>>(() => ({
+    mainnet: wallets.filter((w) => w.network === 'mainnet').length,
+    testnet: wallets.filter((w) => w.network === 'testnet').length,
+  }), [wallets])
+
+  const currentNetwork: Network = (
+    status?.network
+      ?? wallets.find((w) => w.walletId === selectedWallet)?.network
+      ?? 'mainnet'
+  )
+
+  const walletOptions = useMemo(
+    () => toDropdownOptions(wallets.filter((w) => w.network === currentNetwork)),
+    [wallets, currentNetwork]
+  )
+
+  const handleNetworkSelect = (network: Network): void => {
+    const target = wallets.find((w) => w.network === network && w.walletId !== selectedWallet)
+      ?? wallets.find((w) => w.network === network)
+    if (!target) return
+    setSelectedWallet(target.walletId)
+    switchWallet(target.walletId)
+  }
 
   const { desired, showSyncUI, fallbackActive, setDesired } = useConnectionMode()
 
@@ -96,14 +119,22 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       {showSyncUI && <SyncProgressBar />}
 
       <header className={"flex items-center justify-between mt-12 px-12"}>
-        <DropdownSelect
-          options={walletOptions}
-          value={selectedWallet}
-          onChange={handleWalletChange}
-          onItemAction={openDeleteModal}
-          onAdd={goToCreateWallet}
-          addLabel={"Add wallet"}
-        />
+        <div className={"flex items-center gap-[.625rem]"}>
+          <DropdownSelect
+            options={walletOptions}
+            value={selectedWallet}
+            onChange={handleWalletChange}
+            onItemAction={openDeleteModal}
+            onAdd={goToCreateWallet}
+            addLabel={"Add wallet"}
+          />
+          <NetworkSelect
+            value={currentNetwork}
+            walletCounts={walletCounts}
+            onSelectNetwork={handleNetworkSelect}
+            onCreateOnNetwork={() => goToCreateWallet()}
+          />
+        </div>
 
         <div className={"flex items-center gap-[.625rem]"}>
           {showSyncUI && <SyncControlButton />}

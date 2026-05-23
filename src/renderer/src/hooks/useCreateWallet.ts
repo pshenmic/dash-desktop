@@ -11,7 +11,6 @@ export type CreateWalletStep =
   | 'seed-phrase'
   | 'verify'
   | 'success'
-  | 'select-network'
   | 'welcome'
   | 'import-seed-phrase'
   | 'password-import'
@@ -57,7 +56,6 @@ export interface TypeUseCreateWallet {
   verifySeedPhrase: () => void
   goBack: () => void
   setNetwork: (network: Network) => void
-  goToWelcome: () => void
   goToPassword: () => void
   goToImportSeedPhrase: () => void
   submitImportSeedPhrase: (phrase: string[]) => void
@@ -68,13 +66,12 @@ const PREV_STEP: Partial<Record<CreateWalletStep, CreateWalletStep>> = {
   'password':           'welcome',
   'seed-phrase':        'password',
   'verify':             'seed-phrase',
-  'welcome':            'select-network',
   'import-seed-phrase': 'welcome',
   'password-import': 'import-seed-phrase',
 }
 
 export function useCreateWallet(): TypeUseCreateWallet {
-  const [step, setStep] = useState<CreateWalletStep>('select-network')
+  const [step, setStep] = useState<CreateWalletStep>('welcome')
   const [password, setPasswordState] = useState('')
   const [seedPhrase, setSeedPhrase] = useState<string[]>([])
   const [verifyPhrase, setVerifyPhrase] = useState<string[]>([])
@@ -159,10 +156,6 @@ export function useCreateWallet(): TypeUseCreateWallet {
     })
   }, [])
 
-  const goToWelcome = useCallback(() => {
-    setStep('welcome')
-  }, [])
-
   const goToPassword = useCallback(() => {
     setPath('create')
     setStep('password')
@@ -206,7 +199,6 @@ export function useCreateWallet(): TypeUseCreateWallet {
     goBack,
     network,
     setNetwork,
-    goToWelcome,
     goToPassword,
     goToImportSeedPhrase,
     submitImportSeedPhrase,
