@@ -216,11 +216,12 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
 
-    try {
-      return decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
+    const isValid = await this.verifyWalletPassword(walletId, password)
+    if (!isValid) {
       throw new Error('Invalid password')
     }
+
+    return decryptMnemonic(wallet.encryptedMnemonic, password)
   }
 
   async verifyWalletPassword(walletId: string, password: string): Promise<boolean> {
