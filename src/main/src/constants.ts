@@ -16,6 +16,5 @@ export const SUPPORTED_LANGUAGES = [
 
 export const SUPPORTED_CURRENCIES = [
   "usd",
-  "btc",
   "rub"
 ] as const
