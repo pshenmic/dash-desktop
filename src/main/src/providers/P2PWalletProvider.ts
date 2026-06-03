@@ -1,7 +1,8 @@
-import {Block, Script, utils as sdkUtils} from 'dash-core-sdk'
+import {Block, Script, Transaction as SDKTransaction, utils as sdkUtils} from 'dash-core-sdk'
 import {UTXO} from '../types/UTXO'
 import {Transaction} from '../types/Transaction'
 import {TransactionDAO} from '../database/TransactionDAO'
+import {WalletSyncService} from '../services/WalletSyncService'
 import {WalletProvider} from './WalletProvider'
 
 const {addressToPublicKeyHash} = sdkUtils
@@ -9,13 +10,16 @@ const {addressToPublicKeyHash} = sdkUtils
 // Reads wallet info from the local SQL database populated by SPV cfilter
 // sync. Only knows about txs that touched our addresses.
 //
+// Broadcast is routed natively through the p2p utility process via
+// WalletSyncService. Requires walletSync to be running — otherwise
+// broadcast rejects with a "p2p utility process not started" error.
 // Unsupported (throw):
-//   - broadcastTx
 //   - getBlockByHash
 export class P2PWalletProvider implements WalletProvider {
   constructor(
     private readonly transactionDAO: TransactionDAO,
     private readonly walletId: string,
+    private readonly walletSyncService: WalletSyncService,
   ) {}
 
   async getTransactions(address: string): Promise<Transaction[]> {
@@ -43,8 +47,9 @@ export class P2PWalletProvider implements WalletProvider {
     }))
   }
 
-  async broadcastTx(): Promise<string> {
-    throw new Error('Unimplemented: broadcastTx is not available in p2p mode')
+  async broadcastTx(tx: SDKTransaction): Promise<string> {
+    const result = await this.walletSyncService.broadcastTransaction(tx.hex())
+    return result.txid
   }
 
   async getBlockByHash(): Promise<Block> {

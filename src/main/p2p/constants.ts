@@ -71,7 +71,7 @@ export const BLOCK_REQUEST_TIMEOUT_MS = 15_000
 // (reorgs / peer lag), so anything closer than this fails intermittently.
 // Trade-off: larger value = more reliable cfilter requests but longer
 // confirmation latency before a wallet sees a new UTXO.
-export const SCAN_TIP_DEPTH = 100
+export const SCAN_TIP_DEPTH = 10
 
 // ── Broadcast ───────────────────────────────────────────────────────────────
 
@@ -82,7 +82,7 @@ export const SCAN_TIP_DEPTH = 100
 // mainnet/testnet today; both flags stay false.
 export const BROADCAST_POLICY = {
   minPeerAcks: 1,
-  waitForInstantLock: false,
+  waitForInstantLock: true,
   requireInstantLock: false,
   peerWaitMs: 10_000,
   timeoutMs: 30_000,
