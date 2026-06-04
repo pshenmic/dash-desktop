@@ -5,6 +5,7 @@ import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {ApplicationService} from './ApplicationService'
+import {WalletSyncService} from './WalletSyncService'
 import {WalletProvider} from '../providers/WalletProvider'
 import {InsightWalletProvider} from '../providers/InsightWalletProvider'
 import {P2PWalletProvider} from '../providers/P2PWalletProvider'
@@ -63,6 +64,7 @@ export class WalletService {
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
   private transactionDAO: TransactionDAO
+  private walletSyncService: WalletSyncService
   private applicationService: ApplicationService
   private sdk: DashPlatformSDK
   private pbkdf2Iterations: number
@@ -72,6 +74,7 @@ export class WalletService {
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
     transactionDAO: TransactionDAO,
+    walletSyncService: WalletSyncService,
     applicationService: ApplicationService,
     sdk: DashPlatformSDK,
     pbkdf2Iterations: number,
@@ -81,13 +84,14 @@ export class WalletService {
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
     this.transactionDAO = transactionDAO
+    this.walletSyncService = walletSyncService
     this.applicationService = applicationService
     this.sdk = sdk
   }
 
   private getProvider(walletId: string, network: Network): WalletProvider {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
-      return new P2PWalletProvider(this.transactionDAO, walletId)
+      return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService)
     }
     return new InsightWalletProvider(network, walletId, this.addressDAO)
   }
