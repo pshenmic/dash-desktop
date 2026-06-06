@@ -1,50 +1,86 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { GetWalletAddressesHandler } from '../../src/main/src/api/wallet/GetAddresses'
-import { CreateWalletHandler } from '../../src/main/src/api/wallet/CreateWallet'
-import { DashPlatformSDK } from 'dash-platform-sdk'
-import { getKnex, migrateKnex } from '../../src/main/src/utils'
-import { WalletDAO } from '../../src/main/src/database/WalletDAO'
-import { AddressDAO } from '../../src/main/src/database/AddressDAO'
-import { WalletService } from '../../src/main/src/services/WalletService'
-import { AddressesService } from '../../src/main/src/services/AddressesService'
-import path from 'path'
+import {describe, it, expect, beforeEach, vi} from 'vitest'
+import {DashPlatformSDK} from 'dash-platform-sdk'
+import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {WalletService} from '../../src/main/src/services/WalletService'
+import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {ApplicationService} from '../../src/main/src/services/ApplicationService'
+import {WalletDAO} from '../../src/main/src/database/WalletDAO'
+import {AddressDAO} from '../../src/main/src/database/AddressDAO'
+import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
+import {Preferences} from '../../src/main/src/preferences'
+import {getKnex, migrateKnex} from '../../src/main/src/utils'
 
 const VALID_SEEDPHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const PASSWORD = 'password123'
+const TEST_PBKDF2_ITERATIONS = 1_000
 
 describe('GetWalletAddressesHandler', () => {
   let handler: GetWalletAddressesHandler
   let createWalletHandler: CreateWalletHandler
-  let walletDAO: WalletDAO
-  let addressDAO: AddressDAO
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const knex = getKnex()
-    await migrateKnex(knex, path.join(process.cwd(), 'src/main/migrations'))
-    walletDAO = new WalletDAO(knex)
-    addressDAO = new AddressDAO(knex)
-    const sdk = new DashPlatformSDK()
-    const walletService = new WalletService(walletDAO, addressDAO, sdk)
-    const addressesService = new AddressesService(addressDAO)
-    createWalletHandler = new CreateWalletHandler(walletService)
-    handler = new GetWalletAddressesHandler(walletService, addressesService)
+    await migrateKnex(knex)
+
+    const walletDAO = new WalletDAO(knex)
+    const addressDAO = new AddressDAO(knex)
+    const identityDAO = new IdentityDAO(knex)
+    const transactionDAO = new TransactionDAO(knex)
+
+    const sdk = new DashPlatformSDK({network: 'testnet'})
+    vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
+    vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
+
+    // p2p mode → getBalance reads from local SQL (empty here, always 0n) so
+    // the handler does not need network access during the test.
+    const preferences = Preferences.default()
+    preferences.general.connectionType = 'p2p'
+    const applicationService = new ApplicationService(preferences)
+    const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+
+    const walletService = new WalletService(
+      walletDAO, addressDAO, identityDAO, transactionDAO,
+      applicationService, walletSyncService, sdk, TEST_PBKDF2_ITERATIONS,
+    )
+
+    createWalletHandler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)
+    handler = new GetWalletAddressesHandler(walletService)
   })
 
-  it('should return 40 addresses for a created wallet', async () => {
-    const walletId = await createWalletHandler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
-    const addresses = await handler.handle(null as any, walletId)
-    expect(addresses).toHaveLength(40)
+  it('returns 20 receiving and 20 change addresses for a fresh wallet', async () => {
+    const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    const grouped = await handler.handle(null as never, walletId)
+
+    expect(grouped.receiving).toHaveLength(20)
+    expect(grouped.change).toHaveLength(20)
   })
 
-  it('should return addresses belonging to the requested wallet', async () => {
-    const walletId = await createWalletHandler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
-    const addresses = await handler.handle(null as any, walletId)
-    addresses.forEach((a) => expect(a.walletId).toBe(walletId))
+  it('returns addresses scoped to the requested wallet', async () => {
+    const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    const grouped = await handler.handle(null as never, walletId)
+
+    for (const a of [...grouped.receiving, ...grouped.change]) {
+      expect(a.walletId).toBe(walletId)
+    }
   })
 
-  it('should throw for unknown walletId', async () => {
+  it('annotates a zero balance for an unsynced wallet in p2p mode', async () => {
+    const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    const grouped = await handler.handle(null as never, walletId)
+
+    for (const a of [...grouped.receiving, ...grouped.change]) {
+      expect(a.balance).toBe(0n)
+    }
+  })
+
+  it('throws for an unknown walletId', async () => {
     await expect(
-      handler.handle(null as any, 'nonexistent')
+      handler.handle(null as never, 'nonexistent'),
     ).rejects.toThrow('Wallet not found')
   })
 })
