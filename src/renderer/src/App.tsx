@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom"
+import { Route, Routes, useLocation } from "react-router-dom"
 import TransactionsPage from "./pages/Transactions"
 import SendPage from "./pages/Send"
 import Sidebar from "./components/sidebar"
@@ -8,16 +8,25 @@ import CreateWalletWrapper from "./pages/auth/CreateWalletWrapper"
 import ReceivePage from "./pages/Receive"
 import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
+import SettingsPage from "./pages/Settings"
 import { useAuth } from "./contexts/AuthContext"
 
 function App(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
+  const location = useLocation()
+
+  if (location.pathname === '/create-wallet') {
+    return (
+      <Routes>
+        <Route path="/create-wallet" element={<CreateWalletWrapper />} />
+      </Routes>
+    )
+  }
 
   if (!isAuthenticated) {
     return (
       <Routes>
         <Route path="/" element={<LoginPage />} />
-        <Route path="/create-wallet" element={<CreateWalletWrapper />} />
       </Routes>
     )
   }
@@ -32,6 +41,7 @@ function App(): React.JSX.Element {
           <Route path={"/receive"} element={<ReceivePage />} />
           <Route path={"/addresses"} element={<AddressesPage />} />
           <Route path={"/identities"} element={<IdentitiesPage />} />
+          <Route path={"/settings"} element={<SettingsPage />} />
         </Routes>
       </Layout>
     </div>

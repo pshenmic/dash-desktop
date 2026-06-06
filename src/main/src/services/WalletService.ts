@@ -30,6 +30,7 @@ export class WalletService {
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
   private transactionDAO: TransactionDAO
+  private walletSyncService: WalletSyncService
   private applicationService: ApplicationService
   private walletSyncService: WalletSyncService
   private sdk: DashPlatformSDK
@@ -40,6 +41,7 @@ export class WalletService {
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
     transactionDAO: TransactionDAO,
+    walletSyncService: WalletSyncService,
     applicationService: ApplicationService,
     walletSyncService: WalletSyncService,
     sdk: DashPlatformSDK,
@@ -50,6 +52,7 @@ export class WalletService {
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
     this.transactionDAO = transactionDAO
+    this.walletSyncService = walletSyncService
     this.applicationService = applicationService
     this.walletSyncService = walletSyncService
     this.sdk = sdk
@@ -67,8 +70,9 @@ export class WalletService {
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
-    if (seedphrase.trim().split(/\s+/).length !== 12) {
-      throw new Error('Seedphrase must be 12 words')
+    const wordCount = seedphrase.trim().split(/\s+/).length
+    if (![12, 15, 18, 21, 24].includes(wordCount)) {
+      throw new Error('Seedphrase must be 12, 15, 18, 21, or 24 words')
     }
 
     if (network !== 'mainnet' && network !== 'testnet') {

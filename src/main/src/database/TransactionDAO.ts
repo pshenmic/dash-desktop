@@ -1,10 +1,19 @@
 import type {Knex} from 'knex'
-import type {AppliedBlock, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 
 // Re-exported so callers (services, future API handlers) can stay decoupled
 // from the p2p IPC types if/when the protocol drifts.
-export type {AppliedBlock, WalletSyncUtxo}
+export type {AppliedBlock, AppliedTx, WalletSyncUtxo}
+
+// A locally-broadcast tx still awaiting confirmation. raw is replayed for
+// rebroadcast; firstSeenAt drives the rebroadcast/stale-release cadence.
+export interface PendingTx {
+  txid: string
+  raw: Uint8Array
+  firstSeenAt: number
+  instantLocked: boolean
+}
 
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
@@ -31,7 +40,13 @@ export class TransactionDAO {
         raw: Buffer.from(t.raw.buffer, t.raw.byteOffset, t.raw.byteLength),
       }))
       if (txRows.length > 0) {
-        await trx('transactions').insert(txRows).onConflict(['wallet_id', 'txid']).ignore()
+        // merge (not ignore) so a tx we recorded optimistically at broadcast
+        // (block_height = 0) gets its real height/hash/time when its block is
+        // finally scanned.
+        await trx('transactions')
+          .insert(txRows)
+          .onConflict(['wallet_id', 'txid'])
+          .merge(['block_height', 'block_hash', 'block_time', 'raw'])
       }
 
       const outputRows = block.txs.flatMap(t =>
@@ -78,15 +93,36 @@ export class TransactionDAO {
           if (o.isMine && o.address) usedAddresses.add(o.address)
         }
       }
+      // Outpoints whose optimistic (pre-confirmation) spender lost to a
+      // different on-chain spender — those local txs can never confirm.
+      const conflicted = new Set<string>()
       for (const s of block.spends) {
         const row = await trx('transaction_outputs')
-          .select('address')
+          .select('address', 'spent_in_txid')
           .where({wallet_id: block.walletId, txid: s.prevTxid, vout: s.prevVout})
           .first()
         if (row?.address) usedAddresses.add(row.address as string)
+        const prevSpender = row?.spent_in_txid as string | null | undefined
+        if (prevSpender && prevSpender !== s.spentInTxid) conflicted.add(prevSpender)
         await trx('transaction_outputs')
           .where({wallet_id: block.walletId, txid: s.prevTxid, vout: s.prevVout})
           .update({spent_in_txid: s.spentInTxid, spent_at_height: block.height})
+      }
+
+      // Anchor the confirmation height of optimistic spends made by the txs
+      // that just landed in this block. The cfilter scan can't re-detect them
+      // once their inputs were excluded from the seed (after a restart), so
+      // pin spent_at_height here off the now-confirmed spending txid.
+      for (const tx of block.txs) {
+        await trx('transaction_outputs')
+          .where({wallet_id: block.walletId, spent_in_txid: tx.txid})
+          .whereNull('spent_at_height')
+          .update({spent_at_height: block.height})
+      }
+
+      // Drop local txs displaced by a conflicting on-chain spend.
+      for (const txid of conflicted) {
+        await abandonWithinTrx(trx, block.walletId, txid)
       }
       if (usedAddresses.size > 0) {
         const updated = await trx('addresses')
@@ -138,6 +174,108 @@ export class TransactionDAO {
       .where({wallet_id: walletId})
       .first()
     return row ? row.cfilter_cursor_height : null
+  }
+
+  // ── Pending (locally-broadcast, pre-confirmation) txs ──────────────────────
+
+  // Record a just-broadcast tx optimistically, before any block confirms it.
+  // block_height = 0 marks it unconfirmed; its inputs are flagged spent so
+  // getUtxos stops offering them immediately, and its outputs are inserted so
+  // the change is spendable right away. Idempotent (safe on rebroadcast).
+  recordPendingBroadcast = async (walletId: string, tx: AppliedTx): Promise<void> => {
+    const now = Date.now()
+    await this.knex.transaction(async trx => {
+      await trx('transactions')
+        .insert({
+          wallet_id: walletId,
+          txid: tx.txid,
+          block_height: 0,
+          block_hash: '',
+          block_time: Math.floor(now / 1000),
+          raw: Buffer.from(tx.raw.buffer, tx.raw.byteOffset, tx.raw.byteLength),
+          first_seen_at: now,
+        })
+        .onConflict(['wallet_id', 'txid'])
+        .ignore()
+
+      const outputRows = tx.outputs.map(o => ({
+        wallet_id: walletId,
+        txid: tx.txid,
+        vout: o.vout,
+        address: o.address,
+        satoshis: o.satoshis,
+        is_mine: o.isMine,
+      }))
+      if (outputRows.length > 0) {
+        await trx('transaction_outputs').insert(outputRows).onConflict(['wallet_id', 'txid', 'vout']).ignore()
+      }
+
+      const inputRows = tx.inputs.map(i => ({
+        wallet_id: walletId,
+        txid: tx.txid,
+        vin: i.vin,
+        prev_txid: i.prevTxid,
+        prev_vout: i.prevVout,
+        sequence: i.sequence,
+      }))
+      if (inputRows.length > 0) {
+        await trx('transaction_inputs').insert(inputRows).onConflict(['wallet_id', 'txid', 'vin']).ignore()
+      }
+
+      // Flag the spent inputs (pending: no height yet). Only touch outputs that
+      // are currently unspent so we never clobber an already-recorded spend.
+      for (const i of tx.inputs) {
+        await trx('transaction_outputs')
+          .where({wallet_id: walletId, txid: i.prevTxid, vout: i.prevVout})
+          .whereNull('spent_in_txid')
+          .update({spent_in_txid: tx.txid})
+      }
+
+      const usedAddresses = tx.outputs.filter(o => o.isMine && o.address).map(o => o.address as string)
+      if (usedAddresses.length > 0) {
+        await trx('addresses')
+          .where('wallet_id', walletId)
+          .whereIn('address', usedAddresses)
+          .andWhere('is_used', false)
+          .update({is_used: true})
+      }
+    })
+  }
+
+  // Unconfirmed (block_height = 0) txs — for rebroadcast and isdlock watching.
+  getPendingTxs = async (walletId: string): Promise<PendingTx[]> => {
+    const rows = await this.knex('transactions')
+      .select('txid', 'raw', 'first_seen_at', 'instant_locked')
+      .where({wallet_id: walletId, block_height: 0})
+    return rows.map(r => ({
+      txid: r.txid,
+      raw: r.raw,
+      firstSeenAt: r.first_seen_at ?? 0,
+      instantLocked: Boolean(r.instant_locked),
+    }))
+  }
+
+  markInstantLocked = async (walletId: string, txid: string): Promise<void> => {
+    await this.knex('transactions')
+      .where({wallet_id: walletId, txid})
+      .update({instant_locked: true})
+  }
+
+  // Flag every confirmed tx at or below `height` as chainlocked (irreversible).
+  markChainlockedUpTo = async (walletId: string, height: number): Promise<void> => {
+    await this.knex('transactions')
+      .where('wallet_id', walletId)
+      .andWhere('block_height', '>', 0)
+      .andWhere('block_height', '<=', height)
+      .andWhere('chainlocked', false)
+      .update({chainlocked: true})
+  }
+
+  // Drop a still-unconfirmed local tx and free the inputs it held pending —
+  // used for manual "abandon" and automatic conflict resolution. No-op once
+  // the tx has confirmed.
+  abandonTransaction = async (walletId: string, txid: string): Promise<void> => {
+    await this.knex.transaction(trx => abandonWithinTrx(trx, walletId, txid))
   }
 
   // Unspent outputs that pay the wallet. Same shape as WalletSyncUtxo so
@@ -294,6 +432,21 @@ export class TransactionDAO {
 
     return shapeRowsToTransactions(rows, walletId)[0]
   }
+}
+
+// Remove a still-unconfirmed (block_height = 0) tx: free the inputs it held
+// pending (never a confirmed spend), then delete its phantom outputs, inputs,
+// and the tx row. Confirmed txs are left untouched.
+async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: string): Promise<void> {
+  const tx = await trx('transactions').select('block_height').where({wallet_id: walletId, txid}).first()
+  if (!tx || tx.block_height > 0) return
+  await trx('transaction_outputs')
+    .where({wallet_id: walletId, spent_in_txid: txid})
+    .whereNull('spent_at_height')
+    .update({spent_in_txid: null, spent_at_height: null})
+  await trx('transaction_outputs').where({wallet_id: walletId, txid}).delete()
+  await trx('transaction_inputs').where({wallet_id: walletId, txid}).delete()
+  await trx('transactions').where({wallet_id: walletId, txid}).delete()
 }
 
 // Pivot the cartesian-product join rows (one per output × input combo

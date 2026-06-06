@@ -6,9 +6,6 @@ export interface Messages {
     passwordValidation: {
       minLength: string
       maxLength: string
-      letterRequired: string
-      numberRequired: string
-      specialCharRequired: string
       passwordsDoNotMatch: string
     }
     seedPhrase: {
@@ -29,11 +26,8 @@ export const messages: Messages = {
     couldNotCreateWallet: "**Could not create wallet**",
 
     passwordValidation: {
-      minLength: '**Check your password** Password must contain at least 6 characters.',
+      minLength: '**Check your password** Password must contain at least 8 characters.',
       maxLength: '**Check your password** Password must be at most 128 characters.',
-      letterRequired: '**Check your password** Include at least one letter.',
-      numberRequired: '**Check your password** Include at least one number.',
-      specialCharRequired: '**Check your password** Include at least one special character (!@#…).',
       passwordsDoNotMatch: '**Check your password** Passwords do not match.',
     },
 

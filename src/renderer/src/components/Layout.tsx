@@ -7,9 +7,18 @@ import { toDropdownOptions } from '@renderer/utils/wallets'
 import { WalletDto } from '@renderer/api/types'
 import DeleteWallet from './modal/DeleteWallet'
 import DropdownSelect from './ui/DropdownSelect'
-import { StatusDot } from './ui/ConnectionSelect'
-import { Text } from './dash-ui-kit-enxtended'
+import ConnectionSelect from './ui/ConnectionSelect'
+import NetworkSelect from './ui/NetworkSelect'
+import SyncProgressBar from './ui/SyncProgressBar'
+import SyncControlButton from './ui/SyncControlButton'
 import { useTheme } from 'dash-ui-kit/react'
+import { useConnectionMode } from '@renderer/hooks/useConnectionMode'
+import type { ConnectionType, Network } from '@renderer/api/types'
+import {
+  CONNECTION_LABELS,
+  CONNECTION_DESCRIPTIONS,
+  P2P_FALLBACK_DESCRIPTION,
+} from '@renderer/constants/connection'
 
 interface LayoutProps {
   children: ReactNode
@@ -60,7 +69,44 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     }
   }, [status?.selectedWalletId, wallets, selectedWallet])
 
-  const walletOptions = useMemo(() => toDropdownOptions(wallets), [wallets])
+  const walletCounts = useMemo<Record<Network, number>>(() => ({
+    mainnet: wallets.filter((w) => w.network === 'mainnet').length,
+    testnet: wallets.filter((w) => w.network === 'testnet').length,
+  }), [wallets])
+
+  const currentNetwork: Network = (
+    status?.network
+      ?? wallets.find((w) => w.walletId === selectedWallet)?.network
+      ?? 'mainnet'
+  )
+
+  const walletOptions = useMemo(
+    () => toDropdownOptions(wallets, (w) => w.network === currentNetwork),
+    [wallets, currentNetwork]
+  )
+
+  const handleNetworkSelect = (network: Network): void => {
+    const target = wallets.find((w) => w.network === network && w.walletId !== selectedWallet)
+      ?? wallets.find((w) => w.network === network)
+    if (!target) return
+    setSelectedWallet(target.walletId)
+    switchWallet(target.walletId)
+  }
+
+  const { desired, showSyncUI, fallbackActive, setDesired } = useConnectionMode()
+
+  const connectionOptions = useMemo(() => [
+    {
+      value: 'p2p',
+      label: CONNECTION_LABELS.p2p,
+      description: fallbackActive ? P2P_FALLBACK_DESCRIPTION : CONNECTION_DESCRIPTIONS.p2p,
+    },
+    {
+      value: 'rpc',
+      label: CONNECTION_LABELS.rpc,
+      description: CONNECTION_DESCRIPTIONS.rpc,
+    },
+  ], [fallbackActive])
 
   const handleWalletChange = (walletId: string): void => {
     if (!walletId || walletId === selectedWallet) return
@@ -70,41 +116,33 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
 
   return (
     <div id={"layout-root"} className={"relative w-full h-screen flex flex-col overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
+      {showSyncUI && <SyncProgressBar />}
+
       <header className={"flex items-center justify-between mt-12 px-12"}>
-        <DropdownSelect
-          options={walletOptions}
-          value={selectedWallet}
-          onChange={handleWalletChange}
-          onItemAction={openDeleteModal}
-          onAdd={goToCreateWallet}
-          addLabel={"Add wallet"}
-        />
+        <div className={"flex items-center gap-[.625rem]"}>
+          <DropdownSelect
+            options={walletOptions}
+            value={selectedWallet}
+            onChange={handleWalletChange}
+            onItemAction={openDeleteModal}
+            onAdd={goToCreateWallet}
+            addLabel={"Add wallet"}
+          />
+          <NetworkSelect
+            value={currentNetwork}
+            walletCounts={walletCounts}
+            onSelectNetwork={handleNetworkSelect}
+            onCreateOnNetwork={() => goToCreateWallet()}
+          />
+        </div>
 
         <div className={"flex items-center gap-[.625rem]"}>
-          <button
-            type={"button"}
-            className={`
-              relative
-              overflow-hidden
-              flex items-center gap-3 px-4 h-12
-              rounded-[.9375rem]
-              dash-block-3
-              pr-6!
-              dash-black-border
-              cursor-pointer
-              focus:outline-none
-            `}
-          >
-            <StatusDot active={true} />
-            <div className={"flex flex-col items-start gap-[.125rem]"}>
-              <Text size={14} weight={"medium"} color={"brand"}>
-                Connection
-              </Text>
-              <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
-                Dash Insight API
-              </Text>
-            </div>
-          </button>
+          {showSyncUI && <SyncControlButton />}
+          <ConnectionSelect
+            options={connectionOptions}
+            value={desired}
+            onChange={(value) => setDesired(value as ConnectionType)}
+          />
           <button
             onMouseEnter={hoverNotification.onMouseEnter}
             onMouseMove={hoverNotification.onMouseMove}

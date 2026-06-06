@@ -22,6 +22,16 @@ declare global {
       selectWallet: (walletId: string) => Promise<unknown>
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<unknown>
+      getPreferences: () => Promise<unknown>
+      setLanguage: (language: string) => Promise<unknown>
+      setFiatCurrency: (currency: string) => Promise<unknown>
+      setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<unknown>
+      resetPreferences: () => Promise<unknown>
+      startWalletSync: (walletId: string) => Promise<unknown>
+      stopWalletSync: () => Promise<void>
+      resetWalletSync: (network: 'mainnet' | 'testnet') => Promise<unknown>
+      getUtxos: () => Promise<unknown>
+      hasSyncProgress: (walletId: string) => Promise<boolean>
     }
     darkMode: {
       get: () => Promise<boolean>

@@ -94,7 +94,7 @@ describe('CreateWalletHandler', () => {
   it('should throw on seedphrase with wrong word count', async () => {
     await expect(
       handler.handle(null as any, 'too short', 'testnet', PASSWORD)
-    ).rejects.toThrow('Seedphrase must be 12 words')
+    ).rejects.toThrow('Seedphrase must be 12, 15, 18, 21, or 24 words')
   })
 
   it('should throw on invalid network', async () => {

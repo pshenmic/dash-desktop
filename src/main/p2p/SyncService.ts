@@ -10,9 +10,10 @@ import {
   CFilterSyncWorker,
   CFilterSyncWorkerStatus,
 } from './workers/CFilterSyncWorker'
-import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PStartMessage} from './types/messages'
+import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
 import {BroadcastResult} from './types/broadcast'
 import {AppliedBlock, WalletSyncStatus} from './types/walletSync'
+import {Inventory, Message, Peer} from 'dash-core-p2p'
 
 // Top-level controller for the p2p utility process. Owns the shared
 // infrastructure (ChainStore + PoolService), spawns workers per session,
@@ -37,6 +38,8 @@ export interface SyncServiceEvents {
     result: BroadcastResult,
     errorMessage: string | null,
   ) => void
+  txInstantLocked: (walletId: string, txid: string) => void
+  chainLocked: (walletId: string, height: number) => void
 }
 
 export class SyncService {
@@ -51,6 +54,11 @@ export class SyncService {
   private activeSeedUtxos: P2PStartMessage['seedUtxos'] = []
   private activeCFilterCursor: number | null = null
   private cfilterStarted = false
+  // Display-order txids of unconfirmed local txs to watch for an isdlock.
+  // While non-empty the watcher fetches isdlock objects to match them.
+  private watchedTxids = new Set<string>()
+  // Highest ChainLock height observed — dedupes repeated clsig emits.
+  private chainlockedHeight = 0
 
   private status: WalletSyncStatus = {
     phase: 'idle',
@@ -84,6 +92,8 @@ export class SyncService {
     this.activeSeedUtxos = cmd.seedUtxos ?? []
     this.activeCFilterCursor = cmd.cfilterCursor ?? null
     this.cfilterStarted = false
+    this.watchedTxids = new Set()
+    this.chainlockedHeight = 0
 
     this.emit({
       phase: 'connecting',
@@ -133,6 +143,12 @@ export class SyncService {
     // Boot shared peer pool.
     this.peerPool = new PoolService(cmd.network)
     this.peerPool.start()
+
+    // Lock watcher: fetch + match InstantSend (isdlock) / ChainLock (clsig)
+    // objects so locally-broadcast txs can be finalized fast.
+    this.peerPool.on('peerinv', this.onPeerInvForLocks)
+    this.peerPool.on('peerisdlock', this.onIsdlock)
+    this.peerPool.on('peerclsig', this.onClsig)
 
     // Boot HeaderSyncWorker. CFilterSyncWorker is booted lazily once header
     // sync emits 'synced' status (so we don't compete for chain.db state
@@ -206,6 +222,52 @@ export class SyncService {
     for (const a of cmd.addresses) merged.add(a)
     this.activeWatchAddresses = [...merged]
     this.cfilterSyncWorker?.addWatchAddresses(cmd.addresses, cmd.rewindToHeight)
+  }
+
+  watchTxs = (cmd: P2PWatchTxsMessage): void => {
+    if (!this.activeWalletId || cmd.walletId !== this.activeWalletId) return
+    this.watchedTxids = new Set(cmd.txids)
+  }
+
+  // ── lock watcher ────────────────────────────────────────────────────────────
+
+  // On every inv, fetch ChainLock objects (cheap, ~1/block) and — only while
+  // we have local txs awaiting confirmation — InstantSend objects, so we can
+  // match them by txid. The inv carries only the object's hash, so we must
+  // getdata it to read its contents.
+  private onPeerInvForLocks = (
+    peer: Peer,
+    msg: Message & {inventory?: Array<{type: number; hash: Uint8Array}>},
+  ): void => {
+    if (!this.peerPool) return
+    const wanted: Array<{type: number; hash: Uint8Array}> = []
+    for (const item of msg.inventory ?? []) {
+      if (item.type === Inventory.TYPE.CLSIG) {
+        wanted.push({type: item.type, hash: item.hash})
+      } else if (item.type === Inventory.TYPE.ISDLOCK && this.watchedTxids.size > 0) {
+        wanted.push({type: item.type, hash: item.hash})
+      }
+    }
+    if (wanted.length === 0) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    peer.sendMessage((this.peerPool.messages as any).GetData(wanted))
+  }
+
+  // isdlock.txid is wire/internal byte order; our watch set is display order.
+  private onIsdlock = (_peer: Peer, msg: Message & {txid?: string}): void => {
+    if (!this.activeWalletId || !msg.txid) return
+    const displayTxid = reverseHex(msg.txid)
+    if (!this.watchedTxids.has(displayTxid)) return
+    this.watchedTxids.delete(displayTxid)
+    this.events.txInstantLocked(this.activeWalletId, displayTxid)
+  }
+
+  private onClsig = (_peer: Peer, msg: Message & {height?: number}): void => {
+    if (!this.activeWalletId) return
+    const height = msg.height ?? 0
+    if (height <= this.chainlockedHeight) return
+    this.chainlockedHeight = height
+    this.events.chainLocked(this.activeWalletId, height)
   }
 
   // ── private ───────────────────────────────────────────────────────────────
@@ -348,6 +410,13 @@ export class SyncService {
         .finally(() => this.emit({phase: 'stopped'}))
     }
   }
+}
+
+// Reverse a hex string byte-wise (wire/internal txid order ⇄ display order).
+function reverseHex(hex: string): string {
+  let out = ''
+  for (let i = hex.length - 2; i >= 0; i -= 2) out += hex.slice(i, i + 2)
+  return out
 }
 
 // Errors that mean chain.db is no longer usable — corruption, IO errors,

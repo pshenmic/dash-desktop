@@ -20,13 +20,10 @@ type CreateWalletProps = Pick<TypeUseCreateWallet, 'password' | 'setPassword'> &
   data: CreateWalletData
 }
 
-const MIN_WALLET_PASSWORD_LENGTH = 6
+const MIN_WALLET_PASSWORD_LENGTH = 8
 const MAX_WALLET_PASSWORD_LENGTH = 128
-const HAS_LETTER = /[A-Za-z]/
-const HAS_DIGIT = /\d/
-const HAS_SPECIAL = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?~`]/
 
-const { createWallet: { passwordValidation: { minLength, maxLength, letterRequired, numberRequired, specialCharRequired, passwordsDoNotMatch },
+const { createWallet: { passwordValidation: { minLength, maxLength, passwordsDoNotMatch },
   seedPhrase: { warning, errorMessage, errorTitle }
 }} = messages
 
@@ -37,15 +34,6 @@ function getPasswordValidationError(password: string): string | null {
   }
   if (t.length > MAX_WALLET_PASSWORD_LENGTH) {
     return maxLength
-  }
-  if (!HAS_LETTER.test(t)) {
-    return letterRequired
-  }
-  if (!HAS_DIGIT.test(t)) {
-    return numberRequired
-  }
-  if (!HAS_SPECIAL.test(t)) {
-    return specialCharRequired
   }
   return null
 }

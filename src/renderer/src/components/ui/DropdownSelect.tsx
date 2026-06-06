@@ -100,7 +100,7 @@ export default function DropdownSelect({
             </Text>
             {selectedOption?.isSelected && (
               <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
-                {selectedOption.isSelected ? 'Default' : ''}
+                Default
               </Text>
             )}
           </div>
@@ -109,7 +109,7 @@ export default function DropdownSelect({
       </button>
 
       <div className={dropdownStyles({ isOpen })}>
-        <div className={"max-h-36 overflow-y-auto scrollbar-hide"}>
+        <div className={"max-h-72 overflow-y-auto"}>
           {sortedOptions.map((option, index) => (
             <div
               key={option.value}
@@ -130,7 +130,7 @@ export default function DropdownSelect({
                   </Text>
                   {option.isSelected && (
                     <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
-                      {option.isSelected ? 'Default' : ''}
+                      Default
                     </Text>
                   )}
                 </div>

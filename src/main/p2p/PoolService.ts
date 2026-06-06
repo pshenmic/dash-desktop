@@ -18,11 +18,14 @@ export interface PoolServiceEventMap {
   peerdisconnect: (peer: Peer) => void
   peerversion: (peer: Peer, message: Message & { services?: bigint }) => void
   peerheaders: (peer: Peer, message: Message & { headers?: Uint8Array[] }) => void
-  peerinv: (peer: Peer, message: Message & { inventory?: Array<{ type: number }> }) => void
+  peerinv: (peer: Peer, message: Message & { inventory?: Array<{ type: number; hash: Uint8Array }> }) => void
   peerblock: (peer: Peer, message: Message & { block?: unknown }) => void
   peercfcheckpt: (peer: Peer, message: Message) => void
   peercfheaders: (peer: Peer, message: Message) => void
   peercfilter: (peer: Peer, message: Message) => void
+  peerislock: (peer: Peer, message: Message & { txid?: string }) => void
+  peerisdlock: (peer: Peer, message: Message & { txid?: string }) => void
+  peerclsig: (peer: Peer, message: Message & { height?: number; blockHash?: string }) => void
   seederror: (err: Error) => void
 }
 
@@ -30,6 +33,7 @@ const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
   'peerconnect', 'peerready', 'peerdisconnect', 'peerversion',
   'peerheaders', 'peerinv', 'peerblock',
   'peercfcheckpt', 'peercfheaders', 'peercfilter',
+  'peerislock', 'peerisdlock', 'peerclsig',
   'seederror',
 ]
 

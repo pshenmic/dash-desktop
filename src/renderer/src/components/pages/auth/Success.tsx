@@ -4,11 +4,26 @@ import { DashLogo, useTheme } from "dash-ui-kit/react";
 import { useNavigate } from "react-router-dom";
 import bgLight from '@renderer/assets/images/pageAuthorization/success-background-light.png';
 import bgDark from '@renderer/assets/images/pageAuthorization/success-background-dark.png';
+import { useAuth } from "@renderer/contexts/AuthContext";
 
-export default function Success({ data }: { data: SuccessTexts }): React.JSX.Element {
+interface SuccessProps {
+  data: SuccessTexts
+  walletId?: string | null
+}
+
+export default function Success({ data, walletId }: SuccessProps): React.JSX.Element {
   const { theme } = useTheme()
   const backgroundImage = theme === 'dark' ? bgDark : bgLight
   const navigate = useNavigate()
+  const { switchWallet } = useAuth()
+
+  const handleContinue = async (): Promise<void> => {
+    if (walletId) {
+      await switchWallet(walletId)
+      return
+    }
+    navigate("/")
+  }
 
   return (
     <div className={"flex w-full h-screen items-center justify-center"}>
@@ -27,7 +42,7 @@ export default function Success({ data }: { data: SuccessTexts }): React.JSX.Ele
           colorScheme={"brand"}
           size={"md"}
           className={"mt-8 w-full"}
-          onClick={() => navigate("/")}
+          onClick={handleContinue}
           aria-label={data.buttonContinue}
         >
           {data.buttonContinue}

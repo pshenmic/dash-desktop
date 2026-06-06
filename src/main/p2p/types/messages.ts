@@ -55,11 +55,22 @@ export interface P2PBroadcastMessage {
   txHex: string
 }
 
+// Tell the utility process which locally-broadcast txids to watch for an
+// InstantSend (isdlock) confirmation. The worker only fetches isdlock objects
+// while this set is non-empty (they're high-volume to over-fetch), and emits
+// P2PTxInstantLockedMessage when one matches. Empty list = stop watching.
+export interface P2PWatchTxsMessage {
+  type: 'watchTxs'
+  walletId: string
+  txids: string[]
+}
+
 export type P2PCommand =
   | P2PStartMessage
   | P2PStopMessage
   | P2PAddWatchAddressesMessage
   | P2PBroadcastMessage
+  | P2PWatchTxsMessage
 
 // ── Events (utility -> main) ────────────────────────────────────────────────
 
@@ -98,9 +109,27 @@ export interface P2PBroadcastResultMessage {
   errorMessage: string | null
 }
 
+// A watched local tx received a DIP-24 InstantSend lock — irreversibly final
+// before it's even mined. Main flags it instant_locked.
+export interface P2PTxInstantLockedMessage {
+  type: 'txInstantLocked'
+  walletId: string
+  txid: string
+}
+
+// A ChainLock (clsig) was observed for `height` — every tx in blocks at or
+// below it is irreversible. Main flags those txs chainlocked.
+export interface P2PChainLockedMessage {
+  type: 'chainLocked'
+  walletId: string
+  height: number
+}
+
 export type P2PEvent =
   | P2PStatusMessage
   | P2PBlockAppliedMessage
   | P2PCursorAdvancedMessage
   | P2PErrorMessage
   | P2PBroadcastResultMessage
+  | P2PTxInstantLockedMessage
+  | P2PChainLockedMessage

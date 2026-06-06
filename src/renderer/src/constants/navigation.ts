@@ -33,6 +33,11 @@ export const navGroups: NavGroup[] = [
         id: 'identities',
         label: 'Identities',
         to: '/identities'
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        to: '/settings'
       }
     ]
   },

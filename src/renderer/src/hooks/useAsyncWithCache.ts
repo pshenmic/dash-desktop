@@ -14,14 +14,11 @@ export function useAsyncWithCache<T>(
   options?: UseAsyncWithCacheOptions
 ): { data: T; loading: boolean; err: string | null } {
   const cacheKey = key !== undefined ? `${namespace}:${key}` : undefined
-  const cached = cacheKey !== undefined ? (cache.get(cacheKey) as T | undefined) : undefined
 
-  const [data, setData] = useState<T>(cached ?? initial)
-  const [loading, setLoading] = useState(cacheKey !== undefined && cached === undefined)
+  const [data, setData] = useState<T>(initial)
+  const [loading, setLoading] = useState(cacheKey !== undefined)
   const [err, setErr] = useState<string | null>(null)
 
-  // Keep the latest fetcher in a ref so the effect doesn't have to depend on it,
-  // while still using the freshest closure when (re-)fetching.
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
 
@@ -34,13 +31,23 @@ export function useAsyncWithCache<T>(
     }
 
     let dead = false
-    if (!cache.has(cacheKey)) setLoading(true)
     setErr(null)
+
+    const cached = cache.get(cacheKey) as T | undefined
+    let rafId: number | undefined
+
+    if (cached !== undefined) {
+      rafId = requestAnimationFrame(() => {
+        if (dead) return
+        setData(cached)
+        setLoading(false)
+      })
+    } else {
+      setLoading(true)
+    }
 
     fetcherRef.current()
       .then((result) => {
-        // Update the cache even if the component has unmounted, so the next
-        // mount sees fresh data instead of stale cache.
         cache.set(cacheKey, result)
         if (dead) return
         setData(result)
@@ -55,7 +62,10 @@ export function useAsyncWithCache<T>(
         if (!dead) setLoading(false)
       })
 
-    return () => { dead = true }
+    return () => {
+      dead = true
+      if (rafId !== undefined) cancelAnimationFrame(rafId)
+    }
   }, [cacheKey])
 
   return { data, loading, err }

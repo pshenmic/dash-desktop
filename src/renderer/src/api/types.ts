@@ -42,6 +42,7 @@ export interface WalletSyncStatus {
   matchedBlocksPending: number
   peerCount: number
   filterCapablePeerCount: number
+  phaseEtaMs: number | null
   lastError: string | null
   updatedAt: number
 }
@@ -60,4 +61,23 @@ export interface WalletDto {
   selected: boolean
   label?: string | null
   encryptedMnemonic?: string
+}
+
+// preferences
+export type ConnectionType = 'p2p' | 'rpc'
+
+export interface GeneralPreferencesJSON {
+  language: string
+  currency: string
+  connectionType: ConnectionType
+}
+
+export interface PreferencesJSON {
+  version: number
+  general: GeneralPreferencesJSON
+}
+
+export interface QueryStatus {
+  success: boolean
+  errorMessage: string | null
 }

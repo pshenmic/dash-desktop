@@ -42,3 +42,12 @@ html::-webkit-scrollbar,
 body::-webkit-scrollbar {
   display: none !important;
 }
+
+@keyframes sync-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.sync-shimmer {
+  animation: sync-shimmer 1.4s linear infinite;
+}

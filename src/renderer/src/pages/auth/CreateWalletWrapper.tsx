@@ -5,7 +5,6 @@ import { useCreateWallet } from "@renderer/hooks/useCreateWallet";
 import { ProgressStepBar } from "@renderer/components/dash-ui-kit-enxtended/progressStepBar";
 import { useRipple } from "@renderer/hooks/useRipple";
 import waveAuth from '@renderer/assets/images/pageAuthorization/waveAuth.png';
-import authBgStack from '@renderer/assets/images/pageAuthorization/auth-bg-stack.png';
 import authBgFlower from '@renderer/assets/images/pageAuthorization/auth-bg-flower.png';
 import bgLight from '@renderer/assets/images/pageAuthorization/Frame 717779 (1).png';
 import bgDark from '@renderer/assets/images/pageAuthorization/Frame 717781 (1).png';
@@ -13,13 +12,14 @@ import CreateWallet from "../../components/pages/auth/CreateWallet";
 import SeedPhrase from "../../components/pages/auth/SeedPhrase";
 import VerifySeedPhrase from "../../components/pages/auth/VerifySeedPhrase";
 import Success from "../../components/pages/auth/Success";
-import SelectNetwork from "@renderer/components/pages/auth/SelectNetwork";
 import WelcomeDashDesktopWallet from "@renderer/components/pages/auth/WelcomeDashDesktopWallet"
 import ImportSeedPhrase from "@renderer/components/pages/auth/ImportSeedPhrase";
 import NetworkBadge from "@renderer/components/ui/NetworkBadge";
+import { useAuth } from "@renderer/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateWalletWrapper(): React.JSX.Element {
-  const {createWallet, saveYourSeedPhrase, fillInYourSeedPhrase, seedPhraseWarning, success, successImport, selectNetwork, welcome, importSeedPhrase} = authTexts
+  const {createWallet, saveYourSeedPhrase, fillInYourSeedPhrase, seedPhraseWarning, success, successImport, welcome, importSeedPhrase} = authTexts
   const { theme } = useTheme()
   const backgroundImage = theme === 'dark' ? bgDark : bgLight
 
@@ -37,19 +37,30 @@ export default function CreateWalletWrapper(): React.JSX.Element {
     goBack,
     network,
     setNetwork,
-    goToWelcome,
     goToPassword,
     goToImportSeedPhrase,
     submitImportSeedPhrase,
     createImportedWallet,
-    path
+    path,
+    createdWalletId
   } = useCreateWallet()
   const hoverAnimation = useRipple()
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+
+  const canExitToDashboard = step === 'welcome' && isAuthenticated
+  const showBackButton = step !== 'welcome' || canExitToDashboard
+  const handleBack = (): void => {
+    if (canExitToDashboard) {
+      navigate('/')
+      return
+    }
+    goBack()
+  }
 
   const title = step === 'password' ? createWallet.title :
   step === 'seed-phrase' ? saveYourSeedPhrase.title :
   step === 'verify' ? fillInYourSeedPhrase.title :
-  step === 'select-network' ? selectNetwork.title :
   step === 'welcome' ?
   <span className={"inline-block max-w-125 leading-[100%]"}>
     <span className={"font-normal"}>{welcome.titlePrefix}</span> <span className={"font-bold"}>{welcome.titleHighlight}</span>
@@ -60,15 +71,13 @@ export default function CreateWalletWrapper(): React.JSX.Element {
   const description = step === 'password' ? createWallet.description :
   step === 'seed-phrase' ? saveYourSeedPhrase.description :
   step === 'verify' ? fillInYourSeedPhrase.description :
-  step === 'select-network' ? selectNetwork.description :
   step === 'welcome' ? welcome.description :
   step === 'import-seed-phrase' ? importSeedPhrase.description :
   step === 'password-import' ? createWallet.description : ''
 
-  const wave = step === 'select-network' ? authBgStack :
-  step === 'welcome' ? authBgFlower : waveAuth
+  const wave = step === 'welcome' ? authBgFlower : waveAuth
 
-  if (step === 'success') return <Success data={path === 'create' ? success : successImport} />
+  if (step === 'success') return <Success data={path === 'create' ? success : successImport} walletId={createdWalletId} />
 
   return (
     <div className={"relative flex min-h-screen items-end"}>
@@ -83,7 +92,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
         className={"dash-bg-image-auth"}
       />
 
-      {step !== 'select-network' &&
+      {showBackButton &&
         <button
           onMouseEnter={hoverAnimation.onMouseEnter}
           onMouseMove={hoverAnimation.onMouseMove}
@@ -103,7 +112,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
             bg-white/12
             backdrop-blur-[.5rem]
           `}
-          onClick={goBack}
+          onClick={handleBack}
         >
           <ChevronIcon
             size={17}
@@ -114,9 +123,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
         </button>
       }
 
-      {step !== 'select-network' && step !== 'welcome' &&
-        <NetworkBadge network={network} />
-      }
+      <NetworkBadge network={network} onChange={setNetwork} />
 
       <div className={"relative flex flex-col w-full h-full items-center justify-end p-12 pt-[25vh] "}>
         <div className={"flex flex-col w-full mb-8"}>
@@ -124,10 +131,6 @@ export default function CreateWalletWrapper(): React.JSX.Element {
           <Text as={"h1"} className={"mt-6 leading-[78%] tracking-[-0.03em]"} color={"brand"} size={64} weight={"extrabold"}>{title}</Text>
           <Text as={"p"} className={"mt-6"} color={"brand"}size={18} weight={"medium"} opacity={50}>{description}</Text>
         </div>
-
-        {step === 'select-network' &&
-          <SelectNetwork data={selectNetwork} network={network} setNetwork={setNetwork} goToWelcome={goToWelcome} />
-        }
 
         {step === 'welcome' &&
           <WelcomeDashDesktopWallet onCreateWallet={goToPassword} onImportSeedPhrase={goToImportSeedPhrase} data={{
@@ -197,7 +200,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
           />
         }
 
-        {step !== 'select-network' && step !== 'welcome' &&
+        {step !== 'welcome' &&
           <ProgressStepBar
             currentStep={path === 'create' ? (step === 'password' ? 1 : step === 'seed-phrase' ? 2 : 3) : (step === 'import-seed-phrase' ? 1 : 2)}
             totalSteps={path === 'create' ? 3 : 2}
