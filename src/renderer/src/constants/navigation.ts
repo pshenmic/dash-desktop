@@ -20,6 +20,11 @@ export const navGroups: NavGroup[] = [
         to: '/'
       },
       {
+        id: 'send',
+        label: 'Send',
+        to: '/send'
+      },
+      {
         id: 'receive',
         label: 'Receive',
         to: '/receive'

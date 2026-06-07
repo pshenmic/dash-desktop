@@ -1,77 +1,76 @@
 import { useState, useRef, useEffect } from 'react'
 import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { SearchIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { Avatar, Identifier } from 'dash-ui-kit/react'
 import { TransferPageType } from '@renderer/constants'
-
-interface AddressBookEntry {
-  address: string
-  name?: string
-  label?: string
-}
-
-const MOCK_ADDRESS_BOOK: AddressBookEntry[] = [
-  {
-    address: '34vkjdeUTP2z798SiXqoB6EAuobh51kXYURqVa9xkujf',
-    name: 'Pshenmic.dash',
-  },
-  {
-    address: '34vkjdeUTP2z798SiXqoB6EAuobh51kXYURqVa9xkujf',
-    name: 'Pshenmic.dash',
-  },
-  {
-    address: '34vkjdeUTP2z798SiXqoB6EAuobh51kXYURqVa9xkujf',
-    name: 'Pshenmic.dash',
-  },
-  {
-    address: '34vkjdeUTP2z798SiXqoB6EAuobh51kXYURqVa9xkujf',
-    name: 'Pshenmic.dash',
-  },
-  {
-    address: '34vkjdeUTP2z798SiXqoB6EAuobh51kXYURqVa9xkujf',
-    name: 'Pshenmic.dash',
-  },
-]
+import { useAddressBook } from '@renderer/hooks/useAddressBook'
+import { isValidDashAddress } from '@renderer/utils/address'
+import { toast } from '@renderer/components/ui/Toast'
 
 interface RecipientInputProps {
   value: string
   onChange: (value: string) => void
-  addressBook?: AddressBookEntry[]
   data: TransferPageType['recipient']
 }
 
 export default function RecipientInput({
   value,
   onChange,
-  addressBook = MOCK_ADDRESS_BOOK,
   data,
 }: RecipientInputProps) {
   const [isFocused, setIsFocused] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [newLabel, setNewLabel] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const filteredAddresses = addressBook.filter(entry =>
-    entry.address.toLowerCase().includes(value.toLowerCase()) ||
-    entry.name?.toLowerCase().includes(value.toLowerCase())
+  const { contacts, network, addContact, deleteContact } = useAddressBook()
+
+  const query = value.toLowerCase().trim()
+  const filteredContacts = contacts.filter(
+    (c) =>
+      c.address.toLowerCase().includes(query) ||
+      c.label.toLowerCase().includes(query),
   )
 
-  const handleFocusChange = (focused: boolean) => {
+  const trimmedValue = value.trim()
+  const isValidRecipient = isValidDashAddress(trimmedValue, network)
+  const alreadySaved = contacts.some((c) => c.address === trimmedValue)
+  const canSaveCurrent = isValidRecipient && !alreadySaved
+
+  const handleFocusChange = (focused: boolean): void => {
     setIsFocused(focused)
   }
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent): void => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         handleFocusChange(false)
+        setAdding(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleSelectAddress = (address: string) => {
+  const handleSelectAddress = (address: string): void => {
     onChange(address)
     handleFocusChange(false)
+  }
+
+  const handleSaveContact = async (): Promise<void> => {
+    const label = newLabel.trim()
+    if (label.length === 0) {
+      toast.error('**Name required** Enter a name for this contact.')
+      return
+    }
+    const res = await addContact(label, trimmedValue)
+    if (res.success) {
+      setAdding(false)
+      setNewLabel('')
+    } else if (res.errorMessage) {
+      toast.error(`**Could not save contact** ${res.errorMessage}`)
+    }
   }
 
   return (
@@ -79,10 +78,9 @@ export default function RecipientInput({
       <Text size={16} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>
-      <div className={"dash-input-search rounded-[.9375rem] overflow-hidden"}>
+      <div className={"dash-input-search rounded-[.9375rem] overflow-hidden"} ref={containerRef}>
         <div
           className={"flex items-center justify-between gap-1 px-6.25 py-5 [&>*:first-child]:flex-1"}
-          ref={containerRef}
           onClick={() => {
             handleFocusChange(true)
             inputRef.current?.focus()
@@ -105,6 +103,13 @@ export default function RecipientInput({
               />
             }
           />
+          {trimmedValue.length > 0 && (
+            isValidRecipient ? (
+              <CheckIcon size={18} className={"text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden"} />
+            ) : (
+              <Text size={10} weight={"medium"} color={"red"} className={"shrink-0"}>Invalid</Text>
+            )
+          )}
           <SearchIcon size={18} className={"dash-text-default opacity-40 shrink-0"} />
         </div>
 
@@ -123,48 +128,89 @@ export default function RecipientInput({
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 {data.addressBook}:
               </Text>
-              <button className={"text-xs dash-block-3 px-[.75rem] py-[.5rem] rounded-[.75rem]"}>
-                <Text size={10} weight={"medium"} color={"brand"} className={"leading-[120%]"}>
-                  {data.addressManagement}
-                </Text>
-              </button>
+              {canSaveCurrent && !adding && (
+                <button
+                  onClick={() => setAdding(true)}
+                  className={"text-xs dash-block-3 px-[.75rem] py-[.5rem] rounded-[.75rem] flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"}
+                >
+                  <PlusIcon size={10} color={"currentColor"} className={"dash-text-default"} />
+                  <Text size={10} weight={"medium"} color={"brand"} className={"leading-[120%]"}>
+                    Save current
+                  </Text>
+                </button>
+              )}
             </div>
 
+            {adding && (
+              <div className={"flex items-center gap-2 pb-[.75rem]"}>
+                <Input
+                  type={"text"}
+                  value={newLabel}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLabel(e.target.value)}
+                  placeholder={"Contact name"}
+                  colorScheme={"transparent"}
+                  className={"flex-1 outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 dash-block-3 rounded-[.75rem] px-3 py-2"}
+                />
+                <button
+                  onClick={handleSaveContact}
+                  className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
+                >
+                  <Text size={10} weight={"medium"} color={"blue-mint"}>Save</Text>
+                </button>
+                <button
+                  onClick={() => { setAdding(false); setNewLabel('') }}
+                  className={"dash-block-3 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
+                >
+                  <Text size={10} weight={"medium"} color={"brand"}>Cancel</Text>
+                </button>
+              </div>
+            )}
+
             <div className={"max-h-29.25 overflow-y-auto scrollbar-hide flex flex-col gap-[.5rem] pb-[.75rem]"}>
-              {filteredAddresses.length > 0 ? (
-                filteredAddresses.map((entry, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSelectAddress(entry.address)}
-                    className={"w-full p-[.9375rem] dash-block-3 rounded-[.9375rem] flex flex-col gap-[.75rem] cursor-pointer"}
+              {filteredContacts.length > 0 ? (
+                filteredContacts.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={"w-full p-[.9375rem] dash-block-3 rounded-[.9375rem] flex flex-col gap-[.75rem]"}
                   >
-                    <Identifier
-                      highlight={"both"}
-                      className={"font-mono text-left"}
-                    >
-                      {entry.address}
-                    </Identifier>
-                    {entry.name && (
-                      <div className={"flex items-center gap-2"}>
-                        <div className={"px-2 py-1 dash-block-3 rounded-[.3125rem] flex"}>
-                          <Text size={12} weight="medium" color="default" opacity={50}>
-                            {data.names}:
-                          </Text>
-                        </div>
-                        <div className={"px-2 py-1 dash-block-3 rounded-[.3125rem] flex"}>
-                          <Text size={12} weight={"medium"} color={"default"}>
-                            {entry.name.split('.')[0]}
-                            <span className={"text-dash-brand"}>.{entry.name.split('.')[1]}</span>
-                          </Text>
-                        </div>
+                    <div className={"flex items-start justify-between gap-2"}>
+                      <button
+                        onClick={() => handleSelectAddress(entry.address)}
+                        className={"flex-1 min-w-0 text-left cursor-pointer"}
+                      >
+                        <Identifier
+                          highlight={"both"}
+                          className={"font-mono text-left"}
+                        >
+                          {entry.address}
+                        </Identifier>
+                      </button>
+                      <button
+                        onClick={() => deleteContact(entry.id)}
+                        className={"shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5 cursor-pointer"}
+                        title={"Remove contact"}
+                      >
+                        <DeleteIcon size={12} color={"currentColor"} className={"dash-text-default opacity-50"} />
+                      </button>
+                    </div>
+                    <div className={"flex items-center gap-2"}>
+                      <div className={"px-2 py-1 dash-block-3 rounded-[.3125rem] flex"}>
+                        <Text size={12} weight="medium" color="default" opacity={50}>
+                          {data.names}:
+                        </Text>
                       </div>
-                    )}
-                  </button>
+                      <div className={"px-2 py-1 dash-block-3 rounded-[.3125rem] flex"}>
+                        <Text size={12} weight={"medium"} color={"default"}>
+                          {entry.label}
+                        </Text>
+                      </div>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <div className={"p-4 text-center"}>
                   <Text size={14} weight={"normal"} color={"default"} opacity={50}>
-                    {data.noResults}
+                    {contacts.length === 0 ? 'No saved contacts yet' : data.noResults}
                   </Text>
                 </div>
               )}

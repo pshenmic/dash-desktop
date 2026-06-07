@@ -29,6 +29,8 @@
     "@electron-toolkit/preload": "3.0.2",
     "@electron-toolkit/utils": "4.0.0",
     "@fontsource/manrope": "^5.2.8",
+    "@noble/hashes": "^2.0.1",
+    "@scure/base": "^2.0.0",
     "@scure/bip39": "^2.0.1",
     "class-variance-authority": "0.7.1",
     "classic-level": "^3.0.0",

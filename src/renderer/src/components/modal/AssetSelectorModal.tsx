@@ -15,6 +15,7 @@ interface AssetSelectorModalProps {
   selectedAssetId?: string
   onSelectAsset: (assetId: string) => void
   data: SelectAssetType
+  balances?: Record<string, string>
 }
 
 export default function AssetSelectorModal({
@@ -23,7 +24,8 @@ export default function AssetSelectorModal({
   assets,
   selectedAssetId,
   onSelectAsset,
-  data
+  data,
+  balances
 }: AssetSelectorModalProps): React.JSX.Element | null {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'tokens' | 'nfts'>('tokens')
@@ -92,7 +94,7 @@ export default function AssetSelectorModal({
                     </div>
                   </div>
                   <Text size={14} weight={"extrabold"} color={"default"}>
-                    <BigNumber>32 000 000 000 000</BigNumber>
+                    <BigNumber>{balances?.[asset.id] ?? '—'}</BigNumber>
                     <span className={"font-medium"}> {asset.currency}</span>
                   </Text>
                 </button>

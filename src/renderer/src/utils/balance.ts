@@ -30,3 +30,16 @@ export function davToDash(duffs: bigint): string {
   const fracStr = frac.toString().padStart(8, "0").replace(/0+$/, "")
   return `${sign}${whole}.${fracStr}`
 }
+
+export function dashToDuffs(value: string): bigint {
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === '.') return 0n
+  if (!/^\d*\.?\d*$/.test(trimmed)) return 0n
+
+  const [wholePart = '', fracPart = ''] = trimmed.split('.')
+  const whole = wholePart === '' ? 0n : BigInt(wholePart)
+  const fracDigits = fracPart.slice(0, 8).padEnd(8, '0')
+  const frac = fracDigits === '' ? 0n : BigInt(fracDigits)
+
+  return whole * DUFFS_PER_DASH + frac
+}
