@@ -11,7 +11,7 @@ import ConnectionSelect from './ui/ConnectionSelect'
 import NetworkSelect from './ui/NetworkSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
-import { useTheme } from 'dash-ui-kit/react'
+import { useResolvedTheme, setThemePreference } from '@renderer/hooks/useThemeController'
 import { useConnectionMode } from '@renderer/hooks/useConnectionMode'
 import type { ConnectionType, Network } from '@renderer/api/types'
 import {
@@ -43,7 +43,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
   const hoverNotification = useRipple()
   const { status, switchWallet, goToCreateWallet } = useAuth()
   const [wallets, setWallets] = useState<WalletDto[]>([])
-  const { toggleTheme } = useTheme()
+  const resolvedTheme = useResolvedTheme()
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [walletToDelete, setWalletToDelete] = useState<string | null>(null)
 
@@ -148,7 +148,8 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
             onMouseMove={hoverNotification.onMouseMove}
             onMouseLeave={hoverNotification.onMouseLeave}
             className={headerButtonClass}
-            onClick={toggleTheme}
+            onClick={() => setThemePreference(resolvedTheme === 'dark' ? 'light' : 'dark')}
+            title={resolvedTheme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           >
             <SunIcon size={26} className="dash-text-default" />
           </button>
