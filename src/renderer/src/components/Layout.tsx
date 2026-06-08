@@ -1,10 +1,9 @@
 import React, { ReactNode, useEffect, useMemo, useState } from 'react'
 import { SunIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
-import { API } from '@renderer/api'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { toDropdownOptions } from '@renderer/utils/wallets'
-import { WalletDto } from '@renderer/api/types'
+import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import DeleteWallet from './modal/DeleteWallet'
 import DropdownSelect from './ui/DropdownSelect'
 import ConnectionSelect from './ui/ConnectionSelect'
@@ -42,7 +41,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
   const [selectedWallet, setSelectedWallet] = useState('')
   const hoverNotification = useRipple()
   const { status, switchWallet, goToCreateWallet } = useAuth()
-  const [wallets, setWallets] = useState<WalletDto[]>([])
+  const wallets = useWallets()
   const resolvedTheme = useResolvedTheme()
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [walletToDelete, setWalletToDelete] = useState<string | null>(null)
@@ -53,12 +52,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
   }
 
   useEffect(() => {
-    API.getAllWallets()
-      .then((data) => {
-        const list = (data ?? []) as WalletDto[]
-        setWallets(list)
-      })
-      .catch((e) => console.error(e))
+    refreshWallets()
   }, [])
 
  useEffect(() => {
@@ -127,7 +121,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
         setIsDeleteOpen={setIsDeleteOpen}
         walletToDelete={walletToDelete}
         setWalletToDelete={setWalletToDelete}
-        setWallets={setWallets}
+        refreshWallets={refreshWallets}
         selectedWallet={selectedWallet}
       />
     </div>

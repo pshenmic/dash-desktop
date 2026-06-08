@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { API } from '@renderer/api'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Button, Heading, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Heading, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import { toast } from '@renderer/components/ui/Toast'
 import { useFiat } from '@renderer/hooks/useFiat'
@@ -9,6 +9,7 @@ import { useThemePreference, setThemePreference } from '@renderer/hooks/useTheme
 import { ThemePreference } from '@renderer/utils/theme'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { WalletTxDto } from '@renderer/hooks/useWalletTransactions'
+import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 
 interface SettingsRowProps {
   title: string
@@ -96,6 +97,39 @@ export default function Settings(): React.JSX.Element {
   const [clearPending, setClearPending] = useState(false)
   const [exportPending, setExportPending] = useState(false)
 
+  const wallets = useWallets()
+  const currentLabel = useMemo(
+    () => wallets.find((w) => w.walletId === walletId)?.label ?? null,
+    [wallets, walletId],
+  )
+
+  const [walletName, setWalletName] = useState('')
+  const [renamePending, setRenamePending] = useState(false)
+
+  useEffect(() => {
+    setWalletName(currentLabel ?? '')
+  }, [currentLabel])
+
+  const isUnchanged = walletName.trim() === (currentLabel ?? '')
+
+  const handleRename = async (): Promise<void> => {
+    if (!walletId || renamePending || isUnchanged) return
+    setRenamePending(true)
+    try {
+      const res = await API.setWalletLabel(walletId, walletName.trim())
+      if (res.success) {
+        refreshWallets()
+      } else if (res.errorMessage) {
+        toast.error(`**Rename failed** ${res.errorMessage}`)
+      }
+    } catch (err) {
+      console.error('rename failed', err)
+      toast.error('**Rename failed** Could not update wallet name.')
+    } finally {
+      setRenamePending(false)
+    }
+  }
+
   const handleRestart = async (): Promise<void> => {
     if (!walletId || restartPending) return
     setRestartPending(true)
@@ -165,6 +199,37 @@ export default function Settings(): React.JSX.Element {
           <Heading as="h1" size="xl" weight="extrabold" color="brand-white">
             Settings
           </Heading>
+        </div>
+
+        <SectionLabel>Wallet</SectionLabel>
+        <div className="flex flex-col">
+          <SettingsRow
+            title="Wallet name"
+            description="A label to identify this wallet across the app."
+            control={
+              <div className="flex items-center gap-2">
+                <Input
+                  id="wallet-name"
+                  type="text"
+                  placeholder="Wallet name"
+                  value={walletName}
+                  variant="outlined"
+                  colorScheme="primary"
+                  onChange={(e) => setWalletName(e.target.value)}
+                  className="h-10 w-56 rounded-[.75rem] bg-transparent!"
+                />
+                <Button
+                  onClick={handleRename}
+                  disabled={walletId === null || renamePending || isUnchanged}
+                  variant="solid"
+                  colorScheme="primary-light"
+                  size="sm"
+                >
+                  {renamePending ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            }
+          />
         </div>
 
         <SectionLabel>Appearance</SectionLabel>
