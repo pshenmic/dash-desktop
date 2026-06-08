@@ -116,19 +116,14 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
-// Chain heights here are 1-based (genesis = height 1, see GENESIS), but the
-// BIP157 start_height field is Dash Core's 0-based height. Convert when a
-// height crosses to the wire; the matching stop hash already resolves to the
-// peer's height, so only the numeric field needs shifting.
-function toWireHeight(internalHeight: number): number {
-  return internalHeight - 1
-}
-
 export class CFilterSyncWorker extends Worker {
   readonly name = 'CFilterSyncWorker'
 
   // ── deps + immutable seed ────────────────────────────────────────────────
   private readonly network: Network
+  // real - internal: maps our 1-based index height to Dash Core's height for
+  // BIP157 wire fields. Per network (the anchor sits at a different real height).
+  private readonly heightOffset: number
   private readonly walletId: string
   private readonly chainStore: ChainStore
   private readonly peerPool: PoolService
@@ -213,6 +208,7 @@ export class CFilterSyncWorker extends Worker {
   constructor(opts: CFilterSyncWorkerOptions) {
     super()
     this.network = opts.network
+    this.heightOffset = GENESIS[opts.network].wireHeight - 1
     this.walletId = opts.walletId
     this.chainStore = opts.chainStore
     this.peerPool = opts.peerPool
@@ -355,6 +351,16 @@ export class CFilterSyncWorker extends Worker {
     return Math.max(this.birthdayHeight, this.chainTipHeight - SCAN_TIP_DEPTH)
   }
 
+  // Internal (1-based) height ⇄ Dash Core (wire) height. Used wherever a height
+  // crosses to/from peers: BIP157 start_height fields and cfcheckpt boundaries.
+  private toReal(internalHeight: number): number {
+    return internalHeight + this.heightOffset
+  }
+
+  private toInternal(realHeight: number): number {
+    return realHeight - this.heightOffset
+  }
+
   // ── chain index ───────────────────────────────────────────────────────────
 
   private async buildChainIndex(): Promise<void> {
@@ -462,9 +468,10 @@ export class CFilterSyncWorker extends Worker {
   private requestCheckpoints(): void {
     if (this.stopped) return
     this.cfcheckpt.responded = false
-    // Checkpoints land on real heights that are multiples of 1000; in our
-    // 1-based numbering those are internal heights k*1000+1.
-    const stopHeight = Math.floor((this.effectiveScanTipHeight() - 1) / 1000) * 1000 + 1
+    // Highest checkpoint (real height that is a multiple of 1000) at or below
+    // the scan tip, expressed in our internal numbering.
+    const ckptReal = Math.floor(this.toReal(this.effectiveScanTipHeight()) / 1000) * 1000
+    const stopHeight = this.toInternal(ckptReal)
     const stopHashWire = this.heightToBlockHash.get(stopHeight)
     if (!stopHashWire) {
       console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
@@ -506,10 +513,10 @@ export class CFilterSyncWorker extends Worker {
     this.leader = fromPeer
 
     const headers = msg.filterHeaders ?? []
-    // headers[i] is the filter header at real height (i+1)*1000; store it under
-    // the matching internal height (one higher in our 1-based numbering).
+    // headers[i] is the filter header at real height (i+1)*1000; key it by the
+    // matching internal height.
     for (let i = 0; i < headers.length; i++) {
-      this.checkpointHeaders.set((i + 1) * 1000 + 1, headers[i]!)
+      this.checkpointHeaders.set(this.toInternal((i + 1) * 1000), headers[i]!)
     }
 
     // Cross-validate cached filter headers against checkpoints.
@@ -532,8 +539,9 @@ export class CFilterSyncWorker extends Worker {
     }
 
     const start = Math.max(this.birthdayHeight, this.cfilter.cursor)
-    const anchorCkpt = Math.floor((start - 1) / 1000) * 1000 + 1
-    if (anchorCkpt > 1 && this.checkpointHeaders.has(anchorCkpt)) {
+    const anchorReal = Math.floor((this.toReal(start) - 1) / 1000) * 1000
+    const anchorCkpt = this.toInternal(anchorReal)
+    if (anchorReal > 0 && this.checkpointHeaders.has(anchorCkpt)) {
       this.anchorHeight = anchorCkpt
       this.heightToFilterHeader.set(anchorCkpt, this.checkpointHeaders.get(anchorCkpt)!)
     } else {
@@ -552,7 +560,7 @@ export class CFilterSyncWorker extends Worker {
 
     while (this.cfHeaders.walkStart <= effectiveTip) {
       const startHeight = this.cfHeaders.walkStart
-      const nextCkpt = (Math.floor((startHeight - 1) / 1000) + 1) * 1000 + 1
+      const nextCkpt = this.toInternal((Math.floor(this.toReal(startHeight) / 1000) + 1) * 1000)
       const stopHeight = Math.min(nextCkpt, effectiveTip)
       let fullyCached = true
       for (let h = startHeight; h <= stopHeight; h++) {
@@ -569,7 +577,7 @@ export class CFilterSyncWorker extends Worker {
     }
     this.emitStatus('cfheaders')
     const startHeight = this.cfHeaders.walkStart
-    const nextCkpt = (Math.floor((startHeight - 1) / 1000) + 1) * 1000 + 1
+    const nextCkpt = this.toInternal((Math.floor(this.toReal(startHeight) / 1000) + 1) * 1000)
     const stopHeight = Math.min(nextCkpt, effectiveTip)
     if (!this.heightToBlockHash.has(stopHeight)) {
       console.warn(`[cfilter] cfheaders: no hash for h=${stopHeight}; stopping`)
@@ -595,7 +603,7 @@ export class CFilterSyncWorker extends Worker {
       candidates = [...this.peerPool.filterCapablePeers]
     }
     const picks = candidates.slice(0, CFHEADERS_RACE_PEERS)
-    const msg = this.M.GetCFHeaders({filterType: FILTER_TYPE, startHeight: toWireHeight(entry.startHeight), stopHash: stopHashWire})
+    const msg = this.M.GetCFHeaders({filterType: FILTER_TYPE, startHeight: this.toReal(entry.startHeight), stopHash: stopHashWire})
     for (const p of picks) {
       entry.triedPeers.add(p)
       p.sendMessage(msg)
@@ -684,7 +692,7 @@ export class CFilterSyncWorker extends Worker {
     if (racers.length === 0) return
     const msg = this.M.GetCFilters({
       filterType: FILTER_TYPE,
-      startHeight: toWireHeight(batch.startHeight),
+      startHeight: this.toReal(batch.startHeight),
       stopHash: batch.stopHashWire,
     })
     for (const p of racers) p.sendMessage(msg)
