@@ -15,6 +15,9 @@ import { formatCreationDate, timePart } from '@renderer/utils/date'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { davToDash } from '@renderer/utils/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { transactionUrl, openExternal } from '@renderer/utils/explorer'
+import { ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Network } from '@renderer/api/types'
 import QrButton from '@renderer/components/ui/QrButton'
 
 const cardStyles = cva(
@@ -31,6 +34,7 @@ const iconCircleStyles = cva(
 
 interface TransactionDetailProps {
   transaction: WalletTxItem
+  network: Network | null
   onBack: () => void
 }
 
@@ -67,7 +71,7 @@ function DetailToken({
   )
 }
 
-export default function TransactionDetail({ transaction, onBack }: TransactionDetailProps): React.JSX.Element {
+export default function TransactionDetail({ transaction, network, onBack }: TransactionDetailProps): React.JSX.Element {
   const { detail } = transactionsPage
   const { theme } = useTheme()
   const isIncoming = transaction.direction === 'in'
@@ -117,6 +121,15 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
             {transaction.id}
           </Identifier>
           <CopyButton text={transaction.id} />
+          {network && (
+            <button
+              onClick={() => openExternal(transactionUrl(transaction.id, network))}
+              title={"Open in explorer"}
+              className={"size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
+            >
+              <ExternalLinkIcon size={12} color={"currentColor"} className={"dash-text-default opacity-50"} />
+            </button>
+          )}
           <QrButton />
         </div>
       </div>
