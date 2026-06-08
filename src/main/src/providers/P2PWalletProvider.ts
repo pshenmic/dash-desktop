@@ -2,6 +2,7 @@ import {Block, Script, Transaction as SDKTransaction, utils as sdkUtils} from 'd
 import {UTXO} from '../types/UTXO'
 import {Transaction} from '../types/Transaction'
 import {TransactionDAO} from '../database/TransactionDAO'
+import {AddressDAO} from '../database/AddressDAO'
 import {WalletSyncService} from '../services/WalletSyncService'
 import {WalletProvider} from './WalletProvider'
 
@@ -20,6 +21,7 @@ export class P2PWalletProvider implements WalletProvider {
     private readonly transactionDAO: TransactionDAO,
     private readonly walletId: string,
     private readonly walletSyncService: WalletSyncService,
+    private readonly addressDAO: AddressDAO,
   ) {}
 
   async getTransactions(address: string): Promise<Transaction[]> {
@@ -57,7 +59,15 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async nextUnusedAddress(): Promise<string> {
-    throw new Error('Not implemented')
+    const {receiving} = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    if (receiving.length === 0) throw new Error('Wallet has no receiving addresses')
+
+    for (const {address} of receiving) {
+      const txs = await this.transactionDAO.getTransactionsByAddress(this.walletId, address)
+      if (txs.length === 0) return address
+    }
+
+    return receiving[receiving.length - 1].address
   }
 
   private p2pkhScript(address: string): Script {
