@@ -26,6 +26,7 @@ export function useConnectionMode(): UseConnectionMode {
   const { status } = useAuth()
   const phase = status?.walletSync.phase
   const walletId = status?.selectedWalletId ?? null
+  const activeSyncWalletId = status?.walletSync.walletId ?? null
   const [desired, setDesiredState] = useState<ConnectionType>(readDesired)
 
   const phaseRef = useRef<WalletSyncPhase | undefined>(phase)
@@ -52,6 +53,17 @@ export function useConnectionMode(): UseConnectionMode {
   const autoStartedFor = useRef<string | null>(null)
   useEffect(() => {
     if (!walletId) return
+
+    // A sync running for a different wallet than the selected one is stale
+    // (e.g. the user switched networks). Its phase/data belong to the old
+    // wallet — stop it. Once it reports 'stopped' this effect re-runs and the
+    // logic below decides whether to auto-start the newly-selected wallet.
+    if (activeSyncWalletId && activeSyncWalletId !== walletId && !isP2pInactive(phaseRef.current)) {
+      autoStartedFor.current = null
+      API.stopWalletSync().catch(err => console.error('stale stopWalletSync failed', err))
+      return
+    }
+
     if (desired !== 'p2p') return
     if (autoStartedFor.current === walletId) return
     if (!isP2pInactive(phaseRef.current)) {
@@ -70,7 +82,7 @@ export function useConnectionMode(): UseConnectionMode {
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [walletId, desired, phase])
+  }, [walletId, desired, phase, activeSyncWalletId])
 
   const setDesired = useCallback((next: ConnectionType) => {
     localStorage.setItem(LS_DESIRED_KEY, next)
