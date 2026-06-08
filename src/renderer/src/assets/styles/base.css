@@ -51,3 +51,40 @@ body::-webkit-scrollbar {
 .sync-shimmer {
   animation: sync-shimmer 1.4s linear infinite;
 }
+
+@keyframes modal-fade-in {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-fade-in {
+  animation: modal-fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes phase-fade-in {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.phase-fade-in {
+  animation: phase-fade-in 0.25s ease-out;
+}
+
+@keyframes success-pop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  60%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.success-pop {
+  animation: success-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes overlay-fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.overlay-fade-in {
+  animation: overlay-fade-in 0.18s ease-out;
+}

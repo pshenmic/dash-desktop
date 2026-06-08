@@ -112,6 +112,7 @@ export default function TransferPage({pageData}: {pageData: TransferPageType}): 
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         walletId={walletId}
+        network={network}
         toAddress={recipient.trim()}
         amountDuffs={amountDuffs}
         amountFiat={amountFiat}
