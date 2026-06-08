@@ -1,6 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 
 const cache = new Map<string, unknown>()
+const inflight = new Map<string, Promise<unknown>>()
+
+function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
+  const existing = inflight.get(cacheKey)
+  if (existing !== undefined) return existing as Promise<T>
+
+  const p = fetcher()
+    .then((result) => {
+      cache.set(cacheKey, result)
+      return result
+    })
+    .finally(() => {
+      inflight.delete(cacheKey)
+    })
+
+  inflight.set(cacheKey, p)
+  return p
+}
 
 export interface UseAsyncWithCacheOptions {
   errorMessage?: string
@@ -46,9 +64,8 @@ export function useAsyncWithCache<T>(
       setLoading(true)
     }
 
-    fetcherRef.current()
+    runFetch(cacheKey, fetcherRef.current)
       .then((result) => {
-        cache.set(cacheKey, result)
         if (dead) return
         setData(result)
       })
@@ -73,4 +90,14 @@ export function useAsyncWithCache<T>(
 
 export function invalidateAsyncCache(namespace: string, key: string): void {
   cache.delete(`${namespace}:${key}`)
+}
+
+export function prefetchAsyncCache<T>(
+  namespace: string,
+  key: string,
+  fetcher: () => Promise<T>
+): Promise<void> {
+  const cacheKey = `${namespace}:${key}`
+  if (cache.has(cacheKey)) return Promise.resolve()
+  return runFetch(cacheKey, fetcher).then(() => {}).catch(() => {})
 }

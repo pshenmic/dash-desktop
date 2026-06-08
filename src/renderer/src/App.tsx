@@ -10,10 +10,13 @@ import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
 import { useAuth } from "./contexts/AuthContext"
+import { usePrefetchWalletData } from "./hooks/usePrefetchWalletData"
 
 function App(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
   const location = useLocation()
+
+  usePrefetchWalletData()
 
   if (location.pathname === '/create-wallet') {
     return (

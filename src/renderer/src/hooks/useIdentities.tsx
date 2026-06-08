@@ -1,5 +1,5 @@
 import { API } from '@renderer/api'
-import { useAsyncWithCache } from './useAsyncWithCache'
+import { prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type IdentityApiDto = {
   identityIndex: number
@@ -12,13 +12,20 @@ export type IdentityApiDto = {
   derivationPath: string
 }
 
+const fetchIdentities = (walletId: string): Promise<IdentityApiDto[]> =>
+  API.getIdentities(walletId).then((d) => (d ?? []) as IdentityApiDto[])
+
 export function useIdentities(walletId?: string) {
   const { data: identities, loading, err } = useAsyncWithCache<IdentityApiDto[]>(
     'identities',
     walletId,
-    () => API.getIdentities(walletId!).then((d) => (d ?? []) as IdentityApiDto[]),
+    () => fetchIdentities(walletId!),
     [],
     { errorMessage: 'Failed to load identities' }
   )
   return { identities, loading, err }
+}
+
+export function prefetchIdentities(walletId: string): Promise<void> {
+  return prefetchAsyncCache('identities', walletId, () => fetchIdentities(walletId))
 }

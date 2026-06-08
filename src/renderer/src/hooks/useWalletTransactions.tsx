@@ -1,6 +1,6 @@
 import { API } from '@renderer/api'
 import { formatCreationDate } from '@renderer/utils/date'
-import { useAsyncWithCache } from './useAsyncWithCache'
+import { prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type WalletTxDto = {
   walletId: string
@@ -83,14 +83,21 @@ function mapTx(raw: WalletTxDto): WalletTxItem {
   }
 }
 
+const fetchTransactionGroups = (walletId: string): Promise<TransactionGroup[]> =>
+  API.getTransactions(walletId)
+    .then((raw) => groupTransactionsByDay(((raw ?? []) as WalletTxDto[]).map(mapTx)))
+
 export function useWalletTransactions(walletId: string | undefined) {
   const { data: groups, loading, err } = useAsyncWithCache<TransactionGroup[]>(
     'transactions',
     walletId,
-    () => API.getTransactions(walletId!)
-      .then((raw) => groupTransactionsByDay(((raw ?? []) as WalletTxDto[]).map(mapTx))),
+    () => fetchTransactionGroups(walletId!),
     [],
     { errorMessage: 'Failed to load transactions' }
   )
   return { groups, loading, err }
+}
+
+export function prefetchTransactions(walletId: string): Promise<void> {
+  return prefetchAsyncCache('transactions', walletId, () => fetchTransactionGroups(walletId))
 }
