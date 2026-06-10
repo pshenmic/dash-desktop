@@ -441,12 +441,16 @@ export class WalletService {
 
     const txid = await provider.broadcastTx(tx)
 
+    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
+    const actualFee = selection.inputTotal - outputTotal
+    const hasChange = tx.outputs.length > 1
+
     return {
       txid,
       amount: amountDuffs.toString(),
-      fee: selection.fee.toString(),
+      fee: actualFee.toString(),
       toAddress,
-      changeAddress: selection.change > 0n ? changeAddress : null,
+      changeAddress: hasChange ? changeAddress : null,
       peersAcked: 0,
     }
   }
