@@ -1,27 +1,17 @@
 import {Network} from '../src/types'
 
-// Chain anchor: the block our index starts from.
-//   - height:     internal height we seed it at (always 1; our index is 1-based)
-//   - wireHeight: that same block's real height in Dash Core's numbering, used
-//                 for BIP157 start_height fields. mainnet's anchor is the true
-//                 genesis (real height 0); testnet's anchor is block 1 (real
-//                 height 1). The internal↔real offset (wireHeight - 1) differs
-//                 per network, so cf* requests must convert per network.
 export interface ChainAnchor {
   height: number
-  wireHeight: number
   hash: string
 }
 
 export const GENESIS: Record<Network, ChainAnchor> = {
   mainnet: {
     height: 1,
-    wireHeight: 0,
-    hash: '00000ffd590b1485b3caadc19b22e6379c733355108f107a430458cdf3407ab6',
+    hash: '000007d91d1254d60e2dd1ae580383070a4ddffa4c64c2eeb4a2f9ecc0414343',
   },
   testnet: {
     height: 1,
-    wireHeight: 1,
     hash: '0000047d24635e347be3aaaeb66c26be94901a2f962feccd4f95090191f208c1',
   },
 }
