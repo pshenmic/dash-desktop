@@ -112,4 +112,8 @@ export class WalletBackend {
 
     this.applicationService.markReady()
   }
+
+  async shutdown(): Promise<void> {
+    await this.walletSyncService?.shutdown()
+  }
 }

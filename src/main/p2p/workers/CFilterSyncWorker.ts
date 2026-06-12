@@ -454,6 +454,8 @@ export class CFilterSyncWorker extends Worker {
   private requestCheckpoints(): void {
     if (this.stopped) return
     this.cfcheckpt.responded = false
+    // Highest checkpoint (real height that is a multiple of 1000) at or below
+    // the scan tip, expressed in our internal numbering.
     const stopHeight = Math.floor(this.effectiveScanTipHeight() / 1000) * 1000
     const stopHashWire = this.heightToBlockHash.get(stopHeight)
     if (!stopHashWire) {
@@ -496,6 +498,8 @@ export class CFilterSyncWorker extends Worker {
     this.leader = fromPeer
 
     const headers = msg.filterHeaders ?? []
+    // headers[i] is the filter header at real height (i+1)*1000; key it by the
+    // matching internal height.
     for (let i = 0; i < headers.length; i++) {
       this.checkpointHeaders.set((i + 1) * 1000, headers[i]!)
     }
@@ -540,7 +544,7 @@ export class CFilterSyncWorker extends Worker {
 
     while (this.cfHeaders.walkStart <= effectiveTip) {
       const startHeight = this.cfHeaders.walkStart
-      const nextCkpt = (Math.floor((startHeight - 1) / 1000) + 1) * 1000
+      const nextCkpt = (Math.floor(startHeight / 1000) + 1) * 1000
       const stopHeight = Math.min(nextCkpt, effectiveTip)
       let fullyCached = true
       for (let h = startHeight; h <= stopHeight; h++) {
@@ -557,7 +561,7 @@ export class CFilterSyncWorker extends Worker {
     }
     this.emitStatus('cfheaders')
     const startHeight = this.cfHeaders.walkStart
-    const nextCkpt = (Math.floor((startHeight - 1) / 1000) + 1) * 1000
+    const nextCkpt = (Math.floor(startHeight / 1000) + 1) * 1000
     const stopHeight = Math.min(nextCkpt, effectiveTip)
     if (!this.heightToBlockHash.has(stopHeight)) {
       console.warn(`[cfilter] cfheaders: no hash for h=${stopHeight}; stopping`)

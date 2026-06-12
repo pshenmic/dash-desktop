@@ -1,6 +1,5 @@
 import {Network} from '../src/types'
 
-// position of that block in Dash Core's height numbering.
 export interface ChainAnchor {
   height: number
   hash: string
@@ -9,7 +8,7 @@ export interface ChainAnchor {
 export const GENESIS: Record<Network, ChainAnchor> = {
   mainnet: {
     height: 1,
-    hash: '00000ffd590b1485b3caadc19b22e6379c733355108f107a430458cdf3407ab6',
+    hash: '000007d91d1254d60e2dd1ae580383070a4ddffa4c64c2eeb4a2f9ecc0414343',
   },
   testnet: {
     height: 1,

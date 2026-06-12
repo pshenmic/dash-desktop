@@ -91,3 +91,16 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+// Stop the p2p utility process gracefully before quitting so chain.db's
+// LevelDB lock is released. Without this a killed worker leaves a stale lock
+// that blocks the next launch's open (LEVEL_DATABASE_NOT_OPEN).
+let backendStopped = false
+app.on('before-quit', (event) => {
+  if (backendStopped) return
+  event.preventDefault()
+  backendStopped = true
+  backend.shutdown()
+    .catch((err) => console.error('[shutdown] backend shutdown failed:', err))
+    .finally(() => app.quit())
+})

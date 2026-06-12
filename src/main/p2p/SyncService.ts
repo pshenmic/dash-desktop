@@ -1,5 +1,5 @@
 import {BroadcastService} from './BroadcastService'
-import {ChainStore, PersistedHeader} from './ChainStore'
+import {ChainStore, ChainTipState, PersistedHeader} from './ChainStore'
 import {GENESIS} from './constants'
 import {PoolService} from './PoolService'
 import {
@@ -83,7 +83,26 @@ export class SyncService {
 
   getStatus = (): WalletSyncStatus => this.status
 
-  start = async (cmd: P2PStartMessage): Promise<void> => {
+  // Serialize lifecycle ops so two near-simultaneous start commands can't both
+  // open chain.db — LevelDB is single-owner and a second concurrent open fails
+  // the lock (surfacing as LEVEL_DATABASE_NOT_OPEN).
+  private opChain: Promise<unknown> = Promise.resolve()
+
+  private runExclusive = <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = this.opChain.then(fn, fn)
+    this.opChain = run.then(() => undefined, () => undefined)
+    return run
+  }
+
+  start = (cmd: P2PStartMessage): Promise<void> => this.runExclusive(() => this.startInner(cmd))
+
+  stop = (): Promise<void> => this.runExclusive(() => this.stopInner())
+
+  private startInner = async (cmd: P2PStartMessage): Promise<void> => {
+    // Already syncing this wallet — a duplicate start (StrictMode double-invoke,
+    // overlapping auto-start). Ignore rather than tear down and re-open chain.db.
+    if (this.chainStore && this.activeWalletId === cmd.walletId) return
+
     await this.teardown()
 
     this.activeWalletId = cmd.walletId
@@ -114,14 +133,12 @@ export class SyncService {
     // Open chain.db (single-owner LevelDB lock). Chain.db now holds only
     // network-scoped data (headers, hash cache, filter headers).
     this.chainStore = new ChainStore(cmd.chainDbPath, cmd.network)
-    let persisted
+    let persisted: ChainTipState
     try {
-      await this.chainStore.open()
-      persisted = await this.chainStore.initSyncState()
+      persisted = await this.openWithRetry(this.chainStore)
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
       const code = (err as { code?: string }).code ?? 'unknown'
-      const labelled = `chain.db unusable (${code}): ${message}. Call resetWalletSync to recover.`
+      const labelled = `chain.db unusable (${code}): ${describeError(err)}. Call resetWalletSync to recover.`
       await this.chainStore.close().catch(() => { /* ignore */ })
       this.chainStore = null
       this.emit({phase: 'stopped', lastError: labelled})
@@ -169,7 +186,7 @@ export class SyncService {
     this.headerSyncWorker.start()
   }
 
-  stop = async (): Promise<void> => {
+  private stopInner = async (): Promise<void> => {
     await this.teardown()
     this.activeWalletId = null
     this.activeWatchAddresses = []
@@ -190,6 +207,29 @@ export class SyncService {
       filterCapablePeerCount: 0,
       phaseEtaMs: null,
     })
+  }
+
+  // Open chain.db, retrying a few times on failure. The common transient is a
+  // still-held LevelDB lock (a prior session's utility process releasing it);
+  // a short backoff recovers automatically instead of forcing a resetWalletSync.
+  private async openWithRetry(store: ChainStore): Promise<ChainTipState> {
+    const ATTEMPTS = 5
+    const BACKOFF_MS = 400
+    let lastErr: unknown
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      try {
+        await store.open()
+        return await store.initSyncState()
+      } catch (err) {
+        lastErr = err
+        await store.close().catch(() => { /* ignore */ })
+        if (attempt < ATTEMPTS) {
+          console.warn(`[p2p] chain.db open attempt ${attempt}/${ATTEMPTS} failed, retrying: ${describeError(err)}`)
+          await delay(BACKOFF_MS)
+        }
+      }
+    }
+    throw lastErr
   }
 
   broadcast = (cmd: P2PBroadcastMessage): void => {
@@ -410,6 +450,20 @@ export class SyncService {
         .finally(() => this.emit({phase: 'stopped'}))
     }
   }
+}
+
+// abstract-level wraps a failed open as LEVEL_DATABASE_NOT_OPEN ("Database
+// failed to open") and hides the real reason (held lock, IO error) in `cause`.
+// Surface it so logs name the actual problem instead of the generic wrapper.
+function describeError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err)
+  const cause = (err as { cause?: unknown })?.cause
+  const causeMsg = cause instanceof Error ? cause.message : cause != null ? String(cause) : null
+  return causeMsg ? `${message} (cause: ${causeMsg})` : message
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 // Reverse a hex string byte-wise (wire/internal txid order ⇄ display order).

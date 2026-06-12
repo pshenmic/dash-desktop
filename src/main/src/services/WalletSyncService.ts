@@ -175,6 +175,15 @@ export class WalletSyncService {
     this.ensureChild().postMessage(command)
   }
 
+  // Poll the locally-cached status until the utility process reports the given
+  // phase, or the timeout elapses. Used by shutdown to confirm chain.db closed.
+  private async waitForPhase(phase: WalletSyncStatus['phase'], timeoutMs: number): Promise<void> {
+    const start = Date.now()
+    while (this.status.phase !== phase && Date.now() - start < timeoutMs) {
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+  }
+
   // Returns ack only — phase progression streams via getStatus, not the
   // return value. Returning a status snapshot here gave the renderer the
   // stale 'stopped' state because the utility process hadn't yet emitted
@@ -403,6 +412,11 @@ export class WalletSyncService {
     const exited = new Promise<void>((resolve) => {
       child.once('exit', () => resolve())
     })
+    // Ask the utility process to close chain.db (release the LevelDB lock)
+    // before we kill it. A hard kill leaves the lock held until the OS reaps
+    // the process, which can block the next launch's open.
+    this.send({ type: 'stop' })
+    await this.waitForPhase('stopped', 3000)
     child.kill()
     await exited
     this.child = null

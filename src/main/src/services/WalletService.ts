@@ -91,7 +91,7 @@ export class WalletService {
 
   private getProvider(walletId: string, network: Network): WalletProvider {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
-      return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService)
+      return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
     }
     return new InsightWalletProvider(network, walletId, this.addressDAO)
   }
