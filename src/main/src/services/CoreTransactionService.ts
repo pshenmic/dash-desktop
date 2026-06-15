@@ -7,8 +7,13 @@ import {
   Transaction as SDKTransaction,
   utils as sdkUtils,
 } from 'dash-core-sdk'
+import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {Network} from '../types'
-import {SEQUENCE_FINAL} from '../constants'
+import {ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
+
+export type RecipientType = 'p2pkh' | 'p2sh'
+
+const ADDRESS_DECODED_LENGTH = 21
 
 export interface TransferInput {
   txId: string
@@ -21,6 +26,7 @@ export interface TransferInput {
 export interface BuildSignedTransferParams {
   inputs: TransferInput[]
   toAddress: string
+  recipientType: RecipientType
   amount: bigint
   changeAddress: string
   inputTotal: bigint
@@ -33,28 +39,25 @@ export class CoreTransactionService {
     private readonly sdk: DashPlatformSDK,
   ) {}
 
-  // Rejects an address that is malformed or belongs to a different network —
-  // the SDK round-trips it through its public-key-hash and only the same
-  // address re-encodes for the wallet's network.
-  assertRecipientAddress(address: string, network: Network): void {
-    let publicKeyHash: Uint8Array
+  classifyRecipientAddress(address: string, network: Network): RecipientType {
+    let decoded: Uint8Array
     try {
-      publicKeyHash = sdkUtils.addressToPublicKeyHash(address)
+      decoded = Base58Check.decode(address)
     } catch {
       throw new Error('Invalid recipient address')
     }
-    const addressForNetwork = sdkUtils.publicKeyHashToAddress(publicKeyHash, network)
-    if (addressForNetwork !== address) {
-      throw new Error(`Recipient address is not a valid ${network} address`)
+    if (decoded.length !== ADDRESS_DECODED_LENGTH) {
+      throw new Error('Invalid recipient address')
     }
+    const prefixes = ADDRESS_PREFIX[network]
+    const version = decoded[0]
+    if (version === prefixes.p2pkh) return 'p2pkh'
+    if (version === prefixes.p2sh) return 'p2sh'
+    throw new Error(`Recipient address is not a valid ${network} address`)
   }
 
-  // Builds a single-recipient P2PKH transfer from the selected inputs, lets the
-  // SDK append a change output (generateChange computes the fee internally and
-  // only adds change when worthwhile), then signs each input with the key
-  // derived from its address' derivation path.
   async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
-    const {inputs, toAddress, amount, changeAddress, inputTotal, mnemonic, network} = params
+    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, mnemonic, network} = params
 
     const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
     const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
@@ -72,10 +75,24 @@ export class CoreTransactionService {
       privateKeys.push(PrivateKey.fromBytes(derived.privateKey as Uint8Array, network, true))
     }
 
-    transaction.addOutput(Output.createP2PKH(amount, toAddress))
+    const recipientOutput = new Output(amount)
+    if (recipientType === 'p2sh') {
+      recipientOutput.script = this.p2shScript(toAddress)
+    } else {
+      recipientOutput.generateP2PKH(toAddress)
+    }
+    transaction.addOutput(recipientOutput)
     transaction.generateChange(changeAddress, inputTotal)
     transaction.sign(privateKeys)
 
     return transaction
+  }
+
+  private p2shScript(address: string): Script {
+    const script = new Script()
+    script.pushOpCode('OP_HASH160')
+    script.pushOpCode('OP_PUSHBYTES_20', sdkUtils.addressToPublicKeyHash(address))
+    script.pushOpCode('OP_EQUAL')
+    return script
   }
 }

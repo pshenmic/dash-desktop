@@ -54,6 +54,13 @@ export class P2PWalletProvider implements WalletProvider {
     return result.txid
   }
 
+  async ensureReady(): Promise<void> {
+    const status = this.walletSyncService.getStatus()
+    if (status.phase !== 'synced' || status.walletId !== this.walletId) {
+      throw new Error('Wallet sync is not complete — wait for sync to finish before sending')
+    }
+  }
+
   async getBlockByHash(): Promise<Block> {
     throw new Error('Unimplemented: getBlockByHash is not available in p2p mode')
   }

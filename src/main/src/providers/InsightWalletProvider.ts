@@ -95,6 +95,8 @@ export class InsightWalletProvider implements WalletProvider {
     }))
   }
 
+  async ensureReady(): Promise<void> {}
+
   async broadcastTx(tx: SDKTransaction): Promise<string> {
     const response = await this.sendRequest(`${this.baseUrl}/tx/send`, {
       method: 'POST',
