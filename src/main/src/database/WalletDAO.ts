@@ -99,6 +99,33 @@ export class WalletDAO {
     }
   }
 
+  updateLabel = async (walletId: string, label: string | null): Promise<QueryStatus> => {
+    try {
+      const result = await this.knex('wallet')
+        .update({label})
+        .where('wallet_id', walletId)
+
+      if (result === 0) {
+        return {
+          success: false,
+          errorMessage: 'Wallet not found',
+        }
+      }
+
+      return {
+        success: true,
+        errorMessage: null,
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      return {
+        success: false,
+        errorMessage: message,
+      }
+    }
+  }
+
   getWalletsByNetwork = async (network): Promise<Wallet[]> => {
     const rows = await this.knex('wallet')
       .select('encrypted_mnemonic', 'network', 'wallet_id', 'label', 'selected')

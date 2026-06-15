@@ -27,6 +27,8 @@ import {GetBalance} from "./api/wallet/getBalance";
 import {DeleteWalletHandler} from "./api/wallet/deleteWallet";
 import {GetWalletBalance} from "./api/wallet/getWalletBalance";
 import {SetAddressLabel} from "./api/wallet/setAddressLabel";
+import {SetWalletLabel} from "./api/wallet/setWalletLabel";
+import {SendTransactionHandler} from "./api/wallet/sendTransaction";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
@@ -80,6 +82,8 @@ export class WalletBackend {
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
     ipcMain.handle('getBlockByHash', new GetBlockByHash(this.walletService).handle)
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
+    ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
+    ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
@@ -123,7 +127,7 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.walletSyncService, this.applicationService, dashPlatformSDK, calibratedIterations)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
     this.addressDAO = addressDAO
 
     this.initHandlers()

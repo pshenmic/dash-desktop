@@ -5,16 +5,18 @@ import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { WalletSyncPhase } from '@renderer/api/types'
 import { SYNC_ACTION_LABELS } from '@renderer/constants/connection'
 
-type Action = 'start' | 'stop' | 'restart'
+type Action = 'start' | 'stop'
 
-function actionForPhase(phase: WalletSyncPhase | undefined): Action {
+// null hides the control entirely — once sync is finished ('synced') the header
+// shows no button; restarting a completed sync lives in Settings only.
+function actionForPhase(phase: WalletSyncPhase | undefined): Action | null {
   switch (phase) {
     case undefined:
     case 'stopped':
     case 'idle':
       return 'start'
     case 'synced':
-      return 'restart'
+      return null
     default:
       return 'stop'
   }
@@ -45,19 +47,6 @@ const ACTIONS: Record<Action, ActionSpec> = {
     ),
     run: () => API.stopWalletSync(),
   },
-  restart: {
-    label: SYNC_ACTION_LABELS.restart,
-    glyph: (
-      <svg width={14} height={14} viewBox="0 0 14 14" fill="none" className="dash-text-default">
-        <path d="M11.5 7a4.5 4.5 0 1 1-1.32-3.18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-        <path d="M11 1.5 L11 4 L8.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-    ),
-    run: async (walletId) => {
-      await API.stopWalletSync()
-      await API.startWalletSync(walletId)
-    },
-  },
 }
 
 export default function SyncControlButton(): React.JSX.Element | null {
@@ -69,6 +58,7 @@ export default function SyncControlButton(): React.JSX.Element | null {
   if (walletId === null) return null
 
   const action = actionForPhase(phase)
+  if (action === null) return null
   const spec = ACTIONS[action]
 
   const handleClick = async (): Promise<void> => {

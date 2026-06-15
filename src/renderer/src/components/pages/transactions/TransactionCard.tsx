@@ -4,10 +4,12 @@ import CustomBadge from "@renderer/components/ui/CustomBadge"
 import { formatCreationDate, timePart } from "@renderer/utils/date"
 import { BigNumber, TimeDelta } from "dash-ui-kit/react"
 import { cva } from "class-variance-authority"
-import { Text } from "@renderer/components/dash-ui-kit-enxtended"
+import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtended"
 import { WalletTxItem } from "@renderer/hooks/useWalletTransactions"
 import { davToDash } from "@renderer/utils/balance"
 import { useFiat } from "@renderer/hooks/useFiat"
+import { useAuth } from "@renderer/contexts/AuthContext"
+import { transactionUrl, openExternal } from "@renderer/utils/explorer"
 
 const transactionCardStyles = cva(
   `
@@ -33,6 +35,7 @@ const transactionCardStyles = cva(
 )
 
 export default function TransactionCard({
+  id,
   status,
   kind,
   title,
@@ -45,6 +48,8 @@ export default function TransactionCard({
   const variantAmountSummary = status === 'failed' ? 'error' : kind === 'core' ? 'default' : 'muted'
   const isIncoming = direction === 'in'
   const { format: formatFiat, rateReady } = useFiat()
+  const { status: appStatus } = useAuth()
+  const network = appStatus?.network ?? null
 
   return (
     <div className={transactionCardStyles({ status })} >
@@ -76,6 +81,29 @@ export default function TransactionCard({
           </>
         }
       />
+
+      {network && (
+        <div
+          className={`
+            shrink-0 overflow-hidden
+            w-0 group-hover:w-7
+            opacity-0 group-hover:opacity-100
+            transition-all duration-200 ease-out
+          `}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); openExternal(transactionUrl(id, network)) }}
+            title={"Open in explorer"}
+            className={`
+              size-7 rounded-[.5rem] flex items-center justify-center
+              dash-block-5 dash-black-border cursor-pointer
+              hover:scale-105 transition-transform duration-200
+            `}
+          >
+            <ExternalLinkIcon size={14} color={"currentColor"} className={"dash-text-default opacity-70"} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

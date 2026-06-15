@@ -21,8 +21,8 @@ export interface TransferPageType {
 
 export const sendPageData: TransferPageType = {
   header: {
-    title: 'Transfer',
-    description: 'You are going to transfer credits from you account with this transaction. Carefully check the transaction details before proceeding to the next step.',
+    title: 'Send',
+    description: 'Send Dash from this wallet. Enter a recipient address and amount, then carefully check the details before proceeding.',
     balance: 'Balance',
   },
   recipient: {

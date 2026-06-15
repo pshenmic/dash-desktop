@@ -1,6 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 
 const cache = new Map<string, unknown>()
+const inflight = new Map<string, Promise<unknown>>()
+const invalidationListeners = new Map<string, Set<() => void>>()
+
+function subscribeInvalidation(cacheKey: string, listener: () => void): () => void {
+  const set = invalidationListeners.get(cacheKey) ?? new Set()
+  set.add(listener)
+  invalidationListeners.set(cacheKey, set)
+  return () => {
+    set.delete(listener)
+    if (set.size === 0) invalidationListeners.delete(cacheKey)
+  }
+}
+
+function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
+  const existing = inflight.get(cacheKey)
+  if (existing !== undefined) return existing as Promise<T>
+
+  const p = fetcher()
+    .then((result) => {
+      cache.set(cacheKey, result)
+      return result
+    })
+    .finally(() => {
+      inflight.delete(cacheKey)
+    })
+
+  inflight.set(cacheKey, p)
+  return p
+}
 
 export interface UseAsyncWithCacheOptions {
   errorMessage?: string
@@ -18,9 +47,15 @@ export function useAsyncWithCache<T>(
   const [data, setData] = useState<T>(initial)
   const [loading, setLoading] = useState(cacheKey !== undefined)
   const [err, setErr] = useState<string | null>(null)
+  const [refetchTick, setRefetchTick] = useState(0)
 
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
+
+  useEffect(() => {
+    if (cacheKey === undefined) return
+    return subscribeInvalidation(cacheKey, () => setRefetchTick((t) => t + 1))
+  }, [cacheKey])
 
   useEffect(() => {
     if (cacheKey === undefined) {
@@ -46,9 +81,8 @@ export function useAsyncWithCache<T>(
       setLoading(true)
     }
 
-    fetcherRef.current()
+    runFetch(cacheKey, fetcherRef.current)
       .then((result) => {
-        cache.set(cacheKey, result)
         if (dead) return
         setData(result)
       })
@@ -66,11 +100,24 @@ export function useAsyncWithCache<T>(
       dead = true
       if (rafId !== undefined) cancelAnimationFrame(rafId)
     }
-  }, [cacheKey])
+  }, [cacheKey, refetchTick])
 
   return { data, loading, err }
 }
 
 export function invalidateAsyncCache(namespace: string, key: string): void {
-  cache.delete(`${namespace}:${key}`)
+  const cacheKey = `${namespace}:${key}`
+  cache.delete(cacheKey)
+  const listeners = invalidationListeners.get(cacheKey)
+  if (listeners) for (const listener of [...listeners]) listener()
+}
+
+export function prefetchAsyncCache<T>(
+  namespace: string,
+  key: string,
+  fetcher: () => Promise<T>
+): Promise<void> {
+  const cacheKey = `${namespace}:${key}`
+  if (cache.has(cacheKey)) return Promise.resolve()
+  return runFetch(cacheKey, fetcher).then(() => {}).catch(() => {})
 }

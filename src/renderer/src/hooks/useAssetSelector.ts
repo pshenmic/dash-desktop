@@ -10,14 +10,7 @@ export interface Asset {
   currency: string
 }
 
-export const MOCK_ASSETS: Asset[] = [
-  {
-    id: 'credits',
-    name: 'Credits',
-    symbol: 'CRDT',
-    initials: 'C',
-    currency: 'CRDT',
-  },
+export const ASSETS: Asset[] = [
   {
     id: 'dash',
     name: 'Dash',
@@ -25,35 +18,23 @@ export const MOCK_ASSETS: Asset[] = [
     initials: 'D',
     currency: 'DASH',
   },
-  {
-    id: 'dash-gold',
-    name: 'Dash Gold',
-    symbol: 'DGLD',
-    initials: 'DG',
-    currency: 'DGLT',
-  },
-  {
-    id: 'crypto-silver',
-    name: 'Crypto Silver',
-    symbol: 'CRSL',
-    initials: 'CS',
-    currency: 'DGLT',
-  }
 ]
+
+function readSelectedAssetId(): string {
+  const saved = localStorage.getItem('asset-send')
+  return ASSETS.some((a) => a.id === saved) ? (saved as string) : ASSETS[0].id
+}
 
 export function useAssetSelector() {
   const location = useLocation()
-  const [selectedAssetId, setSelectedAssetId] = useState<string>(() => {
-    const saved = localStorage.getItem(`asset-send`)
-    return saved || MOCK_ASSETS[0].id
-  })
+  const [selectedAssetId, setSelectedAssetId] = useState<string>(readSelectedAssetId)
   const [showModal, setShowModal] = useState(false)
 
   const openModal = () => setShowModal(true)
   const closeModal = () => setShowModal(false)
 
   useEffect(() => {
-    localStorage.setItem(`asset-send`, selectedAssetId)
+    localStorage.setItem('asset-send', selectedAssetId)
   }, [selectedAssetId])
 
   useEffect(() => {
@@ -65,11 +46,11 @@ export function useAssetSelector() {
     closeModal()
   }
 
-  const selectedAsset = MOCK_ASSETS.find(asset => asset.id === selectedAssetId)
+  const selectedAsset = ASSETS.find(asset => asset.id === selectedAssetId) ?? ASSETS[0]
 
   return {
     selectedAsset,
-    assets: MOCK_ASSETS,
+    assets: ASSETS,
     showModal,
     openModal,
     closeModal,

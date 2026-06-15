@@ -3,6 +3,7 @@ export { Button, type ButtonProps } from './button'
 export { Input, type InputProps } from './input'
 export { Select, type SelectProps } from './select'
 export { Heading, type HeadingProps } from './heading'
+export { Tooltip, TooltipBubble, type TooltipProps } from './tooltip'
 export {
   ArrowIcon,
   CopyIcon,

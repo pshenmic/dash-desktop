@@ -7,61 +7,174 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 yarn dev          # Start in development mode (electron-vite dev)
 yarn build        # Typecheck + build (outputs to out/)
-yarn typecheck    # Run TypeScript type checking only
+yarn typecheck    # tsc --noEmit on tsconfig.node.json AND tsconfig.web.json
 yarn start        # Preview built app
+yarn test         # vitest run
+yarn test:watch   # vitest watch
 
 yarn build:mac    # Build macOS distributable
 yarn build:win    # Build Windows distributable
 yarn build:linux  # Build Linux distributable
 ```
 
-No test runner is configured yet (`test` script exits with error).
+**Package manager: yarn** (`yarn.lock` is the source of truth). A stray
+`pnpm-lock.yaml` may appear in the tree — ignore it; do NOT run `pnpm install`,
+it relocates the yarn-installed `node_modules` and breaks the install. Use
+`yarn install`.
+
+### Verifying a change (the green gate)
+
+There is no single "is it good" command. A change is verified only when ALL of:
+
+1. `npx tsc --noEmit -p tsconfig.node.json` (main + preload) passes
+2. `npx tsc --noEmit -p tsconfig.web.json` (renderer) passes
+3. `npx vitest run tests/unit` passes
+4. `npx electron-vite build` succeeds
+
+> `electron-vite build` emits many `@fontsource/manrope ... didn't resolve at
+> build time` warnings — these are pre-existing and harmless. Only non-font
+> errors matter.
+
+> **Stale `tests/api/`:** the committed `tests/api/*.test.ts` files are
+> outdated and do NOT compile/pass (they reference deleted modules and an old
+> `WalletService` constructor). Run `vitest run tests/unit`, not the whole
+> suite, until they are fixed or removed. New tests go in `tests/unit/`.
 
 ## Architecture
 
-This is an **Electron desktop wallet** for Dash Platform, built with electron-vite, React, and TypeScript. The app has three Electron processes:
+An **Electron desktop wallet** for Dash, built with electron-vite, React 19,
+and TypeScript. Three processes:
 
-### Main process (`src/main/src/`)
-The Node.js backend. Entry point is `backend.ts`, which:
-1. Creates `~/.dash-platform-wallet/` and a SQLite database (`storage.db`) via Knex
-2. Runs Knex migrations from `src/main/migrations/`
-3. Initializes `DashPlatformSDK`
-4. Registers IPC handlers via `routes.ts` (controller-style) and `handlers.ts` (ad-hoc handlers)
+### Main process (`src/main/`)
 
-**Layer structure:**
-- `api/` — IPC handler classes (e.g. `WalletAPI`). Each method signature is `(event, ...args)` to match `ipcMain.handle`.
-- `database/` — DAO classes using Knex (e.g. `WalletDAO`). Plain SQL queries against SQLite.
-- `services/` — Service layer (currently stubbed: `WalletService`).
-- `types/` — Domain model types (e.g. `Wallet` with `fromRow` factory).
-- `controllers/` — Controller classes that wire API + DAO + SDK (referenced but deleted in current branch — use `WalletAPI` directly instead).
-- `routes.ts` — Maps IPC channel names to handler functions via `ipcMain.handle`.
-- `handlers.ts` — Secondary handler registration (currently registers the `foobar` test handler).
+- Entry point: `src/main/index.ts` — creates the `BrowserWindow`, registers
+  `dark-mode:*` and `saveTextFile` IPC handlers, then calls
+  `WalletBackend.start()`.
+- `src/main/src/WalletBackend.ts` — the real backend. `start()` runs
+  migrations, constructs DAOs/services, and **registers every wallet IPC
+  handler directly** via `ipcMain.handle(...)` in `initHandlers()`. There is
+  **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied). The
+  `src/main/src/api/WalletAPI.ts` file is dead/unused — do not add to it.
+- `src/main/p2p/` — the SPV P2P subsystem runs in a separate **Electron
+  utility process** (forked from `WalletSyncService`). It owns the peer pool,
+  header/cfilter sync, and transaction broadcast. Communicates with the main
+  process by message passing (`p2p/types/messages.ts`).
 
-> **Note:** `WalletController` was deleted and the git status shows `WalletAPI.ts` as the active handler class. `routes.ts` still references `WalletController` — this is an in-progress refactor.
+**Layer structure (`src/main/src/`):**
+- `api/` — one IPC handler class per channel, each with
+  `handle = async (event, ...args) => ...`. Construct in `WalletBackend` and
+  register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
+- `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
+  `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
+- `services/` — business logic (`WalletService`, `WalletSyncService`,
+  `RatesService`, `ContactService`, `ApplicationService`) + pure helpers
+  (`coinSelection`, `dedupeTransactions`).
+- `providers/` — see "Connection modes" below.
+- `types/` — domain types with `fromRow` factories.
 
 ### Preload (`src/preload/`)
-- `index.ts` — Exposes APIs to the renderer via `contextBridge`:
-  - `window.electron` — `@electron-toolkit/preload` standard API
-  - `window.electronAPI` — app-specific IPC calls (defined in `definitions.ts`)
-  - `window.darkMode` — theme control
-- `definitions.ts` — Typed wrappers around `ipcRenderer.invoke(channelName, ...)`. **Every new IPC channel must be added here** to be accessible from the renderer.
+
+- `index.ts` — exposes via `contextBridge`: `window.electron`
+  (`@electron-toolkit/preload`), `window.electronAPI` (app IPC, from
+  `definitions.ts`), `window.darkMode` (theme bridge).
+- `definitions.ts` — typed `ipcRenderer.invoke(channel, ...)` wrappers.
+- `index.d.ts` — the `Window.electronAPI` type. **Keep in sync with
+  `definitions.ts`** — it is hand-maintained, not generated.
 
 ### Renderer (`src/renderer/src/`)
-React SPA with React Router v7. Auth state is managed locally in `App.tsx`:
-- Unauthenticated: shows `/` (Login) or `/create-wallet`
-- Authenticated: shows full wallet UI with a `<Sidebar>` + `<Layout>` wrapping the route pages
 
-Pages: `Transactions`, `Send`, `Withdraw`, `Tokens`, `Names`, `Support`, `Settings`.
+React SPA, React Router v7 (`HashRouter`). `@renderer` → `src/renderer/src/`.
+UI: `dash-ui-kit` + Tailwind v4. Extended kit wrappers/icons live in
+`components/dash-ui-kit-enxtended/`.
 
-UI uses `dash-ui-kit` (Dash design system) + Tailwind CSS v4. The `@renderer` alias resolves to `src/renderer/src/`.
+- **Auth/app state lives in `contexts/AuthContext.tsx`** (`useAuth()`), NOT in
+  `App.tsx`. It polls `getStatus` every 1s and exposes `status` (which holds
+  `selectedWalletId`, `network`, `walletSync`), `isAuthenticated`,
+  `switchWallet`, etc. **Read `network`/`selectedWalletId` from `useAuth()` at
+  the component that needs them — do not prop-drill them down the tree.**
+- Routes (`App.tsx`): authenticated `/` Transactions, `/send`, `/receive`,
+  `/addresses`, `/identities`, `/settings`; unauthenticated `/` Login and
+  `/create-wallet`. Sidebar nav items are in `constants/navigation.ts` — a
+  route without a matching `navGroups` entry is reachable only by URL.
 
-## Adding a new IPC endpoint
+## Adding a new IPC endpoint (all 5 layers — miss one and it silently breaks)
 
-1. Add the handler method to the appropriate class in `src/main/src/api/`
-2. Register the channel in `src/main/src/routes.ts` (or `handlers.ts` for standalone handlers)
-3. Add the typed wrapper in `src/preload/definitions.ts`
-4. Call `window.electronAPI.yourMethod(...)` from the renderer
+1. Handler class in `src/main/src/api/...` with `handle = async (event, ...args)`.
+2. Construct + register it in `src/main/src/WalletBackend.ts` (`initHandlers`
+   for the `ipcMain.handle`, and `start()` to build its service).
+3. Wrapper in `src/preload/definitions.ts`.
+4. Type entry in `src/preload/index.d.ts` (`Window.electronAPI`).
+5. Renderer wrapper in `src/renderer/src/api/index.ts` (`API` class) + any
+   DTO in `src/renderer/src/api/types.ts`.
 
-## Database
+**IPC value boundary:** `bigint` does not round-trip reliably across the
+structured-clone boundary in every path. Amounts crossing IPC are passed as
+**strings** and converted with `BigInt(...)` inside the handler (see
+`sendTransaction`). Mirror that for new money-carrying channels.
 
-SQLite via Knex. Migrations live in `src/main/migrations/` (numbered `0000_`, `0001_`, etc.). Tables: `wallet`, transaction tables (L1/L2), `identities`.
+## Database & migrations
+
+SQLite via Knex, at `~/.dash-platform-wallet/storage.db`. Tables: `wallet`,
+`addresses`, `identities`, `transactions` (+ `transaction_inputs/_outputs`,
+`wallet_sync_state`), `contacts`.
+
+**Migrations are registered BY HAND, not auto-discovered.** Adding a file under
+`src/main/migrations/` does nothing on its own — `migrateKnex()` in
+`src/main/src/utils.ts` builds an inline `migrations` array. You MUST:
+1. `import * as migrationNNNN from '../migrations/NNNN_name'`
+2. append `{ name: 'NNNN_name.ts', migration: migrationNNNN }` to the array.
+
+Forgetting this means the table is never created and DAO calls fail at runtime
+(`no such table: ...`) even though everything typechecks and builds.
+
+- **Number migrations against the latest on `master`**, not just local files.
+  master and a feature branch both adding `0004_*` will collide; renumber yours
+  to the next free index.
+- **Renumbering a migration that already ran on a dev DB** corrupts the
+  `knex_migrations` bookkeeping (`directory is corrupt: NNNN_x.ts missing`).
+  Fix by remapping the row name in `knex_migrations` and applying any skipped
+  migration's columns by hand — back up `storage.db` first.
+
+## Connection modes (p2p vs rpc) — important for any wallet data feature
+
+`WalletService.getProvider()` returns one of two `WalletProvider`
+implementations based on the `connectionType` preference:
+
+- **`rpc`** (default) → `InsightWalletProvider`: hits the Insight REST API.
+  Implements `getUTXOs` + `broadcastTx` (POST `/tx/send`).
+- **`p2p`** → `P2PWalletProvider`: reads the local SPV SQLite store; broadcast
+  routes through the p2p utility process (`WalletSyncService.broadcastTransaction`).
+  **Requires `startWalletSync` to be running** (broadcast needs an open peer
+  pool) and throws `Unimplemented` for `getBlockByHash`.
+
+Write wallet features against the `WalletProvider` interface so they work in
+both modes. Note `getTransactions` fetches per-address and is de-duped by txid
+in `WalletService` (one tx touches several owned addresses: spent inputs +
+change) — see `dedupeTransactions`.
+
+## Renderer conventions worth knowing
+
+- **CSP blocks external fetch.** `src/renderer/index.html` sets
+  `default-src 'self'`. The renderer CANNOT fetch external URLs or do `blob:`
+  downloads. Any outbound HTTP or file write must go through the **main
+  process** (`net.fetch` / `dialog`+`fs`) and an IPC channel — see
+  `RatesService` (CoinGecko) and the `saveTextFile` handler.
+- **External links:** `window.open(url, '_blank')` is intercepted by
+  `setWindowOpenHandler` in `main/index.ts` → `shell.openExternal` (system
+  browser). Use the `utils/explorer.ts` helpers for dashscan links.
+- **Theme:** preference (`light`/`dark`/`system`) is persisted in localStorage
+  and applied by `hooks/useThemeController.ts` (`ThemeController` mounted in
+  `main.tsx`); `system` tracks the OS via `matchMedia`. Use
+  `useThemePreference`/`setThemePreference`, not the dash-ui-kit `toggleTheme`.
+- **Fiat:** `useFiat()` gives `format(duffs)`, `rateReady`, `currency`,
+  `setCurrency`; live rates via the shared `useRates()` store. Amounts are in
+  **duffs** (1 DASH = 1e8 duffs) — format with `utils/balance.ts`
+  (`davToDash`/`dashToDuffs`).
+
+## House style
+
+- **No code comments unless they explain non-obvious *why*.** This codebase
+  keeps comments sparse; do not add narrating comments.
+- Pure, branch-free logic (coin selection, formatting, validation, dedup, CSV)
+  is extracted into `utils/` or `services/` helpers and unit-tested in
+  `tests/unit/`. Prefer that over inlining testable logic into components.

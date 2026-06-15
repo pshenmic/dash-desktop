@@ -8,7 +8,6 @@ import { useRipple } from '@renderer/hooks/useRipple'
 export interface ConnectionSelectOption {
   value: string
   label: string
-  description?: string
   active?: boolean
 }
 
@@ -111,15 +110,10 @@ export default function ConnectionSelect({
         `}
       >
         <StatusDot active={true} />
-        <div className={"flex flex-col items-start gap-[.125rem] min-w-0 flex-1 text-left"}>
+        <div className={"flex items-center min-w-0 flex-1 text-left"}>
           <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
             {selectedOption?.label}
           </Text>
-          {selectedOption?.description && (
-            <Text size={10} weight={"medium"} color={"brand"} opacity={50} className={"truncate max-w-full"}>
-              {selectedOption.description}
-            </Text>
-          )}
         </div>
         <ChevronIcon size={12} color={"currentColor"} className={"dash-text-default shrink-0"} />
       </button>
@@ -143,16 +137,9 @@ export default function ConnectionSelect({
             >
               <div className={"flex items-center gap-3 min-w-0 flex-1"}>
                 <StatusDot active={isSelected} />
-                <div className={"flex flex-col gap-[.125rem] min-w-0 flex-1"}>
-                  <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
-                    {option.label}
-                  </Text>
-                  {option.description && (
-                    <Text size={10} weight={"medium"} color={"brand"} opacity={50} className={"truncate max-w-full"}>
-                      {option.description}
-                    </Text>
-                  )}
-                </div>
+                <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
+                  {option.label}
+                </Text>
               </div>
               {isSelected && (
                 <ChevronIcon

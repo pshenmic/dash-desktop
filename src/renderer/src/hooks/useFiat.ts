@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { API } from '@renderer/api'
 import { useRates } from './useRates'
-import { formatDuffsAsFiat, convertDuffsToFiat } from '@renderer/utils/fiat'
+import { formatDuffsAsFiat } from '@renderer/utils/fiat'
 
 const LS_DISPLAY_CURRENCY = 'wallet.display.currency'
 const DEFAULT_CURRENCY = 'usd'
@@ -69,12 +69,9 @@ function setCurrencyGlobal(next: string): void {
 
 export interface UseFiat {
   currency: string
-  rate: number
   rateReady: boolean
-  stale: boolean
   setCurrency: (currency: string) => void
   format: (duffs: bigint) => string
-  value: (duffs: bigint) => number
 }
 
 export function useFiat(): UseFiat {
@@ -90,15 +87,11 @@ export function useFiat(): UseFiat {
     (duffs: bigint) => formatDuffsAsFiat(duffs, rate, activeCurrency),
     [rate, activeCurrency],
   )
-  const value = useCallback((duffs: bigint) => convertDuffsToFiat(duffs, rate), [rate])
 
   return {
     currency: activeCurrency,
-    rate,
     rateReady,
-    stale: ratesResult.stale,
     setCurrency,
     format,
-    value,
   }
 }

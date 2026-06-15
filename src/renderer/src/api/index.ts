@@ -1,4 +1,4 @@
-import { ConnectionType, Contact, ExchangeRatesResult, Network, PreferencesJSON, QueryStatus } from './types'
+import { ConnectionType, Contact, ExchangeRatesResult, Network, PreferencesJSON, QueryStatus, SendResult } from './types'
 
 export class API {
   private static get api() {
@@ -53,6 +53,10 @@ export class API {
     return this.api.getAllWallets()
   }
 
+  static async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
+    return this.api.setWalletLabel(walletId, label) as Promise<QueryStatus>
+  }
+
   static async getTransactions(walletId: string) {
     return this.api.getTransactions(walletId)
   }
@@ -95,5 +99,9 @@ export class API {
 
   static async deleteContact(id: number): Promise<QueryStatus> {
     return this.api.deleteContact(id) as Promise<QueryStatus>
+  }
+
+  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: string, password: string): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password) as Promise<SendResult>
   }
 }

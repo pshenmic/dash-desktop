@@ -1,11 +1,12 @@
 import { navGroups } from "@renderer/constants";
-import { SendIcon, SettingsIcon, ShieldSmallIcon, AddressesIcon, TransactionsIcon, ReceiveIcon, SignIcon } from "../dash-ui-kit-enxtended/icons";
+import { DashboardIcon, SendIcon, SettingsIcon, ShieldSmallIcon, AddressesIcon, TransactionsIcon, ReceiveIcon, SignIcon } from "../dash-ui-kit-enxtended/icons";
 import { cva } from "class-variance-authority";
 import { IconProps } from "../dash-ui-kit-enxtended/icons";
 import SidebarHeader from "./SidebarHeader";
 import SidebarNavGroup from "../ui/NavGroup";
 
 const iconMap: Record<string, React.FC<IconProps>> = {
+  'dashboard': DashboardIcon,
   'transactions': TransactionsIcon,
   'send': SendIcon,
   'receive': ReceiveIcon,

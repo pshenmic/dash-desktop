@@ -44,8 +44,8 @@ export default function TransactionsList({ onTransactionClick }: TransactionsLis
                 {group.transactions.map((transaction, txIndex) => (
                   <div
                     key={`${transaction.id}-${groupIndex}-${txIndex}`}
-                    onClick={() => { transaction.status === 'pending' || transaction.status === 'failed' ? null : onTransactionClick?.(transaction)}}
-                    className={transaction.status === 'pending' || transaction.status === 'failed' ? '' : 'cursor-pointer'}
+                    onClick={() => onTransactionClick?.(transaction)}
+                    className={"cursor-pointer"}
                   >
                     <TransactionCard {...transaction} />
                   </div>

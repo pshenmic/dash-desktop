@@ -2,8 +2,10 @@ import { ReceivePageType } from "@renderer/constants";
 import Header from "../transfer/Header";
 import ReceiveAddressCard from "./ReceiveAddressCard";
 import { useAuth } from "@renderer/contexts/AuthContext";
+import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
 import { API } from "@renderer/api";
 import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
+import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
 const selectedAsset = {
   id: 'dash',
@@ -15,10 +17,11 @@ const selectedAsset = {
 
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
   const { status } = useAuth()
+  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
   const walletId = status?.selectedWalletId ?? undefined
   const { data: address } = useAsyncWithCache<string | null>(
     'receiveAddress',
-    walletId,
+    syncIncomplete ? undefined : walletId,
     () => API.getReceiveAddress(walletId!),
     null,
     { errorMessage: 'Failed to load receive address' }
@@ -34,7 +37,9 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
            </span>}}
           selectedAsset={selectedAsset}
         />
-        {address && <ReceiveAddressCard address={address} data={pageData.receiveAddressCard} />}
+        {syncIncomplete
+          ? <div className={"px-12 mt-12"}><SyncGateNotice /></div>
+          : address && <ReceiveAddressCard address={address} data={pageData.receiveAddressCard} />}
     </div>
   )
 }

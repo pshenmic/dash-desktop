@@ -1,105 +1,118 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { CreateWalletHandler } from '../../src/main/src/api/wallet/CreateWallet'
-import { DashPlatformSDK } from 'dash-platform-sdk'
-import { getKnex, migrateKnex } from '../../src/main/src/utils'
-import { WalletDAO } from '../../src/main/src/database/WalletDAO'
-import { AddressDAO } from '../../src/main/src/database/AddressDAO'
-import { WalletService } from '../../src/main/src/services/WalletService'
-import path from 'path'
+import {describe, it, expect, beforeEach, vi} from 'vitest'
+import {DashPlatformSDK} from 'dash-platform-sdk'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {WalletService} from '../../src/main/src/services/WalletService'
+import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {ApplicationService} from '../../src/main/src/services/ApplicationService'
+import {WalletDAO} from '../../src/main/src/database/WalletDAO'
+import {AddressDAO} from '../../src/main/src/database/AddressDAO'
+import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
+import {Preferences} from '../../src/main/src/preferences'
+import {getKnex, migrateKnex} from '../../src/main/src/utils'
 
 const VALID_SEEDPHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const PASSWORD = 'password123'
+// Low iteration count keeps PBKDF2 fast for tests; production calibrates this per machine.
+const TEST_PBKDF2_ITERATIONS = 1_000
 
 describe('CreateWalletHandler', () => {
   let handler: CreateWalletHandler
   let walletDAO: WalletDAO
   let addressDAO: AddressDAO
-  let sdk: DashPlatformSDK
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const knex = getKnex()
-
-    await migrateKnex(knex, path.join(process.cwd(), 'src/main/migrations'))
+    await migrateKnex(knex)
 
     walletDAO = new WalletDAO(knex)
     addressDAO = new AddressDAO(knex)
-    sdk = new DashPlatformSDK()
+    const identityDAO = new IdentityDAO(knex)
+    const transactionDAO = new TransactionDAO(knex)
 
-    const walletService = new WalletService(walletDAO, addressDAO, sdk)
-    handler = new CreateWalletHandler(walletService)
+    const sdk = new DashPlatformSDK({network: 'testnet'})
+    // Short-circuit identity discovery so wallet creation stays offline.
+    // WalletService.createWallet catches these errors and proceeds.
+    vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
+    vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
+
+    const preferences = Preferences.default()
+    const applicationService = new ApplicationService(preferences)
+    const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+
+    const walletService = new WalletService(
+      walletDAO, addressDAO, identityDAO, transactionDAO,
+      applicationService, walletSyncService, sdk, TEST_PBKDF2_ITERATIONS,
+    )
+
+    handler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)
   })
 
-  it('should return a hex walletId', async () => {
-    const walletId = await handler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
-
-    expect(walletId).toMatch(/^[0-9a-f]{32}$/)
+  it('returns an 8-char hex walletId', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+    expect(walletId).toMatch(/^[0-9a-f]{8}$/)
   })
 
-  it('should persist the wallet with encrypted mnemonic', async () => {
-    const walletId = await handler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+  it('persists the wallet with encrypted mnemonic', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
 
     const wallet = await walletDAO.getWalletById(walletId)
 
-    expect(wallet).toBeDefined()
-    expect(wallet.walletId).toBe(walletId)
-    expect(wallet.network).toBe('testnet')
-    expect(wallet.label).toBeNull()
-    expect(wallet.encryptedMnemonic).toMatch(/^[0-9a-f]+$/)
+    expect(wallet).not.toBeNull()
+    expect(wallet!.walletId).toBe(walletId)
+    expect(wallet!.network).toBe('testnet')
+    expect(wallet!.label).toBeNull()
+    expect(wallet!.encryptedMnemonic).toMatch(/^[0-9a-f]+$/)
   })
 
-  it('should insert 40 addresses (20 receiving + 20 change)', async () => {
-    const walletId = await handler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+  it('inserts 40 addresses (20 receiving + 20 change)', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
 
-    const addresses = await addressDAO.getAddressesByWalletId(walletId)
-
-    expect(addresses).toHaveLength(40)
-  })
-
-  it('should generate 20 receiving addresses with isChange=false', async () => {
-    const walletId = await handler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
-
-    const addresses = await addressDAO.getAddressesByWalletId(walletId)
-
-    const receiving = addresses.filter((a) => !a.isChange)
+    const {receiving, change} = await addressDAO.getAddressesByWalletId(walletId)
 
     expect(receiving).toHaveLength(20)
+    expect(change).toHaveLength(20)
+  })
+
+  it('generates testnet receiving addresses with the BIP-44 testnet path', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
 
     receiving.forEach((a, i) => {
+      expect(a.isChange).toBe(false)
       expect(a.derivationPath).toBe(`m/44'/1'/0'/0/${i}`)
     })
   })
 
-  it('should generate 20 change addresses with isChange=true', async () => {
-    const walletId = await handler.handle(null as any, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+  it('generates testnet change addresses with the BIP-44 testnet path', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
 
-    const addresses = await addressDAO.getAddressesByWalletId(walletId)
-
-    const change = addresses.filter((a) => a.isChange)
-
-    expect(change).toHaveLength(20)
+    const {change} = await addressDAO.getAddressesByWalletId(walletId)
 
     change.forEach((a, i) => {
+      expect(a.isChange).toBe(true)
       expect(a.derivationPath).toBe(`m/44'/1'/0'/1/${i}`)
     })
   })
 
-  it('should use coin type 5 for mainnet', async () => {
-    const walletId = await handler.handle(null as any, VALID_SEEDPHRASE, 'mainnet', PASSWORD)
+  it('uses coin type 5 for mainnet', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'mainnet', PASSWORD)
 
-    const addresses = await addressDAO.getAddressesByWalletId(walletId)
+    const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
 
-    expect(addresses[0].derivationPath).toMatch(/^m\/44'\/5'\//)
+    expect(receiving[0].derivationPath).toMatch(/^m\/44'\/5'\//)
   })
 
-  it('should throw on seedphrase with wrong word count', async () => {
+  it('rejects a seedphrase with wrong word count', async () => {
     await expect(
-      handler.handle(null as any, 'too short', 'testnet', PASSWORD)
+      handler.handle(null as never, 'too short', 'testnet', PASSWORD),
     ).rejects.toThrow('Seedphrase must be 12, 15, 18, 21, or 24 words')
   })
 
-  it('should throw on invalid network', async () => {
+  it('rejects an invalid network', async () => {
     await expect(
-      handler.handle(null as any, VALID_SEEDPHRASE, 'invalidnet' as any, PASSWORD)
+      handler.handle(null as never, VALID_SEEDPHRASE, 'invalidnet' as never, PASSWORD),
     ).rejects.toThrow('Invalid network')
   })
 })

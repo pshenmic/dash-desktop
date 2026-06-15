@@ -1,4 +1,4 @@
-import {createCipheriv, randomBytes} from 'crypto'
+import {randomBytes} from 'crypto'
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
@@ -19,63 +19,34 @@ import {BlockJSON} from "dash-core-sdk/src/types";
 import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
-import {deriveKeyFromPassword} from "../utils";
-import {createDecipheriv} from "node:crypto";
+import {SendResult} from "../types/SendResult";
+import {selectCoins, SelectableUtxo} from "./coinSelection";
+import {dedupeTransactions} from "./dedupeTransactions";
+import {CoreTransactionService, TransferInput} from "./CoreTransactionService";
+import {decryptMnemonic, encryptMnemonic} from "../utils";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-
-function encryptMnemonic(mnemonic: string, password: string, iterations: number): string {
-  const salt = randomBytes(32)
-  const passwordKey = deriveKeyFromPassword(password, iterations, salt)
-
-  const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', passwordKey, iv)
-  const ciphertext = Buffer.concat([cipher.update(mnemonic, 'utf8'), cipher.final()])
-  const tag = cipher.getAuthTag()
-
-  const iterBuf = Buffer.alloc(4)
-  iterBuf.writeUInt32BE(iterations)
-
-  return Buffer.concat([iv, salt, iterBuf, ciphertext, tag]).toString('hex')
-}
-
-function decryptMnemonic(encryptedHex: string, password: string): string {
-  const data = Buffer.from(encryptedHex, 'hex')
-
-  const iv = data.slice(0, 12)
-  const salt = data.slice(12, 44)
-  const iterations = data.readUInt32BE(44)
-  const tag = data.slice(data.length - 16)
-  const ciphertext = data.slice(48, data.length - 16)
-
-  const passwordKey = deriveKeyFromPassword(password, iterations, salt)
-
-  const decipher = createDecipheriv('aes-256-gcm', passwordKey, iv)
-  decipher.setAuthTag(tag)
-
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
-  return decrypted.toString('utf8')
-}
 
 export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
   private transactionDAO: TransactionDAO
-  private walletSyncService: WalletSyncService
   private applicationService: ApplicationService
+  private walletSyncService: WalletSyncService
   private sdk: DashPlatformSDK
   private pbkdf2Iterations: number
+  private coreTransactionService: CoreTransactionService
 
   constructor(
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
     transactionDAO: TransactionDAO,
-    walletSyncService: WalletSyncService,
     applicationService: ApplicationService,
+    walletSyncService: WalletSyncService,
     sdk: DashPlatformSDK,
     pbkdf2Iterations: number,
   ) {
@@ -84,12 +55,17 @@ export class WalletService {
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
     this.transactionDAO = transactionDAO
-    this.walletSyncService = walletSyncService
     this.applicationService = applicationService
+    this.walletSyncService = walletSyncService
     this.sdk = sdk
+    this.coreTransactionService = new CoreTransactionService(sdk)
   }
 
-  private getProvider(walletId: string, network: Network): WalletProvider {
+  // Picks the WalletProvider for a wallet at call time, honouring the user's
+  // connection-type preference. In p2p mode broadcast is routed through
+  // WalletSyncService (the p2p utility process); in rpc mode everything
+  // (including broadcast) goes through Insight.
+  getProvider(walletId: string, network: Network): WalletProvider {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
       return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
     }
@@ -263,6 +239,10 @@ export class WalletService {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }
 
+  async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
+    return this.walletDAO.updateLabel(walletId, label)
+  }
+
   async getReceiveAddress(walletId: string): Promise<string> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) throw new Error('Wallet not found')
@@ -315,7 +295,7 @@ export class WalletService {
     const provider = this.getProvider(wallet.walletId, wallet.network)
     const txArrays = await Promise.all(allAddresses.map(a => provider.getTransactions(a.address)))
 
-    return txArrays.flat().sort((a, b) => b?.date?.getTime() - a?.date?.getTime())
+    return dedupeTransactions(txArrays.flat())
   }
 
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
@@ -367,8 +347,8 @@ export class WalletService {
 
     const addressesBalance = await provider.getBalance(addresses.map(addr => addr.address))
 
-    const identitiesBalances = await Promise.all(identities.map(async identity => this.getIdentityBalance(identity.identifier)))
-    const identitiesBalance = identitiesBalances.reduce((acc, curr) => acc + curr, BigInt(0))
+    const identitiesBalances = await Promise.allSettled(identities.map(async identity => this.getIdentityBalance(identity.identifier)))
+    const identitiesBalance = identitiesBalances.reduce((acc, result) => acc + (result.status === 'fulfilled' ? result.value : 0n), 0n)
 
     return {
       dash: {
@@ -394,6 +374,117 @@ export class WalletService {
     const provider = this.getProvider(wallet.walletId, network)
 
     return await provider.getBalance(address)
+  }
+
+  async sendTransaction(
+    walletId: string,
+    toAddress: string,
+    amountDuffs: bigint,
+    password: string,
+  ): Promise<SendResult> {
+    if (amountDuffs <= 0n) {
+      throw new Error('Send amount must be greater than zero')
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    const recipientType = this.coreTransactionService.classifyRecipientAddress(toAddress, network)
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+    const allAddresses = [...grouped.receiving, ...grouped.change]
+    const pathByAddress = new Map(allAddresses.map(a => [a.address, a.derivationPath]))
+
+    const provider = this.getProvider(wallet.walletId, network)
+    await provider.ensureReady()
+
+    const utxoLists = await Promise.all(
+      allAddresses.map(async (a) => {
+        const utxos = await provider.getUTXOs(a.address)
+        return utxos.map(u => ({utxo: u, address: a.address}))
+      }),
+    )
+    const ownedUtxos = utxoLists.flat()
+
+    if (ownedUtxos.length === 0) {
+      throw new Error('No spendable funds in this wallet')
+    }
+
+    const selectable: SelectableUtxo[] = ownedUtxos.map(({utxo, address}) => ({
+      txid: utxo.txId,
+      vout: utxo.vOut,
+      satoshis: utxo.satoshis,
+      address,
+    }))
+
+    const selection = selectCoins(selectable, amountDuffs)
+
+    const utxoByKey = new Map(ownedUtxos.map(o => [`${o.utxo.txId}:${o.utxo.vOut}`, o]))
+
+    const changeAddress = this.pickChangeAddress(grouped)
+
+    const transferInputs: TransferInput[] = selection.inputs.map(input => {
+      const owned = utxoByKey.get(`${input.txid}:${input.vout}`)
+      if (!owned) throw new Error('Selected UTXO no longer available')
+
+      const derivationPath = pathByAddress.get(input.address)
+      if (derivationPath == null) throw new Error(`No derivation path for address ${input.address}`)
+
+      return {
+        txId: owned.utxo.txId,
+        vOut: owned.utxo.vOut,
+        script: owned.utxo.script,
+        derivationPath,
+        address: input.address,
+      }
+    })
+
+    const tx = await this.coreTransactionService.buildSignedTransfer({
+      inputs: transferInputs,
+      toAddress,
+      recipientType,
+      amount: amountDuffs,
+      changeAddress,
+      inputTotal: selection.inputTotal,
+      mnemonic: decryptedMnemonic,
+      network,
+    })
+
+    const txid = await provider.broadcastTx(tx)
+
+    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
+    const actualFee = selection.inputTotal - outputTotal
+    const hasChange = tx.outputs.length > 1
+
+    return {
+      txid,
+      amount: amountDuffs.toString(),
+      fee: actualFee.toString(),
+      toAddress,
+      changeAddress: hasChange ? changeAddress : null,
+      peersAcked: 0,
+    }
+  }
+
+  // Next unused change address, falling back to the first change address (or
+  // the recipient-less wallet's first receiving address) so change never
+  // leaves the wallet.
+  private pickChangeAddress(grouped: GroupedAddresses): string {
+    const unusedChange = grouped.change.find(a => !a.isUsed)
+    if (unusedChange) return unusedChange.address
+    if (grouped.change.length > 0) return grouped.change[grouped.change.length - 1].address
+    if (grouped.receiving.length > 0) return grouped.receiving[0].address
+    throw new Error('Wallet has no change address')
   }
 
   async getIdentities(walletId: string): Promise<IdentityInfo[]> {
@@ -447,3 +538,4 @@ export class WalletService {
     return this.sdk.identities.getIdentityNonce(identifier)
   }
 }
+

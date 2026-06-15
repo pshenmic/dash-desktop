@@ -1453,3 +1453,26 @@ export const SunIcon: React.FC<IconProps> = ({
     </svg>
   )
 }
+
+export const DashboardIcon: React.FC<IconProps> = ({
+  color = 'var(--color-text)',
+  size = 16,
+  className = '',
+  onClick
+}) => (
+  <svg
+    className={className}
+    onClick={onClick}
+    color={color}
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <rect x="0.75" y="0.75" width="6" height="6" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="9.25" y="0.75" width="6" height="6" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="0.75" y="9.25" width="6" height="6" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="9.25" y="9.25" width="6" height="6" rx="3" fill="currentColor" />
+  </svg>
+)

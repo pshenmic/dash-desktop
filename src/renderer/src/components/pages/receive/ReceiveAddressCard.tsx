@@ -37,7 +37,7 @@ export default function ReceiveAddressCard({
               {data.adressText}
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
-              <Text size={14} weight={"medium"} color={"brand"} className={"truncate"}>
+              <Text size={14} weight={"medium"} color={"brand"} className={"min-w-0 break-all"}>
                 {address}
               </Text>
               <CopyButton text={address} />

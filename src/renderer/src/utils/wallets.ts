@@ -1,9 +1,10 @@
-import type { WalletDto as ApiWalletDto } from '@renderer/api/types'
+import type { WalletDto as ApiWalletDto, Network } from '@renderer/api/types'
 
 export interface WalletDropdownOption {
   value: string
   label: string
   isSelected: boolean
+  network: Network
 }
 
 export function walletDisplayName(wallet: ApiWalletDto, index: number): string {
@@ -21,6 +22,7 @@ export function toDropdownOptions(
       value: w.walletId,
       label: walletDisplayName(w, i),
       isSelected: w.selected,
+      network: w.network,
     })
   })
   return result
