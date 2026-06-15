@@ -5,11 +5,10 @@ import { createPortal } from "react-dom"
 import { Button, CrossIcon, Input, Text } from "../dash-ui-kit-enxtended"
 import { renderBoldText } from "@renderer/utils/renderBoldText"
 import { useTheme } from "dash-ui-kit/react"
-import { WalletDto } from "@renderer/api/types"
 
 const DELETE_CONFIRM_TEXT = 'Delete'
 
-export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, setWalletToDelete, setWallets, selectedWallet }) {
+export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, setWalletToDelete, refreshWallets, selectedWallet }) {
   const [confirmText, setConfirmText] = useState('')
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const {theme} = useTheme()
@@ -27,8 +26,7 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
 
     try {
       await API.deleteWallet(walletToDelete)
-      const nextWallets = (await API.getAllWallets()) as WalletDto[]
-      setWallets(nextWallets)
+      refreshWallets()
       if (selectedWallet === walletToDelete) {
         // TODO: fallback selected wallet logic
       }

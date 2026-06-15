@@ -9,9 +9,10 @@ export interface ExchangeRatesResult {
   stale: boolean
 }
 
-const COINGECKO_URL =
-  'https://api.coingecko.com/api/v3/simple/price' +
-  `?ids=dash&vs_currencies=${SUPPORTED_RATE_CURRENCIES.join(',')}`
+export interface RateProvider {
+  readonly name: string
+  fetchRates(): Promise<ExchangeRates>
+}
 
 const TTL_MS = 60_000
 const REQUEST_TIMEOUT_MS = 8_000
@@ -20,16 +21,86 @@ function zeroRates(): ExchangeRates {
   return Object.fromEntries(SUPPORTED_RATE_CURRENCIES.map((c) => [c, 0]))
 }
 
+async function fetchJson(url: string): Promise<unknown> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const response = await net.fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    return await response.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function pickRates(raw: Record<string, number>, keyOf: (currency: string) => string): ExchangeRates {
+  const rates: ExchangeRates = {}
+  for (const currency of SUPPORTED_RATE_CURRENCIES) {
+    const value = raw[keyOf(currency)]
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      rates[currency] = value
+    }
+  }
+  return rates
+}
+
+export class CoinGeckoRateProvider implements RateProvider {
+  readonly name = 'coingecko'
+  private readonly url =
+    'https://api.coingecko.com/api/v3/simple/price' +
+    `?ids=dash&vs_currencies=${SUPPORTED_RATE_CURRENCIES.join(',')}`
+
+  async fetchRates(): Promise<ExchangeRates> {
+    const data = (await fetchJson(this.url)) as { dash?: Record<string, number> }
+    const dash = data.dash
+    if (!dash || typeof dash !== 'object') {
+      throw new Error('CoinGecko response missing dash prices')
+    }
+    return pickRates(dash, (c) => c)
+  }
+}
+
+export class CryptoCompareRateProvider implements RateProvider {
+  readonly name = 'cryptocompare'
+  private readonly url =
+    'https://min-api.cryptocompare.com/data/price' +
+    `?fsym=DASH&tsyms=${SUPPORTED_RATE_CURRENCIES.map((c) => c.toUpperCase()).join(',')}`
+
+  async fetchRates(): Promise<ExchangeRates> {
+    const data = (await fetchJson(this.url)) as Record<string, number> & {
+      Response?: string
+      Message?: string
+    }
+    if (data.Response === 'Error') {
+      throw new Error(`CryptoCompare: ${data.Message ?? 'unknown error'}`)
+    }
+    return pickRates(data, (c) => c.toUpperCase())
+  }
+}
+
 export class RatesService {
   private cache: ExchangeRates | null = null
   private fetchedAt: number | null = null
   private inflight: Promise<ExchangeRates> | null = null
+  private readonly providers: RateProvider[]
+  private readonly ttlMs: number
+
+  constructor(providers?: RateProvider[], ttlMs: number = TTL_MS) {
+    this.providers =
+      providers != null && providers.length > 0
+        ? providers
+        : [new CoinGeckoRateProvider(), new CryptoCompareRateProvider()]
+    this.ttlMs = ttlMs
+  }
 
   async getRates(): Promise<ExchangeRatesResult> {
     const fresh =
       this.cache !== null &&
       this.fetchedAt !== null &&
-      Date.now() - this.fetchedAt < TTL_MS
+      Date.now() - this.fetchedAt < this.ttlMs
 
     if (fresh) {
       return { rates: this.cache!, updatedAt: this.fetchedAt, stale: false }
@@ -51,7 +122,7 @@ export class RatesService {
   private refresh(): Promise<ExchangeRates> {
     if (this.inflight) return this.inflight
 
-    this.inflight = this.fetchFromUpstream()
+    this.inflight = this.fetchFromProviders()
       .then((rates) => {
         this.cache = rates
         this.fetchedAt = Date.now()
@@ -64,32 +135,23 @@ export class RatesService {
     return this.inflight
   }
 
-  private async fetchFromUpstream(): Promise<ExchangeRates> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  private async fetchFromProviders(): Promise<ExchangeRates> {
+    const errors: string[] = []
 
-    try {
-      const response = await net.fetch(COINGECKO_URL, { signal: controller.signal })
-      if (!response.ok) {
-        throw new Error(`CoinGecko error: ${response.status}`)
-      }
-
-      const data = (await response.json()) as { dash?: Record<string, number> }
-      const dash = data.dash
-      if (!dash || typeof dash !== 'object') {
-        throw new Error('CoinGecko response missing dash prices')
-      }
-
-      const rates = zeroRates()
-      for (const currency of SUPPORTED_RATE_CURRENCIES) {
-        const value = dash[currency]
-        if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-          rates[currency] = value
+    for (const provider of this.providers) {
+      try {
+        const rates = await provider.fetchRates()
+        if (Object.keys(rates).length === 0) {
+          errors.push(`${provider.name}: empty rates`)
+          continue
         }
+        return rates
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        errors.push(`${provider.name}: ${msg}`)
       }
-      return rates
-    } finally {
-      clearTimeout(timer)
     }
+
+    throw new Error(`All rate providers failed: ${errors.join('; ')}`)
   }
 }
