@@ -224,7 +224,7 @@ export class WalletService {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }
 
-  async setWalletLabel(walletId: string, label: string): Promise<QueryStatus> {
+  async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
     return this.walletDAO.updateLabel(walletId, label)
   }
 

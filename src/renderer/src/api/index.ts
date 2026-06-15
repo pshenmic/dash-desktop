@@ -53,7 +53,7 @@ export class API {
     return this.api.getAllWallets()
   }
 
-  static async setWalletLabel(walletId: string, label: string): Promise<QueryStatus> {
+  static async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
     return this.api.setWalletLabel(walletId, label) as Promise<QueryStatus>
   }
 

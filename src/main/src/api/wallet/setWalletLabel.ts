@@ -9,7 +9,7 @@ export class SetWalletLabel {
     this.walletService = walletService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string, label: string): Promise<QueryStatus> => {
+  handle = async (_event: IpcMainInvokeEvent, walletId: string, label: string | null): Promise<QueryStatus> => {
     return this.walletService.setWalletLabel(walletId, label)
   }
 }

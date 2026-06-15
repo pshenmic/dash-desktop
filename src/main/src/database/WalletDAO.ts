@@ -99,7 +99,7 @@ export class WalletDAO {
     }
   }
 
-  updateLabel = async (walletId: string, label: string): Promise<QueryStatus> => {
+  updateLabel = async (walletId: string, label: string | null): Promise<QueryStatus> => {
     try {
       const result = await this.knex('wallet')
         .update({label})
