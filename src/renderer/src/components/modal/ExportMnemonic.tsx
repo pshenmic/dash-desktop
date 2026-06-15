@@ -11,8 +11,6 @@ interface ExportMnemonicModalProps {
   walletId: string | null
 }
 
-type Phase = 'confirm' | 'revealed'
-
 export default function ExportMnemonic({
   isOpen,
   onClose,
@@ -20,7 +18,6 @@ export default function ExportMnemonic({
 }: ExportMnemonicModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
-  const [phase, setPhase] = useState<Phase>('confirm')
   const [error, setError] = useState<string | null>(null)
   const [words, setWords] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -29,7 +26,6 @@ export default function ExportMnemonic({
   useEffect(() => {
     if (isOpen) {
       setPassword('')
-      setPhase('confirm')
       setError(null)
       setWords([])
       setLoading(false)
@@ -46,8 +42,8 @@ export default function ExportMnemonic({
     try {
       const mnemonic = await API.exportMnemonic(walletId, password)
       setWords(mnemonic.trim().split(/\s+/))
-      setPhase('revealed')
-    } catch {
+    } catch (e) {
+      console.error('exportMnemonic failed', e)
       setError('Incorrect password. Please try again.')
     } finally {
       setLoading(false)
@@ -85,7 +81,7 @@ export default function ExportMnemonic({
           </button>
         </div>
 
-        {phase === 'confirm' ? (
+        {words.length === 0 ? (
           <div className={"phase-fade-in"} key={"confirm"}>
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-2 block"}>
               Enter your wallet password to reveal the secret recovery phrase.
