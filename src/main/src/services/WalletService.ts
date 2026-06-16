@@ -82,6 +82,8 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
+    this.sdk.setNetwork(network)
+
     const walletId = randomBytes(4).toString('hex')
     const encryptedMnemonic = encryptMnemonic(seedphrase, password, this.pbkdf2Iterations)
 
