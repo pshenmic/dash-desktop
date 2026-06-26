@@ -657,6 +657,10 @@ export class WalletService {
 
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
+    if (toPlatformAddress === source.platformAddress) {
+      throw new Error('Recipient must be different from the source address')
+    }
+
     const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
     const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
     const derived = await this.sdk.keyPair.derivePath(hdKey, source.derivationPath)

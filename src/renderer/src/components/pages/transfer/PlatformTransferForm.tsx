@@ -12,6 +12,8 @@ import PlatformSendConfirmModal from "@renderer/components/modal/PlatformSendCon
 const MIN_OUTPUT_CREDITS = 500_000n
 const TRANSFER_FEE_CREDITS = 6_500_000n
 
+const formatCredits = (credits: bigint): string => credits.toLocaleString('en-US')
+
 export default function PlatformTransferForm({pageData}: {pageData: TransferPageType}): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
@@ -52,6 +54,7 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const amountEntered = amount.trim().length > 0
   const amountValid = /^\d+$/.test(amount.trim())
   const amountCredits = amountValid ? BigInt(amount.trim()) : 0n
   const amountAboveMin = amountCredits >= MIN_OUTPUT_CREDITS
@@ -59,9 +62,27 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
 
   const trimmedRecipient = recipient.trim()
   const addressValid = isValidPlatformAddress(trimmedRecipient, network ?? undefined)
-  const recipientValid = trimmedRecipient.length === 0 || addressValid
+  const recipientIsSource = addressValid && selectedSource != null && trimmedRecipient === selectedSource.platformAddress
 
-  const canProceed = selectedSource != null && addressValid && amountAboveMin && amountWithinBalance
+  const amountError = !amountEntered
+    ? null
+    : !amountValid
+      ? 'Enter a whole number of credits.'
+      : !amountAboveMin
+        ? `Minimum transfer is ${formatCredits(MIN_OUTPUT_CREDITS)} credits.`
+        : !amountWithinBalance
+          ? `Amount plus the ${formatCredits(TRANSFER_FEE_CREDITS)} credit network fee exceeds this address balance.`
+          : null
+
+  const recipientError = trimmedRecipient.length === 0
+    ? null
+    : !addressValid
+      ? `Enter a valid Platform ${network ?? ''} address.`
+      : recipientIsSource
+        ? 'Recipient must be different from the source address.'
+        : null
+
+  const canProceed = selectedSource != null && addressValid && !recipientIsSource && amountAboveMin && amountWithinBalance
 
   const handleMax = (): void => {
     const spendable = availableCredits - TRANSFER_FEE_CREDITS
@@ -83,7 +104,7 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
                 {selectedSource ? (
                   <div className={"flex flex-col items-start min-w-0"}>
                     <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{selectedSource.platformAddress}</Text>
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{selectedSource.balanceCredits} credits</Text>
+                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{formatCredits(BigInt(selectedSource.balanceCredits))} credits</Text>
                   </div>
                 ) : (
                   <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No funded Platform addresses</Text>
@@ -105,7 +126,7 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
                       `}
                     >
                       <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{a.platformAddress}</Text>
-                      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{a.balanceCredits} credits</Text>
+                      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{formatCredits(BigInt(a.balanceCredits))} credits</Text>
                     </button>
                   ))}
                 </div>
@@ -117,9 +138,12 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
             value={amount}
             onChange={setAmount}
             onMax={handleMax}
-            balanceLabel={`${pageData.header.balance}: ${availableCredits.toString()} credits`}
+            balanceLabel={`${pageData.header.balance}: ${formatCredits(availableCredits)} credits`}
             overBalance={amountCredits > 0n && !amountWithinBalance}
           />
+          {amountError && (
+            <span className={"mt-2 text-[.75rem] text-dash-red"}>{amountError}</span>
+          )}
 
           <div className={"flex flex-col gap-[.625rem] mt-6"}>
             <Text size={16} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
@@ -135,10 +159,8 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
                 colorScheme={"transparent"}
               />
             </div>
-            {!recipientValid && (
-              <span className={"text-[.75rem] text-dash-red"}>
-                Enter a valid Platform {network ?? ''} address.
-              </span>
+            {recipientError && (
+              <span className={"text-[.75rem] text-dash-red"}>{recipientError}</span>
             )}
           </div>
         </div>
@@ -148,8 +170,16 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
         <div className={"flex flex-col gap-[.75rem]"}>
           <div className={"flex flex-col gap-[.75rem] p-[.75rem] rounded-[.9375rem] dash-card-base shadow-[0_0_35px_0_rgba(0,0,0,0.1)]"}>
             <div className={"flex justify-between items-center"}>
-              <Text size={12} weight={"medium"} color={"default"} opacity={50}>{pageData.amountSummary.totalAmount}</Text>
-              <Text size={14} weight={"extrabold"} color={"default"}>{amountCredits.toString()} credits</Text>
+              <Text size={12} weight={"medium"} color={"default"} opacity={50}>Amount</Text>
+              <Text size={14} weight={"extrabold"} color={"default"}>{formatCredits(amountCredits)} credits</Text>
+            </div>
+            <div className={"flex justify-between items-center"}>
+              <Text size={12} weight={"medium"} color={"default"} opacity={50}>Network fee</Text>
+              <Text size={12} weight={"medium"} color={"default"}>{formatCredits(TRANSFER_FEE_CREDITS)} credits</Text>
+            </div>
+            <div className={"flex justify-between items-center"}>
+              <Text size={12} weight={"medium"} color={"default"} opacity={50}>Total deducted</Text>
+              <Text size={14} weight={"extrabold"} color={"default"}>{formatCredits(amountCredits + TRANSFER_FEE_CREDITS)} credits</Text>
             </div>
           </div>
           <Button
