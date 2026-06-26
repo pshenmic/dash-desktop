@@ -92,14 +92,14 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
   return (
     <>
       <div className={"flex w-full justify-center flex-1 min-h-0"}>
-        <div className={"flex flex-col w-115 py-6"}>
-          <div className={"flex flex-col gap-[.625rem] mb-6"} ref={sourceRef}>
+        <div className={"flex flex-col w-115 py-3"}>
+          <div className={"flex flex-col gap-[.625rem] mb-4"} ref={sourceRef}>
             <Text size={16} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>From</Text>
             <div className={"relative"}>
               <button
                 type={"button"}
                 onClick={() => fundedAddresses.length > 0 && setSourceOpen(v => !v)}
-                className={"w-full dash-input-search rounded-[.9375rem] px-6.25 py-4 flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity"}
+                className={"w-full dash-input-search rounded-[.9375rem] px-6.25 py-3 flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity"}
               >
                 {selectedSource ? (
                   <div className={"flex flex-col items-start min-w-0"}>
@@ -145,11 +145,11 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
             <span className={"mt-2 text-[.75rem] text-dash-red"}>{amountError}</span>
           )}
 
-          <div className={"flex flex-col gap-[.625rem] mt-6"}>
+          <div className={"flex flex-col gap-[.625rem] mt-4"}>
             <Text size={16} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
               {pageData.recipient.label}
             </Text>
-            <div className={"dash-input-search rounded-[.9375rem] px-6.25 py-5"}>
+            <div className={"dash-input-search rounded-[.9375rem] px-6.25 py-4"}>
               <Input
                 type={"text"}
                 value={recipient}
@@ -167,8 +167,8 @@ export default function PlatformTransferForm({pageData}: {pageData: TransferPage
       </div>
 
       <div className={"px-12"}>
-        <div className={"flex flex-col gap-[.75rem]"}>
-          <div className={"flex flex-col gap-[.75rem] p-[.75rem] rounded-[.9375rem] dash-card-base shadow-[0_0_35px_0_rgba(0,0,0,0.1)]"}>
+        <div className={"flex flex-col gap-2"}>
+          <div className={"flex flex-col gap-2 p-3 rounded-[.9375rem] dash-card-base shadow-[0_0_35px_0_rgba(0,0,0,0.1)]"}>
             <div className={"flex justify-between items-center"}>
               <Text size={12} weight={"medium"} color={"default"} opacity={50}>Amount</Text>
               <Text size={14} weight={"extrabold"} color={"default"}>{formatCredits(amountCredits)} credits</Text>

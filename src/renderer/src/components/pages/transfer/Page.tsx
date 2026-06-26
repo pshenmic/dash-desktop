@@ -6,7 +6,7 @@ import PlatformTransferForm from "./PlatformTransferForm";
 
 const PLATFORM_HEADER: TransferPageType['header'] = {
   title: 'Send',
-  description: 'Transfer Platform credits between Platform (L2) addresses. The funded address is selected automatically; enter a recipient Platform address and amount.',
+  description: 'Send Platform (L2) credits from one of your addresses to another.',
   balance: 'Balance',
 }
 
@@ -15,7 +15,7 @@ export default function TransferPage({pageData}: {pageData: TransferPageType}): 
   const isPlatform = selectedAsset.id === PLATFORM_CREDITS_ASSET_ID
 
   return (
-    <div className={"relative flex flex-col h-full pb-8"}>
+    <div className={"relative flex flex-col h-full pb-4"}>
       <Header
         selectedAsset={selectedAsset}
         assets={assets}

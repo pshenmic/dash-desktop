@@ -18,7 +18,7 @@ export default function AmountSummary({data, amountDuffs, amountFiat, canProceed
     <div className={"flex flex-col gap-[.75rem]"}>
       <div className={"flex flex-col gap-[.75rem] p-[.75rem] rounded-[.9375rem] dash-card-base shadow-[0_0_35px_0_rgba(0,0,0,0.1)]"}>
         <div className={"flex justify-between items-center"}>
-          <Text size={12} weight={"medium"} color={"default"} opacity={50}>{data.totalAmount}:</Text>
+          <Text size={12} weight={"medium"} color={"default"} opacity={50}>{data.totalAmount}</Text>
           <Text size={14} weight={"extrabold"} color={"default"}>{davToDash(amountDuffs)} Dash</Text>
         </div>
         {amountFiat && (
