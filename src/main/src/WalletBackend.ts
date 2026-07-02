@@ -41,6 +41,8 @@ import {WalletSyncService} from './services/WalletSyncService'
 import {ShieldedService} from './services/ShieldedService'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
+import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
+import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
 import {RatesService} from './services/RatesService'
 import {GetExchangeRatesHandler} from './api/getExchangeRates'
 import {ContactService} from './services/ContactService'
@@ -107,6 +109,8 @@ export class WalletBackend {
     ipcMain.handle('deleteContact', new DeleteContactHandler(this.contactService).handle)
     ipcMain.handle('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
   }
 
   async start(): Promise<void> {
@@ -133,7 +137,7 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
-    this.shieldedService = new ShieldedService(dashPlatformSDK)
+    this.shieldedService = new ShieldedService(dashPlatformSDK, walletDAO)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
     this.addressDAO = addressDAO
 

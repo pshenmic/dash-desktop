@@ -43,4 +43,6 @@ export const apiDefinitions = (ipcRenderer) => ({
 
   getShieldedStatus: () => ipcRenderer.invoke('getShieldedStatus'),
   getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => ipcRenderer.invoke('getShieldedPoolInfo', network),
+  startShieldedSync: (walletId: string, password: string) => ipcRenderer.invoke('startShieldedSync', walletId, password),
+  getShieldedSyncState: (walletId: string) => ipcRenderer.invoke('getShieldedSyncState', walletId),
 })

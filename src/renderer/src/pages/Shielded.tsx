@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
 import Spinner from '@renderer/components/ui/Spinner'
-import { useShieldedPoolInfo, useShieldedStatus } from '@renderer/hooks/useShielded'
-import { davToDashCompact } from '@renderer/utils/balance'
-import { ShieldedStatus } from '@renderer/api/types'
+import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
+import { davToDash, davToDashCompact } from '@renderer/utils/balance'
+import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 
 function WarmupBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
   if (status.warmup === 'ready') {
@@ -32,11 +35,79 @@ function WarmupBadge({ status }: { status: ShieldedStatus }): React.JSX.Element 
   )
 }
 
+function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => void }): React.JSX.Element {
+  const running = sync.phase === 'syncing' || sync.phase === 'recovering'
+  const pct = sync.phase === 'recovering'
+    ? 100
+    : sync.total > 0 ? Math.min(100, Math.round((sync.fetched / sync.total) * 100)) : 0
+
+  return (
+    <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
+      <div className={"flex items-center justify-between gap-4"}>
+        <Text size={14} weight={"extrabold"} color={"brand"}>Note sync</Text>
+        <Button
+          type={"button"}
+          onClick={onSync}
+          disabled={running}
+          variant={"solid"}
+          colorScheme={"primary"}
+          size={"sm"}
+          className={"rounded-[.75rem]"}
+        >
+          {sync.phase === 'done' ? 'Re-sync' : 'Sync notes'}
+        </Button>
+      </div>
+
+      {running && (
+        <div className={"flex flex-col gap-2"}>
+          <div className={"h-2 w-full rounded-full dash-block overflow-hidden"}>
+            <div
+              className={"h-full rounded-full dash-bg-inverse transition-[width] duration-300"}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
+            {sync.phase === 'recovering'
+              ? 'Recovering your notes…'
+              : `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`}
+          </Text>
+        </div>
+      )}
+
+      {!running && sync.phase === 'done' && (
+        <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
+          Synced · {sync.notes.length.toLocaleString('en-US')} note{sync.notes.length === 1 ? '' : 's'} found
+        </Text>
+      )}
+
+      {!running && sync.phase === 'error' && (
+        <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Sync failed.'}</Text>
+      )}
+
+      {!running && sync.phase === 'idle' && (
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+          Unlock with your password to scan the shielded pool for notes addressed to you.
+        </Text>
+      )}
+    </div>
+  )
+}
+
 export default function ShieldedPage(): React.JSX.Element {
   const { status } = useAuth()
   const network = status?.network ?? null
+  const walletId = status?.selectedWalletId ?? null
+
   const warmup = useShieldedStatus()
   const { poolInfo } = useShieldedPoolInfo(network ?? undefined)
+  const { balance } = useWalletBalance(walletId ?? undefined)
+  const sync = useShieldedSyncState(walletId)
+
+  const [unlockOpen, setUnlockOpen] = useState(false)
+
+  const transparentDash = davToDash(balance.dash.amount)
+  const shieldedReady = sync.phase === 'done' && sync.balance !== null
+  const shieldedDash = shieldedReady ? davToDash(BigInt(sync.balance as string)) : '—'
 
   const poolStateDash = poolInfo.poolState !== null ? davToDashCompact(BigInt(poolInfo.poolState)) : null
   const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
@@ -57,15 +128,56 @@ export default function ShieldedPage(): React.JSX.Element {
       </div>
 
       <div className={"flex flex-col gap-4 w-full max-w-160"}>
-        <div className={"flex flex-col gap-2 p-5 rounded-[.9375rem] dash-block-3"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Your shielded balance</Text>
-          <div className={"flex items-baseline gap-2"}>
-            <Text size={32} weight={"bold"} color={"brand"}>—</Text>
-            <Text size={16} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+        <div className={"flex flex-col gap-4 p-5 rounded-[.9375rem] dash-block-3"}>
+          <div className={"flex items-center justify-between"}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Transparent</Text>
+            <div className={"flex items-baseline gap-1.5"}>
+              <Text size={20} weight={"bold"} color={"brand"}>{transparentDash}</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+            </div>
           </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Note recovery from your viewing key is coming next. Your deposits, private sends and withdrawals will appear here.
-          </Text>
+          <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
+          <div className={"flex items-center justify-between"}>
+            <div className={"flex items-center gap-2"}>
+              <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Shielded</Text>
+            </div>
+            <div className={"flex items-baseline gap-1.5"}>
+              <Text size={20} weight={"bold"} color={"blue-mint"}>{shieldedDash}</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+            </div>
+          </div>
+          {!shieldedReady && (
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+              Sync your notes to reveal your shielded balance.
+            </Text>
+          )}
+        </div>
+
+        <SyncCard sync={sync} onSync={() => setUnlockOpen(true)} />
+
+        <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Incoming notes</Text>
+          {sync.notes.length === 0 ? (
+            <Text size={12} weight={"medium"} color={"brand"} opacity={40}>
+              {sync.phase === 'done' ? 'No shielded notes found for this wallet yet.' : 'Sync to list your received private notes.'}
+            </Text>
+          ) : (
+            <div className={"flex flex-col"}>
+              {sync.notes.map((note, i) => (
+                <div key={note.index} className={i > 0 ? "flex items-center justify-between py-2.5 border-t border-dash-primary-dark-blue/8 dark:border-white/10" : "flex items-center justify-between py-2.5"}>
+                  <div className={"flex items-center gap-2"}>
+                    <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
+                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
+                  </div>
+                  <div className={"flex items-baseline gap-1.5"}>
+                    <Text size={14} weight={"bold"} color={"brand"}>{davToDash(BigInt(note.amount))}</Text>
+                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
@@ -81,6 +193,12 @@ export default function ShieldedPage(): React.JSX.Element {
           </div>
         </div>
       </div>
+
+      <ShieldedUnlockModal
+        isOpen={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        walletId={walletId}
+      />
     </div>
   )
 }

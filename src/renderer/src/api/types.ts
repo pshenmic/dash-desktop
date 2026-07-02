@@ -131,3 +131,20 @@ export interface ShieldedPoolInfo {
   poolState: string | null
   notesCount: string | null
 }
+
+export interface ShieldedNoteInfo {
+  index: number
+  amount: string
+}
+
+export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
+
+export interface ShieldedSyncState {
+  phase: ShieldedSyncPhase
+  fetched: number
+  total: number
+  balance: string | null
+  notes: ShieldedNoteInfo[]
+  error: string | null
+  syncedAt: number | null
+}

@@ -43,6 +43,8 @@ declare global {
       deleteContact: (id: number) => Promise<unknown>
       getShieldedStatus: () => Promise<{ warmup: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
       getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => Promise<{ poolState: string | null; notesCount: string | null }>
+      startShieldedSync: (walletId: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: string | null; notes: { index: number; amount: string }[]; error: string | null; syncedAt: number | null }>
+      getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: string | null; notes: { index: number; amount: string }[]; error: string | null; syncedAt: number | null }>
     }
     darkMode: {
       get: () => Promise<boolean>

@@ -1,4 +1,4 @@
-import { ConnectionType, Contact, ExchangeRatesResult, Network, PreferencesJSON, QueryStatus, SendResult, ShieldedPoolInfo, ShieldedStatus } from './types'
+import { ConnectionType, Contact, ExchangeRatesResult, Network, PreferencesJSON, QueryStatus, SendResult, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from './types'
 
 export class API {
   private static get api() {
@@ -115,5 +115,13 @@ export class API {
 
   static async getShieldedPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
     return this.api.getShieldedPoolInfo(network) as Promise<ShieldedPoolInfo>
+  }
+
+  static async startShieldedSync(walletId: string, password: string): Promise<ShieldedSyncState> {
+    return this.api.startShieldedSync(walletId, password) as Promise<ShieldedSyncState>
+  }
+
+  static async getShieldedSyncState(walletId: string): Promise<ShieldedSyncState> {
+    return this.api.getShieldedSyncState(walletId) as Promise<ShieldedSyncState>
   }
 }
