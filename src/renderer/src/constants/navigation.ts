@@ -33,17 +33,28 @@ export const navGroups: NavGroup[] = [
         id: 'receive',
         label: 'Receive',
         to: '/receive'
+      }
+    ]
+  },
+  {
+    id: 'shielded-section',
+    label: 'Shielded',
+    items: [
+      {
+        id: 'shielded',
+        label: 'Overview',
+        to: '/shielded'
       },
       {
         id: 'shield',
         label: 'Shield',
         to: '/shield'
-      },
-      {
-        id: 'shielded',
-        label: 'Shielded',
-        to: '/shielded'
-      },
+      }
+    ]
+  },
+  {
+    id: 'wallet',
+    items: [
       {
         id: 'addresses',
         label: 'Addresses',

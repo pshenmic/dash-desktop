@@ -42,10 +42,11 @@ export default function Sidebar(): React.JSX.Element {
     <aside className={asideStyles()}>
       <div className={"flex flex-col h-full w-full justify-between gap-8.5 overflow-auto py-12 px-6 items-end scrollbar-hide"}>
         <SidebarHeader />
-        <div className={"flex flex-col h-full w-full justify-between gap-8.5"}>
+        <div className={"flex flex-col h-full w-full gap-6"}>
           {navGroups.map((group) => (
             <SidebarNavGroup
               key={group.id}
+              label={group.label}
               items={group.items.map((item) => ({
                 items: item,
                 icon: iconMap[item.id]
