@@ -169,3 +169,13 @@ export interface ShieldedSyncState {
   error: string | null
   syncedAt: number | null
 }
+
+export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
+
+export interface ShieldedSpendState {
+  phase: ShieldedSpendPhase
+  fetched: number
+  total: number
+  stHash: string | null
+  error: string | null
+}

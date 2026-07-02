@@ -2,6 +2,7 @@ import { DashPlatformSDK } from 'dash-platform-sdk'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { decryptMnemonic } from '../utils'
+import { OrchardAddressWASM, ShieldedMemoWASM } from 'pshenmic-dpp'
 
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 
@@ -33,10 +34,25 @@ export interface ShieldedSyncState {
   syncedAt: number | null
 }
 
+export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
+
+export interface ShieldedSpendState {
+  phase: ShieldedSpendPhase
+  fetched: number
+  total: number
+  stHash: string | null
+  error: string | null
+}
+
+type SpendRequest =
+  | { kind: 'transfer'; recipient: string; amount: bigint }
+  | { kind: 'unshield'; outputAddress: string; amount: bigint }
+
 type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShieldedEncryptedNotes']>>[number]
 
 const SHIELDED_ACCOUNT = 0
 const SHIELDED_SYNC_BATCH = 1000
+const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
 
 export class ShieldedService {
   private sdk: DashPlatformSDK
@@ -44,6 +60,7 @@ export class ShieldedService {
   private warmupState: ShieldedWarmupState = 'idle'
   private warmupError: string | null = null
   private syncStates = new Map<string, ShieldedSyncState>()
+  private spendStates = new Map<string, ShieldedSpendState>()
 
   constructor(sdk: DashPlatformSDK, walletDAO: WalletDAO) {
     this.sdk = sdk
@@ -119,18 +136,10 @@ export class ShieldedService {
       const mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
       const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
 
-      const totalBig = await this.sdk.shielded.getShieldedNotesCount()
-      const total = totalBig != null ? Number(totalBig) : 0
-      state.total = total
-
-      const all: EncryptedNote[] = []
-      while (all.length < total) {
-        const count = Math.min(SHIELDED_SYNC_BATCH, total - all.length)
-        const batch = await this.sdk.shielded.getShieldedEncryptedNotes(BigInt(all.length), count)
-        if (batch.length === 0) break
-        all.push(...batch)
-        state.fetched = all.length
-      }
+      const all = await this.fetchAllNotes((fetched, total) => {
+        state.total = total
+        state.fetched = fetched
+      })
 
       state.phase = 'recovering'
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
@@ -152,6 +161,119 @@ export class ShieldedService {
       state.phase = 'error'
       state.error = e instanceof Error ? e.message : String(e)
       console.error('Shielded note sync failed', e)
+    }
+  }
+
+  private async fetchAllNotes(onProgress: (fetched: number, total: number) => void): Promise<EncryptedNote[]> {
+    const totalBig = await this.sdk.shielded.getShieldedNotesCount()
+    const total = totalBig != null ? Number(totalBig) : 0
+    onProgress(0, total)
+
+    const all: EncryptedNote[] = []
+    while (all.length < total) {
+      const count = Math.min(SHIELDED_SYNC_BATCH, total - all.length)
+      const batch = await this.sdk.shielded.getShieldedEncryptedNotes(BigInt(all.length), count)
+      if (batch.length === 0) break
+      all.push(...batch)
+      onProgress(all.length, total)
+    }
+    return all
+  }
+
+  private idleSpendState(): ShieldedSpendState {
+    return { phase: 'idle', fetched: 0, total: 0, stHash: null, error: null }
+  }
+
+  getSpendState(walletId: string): ShieldedSpendState {
+    return this.spendStates.get(walletId) ?? this.idleSpendState()
+  }
+
+  startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint): ShieldedSpendState {
+    return this.startSpend(walletId, password, { kind: 'transfer', recipient, amount: amountCredits })
+  }
+
+  startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint): ShieldedSpendState {
+    return this.startSpend(walletId, password, { kind: 'unshield', outputAddress, amount: amountCredits })
+  }
+
+  private startSpend(walletId: string, password: string, request: SpendRequest): ShieldedSpendState {
+    const current = this.spendStates.get(walletId)
+    if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
+      return current
+    }
+
+    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, error: null }
+    this.spendStates.set(walletId, state)
+    void this.runSpend(walletId, password, request, state)
+    return state
+  }
+
+  private async runSpend(walletId: string, password: string, request: SpendRequest, state: ShieldedSpendState): Promise<void> {
+    try {
+      if (request.amount <= 0n) throw new Error('Amount must be greater than zero')
+
+      const wallet = await this.walletDAO.getWalletById(walletId)
+      if (wallet == null) throw new Error('Wallet not found')
+
+      const network = wallet.network
+      this.sdk.setNetwork(network)
+
+      let mnemonic: string
+      try {
+        mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+      } catch {
+        throw new Error('Invalid wallet password')
+      }
+      const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+      const coinType = COIN_TYPE[network]
+
+      const all = await this.fetchAllNotes((fetched, total) => {
+        state.total = total
+        state.fetched = fetched
+      })
+
+      const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
+      if (recovered.length === 0) throw new Error('No shielded notes available to spend')
+
+      const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, recovered)
+      const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+      const memo = ShieldedMemoWASM.empty() as unknown as string
+
+      state.phase = 'proving'
+      const stateTransition = request.kind === 'transfer'
+        ? this.sdk.shielded.createStateTransition('shieldedTransfer', {
+            spends,
+            recipient: OrchardAddressWASM.fromBech32m(request.recipient),
+            transferAmount: request.amount,
+            changeAddress,
+            seed,
+            coinType,
+            account: SHIELDED_ACCOUNT,
+            anchor,
+            memo,
+          })
+        : this.sdk.shielded.createStateTransition('unshield', {
+            spends,
+            outputAddress: request.outputAddress,
+            unshieldAmount: request.amount,
+            changeAddress,
+            seed,
+            coinType,
+            account: SHIELDED_ACCOUNT,
+            anchor,
+            memo,
+          })
+
+      state.phase = 'broadcasting'
+      await this.sdk.stateTransitions.broadcast(stateTransition)
+      await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+
+      state.stHash = stateTransition.hash(false)
+      state.phase = 'done'
+    } catch (e) {
+      state.phase = 'error'
+      state.error = e instanceof Error ? e.message : String(e)
+      console.error('Shielded spend failed', e)
     }
   }
 }

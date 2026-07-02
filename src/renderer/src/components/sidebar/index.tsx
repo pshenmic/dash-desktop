@@ -11,6 +11,8 @@ const iconMap: Record<string, React.FC<IconProps>> = {
   'send': SendIcon,
   'receive': ReceiveIcon,
   'shield': LockIcon,
+  'send-private': SendIcon,
+  'unshield': ReceiveIcon,
   'shielded': ShieldSmallIcon,
   'addresses': AddressesIcon,
   'identities': SignIcon,
