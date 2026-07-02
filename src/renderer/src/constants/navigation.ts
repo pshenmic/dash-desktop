@@ -35,6 +35,11 @@ export const navGroups: NavGroup[] = [
         to: '/receive'
       },
       {
+        id: 'shield',
+        label: 'Shield',
+        to: '/shield'
+      },
+      {
         id: 'shielded',
         label: 'Shielded',
         to: '/shielded'

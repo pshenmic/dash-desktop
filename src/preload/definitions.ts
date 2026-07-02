@@ -21,6 +21,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   setWalletLabel: (walletId: string, label: string | null) => ipcRenderer.invoke('setWalletLabel', walletId, label),
   sendTransaction: (walletId: string, toAddress: string, amountDuffs: string, password: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password),
   sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, fromAddress, toAddress, amountCredits, password),
+  shieldToPool: (walletId: string, fromAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('shieldToPool', walletId, fromAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),
   setLanguage: (language: string) => ipcRenderer.invoke('setLanguage', language),

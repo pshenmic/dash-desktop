@@ -33,12 +33,15 @@ import {CoreTransactionService, TransferInput} from "./CoreTransactionService";
 import {decryptMnemonic, encryptMnemonic} from "../utils";
 import {coreAddressToPlatformAddress} from "./platformAddress";
 import {PlatformAddressEntry} from "../types/PlatformAddress";
+import {ShieldedMemoWASM} from 'pshenmic-dpp'
+import {ShieldResult} from "../types/ShieldResult";
 import {PlatformSendResult} from "../types/PlatformSendResult";
 import {PlatformSourceCandidate, selectPlatformSource, TRANSFER_FEE_CREDITS} from "./platformTransfer";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
+const SHIELDED_ACCOUNT = 0
 
 export class WalletService {
   private walletDAO: WalletDAO
@@ -697,6 +700,83 @@ export class WalletService {
       feeCredits: TRANSFER_FEE_CREDITS.toString(),
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
+    }
+  }
+
+  async shieldToPool(
+    walletId: string,
+    fromPlatformAddress: string,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<ShieldResult> {
+    if (amountCredits <= 0n) {
+      throw new Error('Shield amount must be greater than zero')
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    this.sdk.setNetwork(network)
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const owned = await this.buildPlatformOwned(walletId, network)
+    const infoByPlatformAddress = await this.fetchPlatformAddressInfos(
+      owned.map(entry => entry.platformAddress),
+      network,
+    )
+
+    const candidates: PlatformSourceCandidate[] = owned.map(entry => {
+      const info = infoByPlatformAddress.get(entry.platformAddress)
+      return {
+        ...entry,
+        balanceCredits: info?.balance ?? 0n,
+        nonce: info?.nonce ?? 0,
+      }
+    })
+
+    const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
+
+    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+    const derived = await this.sdk.keyPair.derivePath(hdKey, source.derivationPath)
+    if (!derived.privateKey) {
+      throw new Error(`Failed to derive private key for ${source.coreAddress}`)
+    }
+    const privateKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
+
+    const recipient = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+    const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
+
+    const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, amountCredits)]
+    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
+
+    const stateTransition = this.sdk.shielded.createStateTransition('shield', {
+      recipient,
+      shieldAmount: amountCredits,
+      inputs,
+      privateKeys: [privateKey],
+      feeStrategy,
+      userFeeIncrease: 0,
+      memo: ShieldedMemoWASM.empty() as unknown as string,
+      senderOvk,
+    })
+
+    await this.sdk.stateTransitions.broadcast(stateTransition)
+    await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+
+    return {
+      stHash: stateTransition.hash(false),
+      amountCredits: amountCredits.toString(),
+      fromAddress: source.platformAddress,
     }
   }
 }

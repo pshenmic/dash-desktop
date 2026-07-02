@@ -7,6 +7,7 @@ import LoginPage from "./pages/auth/Login"
 import Layout from "./components/Layout"
 import CreateWalletWrapper from "./pages/auth/CreateWalletWrapper"
 import ReceivePage from "./pages/Receive"
+import ShieldPage from "./pages/Shield"
 import ShieldedPage from "./pages/Shielded"
 import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
@@ -47,6 +48,7 @@ function App(): React.JSX.Element {
             <Route path={"/transactions"} element={<TransactionsPage />} />
             <Route path={"/send"} element={<SendPage />} />
             <Route path={"/receive"} element={<ReceivePage />} />
+            <Route path={"/shield"} element={<ShieldPage />} />
             <Route path={"/shielded"} element={<ShieldedPage />} />
             <Route path={"/addresses"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />

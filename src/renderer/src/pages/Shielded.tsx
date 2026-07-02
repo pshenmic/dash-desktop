@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
 import Spinner from '@renderer/components/ui/Spinner'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
-import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
-import { davToDash, davToDashCompact } from '@renderer/utils/balance'
+import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
+import { formatCredits, formatCompactCredits } from '@renderer/utils/balance'
 import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 
 function WarmupBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
@@ -95,21 +96,26 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
 
 export default function ShieldedPage(): React.JSX.Element {
   const { status } = useAuth()
+  const navigate = useNavigate()
   const network = status?.network ?? null
   const walletId = status?.selectedWalletId ?? null
 
   const warmup = useShieldedStatus()
   const { poolInfo } = useShieldedPoolInfo(network ?? undefined)
-  const { balance } = useWalletBalance(walletId ?? undefined)
+  const { platformAddresses } = usePlatformAddresses(walletId ?? undefined)
   const sync = useShieldedSyncState(walletId)
 
   const [unlockOpen, setUnlockOpen] = useState(false)
 
-  const transparentDash = davToDash(balance.dash.amount)
-  const shieldedReady = sync.phase === 'done' && sync.balance !== null
-  const shieldedDash = shieldedReady ? davToDash(BigInt(sync.balance as string)) : '—'
+  const transparentCredits = useMemo(
+    () => platformAddresses.reduce((sum, a) => sum + BigInt(a.balanceCredits), 0n),
+    [platformAddresses],
+  )
 
-  const poolStateDash = poolInfo.poolState !== null ? davToDashCompact(BigInt(poolInfo.poolState)) : null
+  const shieldedReady = sync.phase === 'done' && sync.balance !== null
+  const shieldedDisplay = shieldedReady ? formatCredits(BigInt(sync.balance as string)) : '—'
+
+  const poolStateDisplay = poolInfo.poolState !== null ? formatCompactCredits(BigInt(poolInfo.poolState)) : null
   const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
 
   return (
@@ -132,8 +138,8 @@ export default function ShieldedPage(): React.JSX.Element {
           <div className={"flex items-center justify-between"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Transparent</Text>
             <div className={"flex items-baseline gap-1.5"}>
-              <Text size={20} weight={"bold"} color={"brand"}>{transparentDash}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+              <Text size={20} weight={"bold"} color={"brand"}>{formatCredits(transparentCredits)}</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
             </div>
           </div>
           <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
@@ -143,15 +149,27 @@ export default function ShieldedPage(): React.JSX.Element {
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Shielded</Text>
             </div>
             <div className={"flex items-baseline gap-1.5"}>
-              <Text size={20} weight={"bold"} color={"blue-mint"}>{shieldedDash}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+              <Text size={20} weight={"bold"} color={"blue-mint"}>{shieldedDisplay}</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
             </div>
           </div>
-          {!shieldedReady && (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-              Sync your notes to reveal your shielded balance.
-            </Text>
-          )}
+          <div className={"flex items-center justify-between gap-3"}>
+            {!shieldedReady ? (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+                Sync your notes to reveal your shielded balance.
+              </Text>
+            ) : <span />}
+            <Button
+              type={"button"}
+              onClick={() => navigate('/shield')}
+              variant={"solid"}
+              colorScheme={"lightBlue-mint"}
+              size={"sm"}
+              className={"rounded-[.75rem] shrink-0"}
+            >
+              Shield funds
+            </Button>
+          </div>
         </div>
 
         <SyncCard sync={sync} onSync={() => setUnlockOpen(true)} />
@@ -171,8 +189,8 @@ export default function ShieldedPage(): React.JSX.Element {
                     <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
                   </div>
                   <div className={"flex items-baseline gap-1.5"}>
-                    <Text size={14} weight={"bold"} color={"brand"}>{davToDash(BigInt(note.amount))}</Text>
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>DASH</Text>
+                    <Text size={14} weight={"bold"} color={"brand"}>{formatCredits(BigInt(note.amount))}</Text>
+                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
                   </div>
                 </div>
               ))}
@@ -184,7 +202,7 @@ export default function ShieldedPage(): React.JSX.Element {
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Shielded pool ({network ?? 'unknown'})</Text>
           <div className={"flex items-center justify-between"}>
             <Text size={14} weight={"medium"} color={"brand"} opacity={70}>Total in pool</Text>
-            <Text size={14} weight={"bold"} color={"brand"}>{poolStateDash !== null ? `${poolStateDash} DASH` : '—'}</Text>
+            <Text size={14} weight={"bold"} color={"brand"}>{poolStateDisplay !== null ? `${poolStateDisplay} credits` : '—'}</Text>
           </div>
           <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
           <div className={"flex items-center justify-between"}>

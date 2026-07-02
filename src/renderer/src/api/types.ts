@@ -133,6 +133,12 @@ export interface PlatformSendResult {
   toAddress: string
 }
 
+export interface ShieldResult {
+  stHash: string
+  amountCredits: string
+  fromAddress: string
+}
+
 // shielded
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 
