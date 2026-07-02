@@ -18,7 +18,7 @@ export default function WithdrawPage(): React.JSX.Element {
             Withdraw credits from your shielded balance to a Core (L1) Dash address. The receiving address and amount become public on-chain.
           </Text>
         </div>
-        <WarmupPill ready={warmup.ready} />
+        <WarmupPill status={warmup} />
       </div>
       <ShieldedSpendForm kind={"withdrawal"} warmupReady={warmup.ready} />
     </div>

@@ -19,7 +19,7 @@ export default function ShieldPage(): React.JSX.Element {
             Move transparent Platform credits into your private shielded balance. The deposit amount is public on-chain; everything you do inside the pool afterwards stays private.
           </Text>
         </div>
-        <WarmupPill ready={ready} />
+        <WarmupPill status={warmup} />
       </div>
       <ShieldForm warmupReady={ready} />
     </div>

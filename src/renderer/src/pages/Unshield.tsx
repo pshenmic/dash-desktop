@@ -18,7 +18,7 @@ export default function UnshieldPage(): React.JSX.Element {
             Move credits out of your shielded balance to a transparent Platform address. The amount and destination become public on-chain.
           </Text>
         </div>
-        <WarmupPill ready={warmup.ready} />
+        <WarmupPill status={warmup} />
       </div>
       <ShieldedSpendForm kind={"unshield"} warmupReady={warmup.ready} />
     </div>

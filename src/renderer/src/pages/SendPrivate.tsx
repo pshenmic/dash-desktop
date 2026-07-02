@@ -18,7 +18,7 @@ export default function SendPrivatePage(): React.JSX.Element {
             Send credits from your shielded balance to another shielded address. The link between sender and recipient stays hidden.
           </Text>
         </div>
-        <WarmupPill ready={warmup.ready} />
+        <WarmupPill status={warmup} />
       </div>
       <ShieldedSpendForm kind={"transfer"} warmupReady={warmup.ready} />
     </div>
