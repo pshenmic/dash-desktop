@@ -10,6 +10,7 @@ const iconMap: Record<string, React.FC<IconProps>> = {
   'transactions': TransactionsIcon,
   'send': SendIcon,
   'receive': ReceiveIcon,
+  'shielded': ShieldSmallIcon,
   'addresses': AddressesIcon,
   'identities': SignIcon,
   'support': ShieldSmallIcon,

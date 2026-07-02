@@ -40,4 +40,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getContacts: (network?: 'mainnet' | 'testnet') => ipcRenderer.invoke('getContacts', network),
   addContact: (label: string, address: string, network: 'mainnet' | 'testnet') => ipcRenderer.invoke('addContact', label, address, network),
   deleteContact: (id: number) => ipcRenderer.invoke('deleteContact', id),
+
+  getShieldedStatus: () => ipcRenderer.invoke('getShieldedStatus'),
+  getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => ipcRenderer.invoke('getShieldedPoolInfo', network),
 })

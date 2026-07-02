@@ -117,3 +117,17 @@ export interface SendResult {
   changeAddress: string | null
   peersAcked: number
 }
+
+// shielded
+export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
+
+export interface ShieldedStatus {
+  warmup: ShieldedWarmupState
+  ready: boolean
+  error: string | null
+}
+
+export interface ShieldedPoolInfo {
+  poolState: string | null
+  notesCount: string | null
+}

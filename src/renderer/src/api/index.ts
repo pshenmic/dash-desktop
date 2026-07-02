@@ -1,4 +1,4 @@
-import { ConnectionType, Contact, ExchangeRatesResult, Network, PreferencesJSON, QueryStatus, SendResult } from './types'
+import { ConnectionType, Contact, ExchangeRatesResult, Network, PreferencesJSON, QueryStatus, SendResult, ShieldedPoolInfo, ShieldedStatus } from './types'
 
 export class API {
   private static get api() {
@@ -107,5 +107,13 @@ export class API {
 
   static async sendTransaction(walletId: string, toAddress: string, amountDuffs: string, password: string): Promise<SendResult> {
     return this.api.sendTransaction(walletId, toAddress, amountDuffs, password) as Promise<SendResult>
+  }
+
+  static async getShieldedStatus(): Promise<ShieldedStatus> {
+    return this.api.getShieldedStatus() as Promise<ShieldedStatus>
+  }
+
+  static async getShieldedPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
+    return this.api.getShieldedPoolInfo(network) as Promise<ShieldedPoolInfo>
   }
 }

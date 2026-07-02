@@ -41,6 +41,8 @@ declare global {
       getContacts: (network?: 'mainnet' | 'testnet') => Promise<unknown>
       addContact: (label: string, address: string, network: 'mainnet' | 'testnet') => Promise<unknown>
       deleteContact: (id: number) => Promise<unknown>
+      getShieldedStatus: () => Promise<{ warmup: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
+      getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => Promise<{ poolState: string | null; notesCount: string | null }>
     }
     darkMode: {
       get: () => Promise<boolean>

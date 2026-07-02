@@ -38,6 +38,9 @@ import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/WalletSyncService'
+import {ShieldedService} from './services/ShieldedService'
+import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
+import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
 import {RatesService} from './services/RatesService'
 import {GetExchangeRatesHandler} from './api/getExchangeRates'
 import {ContactService} from './services/ContactService'
@@ -58,11 +61,12 @@ export class WalletBackend {
   private walletSyncService?: WalletSyncService
   private ratesService?: RatesService
   private contactService?: ContactService
+  private shieldedService?: ShieldedService
 
   private addressDAO?: AddressDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.addressDAO) {
+    if (!this.walletService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.addressDAO) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -101,6 +105,8 @@ export class WalletBackend {
     ipcMain.handle('getContacts', new GetContactsHandler(this.contactService).handle)
     ipcMain.handle('addContact', new AddContactHandler(this.contactService).handle)
     ipcMain.handle('deleteContact', new DeleteContactHandler(this.contactService).handle)
+    ipcMain.handle('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
   }
 
   async start(): Promise<void> {
@@ -127,6 +133,7 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
+    this.shieldedService = new ShieldedService(dashPlatformSDK)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
     this.addressDAO = addressDAO
 
