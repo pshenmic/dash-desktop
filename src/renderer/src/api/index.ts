@@ -145,6 +145,10 @@ export class API {
     return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password) as Promise<ShieldedSpendState>
   }
 
+  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: string, password: string): Promise<ShieldedSpendState> {
+    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password) as Promise<ShieldedSpendState>
+  }
+
   static async getShieldedSpendState(walletId: string): Promise<ShieldedSpendState> {
     return this.api.getShieldedSpendState(walletId) as Promise<ShieldedSpendState>
   }

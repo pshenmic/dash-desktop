@@ -50,6 +50,7 @@ declare global {
       getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: string | null; notes: { index: number; amount: string }[]; error: string | null; syncedAt: number | null }>
       startShieldedTransfer: (walletId: string, recipient: string, amountCredits: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       getShieldedSpendState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
     }
     darkMode: {

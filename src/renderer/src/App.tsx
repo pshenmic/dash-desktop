@@ -11,6 +11,7 @@ import ShieldPage from "./pages/Shield"
 import ShieldedPage from "./pages/Shielded"
 import SendPrivatePage from "./pages/SendPrivate"
 import UnshieldPage from "./pages/Unshield"
+import WithdrawPage from "./pages/Withdraw"
 import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
@@ -54,6 +55,7 @@ function App(): React.JSX.Element {
             <Route path={"/shielded"} element={<ShieldedPage />} />
             <Route path={"/send-private"} element={<SendPrivatePage />} />
             <Route path={"/unshield"} element={<UnshieldPage />} />
+            <Route path={"/withdraw-l1"} element={<WithdrawPage />} />
             <Route path={"/addresses"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />

@@ -4,6 +4,7 @@ import { BigNumber } from "dash-ui-kit/react";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
+import { isValidDashAddress } from "@renderer/utils/address";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { API } from "@renderer/api";
 import { ShieldedSpendState } from "@renderer/api/types";
@@ -15,8 +16,10 @@ const MIN_OUTPUT_CREDITS = 500_000n
 const SPEND_FEE_CREDITS = 6_500_000n
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
 
+type SpendKind = 'transfer' | 'unshield' | 'withdrawal'
+
 interface Props {
-  kind: 'transfer' | 'unshield'
+  kind: SpendKind
   warmupReady: boolean
 }
 
@@ -30,6 +33,7 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
 
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
+  const [acked, setAcked] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
 
@@ -40,7 +44,9 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
   const trimmed = recipient.trim()
   const addressValid = kind === 'transfer'
     ? isLikelyShieldedAddress(trimmed)
-    : isValidPlatformAddress(trimmed, network ?? undefined)
+    : kind === 'unshield'
+      ? isValidPlatformAddress(trimmed, network ?? undefined)
+      : isValidDashAddress(trimmed, network ?? undefined)
 
   const amountError = amount.length === 0
     ? null
@@ -53,11 +59,15 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
   const recipientError = trimmed.length === 0
     ? null
     : !addressValid
-      ? (kind === 'transfer' ? 'Enter a valid shielded address.' : `Enter a valid Platform ${network ?? ''} address.`)
+      ? (kind === 'transfer'
+        ? 'Enter a valid shielded address.'
+        : kind === 'unshield'
+          ? `Enter a valid Platform ${network ?? ''} address.`
+          : `Enter a valid Dash ${network ?? ''} address.`)
       : null
 
   const amountReady = amountAboveMin && amountWithinBalance
-  const destinationReady = addressValid
+  const destinationReady = addressValid && (kind !== 'withdrawal' || acked)
   const canProceed = amountReady && destinationReady
 
   const handleAmount = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -70,18 +80,22 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
     setAmount(spendable > 0n ? spendable.toString() : '0')
   }
 
-  const toLabel = kind === 'transfer' ? 'To (shielded)' : 'To (Platform)'
+  const toLabel = kind === 'transfer' ? 'To (shielded)' : kind === 'unshield' ? 'To (Platform)' : 'To (Core L1)'
   const placeholder = kind === 'transfer'
     ? 'shielded address'
-    : (network === 'mainnet' ? 'dash1…' : 'tdash1…')
+    : kind === 'unshield'
+      ? (network === 'mainnet' ? 'dash1…' : 'tdash1…')
+      : (network === 'mainnet' ? 'X… (Dash address)' : 'y… (Dash address)')
+
+  const modalTitle = kind === 'transfer' ? 'Send privately' : kind === 'unshield' ? 'Unshield' : 'Withdraw to L1'
 
   const start = (password: string): Promise<ShieldedSpendState> => {
     if (!walletId) {
       return Promise.resolve<ShieldedSpendState>({ phase: 'error', fetched: 0, total: 0, stHash: null, error: 'No wallet selected' })
     }
-    return kind === 'transfer'
-      ? API.startShieldedTransfer(walletId, trimmed, amountCredits.toString(), password)
-      : API.startShieldedUnshield(walletId, trimmed, amountCredits.toString(), password)
+    if (kind === 'transfer') return API.startShieldedTransfer(walletId, trimmed, amountCredits.toString(), password)
+    if (kind === 'unshield') return API.startShieldedUnshield(walletId, trimmed, amountCredits.toString(), password)
+    return API.startShieldedWithdrawal(walletId, trimmed, amountCredits.toString(), password)
   }
 
   const amountStep = (
@@ -113,10 +127,24 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
         />
       </div>
       {recipientError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{recipientError}</Text>}
+
       {kind === 'unshield' && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
           Unshield moves credits from the pool to a transparent Platform address — the amount and destination become public.
         </Text>
+      )}
+
+      {kind === 'withdrawal' && (
+        <div className={"mt-1 flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <Text size={14} weight={"extrabold"} color={"brand"}>Output becomes public</Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+            The receiving Core address and the amount will be publicly visible on-chain once withdrawn. This breaks the privacy of the withdrawn funds.
+          </Text>
+          <label className={"mt-1 flex items-center gap-2 cursor-pointer"}>
+            <input type={"checkbox"} checked={acked} onChange={(e) => setAcked(e.target.checked)} className={"accent-dash-brand"} />
+            <Text size={12} weight={"medium"} color={"brand"}>I understand the destination and amount will be public.</Text>
+          </label>
+        </div>
       )}
     </div>
   )
@@ -124,11 +152,9 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
       <div className={"dash-block rounded-[.875rem] p-4 flex flex-col gap-3"}>
-        <div className={"flex flex-col gap-1"}>
-          <div className={"flex items-center gap-2"}>
-            <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From your shielded balance</Text>
-          </div>
+        <div className={"flex items-center gap-2"}>
+          <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From your shielded balance</Text>
         </div>
         <div className={"flex flex-col gap-1"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{toLabel}</Text>
@@ -165,7 +191,7 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         walletId={walletId}
-        title={kind === 'transfer' ? 'Send privately' : 'Unshield'}
+        title={modalTitle}
         toLabel={toLabel}
         toValue={trimmed}
         amountCredits={amountCredits.toString()}
@@ -174,6 +200,7 @@ export default function ShieldedSpendForm({ kind, warmupReady }: Props): React.J
         onSuccess={() => {
           setAmount('')
           setRecipient('')
+          setAcked(false)
           setWizardKey(k => k + 1)
         }}
       />

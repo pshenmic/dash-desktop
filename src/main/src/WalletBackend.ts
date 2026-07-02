@@ -48,6 +48,7 @@ import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
 import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
 import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
 import {StartShieldedUnshieldHandler} from './api/shielded/startShieldedUnshield'
+import {StartShieldedWithdrawalHandler} from './api/shielded/startShieldedWithdrawal'
 import {GetShieldedSpendStateHandler} from './api/shielded/getShieldedSpendState'
 import {RatesService} from './services/RatesService'
 import {GetExchangeRatesHandler} from './api/getExchangeRates'
@@ -122,6 +123,7 @@ export class WalletBackend {
     ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSpendState', new GetShieldedSpendStateHandler(this.shieldedService).handle)
   }
 

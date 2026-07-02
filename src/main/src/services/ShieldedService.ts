@@ -2,7 +2,8 @@ import { DashPlatformSDK } from 'dash-platform-sdk'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { decryptMnemonic } from '../utils'
-import { OrchardAddressWASM, ShieldedMemoWASM } from 'pshenmic-dpp'
+import { OrchardAddressWASM, ShieldedMemoWASM, CoreScriptWASM, StateTransitionWASM } from 'pshenmic-dpp'
+import { base58 } from '@scure/base'
 
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 
@@ -47,12 +48,15 @@ export interface ShieldedSpendState {
 type SpendRequest =
   | { kind: 'transfer'; recipient: string; amount: bigint }
   | { kind: 'unshield'; outputAddress: string; amount: bigint }
+  | { kind: 'withdrawal'; coreAddress: string; amount: bigint }
 
 type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShieldedEncryptedNotes']>>[number]
 
 const SHIELDED_ACCOUNT = 0
 const SHIELDED_SYNC_BATCH = 1000
 const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
+const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
+const BASE58_ADDRESS_LENGTH = 25
 
 export class ShieldedService {
   private sdk: DashPlatformSDK
@@ -196,6 +200,18 @@ export class ShieldedService {
     return this.startSpend(walletId, password, { kind: 'unshield', outputAddress, amount: amountCredits })
   }
 
+  startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint): ShieldedSpendState {
+    return this.startSpend(walletId, password, { kind: 'withdrawal', coreAddress, amount: amountCredits })
+  }
+
+  private coreAddressToScript(coreAddress: string): CoreScriptWASM {
+    const decoded = base58.decode(coreAddress)
+    if (decoded.length !== BASE58_ADDRESS_LENGTH) {
+      throw new Error(`Invalid Core address: ${coreAddress}`)
+    }
+    return CoreScriptWASM.newP2PKH(decoded.slice(1, 21))
+  }
+
   private startSpend(walletId: string, password: string, request: SpendRequest): ShieldedSpendState {
     const current = this.spendStates.get(walletId)
     if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
@@ -240,29 +256,29 @@ export class ShieldedService {
       const memo = ShieldedMemoWASM.empty() as unknown as string
 
       state.phase = 'proving'
-      const stateTransition = request.kind === 'transfer'
-        ? this.sdk.shielded.createStateTransition('shieldedTransfer', {
-            spends,
-            recipient: OrchardAddressWASM.fromBech32m(request.recipient),
-            transferAmount: request.amount,
-            changeAddress,
-            seed,
-            coinType,
-            account: SHIELDED_ACCOUNT,
-            anchor,
-            memo,
-          })
-        : this.sdk.shielded.createStateTransition('unshield', {
-            spends,
-            outputAddress: request.outputAddress,
-            unshieldAmount: request.amount,
-            changeAddress,
-            seed,
-            coinType,
-            account: SHIELDED_ACCOUNT,
-            anchor,
-            memo,
-          })
+      const base = { spends, changeAddress, seed, coinType, account: SHIELDED_ACCOUNT, anchor, memo }
+      let stateTransition: StateTransitionWASM
+      if (request.kind === 'transfer') {
+        stateTransition = this.sdk.shielded.createStateTransition('shieldedTransfer', {
+          ...base,
+          recipient: OrchardAddressWASM.fromBech32m(request.recipient),
+          transferAmount: request.amount,
+        })
+      } else if (request.kind === 'unshield') {
+        stateTransition = this.sdk.shielded.createStateTransition('unshield', {
+          ...base,
+          outputAddress: request.outputAddress,
+          unshieldAmount: request.amount,
+        })
+      } else {
+        stateTransition = this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
+          ...base,
+          withdrawalAmount: request.amount,
+          outputScript: this.coreAddressToScript(request.coreAddress),
+          coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
+          pooling: 'Standard',
+        })
+      }
 
       state.phase = 'broadcasting'
       await this.sdk.stateTransitions.broadcast(stateTransition)

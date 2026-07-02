@@ -59,6 +59,11 @@ export const navGroups: NavGroup[] = [
         id: 'unshield',
         label: 'Unshield',
         to: '/unshield'
+      },
+      {
+        id: 'withdraw-l1',
+        label: 'Withdraw to L1',
+        to: '/withdraw-l1'
       }
     ]
   },
