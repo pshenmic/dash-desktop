@@ -19,12 +19,14 @@ declare global {
       getIdentities: (walletId: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
+      getPlatformAddresses: (walletId: string) => Promise<unknown>
       deleteWallet: (walletId: string) => Promise<unknown>
       selectWallet: (walletId: string) => Promise<unknown>
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<unknown>
       setWalletLabel: (walletId: string, label: string | null) => Promise<{ success: boolean; errorMessage: string | null }>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: string, password: string) => Promise<unknown>
+      sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: string, password: string) => Promise<unknown>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
       setLanguage: (language: string) => Promise<unknown>

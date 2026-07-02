@@ -21,6 +21,7 @@ import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
+import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
 import {GetTransactionByHashHandler} from "./api/wallet/getTransactionByHash";
 import {GetBlockByHash} from "./api/wallet/getBlockByHash";
 import {GetBalance} from "./api/wallet/getBalance";
@@ -29,6 +30,7 @@ import {GetWalletBalance} from "./api/wallet/getWalletBalance";
 import {SetAddressLabel} from "./api/wallet/setAddressLabel";
 import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
+import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
@@ -86,10 +88,12 @@ export class WalletBackend {
     ipcMain.handle('getIdentities', new GetIdentitiesHandler(this.walletService).handle)
     ipcMain.handle('getIdentityBalance', new GetIdentityBalance(this.walletService).handle)
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
+    ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.walletService).handle)
     ipcMain.handle('getBlockByHash', new GetBlockByHash(this.walletService).handle)
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
+    ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.walletService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)

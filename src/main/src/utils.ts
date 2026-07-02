@@ -28,7 +28,7 @@ import {TransactionWalletProviderJSON} from "./providers/types";
 import {Address} from "./types/Address";
 import {TransactionStatus} from "./enums/TransactionStatus";
 import {Transaction} from "./types/Transaction";
-import {IdentityWASM, PrivateKeyWASM} from "pshenmic-dpp";
+import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
 import {DashPlatformSDK} from "dash-platform-sdk";
 import {Network} from "./types";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";

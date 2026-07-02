@@ -16,6 +16,13 @@ export type GetAddressesResponse = {
   change: WalletAddressDto[]
 }
 
+// getPlatformAddresses
+export interface PlatformAddressDto {
+  platformAddress: string
+  balanceCredits: string
+  nonce: number
+}
+
 // getStatus
 export type Network = 'mainnet' | 'testnet'
 
@@ -116,6 +123,14 @@ export interface SendResult {
   toAddress: string
   changeAddress: string | null
   peersAcked: number
+}
+
+export interface PlatformSendResult {
+  stHash: string
+  amountCredits: string
+  feeCredits: string
+  fromAddress: string
+  toAddress: string
 }
 
 // shielded

@@ -1,5 +1,9 @@
 const DUFFS_PER_DASH = 100_000_000n
 
+export function formatCredits(value: bigint): string {
+  return value.toLocaleString('en-US')
+}
+
 export function formatCompactCredits(value: bigint): string {
   const sign = value < 0n ? '-' : ''
   const abs = value < 0n ? -value : value
