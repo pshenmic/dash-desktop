@@ -92,7 +92,11 @@ export class ShieldedService {
     this.warmupError = null
     try {
       if (process.platform === 'win32') {
-        await this.enableShieldedThreads()
+        try {
+          await this.enableShieldedThreads()
+        } catch (threadErr) {
+          console.warn('[shielded] threaded-WASM workaround unavailable; attempting direct init', threadErr)
+        }
       }
       this.sdk.shielded.init()
       this.warmupState = 'ready'
