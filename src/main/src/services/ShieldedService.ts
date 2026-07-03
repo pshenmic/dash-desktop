@@ -87,13 +87,29 @@ export class ShieldedService {
     this.warmupState = 'preparing'
     this.warmupError = null
     try {
-      await new Promise<void>((resolve) => setImmediate(resolve))
-      this.sdk.shielded.init()
+      await new Promise((resolve, reject) => {
+        try {
+          resolve(this.sdk.shielded.init())
+        } catch (err) {
+          reject(err)
+        }
+      })
       this.warmupState = 'ready'
     } catch (e) {
       this.warmupState = 'error'
       this.warmupError = e instanceof Error ? e.message : String(e)
-      console.error('Shielded builder warm-up failed', e)
+      console.error('==================== [shielded] builder warm-up FAILED ====================')
+      console.error(e)
+      if (e instanceof Error) {
+        console.error('[shielded] name   :', e.name)
+        console.error('[shielded] message:', e.message)
+        console.error('[shielded] stack  :', e.stack)
+        const cause = (e as { cause?: unknown }).cause
+        if (cause !== undefined) console.error('[shielded] cause  :', cause)
+      } else {
+        console.error('[shielded] non-Error thrown (type ' + typeof e + '):', e)
+      }
+      console.error('==========================================================================')
     }
   }
 
