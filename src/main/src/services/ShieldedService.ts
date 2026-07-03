@@ -4,6 +4,9 @@ import { WalletDAO } from '../database/WalletDAO'
 import { decryptMnemonic } from '../utils'
 import { OrchardAddressWASM, ShieldedMemoWASM, CoreScriptWASM, StateTransitionWASM } from 'pshenmic-dpp'
 import { base58 } from '@scure/base'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+import { join } from 'node:path'
 
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 
@@ -63,6 +66,7 @@ export class ShieldedService {
   private walletDAO: WalletDAO
   private warmupState: ShieldedWarmupState = 'idle'
   private warmupError: string | null = null
+  private shieldedThreadsEnabled = false
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
 
@@ -87,13 +91,10 @@ export class ShieldedService {
     this.warmupState = 'preparing'
     this.warmupError = null
     try {
-      await new Promise((resolve, reject) => {
-        try {
-          resolve(this.sdk.shielded.init())
-        } catch (err) {
-          reject(err)
-        }
-      })
+      if (process.platform === 'win32') {
+        await this.enableShieldedThreads()
+      }
+      this.sdk.shielded.init()
       this.warmupState = 'ready'
     } catch (e) {
       this.warmupState = 'error'
@@ -111,6 +112,32 @@ export class ShieldedService {
       }
       console.error('==========================================================================')
     }
+  }
+
+  // On platforms with no native pshenmic-dpp addon (e.g. Windows), the Halo2
+  // builder runs in the emnapi WASM fallback, whose multithreading needs a
+  // pre-warmed worker pool via an async-instantiated module. Load that threaded
+  // module and swap it into pshenmic-dpp's global provider so the builder (and
+  // all shielded WASM ops) use it instead of the single-threaded sync module.
+  private async enableShieldedThreads(): Promise<void> {
+    if (this.shieldedThreadsEnabled) return
+
+    const require = createRequire(import.meta.url)
+    const mainPath = require.resolve('pshenmic-dpp')
+    const pkgDir = mainPath.slice(0, mainPath.lastIndexOf('pshenmic-dpp') + 'pshenmic-dpp'.length)
+    const loaderUrl = pathToFileURL(join(pkgDir, 'dist', 'binaries', 'wasmThreaded.cjs')).href
+    const providerUrl = pathToFileURL(join(pkgDir, 'dist', 'src', 'dpp', 'provider.js')).href
+
+    const loaderModule = await import(loaderUrl)
+    const loadThreaded = loaderModule.loadThreaded ?? loaderModule.default?.loadThreaded
+    if (typeof loadThreaded !== 'function') {
+      throw new Error('pshenmic-dpp threaded WASM loader (wasmThreaded.cjs) not found')
+    }
+    const threaded = await loadThreaded()
+
+    const providerModule = await import(providerUrl)
+    providerModule.dppProvider.setDpp(threaded)
+    this.shieldedThreadsEnabled = true
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
