@@ -306,19 +306,19 @@ export class ShieldedService {
       const base = { spends, changeAddress, seed, coinType, account: SHIELDED_ACCOUNT, anchor, memo }
       let stateTransition: StateTransitionWASM
       if (request.kind === 'transfer') {
-        stateTransition = this.sdk.shielded.createStateTransition('shieldedTransfer', {
+        stateTransition = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
           ...base,
           recipient: OrchardAddressWASM.fromBech32m(request.recipient),
           transferAmount: request.amount,
         })
       } else if (request.kind === 'unshield') {
-        stateTransition = this.sdk.shielded.createStateTransition('unshield', {
+        stateTransition = await this.sdk.shielded.createStateTransition('unshield', {
           ...base,
           outputAddress: request.outputAddress,
           unshieldAmount: request.amount,
         })
       } else {
-        stateTransition = this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
+        stateTransition = await this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
           ...base,
           withdrawalAmount: request.amount,
           outputScript: this.coreAddressToScript(request.coreAddress),

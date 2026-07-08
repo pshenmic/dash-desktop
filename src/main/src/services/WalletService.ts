@@ -759,7 +759,7 @@ export class WalletService {
     const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, source.balanceCredits)]
     const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
 
-    const stateTransition = this.sdk.shielded.createStateTransition('shield', {
+    const stateTransition = await this.sdk.shielded.createStateTransition('shield', {
       recipient,
       shieldAmount: amountCredits,
       inputs,
