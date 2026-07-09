@@ -2,8 +2,8 @@ import { DashPlatformSDK } from 'dash-platform-sdk'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { decryptMnemonic } from '../utils'
-import { OrchardAddressWASM, ShieldedMemoWASM, CoreScriptWASM, StateTransitionWASM } from 'pshenmic-dpp'
-import { base58 } from '@scure/base'
+import { OrchardAddressWASM, ShieldedMemoWASM, StateTransitionWASM } from 'pshenmic-dpp'
+import { coreAddressToScript } from './coreScript'
 
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 
@@ -59,7 +59,6 @@ const SHIELDED_ACCOUNT = 0
 const SHIELDED_SYNC_BATCH = 8192
 const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
 const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
-const BASE58_ADDRESS_LENGTH = 25
 
 export class ShieldedService {
   private sdk: DashPlatformSDK
@@ -217,14 +216,6 @@ export class ShieldedService {
     return this.startSpend(walletId, password, { kind: 'withdrawal', coreAddress, amount: amountCredits })
   }
 
-  private coreAddressToScript(coreAddress: string): CoreScriptWASM {
-    const decoded = base58.decode(coreAddress)
-    if (decoded.length !== BASE58_ADDRESS_LENGTH) {
-      throw new Error(`Invalid Core address: ${coreAddress}`)
-    }
-    return CoreScriptWASM.newP2PKH(decoded.slice(1, 21))
-  }
-
   private startSpend(walletId: string, password: string, request: SpendRequest): ShieldedSpendState {
     const current = this.spendStates.get(walletId)
     if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
@@ -287,7 +278,7 @@ export class ShieldedService {
         stateTransition = await this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
           ...base,
           withdrawalAmount: request.amount,
-          outputScript: this.coreAddressToScript(request.coreAddress),
+          outputScript: coreAddressToScript(request.coreAddress, network),
           coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
           pooling: 'Standard',
         })
