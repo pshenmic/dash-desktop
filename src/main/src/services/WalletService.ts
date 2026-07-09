@@ -23,6 +23,7 @@ import {
   IdentityTopUpFromAddressesTransitionWASM,
   AddressCreditWithdrawalTransitionWASM,
   PrivateKeyWASM,
+  IdentityPublicKeyWASM,
 } from 'dash-platform-sdk/types.js'
 import {BlockJSON} from "dash-core-sdk/src/types";
 import {QueryStatus} from "../types/QueryStatus";
@@ -46,11 +47,16 @@ import {
   TRANSFER_FEE_CREDITS,
   WITHDRAWAL_FEE_CREDITS,
   CORE_FEE_PER_BYTE,
+  MAX_RECIPIENTS,
+  MIN_OUTPUT_CREDITS,
+  identityTransferFeeCredits,
 } from "./platformTransfer";
 import {coreAddressToScript} from "./coreScript";
+import {matchIdentityKey, DerivedKeyHash} from "./identityKeys";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
+const IDENTITY_KEY_LOOKAHEAD = 20
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 const SHIELDED_ACCOUNT = 0
 
@@ -727,6 +733,119 @@ export class WalletService {
       feeCredits: TRANSFER_FEE_CREDITS.toString(),
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
+    }
+  }
+
+  private async resolveIdentitySigningKey(
+    identity: Identity,
+    hdKey: ReturnType<DashPlatformSDK['keyPair']['seedToHdKey']>,
+    network: Network,
+  ): Promise<{privateKey: PrivateKeyWASM; publicKey: IdentityPublicKeyWASM}> {
+    const identityKeys = await this.sdk.identities.getIdentityPublicKeys(identity.identifier)
+
+    const derivedKeys: Array<{keyIndex: number; privateKey: PrivateKeyWASM}> = []
+    const derivedHashes: DerivedKeyHash[] = []
+    for (let keyIndex = 0; keyIndex < IDENTITY_KEY_LOOKAHEAD; keyIndex++) {
+      const child = this.sdk.keyPair.deriveIdentityPrivateKey(hdKey, identity.identityIndex, keyIndex, network)
+      if (!child.privateKey) continue
+      const privateKey = PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network)
+      derivedKeys.push({keyIndex, privateKey})
+      derivedHashes.push({keyIndex, publicKeyHashHex: privateKey.getPublicKeyHash()})
+    }
+
+    const match = matchIdentityKey(
+      identityKeys.map(key => ({
+        keyId: key.keyId,
+        purpose: key.purpose,
+        publicKeyHashHex: key.getPublicKeyHash(),
+      })),
+      derivedHashes,
+    )
+    if (match == null) {
+      throw new Error('This identity has no transfer key this wallet can sign with')
+    }
+
+    const derived = derivedKeys.find(entry => entry.keyIndex === match.keyIndex)
+    const publicKey = identityKeys.find(key => key.keyId === match.keyId)
+    if (derived == null || publicKey == null) {
+      throw new Error('This identity has no transfer key this wallet can sign with')
+    }
+
+    return {privateKey: derived.privateKey, publicKey}
+  }
+
+  async sendIdentityCreditsToAddresses(
+    walletId: string,
+    identityIdentifier: string,
+    recipients: Array<{address: string; amountCredits: bigint}>,
+    password: string,
+  ): Promise<PlatformSendResult> {
+    if (recipients.length === 0 || recipients.length > MAX_RECIPIENTS) {
+      throw new Error(`Recipient count must be between 1 and ${MAX_RECIPIENTS}`)
+    }
+    for (const recipient of recipients) {
+      if (recipient.amountCredits < MIN_OUTPUT_CREDITS) {
+        throw new Error(`Minimum amount per recipient is ${MIN_OUTPUT_CREDITS.toString()} credits`)
+      }
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    this.sdk.setNetwork(network)
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identity = identities.find(entry => entry.identifier === identityIdentifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+
+    const totalCredits = recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
+    const feeCredits = identityTransferFeeCredits(recipients.length)
+
+    const balance = await this.sdk.identities.getIdentityBalance(identityIdentifier)
+    if (balance < totalCredits + feeCredits) {
+      throw new Error('Identity has insufficient credits for this transfer plus fee')
+    }
+
+    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+
+    const nonce = await this.sdk.identities.getIdentityNonce(identityIdentifier) + 1n
+
+    const unsignedSt = this.sdk.platformAddresses.createStateTransition('identityCreditTransferToAddresses', {
+      identityId: identityIdentifier,
+      recipients: recipients.map(recipient => new OutputAddressWASM(recipient.address, recipient.amountCredits)),
+      nonce,
+      userFeeIncrease: 0,
+    })
+
+    const signature = unsignedSt.sign(privateKey, publicKey)
+    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
+      unsignedSt.signature = signature
+      unsignedSt.signaturePublicKeyId = publicKey.keyId
+    }
+
+    await this.sdk.stateTransitions.broadcast(unsignedSt)
+    await this.sdk.stateTransitions.waitForStateTransitionResult(unsignedSt)
+
+    return {
+      stHash: unsignedSt.hash(false),
+      amountCredits: totalCredits.toString(),
+      feeCredits: feeCredits.toString(),
+      fromAddress: identityIdentifier,
+      toAddress: recipients[0].address,
     }
   }
 

@@ -29,6 +29,7 @@ declare global {
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: string, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: string, password: string) => Promise<unknown>
+      sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: string, password: string) => Promise<unknown>
       shieldToPool: (walletId: string, fromAddress: string, amountCredits: string, password: string) => Promise<{ stHash: string; amountCredits: string; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
