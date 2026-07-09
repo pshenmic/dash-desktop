@@ -3,17 +3,22 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
 import { useTheme } from 'dash-ui-kit/react'
-import { API } from '@renderer/api'
 import { PlatformSendResult } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
 
-interface PlatformSendConfirmModalProps {
+export interface TransferConfirmRow {
+  label: string
+  value: string
+  mono?: boolean
+}
+
+interface TransferConfirmModalProps {
   isOpen: boolean
   onClose: () => void
-  walletId: string | null
-  fromAddress: string
-  toAddress: string
-  amountCredits: string
+  title: string
+  successTitle: string
+  rows: TransferConfirmRow[]
+  run: (password: string) => Promise<PlatformSendResult>
   onSuccess: () => void
 }
 
@@ -57,15 +62,15 @@ function HashField({ hash }: { hash: string }): React.JSX.Element {
   )
 }
 
-export default function PlatformSendConfirmModal({
+export default function TransferConfirmModal({
   isOpen,
   onClose,
-  walletId,
-  fromAddress,
-  toAddress,
-  amountCredits,
+  title,
+  successTitle,
+  rows,
+  run,
   onSuccess,
-}: PlatformSendConfirmModalProps): React.JSX.Element | null {
+}: TransferConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<Phase>('confirm')
@@ -86,11 +91,11 @@ export default function PlatformSendConfirmModal({
   const sending = phase === 'sending'
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || sending) return
+    if (password.length === 0 || sending) return
     setPhase('sending')
     setError(null)
     try {
-      const res = await API.sendPlatformTransfer(walletId, fromAddress, toAddress, amountCredits, password)
+      const res = await run(password)
       setResult(res)
       setPhase('done')
       onSuccess()
@@ -116,7 +121,7 @@ export default function PlatformSendConfirmModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === 'done' ? 'Credits sent' : 'Confirm transfer'}
+            {phase === 'done' ? successTitle : title}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -130,18 +135,14 @@ export default function PlatformSendConfirmModal({
         {phase !== 'done' ? (
           <div className={"phase-fade-in"} key={"confirm"}>
             <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-                <Text size={14} weight={"extrabold"} color={"brand"}>{amountCredits} credits</Text>
-              </div>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromAddress}</Text>
-              </div>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toAddress}</Text>
-              </div>
+              {rows.map(row => (
+                <div key={row.label} className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{row.label}</Text>
+                  <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className={`min-w-0 break-all text-right ${row.mono ? 'font-mono' : ''}`}>
+                    {row.value}
+                  </Text>
+                </div>
+              ))}
             </div>
 
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
@@ -149,7 +150,7 @@ export default function PlatformSendConfirmModal({
             </Text>
             <div className={"mt-2"}>
               <Input
-                id={"platform-send-password"}
+                id={"transfer-confirm-password"}
                 type={"password"}
                 placeholder={"Wallet password"}
                 value={password}
@@ -204,7 +205,7 @@ export default function PlatformSendConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? result.amountCredits : ''} credits sent
+                {result ? `${result.amountCredits} credits` : ''}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Broadcast to Platform. It will confirm shortly.

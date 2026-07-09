@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 import DashboardPage from "./pages/Dashboard"
 import TransactionsPage from "./pages/Transactions"
 import SendPage from "./pages/Send"
@@ -7,11 +7,7 @@ import LoginPage from "./pages/auth/Login"
 import Layout from "./components/Layout"
 import CreateWalletWrapper from "./pages/auth/CreateWalletWrapper"
 import ReceivePage from "./pages/Receive"
-import ShieldPage from "./pages/Shield"
 import ShieldedPage from "./pages/Shielded"
-import SendPrivatePage from "./pages/SendPrivate"
-import UnshieldPage from "./pages/Unshield"
-import WithdrawPage from "./pages/Withdraw"
 import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
@@ -51,11 +47,11 @@ function App(): React.JSX.Element {
             <Route path={"/transactions"} element={<TransactionsPage />} />
             <Route path={"/send"} element={<SendPage />} />
             <Route path={"/receive"} element={<ReceivePage />} />
-            <Route path={"/shield"} element={<ShieldPage />} />
             <Route path={"/shielded"} element={<ShieldedPage />} />
-            <Route path={"/send-private"} element={<SendPrivatePage />} />
-            <Route path={"/unshield"} element={<UnshieldPage />} />
-            <Route path={"/withdraw-l1"} element={<WithdrawPage />} />
+            <Route path={"/shield"} element={<Navigate to={"/send?from=platformAddress&to=shielded"} replace />} />
+            <Route path={"/send-private"} element={<Navigate to={"/send?from=shielded&to=shielded"} replace />} />
+            <Route path={"/unshield"} element={<Navigate to={"/send?from=shielded&to=platformAddress"} replace />} />
+            <Route path={"/withdraw-l1"} element={<Navigate to={"/send?from=shielded&to=coreAddress"} replace />} />
             <Route path={"/addresses"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />

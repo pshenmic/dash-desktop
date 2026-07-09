@@ -37,37 +37,6 @@ export const navGroups: NavGroup[] = [
     ]
   },
   {
-    id: 'shielded-section',
-    label: 'Shielded',
-    items: [
-      {
-        id: 'shielded',
-        label: 'Overview',
-        to: '/shielded'
-      },
-      {
-        id: 'shield',
-        label: 'Shield',
-        to: '/shield'
-      },
-      {
-        id: 'send-private',
-        label: 'Send private',
-        to: '/send-private'
-      },
-      {
-        id: 'unshield',
-        label: 'Unshield',
-        to: '/unshield'
-      },
-      {
-        id: 'withdraw-l1',
-        label: 'Withdraw to L1',
-        to: '/withdraw-l1'
-      }
-    ]
-  },
-  {
     id: 'wallet',
     items: [
       {
@@ -79,6 +48,11 @@ export const navGroups: NavGroup[] = [
         id: 'identities',
         label: 'Identities',
         to: '/identities'
+      },
+      {
+        id: 'shielded',
+        label: 'Shielded',
+        to: '/shielded'
       },
       {
         id: 'settings',

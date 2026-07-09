@@ -161,7 +161,7 @@ export default function ShieldedPage(): React.JSX.Element {
             ) : <span />}
             <Button
               type={"button"}
-              onClick={() => navigate('/shield')}
+              onClick={() => navigate('/send?from=platformAddress&to=shielded')}
               variant={"solid"}
               colorScheme={"lightBlue-mint"}
               size={"sm"}

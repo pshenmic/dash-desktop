@@ -1,5 +1,5 @@
 import { ReceivePageType } from "@renderer/constants";
-import Header from "../transfer/Header";
+import Header from "./Header";
 import ReceiveAddressCard from "./ReceiveAddressCard";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
