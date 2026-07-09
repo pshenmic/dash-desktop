@@ -22,7 +22,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     coreAddress: 'addressWithdrawal',
     platformAddress: 'addressFundsTransfer',
     identity: 'identityTopUp',
-    newIdentity: null,
+    newIdentity: 'identityCreate',
     shielded: 'shield',
   },
   identity: {
@@ -74,7 +74,6 @@ describe('unsupportedReason', () => {
 
   it('marks matrix-known but not-yet-shipped operations as coming soon', () => {
     expect(unsupportedReason('core', 'platformAddress')).toBe('This transfer type is coming soon.')
-    expect(unsupportedReason('platformAddress', 'newIdentity')).toBe('This transfer type is coming soon.')
   })
 })
 

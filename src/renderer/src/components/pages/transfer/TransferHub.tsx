@@ -373,11 +373,21 @@ export default function TransferHub(): React.JSX.Element {
     if (operation === 'addressWithdrawal') {
       return API.withdrawPlatformCredits(walletId, sourceAddress, trimmedTo, amountCredits.toString(), password)
     }
+    if (operation === 'identityCreate') {
+      return API.createIdentityFromAddresses(walletId, sourceAddress, amountCredits.toString(), password)
+        .then(result => ({
+          stHash: result.stHash,
+          amountCredits: result.amountCredits,
+          feeCredits: result.feeCredits,
+          fromAddress: result.fromAddress,
+          toAddress: result.identifier,
+        }))
+    }
     return API.sendIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
   }
 
   const isPlatformModalOperation = operation === 'addressFundsTransfer' || operation === 'identityTopUp'
-    || operation === 'addressWithdrawal' || operation === 'identityToAddress'
+    || operation === 'addressWithdrawal' || operation === 'identityToAddress' || operation === 'identityCreate'
   const isShieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
 
   return (
@@ -455,7 +465,7 @@ export default function TransferHub(): React.JSX.Element {
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}
-          successTitle={"Credits sent"}
+          successTitle={operation === 'identityCreate' ? 'Identity created' : 'Credits sent'}
           rows={[
             {label: 'Amount', value: `${amountCredits.toString()} credits`},
             {label: 'Network fee', value: `${feeCredits.toString()} credits`},

@@ -22,6 +22,8 @@ import {
   AddressFundsTransferTransitionWASM,
   IdentityTopUpFromAddressesTransitionWASM,
   AddressCreditWithdrawalTransitionWASM,
+  IdentityCreateFromAddressesTransitionWASM,
+  IdentityPublicKeyInCreationWASM,
   PrivateKeyWASM,
   IdentityPublicKeyWASM,
 } from 'dash-platform-sdk/types.js'
@@ -39,6 +41,7 @@ import {PlatformAddressEntry} from "../types/PlatformAddress";
 import {ShieldedMemoWASM} from 'pshenmic-dpp'
 import {ShieldResult} from "../types/ShieldResult";
 import {PlatformSendResult} from "../types/PlatformSendResult";
+import {IdentityCreateResult} from "../types/IdentityCreateResult";
 import {
   PlatformSourceCandidate,
   selectPlatformSource,
@@ -50,6 +53,7 @@ import {
   MAX_RECIPIENTS,
   MIN_OUTPUT_CREDITS,
   identityTransferFeeCredits,
+  identityCreateFeeCredits,
 } from "./platformTransfer";
 import {coreAddressToScript} from "./coreScript";
 import {matchIdentityKey, DerivedKeyHash} from "./identityKeys";
@@ -846,6 +850,125 @@ export class WalletService {
       feeCredits: feeCredits.toString(),
       fromAddress: identityIdentifier,
       toAddress: recipients[0].address,
+    }
+  }
+
+  async createIdentityFromAddresses(
+    walletId: string,
+    fromPlatformAddress: string | null,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<IdentityCreateResult> {
+    if (amountCredits < MIN_OUTPUT_CREDITS) {
+      throw new Error(`Minimum identity funding is ${MIN_OUTPUT_CREDITS.toString()} credits`)
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    this.sdk.setNetwork(network)
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const existing = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
+
+    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+
+    const keySpecs: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
+      {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
+      {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
+      {purpose: 'AUTHENTICATION', securityLevel: 'CRITICAL'},
+      {purpose: 'TRANSFER', securityLevel: 'CRITICAL'},
+    ]
+
+    const identityKeys = keySpecs.map((spec, keyIndex) => {
+      const child = this.sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, keyIndex, network)
+      if (!child.privateKey || !child.publicKey) {
+        throw new Error(`Failed to derive identity key at index ${keyIndex}`)
+      }
+      return {
+        keyId: keyIndex,
+        spec,
+        privateKey: PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network),
+        publicKey: child.publicKey as Uint8Array,
+      }
+    })
+
+    const candidates = await this.loadPlatformCandidates(walletId, network)
+    const plan = selectPlatformInputsWithFee(
+      candidates,
+      amountCredits,
+      () => identityCreateFeeCredits(keySpecs.length),
+      fromPlatformAddress ?? undefined,
+    )
+
+    const inputs = plan.inputs.map(({candidate, credits}) =>
+      new InputAddressWASM(candidate.platformAddress, candidate.nonce + 1, credits))
+    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
+
+    const publicKeysInCreation = identityKeys.map(key =>
+      new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey))
+
+    const unsignedSt = this.sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
+      publicKeys: publicKeysInCreation,
+      inputs,
+      feeStrategy,
+      inputWitness: [],
+      userFeeIncrease: 0,
+    })
+
+    const signable = unsignedSt.getSignableBytes()
+
+    const signedKeys = identityKeys.map(key =>
+      new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey, key.privateKey.sign(signable)))
+    const witnesses = await this.signAddressInputs(signable, plan.inputs.map(input => input.candidate), hdKey, network)
+
+    const transition = IdentityCreateFromAddressesTransitionWASM.fromStateTransition(unsignedSt)
+    transition.publicKeys = signedKeys
+    transition.inputWitness = witnesses
+    const signedSt = transition.toStateTransition()
+
+    await this.sdk.stateTransitions.broadcast(signedSt)
+    await this.sdk.stateTransitions.waitForStateTransitionResult(signedSt)
+
+    const masterKeyHash = identityKeys[0].privateKey.getPublicKeyHash()
+    let identifier: string | null = null
+    try {
+      const identity = await this.sdk.identities.getIdentityByPublicKeyHash(masterKeyHash)
+      identifier = identity.id.base58()
+    } catch {
+      try {
+        const identity = await this.sdk.identities.getIdentityByNonUniquePublicKeyHash(masterKeyHash)
+        identifier = identity.id.base58()
+      } catch {
+        throw new Error('Identity was broadcast but could not be resolved yet — re-open the wallet to pick it up')
+      }
+    }
+
+    await this.identityDAO.insertIdentities([{
+      walletId,
+      identityIndex,
+      derivationPath: `m/9'/${COIN_TYPE[network]}'/0'/0/${identityIndex}`,
+      identifier,
+    }])
+
+    return {
+      identifier,
+      identityIndex,
+      stHash: signedSt.hash(false),
+      amountCredits: amountCredits.toString(),
+      feeCredits: plan.feeCredits.toString(),
+      fromAddress: plan.inputs[0].candidate.platformAddress,
     }
   }
 

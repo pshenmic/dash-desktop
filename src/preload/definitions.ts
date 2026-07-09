@@ -24,6 +24,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, fromAddress, amountCredits, password),
   withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, fromAddress, toCoreAddress, amountCredits, password),
   sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('sendIdentityCredits', walletId, identityId, toAddress, amountCredits, password),
+  createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: string, password: string) => ipcRenderer.invoke('createIdentityFromAddresses', walletId, fromAddress, amountCredits, password),
   shieldToPool: (walletId: string, fromAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('shieldToPool', walletId, fromAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),

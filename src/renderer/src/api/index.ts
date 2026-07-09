@@ -1,4 +1,4 @@
-import { ConnectionType, Contact, ExchangeRatesResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState } from './types'
+import { ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState } from './types'
 
 export class API {
   private static get api() {
@@ -143,6 +143,10 @@ export class API {
 
   static async sendIdentityCredits(walletId: string, identityId: string, toAddress: string, amountCredits: string, password: string): Promise<PlatformSendResult> {
     return this.api.sendIdentityCredits(walletId, identityId, toAddress, amountCredits, password) as Promise<PlatformSendResult>
+  }
+
+  static async createIdentityFromAddresses(walletId: string, fromAddress: string | null, amountCredits: string, password: string): Promise<IdentityCreateResult> {
+    return this.api.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password) as Promise<IdentityCreateResult>
   }
 
   static async shieldToPool(walletId: string, fromAddress: string, amountCredits: string, password: string): Promise<ShieldResult> {

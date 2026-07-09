@@ -133,6 +133,15 @@ export interface PlatformSendResult {
   toAddress: string
 }
 
+export interface IdentityCreateResult {
+  identifier: string
+  identityIndex: number
+  stHash: string
+  amountCredits: string
+  feeCredits: string
+  fromAddress: string
+}
+
 export interface ShieldResult {
   stHash: string
   amountCredits: string
