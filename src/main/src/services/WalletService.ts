@@ -21,6 +21,7 @@ import {
   AddressWitnessWASM,
   AddressFundsTransferTransitionWASM,
   IdentityTopUpFromAddressesTransitionWASM,
+  AddressCreditWithdrawalTransitionWASM,
   PrivateKeyWASM,
 } from 'dash-platform-sdk/types.js'
 import {BlockJSON} from "dash-core-sdk/src/types";
@@ -43,7 +44,10 @@ import {
   selectPlatformInputsWithFee,
   topUpFeeCredits,
   TRANSFER_FEE_CREDITS,
+  WITHDRAWAL_FEE_CREDITS,
+  CORE_FEE_PER_BYTE,
 } from "./platformTransfer";
+import {coreAddressToScript} from "./coreScript";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
@@ -792,6 +796,78 @@ export class WalletService {
       feeCredits: plan.feeCredits.toString(),
       fromAddress: plan.inputs[0].candidate.platformAddress,
       toAddress: identityId,
+    }
+  }
+
+  async withdrawPlatformToCore(
+    walletId: string,
+    fromPlatformAddress: string | null,
+    toCoreAddress: string,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<PlatformSendResult> {
+    if (amountCredits <= 0n) {
+      throw new Error('Withdrawal amount must be greater than zero')
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    this.sdk.setNetwork(network)
+
+    const outputScript = coreAddressToScript(toCoreAddress, network)
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const candidates = await this.loadPlatformCandidates(walletId, network)
+    const plan = selectPlatformInputsWithFee(
+      candidates,
+      amountCredits,
+      () => WITHDRAWAL_FEE_CREDITS,
+      fromPlatformAddress ?? undefined,
+    )
+
+    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+
+    const inputs = plan.inputs.map(({candidate, credits}) =>
+      new InputAddressWASM(candidate.platformAddress, candidate.nonce + 1, credits))
+    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
+
+    const unsignedSt = this.sdk.platformAddresses.createStateTransition('addressCreditWithdrawal', {
+      inputs,
+      feeStrategy,
+      inputWitness: [],
+      userFeeIncrease: 0,
+      coreFeePerByte: CORE_FEE_PER_BYTE,
+      pooling: 'Never',
+      outputScript,
+    })
+
+    const signable = unsignedSt.getSignableBytes()
+    const witnesses = await this.signAddressInputs(signable, plan.inputs.map(input => input.candidate), hdKey, network)
+
+    const transition = AddressCreditWithdrawalTransitionWASM.fromStateTransition(unsignedSt)
+    transition.inputWitness = witnesses
+    const signedSt = transition.toStateTransition()
+
+    await this.sdk.stateTransitions.broadcast(signedSt)
+    await this.sdk.stateTransitions.waitForStateTransitionResult(signedSt)
+
+    return {
+      stHash: signedSt.hash(false),
+      amountCredits: amountCredits.toString(),
+      feeCredits: plan.feeCredits.toString(),
+      fromAddress: plan.inputs[0].candidate.platformAddress,
+      toAddress: toCoreAddress,
     }
   }
 

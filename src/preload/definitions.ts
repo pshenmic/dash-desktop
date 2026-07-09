@@ -22,6 +22,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   sendTransaction: (walletId: string, toAddress: string, amountDuffs: string, password: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password),
   sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, fromAddress, toAddress, amountCredits, password),
   topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, fromAddress, amountCredits, password),
+  withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, fromAddress, toCoreAddress, amountCredits, password),
   shieldToPool: (walletId: string, fromAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('shieldToPool', walletId, fromAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),
