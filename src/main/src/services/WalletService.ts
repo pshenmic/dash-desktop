@@ -20,6 +20,7 @@ import {
   AddressFundsFeeStrategyStepWASM,
   AddressWitnessWASM,
   AddressFundsTransferTransitionWASM,
+  IdentityTopUpFromAddressesTransitionWASM,
   PrivateKeyWASM,
 } from 'dash-platform-sdk/types.js'
 import {BlockJSON} from "dash-core-sdk/src/types";
@@ -36,7 +37,13 @@ import {PlatformAddressEntry} from "../types/PlatformAddress";
 import {ShieldedMemoWASM} from 'pshenmic-dpp'
 import {ShieldResult} from "../types/ShieldResult";
 import {PlatformSendResult} from "../types/PlatformSendResult";
-import {PlatformSourceCandidate, selectPlatformSource, TRANSFER_FEE_CREDITS} from "./platformTransfer";
+import {
+  PlatformSourceCandidate,
+  selectPlatformSource,
+  selectPlatformInputsWithFee,
+  topUpFeeCredits,
+  TRANSFER_FEE_CREDITS,
+} from "./platformTransfer";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
@@ -716,6 +723,75 @@ export class WalletService {
       feeCredits: TRANSFER_FEE_CREDITS.toString(),
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
+    }
+  }
+
+  async topUpIdentityFromAddresses(
+    walletId: string,
+    identityId: string,
+    fromPlatformAddress: string | null,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<PlatformSendResult> {
+    if (amountCredits <= 0n) {
+      throw new Error('Top-up amount must be greater than zero')
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    this.sdk.setNetwork(network)
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    try {
+      await this.sdk.identities.getIdentityByIdentifier(identityId)
+    } catch {
+      throw new Error('Identity not found on Platform')
+    }
+
+    const candidates = await this.loadPlatformCandidates(walletId, network)
+    const plan = selectPlatformInputsWithFee(candidates, amountCredits, topUpFeeCredits, fromPlatformAddress ?? undefined)
+
+    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+
+    const inputs = plan.inputs.map(({candidate, credits}) =>
+      new InputAddressWASM(candidate.platformAddress, candidate.nonce + 1, credits))
+    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
+
+    const unsignedSt = this.sdk.platformAddresses.createStateTransition('identityTopUpFromAddresses', {
+      identityId,
+      inputs,
+      feeStrategy,
+      inputWitness: [],
+      userFeeIncrease: 0,
+    })
+
+    const signable = unsignedSt.getSignableBytes()
+    const witnesses = await this.signAddressInputs(signable, plan.inputs.map(input => input.candidate), hdKey, network)
+
+    const transition = IdentityTopUpFromAddressesTransitionWASM.fromStateTransition(unsignedSt)
+    transition.inputWitness = witnesses
+    const signedSt = transition.toStateTransition()
+
+    await this.sdk.stateTransitions.broadcast(signedSt)
+    await this.sdk.stateTransitions.waitForStateTransitionResult(signedSt)
+
+    return {
+      stHash: signedSt.hash(false),
+      amountCredits: amountCredits.toString(),
+      feeCredits: plan.feeCredits.toString(),
+      fromAddress: plan.inputs[0].candidate.platformAddress,
+      toAddress: identityId,
     }
   }
 

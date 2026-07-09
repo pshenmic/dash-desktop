@@ -133,6 +133,10 @@ export class API {
     return this.api.sendPlatformTransfer(walletId, fromAddress, toAddress, amountCredits, password) as Promise<PlatformSendResult>
   }
 
+  static async topUpIdentityFromAddresses(walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string): Promise<PlatformSendResult> {
+    return this.api.topUpIdentityFromAddresses(walletId, identityId, fromAddress, amountCredits, password) as Promise<PlatformSendResult>
+  }
+
   static async shieldToPool(walletId: string, fromAddress: string, amountCredits: string, password: string): Promise<ShieldResult> {
     return this.api.shieldToPool(walletId, fromAddress, amountCredits, password) as Promise<ShieldResult>
   }

@@ -93,6 +93,22 @@ export function selectPlatformInputs(
   return {inputs, feeCredits}
 }
 
+export function selectPlatformInputsWithFee(
+  candidates: PlatformSourceCandidate[],
+  amountCredits: bigint,
+  feeForInputCount: (inputCount: number) => bigint,
+  preferredAddress?: string,
+): PlatformInputPlan {
+  let inputCount = 1
+  for (;;) {
+    const plan = selectPlatformInputs(candidates, amountCredits, feeForInputCount(inputCount), preferredAddress)
+    if (plan.inputs.length <= inputCount) {
+      return plan
+    }
+    inputCount = plan.inputs.length
+  }
+}
+
 export function selectPlatformSource(
   candidates: PlatformSourceCandidate[],
   amountCredits: bigint,

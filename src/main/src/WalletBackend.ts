@@ -31,6 +31,7 @@ import {SetAddressLabel} from "./api/wallet/setAddressLabel";
 import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
 import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
+import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromAddresses";
 import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
@@ -99,6 +100,7 @@ export class WalletBackend {
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
     ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.walletService).handle)
+    ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.walletService).handle)
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.walletService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
