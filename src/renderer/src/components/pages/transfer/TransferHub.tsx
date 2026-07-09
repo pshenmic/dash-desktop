@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo, BigNumber } from "dash-ui-kit/react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
@@ -27,13 +27,14 @@ import {
   isLikelyIdentityId,
 } from "@renderer/utils/transferMatrix";
 import { API } from "@renderer/api";
-import { PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
+import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import { sendPageData } from "@renderer/constants";
 import AmountField from "./AmountField";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
+import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
@@ -61,6 +62,21 @@ export default function TransferHub(): React.JSX.Element {
   const [acked, setAcked] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
+  const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
+  const [resumeOpen, setResumeOpen] = useState(false)
+
+  useEffect(() => {
+    if (!walletId) return
+    let dead = false
+    API.getAssetLockFundingState(walletId)
+      .then(state => {
+        if (!dead && state.phase !== 'idle' && state.phase !== 'done' && state.phase !== 'error') {
+          setResumableFunding(state)
+        }
+      })
+      .catch(() => {})
+    return () => { dead = true }
+  }, [walletId, wizardKey])
 
   const { fallbackActive: syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
@@ -245,6 +261,15 @@ export default function TransferHub(): React.JSX.Element {
         </Text>
       )}
 
+      {operation === 'assetLockFunding' && (
+        <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <Text size={14} weight={"extrabold"} color={"brand"}>Two-step funding</Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+            Locking Dash for Platform credits broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then credits the address. The process resumes automatically if interrupted.
+          </Text>
+        </div>
+      )}
+
       {operation === 'addressWithdrawal' && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Cross-chain withdrawal</Text>
@@ -402,6 +427,24 @@ export default function TransferHub(): React.JSX.Element {
         {shieldedInvolved && <WarmupPill status={warmup} />}
       </div>
 
+      {resumableFunding && (
+        <div className={"mx-12 mt-4 flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={"flex flex-col gap-1 min-w-0"}>
+            <Text size={14} weight={"extrabold"} color={"brand"}>Unfinished Platform address funding</Text>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
+              {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.toPlatformAddress ?? ''}
+            </Text>
+          </div>
+          <button
+            type={"button"}
+            onClick={() => setResumeOpen(true)}
+            className={"shrink-0 px-4 py-2 rounded-[.75rem] dash-bg-inverse cursor-pointer hover:opacity-90 transition-opacity"}
+          >
+            <Text size={12} weight={"extrabold"} color={"blue-mint"}>Resume</Text>
+          </button>
+        </div>
+      )}
+
       <TransferWizard
         key={wizardKey}
         steps={[
@@ -459,6 +502,31 @@ export default function TransferHub(): React.JSX.Element {
           onSuccess={resetForm}
         />
       )}
+
+      {operation === 'assetLockFunding' && (
+        <AssetLockFundingModal
+          isOpen={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          walletId={walletId}
+          toPlatformAddress={trimmedTo}
+          amountDuffs={amountDuffs.toString()}
+          resume={false}
+          onSuccess={resetForm}
+        />
+      )}
+
+      <AssetLockFundingModal
+        isOpen={resumeOpen}
+        onClose={() => setResumeOpen(false)}
+        walletId={walletId}
+        toPlatformAddress={resumableFunding?.toPlatformAddress ?? ''}
+        amountDuffs={''}
+        resume={true}
+        onSuccess={() => {
+          setResumableFunding(null)
+          resetForm()
+        }}
+      />
 
       {isPlatformModalOperation && (
         <TransferConfirmModal

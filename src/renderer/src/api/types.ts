@@ -133,6 +133,27 @@ export interface PlatformSendResult {
   toAddress: string
 }
 
+export type AssetLockFundingPhase =
+  | 'idle'
+  | 'resumable'
+  | 'building'
+  | 'broadcastingL1'
+  | 'waitingChainLock'
+  | 'broadcastingST'
+  | 'done'
+  | 'error'
+
+export interface AssetLockFundingState {
+  phase: AssetLockFundingPhase
+  txid: string | null
+  txHeight: number | null
+  chainLockedHeight: number | null
+  stHash: string | null
+  toPlatformAddress: string | null
+  amountDuffs: string | null
+  error: string | null
+}
+
 export interface IdentityCreateResult {
   identifier: string
   identityIndex: number

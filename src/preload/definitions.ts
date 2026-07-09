@@ -25,6 +25,9 @@ export const apiDefinitions = (ipcRenderer) => ({
   withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, fromAddress, toCoreAddress, amountCredits, password),
   sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('sendIdentityCredits', walletId, identityId, toAddress, amountCredits, password),
   createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: string, password: string) => ipcRenderer.invoke('createIdentityFromAddresses', walletId, fromAddress, amountCredits, password),
+  startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: string, password: string) => ipcRenderer.invoke('startAssetLockFunding', walletId, toPlatformAddress, amountDuffs, password),
+  getAssetLockFundingState: (walletId: string) => ipcRenderer.invoke('getAssetLockFundingState', walletId),
+  resumeAssetLockFunding: (walletId: string, password: string) => ipcRenderer.invoke('resumeAssetLockFunding', walletId, password),
   shieldToPool: (walletId: string, fromAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('shieldToPool', walletId, fromAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),

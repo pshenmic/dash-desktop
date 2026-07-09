@@ -9,6 +9,7 @@ import * as migration0002 from '../migrations/0002_transactions'
 import * as migration0003 from '../migrations/0003_address_used'
 import * as migration0004 from '../migrations/0004_pending_tx'
 import * as migration0005 from '../migrations/0005_contacts'
+import * as migration0006 from '../migrations/0006_asset_lock_fundings'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -17,6 +18,7 @@ const migrations = [
   { name: '0003_address_used.ts', migration: migration0003 },
   { name: '0004_pending_tx.ts', migration: migration0004 },
   { name: '0005_contacts.ts', migration: migration0005 },
+  { name: '0006_asset_lock_fundings.ts', migration: migration0006 },
 ]
 
 const inlineMigrationSource = {

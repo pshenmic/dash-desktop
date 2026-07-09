@@ -438,11 +438,47 @@ export class WalletService {
       throw new Error('Invalid wallet password')
     }
 
+    const {transferInputs, inputTotal, changeAddress, provider} = await this.gatherTransferInputs(walletId, network, amountDuffs)
+
+    const tx = await this.coreTransactionService.buildSignedTransfer({
+      inputs: transferInputs,
+      toAddress,
+      recipientType,
+      amount: amountDuffs,
+      changeAddress,
+      inputTotal,
+      mnemonic: decryptedMnemonic,
+      network,
+    })
+
+    const txid = await provider.broadcastTx(tx)
+
+    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
+    const actualFee = inputTotal - outputTotal
+    const hasChange = tx.outputs.length > 1
+
+    return {
+      txid,
+      amount: amountDuffs.toString(),
+      fee: actualFee.toString(),
+      toAddress,
+      changeAddress: hasChange ? changeAddress : null,
+      peersAcked: 0,
+    }
+  }
+
+  private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint): Promise<{
+    transferInputs: TransferInput[]
+    inputTotal: bigint
+    changeAddress: string
+    grouped: GroupedAddresses
+    provider: WalletProvider
+  }> {
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const allAddresses = [...grouped.receiving, ...grouped.change]
     const pathByAddress = new Map(allAddresses.map(a => [a.address, a.derivationPath]))
 
-    const provider = this.getProvider(wallet.walletId, network)
+    const provider = this.getProvider(walletId, network)
     await provider.ensureReady()
 
     const utxoLists = await Promise.all(
@@ -486,31 +522,53 @@ export class WalletService {
       }
     })
 
-    const tx = await this.coreTransactionService.buildSignedTransfer({
+    return {transferInputs, inputTotal: selection.inputTotal, changeAddress, grouped, provider}
+  }
+
+  async buildAndBroadcastAssetLock(walletId: string, amountDuffs: bigint, password: string): Promise<{
+    txid: string
+    creditAddress: string
+    creditDerivationPath: string
+  }> {
+    if (amountDuffs <= 0n) {
+      throw new Error('Amount must be greater than zero')
+    }
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    let decryptedMnemonic: string
+    try {
+      decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const {transferInputs, inputTotal, changeAddress, grouped, provider} = await this.gatherTransferInputs(walletId, network, amountDuffs)
+
+    const credit = grouped.change.find(a => !a.isUsed && a.address !== changeAddress)
+      ?? grouped.change.find(a => !a.isUsed)
+      ?? grouped.change[grouped.change.length - 1]
+    if (credit == null) {
+      throw new Error('Wallet has no change address for the asset lock credit output')
+    }
+
+    const tx = await this.coreTransactionService.buildSignedAssetLock({
       inputs: transferInputs,
-      toAddress,
-      recipientType,
-      amount: amountDuffs,
+      amountDuffs,
+      creditAddress: credit.address,
       changeAddress,
-      inputTotal: selection.inputTotal,
+      inputTotal,
       mnemonic: decryptedMnemonic,
       network,
     })
 
     const txid = await provider.broadcastTx(tx)
 
-    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
-    const actualFee = selection.inputTotal - outputTotal
-    const hasChange = tx.outputs.length > 1
-
-    return {
-      txid,
-      amount: amountDuffs.toString(),
-      fee: actualFee.toString(),
-      toAddress,
-      changeAddress: hasChange ? changeAddress : null,
-      peersAcked: 0,
-    }
+    return {txid, creditAddress: credit.address, creditDerivationPath: credit.derivationPath}
   }
 
   // Next unused change address, falling back to the first change address (or

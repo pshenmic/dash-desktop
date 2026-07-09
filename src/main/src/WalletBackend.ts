@@ -35,6 +35,11 @@ import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromA
 import {WithdrawPlatformCreditsHandler} from "./api/wallet/withdrawPlatformCredits";
 import {SendIdentityCreditsHandler} from "./api/wallet/sendIdentityCredits";
 import {CreateIdentityFromAddressesHandler} from "./api/wallet/createIdentityFromAddresses";
+import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
+import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
+import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding";
+import {AssetLockDAO} from "./database/AssetLockDAO";
+import {AssetLockService} from "./services/AssetLockService";
 import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
@@ -75,11 +80,12 @@ export class WalletBackend {
   private ratesService?: RatesService
   private contactService?: ContactService
   private shieldedService?: ShieldedService
+  private assetLockService?: AssetLockService
 
   private addressDAO?: AddressDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.addressDAO) {
+    if (!this.walletService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -107,6 +113,9 @@ export class WalletBackend {
     ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.walletService).handle)
     ipcMain.handle('sendIdentityCredits', new SendIdentityCreditsHandler(this.walletService).handle)
     ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.walletService).handle)
+    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
+    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService).handle)
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.walletService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
@@ -161,6 +170,7 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.shieldedService = new ShieldedService(dashPlatformSDK, walletDAO)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
+    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, dashPlatformSDK)
     this.addressDAO = addressDAO
 
     this.initHandlers()

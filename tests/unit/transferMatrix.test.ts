@@ -13,7 +13,7 @@ import {
 const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null>>> = {
   core: {
     coreAddress: 'coreSend',
-    platformAddress: null,
+    platformAddress: 'assetLockFunding',
     identity: null,
     newIdentity: null,
     shielded: null,
@@ -72,8 +72,9 @@ describe('unsupportedReason', () => {
     }
   })
 
-  it('marks matrix-known but not-yet-shipped operations as coming soon', () => {
-    expect(unsupportedReason('core', 'platformAddress')).toBe('This transfer type is coming soon.')
+  it('supports every operation defined in the matrix', () => {
+    expect(unsupportedReason('core', 'platformAddress')).toBeNull()
+    expect(unsupportedReason('platformAddress', 'newIdentity')).toBeNull()
   })
 })
 

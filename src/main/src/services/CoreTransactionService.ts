@@ -5,11 +5,13 @@ import {
   PrivateKey,
   Script,
   Transaction as SDKTransaction,
+  TransactionType,
   utils as sdkUtils,
 } from 'dash-core-sdk'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {Network} from '../types'
 import {ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
+import {buildAssetLockOutputs} from './assetLockTx'
 
 export type RecipientType = 'p2pkh' | 'p2sh'
 
@@ -56,15 +58,11 @@ export class CoreTransactionService {
     throw new Error(`Recipient address is not a valid ${network} address`)
   }
 
-  async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
-    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, mnemonic, network} = params
-
+  private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], mnemonic: string, network: Network): Promise<PrivateKey[]> {
     const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
     const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
 
-    const transaction = new SDKTransaction()
     const privateKeys: PrivateKey[] = []
-
     for (const input of inputs) {
       transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
 
@@ -74,6 +72,37 @@ export class CoreTransactionService {
       }
       privateKeys.push(PrivateKey.fromBytes(derived.privateKey as Uint8Array, network, true))
     }
+    return privateKeys
+  }
+
+  async buildSignedAssetLock(params: {
+    inputs: TransferInput[]
+    amountDuffs: bigint
+    creditAddress: string
+    changeAddress: string
+    inputTotal: bigint
+    mnemonic: string
+    network: Network
+  }): Promise<SDKTransaction> {
+    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, mnemonic, network} = params
+
+    const {burnOutput, extraPayload} = buildAssetLockOutputs(amountDuffs, creditAddress)
+    const transaction = new SDKTransaction(undefined, undefined, undefined, 3, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
+
+    const privateKeys = await this.addSignableInputs(transaction, inputs, mnemonic, network)
+
+    transaction.addOutput(burnOutput)
+    transaction.generateChange(changeAddress, inputTotal)
+    transaction.sign(privateKeys)
+
+    return transaction
+  }
+
+  async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
+    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, mnemonic, network} = params
+
+    const transaction = new SDKTransaction()
+    const privateKeys = await this.addSignableInputs(transaction, inputs, mnemonic, network)
 
     const recipientOutput = new Output(amount)
     if (recipientType === 'p2sh') {

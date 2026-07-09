@@ -38,6 +38,7 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
 
 export const SUPPORTED_OPERATIONS: ReadonlySet<TransferOperation> = new Set([
   'coreSend',
+  'assetLockFunding',
   'addressFundsTransfer',
   'identityTopUp',
   'identityCreate',
