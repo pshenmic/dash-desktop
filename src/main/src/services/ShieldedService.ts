@@ -56,7 +56,10 @@ type SpendRequest =
 type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShieldedEncryptedNotes']>>[number]
 
 const SHIELDED_ACCOUNT = 0
-const SHIELDED_SYNC_BATCH = 1000
+// getShieldedEncryptedNotes requires startIndex to be chunk-aligned (a multiple
+// of 2048); 8192 is the SDK max-per-query and a multiple of 2048, so advancing
+// the cursor by full batches keeps every startIndex aligned.
+const SHIELDED_SYNC_BATCH = 8192
 const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
 const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 const BASE58_ADDRESS_LENGTH = 25
