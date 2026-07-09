@@ -26,20 +26,14 @@ const x11GroestlFixPlugin = (): Plugin => ({
 export default defineConfig({
   main: {
     plugins: [x11GroestlFixPlugin()],
-    resolve: {
-      // pshenmic-dpp's "node" export condition resolves to a native .node addon
-      // loaded via a dynamic require() that Rollup cannot bundle into the single
-      // main chunk. Force the bare import to the WASM build (identical JS API,
-      // WASM backend) — how it resolved before pshenmic-dpp went native.
-      alias: [
-        {
-          find: /^pshenmic-dpp$/,
-          replacement: resolve('node_modules/pshenmic-dpp/dist/src/wasm.js'),
-        },
-      ],
-    },
     build: {
       rollupOptions: {
+        // Keep pshenmic-dpp external so the wallet's own imports resolve to the
+        // same runtime instance (native.js → threaded WASM on Windows) that the
+        // externalized dash-platform-sdk uses. Bundling it here forked a second
+        // WASM/NAPI instance, so objects (e.g. CoreScriptWASM) built wallet-side
+        // couldn't be recovered by the SDK's builders.
+        external: ['pshenmic-dpp'],
         input: {
           index: resolve('src/main/index.ts'),
           p2p: resolve('src/main/p2p/index.ts'),
