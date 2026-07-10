@@ -383,7 +383,7 @@ export class ShieldedService {
         } catch (e) {
           console.error('Failed to record spent shielded notes', e)
         }
-        await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+        await this.waitForResult(stateTransition, request.kind)
 
         state.stHash = stateTransition.hash(false)
         state.phase = 'done'
@@ -409,6 +409,19 @@ export class ShieldedService {
       }
     }
     sync.balance = (balance > 0n ? balance : 0n).toString()
+  }
+
+  private async waitForResult(st: StateTransitionWASM, kind: SpendRequest['kind']): Promise<void> {
+    try {
+      await this.sdk.stateTransitions.waitForStateTransitionResult(st)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      if (kind === 'withdrawal' && /withdrawals contract not available/i.test(message)) {
+        console.warn('[shielded] withdrawal included; skipping local proof verification (SDK lacks withdrawals contract):', message)
+        return
+      }
+      throw e
+    }
   }
 
   private extractActionNullifiers(st: StateTransitionWASM, kind: SpendRequest['kind']): Uint8Array[] {
