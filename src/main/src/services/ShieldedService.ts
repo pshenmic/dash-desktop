@@ -3,7 +3,15 @@ import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { decryptMnemonic } from '../utils'
-import { OrchardAddressWASM, ShieldedMemoWASM, StateTransitionWASM } from 'pshenmic-dpp'
+import {
+  OrchardAddressWASM,
+  RecoveredNoteWASM,
+  ShieldedMemoWASM,
+  ShieldedTransferTransitionWASM,
+  ShieldedWithdrawalTransitionWASM,
+  StateTransitionWASM,
+  UnshieldTransitionWASM,
+} from 'pshenmic-dpp'
 import { coreAddressToScript } from './coreScript'
 import { maxSpendableCredits, selectSpendNotes } from './shieldedNoteSelection'
 
@@ -65,6 +73,10 @@ const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 // number of Orchard actions, so spends are limited to 6 notes per transition.
 const MAX_SPEND_NOTES = 6
 const SPEND_FEE_CREDITS = 6_500_000n
+// Notes spent before local bookkeeping existed (or by another install) are
+// only detectable on-chain: a built transition exposes its action nullifiers,
+// so stale selections are caught before broadcast and repaired by re-selecting.
+const MAX_SPEND_ATTEMPTS = 3
 
 export class ShieldedService {
   private sdk: DashPlatformSDK
@@ -290,76 +302,144 @@ export class ShieldedService {
       })
 
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
-      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
-      const unspent = recovered.filter((note) => !spent.has(note.index))
-      if (unspent.length === 0) throw new Error('No shielded notes available to spend')
-
-      const selectable = unspent.map((note) => ({ index: note.index, value: note.note.value }))
-      const selection = selectSpendNotes(selectable, request.amount + SPEND_FEE_CREDITS, MAX_SPEND_NOTES)
-      if (selection == null) {
-        const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, SPEND_FEE_CREDITS)
-        throw new Error(
-          `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
-          `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
-          `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
-        )
-      }
-      const selectedIndexes = new Set(selection.selected.map((note) => note.index))
-      const toSpend = unspent.filter((note) => selectedIndexes.has(note.index))
-
-      const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, toSpend)
       const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
       const memo = ShieldedMemoWASM.empty() as unknown as string
 
-      state.phase = 'proving'
-      const base = { spends, changeAddress, seed, coinType, account: SHIELDED_ACCOUNT, anchor, memo }
-      let stateTransition: StateTransitionWASM
-      if (request.kind === 'transfer') {
-        stateTransition = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
-          ...base,
-          recipient: OrchardAddressWASM.fromBech32m(request.recipient),
-          transferAmount: request.amount,
+      for (let attempt = 0; ; attempt++) {
+        const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
+        const unspent = recovered.filter((note) => !spent.has(note.index))
+        if (unspent.length === 0) throw new Error('No shielded notes available to spend')
+
+        const selectable = unspent.map((note) => ({ index: note.index, value: note.note.value }))
+        const selection = selectSpendNotes(selectable, request.amount + SPEND_FEE_CREDITS, MAX_SPEND_NOTES)
+        if (selection == null) {
+          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, SPEND_FEE_CREDITS)
+          throw new Error(
+            `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
+            `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
+            `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+          )
+        }
+        const selectedIndexes = new Set(selection.selected.map((note) => note.index))
+        const toSpend = unspent.filter((note) => selectedIndexes.has(note.index))
+
+        const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, toSpend)
+
+        state.phase = 'proving'
+        const base = { spends, changeAddress, seed, coinType, account: SHIELDED_ACCOUNT, anchor, memo }
+        let stateTransition: StateTransitionWASM
+        if (request.kind === 'transfer') {
+          stateTransition = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
+            ...base,
+            recipient: OrchardAddressWASM.fromBech32m(request.recipient),
+            transferAmount: request.amount,
+          })
+        } else if (request.kind === 'unshield') {
+          stateTransition = await this.sdk.shielded.createStateTransition('unshield', {
+            ...base,
+            outputAddress: request.outputAddress,
+            unshieldAmount: request.amount,
+          })
+        } else {
+          stateTransition = await this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
+            ...base,
+            withdrawalAmount: request.amount,
+            outputScript: coreAddressToScript(request.coreAddress, network),
+            coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
+            pooling: 'Standard',
+          })
+        }
+
+        const nullifiers = this.extractActionNullifiers(stateTransition, request.kind)
+        const statuses = await this.sdk.shielded.getShieldedNullifiers(nullifiers)
+        if (statuses.some((status) => status.isSpent)) {
+          if (attempt >= MAX_SPEND_ATTEMPTS - 1) {
+            throw new Error('Selected notes were already spent on-chain. Re-sync your notes and try again.')
+          }
+          console.warn('[shielded] selection includes already-spent notes, probing', toSpend.map((n) => n.index))
+          const stale = await this.probeSpentNotes(all, toSpend, seed, network)
+          if (stale.length === 0) {
+            throw new Error('An already-spent note was detected but could not be identified. Re-sync your notes and try again.')
+          }
+          await this.shieldedNoteDAO.markSpent(walletId, stale)
+          console.warn('[shielded] marked stale notes as spent, retrying', stale)
+          continue
+        }
+
+        const stBytes = stateTransition.bytes()
+        console.log('[shielded] state transition ready', {
+          kind: request.kind,
+          spends: spends.length,
+          sizeBytes: stBytes.length,
+          hash: stateTransition.hash(false),
         })
-      } else if (request.kind === 'unshield') {
-        stateTransition = await this.sdk.shielded.createStateTransition('unshield', {
-          ...base,
-          outputAddress: request.outputAddress,
-          unshieldAmount: request.amount,
-        })
-      } else {
-        stateTransition = await this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
-          ...base,
-          withdrawalAmount: request.amount,
-          outputScript: coreAddressToScript(request.coreAddress, network),
-          coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
-          pooling: 'Standard',
-        })
+        console.log('[shielded] state transition hex:\n' + stateTransition.hex())
+
+        state.phase = 'broadcasting'
+        await this.sdk.stateTransitions.broadcast(stateTransition)
+        try {
+          await this.shieldedNoteDAO.markSpent(walletId, toSpend.map((note) => note.index))
+        } catch (e) {
+          console.error('Failed to record spent shielded notes', e)
+        }
+        await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+
+        state.stHash = stateTransition.hash(false)
+        state.phase = 'done'
+        return
       }
-
-      const stBytes = stateTransition.bytes()
-      console.log('[shielded] state transition ready', {
-        kind: request.kind,
-        spends: spends.length,
-        sizeBytes: stBytes.length,
-        hash: stateTransition.hash(false),
-      })
-      console.log('[shielded] state transition hex:\n' + stateTransition.hex())
-
-      state.phase = 'broadcasting'
-      await this.sdk.stateTransitions.broadcast(stateTransition)
-      try {
-        await this.shieldedNoteDAO.markSpent(walletId, toSpend.map((note) => note.index))
-      } catch (e) {
-        console.error('Failed to record spent shielded notes', e)
-      }
-      await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
-
-      state.stHash = stateTransition.hash(false)
-      state.phase = 'done'
     } catch (e) {
       state.phase = 'error'
       state.error = e instanceof Error ? e.message : String(e)
       console.error('Shielded spend failed', e)
     }
+  }
+
+  private extractActionNullifiers(st: StateTransitionWASM, kind: SpendRequest['kind']): Uint8Array[] {
+    const transition = kind === 'transfer'
+      ? ShieldedTransferTransitionWASM.fromStateTransition(st)
+      : kind === 'unshield'
+        ? UnshieldTransitionWASM.fromStateTransition(st)
+        : ShieldedWithdrawalTransitionWASM.fromStateTransition(st)
+    return transition.actions.map((action) => action.nullifier)
+  }
+
+  // Identifies which of the candidate notes are already spent on-chain. Own
+  // nullifiers can't be derived directly (no nullifier-key accessor in the
+  // SDK), so each note is probed by proving a throwaway single-note
+  // self-transfer — never broadcast — and checking its action nullifiers
+  // against the pool. Dummy actions carry random nullifiers and read unspent.
+  private async probeSpentNotes(
+    all: EncryptedNote[],
+    candidates: RecoveredNoteWASM[],
+    seed: Uint8Array,
+    network: Network,
+  ): Promise<number[]> {
+    const selfAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+    const spentIndexes: number[] = []
+    for (const candidate of candidates) {
+      let probe: StateTransitionWASM
+      try {
+        const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, [candidate])
+        probe = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
+          spends,
+          changeAddress: selfAddress,
+          seed,
+          coinType: COIN_TYPE[network],
+          account: SHIELDED_ACCOUNT,
+          anchor,
+          memo: ShieldedMemoWASM.empty() as unknown as string,
+          recipient: selfAddress,
+          transferAmount: 1n,
+        })
+      } catch (e) {
+        console.warn('[shielded] note probe failed, skipping note', candidate.index, e)
+        continue
+      }
+      const nullifiers = ShieldedTransferTransitionWASM.fromStateTransition(probe).actions.map((a) => a.nullifier)
+      const statuses = await this.sdk.shielded.getShieldedNullifiers(nullifiers)
+      if (statuses.some((status) => status.isSpent)) spentIndexes.push(candidate.index)
+    }
+    return spentIndexes
   }
 }
