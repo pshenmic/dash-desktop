@@ -347,7 +347,7 @@ export class ShieldedService {
             withdrawalAmount: request.amount,
             outputScript: coreAddressToScript(request.coreAddress, network),
             coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
-            pooling: 'Standard',
+            pooling: 'Never',
           })
         }
 
