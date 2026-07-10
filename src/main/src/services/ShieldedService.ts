@@ -1,9 +1,11 @@
 import { DashPlatformSDK } from 'dash-platform-sdk'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
+import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { decryptMnemonic } from '../utils'
 import { OrchardAddressWASM, ShieldedMemoWASM, StateTransitionWASM } from 'pshenmic-dpp'
 import { coreAddressToScript } from './coreScript'
+import { maxSpendableCredits, selectSpendNotes } from './shieldedNoteSelection'
 
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 
@@ -59,19 +61,25 @@ const SHIELDED_ACCOUNT = 0
 const SHIELDED_SYNC_BATCH = 8192
 const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
 const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
+// Platform caps state transitions at ~20KB and the Halo2 proof grows with the
+// number of Orchard actions, so spends are limited to 6 notes per transition.
+const MAX_SPEND_NOTES = 6
+const SPEND_FEE_CREDITS = 6_500_000n
 
 export class ShieldedService {
   private sdk: DashPlatformSDK
   private walletDAO: WalletDAO
+  private shieldedNoteDAO: ShieldedNoteDAO
   private warmupState: ShieldedWarmupState = 'idle'
   private warmupError: string | null = null
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string>()
 
-  constructor(sdk: DashPlatformSDK, walletDAO: WalletDAO) {
+  constructor(sdk: DashPlatformSDK, walletDAO: WalletDAO, shieldedNoteDAO: ShieldedNoteDAO) {
     this.sdk = sdk
     this.walletDAO = walletDAO
+    this.shieldedNoteDAO = shieldedNoteDAO
   }
 
   getStatus(): ShieldedStatus {
@@ -185,10 +193,12 @@ export class ShieldedService {
 
       state.phase = 'recovering'
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
+      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
 
       let balance = 0n
       const notes: ShieldedNoteInfo[] = []
       for (const note of recovered) {
+        if (spent.has(note.index)) continue
         const value = note.note.value
         balance += value
         notes.push({ index: note.index, amount: value.toString() })
@@ -280,9 +290,24 @@ export class ShieldedService {
       })
 
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
-      if (recovered.length === 0) throw new Error('No shielded notes available to spend')
+      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
+      const unspent = recovered.filter((note) => !spent.has(note.index))
+      if (unspent.length === 0) throw new Error('No shielded notes available to spend')
 
-      const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, recovered)
+      const selectable = unspent.map((note) => ({ index: note.index, value: note.note.value }))
+      const selection = selectSpendNotes(selectable, request.amount + SPEND_FEE_CREDITS, MAX_SPEND_NOTES)
+      if (selection == null) {
+        const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, SPEND_FEE_CREDITS)
+        throw new Error(
+          `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
+          `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
+          `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+        )
+      }
+      const selectedIndexes = new Set(selection.selected.map((note) => note.index))
+      const toSpend = unspent.filter((note) => selectedIndexes.has(note.index))
+
+      const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, toSpend)
       const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
       const memo = ShieldedMemoWASM.empty() as unknown as string
 
@@ -322,6 +347,11 @@ export class ShieldedService {
 
       state.phase = 'broadcasting'
       await this.sdk.stateTransitions.broadcast(stateTransition)
+      try {
+        await this.shieldedNoteDAO.markSpent(walletId, toSpend.map((note) => note.index))
+      } catch (e) {
+        console.error('Failed to record spent shielded notes', e)
+      }
       await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
 
       state.stHash = stateTransition.hash(false)
