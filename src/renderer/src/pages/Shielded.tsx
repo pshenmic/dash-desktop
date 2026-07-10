@@ -116,6 +116,8 @@ export default function ShieldedPage(): React.JSX.Element {
     [platformAddresses],
   )
 
+  const spendableNotes = useMemo(() => sync.notes.filter((note) => !note.spent), [sync.notes])
+
   const shieldedReady = sync.phase === 'done' && sync.balance !== null
   const shieldedDisplay = shieldedReady ? formatCredits(BigInt(sync.balance as string)) : '—'
 
@@ -179,27 +181,22 @@ export default function ShieldedPage(): React.JSX.Element {
         <SyncCard sync={sync} onSync={() => setUnlockOpen(true)} />
 
         <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Your notes</Text>
-          {sync.notes.length === 0 ? (
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Incoming notes</Text>
+          {spendableNotes.length === 0 ? (
             <Text size={12} weight={"medium"} color={"brand"} opacity={40}>
-              {sync.phase === 'done' ? 'No shielded notes found for this wallet yet.' : 'Sync to list your received private notes.'}
+              {sync.phase === 'done' ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
             </Text>
           ) : (
             <div className={"flex flex-col"}>
-              {sync.notes.map((note, i) => (
+              {spendableNotes.map((note, i) => (
                 <div key={note.index} className={i > 0 ? "flex items-center justify-between py-2.5 border-t border-dash-primary-dark-blue/8 dark:border-white/10" : "flex items-center justify-between py-2.5"}>
                   <div className={"flex items-center gap-2"}>
-                    <ShieldSmallIcon size={14} className={note.spent ? "text-dash-primary-dark-blue/25 dark:text-white/25" : "text-dash-brand dark:text-dash-mint"} />
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={note.spent ? 30 : 50}>note #{note.index}</Text>
-                    {note.spent && (
-                      <span className={"px-1.5 py-0.5 rounded-[.375rem] dash-block-3"}>
-                        <Text size={10} weight={"bold"} color={"brand"} opacity={50}>spent</Text>
-                      </span>
-                    )}
+                    <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
+                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
                   </div>
                   <div className={"flex items-baseline gap-1.5"}>
-                    <Text size={14} weight={"bold"} color={"brand"} opacity={note.spent ? 30 : undefined} className={note.spent ? "line-through" : undefined}>{formatCredits(BigInt(note.amount))}</Text>
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={note.spent ? 30 : 50}>credits</Text>
+                    <Text size={14} weight={"bold"} color={"brand"}>{formatCredits(BigInt(note.amount))}</Text>
+                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
                   </div>
                 </div>
               ))}
