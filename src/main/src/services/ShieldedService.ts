@@ -67,6 +67,7 @@ export class ShieldedService {
   private warmupError: string | null = null
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
+  private addresses = new Map<string, string>()
 
   constructor(sdk: DashPlatformSDK, walletDAO: WalletDAO) {
     this.sdk = sdk
@@ -107,6 +108,30 @@ export class ShieldedService {
       }
       console.error('==========================================================================')
     }
+  }
+
+  async getAddress(walletId: string, password?: string): Promise<string | null> {
+    const cached = this.addresses.get(walletId)
+    if (cached != null) return cached
+    if (password == null || password.length === 0) return null
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) throw new Error('Wallet not found')
+
+    let mnemonic: string
+    try {
+      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+    const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+    return this.cacheAddress(walletId, seed, wallet.network)
+  }
+
+  private cacheAddress(walletId: string, seed: Uint8Array, network: Network): string {
+    const address = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT).toBech32m(network)
+    this.addresses.set(walletId, address)
+    return address
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
@@ -151,6 +176,7 @@ export class ShieldedService {
       this.sdk.setNetwork(wallet.network)
       const mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
       const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+      this.cacheAddress(walletId, seed, wallet.network)
 
       const all = await this.fetchAllNotes((fetched, total) => {
         state.total = total
@@ -245,6 +271,7 @@ export class ShieldedService {
         throw new Error('Invalid wallet password')
       }
       const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+      this.cacheAddress(walletId, seed, network)
       const coinType = COIN_TYPE[network]
 
       const all = await this.fetchAllNotes((fetched, total) => {
@@ -283,6 +310,15 @@ export class ShieldedService {
           pooling: 'Standard',
         })
       }
+
+      const stBytes = stateTransition.bytes()
+      console.log('[shielded] state transition ready', {
+        kind: request.kind,
+        spends: spends.length,
+        sizeBytes: stBytes.length,
+        hash: stateTransition.hash(false),
+      })
+      console.log('[shielded] state transition hex:\n' + stateTransition.hex())
 
       state.phase = 'broadcasting'
       await this.sdk.stateTransitions.broadcast(stateTransition)

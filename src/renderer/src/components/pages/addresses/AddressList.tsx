@@ -3,6 +3,7 @@ import { Tabs } from 'dash-ui-kit/react'
 import { addressesPage } from '@renderer/constants'
 import AddressCard from './AddressCard'
 import PlatformAddressCard from './PlatformAddressCard'
+import ShieldedAddressTab from './ShieldedAddressTab'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -99,6 +100,11 @@ export default function AddressList(): React.JSX.Element {
           renderItem={(item) => <PlatformAddressCard key={item.platformAddress} {...item} />}
         />
       ),
+    },
+    {
+      value: 'shielded',
+      label: tabs.shielded,
+      content: <ShieldedAddressTab walletId={status?.selectedWalletId ?? undefined} />,
     },
   ]
 

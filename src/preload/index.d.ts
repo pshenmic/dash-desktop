@@ -59,6 +59,7 @@ declare global {
       startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       getShieldedSpendState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      getShieldedAddress: (walletId: string, password?: string) => Promise<string | null>
     }
     darkMode: {
       get: () => Promise<boolean>

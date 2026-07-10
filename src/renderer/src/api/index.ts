@@ -180,4 +180,8 @@ export class API {
   static async getShieldedSpendState(walletId: string): Promise<ShieldedSpendState> {
     return this.api.getShieldedSpendState(walletId) as Promise<ShieldedSpendState>
   }
+
+  static async getShieldedAddress(walletId: string, password?: string): Promise<string | null> {
+    return this.api.getShieldedAddress(walletId, password) as Promise<string | null>
+  }
 }

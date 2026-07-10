@@ -59,6 +59,7 @@ import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer
 import {StartShieldedUnshieldHandler} from './api/shielded/startShieldedUnshield'
 import {StartShieldedWithdrawalHandler} from './api/shielded/startShieldedWithdrawal'
 import {GetShieldedSpendStateHandler} from './api/shielded/getShieldedSpendState'
+import {GetShieldedAddressHandler} from './api/shielded/getShieldedAddress'
 import {RatesService} from './services/RatesService'
 import {GetExchangeRatesHandler} from './api/getExchangeRates'
 import {ContactService} from './services/ContactService'
@@ -142,6 +143,7 @@ export class WalletBackend {
     ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSpendState', new GetShieldedSpendStateHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
   }
 
   async start(): Promise<void> {

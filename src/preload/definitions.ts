@@ -59,4 +59,5 @@ export const apiDefinitions = (ipcRenderer) => ({
   startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('startShieldedUnshield', walletId, outputAddress, amountCredits, password),
   startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('startShieldedWithdrawal', walletId, coreAddress, amountCredits, password),
   getShieldedSpendState: (walletId: string) => ipcRenderer.invoke('getShieldedSpendState', walletId),
+  getShieldedAddress: (walletId: string, password?: string) => ipcRenderer.invoke('getShieldedAddress', walletId, password),
 })
