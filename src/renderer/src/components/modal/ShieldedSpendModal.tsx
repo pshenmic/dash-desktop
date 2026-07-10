@@ -74,6 +74,7 @@ export default function ShieldedSpendModal({
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(false)
   const [spend, setSpend] = useState<ShieldedSpendState | null>(null)
+  const [sentAmount, setSentAmount] = useState('')
   const notified = useRef(false)
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export default function ShieldedSpendModal({
       setBusy(false)
       setStarted(false)
       setSpend(null)
+      setSentAmount('')
       notified.current = false
     }
   }, [isOpen])
@@ -131,6 +133,7 @@ export default function ShieldedSpendModal({
         setBusy(false)
         return
       }
+      setSentAmount(amountCredits)
       const initial = await start(password)
       setSpend(initial)
       setStarted(true)
@@ -284,7 +287,7 @@ export default function ShieldedSpendModal({
           <div className={"phase-fade-in"} key={"done"}>
             <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
               <div className={"success-pop"}><SuccessIcon size={56} /></div>
-              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{amountCredits} credits sent</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{sentAmount || amountCredits} credits sent</Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>Broadcast to Platform. Re-sync notes to update your balance.</Text>
             </div>
             <div className={"mt-5 p-[.875rem] rounded-[.9375rem] dash-block-3"}>

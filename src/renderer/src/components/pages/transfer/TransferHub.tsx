@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { DashLogo, BigNumber } from "dash-ui-kit/react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
+import Checkbox from "@renderer/components/ui/Checkbox";
 import WarmupPill from "@renderer/components/pages/shielded/WarmupPill";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
@@ -303,10 +304,12 @@ export default function TransferHub(): React.JSX.Element {
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
             The receiving Core address and the amount will be publicly visible on-chain once withdrawn. This breaks the privacy of the withdrawn funds.
           </Text>
-          <label className={"mt-1 flex items-center gap-2 cursor-pointer"}>
-            <input type={"checkbox"} checked={acked} onChange={(e) => setAcked(e.target.checked)} className={"accent-dash-brand"} />
-            <Text size={12} weight={"medium"} color={"brand"}>I understand the destination and amount will be public.</Text>
-          </label>
+          <Checkbox
+            checked={acked}
+            onChange={setAcked}
+            label={<Text size={12} weight={"medium"} color={"brand"}>I understand the destination and amount will be public.</Text>}
+            className={"mt-1"}
+          />
         </div>
       )}
     </>
