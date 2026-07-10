@@ -31,6 +31,7 @@ export interface ShieldedPoolInfo {
 export interface ShieldedNoteInfo {
   index: number
   amount: string
+  spent: boolean
 }
 
 export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
@@ -210,10 +211,10 @@ export class ShieldedService {
       let balance = 0n
       const notes: ShieldedNoteInfo[] = []
       for (const note of recovered) {
-        if (spent.has(note.index)) continue
         const value = note.note.value
-        balance += value
-        notes.push({ index: note.index, amount: value.toString() })
+        const isSpent = spent.has(note.index)
+        if (!isSpent) balance += value
+        notes.push({ index: note.index, amount: value.toString(), spent: isSpent })
       }
       notes.sort((a, b) => b.index - a.index)
 
@@ -361,7 +362,7 @@ export class ShieldedService {
           if (stale.length === 0) {
             throw new Error('An already-spent note was detected but could not be identified. Re-sync your notes and try again.')
           }
-          await this.shieldedNoteDAO.markSpent(walletId, stale)
+          await this.markNotesSpent(walletId, stale)
           console.warn('[shielded] marked stale notes as spent, retrying', stale)
           continue
         }
@@ -378,7 +379,7 @@ export class ShieldedService {
         state.phase = 'broadcasting'
         await this.sdk.stateTransitions.broadcast(stateTransition)
         try {
-          await this.shieldedNoteDAO.markSpent(walletId, toSpend.map((note) => note.index))
+          await this.markNotesSpent(walletId, toSpend.map((note) => note.index))
         } catch (e) {
           console.error('Failed to record spent shielded notes', e)
         }
@@ -393,6 +394,21 @@ export class ShieldedService {
       state.error = e instanceof Error ? e.message : String(e)
       console.error('Shielded spend failed', e)
     }
+  }
+
+  private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {
+    await this.shieldedNoteDAO.markSpent(walletId, indexes)
+    const sync = this.syncStates.get(walletId)
+    if (sync == null || sync.phase !== 'done') return
+    const spent = new Set(indexes)
+    let balance = sync.balance !== null ? BigInt(sync.balance) : 0n
+    for (const note of sync.notes) {
+      if (!note.spent && spent.has(note.index)) {
+        note.spent = true
+        balance -= BigInt(note.amount)
+      }
+    }
+    sync.balance = (balance > 0n ? balance : 0n).toString()
   }
 
   private extractActionNullifiers(st: StateTransitionWASM, kind: SpendRequest['kind']): Uint8Array[] {

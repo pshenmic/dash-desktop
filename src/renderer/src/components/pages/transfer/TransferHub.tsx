@@ -127,6 +127,7 @@ export default function TransferHub(): React.JSX.Element {
   const shieldedMaxPerTx = useMemo(() => {
     if (fromKind !== 'shielded' || shieldedSync.phase !== 'done') return null
     const top = shieldedSync.notes
+      .filter((note) => !note.spent)
       .map((note) => BigInt(note.amount))
       .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
       .slice(0, MAX_SPEND_NOTES)

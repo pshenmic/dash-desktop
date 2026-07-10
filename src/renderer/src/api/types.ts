@@ -186,6 +186,7 @@ export interface ShieldedPoolInfo {
 export interface ShieldedNoteInfo {
   index: number
   amount: string
+  spent: boolean
 }
 
 export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
