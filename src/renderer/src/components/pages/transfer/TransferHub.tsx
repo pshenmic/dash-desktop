@@ -224,7 +224,6 @@ export default function TransferHub(): React.JSX.Element {
 
       {toKind === 'coreAddress' && operation === 'coreSend' ? (
         <div className={"flex flex-col gap-2"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
           <DestinationPicker
             kind={toKind}
             onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
