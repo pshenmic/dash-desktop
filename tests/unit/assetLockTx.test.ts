@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { AssetLockTx } from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
-import { buildAssetLockOutputs, ASSET_LOCK_PAYLOAD_VERSION, ASSET_LOCK_CREDIT_OUTPUT_INDEX } from '../../src/main/src/utils/assetLockTx'
+import {
+  buildAssetLockOutputs,
+  shieldAmountFromLockedDuffs,
+  ASSET_LOCK_PAYLOAD_VERSION,
+  ASSET_LOCK_CREDIT_OUTPUT_INDEX,
+  CREDITS_PER_DUFF,
+  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
+} from '../../src/main/src/utils/assetLockTx'
 
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')
@@ -33,5 +40,16 @@ describe('buildAssetLockOutputs', () => {
 
   it('rejects a non-positive amount', () => {
     expect(() => buildAssetLockOutputs(0n, creditAddress)).toThrow('greater than zero')
+  })
+})
+
+describe('shieldAmountFromLockedDuffs', () => {
+  it('converts duffs to credits and deducts the fee reserve', () => {
+    expect(shieldAmountFromLockedDuffs(10_000_000n)).toBe(10_000_000n * CREDITS_PER_DUFF - SHIELD_FUNDING_FEE_RESERVE_CREDITS)
+  })
+
+  it('rejects amounts that do not exceed the fee reserve', () => {
+    const atReserve = SHIELD_FUNDING_FEE_RESERVE_CREDITS / CREDITS_PER_DUFF
+    expect(() => shieldAmountFromLockedDuffs(atReserve)).toThrow('too small to shield')
   })
 })

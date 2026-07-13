@@ -1,6 +1,8 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
   OrchardAddressWASM,
+  OutPointWASM,
+  PrivateKeyWASM,
   RecoveredNoteWASM,
   ShieldedMemoWASM,
   ShieldedTransferTransitionWASM,
@@ -8,7 +10,7 @@ import {
   StateTransitionWASM,
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
-import {InputAddressWASM, AddressFundsFeeStrategyStepWASM} from 'dash-platform-sdk/types.js'
+import {InputAddressWASM, AddressFundsFeeStrategyStepWASM, AssetLockProofWASM} from 'dash-platform-sdk/types.js'
 import {Network} from '../src/types'
 import {coreAddressToScript} from '../src/utils/coreScript'
 import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
@@ -17,6 +19,7 @@ import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind}
 type SyncCommand = Extract<ShieldedCommand, {type: 'sync'}>
 type SpendCommand = Extract<ShieldedCommand, {type: 'spend'}>
 type ShieldCommand = Extract<ShieldedCommand, {type: 'shield'}>
+type ShieldFromAssetLockCommand = Extract<ShieldedCommand, {type: 'shieldFromAssetLock'}>
 
 type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShieldedEncryptedNotes']>>[number]
 
@@ -36,6 +39,7 @@ const SPEND_FEE_CREDITS = 6_500_000n
 // only detectable on-chain: a built transition exposes its action nullifiers,
 // so stale selections are caught before broadcast and repaired by re-selecting.
 const MAX_SPEND_ATTEMPTS = 3
+const SHIELD_FUNDING_DUMMY_OUTPUTS = 1
 
 export class ShieldedEngine {
   private sdk: DashPlatformSDK
@@ -236,6 +240,48 @@ export class ShieldedEngine {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       console.error('Shield failed', e)
+      this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
+    }
+  }
+
+  async shieldFromAssetLock(command: ShieldFromAssetLockCommand): Promise<void> {
+    const {requestId, seed, network} = command
+    try {
+      this.sdk.setNetwork(network)
+      await this.initProver()
+
+      const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+      const derived = await this.sdk.keyPair.derivePath(hdKey, command.creditDerivationPath)
+      if (!derived.privateKey) {
+        throw new Error('Failed to derive the asset lock credit key')
+      }
+      const privateKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
+
+      const proof = AssetLockProofWASM.createChainAssetLockProof(
+        command.coreChainLockedHeight,
+        new OutPointWASM(command.txid, command.outputIndex),
+      )
+      const recipient = OrchardAddressWASM.fromBech32m(command.recipient)
+      const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
+
+      const stateTransition = await this.sdk.shielded.createStateTransition('shieldFromAssetLock', {
+        recipient,
+        shieldAmount: BigInt(command.shieldAmountCredits),
+        assetLockProof: proof,
+        privateKey,
+        memo: ShieldedMemoWASM.empty() as unknown as string,
+        dummyOutputs: SHIELD_FUNDING_DUMMY_OUTPUTS,
+        senderOvk,
+        ...(command.surplusAddress != null ? {surplusOutput: command.surplusAddress} : {}),
+      })
+
+      await this.sdk.stateTransitions.broadcast(stateTransition)
+      await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+
+      this.emit({type: 'shieldResult', requestId, ok: true, stHash: stateTransition.hash(false), error: null})
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error('Shield from asset lock failed', e)
       this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
     }
   }

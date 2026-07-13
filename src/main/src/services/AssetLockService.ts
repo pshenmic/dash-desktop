@@ -6,12 +6,14 @@ import {
   OutputAddressNullableCreditsWASM,
   PrivateKeyWASM,
 } from 'dash-platform-sdk/types.js'
-import {OutPointWASM} from 'pshenmic-dpp'
+import {OrchardAddressWASM, OutPointWASM} from 'pshenmic-dpp'
 import {WalletDAO} from '../database/WalletDAO'
-import {AssetLockDAO, AssetLockFundingRow} from '../database/AssetLockDAO'
+import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
+import {Network} from '../types'
 import {WalletService} from './WalletService'
+import {ShieldedService} from './ShieldedService'
 import {decryptMnemonic} from '../utils'
-import {ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../utils/assetLockTx'
+import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
 
 export type AssetLockFundingPhase =
   | 'idle'
@@ -25,6 +27,7 @@ export type AssetLockFundingPhase =
 
 export interface AssetLockFundingState {
   phase: AssetLockFundingPhase
+  kind: AssetLockFundingKind
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
@@ -36,6 +39,8 @@ export interface AssetLockFundingState {
 
 const POLL_INTERVAL_MS = 15_000
 const MAX_POLL_ATTEMPTS = 240
+const SHIELDED_ACCOUNT = 0
+const PLATFORM_ACCOUNT = 0
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -45,18 +50,20 @@ export class AssetLockService {
   private walletDAO: WalletDAO
   private assetLockDAO: AssetLockDAO
   private walletService: WalletService
+  private shieldedService: ShieldedService
   private sdk: DashPlatformSDK
   private states = new Map<string, AssetLockFundingState>()
 
-  constructor(walletDAO: WalletDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, sdk: DashPlatformSDK) {
+  constructor(walletDAO: WalletDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, shieldedService: ShieldedService, sdk: DashPlatformSDK) {
     this.walletDAO = walletDAO
     this.assetLockDAO = assetLockDAO
     this.walletService = walletService
+    this.shieldedService = shieldedService
     this.sdk = sdk
   }
 
   private idleState(): AssetLockFundingState {
-    return {phase: 'idle', txid: null, txHeight: null, chainLockedHeight: null, stHash: null, toPlatformAddress: null, amountDuffs: null, error: null}
+    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, stHash: null, toPlatformAddress: null, amountDuffs: null, error: null}
   }
 
   private isActive(state: AssetLockFundingState | undefined): boolean {
@@ -73,6 +80,7 @@ export class AssetLockService {
       return {
         ...this.idleState(),
         phase: 'resumable',
+        kind: row.kind,
         txid: row.txid,
         toPlatformAddress: row.toPlatformAddress,
         amountDuffs: row.amountDuffs,
@@ -81,7 +89,7 @@ export class AssetLockService {
     return current ?? this.idleState()
   }
 
-  async startFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+  async startFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind: AssetLockFundingKind = 'address'): Promise<AssetLockFundingState> {
     const current = this.states.get(walletId)
     if (this.isActive(current)) {
       return current!
@@ -91,14 +99,41 @@ export class AssetLockService {
       throw new Error('A previous funding is still in progress — resume it first')
     }
 
+    let destination = toPlatformAddress
+    if (kind === 'shielded') {
+      shieldAmountFromLockedDuffs(amountDuffs)
+      const wallet = await this.walletDAO.getWalletById(walletId)
+      if (wallet == null) {
+        throw new Error('Wallet not found')
+      }
+      this.sdk.setNetwork(wallet.network)
+      if (toPlatformAddress.length > 0) {
+        try {
+          OrchardAddressWASM.fromBech32m(toPlatformAddress)
+        } catch {
+          throw new Error('Invalid shielded recipient address')
+        }
+      } else {
+        let mnemonic: string
+        try {
+          mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+        } catch {
+          throw new Error('Invalid wallet password')
+        }
+        const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+        destination = this.sdk.keyPair.deriveShieldedAddress(seed, wallet.network, SHIELDED_ACCOUNT).toBech32m(wallet.network)
+      }
+    }
+
     const state: AssetLockFundingState = {
       ...this.idleState(),
       phase: 'building',
-      toPlatformAddress,
+      kind,
+      toPlatformAddress: destination,
       amountDuffs: amountDuffs.toString(),
     }
     this.states.set(walletId, state)
-    void this.runNewFunding(walletId, toPlatformAddress, amountDuffs, password, state)
+    void this.runNewFunding(walletId, destination, amountDuffs, password, state, kind)
     return state
   }
 
@@ -126,6 +161,7 @@ export class AssetLockService {
     const state: AssetLockFundingState = {
       ...this.idleState(),
       phase: 'waitingChainLock',
+      kind: row.kind,
       txid: row.txid,
       toPlatformAddress: row.toPlatformAddress,
       amountDuffs: row.amountDuffs,
@@ -140,7 +176,7 @@ export class AssetLockService {
     state.phase = txid != null ? 'resumable' : 'error'
   }
 
-  private async runNewFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, state: AssetLockFundingState): Promise<void> {
+  private async runNewFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, state: AssetLockFundingState, kind: AssetLockFundingKind): Promise<void> {
     let txid: string | null = null
     try {
       state.phase = 'broadcastingL1'
@@ -155,6 +191,7 @@ export class AssetLockService {
         creditDerivationPath: broadcasted.creditDerivationPath,
         amountDuffs: amountDuffs.toString(),
         toPlatformAddress,
+        kind,
         status: 'l1_broadcast',
         createdAt: Math.floor(Date.now() / 1000),
       })
@@ -223,6 +260,18 @@ export class AssetLockService {
 
     const decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
     const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+
+    const stHash = row.kind === 'shielded'
+      ? await this.broadcastShieldSt(row, seed, network, chainLockedHeight)
+      : await this.broadcastAddressFundingSt(row, seed, network, chainLockedHeight)
+
+    state.stHash = stHash
+    state.phase = 'done'
+
+    await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
+  }
+
+  private async broadcastAddressFundingSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, chainLockedHeight: number): Promise<string> {
     const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
     const derived = await this.sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
     if (!derived.privateKey) {
@@ -250,9 +299,22 @@ export class AssetLockService {
     await this.sdk.stateTransitions.broadcast(signedSt)
     await this.sdk.stateTransitions.waitForStateTransitionResult(signedSt)
 
-    state.stHash = signedSt.hash(false)
-    state.phase = 'done'
+    return signedSt.hash(false)
+  }
 
-    await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash: state.stHash})
+  private async broadcastShieldSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, chainLockedHeight: number): Promise<string> {
+    const surplus = await this.sdk.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
+
+    await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+
+    return this.shieldedService.shieldFromAssetLock(network, seed, {
+      txid: row.txid,
+      outputIndex: row.outputIndex,
+      coreChainLockedHeight: chainLockedHeight,
+      creditDerivationPath: row.creditDerivationPath,
+      recipient: row.toPlatformAddress,
+      shieldAmountCredits: shieldAmountFromLockedDuffs(BigInt(row.amountDuffs)),
+      surplusAddress: surplus.toBech32m(network),
+    })
   }
 }

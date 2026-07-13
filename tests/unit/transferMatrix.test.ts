@@ -16,7 +16,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     platformAddress: 'assetLockFunding',
     identity: null,
     newIdentity: null,
-    shielded: null,
+    shielded: 'assetLockShield',
   },
   platformAddress: {
     coreAddress: 'addressWithdrawal',
@@ -87,6 +87,7 @@ describe('operationInfo', () => {
 
   it('uses dash units without a credits fee for L1-sourced operations', () => {
     expect(operationInfo('coreSend')).toMatchObject({unit: 'dash', feeCredits: null})
+    expect(operationInfo('assetLockShield')).toMatchObject({unit: 'dash', feeCredits: null})
   })
 })
 

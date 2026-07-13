@@ -180,7 +180,7 @@ export class WalletBackend {
     this.shieldedService = new ShieldedService(dashPlatformSDK, walletDAO, new ShieldedNoteDAO(knex))
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
     this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, dashPlatformSDK, this.shieldedService)
-    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, dashPlatformSDK)
+    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, dashPlatformSDK)
     this.addressDAO = addressDAO
 
     this.initHandlers()

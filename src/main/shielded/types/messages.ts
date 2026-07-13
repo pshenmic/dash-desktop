@@ -33,6 +33,19 @@ export type ShieldedCommand =
       amountCredits: string
     }
   | { type: 'shield'; requestId: string; network: Network; seed: Uint8Array; source: ShieldSource; recipient: string; amountCredits: string }
+  | {
+      type: 'shieldFromAssetLock'
+      requestId: string
+      network: Network
+      seed: Uint8Array
+      txid: string
+      outputIndex: number
+      coreChainLockedHeight: number
+      creditDerivationPath: string
+      recipient: string
+      shieldAmountCredits: string
+      surplusAddress: string | null
+    }
 
 export type ShieldedEvent =
   | { type: 'proverStatus'; state: ShieldedProverState; error: string | null }

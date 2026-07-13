@@ -411,6 +411,34 @@ export class ShieldedService {
     })
   }
 
+  shieldFromAssetLock(network: Network, seed: Uint8Array, params: {
+    txid: string
+    outputIndex: number
+    coreChainLockedHeight: number
+    creditDerivationPath: string
+    recipient: string
+    shieldAmountCredits: bigint
+    surplusAddress: string | null
+  }): Promise<string> {
+    const requestId = randomUUID()
+    return new Promise<string>((resolve, reject) => {
+      this.pendingShields.set(requestId, {resolve, reject})
+      this.send({
+        type: 'shieldFromAssetLock',
+        requestId,
+        network,
+        seed,
+        txid: params.txid,
+        outputIndex: params.outputIndex,
+        coreChainLockedHeight: params.coreChainLockedHeight,
+        creditDerivationPath: params.creditDerivationPath,
+        recipient: params.recipient,
+        shieldAmountCredits: params.shieldAmountCredits.toString(),
+        surplusAddress: params.surplusAddress,
+      })
+    })
+  }
+
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {
     await this.shieldedNoteDAO.markSpent(walletId, indexes)
     const sync = this.syncStates.get(walletId)

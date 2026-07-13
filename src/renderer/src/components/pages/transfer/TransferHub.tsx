@@ -93,6 +93,7 @@ export default function TransferHub(): React.JSX.Element {
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === 'shielded' || toKind === 'shielded'
+  const optionalShieldRecipient = operation === 'assetLockShield'
 
   const fundedAddresses = useMemo(
     () => platformAddresses.filter(a => BigInt(a.balanceCredits) > 0n),
@@ -149,7 +150,7 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === 'platformAddress' ? isValidPlatformAddress(trimmedTo, network ?? undefined)
     : toKind === 'identity' ? isLikelyIdentityId(trimmedTo)
     : toKind === 'newIdentity' ? true
-    : isLikelyShieldedAddress(trimmedTo)
+    : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
 
   const selfSend = operation === 'addressFundsTransfer' && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress
 
@@ -268,6 +269,12 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
+      {optionalShieldRecipient && (
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
+          Leave the address empty to shield to this wallet's own shielded balance.
+        </Text>
+      )}
+
       {reason && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={60} className={"leading-[130%]"}>{reason}</Text>
@@ -285,6 +292,15 @@ export default function TransferHub(): React.JSX.Element {
           <Text size={14} weight={"extrabold"} color={"brand"}>Two-step funding</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
             Locking Dash for Platform credits broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then credits the address. The process resumes automatically if interrupted.
+          </Text>
+        </div>
+      )}
+
+      {operation === 'assetLockShield' && (
+        <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <Text size={14} weight={"extrabold"} color={"brand"}>Two-step shielding</Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+            Locking Dash broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then shields the credits straight into your shielded balance. The L1 lock amount stays publicly visible; the process resumes automatically if interrupted.
           </Text>
         </div>
       )}
@@ -347,7 +363,9 @@ export default function TransferHub(): React.JSX.Element {
     : fromKind === 'identity' ? (selectedIdentity?.identifier ?? '')
     : 'Your shielded balance'
 
-  const toDisplay = toKind === 'newIdentity' ? 'New identity' : trimmedTo
+  const toDisplay = toKind === 'newIdentity' ? 'New identity'
+    : optionalShieldRecipient && trimmedTo.length === 0 ? 'Your shielded balance'
+    : trimmedTo
 
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
@@ -451,7 +469,9 @@ export default function TransferHub(): React.JSX.Element {
       {resumableFunding && (
         <div className={"mx-12 mt-4 flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <div className={"flex flex-col gap-1 min-w-0"}>
-            <Text size={14} weight={"extrabold"} color={"brand"}>Unfinished Platform address funding</Text>
+            <Text size={14} weight={"extrabold"} color={"brand"}>
+              {resumableFunding.kind === 'shielded' ? 'Unfinished L1 shielding' : 'Unfinished Platform address funding'}
+            </Text>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
               {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.toPlatformAddress ?? ''}
             </Text>
@@ -525,7 +545,7 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
-      {operation === 'assetLockFunding' && (
+      {(operation === 'assetLockFunding' || operation === 'assetLockShield') && (
         <AssetLockFundingModal
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
@@ -533,6 +553,7 @@ export default function TransferHub(): React.JSX.Element {
           toPlatformAddress={trimmedTo}
           amountDuffs={amountDuffs.toString()}
           resume={false}
+          kind={operation === 'assetLockShield' ? 'shielded' : 'address'}
           onSuccess={resetForm}
         />
       )}
@@ -544,6 +565,7 @@ export default function TransferHub(): React.JSX.Element {
         toPlatformAddress={resumableFunding?.toPlatformAddress ?? ''}
         amountDuffs={''}
         resume={true}
+        kind={resumableFunding?.kind ?? 'address'}
         onSuccess={() => {
           setResumableFunding(null)
           resetForm()

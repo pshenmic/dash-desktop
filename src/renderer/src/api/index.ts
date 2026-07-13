@@ -1,4 +1,4 @@
-import { AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState } from './types'
 
 export class API {
   private static get api() {
@@ -149,8 +149,8 @@ export class API {
     return this.api.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password) as Promise<IdentityCreateResult>
   }
 
-  static async startAssetLockFunding(walletId: string, toPlatformAddress: string, amountDuffs: string, password: string): Promise<AssetLockFundingState> {
-    return this.api.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password) as Promise<AssetLockFundingState>
+  static async startAssetLockFunding(walletId: string, toPlatformAddress: string, amountDuffs: string, password: string, kind: AssetLockFundingKind = 'address'): Promise<AssetLockFundingState> {
+    return this.api.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password, kind) as Promise<AssetLockFundingState>
   }
 
   static async getAssetLockFundingState(walletId: string): Promise<AssetLockFundingState> {

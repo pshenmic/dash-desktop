@@ -4,6 +4,7 @@ export type DestinationKind = 'coreAddress' | 'platformAddress' | 'identity' | '
 export type TransferOperation =
   | 'coreSend'
   | 'assetLockFunding'
+  | 'assetLockShield'
   | 'addressFundsTransfer'
   | 'identityTopUp'
   | 'identityCreate'
@@ -18,6 +19,7 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
   core: {
     coreAddress: 'coreSend',
     platformAddress: 'assetLockFunding',
+    shielded: 'assetLockShield',
   },
   platformAddress: {
     coreAddress: 'addressWithdrawal',
@@ -39,7 +41,6 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
 const COMBO_REASONS: Partial<Record<`${SourceKind}->${DestinationKind}`, string>> = {
   'core->identity': 'Fund a Platform address first, then top up the identity from it.',
   'core->newIdentity': 'Fund a Platform address first, then create the identity from it.',
-  'core->shielded': 'Fund a Platform address first, then shield from it.',
   'identity->coreAddress': 'Send to a Platform address first, then withdraw from it.',
   'identity->identity': 'Send to a Platform address first, then top up from it.',
   'identity->newIdentity': 'Send to a Platform address first, then create the identity from it.',
@@ -70,6 +71,7 @@ export interface OperationInfo {
 const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   coreSend: {title: 'Send Dash', submitLabel: 'Send', unit: 'dash', feeCredits: null, minCredits: null},
   assetLockFunding: {title: 'Fund Platform address', submitLabel: 'Fund', unit: 'dash', feeCredits: null, minCredits: null},
+  assetLockShield: {title: 'Shield from L1', submitLabel: 'Shield', unit: 'dash', feeCredits: null, minCredits: null},
   addressFundsTransfer: {title: 'Transfer credits', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   identityTopUp: {title: 'Top up identity', submitLabel: 'Top up', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
   identityCreate: {title: 'Create identity', submitLabel: 'Create', unit: 'credits', feeCredits: 28_000_000n, minCredits: 500_000n},
