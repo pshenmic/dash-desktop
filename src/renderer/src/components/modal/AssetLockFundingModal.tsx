@@ -31,9 +31,14 @@ const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: string; lab
     { key: 'waitingChainLock', label: 'Waiting for a ChainLock (takes a few minutes)' },
     { key: 'broadcastingST', label: 'Proving and shielding the credits' },
   ],
+  identity: [
+    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
+    { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
+    { key: 'broadcastingST', label: 'Registering the identity on Platform' },
+  ],
 }
 
-const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; confirm: string}> = {
+const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; emptyTo: string; confirm: string}> = {
   address: {
     title: 'Fund Platform address',
     resumeTitle: 'Resume funding',
@@ -41,6 +46,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneHeading: 'Platform address funded',
     doneNote: 'The locked Dash is now available as credits.',
     toLabel: 'To (Platform)',
+    emptyTo: '',
     confirm: 'Confirm & Fund',
   },
   shielded: {
@@ -50,7 +56,18 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneHeading: 'Credits shielded',
     doneNote: 'The locked Dash is now a note in your shielded balance.',
     toLabel: 'To (Shielded)',
+    emptyTo: 'Your shielded balance',
     confirm: 'Confirm & Shield',
+  },
+  identity: {
+    title: 'Register identity',
+    resumeTitle: 'Resume registration',
+    doneTitle: 'Identity registered',
+    doneHeading: 'Identity registered',
+    doneNote: "The locked Dash is now this identity's credit balance.",
+    toLabel: 'Creates',
+    emptyTo: 'New Platform identity with 6 keys',
+    confirm: 'Confirm & Register',
   },
 }
 
@@ -188,7 +205,7 @@ export default function AssetLockFundingModal({
               )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{texts.toLabel}</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toPlatformAddress || 'Your shielded balance'}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toPlatformAddress || texts.emptyTo}</Text>
               </div>
             </div>
 
@@ -291,13 +308,23 @@ export default function AssetLockFundingModal({
               </Text>
             </div>
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <div className={"flex items-center gap-2 min-w-0"}>
-                  <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
-                  {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
+              {state.identityIdentifier ? (
+                <div className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Identity</Text>
+                  <div className={"flex items-center gap-2 min-w-0"}>
+                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.identityIdentifier}</Text>
+                    <CopyButton text={state.identityIdentifier} className={"shrink-0"} />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
+                  <div className={"flex items-center gap-2 min-w-0"}>
+                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
+                    {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
+                  </div>
+                </div>
+              )}
               {state.stHash && (
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>State transition</Text>

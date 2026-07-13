@@ -11,7 +11,6 @@ import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/WalletService'
 import { IdentityRegistrationService } from './services/IdentityRegistrationService'
-import { RegisterIdentityHandler } from './api/wallet/registerIdentity'
 import { PlatformAddressService } from './services/PlatformAddressService'
 import { ApplicationService } from './services/ApplicationService'
 import {Preferences} from "./preferences";
@@ -113,7 +112,6 @@ export class WalletBackend {
     ipcMain.handle('getBalance', new GetBalance(this.walletService).handle)
     ipcMain.handle("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
     ipcMain.handle('getIdentities', new GetIdentitiesHandler(this.walletService).handle)
-    ipcMain.handle('registerIdentity', new RegisterIdentityHandler(this.walletDAO, this.identityDAO, this.walletService, this.sdkProvider, this.identityRegistrationService).handle)
     ipcMain.handle('getIdentityBalance', new GetIdentityBalance(this.walletService).handle)
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
     ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
@@ -187,8 +185,8 @@ export class WalletBackend {
     this.shieldedService = new ShieldedService(sdkProvider, walletDAO, new ShieldedNoteDAO(knex))
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations)
     this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, sdkProvider, this.shieldedService)
-    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider)
     this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
+    this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO

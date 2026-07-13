@@ -6,12 +6,16 @@ import {
   PrivateKeyWASM,
 } from 'dash-platform-sdk/types.js'
 import {OrchardAddressWASM, OutPointWASM} from 'pshenmic-dpp'
+import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {WalletDAO} from '../database/WalletDAO'
+import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
 import {Network} from '../types'
+import {Wallet} from '../types/Wallet'
 import {WalletService} from './WalletService'
 import {ShieldedService} from './ShieldedService'
 import {SdkProvider} from './SdkProvider'
+import {IdentityRegistrationService} from './IdentityRegistrationService'
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
 
@@ -33,6 +37,7 @@ export interface AssetLockFundingState {
   chainLockedHeight: number | null
   stHash: string | null
   toPlatformAddress: string | null
+  identityIdentifier: string | null
   amountDuffs: string | null
   error: string | null
 }
@@ -41,6 +46,7 @@ const POLL_INTERVAL_MS = 15_000
 const MAX_POLL_ATTEMPTS = 240
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
+const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -48,22 +54,26 @@ function sleep(ms: number): Promise<void> {
 
 export class AssetLockService {
   private walletDAO: WalletDAO
+  private identityDAO: IdentityDAO
   private assetLockDAO: AssetLockDAO
   private walletService: WalletService
   private shieldedService: ShieldedService
   private sdkProvider: SdkProvider
+  private identityRegistrationService: IdentityRegistrationService
   private states = new Map<string, AssetLockFundingState>()
 
-  constructor(walletDAO: WalletDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, shieldedService: ShieldedService, sdkProvider: SdkProvider) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, shieldedService: ShieldedService, sdkProvider: SdkProvider, identityRegistrationService: IdentityRegistrationService) {
     this.walletDAO = walletDAO
+    this.identityDAO = identityDAO
     this.assetLockDAO = assetLockDAO
     this.walletService = walletService
     this.shieldedService = shieldedService
     this.sdkProvider = sdkProvider
+    this.identityRegistrationService = identityRegistrationService
   }
 
   private idleState(): AssetLockFundingState {
-    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, stHash: null, toPlatformAddress: null, amountDuffs: null, error: null}
+    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
   }
 
   private isActive(state: AssetLockFundingState | undefined): boolean {
@@ -100,6 +110,18 @@ export class AssetLockService {
     }
 
     let destination = toPlatformAddress
+    if (kind === 'identity') {
+      destination = ''
+      const wallet = await this.walletDAO.getWalletById(walletId)
+      if (wallet == null) {
+        throw new Error('Wallet not found')
+      }
+      try {
+        decryptMnemonic(wallet.encryptedMnemonic, password)
+      } catch {
+        throw new Error('Invalid wallet password')
+      }
+    }
     if (kind === 'shielded') {
       shieldAmountFromLockedDuffs(amountDuffs)
       const wallet = await this.walletDAO.getWalletById(walletId)
@@ -179,8 +201,16 @@ export class AssetLockService {
   private async runNewFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, state: AssetLockFundingState, kind: AssetLockFundingKind): Promise<void> {
     let txid: string | null = null
     try {
+      let credit: {address: string; derivationPath: string} | undefined
+      let identityIndex: number | null = null
+      if (kind === 'identity') {
+        const prepared = await this.prepareIdentityRegistration(walletId, password)
+        credit = prepared.credit
+        identityIndex = prepared.identityIndex
+      }
+
       state.phase = 'broadcastingL1'
-      const broadcasted = await this.walletService.buildAndBroadcastAssetLock(walletId, amountDuffs, password)
+      const broadcasted = await this.walletService.buildAndBroadcastAssetLock(walletId, amountDuffs, password, credit)
       txid = broadcasted.txid
       state.txid = txid
 
@@ -193,6 +223,8 @@ export class AssetLockService {
         toPlatformAddress,
         kind,
         status: 'l1_broadcast',
+        identityIndex,
+        txHex: broadcasted.tx.hex(),
         createdAt: Math.floor(Date.now() / 1000),
       })
 
@@ -201,19 +233,49 @@ export class AssetLockService {
         throw new Error('Funding record not found after broadcast')
       }
 
-      await this.completeFunding(walletId, row, password, state)
+      await this.completeFunding(walletId, row, password, state, {tx: broadcasted.tx, inputAddresses: broadcasted.inputAddresses})
     } catch (error) {
       await this.failState(state, txid, error)
     }
   }
 
-  private async completeFunding(walletId: string, row: AssetLockFundingRow, password: string, state: AssetLockFundingState): Promise<void> {
+  private async prepareIdentityRegistration(walletId: string, password: string): Promise<{identityIndex: number; credit: {address: string; derivationPath: string}}> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+    let mnemonic: string
+    try {
+      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
+    const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(mnemonic, startIndex, network)
+
+    const registrationKey = await this.identityRegistrationService.deriveRegistrationKey(mnemonic, identityIndex, network)
+    const address = this.sdkProvider.getPlatformSDK(network).keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network)
+
+    return {
+      identityIndex,
+      credit: {address, derivationPath: this.identityRegistrationService.registrationKeyPath(identityIndex, network)},
+    }
+  }
+
+  private async completeFunding(walletId: string, row: AssetLockFundingRow, password: string, state: AssetLockFundingState, live?: {tx: SDKTransaction; inputAddresses: string[]}): Promise<void> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) {
       throw new Error('Wallet not found')
     }
     const network = wallet.network
     const sdk = this.sdkProvider.getPlatformSDK(network)
+
+    if (row.kind === 'identity') {
+      return this.completeIdentityFunding(wallet, row, password, state, live)
+    }
 
     state.phase = 'waitingChainLock'
 
@@ -317,5 +379,91 @@ export class AssetLockService {
       shieldAmountCredits: shieldAmountFromLockedDuffs(BigInt(row.amountDuffs)),
       surplusAddress: surplus.toBech32m(network),
     })
+  }
+
+  private async completeIdentityFunding(wallet: Wallet, row: AssetLockFundingRow, password: string, state: AssetLockFundingState, live?: {tx: SDKTransaction; inputAddresses: string[]}): Promise<void> {
+    const network = wallet.network
+    const sdk = this.sdkProvider.getPlatformSDK(network)
+    if (row.identityIndex == null) {
+      throw new Error('Funding record is missing the identity index')
+    }
+
+    let mnemonic: string
+    try {
+      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+    const registrationKey = await this.identityRegistrationService.deriveRegistrationKey(mnemonic, row.identityIndex, network)
+
+    state.phase = 'waitingChainLock'
+
+    const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
+    if (tx == null) {
+      throw new Error('Funding record is missing the asset lock transaction')
+    }
+    const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network)]
+    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+
+    await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
+
+    state.phase = 'broadcastingST'
+
+    const identityKeys = await this.identityRegistrationService.deriveIdentityKeys(mnemonic, row.identityIndex, network)
+    const stateTransition = this.identityRegistrationService.buildIdentityCreateTransition(identityKeys, registrationKey, assetLockProof, network)
+
+    const identifier = stateTransition.getOwnerId()?.base58()
+    if (identifier == null || identifier === '') {
+      throw new Error('Could not derive identity identifier from state transition')
+    }
+    const stHash = stateTransition.hash(false)
+
+    // Persist before broadcasting so a crash leaves a recoverable record. Roll
+    // back on a non-idempotent broadcast failure so local state never holds a
+    // phantom identity. A pre-existing record (a previous attempt) is treated
+    // as recovery.
+    const coinType = network === 'mainnet' ? 5 : 1
+    const existing = await this.identityDAO.getByIdentifier(wallet.walletId, identifier)
+    let wasJustCreated = false
+    if (existing == null) {
+      await this.identityDAO.insertIdentity({
+        walletId: wallet.walletId,
+        identityIndex: row.identityIndex,
+        identifier,
+        derivationPath: `m/9'/${coinType}'/0'/0/${row.identityIndex}`,
+      }, row.txid)
+      wasJustCreated = true
+    }
+
+    await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+
+    let alreadyOnPlatform = false
+    try {
+      await sdk.stateTransitions.broadcast(stateTransition)
+    } catch (e) {
+      if (this.isAlreadyInChain(e)) {
+        alreadyOnPlatform = true
+      } else {
+        if (wasJustCreated) {
+          await this.identityDAO.removeIdentity(wallet.walletId, identifier)
+        }
+        throw e
+      }
+    }
+
+    if (!alreadyOnPlatform) {
+      await sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+    }
+
+    state.identityIdentifier = identifier
+    state.stHash = stHash
+    state.phase = 'done'
+
+    await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
+  }
+
+  private isAlreadyInChain(e: unknown): boolean {
+    const message = e instanceof Error ? e.message : String(e ?? '')
+    return message.includes(ALREADY_IN_CHAIN_MESSAGE)
   }
 }

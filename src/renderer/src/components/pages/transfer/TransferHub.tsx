@@ -36,7 +36,6 @@ import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
 import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
-import RegisterIdentityModal from "@renderer/components/modal/RegisterIdentityModal";
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
@@ -310,7 +309,7 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>New Platform identity</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Locks Dash on L1 and registers a new identity funded with the locked amount as credits. The registration waits for the network to lock the transaction — usually seconds, but keep the app open until it finishes.
+            Locks Dash on L1 and registers a new identity funded with the locked amount as credits. The registration waits for the network to lock the transaction — usually seconds; the process resumes automatically if interrupted.
           </Text>
         </div>
       )}
@@ -480,10 +479,12 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"mx-12 mt-4 flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <div className={"flex flex-col gap-1 min-w-0"}>
             <Text size={14} weight={"extrabold"} color={"brand"}>
-              {resumableFunding.kind === 'shielded' ? 'Unfinished L1 shielding' : 'Unfinished Platform address funding'}
+              {resumableFunding.kind === 'shielded' ? 'Unfinished L1 shielding'
+                : resumableFunding.kind === 'identity' ? 'Unfinished identity registration'
+                : 'Unfinished Platform address funding'}
             </Text>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
-              {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.toPlatformAddress ?? ''}
+              {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === 'identity' ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
             </Text>
           </div>
           <button
@@ -555,25 +556,15 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
-      {(operation === 'assetLockFunding' || operation === 'assetLockShield') && (
+      {(operation === 'assetLockFunding' || operation === 'assetLockShield' || operation === 'identityRegister') && (
         <AssetLockFundingModal
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
-          toPlatformAddress={trimmedTo}
+          toPlatformAddress={operation === 'identityRegister' ? '' : trimmedTo}
           amountDuffs={amountDuffs.toString()}
           resume={false}
-          kind={operation === 'assetLockShield' ? 'shielded' : 'address'}
-          onSuccess={resetForm}
-        />
-      )}
-
-      {operation === 'identityRegister' && (
-        <RegisterIdentityModal
-          isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
-          walletId={walletId}
-          amountDuffs={amountDuffs.toString()}
+          kind={operation === 'assetLockShield' ? 'shielded' : operation === 'identityRegister' ? 'identity' : 'address'}
           onSuccess={() => {
             resetForm()
             if (walletId) {

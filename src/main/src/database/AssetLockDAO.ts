@@ -1,7 +1,7 @@
 import {Knex} from 'knex'
 
 export type AssetLockFundingStatus = 'l1_broadcast' | 'chainlocked' | 'st_broadcast' | 'done' | 'error'
-export type AssetLockFundingKind = 'address' | 'shielded'
+export type AssetLockFundingKind = 'address' | 'shielded' | 'identity'
 
 export interface AssetLockFundingRow {
   id: number
@@ -15,6 +15,8 @@ export interface AssetLockFundingRow {
   status: AssetLockFundingStatus
   stHash: string | null
   error: string | null
+  identityIndex: number | null
+  txHex: string | null
   createdAt: number
 }
 
@@ -31,6 +33,8 @@ function fromRow(row: Record<string, unknown>): AssetLockFundingRow {
     status: row.status as AssetLockFundingStatus,
     stHash: (row.st_hash as string | null) ?? null,
     error: (row.error as string | null) ?? null,
+    identityIndex: (row.identity_index as number | null) ?? null,
+    txHex: (row.tx_hex as string | null) ?? null,
     createdAt: row.created_at as number,
   }
 }
@@ -52,6 +56,8 @@ export class AssetLockDAO {
       to_platform_address: funding.toPlatformAddress,
       kind: funding.kind,
       status: funding.status,
+      identity_index: funding.identityIndex,
+      tx_hex: funding.txHex,
       created_at: funding.createdAt,
     })
   }

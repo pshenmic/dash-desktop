@@ -143,7 +143,7 @@ export type AssetLockFundingPhase =
   | 'done'
   | 'error'
 
-export type AssetLockFundingKind = 'address' | 'shielded'
+export type AssetLockFundingKind = 'address' | 'shielded' | 'identity'
 
 export interface AssetLockFundingState {
   phase: AssetLockFundingPhase
@@ -153,6 +153,7 @@ export interface AssetLockFundingState {
   chainLockedHeight: number | null
   stHash: string | null
   toPlatformAddress: string | null
+  identityIdentifier: string | null
   amountDuffs: string | null
   error: string | null
 }
