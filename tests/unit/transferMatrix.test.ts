@@ -26,7 +26,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     shielded: 'shield',
   },
   identity: {
-    coreAddress: null,
+    coreAddress: 'identityWithdrawal',
     platformAddress: 'identityToAddress',
     identity: 'identityToIdentity',
     newIdentity: null,
@@ -82,6 +82,7 @@ describe('operationInfo', () => {
   it('exposes credits fee and minimum for platform operations', () => {
     expect(operationInfo('addressFundsTransfer')).toMatchObject({unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n})
     expect(operationInfo('addressWithdrawal').feeCredits).toBe(400_000_000n)
+    expect(operationInfo('identityWithdrawal').feeCredits).toBe(400_000_000n)
     expect(operationInfo('identityTopUp').minCredits).toBe(100_000n)
     expect(operationInfo('identityToIdentity')).toMatchObject({unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n})
   })

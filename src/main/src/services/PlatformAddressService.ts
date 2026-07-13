@@ -471,6 +471,65 @@ export class PlatformAddressService {
     }
   }
 
+  async withdrawIdentityToCore(
+    walletId: string,
+    identityIdentifier: string,
+    toCoreAddress: string,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<PlatformSendResult> {
+    if (amountCredits <= 0n) {
+      throw new Error('Withdrawal amount must be greater than zero')
+    }
+
+    const {wallet, seed} = await this.unlock(walletId, password)
+    const network = wallet.network
+
+    const outputScript = coreAddressToScript(toCoreAddress, network)
+
+    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identity = identities.find(entry => entry.identifier === identityIdentifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+
+    const balance = await this.platformSDK(network).identities.getIdentityBalance(identityIdentifier)
+    if (balance < amountCredits + WITHDRAWAL_FEE_CREDITS) {
+      throw new Error('Identity has insufficient credits for this withdrawal plus fee')
+    }
+
+    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+
+    const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(identityIdentifier) + 1n
+
+    const unsignedSt = this.platformSDK(network).identities.createStateTransition('withdrawal', {
+      identityId: identityIdentifier,
+      amount: amountCredits,
+      coreFeePerByte: CORE_FEE_PER_BYTE,
+      pooling: 'Never',
+      identityNonce,
+      outputScript,
+    })
+
+    const signature = unsignedSt.sign(privateKey, publicKey)
+    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
+      unsignedSt.signature = signature
+      unsignedSt.signaturePublicKeyId = publicKey.keyId
+    }
+
+    await this.platformSDK(network).stateTransitions.broadcast(unsignedSt)
+    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(unsignedSt)
+
+    return {
+      stHash: unsignedSt.hash(false),
+      amountCredits: amountCredits.toString(),
+      feeCredits: WITHDRAWAL_FEE_CREDITS.toString(),
+      fromAddress: identityIdentifier,
+      toAddress: toCoreAddress,
+    }
+  }
+
   async shieldToPool(
     walletId: string,
     fromPlatformAddress: string,

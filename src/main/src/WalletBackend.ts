@@ -37,6 +37,7 @@ import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromA
 import {WithdrawPlatformCreditsHandler} from "./api/wallet/withdrawPlatformCredits";
 import {SendIdentityCreditsHandler} from "./api/wallet/sendIdentityCredits";
 import {TransferIdentityCreditsHandler} from "./api/wallet/transferIdentityCredits";
+import {WithdrawIdentityCreditsHandler} from "./api/wallet/withdrawIdentityCredits";
 import {CreateIdentityFromAddressesHandler} from "./api/wallet/createIdentityFromAddresses";
 import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
 import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
@@ -125,6 +126,7 @@ export class WalletBackend {
     ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('sendIdentityCredits', new SendIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('transferIdentityCredits', new TransferIdentityCreditsHandler(this.platformAddressService).handle)
+    ipcMain.handle('withdrawIdentityCredits', new WithdrawIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)

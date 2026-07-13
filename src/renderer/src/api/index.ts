@@ -149,6 +149,10 @@ export class API {
     return this.api.transferIdentityCredits(walletId, fromIdentityId, toIdentityId, amountCredits, password) as Promise<PlatformSendResult>
   }
 
+  static async withdrawIdentityCredits(walletId: string, identityId: string, toCoreAddress: string, amountCredits: string, password: string): Promise<PlatformSendResult> {
+    return this.api.withdrawIdentityCredits(walletId, identityId, toCoreAddress, amountCredits, password) as Promise<PlatformSendResult>
+  }
+
   static async createIdentityFromAddresses(walletId: string, fromAddress: string | null, amountCredits: string, password: string): Promise<IdentityCreateResult> {
     return this.api.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password) as Promise<IdentityCreateResult>
   }

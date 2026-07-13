@@ -325,7 +325,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'addressWithdrawal' && (
+      {(operation === 'addressWithdrawal' || operation === 'identityWithdrawal') && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Cross-chain withdrawal</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -460,6 +460,9 @@ export default function TransferHub(): React.JSX.Element {
     if (operation === 'identityToIdentity') {
       return API.transferIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
     }
+    if (operation === 'identityWithdrawal') {
+      return API.withdrawIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
+    }
     if (operation === 'identityCreate') {
       return API.createIdentityFromAddresses(walletId, sourceAddress, amountCredits.toString(), password)
         .then(result => ({
@@ -474,7 +477,8 @@ export default function TransferHub(): React.JSX.Element {
   }
 
   const isPlatformModalOperation = operation === 'addressFundsTransfer' || operation === 'identityTopUp'
-    || operation === 'addressWithdrawal' || operation === 'identityToAddress' || operation === 'identityToIdentity' || operation === 'identityCreate'
+    || operation === 'addressWithdrawal' || operation === 'identityWithdrawal'
+    || operation === 'identityToAddress' || operation === 'identityToIdentity' || operation === 'identityCreate'
   const isShieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
 
   return (
