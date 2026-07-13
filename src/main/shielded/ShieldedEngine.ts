@@ -1,7 +1,6 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
   IdentityCreateFromShieldedPoolTransitionWASM,
-  IdentityPublicKeyInCreationWASM,
   OrchardAddressWASM,
   OutPointWASM,
   PrivateKeyWASM,
@@ -170,7 +169,7 @@ export class ShieldedEngine {
           const keys = this.buildIdentityCreationKeys(seed, network, command.identityIndex)
           stateTransition = await this.sdk.shielded.createStateTransition('identityCreateFromShieldedPool', {
             ...base,
-            publicKeys: keys.publicKeys as unknown as IdentityPublicKeyInCreation[],
+            publicKeys: keys.publicKeys,
             privateKeys: keys.privateKeys,
             denomination: amount,
             sendToAddressOnCreationFailure: command.failureAddress,
@@ -346,7 +345,10 @@ export class ShieldedEngine {
     return transition.actions.map((action) => action.nullifier)
   }
 
-  private buildIdentityCreationKeys(seed: Uint8Array, network: Network, identityIndex: number): {publicKeys: IdentityPublicKeyInCreationWASM[]; privateKeys: PrivateKeyWASM[]} {
+  // The SDK's shielded.createStateTransition destructures plain
+  // {id, purpose, ...} objects and builds the WASM key instances itself —
+  // passing IdentityPublicKeyInCreationWASM here breaks (its field is keyId).
+  private buildIdentityCreationKeys(seed: Uint8Array, network: Network, identityIndex: number): {publicKeys: IdentityPublicKeyInCreation[]; privateKeys: PrivateKeyWASM[]} {
     const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
     const privateKeys = IDENTITY_KEY_DEFINITIONS.map(({id}) => {
       const derived = this.sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, id, network)
@@ -355,8 +357,14 @@ export class ShieldedEngine {
       }
       return PrivateKeyWASM.fromBytes(derived.privateKey, network)
     })
-    const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}, i) =>
-      new IdentityPublicKeyInCreationWASM(id, purpose, securityLevel, keyType, false, Uint8Array.from(privateKeys[i].getPublicKey().bytes())))
+    const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}, i) => ({
+      id,
+      purpose,
+      securityLevel,
+      keyType,
+      readOnly: false,
+      data: Uint8Array.from(privateKeys[i].getPublicKey().bytes()),
+    }))
     return {publicKeys, privateKeys}
   }
 
