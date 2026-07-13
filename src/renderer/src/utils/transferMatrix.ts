@@ -36,20 +36,6 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
   },
 }
 
-export const SUPPORTED_OPERATIONS: ReadonlySet<TransferOperation> = new Set([
-  'coreSend',
-  'assetLockFunding',
-  'addressFundsTransfer',
-  'identityTopUp',
-  'identityCreate',
-  'addressWithdrawal',
-  'shield',
-  'identityToAddress',
-  'shieldedTransfer',
-  'unshield',
-  'shieldedWithdrawal',
-])
-
 const COMBO_REASONS: Partial<Record<`${SourceKind}->${DestinationKind}`, string>> = {
   'core->identity': 'Fund a Platform address first, then top up the identity from it.',
   'core->newIdentity': 'Fund a Platform address first, then create the identity from it.',
@@ -63,20 +49,12 @@ const COMBO_REASONS: Partial<Record<`${SourceKind}->${DestinationKind}`, string>
 }
 
 export function resolveOperation(from: SourceKind, to: DestinationKind): TransferOperation | null {
-  const operation = MATRIX[from][to]
-  if (operation == null || !SUPPORTED_OPERATIONS.has(operation)) {
-    return null
-  }
-  return operation
+  return MATRIX[from][to] ?? null
 }
 
 export function unsupportedReason(from: SourceKind, to: DestinationKind): string | null {
-  const operation = MATRIX[from][to]
-  if (operation != null && SUPPORTED_OPERATIONS.has(operation)) {
+  if (MATRIX[from][to] != null) {
     return null
-  }
-  if (operation != null) {
-    return 'This transfer type is coming soon.'
   }
   return COMBO_REASONS[`${from}->${to}`] ?? 'This combination is not supported.'
 }

@@ -99,6 +99,25 @@ export class WalletDAO {
     }
   }
 
+  getShieldedAddressCount = async (walletId: string): Promise<number> => {
+    const rows = await this.knex('wallet')
+      .select('shielded_address_count')
+      .where('wallet_id', walletId)
+      .limit(1)
+
+    if (rows.length === 0) {
+      return 1
+    }
+
+    return rows[0].shielded_address_count
+  }
+
+  setShieldedAddressCount = async (walletId: string, count: number): Promise<void> => {
+    await this.knex('wallet')
+      .update({shielded_address_count: count})
+      .where('wallet_id', walletId)
+  }
+
   setPlatformXpub = async (walletId: string, platformXpub: string): Promise<void> => {
     await this.knex('wallet')
       .update({platform_xpub: platformXpub})

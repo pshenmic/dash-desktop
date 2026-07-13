@@ -5,7 +5,6 @@ import {
   MIN_OUTPUT_CREDITS,
   TRANSFER_FEE_CREDITS,
   identityTransferFeeCredits,
-  addressTransferFeeCredits,
   identityCreateFeeCredits,
   topUpFeeCredits,
 } from '../../src/main/src/utils/platformTransfer'
@@ -64,11 +63,6 @@ describe('platform fee helpers', () => {
   it('identity transfer fee scales with recipient count', () => {
     expect(identityTransferFeeCredits(1)).toBe(6_500_000n)
     expect(identityTransferFeeCredits(3)).toBe(18_500_000n)
-  })
-
-  it('address transfer fee for one input and one output matches the legacy constant', () => {
-    expect(addressTransferFeeCredits(1, 1)).toBe(TRANSFER_FEE_CREDITS)
-    expect(addressTransferFeeCredits(2, 3)).toBe(19_000_000n)
   })
 
   it('identity create fee scales with public key count', () => {

@@ -184,4 +184,12 @@ export class API {
   static async getShieldedAddress(walletId: string, password?: string): Promise<string | null> {
     return this.api.getShieldedAddress(walletId, password) as Promise<string | null>
   }
+
+  static async getShieldedAddresses(walletId: string, password?: string): Promise<string[] | null> {
+    return this.api.getShieldedAddresses(walletId, password) as Promise<string[] | null>
+  }
+
+  static async addShieldedAddress(walletId: string, password: string): Promise<string[]> {
+    return this.api.addShieldedAddress(walletId, password) as Promise<string[]>
+  }
 }

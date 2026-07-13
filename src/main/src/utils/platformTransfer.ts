@@ -17,10 +17,6 @@ export function identityTransferFeeCredits(recipientCount: number): bigint {
   return 500_000n + 6_000_000n * BigInt(recipientCount)
 }
 
-export function addressTransferFeeCredits(inputCount: number, outputCount: number): bigint {
-  return 500_000n * BigInt(inputCount) + 6_000_000n * BigInt(outputCount)
-}
-
 export function identityCreateFeeCredits(publicKeyCount: number): bigint {
   return 2_000_000n + 6_500_000n * BigInt(publicKeyCount)
 }

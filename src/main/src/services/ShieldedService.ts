@@ -75,7 +75,7 @@ export class ShieldedService {
   private proverError: string | null = null
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
-  private addresses = new Map<string, string>()
+  private addresses = new Map<string, string[]>()
   private pendingSyncs = new Map<string, string>()
   private pendingSpends = new Map<string, string>()
   private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
@@ -245,18 +245,37 @@ export class ShieldedService {
   }
 
   async getAddress(walletId: string, password?: string): Promise<string | null> {
+    const list = await this.getAddresses(walletId, password)
+    return list != null && list.length > 0 ? list[0] : null
+  }
+
+  async getAddresses(walletId: string, password?: string): Promise<string[] | null> {
     const cached = this.addresses.get(walletId)
     if (cached != null) return cached
     if (password == null || password.length === 0) return null
 
     const {seed, network} = await this.unlock(walletId, password)
-    return this.cacheAddress(walletId, seed, network)
+    return this.cacheAddresses(walletId, seed, network)
   }
 
-  private cacheAddress(walletId: string, seed: Uint8Array, network: Network): string {
-    const address = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT).toBech32m(network)
-    this.addresses.set(walletId, address)
-    return address
+  async addAddress(walletId: string, password: string): Promise<string[]> {
+    const {seed, network} = await this.unlock(walletId, password)
+    const count = await this.walletDAO.getShieldedAddressCount(walletId)
+    await this.walletDAO.setShieldedAddressCount(walletId, count + 1)
+    return this.cacheAddresses(walletId, seed, network)
+  }
+
+  // All diversified addresses of the account share one incoming viewing key,
+  // so sync/spend in the worker are unaffected by how many exist — only
+  // derivation for display happens here.
+  private async cacheAddresses(walletId: string, seed: Uint8Array, network: Network): Promise<string[]> {
+    const count = await this.walletDAO.getShieldedAddressCount(walletId)
+    const list: string[] = []
+    for (let i = 0; i < count; i++) {
+      list.push(this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
+    }
+    this.addresses.set(walletId, list)
+    return list
   }
 
   private async unlock(walletId: string, password: string): Promise<{seed: Uint8Array; network: Network}> {
@@ -313,7 +332,7 @@ export class ShieldedService {
 
     try {
       const {seed, network} = await this.unlock(walletId, password)
-      this.cacheAddress(walletId, seed, network)
+      await this.cacheAddresses(walletId, seed, network)
       const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
 
       const requestId = randomUUID()
@@ -359,7 +378,7 @@ export class ShieldedService {
       if (amountCredits <= 0n) throw new Error('Amount must be greater than zero')
 
       const {seed, network} = await this.unlock(walletId, password)
-      this.cacheAddress(walletId, seed, network)
+      await this.cacheAddresses(walletId, seed, network)
       const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
 
       const requestId = randomUUID()

@@ -21,7 +21,6 @@ export default function ReceiveAddressCard({
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
-    <div className={"px-12 mt-12"}>
       <div className={"flex items-center gap-8 rounded-4xl dash-block p-6  max-w-190"}>
         <QRCode
           value={qrValue}
@@ -70,6 +69,5 @@ export default function ReceiveAddressCard({
           </Text>
         </div>
       </div>
-    </div>
   )
 }

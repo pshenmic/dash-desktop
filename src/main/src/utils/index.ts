@@ -12,6 +12,7 @@ import * as migration0005 from '../../migrations/0005_contacts'
 import * as migration0006 from '../../migrations/0006_asset_lock_fundings'
 import * as migration0007 from '../../migrations/0007_shielded_spent_notes'
 import * as migration0008 from '../../migrations/0008_platform_xpub'
+import * as migration0009 from '../../migrations/0009_shielded_address_count'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -23,6 +24,7 @@ const migrations = [
   { name: '0006_asset_lock_fundings.ts', migration: migration0006 },
   { name: '0007_shielded_spent_notes.ts', migration: migration0007 },
   { name: '0008_platform_xpub.ts', migration: migration0008 },
+  { name: '0009_shielded_address_count.ts', migration: migration0009 },
 ]
 
 const inlineMigrationSource = {
