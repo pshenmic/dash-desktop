@@ -1,4 +1,6 @@
+import { useNavigate } from "react-router-dom";
 import { Tabs } from "dash-ui-kit/react";
+import { Button } from "@renderer/components/dash-ui-kit-enxtended";
 import { useIdentities } from "@renderer/hooks/useIdentities";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import IdentityCard from "./IdentityCard";
@@ -16,6 +18,7 @@ export interface Identity {
 }
 
 export default function Identities(): React.JSX.Element {
+  const navigate = useNavigate()
   const { status } = useAuth()
   const { identities, loading, err } = useIdentities(status?.selectedWalletId ?? undefined)
 
@@ -54,7 +57,12 @@ export default function Identities(): React.JSX.Element {
 
   return (
     <div className={"w-full px-12 pb-12 "}>
-      <div className={"shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-[.9375rem]"}>
+      <div className={"relative shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-[.9375rem]"}>
+        <div className={"absolute right-[.9375rem] top-[.9375rem] z-10"}>
+          <Button colorScheme={"lightBlue-mint"} size={"sm"} onClick={() => navigate('/send?from=core&to=newIdentity')}>
+            Register identity
+          </Button>
+        </div>
         <Tabs
           items={assetsList}
           value={'your-identities'}

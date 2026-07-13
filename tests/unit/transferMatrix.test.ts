@@ -15,7 +15,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     coreAddress: 'coreSend',
     platformAddress: 'assetLockFunding',
     identity: null,
-    newIdentity: null,
+    newIdentity: 'identityRegister',
     shielded: 'assetLockShield',
   },
   platformAddress: {

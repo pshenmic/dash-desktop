@@ -36,6 +36,7 @@ import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
 import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
+import RegisterIdentityModal from "@renderer/components/modal/RegisterIdentityModal";
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
@@ -305,6 +306,15 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
+      {operation === 'identityRegister' && (
+        <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <Text size={14} weight={"extrabold"} color={"brand"}>New Platform identity</Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+            Locks Dash on L1 and registers a new identity funded with the locked amount as credits. The registration waits for the network to lock the transaction — usually seconds, but keep the app open until it finishes.
+          </Text>
+        </div>
+      )}
+
       {operation === 'addressWithdrawal' && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Cross-chain withdrawal</Text>
@@ -555,6 +565,22 @@ export default function TransferHub(): React.JSX.Element {
           resume={false}
           kind={operation === 'assetLockShield' ? 'shielded' : 'address'}
           onSuccess={resetForm}
+        />
+      )}
+
+      {operation === 'identityRegister' && (
+        <RegisterIdentityModal
+          isOpen={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          walletId={walletId}
+          amountDuffs={amountDuffs.toString()}
+          onSuccess={() => {
+            resetForm()
+            if (walletId) {
+              refreshBalance(walletId)
+              refreshTransactions(walletId)
+            }
+          }}
         />
       )}
 
