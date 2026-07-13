@@ -11,7 +11,7 @@ describe('buildAssetLockOutputs', () => {
   it('builds an OP_RETURN burn output carrying the locked amount', () => {
     const {burnOutput} = buildAssetLockOutputs(AMOUNT, creditAddress)
     expect(burnOutput.satoshis).toBe(AMOUNT)
-    expect(burnOutput.hex()).toBe('a086010000000000016a')
+    expect(burnOutput.hex()).toBe('a086010000000000026a00')
   })
 
   it('builds a version-1 payload with a single p2pkh credit output', () => {

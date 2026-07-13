@@ -10,6 +10,7 @@ export function buildAssetLockOutputs(amountDuffs: bigint, creditAddress: string
   }
   const burnScript = new Script()
   burnScript.pushOpCode('OP_RETURN')
+  burnScript.pushOpCode('OP_0')
   const burnOutput = new Output(amountDuffs, burnScript)
   const creditOutput = Output.createP2PKH(amountDuffs, creditAddress)
   return {burnOutput, extraPayload: new AssetLockTx(ASSET_LOCK_PAYLOAD_VERSION, 1, [creditOutput])}
