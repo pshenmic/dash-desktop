@@ -12,8 +12,8 @@ import {
   PrivateKeyWASM,
   IdentityPublicKeyWASM,
 } from 'dash-platform-sdk/types.js'
-import {ShieldedMemoWASM} from 'pshenmic-dpp'
 import {WalletDAO} from '../database/WalletDAO'
+import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
@@ -43,7 +43,6 @@ const PLATFORM_ACCOUNT = 0
 const PLATFORM_ADDRESS_LOOKAHEAD = 20
 const IDENTITY_KEY_LOOKAHEAD = 20
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-const SHIELDED_ACCOUNT = 0
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
 // The account-level xpub is persisted per wallet so the address list derives
@@ -52,11 +51,13 @@ export class PlatformAddressService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private sdk: DashPlatformSDK
+  private shieldedService: ShieldedService
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, sdk: DashPlatformSDK) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, sdk: DashPlatformSDK, shieldedService: ShieldedService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.sdk = sdk
+    this.shieldedService = shieldedService
   }
 
   async getPlatformAddresses(walletId: string): Promise<PlatformAddressEntry[]> {
@@ -425,30 +426,15 @@ export class PlatformAddressService {
 
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
-    const privateKey = await this.sdk.keyPair.derivePlatformAddressPrivateKey(seed, network, PLATFORM_ACCOUNT, source.index)
-
-    const recipient = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
-    const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
-
-    const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, source.balanceCredits)]
-    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
-
-    const stateTransition = await this.sdk.shielded.createStateTransition('shield', {
-      recipient,
-      shieldAmount: amountCredits,
-      inputs,
-      privateKeys: [privateKey],
-      feeStrategy,
-      userFeeIncrease: 0,
-      memo: ShieldedMemoWASM.empty() as unknown as string,
-      senderOvk,
-    })
-
-    await this.sdk.stateTransitions.broadcast(stateTransition)
-    await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+    const stHash = await this.shieldedService.shield(network, seed, {
+      platformAddress: source.platformAddress,
+      nonce: source.nonce,
+      balanceCredits: source.balanceCredits.toString(),
+      index: source.index,
+    }, amountCredits)
 
     return {
-      stHash: stateTransition.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       fromAddress: source.platformAddress,
     }

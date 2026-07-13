@@ -3,7 +3,7 @@ import { API } from '@renderer/api'
 import { Network, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { useAsyncWithCache } from './useAsyncWithCache'
 
-const INITIAL_STATUS: ShieldedStatus = { warmup: 'idle', ready: false, error: null }
+const INITIAL_STATUS: ShieldedStatus = { prover: 'idle', ready: false, error: null }
 
 export function useShieldedStatus(): ShieldedStatus {
   const [status, setStatus] = useState<ShieldedStatus>(INITIAL_STATUS)
@@ -17,7 +17,7 @@ export function useShieldedStatus(): ShieldedStatus {
         const next = await API.getShieldedStatus()
         if (dead) return
         setStatus(next)
-        if (next.warmup !== 'ready' && next.warmup !== 'error') {
+        if (next.prover !== 'ready' && next.prover !== 'error') {
           timer = setTimeout(() => { void poll() }, 1500)
         }
       } catch {

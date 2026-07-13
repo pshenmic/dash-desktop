@@ -9,8 +9,8 @@ import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { formatCredits, formatCompactCredits } from '@renderer/utils/balance'
 import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 
-function WarmupBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
-  if (status.warmup === 'ready') {
+function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
+  if (status.prover === 'ready') {
     return (
       <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5"}>
         <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
@@ -19,7 +19,7 @@ function WarmupBadge({ status }: { status: ShieldedStatus }): React.JSX.Element 
     )
   }
 
-  if (status.warmup === 'error') {
+  if (status.prover === 'error') {
     return (
       <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3"}>
         <ErrorIcon size={14} />
@@ -104,7 +104,7 @@ export default function ShieldedPage(): React.JSX.Element {
   const network = status?.network ?? null
   const walletId = status?.selectedWalletId ?? null
 
-  const warmup = useShieldedStatus()
+  const prover = useShieldedStatus()
   const { poolInfo } = useShieldedPoolInfo(network ?? undefined)
   const { platformAddresses } = usePlatformAddresses(walletId ?? undefined)
   const sync = useShieldedSyncState(walletId)
@@ -136,7 +136,7 @@ export default function ShieldedPage(): React.JSX.Element {
             Private Orchard transactions. Move funds between your transparent and shielded balance, where the link between sender and recipient stays hidden.
           </Text>
         </div>
-        <WarmupBadge status={warmup} />
+        <ProverBadge status={prover} />
       </div>
 
       <div className={"flex flex-col gap-4 w-full max-w-160"}>

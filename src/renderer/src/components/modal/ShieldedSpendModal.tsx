@@ -15,7 +15,7 @@ interface ShieldedSpendModalProps {
   toLabel: string
   toValue: string
   amountCredits: string
-  warmupReady: boolean
+  proverReady: boolean
   start: (password: string) => Promise<ShieldedSpendState>
   onSuccess: () => void
 }
@@ -64,7 +64,7 @@ export default function ShieldedSpendModal({
   toLabel,
   toValue,
   amountCredits,
-  warmupReady,
+  proverReady,
   start,
   onSuccess,
 }: ShieldedSpendModalProps): React.JSX.Element | null {
@@ -123,7 +123,7 @@ export default function ShieldedSpendModal({
   const running = started && spend != null && spend.phase !== 'done' && spend.phase !== 'error'
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || !warmupReady || started) return
+    if (!walletId || password.length === 0 || busy || !proverReady || started) return
     setBusy(true)
     setPreError(null)
     try {
@@ -159,7 +159,7 @@ export default function ShieldedSpendModal({
 
   const isDone = spend?.phase === 'done'
   const isError = started && spend?.phase === 'error'
-  const confirmLabel = busy ? 'Starting…' : !warmupReady ? 'Preparing…' : 'Confirm & Send'
+  const confirmLabel = busy ? 'Starting…' : !proverReady ? 'Preparing…' : 'Confirm & Send'
 
   return createPortal(
     <div
@@ -222,7 +222,7 @@ export default function ShieldedSpendModal({
               <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"md"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !warmupReady} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
                 {confirmLabel}
               </Button>

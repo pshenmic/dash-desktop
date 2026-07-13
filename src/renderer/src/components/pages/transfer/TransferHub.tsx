@@ -4,7 +4,7 @@ import { DashLogo, BigNumber } from "dash-ui-kit/react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 import Checkbox from "@renderer/components/ui/Checkbox";
-import WarmupPill from "@renderer/components/pages/shielded/WarmupPill";
+import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
 import { useFiat } from "@renderer/hooks/useFiat";
@@ -87,7 +87,7 @@ export default function TransferHub(): React.JSX.Element {
   const { platformAddresses } = usePlatformAddresses(walletId ?? undefined)
   const { identities } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
-  const warmup = useShieldedStatus()
+  const prover = useShieldedStatus()
 
   const operation = resolveOperation(fromKind, toKind)
   const reason = unsupportedReason(fromKind, toKind)
@@ -445,7 +445,7 @@ export default function TransferHub(): React.JSX.Element {
             Move funds between your Dash wallet, Platform addresses, identities and the shielded pool. Pick where the funds come from and where they go.
           </Text>
         </div>
-        {shieldedInvolved && <WarmupPill status={warmup} />}
+        {shieldedInvolved && <ProverPill status={prover} />}
       </div>
 
       {resumableFunding && (
@@ -504,7 +504,7 @@ export default function TransferHub(): React.JSX.Element {
           walletId={walletId}
           fromAddress={selectedSource?.platformAddress ?? ''}
           amountCredits={amountCredits.toString()}
-          warmupReady={warmup.ready}
+          proverReady={prover.ready}
           onSuccess={resetForm}
         />
       )}
@@ -518,7 +518,7 @@ export default function TransferHub(): React.JSX.Element {
           toLabel={operation === 'shieldedTransfer' ? 'To (shielded)' : operation === 'unshield' ? 'To (Platform)' : 'To (Core L1)'}
           toValue={trimmedTo}
           amountCredits={amountCredits.toString()}
-          warmupReady={warmup.ready}
+          proverReady={prover.ready}
           start={startShieldedSpend}
           onSuccess={resetForm}
         />

@@ -175,7 +175,7 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.shieldedService = new ShieldedService(dashPlatformSDK, walletDAO, new ShieldedNoteDAO(knex))
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
-    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, dashPlatformSDK)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, dashPlatformSDK, this.shieldedService)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, dashPlatformSDK)
     this.addressDAO = addressDAO
 
@@ -186,5 +186,6 @@ export class WalletBackend {
 
   async shutdown(): Promise<void> {
     await this.walletSyncService?.shutdown()
+    await this.shieldedService?.shutdown()
   }
 }

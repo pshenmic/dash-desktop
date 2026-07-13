@@ -1,0 +1,314 @@
+import {DashPlatformSDK} from 'dash-platform-sdk'
+import {
+  OrchardAddressWASM,
+  RecoveredNoteWASM,
+  ShieldedMemoWASM,
+  ShieldedTransferTransitionWASM,
+  ShieldedWithdrawalTransitionWASM,
+  StateTransitionWASM,
+  UnshieldTransitionWASM,
+} from 'pshenmic-dpp'
+import {InputAddressWASM, AddressFundsFeeStrategyStepWASM} from 'dash-platform-sdk/types.js'
+import {Network} from '../src/types'
+import {coreAddressToScript} from '../src/utils/coreScript'
+import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
+import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind} from './types/messages'
+
+type SyncCommand = Extract<ShieldedCommand, {type: 'sync'}>
+type SpendCommand = Extract<ShieldedCommand, {type: 'spend'}>
+type ShieldCommand = Extract<ShieldedCommand, {type: 'shield'}>
+
+type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShieldedEncryptedNotes']>>[number]
+
+const SHIELDED_ACCOUNT = 0
+const PLATFORM_ACCOUNT = 0
+// getShieldedEncryptedNotes requires startIndex to be chunk-aligned (a multiple
+// of 2048); 8192 is the SDK max-per-query and a multiple of 2048, so advancing
+// the cursor by full batches keeps every startIndex aligned.
+const SHIELDED_SYNC_BATCH = 8192
+const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
+const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
+// Platform caps state transitions at ~20KB and the Halo2 proof grows with the
+// number of Orchard actions, so spends are limited to 6 notes per transition.
+const MAX_SPEND_NOTES = 6
+const SPEND_FEE_CREDITS = 6_500_000n
+// Notes spent before local bookkeeping existed (or by another install) are
+// only detectable on-chain: a built transition exposes its action nullifiers,
+// so stale selections are caught before broadcast and repaired by re-selecting.
+const MAX_SPEND_ATTEMPTS = 3
+
+export class ShieldedEngine {
+  private sdk: DashPlatformSDK
+  private emit: (event: ShieldedEvent) => void
+  private proverReady = false
+  private proverInit: Promise<void> | null = null
+
+  constructor(sdk: DashPlatformSDK, emit: (event: ShieldedEvent) => void) {
+    this.sdk = sdk
+    this.emit = emit
+  }
+
+  async initProver(): Promise<void> {
+    if (this.proverReady) {
+      this.emit({type: 'proverStatus', state: 'ready', error: null})
+      return
+    }
+    if (this.proverInit == null) {
+      this.emit({type: 'proverStatus', state: 'preparing', error: null})
+      this.proverInit = this.sdk.shielded.init().then(() => {
+        this.proverReady = true
+        this.emit({type: 'proverStatus', state: 'ready', error: null})
+      }).catch(e => {
+        this.proverInit = null
+        const message = e instanceof Error ? e.message : String(e)
+        console.error('[shielded] prover init failed', e)
+        this.emit({type: 'proverStatus', state: 'error', error: message})
+        throw e
+      })
+    }
+    await this.proverInit
+  }
+
+  async sync(command: SyncCommand): Promise<void> {
+    try {
+      this.sdk.setNetwork(command.network)
+
+      const all = await this.fetchAllNotes((fetched, total) =>
+        this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'syncing', fetched, total}))
+
+      this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'recovering', fetched: all.length, total: all.length})
+      const recovered = this.sdk.shielded.recoverNotes(all, command.seed, SHIELDED_ACCOUNT)
+      const spent = new Set(command.spentIndexes)
+
+      let balance = 0n
+      const notes: ShieldedNoteSnapshot[] = []
+      for (const note of recovered) {
+        const value = note.note.value
+        const isSpent = spent.has(note.index)
+        if (!isSpent) balance += value
+        notes.push({ index: note.index, amount: value.toString(), spent: isSpent })
+      }
+      notes.sort((a, b) => b.index - a.index)
+
+      this.emit({type: 'syncResult', requestId: command.requestId, ok: true, balance: balance.toString(), notes, error: null})
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error('Shielded note sync failed', e)
+      this.emit({type: 'syncResult', requestId: command.requestId, ok: false, balance: null, notes: [], error: message})
+    }
+  }
+
+  async spend(command: SpendCommand): Promise<void> {
+    const {requestId, seed, network, kind} = command
+    try {
+      const amount = BigInt(command.amountCredits)
+      if (amount <= 0n) throw new Error('Amount must be greater than zero')
+
+      this.sdk.setNetwork(network)
+      await this.initProver()
+      const coinType = COIN_TYPE[network]
+
+      const all = await this.fetchAllNotes((fetched, total) =>
+        this.emit({type: 'spendProgress', requestId, phase: 'syncing', fetched, total}))
+
+      const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
+      const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+      const memo = ShieldedMemoWASM.empty() as unknown as string
+      const spent = new Set(command.spentIndexes)
+
+      for (let attempt = 0; ; attempt++) {
+        const unspent = recovered.filter((note) => !spent.has(note.index))
+        if (unspent.length === 0) throw new Error('No shielded notes available to spend')
+
+        const selectable = unspent.map((note) => ({ index: note.index, value: note.note.value }))
+        const selection = selectSpendNotes(selectable, amount + SPEND_FEE_CREDITS, MAX_SPEND_NOTES)
+        if (selection == null) {
+          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, SPEND_FEE_CREDITS)
+          throw new Error(
+            `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
+            `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
+            `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+          )
+        }
+        const selectedIndexes = new Set(selection.selected.map((note) => note.index))
+        const toSpend = unspent.filter((note) => selectedIndexes.has(note.index))
+
+        const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, toSpend)
+
+        this.emit({type: 'spendProgress', requestId, phase: 'proving', fetched: all.length, total: all.length})
+        const base = { spends, changeAddress, seed, coinType, account: SHIELDED_ACCOUNT, anchor, memo }
+        let stateTransition: StateTransitionWASM
+        if (kind === 'transfer') {
+          stateTransition = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
+            ...base,
+            recipient: OrchardAddressWASM.fromBech32m(command.recipient),
+            transferAmount: amount,
+          })
+        } else if (kind === 'unshield') {
+          stateTransition = await this.sdk.shielded.createStateTransition('unshield', {
+            ...base,
+            outputAddress: command.recipient,
+            unshieldAmount: amount,
+          })
+        } else {
+          stateTransition = await this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
+            ...base,
+            withdrawalAmount: amount,
+            outputScript: coreAddressToScript(command.recipient, network),
+            coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
+            pooling: 'Never',
+          })
+        }
+
+        const nullifiers = this.extractActionNullifiers(stateTransition, kind)
+        const statuses = await this.sdk.shielded.getShieldedNullifiers(nullifiers)
+        if (statuses.some((status) => status.isSpent)) {
+          if (attempt >= MAX_SPEND_ATTEMPTS - 1) {
+            throw new Error('Selected notes were already spent on-chain. Re-sync your notes and try again.')
+          }
+          console.warn('[shielded] selection includes already-spent notes, probing', toSpend.map((n) => n.index))
+          const stale = await this.probeSpentNotes(all, toSpend, seed, network)
+          if (stale.length === 0) {
+            throw new Error('An already-spent note was detected but could not be identified. Re-sync your notes and try again.')
+          }
+          stale.forEach(index => spent.add(index))
+          this.emit({type: 'notesSpent', requestId, indexes: stale})
+          console.warn('[shielded] marked stale notes as spent, retrying', stale)
+          continue
+        }
+
+        const stBytes = stateTransition.bytes()
+        console.log('[shielded] state transition ready', {
+          kind,
+          spends: spends.length,
+          sizeBytes: stBytes.length,
+          hash: stateTransition.hash(false),
+        })
+
+        this.emit({type: 'spendProgress', requestId, phase: 'broadcasting', fetched: all.length, total: all.length})
+        await this.sdk.stateTransitions.broadcast(stateTransition)
+        this.emit({type: 'notesSpent', requestId, indexes: toSpend.map((note) => note.index)})
+        await this.waitForResult(stateTransition, kind)
+
+        this.emit({type: 'spendResult', requestId, ok: true, stHash: stateTransition.hash(false), error: null})
+        return
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error('Shielded spend failed', e)
+      this.emit({type: 'spendResult', requestId, ok: false, stHash: null, error: message})
+    }
+  }
+
+  async shield(command: ShieldCommand): Promise<void> {
+    const {requestId, seed, network, source} = command
+    try {
+      this.sdk.setNetwork(network)
+      await this.initProver()
+
+      const privateKey = await this.sdk.keyPair.derivePlatformAddressPrivateKey(seed, network, PLATFORM_ACCOUNT, source.index)
+      const recipient = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+      const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
+
+      const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, BigInt(source.balanceCredits))]
+      const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
+
+      const stateTransition = await this.sdk.shielded.createStateTransition('shield', {
+        recipient,
+        shieldAmount: BigInt(command.amountCredits),
+        inputs,
+        privateKeys: [privateKey],
+        feeStrategy,
+        userFeeIncrease: 0,
+        memo: ShieldedMemoWASM.empty() as unknown as string,
+        senderOvk,
+      })
+
+      await this.sdk.stateTransitions.broadcast(stateTransition)
+      await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+
+      this.emit({type: 'shieldResult', requestId, ok: true, stHash: stateTransition.hash(false), error: null})
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error('Shield failed', e)
+      this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
+    }
+  }
+
+  private async fetchAllNotes(onProgress: (fetched: number, total: number) => void): Promise<EncryptedNote[]> {
+    const totalBig = await this.sdk.shielded.getShieldedNotesCount()
+    const total = totalBig != null ? Number(totalBig) : 0
+    onProgress(0, total)
+
+    const all: EncryptedNote[] = []
+    while (all.length < total) {
+      const count = Math.min(SHIELDED_SYNC_BATCH, total - all.length)
+      const batch = await this.sdk.shielded.getShieldedEncryptedNotes(BigInt(all.length), count)
+      if (batch.length === 0) break
+      all.push(...batch)
+      onProgress(all.length, total)
+    }
+    return all
+  }
+
+  private async waitForResult(st: StateTransitionWASM, kind: ShieldedSpendKind): Promise<void> {
+    try {
+      await this.sdk.stateTransitions.waitForStateTransitionResult(st)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      if (kind === 'withdrawal' && /withdrawals contract not available/i.test(message)) {
+        console.warn('[shielded] withdrawal included; skipping local proof verification (SDK lacks withdrawals contract):', message)
+        return
+      }
+      throw e
+    }
+  }
+
+  private extractActionNullifiers(st: StateTransitionWASM, kind: ShieldedSpendKind): Uint8Array[] {
+    const transition = kind === 'transfer'
+      ? ShieldedTransferTransitionWASM.fromStateTransition(st)
+      : kind === 'unshield'
+        ? UnshieldTransitionWASM.fromStateTransition(st)
+        : ShieldedWithdrawalTransitionWASM.fromStateTransition(st)
+    return transition.actions.map((action) => action.nullifier)
+  }
+
+  // Identifies which of the candidate notes are already spent on-chain. Own
+  // nullifiers can't be derived directly (no nullifier-key accessor in the
+  // SDK), so each note is probed by proving a throwaway single-note
+  // self-transfer — never broadcast — and checking its action nullifiers
+  // against the pool. Dummy actions carry random nullifiers and read unspent.
+  private async probeSpentNotes(
+    all: EncryptedNote[],
+    candidates: RecoveredNoteWASM[],
+    seed: Uint8Array,
+    network: Network,
+  ): Promise<number[]> {
+    const selfAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+    const spentIndexes: number[] = []
+    for (const candidate of candidates) {
+      let probe: StateTransitionWASM
+      try {
+        const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, [candidate])
+        probe = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
+          spends,
+          changeAddress: selfAddress,
+          seed,
+          coinType: COIN_TYPE[network],
+          account: SHIELDED_ACCOUNT,
+          anchor,
+          memo: ShieldedMemoWASM.empty() as unknown as string,
+          recipient: selfAddress,
+          transferAmount: 1n,
+        })
+      } catch (e) {
+        console.warn('[shielded] note probe failed, skipping note', candidate.index, e)
+        continue
+      }
+      const nullifiers = ShieldedTransferTransitionWASM.fromStateTransition(probe).actions.map((a) => a.nullifier)
+      const statuses = await this.sdk.shielded.getShieldedNullifiers(nullifiers)
+      if (statuses.some((status) => status.isSpent)) spentIndexes.push(candidate.index)
+    }
+    return spentIndexes
+  }
+}

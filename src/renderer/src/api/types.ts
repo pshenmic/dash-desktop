@@ -170,10 +170,10 @@ export interface ShieldResult {
 }
 
 // shielded
-export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
+export type ShieldedProverState = 'idle' | 'preparing' | 'ready' | 'error'
 
 export interface ShieldedStatus {
-  warmup: ShieldedWarmupState
+  prover: ShieldedProverState
   ready: boolean
   error: string | null
 }

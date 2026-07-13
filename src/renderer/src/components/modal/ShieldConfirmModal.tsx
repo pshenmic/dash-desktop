@@ -13,7 +13,7 @@ interface ShieldConfirmModalProps {
   walletId: string | null
   fromAddress: string
   amountCredits: string
-  warmupReady: boolean
+  proverReady: boolean
   onSuccess: () => void
 }
 
@@ -63,7 +63,7 @@ export default function ShieldConfirmModal({
   walletId,
   fromAddress,
   amountCredits,
-  warmupReady,
+  proverReady,
   onSuccess,
 }: ShieldConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
@@ -86,7 +86,7 @@ export default function ShieldConfirmModal({
   const shielding = phase === 'shielding'
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || shielding || !warmupReady) return
+    if (!walletId || password.length === 0 || shielding || !proverReady) return
     setPhase('shielding')
     setError(null)
     try {
@@ -105,7 +105,7 @@ export default function ShieldConfirmModal({
     onClose()
   }
 
-  const confirmLabel = shielding ? 'Shielding…' : !warmupReady ? 'Preparing…' : 'Confirm & Shield'
+  const confirmLabel = shielding ? 'Shielding…' : !proverReady ? 'Preparing…' : 'Confirm & Shield'
 
   return createPortal(
     <div
@@ -203,7 +203,7 @@ export default function ShieldConfirmModal({
               <Button
                 type={"button"}
                 onClick={handleConfirm}
-                disabled={password.length === 0 || shielding || !warmupReady}
+                disabled={password.length === 0 || shielding || !proverReady}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
                 size={"md"}

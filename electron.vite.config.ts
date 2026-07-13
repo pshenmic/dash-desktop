@@ -37,6 +37,7 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           p2p: resolve('src/main/p2p/index.ts'),
+          shielded: resolve('src/main/shielded/index.ts'),
         },
       },
     },
