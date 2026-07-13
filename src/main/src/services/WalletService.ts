@@ -542,7 +542,13 @@ export class WalletService {
       network,
     })
 
-    const txid = await provider.broadcastTx(tx)
+    let txid: string
+    try {
+      txid = await provider.broadcastTx(tx)
+    } catch (error) {
+      console.error('Asset lock broadcast failed, rawtx:', tx.hex())
+      throw error
+    }
 
     return {txid, creditAddress: credit.address, creditDerivationPath: credit.derivationPath}
   }
