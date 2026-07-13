@@ -59,6 +59,12 @@ and TypeScript. Three processes:
   utility process** (forked from `WalletSyncService`). It owns the peer pool,
   header/cfilter sync, and transaction broadcast. Communicates with the main
   process by message passing (`p2p/types/messages.ts`).
+- `src/main/shielded/` — the shielded (Orchard) subsystem runs in its own
+  **Electron utility process** (forked from `ShieldedService`): Halo2 prover,
+  note trial-decryption, proof building, ST broadcast. The main-process
+  `ShieldedService` is a facade that forwards commands and persists spent-note
+  bookkeeping (`shielded/types/messages.ts`). New utility-process entries must
+  be added to the `input` map in `electron.vite.config.ts`.
 
 **Layer structure (`src/main/src/`):**
 - `api/` — one IPC handler class per channel, each with
@@ -66,11 +72,23 @@ and TypeScript. Three processes:
   register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
 - `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
   `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
-- `services/` — business logic (`WalletService`, `WalletSyncService`,
-  `RatesService`, `ContactService`, `ApplicationService`) + pure helpers
-  (`coinSelection`, `dedupeTransactions`).
+- `services/` — business logic only (`WalletService`,
+  `PlatformAddressService`, `ShieldedService`, `WalletSyncService`,
+  `RatesService`, `ContactService`, `ApplicationService`, `AssetLockService`,
+  `CoreTransactionService`).
+- `utils/` — pure, unit-tested helpers (`coinSelection`, `dedupeTransactions`,
+  `platformTransfer`, `shieldedNoteSelection`, `coreScript`, `identityKeys`,
+  `assetLockTx`) + `utils/index.ts` (crypto/knex/migrations). Helper-only
+  modules go here, NOT in `services/`.
 - `providers/` — see "Connection modes" below.
 - `types/` — domain types with `fromRow` factories.
+
+**Platform (L2) addresses are DIP-17** (`m/9'/coinType'/17'/account'/0'/index`,
+account 0, lookahead 20). The account-level xpub is persisted in
+`wallet.platform_xpub` (backfilled on login/create in `WalletService`);
+`PlatformAddressService` derives the address list from the xpub without a
+password and derives per-index keys from the seed for signing. Platform
+addresses are NOT mirrors of L1 addresses anymore.
 
 ### Preload (`src/preload/`)
 
@@ -176,5 +194,5 @@ change) — see `dedupeTransactions`.
 - **No code comments unless they explain non-obvious *why*.** This codebase
   keeps comments sparse; do not add narrating comments.
 - Pure, branch-free logic (coin selection, formatting, validation, dedup, CSV)
-  is extracted into `utils/` or `services/` helpers and unit-tested in
-  `tests/unit/`. Prefer that over inlining testable logic into components.
+  is extracted into `utils/` helpers and unit-tested in `tests/unit/`. Prefer
+  that over inlining testable logic into components or services.
