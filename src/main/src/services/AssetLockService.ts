@@ -2,6 +2,7 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
   AssetLockProofWASM,
   AddressFundingFromAssetLockTransitionWASM,
+  AddressFundsFeeStrategyStepWASM,
   OutputAddressNullableCreditsWASM,
   PrivateKeyWASM,
 } from 'dash-platform-sdk/types.js'
@@ -135,13 +136,8 @@ export class AssetLockService {
   }
 
   private async failState(state: AssetLockFundingState, txid: string | null, error: unknown): Promise<void> {
-    state.phase = 'error'
     state.error = error instanceof Error ? error.message : String(error)
-    if (txid != null) {
-      try {
-        await this.assetLockDAO.updateStatus(txid, 'error', {error: state.error})
-      } catch {}
-    }
+    state.phase = txid != null ? 'resumable' : 'error'
   }
 
   private async runNewFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, state: AssetLockFundingState): Promise<void> {
@@ -239,7 +235,7 @@ export class AssetLockService {
     const unsignedSt = this.sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
       assetLockProof: proof,
       inputs: [],
-      feeStrategy: [],
+      feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
       inputWitness: [],
       outputs: [new OutputAddressNullableCreditsWASM(row.toPlatformAddress)],
       userFeeIncrease: 0,
