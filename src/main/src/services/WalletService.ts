@@ -612,7 +612,8 @@ export class WalletService {
             amount: BigInt(identity.balance),
             usdAmount: '0.0'
           },
-          derivationPath: entry.derivationPath
+          derivationPath: entry.derivationPath,
+          assetLockTxid: entry.assetLockTxid ?? null
         })
       } catch {
         // identity not registered on platform yet, skip

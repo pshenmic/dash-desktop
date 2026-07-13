@@ -15,6 +15,7 @@ export interface Identity {
     approx: string
     currency: string
   }
+  assetLockTxid: string | null
 }
 
 export default function Identities(): React.JSX.Element {
@@ -30,6 +31,7 @@ export default function Identities(): React.JSX.Element {
       approx: item.balance.usdAmount,
       currency: 'Credits',
     },
+    assetLockTxid: item.assetLockTxid ?? null,
   }))
 
   const assetsList = [

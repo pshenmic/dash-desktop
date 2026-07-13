@@ -5,6 +5,7 @@ export interface Identity {
   identityIndex: number
   derivationPath: string
   identifier: string
+  assetLockTxid?: string | null
 }
 
 export interface IdentityInfo {
@@ -13,4 +14,5 @@ export interface IdentityInfo {
   alias: string | null
   balance: AmountWithUsd
   derivationPath: string
+  assetLockTxid: string | null
 }
