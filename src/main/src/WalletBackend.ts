@@ -10,6 +10,7 @@ import { IdentityDAO } from './database/IdentityDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/WalletService'
+import { PlatformAddressService } from './services/PlatformAddressService'
 import { ApplicationService } from './services/ApplicationService'
 import {Preferences} from "./preferences";
 import { CreateWalletHandler } from './api/wallet/createWallet'
@@ -77,6 +78,7 @@ import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction
 
 export class WalletBackend {
   private walletService?: WalletService
+  private platformAddressService?: PlatformAddressService
   private applicationService?: ApplicationService
   private walletSyncService?: WalletSyncService
   private ratesService?: RatesService
@@ -87,7 +89,7 @@ export class WalletBackend {
   private addressDAO?: AddressDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO) {
+    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -105,20 +107,20 @@ export class WalletBackend {
     ipcMain.handle('getIdentities', new GetIdentitiesHandler(this.walletService).handle)
     ipcMain.handle('getIdentityBalance', new GetIdentityBalance(this.walletService).handle)
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
-    ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.walletService).handle)
+    ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('getBlockByHash', new GetBlockByHash(this.walletService).handle)
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
-    ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.walletService).handle)
-    ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.walletService).handle)
-    ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.walletService).handle)
-    ipcMain.handle('sendIdentityCredits', new SendIdentityCreditsHandler(this.walletService).handle)
-    ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.walletService).handle)
+    ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformAddressService).handle)
+    ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformAddressService).handle)
+    ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformAddressService).handle)
+    ipcMain.handle('sendIdentityCredits', new SendIdentityCreditsHandler(this.platformAddressService).handle)
+    ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
     ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService).handle)
-    ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.walletService).handle)
+    ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
@@ -173,6 +175,7 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.shieldedService = new ShieldedService(dashPlatformSDK, walletDAO, new ShieldedNoteDAO(knex))
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, dashPlatformSDK)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, dashPlatformSDK)
     this.addressDAO = addressDAO
 

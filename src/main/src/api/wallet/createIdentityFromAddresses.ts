@@ -1,12 +1,12 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/WalletService'
+import { PlatformAddressService } from '../../services/PlatformAddressService'
 import { IdentityCreateResult } from '../../types/IdentityCreateResult'
 
 export class CreateIdentityFromAddressesHandler {
-  private walletService: WalletService
+  private platformAddressService: PlatformAddressService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(platformAddressService: PlatformAddressService) {
+    this.platformAddressService = platformAddressService
   }
 
   handle = async (
@@ -16,6 +16,6 @@ export class CreateIdentityFromAddressesHandler {
     amountCredits: string,
     password: string,
   ): Promise<IdentityCreateResult> => {
-    return this.walletService.createIdentityFromAddresses(walletId, fromAddress, BigInt(amountCredits), password)
+    return this.platformAddressService.createIdentityFromAddresses(walletId, fromAddress, BigInt(amountCredits), password)
   }
 }

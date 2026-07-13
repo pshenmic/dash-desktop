@@ -6,4 +6,5 @@ export interface Wallet {
   label: string | null
   encryptedMnemonic: string
   selected: boolean
+  platformXpub: string | null
 }

@@ -1,15 +1,15 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/WalletService'
+import { PlatformAddressService } from '../../services/PlatformAddressService'
 import { PlatformAddressEntry } from '../../types/PlatformAddress'
 
 export class GetPlatformAddressesHandler {
-  private walletService: WalletService
+  private platformAddressService: PlatformAddressService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(platformAddressService: PlatformAddressService) {
+    this.platformAddressService = platformAddressService
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<PlatformAddressEntry[]> => {
-    return this.walletService.getPlatformAddresses(walletId)
+    return this.platformAddressService.getPlatformAddresses(walletId)
   }
 }

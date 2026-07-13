@@ -1,7 +1,6 @@
 export interface PlatformSourceCandidate {
   platformAddress: string
-  coreAddress: string
-  derivationPath: string
+  index: number
   balanceCredits: bigint
   nonce: number
 }

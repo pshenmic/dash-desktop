@@ -9,8 +9,7 @@ import {
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
   return {
     platformAddress,
-    coreAddress: `core-${platformAddress}`,
-    derivationPath: `m/44'/1'/0'/0/0`,
+    index: 0,
     balanceCredits,
     nonce,
   }
