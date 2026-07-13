@@ -61,7 +61,12 @@ export default function Identities(): React.JSX.Element {
     <div className={"w-full px-12 pb-12 "}>
       <div className={"relative shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-[.9375rem]"}>
         <div className={"absolute right-[.9375rem] top-[.9375rem] z-10"}>
-          <Button colorScheme={"lightBlue-mint"} size={"sm"} onClick={() => navigate('/send?from=core&to=newIdentity')}>
+          <Button
+            colorScheme={"lightBlue-mint"}
+            size={"sm"}
+            className={"min-h-0! py-2! rounded-[.75rem]"}
+            onClick={() => navigate('/send?from=core&to=newIdentity')}
+          >
             Register identity
           </Button>
         </div>
