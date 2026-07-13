@@ -13,9 +13,10 @@ export class ShieldToPoolHandler {
     _event: IpcMainInvokeEvent,
     walletId: string,
     fromAddress: string,
+    toAddress: string,
     amountCredits: string,
     password: string,
   ): Promise<ShieldResult> => {
-    return this.platformAddressService.shieldToPool(walletId, fromAddress, BigInt(amountCredits), password)
+    return this.platformAddressService.shieldToPool(walletId, fromAddress, toAddress, BigInt(amountCredits), password)
   }
 }

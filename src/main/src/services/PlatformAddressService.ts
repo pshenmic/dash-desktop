@@ -412,11 +412,15 @@ export class PlatformAddressService {
   async shieldToPool(
     walletId: string,
     fromPlatformAddress: string,
+    toShieldedAddress: string,
     amountCredits: bigint,
     password: string,
   ): Promise<ShieldResult> {
     if (amountCredits <= 0n) {
       throw new Error('Shield amount must be greater than zero')
+    }
+    if (toShieldedAddress.length === 0) {
+      throw new Error('Shielded recipient address is required')
     }
 
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
@@ -431,7 +435,7 @@ export class PlatformAddressService {
       nonce: source.nonce,
       balanceCredits: source.balanceCredits.toString(),
       index: source.index,
-    }, amountCredits)
+    }, toShieldedAddress, amountCredits)
 
     return {
       stHash,

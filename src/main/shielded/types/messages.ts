@@ -32,7 +32,7 @@ export type ShieldedCommand =
       recipient: string
       amountCredits: string
     }
-  | { type: 'shield'; requestId: string; network: Network; seed: Uint8Array; source: ShieldSource; amountCredits: string }
+  | { type: 'shield'; requestId: string; network: Network; seed: Uint8Array; source: ShieldSource; recipient: string; amountCredits: string }
 
 export type ShieldedEvent =
   | { type: 'proverStatus'; state: ShieldedProverState; error: string | null }

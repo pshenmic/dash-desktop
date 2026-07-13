@@ -93,9 +93,6 @@ export default function TransferHub(): React.JSX.Element {
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === 'shielded' || toKind === 'shielded'
-  // Shielding always credits this wallet's own derived shielded address —
-  // the backend never takes a recipient, so no address is asked for.
-  const shieldToOwn = operation === 'shield'
 
   const fundedAddresses = useMemo(
     () => platformAddresses.filter(a => BigInt(a.balanceCredits) > 0n),
@@ -152,11 +149,11 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === 'platformAddress' ? isValidPlatformAddress(trimmedTo, network ?? undefined)
     : toKind === 'identity' ? isLikelyIdentityId(trimmedTo)
     : toKind === 'newIdentity' ? true
-    : shieldToOwn || isLikelyShieldedAddress(trimmedTo)
+    : isLikelyShieldedAddress(trimmedTo)
 
   const selfSend = operation === 'addressFundsTransfer' && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress
 
-  const destinationError = toKind === 'newIdentity' || shieldToOwn || trimmedTo.length === 0
+  const destinationError = toKind === 'newIdentity' || trimmedTo.length === 0
     ? null
     : !destinationValid
       ? (toKind === 'coreAddress' ? `Enter a valid Dash ${network ?? ''} address.`
@@ -267,14 +264,8 @@ export default function TransferHub(): React.JSX.Element {
           onValueChange={setToValue}
           placeholder={destinationPlaceholder}
           error={destinationError}
-          showValueInput={operation != null && !shieldToOwn}
+          showValueInput={operation != null}
         />
-      )}
-
-      {shieldToOwn && (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
-          Credits are shielded to this wallet's own shielded address — nothing to enter.
-        </Text>
       )}
 
       {reason && (
@@ -356,7 +347,7 @@ export default function TransferHub(): React.JSX.Element {
     : fromKind === 'identity' ? (selectedIdentity?.identifier ?? '')
     : 'Your shielded balance'
 
-  const toDisplay = toKind === 'newIdentity' ? 'New identity' : shieldToOwn ? 'Your shielded balance' : trimmedTo
+  const toDisplay = toKind === 'newIdentity' ? 'New identity' : trimmedTo
 
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
@@ -512,6 +503,7 @@ export default function TransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           fromAddress={selectedSource?.platformAddress ?? ''}
+          toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
           proverReady={prover.ready}
           onSuccess={resetForm}

@@ -403,11 +403,11 @@ export class ShieldedService {
 
   // Proves and broadcasts a shield transition in the utility process on
   // behalf of PlatformAddressService. Resolves with the state transition hash.
-  shield(network: Network, seed: Uint8Array, source: ShieldSource, amountCredits: bigint): Promise<string> {
+  shield(network: Network, seed: Uint8Array, source: ShieldSource, recipient: string, amountCredits: bigint): Promise<string> {
     const requestId = randomUUID()
     return new Promise<string>((resolve, reject) => {
       this.pendingShields.set(requestId, {resolve, reject})
-      this.send({type: 'shield', requestId, network, seed, source, amountCredits: amountCredits.toString()})
+      this.send({type: 'shield', requestId, network, seed, source, recipient, amountCredits: amountCredits.toString()})
     })
   }
 

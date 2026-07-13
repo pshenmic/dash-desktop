@@ -212,7 +212,7 @@ export class ShieldedEngine {
       await this.initProver()
 
       const privateKey = await this.sdk.keyPair.derivePlatformAddressPrivateKey(seed, network, PLATFORM_ACCOUNT, source.index)
-      const recipient = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+      const recipient = OrchardAddressWASM.fromBech32m(command.recipient)
       const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
 
       const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, BigInt(source.balanceCredits))]
