@@ -148,7 +148,7 @@ export default function ShieldedSpendModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {isDone ? 'Sent privately' : title}
+            {isDone ? (spend?.identityId ? 'Identity created' : 'Sent privately') : title}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -263,10 +263,17 @@ export default function ShieldedSpendModal({
           <div className={"phase-fade-in"} key={"done"}>
             <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
               <div className={"success-pop"}><SuccessIcon size={56} /></div>
-              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{sentAmount || amountCredits} credits sent</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>Broadcast to Platform. Re-sync notes to update your balance.</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
+                {spend?.identityId ? 'Identity created' : `${sentAmount || amountCredits} credits sent`}
+              </Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+                {spend?.identityId
+                  ? `Funded with ${sentAmount || amountCredits} credits from the pool (minus the Platform fee). Re-sync notes to update your balance.`
+                  : 'Broadcast to Platform. Re-sync notes to update your balance.'}
+              </Text>
             </div>
-            <div className={"mt-5 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+            <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+              {spend?.identityId && <HashField hash={spend.identityId} label={"Identity"} />}
               {spend?.stHash && <HashField hash={spend.stHash} />}
             </div>
             <div className={"mt-4.5 flex gap-2"}>

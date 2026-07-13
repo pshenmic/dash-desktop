@@ -4,6 +4,8 @@ import {
   unsupportedReason,
   operationInfo,
   isLikelyIdentityId,
+  isPoolIdentityDenomination,
+  POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
   DESTINATION_KINDS,
   SourceKind,
@@ -36,7 +38,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     coreAddress: 'shieldedWithdrawal',
     platformAddress: 'unshield',
     identity: null,
-    newIdentity: null,
+    newIdentity: 'identityCreateFromPool',
     shielded: 'shieldedTransfer',
   },
 }
@@ -91,6 +93,21 @@ describe('operationInfo', () => {
     expect(operationInfo('coreSend')).toMatchObject({unit: 'dash', feeCredits: null})
     expect(operationInfo('assetLockShield')).toMatchObject({unit: 'dash', feeCredits: null})
     expect(operationInfo('identityTopUpL1')).toMatchObject({unit: 'dash', feeCredits: null, submitLabel: 'Top up'})
+  })
+})
+
+describe('isPoolIdentityDenomination', () => {
+  it('accepts exactly the protocol exit denominations', () => {
+    for (const denomination of POOL_IDENTITY_DENOMINATIONS) {
+      expect(isPoolIdentityDenomination(denomination)).toBe(true)
+    }
+    expect(isPoolIdentityDenomination(0n)).toBe(false)
+    expect(isPoolIdentityDenomination(20_000_000_000n)).toBe(false)
+    expect(isPoolIdentityDenomination(10_000_000_001n)).toBe(false)
+  })
+
+  it('matches the pool minimum in operationInfo', () => {
+    expect(operationInfo('identityCreateFromPool')).toMatchObject({unit: 'credits', minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
   })
 })
 

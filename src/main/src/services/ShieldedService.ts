@@ -2,8 +2,10 @@ import { utilityProcess, UtilityProcess } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { SdkProvider } from './SdkProvider'
+import { IdentityRegistrationService } from './IdentityRegistrationService'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
+import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { decryptMnemonic } from '../utils'
 import {
@@ -51,6 +53,7 @@ export interface ShieldedSpendState {
   fetched: number
   total: number
   stHash: string | null
+  identityId: string | null
   error: string | null
 }
 
@@ -69,7 +72,9 @@ const CHILD_OUTPUT_TAIL_LIMIT = 8192
 export class ShieldedService {
   private sdkProvider: SdkProvider
   private walletDAO: WalletDAO
+  private identityDAO: IdentityDAO
   private shieldedNoteDAO: ShieldedNoteDAO
+  private identityRegistrationService: IdentityRegistrationService
   private child: UtilityProcess | null = null
   private childOutputTail = ''
   private proverState: ShieldedProverState = 'idle'
@@ -79,12 +84,15 @@ export class ShieldedService {
   private addresses = new Map<string, string[]>()
   private pendingSyncs = new Map<string, string>()
   private pendingSpends = new Map<string, string>()
+  private pendingIdentityCreates = new Map<string, {walletId: string; identityIndex: number; network: Network}>()
   private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
 
-  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, shieldedNoteDAO: ShieldedNoteDAO) {
+  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, identityRegistrationService: IdentityRegistrationService) {
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
+    this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
+    this.identityRegistrationService = identityRegistrationService
   }
 
   private ensureChild(): UtilityProcess {
@@ -144,10 +152,23 @@ export class ShieldedService {
       }
     }
     this.pendingSpends.clear()
+    this.pendingIdentityCreates.clear()
     for (const {reject} of this.pendingShields.values()) {
       reject(new Error(message))
     }
     this.pendingShields.clear()
+  }
+
+  private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
+    const existing = await this.identityDAO.getByIdentifier(context.walletId, identifier)
+    if (existing != null) return
+    const coinType = context.network === 'mainnet' ? 5 : 1
+    await this.identityDAO.insertIdentity({
+      walletId: context.walletId,
+      identityIndex: context.identityIndex,
+      identifier,
+      derivationPath: `m/9'/${coinType}'/0'/0/${context.identityIndex}`,
+    }, null)
   }
 
   private onEvent(event: ShieldedEvent): void {
@@ -200,11 +221,18 @@ export class ShieldedService {
     }
     if (event.type === 'spendResult') {
       const state = this.stateForSpend(event.requestId)
+      const identityCreate = this.pendingIdentityCreates.get(event.requestId)
       this.pendingSpends.delete(event.requestId)
+      this.pendingIdentityCreates.delete(event.requestId)
       if (state == null) return
       if (event.ok) {
         state.stHash = event.stHash
+        state.identityId = event.identityId ?? null
         state.phase = 'done'
+        if (identityCreate != null && event.identityId != null) {
+          this.persistCreatedIdentity(identityCreate, event.identityId).catch(e =>
+            console.error('Failed to persist identity created from the shielded pool', e))
+        }
       } else {
         state.phase = 'error'
         state.error = event.error
@@ -279,7 +307,7 @@ export class ShieldedService {
     return list
   }
 
-  private async unlock(walletId: string, password: string): Promise<{seed: Uint8Array; network: Network}> {
+  private async unlock(walletId: string, password: string): Promise<{seed: Uint8Array; network: Network; mnemonic: string}> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) throw new Error('Wallet not found')
 
@@ -297,7 +325,7 @@ export class ShieldedService {
       await this.walletDAO.setPlatformXpub(walletId, xpub)
     }
 
-    return {seed, network: wallet.network}
+    return {seed, network: wallet.network, mnemonic}
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
@@ -347,7 +375,7 @@ export class ShieldedService {
   }
 
   private idleSpendState(): ShieldedSpendState {
-    return { phase: 'idle', fetched: 0, total: 0, stHash: null, error: null }
+    return { phase: 'idle', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
   }
 
   getSpendState(walletId: string): ShieldedSpendState {
@@ -372,7 +400,7 @@ export class ShieldedService {
       return current
     }
 
-    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, error: null }
+    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
     this.spendStates.set(walletId, state)
 
     try {
@@ -393,6 +421,50 @@ export class ShieldedService {
         kind,
         recipient,
         amountCredits: amountCredits.toString(),
+      })
+    } catch (e) {
+      state.phase = 'error'
+      state.error = e instanceof Error ? e.message : String(e)
+    }
+    return state
+  }
+
+  async startIdentityCreate(walletId: string, password: string, denominationCredits: bigint): Promise<ShieldedSpendState> {
+    const current = this.spendStates.get(walletId)
+    if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
+      return current
+    }
+
+    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
+    this.spendStates.set(walletId, state)
+
+    try {
+      if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
+
+      const {seed, network, mnemonic} = await this.unlock(walletId, password)
+      await this.cacheAddresses(walletId, seed, network)
+      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
+
+      const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+      const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
+      const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(mnemonic, startIndex, network)
+
+      const failureAddress = (await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
+
+      const requestId = randomUUID()
+      this.pendingSpends.set(requestId, walletId)
+      this.pendingIdentityCreates.set(requestId, {walletId, identityIndex, network})
+      this.send({
+        type: 'spend',
+        requestId,
+        network,
+        seed,
+        spentIndexes: [...spent],
+        kind: 'identityCreate',
+        recipient: '',
+        amountCredits: denominationCredits.toString(),
+        identityIndex,
+        failureAddress,
       })
     } catch (e) {
       state.phase = 'error'
