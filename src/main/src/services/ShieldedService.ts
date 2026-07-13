@@ -54,6 +54,7 @@ export interface ShieldedSpendState {
 }
 
 const SHIELDED_ACCOUNT = 0
+const PLATFORM_ACCOUNT = 0
 
 // Cap on the per-child output we retain; attached to crash reports so a
 // worker death carries its own cause instead of just an exit code.
@@ -269,7 +270,14 @@ export class ShieldedService {
       throw new Error('Invalid wallet password')
     }
     this.sdk.setNetwork(wallet.network)
-    return {seed: this.sdk.keyPair.mnemonicToSeed(mnemonic), network: wallet.network}
+    const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+
+    if (wallet.platformXpub == null) {
+      const xpub = await this.sdk.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+      await this.walletDAO.setPlatformXpub(walletId, xpub)
+    }
+
+    return {seed, network: wallet.network}
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {

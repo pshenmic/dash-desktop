@@ -4,6 +4,7 @@ import { addressesPage } from '@renderer/constants'
 import AddressCard from './AddressCard'
 import PlatformAddressCard from './PlatformAddressCard'
 import ShieldedAddressTab from './ShieldedAddressTab'
+import PlatformUnlockTab from './PlatformUnlockTab'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -90,7 +91,9 @@ export default function AddressList(): React.JSX.Element {
     {
       value: 'platform',
       label: tabs.platform,
-      content: (
+      content: !platformLoading && !platformErr && platformAddresses.length === 0 ? (
+        <PlatformUnlockTab walletId={status?.selectedWalletId ?? undefined} />
+      ) : (
         <TabContent
           items={platformAddresses}
           loading={platformLoading}
