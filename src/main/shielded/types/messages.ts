@@ -9,6 +9,7 @@ export interface ShieldedNoteSnapshot {
   index: number
   amount: string
   spent: boolean
+  address: string
 }
 
 export interface ShieldSource {

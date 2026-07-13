@@ -86,7 +86,12 @@ export class ShieldedEngine {
         const value = note.note.value
         const isSpent = spent.has(note.index)
         if (!isSpent) balance += value
-        notes.push({ index: note.index, amount: value.toString(), spent: isSpent })
+        notes.push({
+          index: note.index,
+          amount: value.toString(),
+          spent: isSpent,
+          address: note.note.address.toBech32m(command.network),
+        })
       }
       notes.sort((a, b) => b.index - a.index)
 

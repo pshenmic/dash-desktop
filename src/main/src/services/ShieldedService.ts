@@ -33,6 +33,7 @@ export interface ShieldedNoteInfo {
   index: number
   amount: string
   spent: boolean
+  address: string
 }
 
 export interface ShieldedSyncState {

@@ -187,6 +187,7 @@ export interface ShieldedNoteInfo {
   index: number
   amount: string
   spent: boolean
+  address: string
 }
 
 export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
