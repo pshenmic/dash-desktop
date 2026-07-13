@@ -28,9 +28,16 @@ export default defineConfig({
     plugins: [x11GroestlFixPlugin()],
     build: {
       rollupOptions: {
+        // Keep pshenmic-dpp external so the wallet's own imports resolve to the
+        // same runtime instance (native.js → threaded WASM on Windows) that the
+        // externalized dash-platform-sdk uses. Bundling it here forked a second
+        // WASM/NAPI instance, so objects (e.g. CoreScriptWASM) built wallet-side
+        // couldn't be recovered by the SDK's builders.
+        external: ['pshenmic-dpp'],
         input: {
           index: resolve('src/main/index.ts'),
           p2p: resolve('src/main/p2p/index.ts'),
+          shielded: resolve('src/main/shielded/index.ts'),
         },
       },
     },
@@ -41,6 +48,9 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src')
       }
+    },
+    server: {
+      host: '127.0.0.1'
     },
     plugins: [react()]
   }

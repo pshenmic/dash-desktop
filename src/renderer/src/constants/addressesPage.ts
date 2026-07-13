@@ -6,6 +6,7 @@ export interface AddressesPage {
     receiving: string
     change: string
     platform: string
+    shielded: string
     coinJoin: string
   }
   labelPrefix: string
@@ -19,6 +20,7 @@ export const addressesPage: AddressesPage = {
     receiving: 'Receiving',
     change: 'Change',
     platform: 'Platform',
+    shielded: 'Shielded',
     coinJoin: 'CoinJoin',
   },
   labelPrefix: 'Label',

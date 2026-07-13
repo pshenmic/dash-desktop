@@ -33,7 +33,12 @@ export const navGroups: NavGroup[] = [
         id: 'receive',
         label: 'Receive',
         to: '/receive'
-      },
+      }
+    ]
+  },
+  {
+    id: 'wallet',
+    items: [
       {
         id: 'addresses',
         label: 'Addresses',
@@ -43,6 +48,11 @@ export const navGroups: NavGroup[] = [
         id: 'identities',
         label: 'Identities',
         to: '/identities'
+      },
+      {
+        id: 'shielded',
+        label: 'Shielded',
+        to: '/shielded'
       },
       {
         id: 'settings',

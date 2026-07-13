@@ -1,13 +1,9 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
 import {WalletDAO} from '../../database/WalletDAO'
-import {AddressDAO} from '../../database/AddressDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {WalletService} from '../../services/WalletService'
 import {SdkProvider} from '../../services/SdkProvider'
 import {IdentityRegistrationService} from '../../services/IdentityRegistrationService'
-import {TransferInput} from '../../services/CoreTransactionService'
-import {selectCoins, SelectableUtxo} from '../../services/coinSelection'
-import {GroupedAddresses} from '../../types/GroupedAddresses'
 import {RegisterIdentityResult} from '../../types/RegisterIdentityResult'
 import {decryptMnemonic} from '../../utils'
 
@@ -20,7 +16,6 @@ const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
 export class RegisterIdentityHandler {
   constructor(
     private readonly walletDAO: WalletDAO,
-    private readonly addressDAO: AddressDAO,
     private readonly identityDAO: IdentityDAO,
     private readonly walletService: WalletService,
     private readonly sdkProvider: SdkProvider,
@@ -60,72 +55,20 @@ export class RegisterIdentityHandler {
     const registrationKey = await this.identityRegistrationService.deriveRegistrationKey(mnemonic, identityIndex, network)
     const creditAddress = this.sdkProvider.getPlatformSDK(network).keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network)
 
-    // Fund the asset lock from wallet UTXOs (same collection + selection path
-    // as a normal send).
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const allAddresses = [...grouped.receiving, ...grouped.change]
-    const pathByAddress = new Map(allAddresses.map(a => [a.address, a.derivationPath]))
-
-    const provider = this.walletService.getProvider(walletId, network)
-    await provider.ensureReady()
-
-    const utxoLists = await Promise.all(
-      allAddresses.map(async (a) => {
-        const utxos = await provider.getUTXOs(a.address)
-        return utxos.map(u => ({utxo: u, address: a.address}))
-      }),
+    // Fund the asset lock from wallet UTXOs (same collection + selection +
+    // broadcast path as a normal send), directing the credits to the
+    // registration key.
+    const {tx: assetLockTx, txid: assetLockTxid, inputAddresses} = await this.walletService.buildAndBroadcastAssetLock(
+      walletId,
+      lockAmountDuffs,
+      password,
+      {address: creditAddress, derivationPath: this.identityRegistrationService.registrationKeyPath(identityIndex, network)},
     )
-    const ownedUtxos = utxoLists.flat()
-    if (ownedUtxos.length === 0) {
-      throw new Error('No spendable funds in this wallet')
-    }
 
-    const selectable: SelectableUtxo[] = ownedUtxos.map(({utxo, address}) => ({
-      txid: utxo.txId,
-      vout: utxo.vOut,
-      satoshis: utxo.satoshis,
-      address,
-    }))
-    const selection = selectCoins(selectable, lockAmountDuffs)
-
-    const utxoByKey = new Map(ownedUtxos.map(o => [`${o.utxo.txId}:${o.utxo.vOut}`, o]))
-    const changeAddress = this.pickChangeAddress(grouped)
-
-    const inputs: TransferInput[] = selection.inputs.map(input => {
-      const owned = utxoByKey.get(`${input.txid}:${input.vout}`)
-      if (!owned) throw new Error('Selected UTXO no longer available')
-
-      const derivationPath = pathByAddress.get(input.address)
-      if (derivationPath == null) throw new Error(`No derivation path for address ${input.address}`)
-
-      return {
-        txId: owned.utxo.txId,
-        vOut: owned.utxo.vOut,
-        script: owned.utxo.script,
-        derivationPath,
-        address: input.address,
-      }
-    })
-
-    const assetLockTx = await this.identityRegistrationService.buildSignedAssetLock({
-      inputs,
-      lockAmount: lockAmountDuffs,
-      creditAddress,
-      changeAddress,
-      inputTotal: selection.inputTotal,
-      mnemonic,
-      network,
-    })
-    const assetLockTxid = assetLockTx.hash()
-
-    // Commit the asset lock on L1, then wait for its instant/chain lock proof.
-    await provider.broadcastTx(assetLockTx)
-
-    const watchAddresses = inputs.map(input => input.address)
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(
       assetLockTx,
       assetLockTxid,
-      watchAddresses,
+      inputAddresses,
       network,
     )
 
@@ -180,16 +123,6 @@ export class RegisterIdentityHandler {
     }
 
     return {identifier, stateTransitionHash}
-  }
-
-  // Next unused change address, falling back to the last change address (or the
-  // first receiving address) so change never leaves the wallet.
-  private pickChangeAddress(grouped: GroupedAddresses): string {
-    const unusedChange = grouped.change.find(a => !a.isUsed)
-    if (unusedChange) return unusedChange.address
-    if (grouped.change.length > 0) return grouped.change[grouped.change.length - 1].address
-    if (grouped.receiving.length > 0) return grouped.receiving[0].address
-    throw new Error('Wallet has no change address')
   }
 
   private isAlreadyInChain(e: unknown): boolean {

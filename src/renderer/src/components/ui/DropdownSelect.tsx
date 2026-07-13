@@ -4,8 +4,7 @@ import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import {
   WalletIcon,
   ChevronIcon,
-  PlusIcon,
-  DeleteIcon
+  PlusIcon
 } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { useRipple } from '@renderer/hooks/useRipple'
@@ -15,7 +14,6 @@ export interface DropdownSelectProps {
   options: WalletDropdownOption[]
   value: string
   onChange: (value: string) => void
-  onItemAction?: (value: string) => void
   onAdd?: () => void
   addLabel?: string
   className?: string
@@ -45,7 +43,6 @@ export default function DropdownSelect({
   options,
   value,
   onChange,
-  onItemAction,
   onAdd,
   addLabel = "Add wallet",
   className = "",
@@ -126,8 +123,8 @@ export default function DropdownSelect({
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
                 className={`
-                  flex items-center justify-between gap-3
-                  pl-4 pr-2 h-12
+                  flex items-center gap-3
+                  px-4 h-12
                   cursor-pointer transition-colors
                   ${isTestnet
                     ? 'bg-dash-yellow/25 hover:bg-dash-yellow/40'
@@ -148,18 +145,6 @@ export default function DropdownSelect({
                     )}
                   </div>
                 </div>
-                {onItemAction && (
-                  <button
-                    type={"button"}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onItemAction(option.value)
-                    }}
-                    className={"flex items-center justify-center w-6 h-6 cursor-pointer rounded-md hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5"}
-                  >
-                    <DeleteIcon size={12} color={"currentColor"} className={"dash-text-default"} />
-                  </button>
-                )}
               </div>
             )
 

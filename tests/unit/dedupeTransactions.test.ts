@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dedupeTransactions } from '../../src/main/src/services/dedupeTransactions'
+import { dedupeTransactions } from '../../src/main/src/utils/dedupeTransactions'
 import { Transaction } from '../../src/main/src/types/Transaction'
 
 function tx(overrides: Partial<Transaction>): Transaction {

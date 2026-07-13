@@ -4,7 +4,6 @@ import { useRipple } from '@renderer/hooks/useRipple'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { toDropdownOptions } from '@renderer/utils/wallets'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
-import DeleteWallet from './modal/DeleteWallet'
 import DropdownSelect from './ui/DropdownSelect'
 import ConnectionSelect from './ui/ConnectionSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
@@ -43,13 +42,6 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
   const { status, switchWallet, goToCreateWallet } = useAuth()
   const wallets = useWallets()
   const resolvedTheme = useResolvedTheme()
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [walletToDelete, setWalletToDelete] = useState<string | null>(null)
-
-  const openDeleteModal = (walletId: string) => {
-    setWalletToDelete(walletId)
-    setIsDeleteOpen(true)
-  }
 
   useEffect(() => {
     refreshWallets()
@@ -86,7 +78,6 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
             options={walletOptions}
             value={selectedWallet}
             onChange={handleWalletChange}
-            onItemAction={openDeleteModal}
             onAdd={goToCreateWallet}
             addLabel={"Add wallet"}
           />
@@ -115,15 +106,6 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       <main className={"flex-1 mt-12"}>
         {children}
       </main>
-
-      <DeleteWallet
-        isDeleteOpen={isDeleteOpen}
-        setIsDeleteOpen={setIsDeleteOpen}
-        walletToDelete={walletToDelete}
-        setWalletToDelete={setWalletToDelete}
-        refreshWallets={refreshWallets}
-        selectedWallet={selectedWallet}
-      />
     </div>
   )
 }

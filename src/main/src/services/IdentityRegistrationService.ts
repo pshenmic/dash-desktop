@@ -1,20 +1,13 @@
 import {
-  ExtraPayload,
-  Input,
   InstantLock,
-  Output,
-  PrivateKey,
-  Script,
   Transaction as SDKTransaction,
-  TransactionType,
   utils as coreUtils,
 } from 'dash-core-sdk'
 import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
 import {KeyType, Purpose, SecurityLevel, PrivateKeyWASM, StateTransitionWASM} from 'dash-platform-sdk/types.js'
 import {SdkProvider} from './SdkProvider'
-import {TransferInput} from './CoreTransactionService'
 import {Network} from '../types'
-import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS, SEQUENCE_FINAL} from '../constants'
+import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
 
 export type AssetLockProof = InstantAssetLockProofParams | ChainAssetLockProofParams
 
@@ -36,20 +29,14 @@ export const IDENTITY_KEY_DEFINITIONS = [
   {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
 ] as const
 
-export interface AssetLockFundingParams {
-  inputs: TransferInput[]
-  lockAmount: bigint
-  creditAddress: string
-  changeAddress: string
-  inputTotal: bigint
-  mnemonic: string
-  network: Network
-}
-
 // Domain primitives for L1 asset-lock + Platform identity-create. Orchestration
 // (decrypt, UTXO selection, broadcast, persistence) lives in the controller.
 export class IdentityRegistrationService {
   constructor(private readonly sdkProvider: SdkProvider) {}
+
+  registrationKeyPath(identityIndex: number, network: Network): string {
+    return `m/9'/${COIN_TYPE[network]}'/5'/1'/${identityIndex}`
+  }
 
   // Registration key (DIP-0013 m/9'/coin'/5'/1'/index): owns the asset-lock
   // credit output and signs the IdentityCreateTransition. Derived from seed, so
@@ -57,8 +44,7 @@ export class IdentityRegistrationService {
   async deriveRegistrationKey(mnemonic: string, identityIndex: number, network: Network): Promise<PrivateKeyWASM> {
     const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
     const hdKey = keyPair.seedToHdKey(keyPair.mnemonicToSeed(mnemonic), network)
-    const coinType = COIN_TYPE[network]
-    const {privateKey} = await keyPair.derivePath(hdKey, `m/9'/${coinType}'/5'/1'/${identityIndex}`)
+    const {privateKey} = await keyPair.derivePath(hdKey, this.registrationKeyPath(identityIndex, network))
     if (privateKey == null) {
       throw new Error('Could not derive identity registration key from wallet hd key')
     }
@@ -103,42 +89,6 @@ export class IdentityRegistrationService {
       index++
     }
     throw new Error(`Could not find a free identity index within ${IDENTITY_INDEX_SCAN_LIMIT} attempts`)
-  }
-
-  // Builds and signs the L1 asset-lock transaction funded from wallet UTXOs.
-  // Output 0 is the OP_RETURN asset-lock output whose value becomes credits;
-  // change (if any) is appended after it (so the proof's outputIndex stays 0).
-  // The credit output in the asset-lock payload directs the credits to
-  // creditAddress (the registration key).
-  async buildSignedAssetLock(params: AssetLockFundingParams): Promise<SDKTransaction> {
-    const {inputs, lockAmount, creditAddress, changeAddress, inputTotal, mnemonic, network} = params
-    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
-    const hdKey = keyPair.seedToHdKey(keyPair.mnemonicToSeed(mnemonic), network)
-
-    const creditOutput = Output.createP2PKH(lockAmount, creditAddress)
-    const transaction = new SDKTransaction(
-      [],
-      [new Output(lockAmount, Script.fromASM('OP_RETURN OP_0'))],
-      undefined,
-      undefined,
-      TransactionType.TRANSACTION_ASSET_LOCK,
-      new ExtraPayload.AssetLockTx(1, 1, [creditOutput]),
-    )
-
-    const privateKeys: PrivateKey[] = []
-    for (const input of inputs) {
-      transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
-
-      const derived = await keyPair.derivePath(hdKey, input.derivationPath)
-      if (!derived.privateKey) {
-        throw new Error(`Failed to derive private key for ${input.address}`)
-      }
-      privateKeys.push(PrivateKey.fromBytes(derived.privateKey as Uint8Array, network, true))
-    }
-
-    transaction.generateChange(changeAddress, inputTotal)
-    transaction.sign(privateKeys)
-    return transaction
   }
 
   // Waits for the asset-lock tx to receive an instant lock (fast) or chain lock

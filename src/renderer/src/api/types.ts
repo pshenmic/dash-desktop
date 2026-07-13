@@ -16,6 +16,13 @@ export type GetAddressesResponse = {
   change: WalletAddressDto[]
 }
 
+// getPlatformAddresses
+export interface PlatformAddressDto {
+  platformAddress: string
+  balanceCredits: string
+  nonce: number
+}
+
 // getStatus
 export type Network = 'mainnet' | 'testnet'
 
@@ -116,4 +123,94 @@ export interface SendResult {
   toAddress: string
   changeAddress: string | null
   peersAcked: number
+}
+
+export interface PlatformSendResult {
+  stHash: string
+  amountCredits: string
+  feeCredits: string
+  fromAddress: string
+  toAddress: string
+}
+
+export type AssetLockFundingPhase =
+  | 'idle'
+  | 'resumable'
+  | 'building'
+  | 'broadcastingL1'
+  | 'waitingChainLock'
+  | 'broadcastingST'
+  | 'done'
+  | 'error'
+
+export type AssetLockFundingKind = 'address' | 'shielded'
+
+export interface AssetLockFundingState {
+  phase: AssetLockFundingPhase
+  kind: AssetLockFundingKind
+  txid: string | null
+  txHeight: number | null
+  chainLockedHeight: number | null
+  stHash: string | null
+  toPlatformAddress: string | null
+  amountDuffs: string | null
+  error: string | null
+}
+
+export interface IdentityCreateResult {
+  identifier: string
+  identityIndex: number
+  stHash: string
+  amountCredits: string
+  feeCredits: string
+  fromAddress: string
+}
+
+export interface ShieldResult {
+  stHash: string
+  amountCredits: string
+  fromAddress: string
+}
+
+// shielded
+export type ShieldedProverState = 'idle' | 'preparing' | 'ready' | 'error'
+
+export interface ShieldedStatus {
+  prover: ShieldedProverState
+  ready: boolean
+  error: string | null
+}
+
+export interface ShieldedPoolInfo {
+  poolState: string | null
+  notesCount: string | null
+}
+
+export interface ShieldedNoteInfo {
+  index: number
+  amount: string
+  spent: boolean
+  address: string
+}
+
+export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
+
+export interface ShieldedSyncState {
+  phase: ShieldedSyncPhase
+  fetched: number
+  total: number
+  balance: string | null
+  notes: ShieldedNoteInfo[]
+  error: string | null
+  syncedAt: number | null
+}
+
+export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
+
+export interface ShieldedSpendState {
+  phase: ShieldedSpendPhase
+  fetched: number
+  total: number
+  stHash: string | null
+  error: string | null
 }

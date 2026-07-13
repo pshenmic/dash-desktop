@@ -1,10 +1,5 @@
-import TransferPage from "@renderer/components/pages/transfer/Page";
-import { sendPageData } from "@renderer/constants";
+import TransferHub from "@renderer/components/pages/transfer/TransferHub";
 
 export default function SendPage(): React.JSX.Element {
-  const data = sendPageData
-
-  return (
-    <TransferPage pageData={data} />
-  )
+  return <TransferHub />
 }

@@ -10,6 +10,8 @@ import { ThemePreference } from '@renderer/utils/theme'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { WalletTxDto } from '@renderer/hooks/useWalletTransactions'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
+import DeleteWallet from '@renderer/components/modal/DeleteWallet'
+import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
 
 interface SettingsRowProps {
   title: string
@@ -105,6 +107,16 @@ export default function Settings(): React.JSX.Element {
 
   const [walletName, setWalletName] = useState('')
   const [renamePending, setRenamePending] = useState(false)
+
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [walletToDelete, setWalletToDelete] = useState<string | null>(null)
+  const [isMnemonicOpen, setIsMnemonicOpen] = useState(false)
+
+  const openDelete = (): void => {
+    if (!walletId) return
+    setWalletToDelete(walletId)
+    setIsDeleteOpen(true)
+  }
 
   useEffect(() => {
     setWalletName(currentLabel ?? '')
@@ -232,6 +244,17 @@ export default function Settings(): React.JSX.Element {
           />
         </div>
 
+        <SectionLabel>Security</SectionLabel>
+        <div className="flex flex-col">
+          <SettingsRow
+            title="Recovery phrase"
+            description="Reveal this wallet's secret recovery phrase. Anyone with these words can access your funds."
+            actionLabel="Reveal phrase"
+            disabled={walletId === null}
+            onClick={() => setIsMnemonicOpen(true)}
+          />
+        </div>
+
         <SectionLabel>Appearance</SectionLabel>
         <div className="flex flex-col">
           <SettingsRow
@@ -297,7 +320,34 @@ export default function Settings(): React.JSX.Element {
             onClick={handleClear}
           />
         </div>
+
+        <SectionLabel>Danger zone</SectionLabel>
+        <div className="flex flex-col">
+          <SettingsRow
+            title="Delete wallet"
+            description="Permanently remove this wallet from this device. Make sure you have its recovery phrase backed up first."
+            actionLabel="Delete wallet"
+            disabled={walletId === null}
+            destructive
+            onClick={openDelete}
+          />
+        </div>
       </div>
+
+      <DeleteWallet
+        isDeleteOpen={isDeleteOpen}
+        setIsDeleteOpen={setIsDeleteOpen}
+        walletToDelete={walletToDelete}
+        setWalletToDelete={setWalletToDelete}
+        refreshWallets={refreshWallets}
+        selectedWallet={walletId}
+      />
+
+      <ExportMnemonic
+        isOpen={isMnemonicOpen}
+        onClose={() => setIsMnemonicOpen(false)}
+        walletId={walletId}
+      />
     </div>
   )
 }
