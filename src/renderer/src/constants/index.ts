@@ -1,6 +1,5 @@
 export * from './navigation'
 export * from './login'
-export * from './selectAsset'
 export * from './sendPages'
 export * from './receivePage'
 export * from './transactionsPage'

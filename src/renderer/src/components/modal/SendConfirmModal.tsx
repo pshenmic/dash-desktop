@@ -8,6 +8,7 @@ import { Network, SendResult } from '@renderer/api/types'
 import { davToDash } from '@renderer/utils/balance'
 import { transactionUrl, openExternal } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
+import CopyableError from '@renderer/components/ui/CopyableError'
 
 interface SendConfirmModalProps {
   isOpen: boolean
@@ -205,10 +206,10 @@ export default function SendConfirmModal({
             <div
               className={`
                 overflow-hidden transition-all duration-200
-                ${error ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}
+                ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
               `}
             >
-              <Text size={12} weight={"medium"} color={"red"}>{error}</Text>
+              <CopyableError message={error ?? ''} />
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>

@@ -4,6 +4,11 @@ export interface ReceivePageType {
     title: string
     balance: string
   },
+  tabs: {
+    dash: string
+    shielded: string
+    platform: string
+  },
   receiveAddressCard: {
     adressText: string
     amount: string
@@ -16,6 +21,11 @@ export const receivePage = {
   header: {
     title: 'Receive',
     balance: 'Balance',
+  },
+  tabs: {
+    dash: 'Dash',
+    shielded: 'Shielded',
+    platform: 'Platform',
   },
   receiveAddressCard: {
     adressText: 'Dash Address',

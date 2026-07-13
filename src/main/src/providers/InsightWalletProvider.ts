@@ -38,7 +38,8 @@ export class InsightWalletProvider implements WalletProvider {
     const response = await net.fetch(url, params as RequestInit)
 
     if (!response.ok) {
-      throw new Error(`Insight API error: ${response.status}`)
+      const body = (await response.text().catch(() => '')).slice(0, 500)
+      throw new Error(`Insight API error: ${response.status}${body ? ` — ${body}` : ''}`)
     }
 
     return response

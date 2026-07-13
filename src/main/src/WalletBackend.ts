@@ -10,6 +10,7 @@ import { IdentityDAO } from './database/IdentityDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/WalletService'
+import { PlatformAddressService } from './services/PlatformAddressService'
 import { ApplicationService } from './services/ApplicationService'
 import {Preferences} from "./preferences";
 import { CreateWalletHandler } from './api/wallet/createWallet'
@@ -21,6 +22,7 @@ import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
+import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
 import {GetTransactionByHashHandler} from "./api/wallet/getTransactionByHash";
 import {GetBlockByHash} from "./api/wallet/getBlockByHash";
 import {GetBalance} from "./api/wallet/getBalance";
@@ -29,6 +31,17 @@ import {GetWalletBalance} from "./api/wallet/getWalletBalance";
 import {SetAddressLabel} from "./api/wallet/setAddressLabel";
 import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
+import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
+import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromAddresses";
+import {WithdrawPlatformCreditsHandler} from "./api/wallet/withdrawPlatformCredits";
+import {SendIdentityCreditsHandler} from "./api/wallet/sendIdentityCredits";
+import {CreateIdentityFromAddressesHandler} from "./api/wallet/createIdentityFromAddresses";
+import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
+import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
+import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding";
+import {AssetLockDAO} from "./database/AssetLockDAO";
+import {AssetLockService} from "./services/AssetLockService";
+import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
@@ -38,6 +51,19 @@ import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/WalletSyncService'
+import {ShieldedService} from './services/ShieldedService'
+import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
+import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
+import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
+import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
+import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
+import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
+import {StartShieldedUnshieldHandler} from './api/shielded/startShieldedUnshield'
+import {StartShieldedWithdrawalHandler} from './api/shielded/startShieldedWithdrawal'
+import {GetShieldedSpendStateHandler} from './api/shielded/getShieldedSpendState'
+import {GetShieldedAddressHandler} from './api/shielded/getShieldedAddress'
+import {GetShieldedAddressesHandler} from './api/shielded/getShieldedAddresses'
+import {AddShieldedAddressHandler} from './api/shielded/addShieldedAddress'
 import {RatesService} from './services/RatesService'
 import {GetExchangeRatesHandler} from './api/getExchangeRates'
 import {ContactService} from './services/ContactService'
@@ -54,15 +80,18 @@ import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction
 
 export class WalletBackend {
   private walletService?: WalletService
+  private platformAddressService?: PlatformAddressService
   private applicationService?: ApplicationService
   private walletSyncService?: WalletSyncService
   private ratesService?: RatesService
   private contactService?: ContactService
+  private shieldedService?: ShieldedService
+  private assetLockService?: AssetLockService
 
   private addressDAO?: AddressDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.addressDAO) {
+    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -80,10 +109,20 @@ export class WalletBackend {
     ipcMain.handle('getIdentities', new GetIdentitiesHandler(this.walletService).handle)
     ipcMain.handle('getIdentityBalance', new GetIdentityBalance(this.walletService).handle)
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
+    ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('getBlockByHash', new GetBlockByHash(this.walletService).handle)
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
+    ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformAddressService).handle)
+    ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformAddressService).handle)
+    ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformAddressService).handle)
+    ipcMain.handle('sendIdentityCredits', new SendIdentityCreditsHandler(this.platformAddressService).handle)
+    ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformAddressService).handle)
+    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
+    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
@@ -101,6 +140,17 @@ export class WalletBackend {
     ipcMain.handle('getContacts', new GetContactsHandler(this.contactService).handle)
     ipcMain.handle('addContact', new AddContactHandler(this.contactService).handle)
     ipcMain.handle('deleteContact', new DeleteContactHandler(this.contactService).handle)
+    ipcMain.handle('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedSpendState', new GetShieldedSpendStateHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
+    ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
   }
 
   async start(): Promise<void> {
@@ -127,7 +177,10 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
+    this.shieldedService = new ShieldedService(dashPlatformSDK, walletDAO, new ShieldedNoteDAO(knex))
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, dashPlatformSDK, calibratedIterations)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, dashPlatformSDK, this.shieldedService)
+    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, dashPlatformSDK)
     this.addressDAO = addressDAO
 
     this.initHandlers()
@@ -137,5 +190,6 @@ export class WalletBackend {
 
   async shutdown(): Promise<void> {
     await this.walletSyncService?.shutdown()
+    await this.shieldedService?.shutdown()
   }
 }

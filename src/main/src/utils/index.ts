@@ -1,14 +1,18 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from './constants'
+import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
 import knex, {Knex} from 'knex'
-import * as migration0000 from '../migrations/0000_init'
-import * as migration0001 from '../migrations/0001_identities'
-import * as migration0002 from '../migrations/0002_transactions'
-import * as migration0003 from '../migrations/0003_address_used'
-import * as migration0004 from '../migrations/0004_pending_tx'
-import * as migration0005 from '../migrations/0005_contacts'
+import * as migration0000 from '../../migrations/0000_init'
+import * as migration0001 from '../../migrations/0001_identities'
+import * as migration0002 from '../../migrations/0002_transactions'
+import * as migration0003 from '../../migrations/0003_address_used'
+import * as migration0004 from '../../migrations/0004_pending_tx'
+import * as migration0005 from '../../migrations/0005_contacts'
+import * as migration0006 from '../../migrations/0006_asset_lock_fundings'
+import * as migration0007 from '../../migrations/0007_shielded_spent_notes'
+import * as migration0008 from '../../migrations/0008_platform_xpub'
+import * as migration0009 from '../../migrations/0009_shielded_address_count'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -17,6 +21,10 @@ const migrations = [
   { name: '0003_address_used.ts', migration: migration0003 },
   { name: '0004_pending_tx.ts', migration: migration0004 },
   { name: '0005_contacts.ts', migration: migration0005 },
+  { name: '0006_asset_lock_fundings.ts', migration: migration0006 },
+  { name: '0007_shielded_spent_notes.ts', migration: migration0007 },
+  { name: '0008_platform_xpub.ts', migration: migration0008 },
+  { name: '0009_shielded_address_count.ts', migration: migration0009 },
 ]
 
 const inlineMigrationSource = {
@@ -24,13 +32,13 @@ const inlineMigrationSource = {
   getMigrationName: (m: typeof migrations[number]) => m.name,
   getMigration: (m: typeof migrations[number]) => Promise.resolve(m.migration),
 }
-import {TransactionWalletProviderJSON} from "./providers/types";
-import {Address} from "./types/Address";
-import {TransactionStatus} from "./enums/TransactionStatus";
-import {Transaction} from "./types/Transaction";
-import {IdentityWASM, PrivateKeyWASM} from "pshenmic-dpp";
+import {TransactionWalletProviderJSON} from "../providers/types";
+import {Address} from "../types/Address";
+import {TransactionStatus} from "../enums/TransactionStatus";
+import {Transaction} from "../types/Transaction";
+import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
 import {DashPlatformSDK} from "dash-platform-sdk";
-import {Network} from "./types";
+import {Network} from "../types";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
 export function calibratePBKDF2Iterations(targetMs: number): number {

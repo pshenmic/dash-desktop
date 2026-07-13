@@ -74,13 +74,13 @@ export default function RecipientInput({
   }
 
   return (
-    <div className={"flex flex-col gap-[.625rem] mt-6"}>
-      <Text size={16} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
+    <div className={"flex flex-col gap-2"}>
+      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>
-      <div className={"dash-input-search rounded-[.9375rem] overflow-hidden"} ref={containerRef}>
+      <div className={"dash-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
         <div
-          className={"flex items-center justify-between gap-1 px-6.25 py-5 [&>*:first-child]:flex-1"}
+          className={"flex items-center justify-between gap-1 px-4 py-3.5 [&>*:first-child]:flex-1"}
           onClick={() => {
             handleFocusChange(true)
             inputRef.current?.focus()
