@@ -13,6 +13,7 @@ export type TransferOperation =
   | 'addressWithdrawal'
   | 'shield'
   | 'identityToAddress'
+  | 'identityToIdentity'
   | 'shieldedTransfer'
   | 'unshield'
   | 'shieldedWithdrawal'
@@ -34,6 +35,7 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
   },
   identity: {
     platformAddress: 'identityToAddress',
+    identity: 'identityToIdentity',
   },
   shielded: {
     coreAddress: 'shieldedWithdrawal',
@@ -44,7 +46,6 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
 
 const COMBO_REASONS: Partial<Record<`${SourceKind}->${DestinationKind}`, string>> = {
   'identity->coreAddress': 'Send to a Platform address first, then withdraw from it.',
-  'identity->identity': 'Send to a Platform address first, then top up from it.',
   'identity->newIdentity': 'Send to a Platform address first, then create the identity from it.',
   'identity->shielded': 'Send to a Platform address first, then shield from it.',
   'shielded->identity': 'Unshield to a Platform address first, then top up the identity from it.',
@@ -82,6 +83,7 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   addressWithdrawal: {title: 'Withdraw to Core', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 400_000_000n, minCredits: 100_000n},
   shield: {title: 'Shield credits', submitLabel: 'Shield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   identityToAddress: {title: 'Send from identity', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  identityToIdentity: {title: 'Send to identity', submitLabel: 'Send', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
   shieldedTransfer: {title: 'Send privately', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   unshield: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   shieldedWithdrawal: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},

@@ -30,6 +30,7 @@ declare global {
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: string, password: string) => Promise<unknown>
       sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: string, password: string) => Promise<unknown>
+      transferIdentityCredits: (walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: string, password: string) => Promise<unknown>
       createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: string, password: string) => Promise<unknown>
       startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: string, password: string, kind?: string) => Promise<unknown>
       getAssetLockFundingState: (walletId: string) => Promise<unknown>

@@ -152,7 +152,9 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === 'newIdentity' ? true
     : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
 
-  const selfSend = operation === 'addressFundsTransfer' && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress
+  const selfSend =
+    (operation === 'addressFundsTransfer' && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress)
+    || (operation === 'identityToIdentity' && destinationValid && selectedIdentity != null && trimmedTo === selectedIdentity.identifier)
 
   const destinationError = toKind === 'newIdentity' || trimmedTo.length === 0
     ? null
@@ -162,7 +164,7 @@ export default function TransferHub(): React.JSX.Element {
         : toKind === 'identity' ? 'Enter a valid identity identifier.'
         : 'Enter a valid shielded address.')
       : selfSend
-        ? 'Recipient must be different from the source address.'
+        ? (operation === 'identityToIdentity' ? 'Recipient must be different from the source identity.' : 'Recipient must be different from the source address.')
         : null
 
   const needsAck = operation === 'shieldedWithdrawal'
@@ -455,6 +457,9 @@ export default function TransferHub(): React.JSX.Element {
     if (operation === 'addressWithdrawal') {
       return API.withdrawPlatformCredits(walletId, sourceAddress, trimmedTo, amountCredits.toString(), password)
     }
+    if (operation === 'identityToIdentity') {
+      return API.transferIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
+    }
     if (operation === 'identityCreate') {
       return API.createIdentityFromAddresses(walletId, sourceAddress, amountCredits.toString(), password)
         .then(result => ({
@@ -469,7 +474,7 @@ export default function TransferHub(): React.JSX.Element {
   }
 
   const isPlatformModalOperation = operation === 'addressFundsTransfer' || operation === 'identityTopUp'
-    || operation === 'addressWithdrawal' || operation === 'identityToAddress' || operation === 'identityCreate'
+    || operation === 'addressWithdrawal' || operation === 'identityToAddress' || operation === 'identityToIdentity' || operation === 'identityCreate'
   const isShieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
 
   return (
