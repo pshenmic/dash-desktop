@@ -7,6 +7,7 @@ export interface ReceivePageType {
   tabs: {
     dash: string
     shielded: string
+    platform: string
   },
   receiveAddressCard: {
     adressText: string
@@ -24,6 +25,7 @@ export const receivePage = {
   tabs: {
     dash: 'Dash',
     shielded: 'Shielded',
+    platform: 'Platform',
   },
   receiveAddressCard: {
     adressText: 'Dash Address',

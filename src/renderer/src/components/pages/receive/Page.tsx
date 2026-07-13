@@ -4,6 +4,7 @@ import { ReceivePageType } from "@renderer/constants";
 import Header from "./Header";
 import ReceiveAddressCard from "./ReceiveAddressCard";
 import ShieldedReceiveCard from "./ShieldedReceiveCard";
+import PlatformReceiveCard from "./PlatformReceiveCard";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
 import { API } from "@renderer/api";
@@ -33,6 +34,19 @@ const shieldedDescription = (
   </span>
 )
 
+const platformDescription = (
+  <span>This is your <span className={"font-extrabold"}>Platform</span>{' '}
+    receival address. Use it to receive credits on Dash Platform (L2). Balances are{' '}
+    <span className={"font-extrabold"}>account-based</span>, so it is safe to reuse this address.
+  </span>
+)
+
+const descriptions: Record<string, React.JSX.Element> = {
+  dash: dashDescription,
+  shielded: shieldedDescription,
+  platform: platformDescription,
+}
+
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
   const [activeTab, setActiveTab] = useState('dash')
   const { status } = useAuth()
@@ -61,11 +75,16 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
       label: pageData.tabs.shielded,
       content: <ShieldedReceiveCard walletId={walletId} />,
     },
+    {
+      value: 'platform',
+      label: pageData.tabs.platform,
+      content: <PlatformReceiveCard walletId={walletId} />,
+    },
   ]
 
   return (
     <div className={`relative flex flex-col pb-12`}>
-        <Header data={{...pageData.header, description: activeTab === 'shielded' ? shieldedDescription : dashDescription}}
+        <Header data={{...pageData.header, description: descriptions[activeTab] ?? dashDescription}}
           selectedAsset={selectedAsset}
         />
         <div className={"px-12 mt-8"}>
