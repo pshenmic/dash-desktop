@@ -31,4 +31,27 @@ export class IdentityDAO {
 
     return rows.map(identityFromRow)
   }
+
+  getByIdentifier = async (walletId: string, identifier: string): Promise<Identity | null> => {
+    const row = await this.knex('identities')
+      .select('wallet_id', 'identity_index', 'identifier', 'derivation_path')
+      .where({ wallet_id: walletId, identifier })
+      .first()
+
+    return row ? identityFromRow(row) : null
+  }
+
+  insertIdentity = async (identity: Identity, assetLockTxid: string | null): Promise<void> => {
+    await this.knex('identities').insert({
+      wallet_id: identity.walletId,
+      identity_index: identity.identityIndex,
+      derivation_path: identity.derivationPath,
+      identifier: identity.identifier,
+      asset_lock_txid: assetLockTxid,
+    })
+  }
+
+  removeIdentity = async (walletId: string, identifier: string): Promise<void> => {
+    await this.knex('identities').where({ wallet_id: walletId, identifier }).delete()
+  }
 }

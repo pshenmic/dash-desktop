@@ -1,4 +1,3 @@
-import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
   AssetLockProofWASM,
   AddressFundingFromAssetLockTransitionWASM,
@@ -12,6 +11,7 @@ import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../databa
 import {Network} from '../types'
 import {WalletService} from './WalletService'
 import {ShieldedService} from './ShieldedService'
+import {SdkProvider} from './SdkProvider'
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
 
@@ -51,15 +51,15 @@ export class AssetLockService {
   private assetLockDAO: AssetLockDAO
   private walletService: WalletService
   private shieldedService: ShieldedService
-  private sdk: DashPlatformSDK
+  private sdkProvider: SdkProvider
   private states = new Map<string, AssetLockFundingState>()
 
-  constructor(walletDAO: WalletDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, shieldedService: ShieldedService, sdk: DashPlatformSDK) {
+  constructor(walletDAO: WalletDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, shieldedService: ShieldedService, sdkProvider: SdkProvider) {
     this.walletDAO = walletDAO
     this.assetLockDAO = assetLockDAO
     this.walletService = walletService
     this.shieldedService = shieldedService
-    this.sdk = sdk
+    this.sdkProvider = sdkProvider
   }
 
   private idleState(): AssetLockFundingState {
@@ -106,7 +106,6 @@ export class AssetLockService {
       if (wallet == null) {
         throw new Error('Wallet not found')
       }
-      this.sdk.setNetwork(wallet.network)
       if (toPlatformAddress.length > 0) {
         try {
           OrchardAddressWASM.fromBech32m(toPlatformAddress)
@@ -120,8 +119,9 @@ export class AssetLockService {
         } catch {
           throw new Error('Invalid wallet password')
         }
-        const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
-        destination = this.sdk.keyPair.deriveShieldedAddress(seed, wallet.network, SHIELDED_ACCOUNT).toBech32m(wallet.network)
+        const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
+        const seed = keyPair.mnemonicToSeed(mnemonic)
+        destination = keyPair.deriveShieldedAddress(seed, wallet.network, SHIELDED_ACCOUNT).toBech32m(wallet.network)
       }
     }
 
@@ -213,7 +213,7 @@ export class AssetLockService {
       throw new Error('Wallet not found')
     }
     const network = wallet.network
-    this.sdk.setNetwork(network)
+    const sdk = this.sdkProvider.getPlatformSDK(network)
 
     state.phase = 'waitingChainLock'
 
@@ -238,7 +238,7 @@ export class AssetLockService {
     let chainLockedHeight = 0
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && chainLockedHeight < txHeight; attempt++) {
       try {
-        const status = await this.sdk.node.status()
+        const status = await sdk.node.status()
         const height = status.chain?.coreChainLockedHeight
         if (height != null) {
           state.chainLockedHeight = height
@@ -259,7 +259,7 @@ export class AssetLockService {
     state.phase = 'broadcastingST'
 
     const decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    const seed = this.sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
+    const seed = sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
 
     const stHash = row.kind === 'shielded'
       ? await this.broadcastShieldSt(row, seed, network, chainLockedHeight)
@@ -272,8 +272,9 @@ export class AssetLockService {
   }
 
   private async broadcastAddressFundingSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, chainLockedHeight: number): Promise<string> {
-    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
-    const derived = await this.sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
+    const sdk = this.sdkProvider.getPlatformSDK(network)
+    const hdKey = sdk.keyPair.seedToHdKey(seed, network)
+    const derived = await sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
     if (!derived.privateKey) {
       throw new Error('Failed to derive the asset lock credit key')
     }
@@ -281,7 +282,7 @@ export class AssetLockService {
 
     const proof = AssetLockProofWASM.createChainAssetLockProof(chainLockedHeight, new OutPointWASM(row.txid, row.outputIndex))
 
-    const unsignedSt = this.sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
+    const unsignedSt = sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
       assetLockProof: proof,
       inputs: [],
       feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
@@ -296,14 +297,14 @@ export class AssetLockService {
 
     await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
 
-    await this.sdk.stateTransitions.broadcast(signedSt)
-    await this.sdk.stateTransitions.waitForStateTransitionResult(signedSt)
+    await sdk.stateTransitions.broadcast(signedSt)
+    await sdk.stateTransitions.waitForStateTransitionResult(signedSt)
 
     return signedSt.hash(false)
   }
 
   private async broadcastShieldSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, chainLockedHeight: number): Promise<string> {
-    const surplus = await this.sdk.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
+    const surplus = await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
 
     await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
 

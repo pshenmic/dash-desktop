@@ -65,6 +65,10 @@ export class API {
     return this.api.getIdentities(walletId)
   }
 
+  static async registerIdentity(walletId: string, lockAmount: string, password: string): Promise<{identifier: string; stateTransitionHash: string}> {
+    return this.api.registerIdentity(walletId, lockAmount, password)
+  }
+
   static async getPlatformAddresses(walletId: string): Promise<PlatformAddressDto[]> {
     return this.api.getPlatformAddresses(walletId) as Promise<PlatformAddressDto[]>
   }

@@ -1,7 +1,7 @@
 import { utilityProcess, UtilityProcess } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { DashPlatformSDK } from 'dash-platform-sdk'
+import { SdkProvider } from './SdkProvider'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
@@ -67,7 +67,7 @@ const CHILD_OUTPUT_TAIL_LIMIT = 8192
 // into worker commands, tracks per-wallet sync/spend state from worker
 // events, and persists spent-note bookkeeping through ShieldedNoteDAO.
 export class ShieldedService {
-  private sdk: DashPlatformSDK
+  private sdkProvider: SdkProvider
   private walletDAO: WalletDAO
   private shieldedNoteDAO: ShieldedNoteDAO
   private child: UtilityProcess | null = null
@@ -81,8 +81,8 @@ export class ShieldedService {
   private pendingSpends = new Map<string, string>()
   private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
 
-  constructor(sdk: DashPlatformSDK, walletDAO: WalletDAO, shieldedNoteDAO: ShieldedNoteDAO) {
-    this.sdk = sdk
+  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, shieldedNoteDAO: ShieldedNoteDAO) {
+    this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
     this.shieldedNoteDAO = shieldedNoteDAO
   }
@@ -273,7 +273,7 @@ export class ShieldedService {
     const count = await this.walletDAO.getShieldedAddressCount(walletId)
     const list: string[] = []
     for (let i = 0; i < count; i++) {
-      list.push(this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
+      list.push(this.sdkProvider.getPlatformSDK(network).keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
     }
     this.addresses.set(walletId, list)
     return list
@@ -289,11 +289,11 @@ export class ShieldedService {
     } catch {
       throw new Error('Invalid wallet password')
     }
-    this.sdk.setNetwork(wallet.network)
-    const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+    const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
+    const seed = keyPair.mnemonicToSeed(mnemonic)
 
     if (wallet.platformXpub == null) {
-      const xpub = await this.sdk.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+      const xpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
       await this.walletDAO.setPlatformXpub(walletId, xpub)
     }
 
@@ -301,10 +301,10 @@ export class ShieldedService {
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
-    this.sdk.setNetwork(network)
+    const sdk = this.sdkProvider.getPlatformSDK(network)
     const [poolState, notesCount] = await Promise.all([
-      this.sdk.shielded.getShieldedPoolState(),
-      this.sdk.shielded.getShieldedNotesCount()
+      sdk.shielded.getShieldedPoolState(),
+      sdk.shielded.getShieldedNotesCount()
     ])
     return {
       poolState: poolState != null ? poolState.toString() : null,

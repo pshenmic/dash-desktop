@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {DashPlatformSDK} from 'dash-platform-sdk'
+import {SdkProvider} from '../../src/main/src/services/SdkProvider'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletService} from '../../src/main/src/services/WalletService'
 import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
@@ -30,7 +30,8 @@ describe('CreateWalletHandler', () => {
     const identityDAO = new IdentityDAO(knex)
     const transactionDAO = new TransactionDAO(knex)
 
-    const sdk = new DashPlatformSDK({network: 'testnet'})
+    const sdkProvider = new SdkProvider()
+    const sdk = sdkProvider.getPlatformSDK('testnet')
     // Short-circuit identity discovery so wallet creation stays offline.
     // WalletService.createWallet catches these errors and proceeds.
     vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
@@ -42,7 +43,7 @@ describe('CreateWalletHandler', () => {
 
     const walletService = new WalletService(
       walletDAO, addressDAO, identityDAO, transactionDAO,
-      applicationService, walletSyncService, sdk, TEST_PBKDF2_ITERATIONS,
+      applicationService, walletSyncService, sdkProvider, TEST_PBKDF2_ITERATIONS,
     )
 
     handler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)
