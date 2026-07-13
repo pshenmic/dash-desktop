@@ -1,7 +1,7 @@
 import {Knex} from 'knex'
 
 export type AssetLockFundingStatus = 'l1_broadcast' | 'chainlocked' | 'st_broadcast' | 'done' | 'error'
-export type AssetLockFundingKind = 'address' | 'shielded' | 'identity'
+export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
 
 export interface AssetLockFundingRow {
   id: number
@@ -68,6 +68,14 @@ export class AssetLockDAO {
       ...(fields?.stHash != null ? {st_hash: fields.stHash} : {}),
       ...(fields?.error != null ? {error: fields.error} : {}),
     })
+  }
+
+  countFundingsByKind = async (walletId: string, kind: AssetLockFundingKind): Promise<number> => {
+    const row = await this.knex('asset_lock_fundings')
+      .where({wallet_id: walletId, kind})
+      .count({count: '*'})
+      .first()
+    return Number(row?.count ?? 0)
   }
 
   getActiveFunding = async (walletId: string): Promise<AssetLockFundingRow | null> => {

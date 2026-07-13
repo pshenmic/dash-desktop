@@ -110,8 +110,12 @@ export class AssetLockService {
     }
 
     let destination = toPlatformAddress
-    if (kind === 'identity') {
-      destination = ''
+    if (kind === 'identity' || kind === 'identityTopUp') {
+      if (kind === 'identity') {
+        destination = ''
+      } else if (destination.trim().length === 0) {
+        throw new Error('Identity identifier is required')
+      }
       const wallet = await this.walletDAO.getWalletById(walletId)
       if (wallet == null) {
         throw new Error('Wallet not found')
@@ -208,6 +212,11 @@ export class AssetLockService {
         credit = prepared.credit
         identityIndex = prepared.identityIndex
       }
+      if (kind === 'identityTopUp') {
+        const prepared = await this.prepareIdentityTopUp(walletId, password)
+        credit = prepared.credit
+        identityIndex = prepared.topUpIndex
+      }
 
       state.phase = 'broadcastingL1'
       const broadcasted = await this.walletService.buildAndBroadcastAssetLock(walletId, amountDuffs, password, credit)
@@ -265,6 +274,29 @@ export class AssetLockService {
     }
   }
 
+  private async prepareIdentityTopUp(walletId: string, password: string): Promise<{topUpIndex: number; credit: {address: string; derivationPath: string}}> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+    let mnemonic: string
+    try {
+      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const topUpIndex = await this.assetLockDAO.countFundingsByKind(walletId, 'identityTopUp')
+    const fundingKey = await this.identityRegistrationService.deriveTopUpKey(mnemonic, topUpIndex, network)
+    const address = this.sdkProvider.getPlatformSDK(network).keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)
+
+    return {
+      topUpIndex,
+      credit: {address, derivationPath: this.identityRegistrationService.topUpKeyPath(topUpIndex, network)},
+    }
+  }
+
   private async completeFunding(walletId: string, row: AssetLockFundingRow, password: string, state: AssetLockFundingState, live?: {tx: SDKTransaction; inputAddresses: string[]}): Promise<void> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) {
@@ -273,7 +305,7 @@ export class AssetLockService {
     const network = wallet.network
     const sdk = this.sdkProvider.getPlatformSDK(network)
 
-    if (row.kind === 'identity') {
+    if (row.kind === 'identity' || row.kind === 'identityTopUp') {
       return this.completeIdentityFunding(wallet, row, password, state, live)
     }
 
@@ -394,7 +426,9 @@ export class AssetLockService {
     } catch {
       throw new Error('Invalid wallet password')
     }
-    const registrationKey = await this.identityRegistrationService.deriveRegistrationKey(mnemonic, row.identityIndex, network)
+    const fundingKey = row.kind === 'identityTopUp'
+      ? await this.identityRegistrationService.deriveTopUpKey(mnemonic, row.identityIndex, network)
+      : await this.identityRegistrationService.deriveRegistrationKey(mnemonic, row.identityIndex, network)
 
     state.phase = 'waitingChainLock'
 
@@ -402,15 +436,43 @@ export class AssetLockService {
     if (tx == null) {
       throw new Error('Funding record is missing the asset lock transaction')
     }
-    const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network)]
+    const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)]
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
 
     await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
 
     state.phase = 'broadcastingST'
 
+    if (row.kind === 'identityTopUp') {
+      const stateTransition = this.identityRegistrationService.buildIdentityTopUpTransition(row.toPlatformAddress, fundingKey, assetLockProof, network)
+      const stHash = stateTransition.hash(false)
+
+      await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+
+      let alreadyOnPlatform = false
+      try {
+        await sdk.stateTransitions.broadcast(stateTransition)
+      } catch (e) {
+        if (this.isAlreadyInChain(e)) {
+          alreadyOnPlatform = true
+        } else {
+          throw e
+        }
+      }
+      if (!alreadyOnPlatform) {
+        await sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+      }
+
+      state.identityIdentifier = row.toPlatformAddress
+      state.stHash = stHash
+      state.phase = 'done'
+
+      await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
+      return
+    }
+
     const identityKeys = await this.identityRegistrationService.deriveIdentityKeys(mnemonic, row.identityIndex, network)
-    const stateTransition = this.identityRegistrationService.buildIdentityCreateTransition(identityKeys, registrationKey, assetLockProof, network)
+    const stateTransition = this.identityRegistrationService.buildIdentityCreateTransition(identityKeys, fundingKey, assetLockProof, network)
 
     const identifier = stateTransition.getOwnerId()?.base58()
     if (identifier == null || identifier === '') {

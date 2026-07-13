@@ -35,18 +35,36 @@ export class IdentityRegistrationService {
   constructor(private readonly sdkProvider: SdkProvider) {}
 
   registrationKeyPath(identityIndex: number, network: Network): string {
-    return `m/9'/${COIN_TYPE[network]}'/5'/1'/${identityIndex}`
+    return this.fundingKeyPath(1, identityIndex, network)
+  }
+
+  topUpKeyPath(index: number, network: Network): string {
+    return this.fundingKeyPath(2, index, network)
+  }
+
+  // DIP-0013 identity funding branch m/9'/coin'/5'/usage'/index: usage 1 funds
+  // registrations, usage 2 funds top-ups.
+  private fundingKeyPath(usage: number, index: number, network: Network): string {
+    return `m/9'/${COIN_TYPE[network]}'/5'/${usage}'/${index}`
   }
 
   // Registration key (DIP-0013 m/9'/coin'/5'/1'/index): owns the asset-lock
   // credit output and signs the IdentityCreateTransition. Derived from seed, so
   // recoverable without local storage.
   async deriveRegistrationKey(mnemonic: string, identityIndex: number, network: Network): Promise<PrivateKeyWASM> {
+    return this.deriveFundingKey(mnemonic, this.registrationKeyPath(identityIndex, network), network)
+  }
+
+  async deriveTopUpKey(mnemonic: string, index: number, network: Network): Promise<PrivateKeyWASM> {
+    return this.deriveFundingKey(mnemonic, this.topUpKeyPath(index, network), network)
+  }
+
+  private async deriveFundingKey(mnemonic: string, path: string, network: Network): Promise<PrivateKeyWASM> {
     const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
     const hdKey = keyPair.seedToHdKey(keyPair.mnemonicToSeed(mnemonic), network)
-    const {privateKey} = await keyPair.derivePath(hdKey, this.registrationKeyPath(identityIndex, network))
+    const {privateKey} = await keyPair.derivePath(hdKey, path)
     if (privateKey == null) {
-      throw new Error('Could not derive identity registration key from wallet hd key')
+      throw new Error(`Could not derive identity funding key at ${path} from wallet hd key`)
     }
     return PrivateKeyWASM.fromBytes(privateKey, network)
   }
@@ -207,6 +225,23 @@ export class IdentityRegistrationService {
 
     stateTransition = sdk.identities.createStateTransition('create', {publicKeys, assetLockProof})
     stateTransition.signByPrivateKey(registrationKey, undefined, KeyType.ECDSA_SECP256K1)
+
+    return stateTransition
+  }
+
+  // Builds and signs the IdentityTopUpTransition. Signed only by the top-up
+  // funding key that owns the asset-lock credit output — no identity keys or
+  // proof-of-possession, so any identity can be topped up by its identifier.
+  buildIdentityTopUpTransition(
+    identityId: string,
+    fundingKey: PrivateKeyWASM,
+    assetLockProof: AssetLockProof,
+    network: Network,
+  ): StateTransitionWASM {
+    const sdk = this.sdkProvider.getPlatformSDK(network)
+
+    const stateTransition = sdk.identities.createStateTransition('topUp', {identityId, assetLockProof})
+    stateTransition.signByPrivateKey(fundingKey, undefined, KeyType.ECDSA_SECP256K1)
 
     return stateTransition
   }

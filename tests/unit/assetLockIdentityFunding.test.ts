@@ -16,6 +16,8 @@ const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abando
 const PASSWORD = 'password123'
 const LOCK_AMOUNT = 200_000n
 const REGISTRATION_PATH = "m/9'/1'/5'/1'/0"
+const TOP_UP_PATH = "m/9'/1'/5'/2'/0"
+const TARGET_IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
 
 async function waitForSettled(state: AssetLockFundingState): Promise<void> {
   await vi.waitFor(() => {
@@ -49,6 +51,7 @@ describe('AssetLockService identity funding', () => {
     getOwnerId: () => ({base58: () => 'identifierABC'}),
     hash: () => 'sthash',
   }
+  const topUpTransition = {hash: () => 'topup-sthash'}
 
   const wallet: Wallet = {
     walletId: WALLET_ID,
@@ -76,7 +79,7 @@ describe('AssetLockService identity funding', () => {
     })
     updateStatus = vi.fn().mockResolvedValue(undefined)
     getActiveFunding = vi.fn().mockImplementation(async () => insertedRow)
-    assetLockDAO = {insertFunding, updateStatus, getActiveFunding} as unknown as AssetLockDAO
+    assetLockDAO = {insertFunding, updateStatus, getActiveFunding, countFundingsByKind: vi.fn().mockResolvedValue(0)} as unknown as AssetLockDAO
 
     buildAndBroadcastAssetLock = vi.fn().mockResolvedValue({
       tx: assetLockTx,
@@ -101,9 +104,12 @@ describe('AssetLockService identity funding', () => {
       findNextIdentityIndex: vi.fn().mockResolvedValue(0),
       deriveRegistrationKey: vi.fn().mockResolvedValue({getPublicKey: () => ({bytes: () => new Uint8Array([1, 2, 3])})}),
       registrationKeyPath: vi.fn().mockReturnValue(REGISTRATION_PATH),
+      deriveTopUpKey: vi.fn().mockResolvedValue({getPublicKey: () => ({bytes: () => new Uint8Array([4, 5, 6])})}),
+      topUpKeyPath: vi.fn().mockReturnValue(TOP_UP_PATH),
       waitForAssetLockProof,
       deriveIdentityKeys: vi.fn().mockResolvedValue([]),
       buildIdentityCreateTransition: vi.fn().mockReturnValue(stateTransition),
+      buildIdentityTopUpTransition: vi.fn().mockReturnValue(topUpTransition),
     } as unknown as IdentityRegistrationService
 
     service = new AssetLockService(walletDAO, identityDAO, assetLockDAO, walletService, {} as ShieldedService, sdkProvider, identityRegistrationService)
@@ -196,5 +202,35 @@ describe('AssetLockService identity funding', () => {
     expect(watchAddresses).toEqual(['credit-addr'])
     expect(network).toBe('testnet')
     expect(insertIdentity).toHaveBeenCalledOnce()
+  })
+
+  it('tops up an identity from L1 with a dedicated top-up funding key', async () => {
+    const state = await service.startFunding(WALLET_ID, TARGET_IDENTITY, LOCK_AMOUNT, PASSWORD, 'identityTopUp')
+    await waitForSettled(state)
+
+    expect(state.phase).toBe('done')
+    expect(state.stHash).toBe('topup-sthash')
+    expect(state.identityIdentifier).toBe(TARGET_IDENTITY)
+    expect(buildAndBroadcastAssetLock).toHaveBeenCalledWith(
+      WALLET_ID,
+      LOCK_AMOUNT,
+      PASSWORD,
+      {address: 'credit-addr', derivationPath: TOP_UP_PATH},
+    )
+    expect(insertFunding).toHaveBeenCalledWith(expect.objectContaining({kind: 'identityTopUp', identityIndex: 0, toPlatformAddress: TARGET_IDENTITY}))
+    const buildTopUp = vi.mocked(identityRegistrationService.buildIdentityTopUpTransition)
+    expect(buildTopUp.mock.calls[0][0]).toBe(TARGET_IDENTITY)
+    expect(buildTopUp.mock.calls[0][2]).toEqual({type: 'instantLock'})
+    expect(stBroadcast).toHaveBeenCalledWith(topUpTransition)
+    expect(insertIdentity).not.toHaveBeenCalled()
+    expect(updateStatus).toHaveBeenCalledWith('assetlock-txid', 'done', {stHash: 'topup-sthash'})
+  })
+
+  it('rejects a top-up without an identity identifier', async () => {
+    await expect(
+      service.startFunding(WALLET_ID, '', LOCK_AMOUNT, PASSWORD, 'identityTopUp'),
+    ).rejects.toThrow('Identity identifier is required')
+
+    expect(buildAndBroadcastAssetLock).not.toHaveBeenCalled()
   })
 })

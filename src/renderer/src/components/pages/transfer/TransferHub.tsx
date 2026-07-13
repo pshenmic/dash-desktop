@@ -314,6 +314,15 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
+      {operation === 'identityTopUpL1' && (
+        <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <Text size={14} weight={"extrabold"} color={"brand"}>Top up from L1</Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
+            Locks Dash on L1 and credits the identity with the locked amount. You can top up any identity by its identifier — not just your own. The process resumes automatically if interrupted.
+          </Text>
+        </div>
+      )}
+
       {operation === 'addressWithdrawal' && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Cross-chain withdrawal</Text>
@@ -481,6 +490,7 @@ export default function TransferHub(): React.JSX.Element {
             <Text size={14} weight={"extrabold"} color={"brand"}>
               {resumableFunding.kind === 'shielded' ? 'Unfinished L1 shielding'
                 : resumableFunding.kind === 'identity' ? 'Unfinished identity registration'
+                : resumableFunding.kind === 'identityTopUp' ? 'Unfinished identity top-up'
                 : 'Unfinished Platform address funding'}
             </Text>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
@@ -556,7 +566,7 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
-      {(operation === 'assetLockFunding' || operation === 'assetLockShield' || operation === 'identityRegister') && (
+      {(operation === 'assetLockFunding' || operation === 'assetLockShield' || operation === 'identityRegister' || operation === 'identityTopUpL1') && (
         <AssetLockFundingModal
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
@@ -564,7 +574,7 @@ export default function TransferHub(): React.JSX.Element {
           toPlatformAddress={operation === 'identityRegister' ? '' : trimmedTo}
           amountDuffs={amountDuffs.toString()}
           resume={false}
-          kind={operation === 'assetLockShield' ? 'shielded' : operation === 'identityRegister' ? 'identity' : 'address'}
+          kind={operation === 'assetLockShield' ? 'shielded' : operation === 'identityRegister' ? 'identity' : operation === 'identityTopUpL1' ? 'identityTopUp' : 'address'}
           onSuccess={() => {
             resetForm()
             if (walletId) {

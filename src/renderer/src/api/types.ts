@@ -143,7 +143,7 @@ export type AssetLockFundingPhase =
   | 'done'
   | 'error'
 
-export type AssetLockFundingKind = 'address' | 'shielded' | 'identity'
+export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
 
 export interface AssetLockFundingState {
   phase: AssetLockFundingPhase

@@ -25,12 +25,49 @@ describe('IdentityRegistrationService', () => {
       const hexes = new Set(keys.map(k => k.hex()))
       expect(hexes.size).toBe(IDENTITY_KEY_DEFINITIONS.length)
     })
+
+    it('derives top-up keys distinct from registration keys at the same index', async () => {
+      const topUpKey0 = await service.deriveTopUpKey(MNEMONIC, 0, 'testnet')
+      const topUpKey1 = await service.deriveTopUpKey(MNEMONIC, 1, 'testnet')
+      const registrationKey0 = await service.deriveRegistrationKey(MNEMONIC, 0, 'testnet')
+
+      expect(topUpKey0.hex()).not.toBe(topUpKey1.hex())
+      expect(topUpKey0.hex()).not.toBe(registrationKey0.hex())
+      const topUpKey0Again = await service.deriveTopUpKey(MNEMONIC, 0, 'testnet')
+      expect(topUpKey0Again.hex()).toBe(topUpKey0.hex())
+    })
   })
 
   describe('registrationKeyPath', () => {
     it('follows DIP-13 m/9\'/coin\'/5\'/1\'/index per network', () => {
       expect(service.registrationKeyPath(0, 'testnet')).toBe("m/9'/1'/5'/1'/0")
       expect(service.registrationKeyPath(3, 'mainnet')).toBe("m/9'/5'/5'/1'/3")
+    })
+  })
+
+  describe('topUpKeyPath', () => {
+    it('follows DIP-13 m/9\'/coin\'/5\'/2\'/index per network', () => {
+      expect(service.topUpKeyPath(0, 'testnet')).toBe("m/9'/1'/5'/2'/0")
+      expect(service.topUpKeyPath(3, 'mainnet')).toBe("m/9'/5'/5'/2'/3")
+    })
+  })
+
+  describe('buildIdentityTopUpTransition', () => {
+    it('creates a topUp transition and signs it with the funding key only', () => {
+      const stateTransition = {signByPrivateKey: vi.fn()}
+      const createStateTransition = vi.fn().mockReturnValue(stateTransition)
+      const localService = new IdentityRegistrationService({
+        getPlatformSDK: () => ({identities: {createStateTransition}}),
+      } as unknown as SdkProvider)
+
+      const fundingKey = {} as never
+      const assetLockProof = {type: 'instantLock'} as never
+      const result = localService.buildIdentityTopUpTransition('identifierABC', fundingKey, assetLockProof, 'testnet')
+
+      expect(result).toBe(stateTransition)
+      expect(createStateTransition).toHaveBeenCalledWith('topUp', {identityId: 'identifierABC', assetLockProof})
+      expect(stateTransition.signByPrivateKey).toHaveBeenCalledOnce()
+      expect(stateTransition.signByPrivateKey.mock.calls[0][0]).toBe(fundingKey)
     })
   })
 

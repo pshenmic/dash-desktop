@@ -36,6 +36,11 @@ const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: string; lab
     { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
     { key: 'broadcastingST', label: 'Registering the identity on Platform' },
   ],
+  identityTopUp: [
+    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
+    { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
+    { key: 'broadcastingST', label: 'Topping up the identity on Platform' },
+  ],
 }
 
 const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; emptyTo: string; confirm: string}> = {
@@ -68,6 +73,16 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     toLabel: 'Creates',
     emptyTo: 'New Platform identity with 6 keys',
     confirm: 'Confirm & Register',
+  },
+  identityTopUp: {
+    title: 'Top up identity from L1',
+    resumeTitle: 'Resume top-up',
+    doneTitle: 'Identity topped up',
+    doneHeading: 'Identity topped up',
+    doneNote: "The locked Dash is now credits on the identity's balance.",
+    toLabel: 'Identity',
+    emptyTo: '',
+    confirm: 'Confirm & Top up',
   },
 }
 
