@@ -12,8 +12,8 @@ import {
   StateTransitionWASM,
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
-import { coreAddressToScript } from './coreScript'
-import { maxSpendableCredits, selectSpendNotes } from './shieldedNoteSelection'
+import { coreAddressToScript } from '../utils/coreScript'
+import { maxSpendableCredits, selectSpendNotes } from '../utils/shieldedNoteSelection'
 
 export type ShieldedWarmupState = 'idle' | 'preparing' | 'ready' | 'error'
 

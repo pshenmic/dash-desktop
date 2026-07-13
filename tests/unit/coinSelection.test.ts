@@ -3,7 +3,7 @@ import {
   selectCoins,
   SelectableUtxo,
   DEFAULT_SELECTION_PARAMS,
-} from '../../src/main/src/services/coinSelection'
+} from '../../src/main/src/utils/coinSelection'
 
 const ONE_DASH = 100_000_000n
 

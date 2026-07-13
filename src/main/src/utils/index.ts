@@ -1,16 +1,16 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from './constants'
+import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
 import knex, {Knex} from 'knex'
-import * as migration0000 from '../migrations/0000_init'
-import * as migration0001 from '../migrations/0001_identities'
-import * as migration0002 from '../migrations/0002_transactions'
-import * as migration0003 from '../migrations/0003_address_used'
-import * as migration0004 from '../migrations/0004_pending_tx'
-import * as migration0005 from '../migrations/0005_contacts'
-import * as migration0006 from '../migrations/0006_asset_lock_fundings'
-import * as migration0007 from '../migrations/0007_shielded_spent_notes'
+import * as migration0000 from '../../migrations/0000_init'
+import * as migration0001 from '../../migrations/0001_identities'
+import * as migration0002 from '../../migrations/0002_transactions'
+import * as migration0003 from '../../migrations/0003_address_used'
+import * as migration0004 from '../../migrations/0004_pending_tx'
+import * as migration0005 from '../../migrations/0005_contacts'
+import * as migration0006 from '../../migrations/0006_asset_lock_fundings'
+import * as migration0007 from '../../migrations/0007_shielded_spent_notes'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -28,13 +28,13 @@ const inlineMigrationSource = {
   getMigrationName: (m: typeof migrations[number]) => m.name,
   getMigration: (m: typeof migrations[number]) => Promise.resolve(m.migration),
 }
-import {TransactionWalletProviderJSON} from "./providers/types";
-import {Address} from "./types/Address";
-import {TransactionStatus} from "./enums/TransactionStatus";
-import {Transaction} from "./types/Transaction";
+import {TransactionWalletProviderJSON} from "../providers/types";
+import {Address} from "../types/Address";
+import {TransactionStatus} from "../enums/TransactionStatus";
+import {Transaction} from "../types/Transaction";
 import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
 import {DashPlatformSDK} from "dash-platform-sdk";
-import {Network} from "./types";
+import {Network} from "../types";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
 export function calibratePBKDF2Iterations(targetMs: number): number {

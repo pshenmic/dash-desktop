@@ -32,8 +32,8 @@ import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
-import {selectCoins, SelectableUtxo} from "./coinSelection";
-import {dedupeTransactions} from "./dedupeTransactions";
+import {selectCoins, SelectableUtxo} from "../utils/coinSelection";
+import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService, TransferInput} from "./CoreTransactionService";
 import {decryptMnemonic, encryptMnemonic} from "../utils";
 import {coreAddressToPlatformAddress} from "./platformAddress";
@@ -54,9 +54,9 @@ import {
   MIN_OUTPUT_CREDITS,
   identityTransferFeeCredits,
   identityCreateFeeCredits,
-} from "./platformTransfer";
-import {coreAddressToScript} from "./coreScript";
-import {matchIdentityKey, DerivedKeyHash} from "./identityKeys";
+} from "../utils/platformTransfer";
+import {coreAddressToScript} from "../utils/coreScript";
+import {matchIdentityKey, DerivedKeyHash} from "../utils/identityKeys";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10

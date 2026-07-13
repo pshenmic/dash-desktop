@@ -8,7 +8,7 @@ import {
   addressTransferFeeCredits,
   identityCreateFeeCredits,
   topUpFeeCredits,
-} from '../../src/main/src/services/platformTransfer'
+} from '../../src/main/src/utils/platformTransfer'
 
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
   return {

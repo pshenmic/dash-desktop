@@ -10,7 +10,7 @@ import {WalletDAO} from '../database/WalletDAO'
 import {AssetLockDAO, AssetLockFundingRow} from '../database/AssetLockDAO'
 import {WalletService} from './WalletService'
 import {decryptMnemonic} from '../utils'
-import {ASSET_LOCK_CREDIT_OUTPUT_INDEX} from './assetLockTx'
+import {ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../utils/assetLockTx'
 
 export type AssetLockFundingPhase =
   | 'idle'

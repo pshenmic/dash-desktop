@@ -11,7 +11,7 @@ import {
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {Network} from '../types'
 import {ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
-import {buildAssetLockOutputs} from './assetLockTx'
+import {buildAssetLockOutputs} from '../utils/assetLockTx'
 
 export type RecipientType = 'p2pkh' | 'p2sh'
 

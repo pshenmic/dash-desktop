@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { Base58Check } from 'dash-core-sdk/src/base58check.js'
-import { coreAddressToScript } from '../../src/main/src/services/coreScript'
+import { coreAddressToScript } from '../../src/main/src/utils/coreScript'
 
 const keyHash = new Uint8Array(20).fill(7)
 const keyHashHex = '07'.repeat(20)

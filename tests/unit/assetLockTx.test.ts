@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { AssetLockTx } from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
-import { buildAssetLockOutputs, ASSET_LOCK_PAYLOAD_VERSION, ASSET_LOCK_CREDIT_OUTPUT_INDEX } from '../../src/main/src/services/assetLockTx'
+import { buildAssetLockOutputs, ASSET_LOCK_PAYLOAD_VERSION, ASSET_LOCK_CREDIT_OUTPUT_INDEX } from '../../src/main/src/utils/assetLockTx'
 
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')

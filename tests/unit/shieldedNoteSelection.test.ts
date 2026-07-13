@@ -3,7 +3,7 @@ import {
   selectSpendNotes,
   maxSpendableCredits,
   SelectableNote,
-} from '../../src/main/src/services/shieldedNoteSelection'
+} from '../../src/main/src/utils/shieldedNoteSelection'
 
 function note(index: number, value: bigint): SelectableNote {
   return { index, value }
