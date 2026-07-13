@@ -75,7 +75,7 @@ export default function AssetLockFundingModal({
           notified.current = true
           onSuccess()
         }
-        if (next.phase !== 'done' && next.phase !== 'error') {
+        if (next.phase !== 'done' && next.phase !== 'error' && next.phase !== 'resumable') {
           timer = setTimeout(() => { void poll() }, 3000)
         }
       } catch {
@@ -92,7 +92,7 @@ export default function AssetLockFundingModal({
 
   if (!isOpen) return null
 
-  const running = started && state != null && state.phase !== 'done' && state.phase !== 'error'
+  const running = started && state != null && state.phase !== 'done' && state.phase !== 'error' && state.phase !== 'resumable'
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || busy || started) return
@@ -122,7 +122,7 @@ export default function AssetLockFundingModal({
   }
 
   const isDone = state?.phase === 'done'
-  const isError = started && state?.phase === 'error'
+  const isError = started && (state?.phase === 'error' || state?.phase === 'resumable')
 
   return createPortal(
     <div
@@ -233,6 +233,11 @@ export default function AssetLockFundingModal({
               <div className={"mt-3"}>
                 <HashField hash={state.txid} label={"L1 txid"} />
               </div>
+            )}
+            {state.phase === 'resumable' && (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
+                The locked Dash is safe — you can resume this funding from the Send page.
+              </Text>
             )}
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
