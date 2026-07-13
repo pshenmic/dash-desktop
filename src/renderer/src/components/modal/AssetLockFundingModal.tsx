@@ -5,6 +5,9 @@ import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { AssetLockFundingState } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
+import HashField from '@renderer/components/ui/HashField'
+import CopyableError from '@renderer/components/ui/CopyableError'
+import CopyButton from '@renderer/components/ui/CopyButton'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
@@ -176,7 +179,7 @@ export default function AssetLockFundingModal({
               />
             </div>
             <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-              <Text size={12} weight={"medium"} color={"red"}>{preError}</Text>
+              <CopyableError message={preError ?? ''} />
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
@@ -211,9 +214,9 @@ export default function AssetLockFundingModal({
               })}
             </div>
             {state.txid && (
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-3 block font-mono break-all"}>
-                L1 txid: {state.txid}
-              </Text>
+              <div className={"mt-3"}>
+                <HashField hash={state.txid} label={"L1 txid"} />
+              </div>
             )}
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
               You can close this window — the funding keeps running and can be resumed from the Send page.
@@ -224,8 +227,13 @@ export default function AssetLockFundingModal({
         {isError && state && (
           <div className={"phase-fade-in"} key={"error"}>
             <div className={"mt-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <Text size={12} weight={"medium"} color={"red"} className={"break-all"}>{state.error}</Text>
+              <CopyableError message={state.error ?? 'Funding failed.'} />
             </div>
+            {state.txid && (
+              <div className={"mt-3"}>
+                <HashField hash={state.txid} label={"L1 txid"} />
+              </div>
+            )}
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
                 Close
@@ -248,12 +256,18 @@ export default function AssetLockFundingModal({
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
+                <div className={"flex items-center gap-2 min-w-0"}>
+                  <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
+                  {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
+                </div>
               </div>
               {state.stHash && (
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>State transition</Text>
-                  <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.stHash}</Text>
+                  <div className={"flex items-center gap-2 min-w-0"}>
+                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.stHash}</Text>
+                    <CopyButton text={state.stHash} className={"shrink-0"} />
+                  </div>
                 </div>
               )}
             </div>

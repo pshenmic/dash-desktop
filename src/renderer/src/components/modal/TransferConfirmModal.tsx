@@ -4,6 +4,7 @@ import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxt
 import { useTheme } from 'dash-ui-kit/react'
 import { PlatformSendResult } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
+import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 
 export interface TransferConfirmRow {
@@ -128,10 +129,10 @@ export default function TransferConfirmModal({
             <div
               className={`
                 overflow-hidden transition-all duration-200
-                ${error ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}
+                ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
               `}
             >
-              <Text size={12} weight={"medium"} color={"red"}>{error}</Text>
+              <CopyableError message={error ?? ''} />
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>

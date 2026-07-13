@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import HashField from '@renderer/components/ui/HashField'
+import CopyableError from '@renderer/components/ui/CopyableError'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { ShieldedSpendState } from '@renderer/api/types'
@@ -189,8 +190,8 @@ export default function ShieldedSpendModal({
                 autoFocus
               />
             </div>
-            <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-              <Text size={12} weight={"medium"} color={"red"}>{preError}</Text>
+            <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
+              <CopyableError message={preError ?? ''} />
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
@@ -245,7 +246,7 @@ export default function ShieldedSpendModal({
         {isError && (
           <div className={"phase-fade-in"} key={"error"}>
             <div className={"mt-5 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <Text size={12} weight={"medium"} color={"red"} className={"break-all"}>{spend?.error ?? 'Spend failed.'}</Text>
+              <CopyableError message={spend?.error ?? 'Spend failed.'} />
             </div>
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"md"} className={"flex-1 rounded-[.9375rem]"}>

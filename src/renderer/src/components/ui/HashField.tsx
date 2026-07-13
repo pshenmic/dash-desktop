@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Text, CheckIcon } from '../dash-ui-kit-enxtended'
 import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
 
-export default function HashField({ hash }: { hash: string }): React.JSX.Element {
+export default function HashField({ hash, label = 'State transition hash' }: { hash: string; label?: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
 
   const copy = (): void => {
@@ -14,7 +14,7 @@ export default function HashField({ hash }: { hash: string }): React.JSX.Element
 
   return (
     <div className={"flex flex-col gap-[.375rem]"}>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>State transition hash</Text>
+      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
       <button
         onClick={copy}
         title={"Click to copy"}
