@@ -19,6 +19,10 @@ export interface ShieldSource {
   index: number
 }
 
+export type ShieldAssetLockProofParams =
+  | { type: 'chainLock'; coreChainLockedHeight: number }
+  | { type: 'instantLock'; instantLock: string; transaction: string }
+
 export type ShieldedCommand =
   | { type: 'initProver' }
   | { type: 'sync'; requestId: string; network: Network; seed: Uint8Array; spentIndexes: number[] }
@@ -42,7 +46,7 @@ export type ShieldedCommand =
       seed: Uint8Array
       txid: string
       outputIndex: number
-      coreChainLockedHeight: number
+      assetLockProof: ShieldAssetLockProofParams
       creditDerivationPath: string
       recipient: string
       shieldAmountCredits: string
