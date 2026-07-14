@@ -145,6 +145,14 @@ export class API {
     return this.api.sendIdentityCredits(walletId, identityId, toAddress, amountCredits, password) as Promise<PlatformSendResult>
   }
 
+  static async transferIdentityCredits(walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: string, password: string): Promise<PlatformSendResult> {
+    return this.api.transferIdentityCredits(walletId, fromIdentityId, toIdentityId, amountCredits, password) as Promise<PlatformSendResult>
+  }
+
+  static async withdrawIdentityCredits(walletId: string, identityId: string, toCoreAddress: string, amountCredits: string, password: string): Promise<PlatformSendResult> {
+    return this.api.withdrawIdentityCredits(walletId, identityId, toCoreAddress, amountCredits, password) as Promise<PlatformSendResult>
+  }
+
   static async createIdentityFromAddresses(walletId: string, fromAddress: string | null, amountCredits: string, password: string): Promise<IdentityCreateResult> {
     return this.api.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password) as Promise<IdentityCreateResult>
   }
@@ -175,6 +183,10 @@ export class API {
 
   static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: string, password: string): Promise<ShieldedSpendState> {
     return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password) as Promise<ShieldedSpendState>
+  }
+
+  static async startShieldedIdentityCreate(walletId: string, denominationCredits: string, password: string): Promise<ShieldedSpendState> {
+    return this.api.startShieldedIdentityCreate(walletId, denominationCredits, password) as Promise<ShieldedSpendState>
   }
 
   static async getShieldedSpendState(walletId: string): Promise<ShieldedSpendState> {

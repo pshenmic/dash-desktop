@@ -38,6 +38,7 @@ import {
   MIN_OUTPUT_CREDITS,
   identityTransferFeeCredits,
   identityCreateFeeCredits,
+  IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
 } from '../utils/platformTransfer'
 
 const PLATFORM_ACCOUNT = 0
@@ -192,6 +193,64 @@ export class PlatformAddressService {
       feeCredits: feeCredits.toString(),
       fromAddress: identityIdentifier,
       toAddress: recipients[0].address,
+    }
+  }
+
+  async transferIdentityCredits(
+    walletId: string,
+    fromIdentityIdentifier: string,
+    toIdentityIdentifier: string,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<PlatformSendResult> {
+    if (amountCredits <= 0n) {
+      throw new Error('Transfer amount must be greater than zero')
+    }
+    if (toIdentityIdentifier === fromIdentityIdentifier) {
+      throw new Error('Recipient identity must be different from the source identity')
+    }
+
+    const {wallet, seed} = await this.unlock(walletId, password)
+    const network = wallet.network
+
+    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identity = identities.find(entry => entry.identifier === fromIdentityIdentifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+
+    const balance = await this.platformSDK(network).identities.getIdentityBalance(fromIdentityIdentifier)
+    if (balance < amountCredits + IDENTITY_CREDIT_TRANSFER_FEE_CREDITS) {
+      throw new Error('Identity has insufficient credits for this transfer plus fee')
+    }
+
+    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+
+    const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(fromIdentityIdentifier) + 1n
+
+    const unsignedSt = this.platformSDK(network).identities.createStateTransition('creditTransfer', {
+      identityId: fromIdentityIdentifier,
+      recipientId: toIdentityIdentifier,
+      amount: amountCredits,
+      identityNonce,
+    })
+
+    const signature = unsignedSt.sign(privateKey, publicKey)
+    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
+      unsignedSt.signature = signature
+      unsignedSt.signaturePublicKeyId = publicKey.keyId
+    }
+
+    await this.platformSDK(network).stateTransitions.broadcast(unsignedSt)
+    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(unsignedSt)
+
+    return {
+      stHash: unsignedSt.hash(false),
+      amountCredits: amountCredits.toString(),
+      feeCredits: IDENTITY_CREDIT_TRANSFER_FEE_CREDITS.toString(),
+      fromAddress: fromIdentityIdentifier,
+      toAddress: toIdentityIdentifier,
     }
   }
 
@@ -408,6 +467,65 @@ export class PlatformAddressService {
       amountCredits: amountCredits.toString(),
       feeCredits: plan.feeCredits.toString(),
       fromAddress: plan.inputs[0].candidate.platformAddress,
+      toAddress: toCoreAddress,
+    }
+  }
+
+  async withdrawIdentityToCore(
+    walletId: string,
+    identityIdentifier: string,
+    toCoreAddress: string,
+    amountCredits: bigint,
+    password: string,
+  ): Promise<PlatformSendResult> {
+    if (amountCredits <= 0n) {
+      throw new Error('Withdrawal amount must be greater than zero')
+    }
+
+    const {wallet, seed} = await this.unlock(walletId, password)
+    const network = wallet.network
+
+    const outputScript = coreAddressToScript(toCoreAddress, network)
+
+    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identity = identities.find(entry => entry.identifier === identityIdentifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+
+    const balance = await this.platformSDK(network).identities.getIdentityBalance(identityIdentifier)
+    if (balance < amountCredits + WITHDRAWAL_FEE_CREDITS) {
+      throw new Error('Identity has insufficient credits for this withdrawal plus fee')
+    }
+
+    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+
+    const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(identityIdentifier) + 1n
+
+    const unsignedSt = this.platformSDK(network).identities.createStateTransition('withdrawal', {
+      identityId: identityIdentifier,
+      amount: amountCredits,
+      coreFeePerByte: CORE_FEE_PER_BYTE,
+      pooling: 'Never',
+      identityNonce,
+      outputScript,
+    })
+
+    const signature = unsignedSt.sign(privateKey, publicKey)
+    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
+      unsignedSt.signature = signature
+      unsignedSt.signaturePublicKeyId = publicKey.keyId
+    }
+
+    await this.platformSDK(network).stateTransitions.broadcast(unsignedSt)
+    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(unsignedSt)
+
+    return {
+      stHash: unsignedSt.hash(false),
+      amountCredits: amountCredits.toString(),
+      feeCredits: WITHDRAWAL_FEE_CREDITS.toString(),
+      fromAddress: identityIdentifier,
       toAddress: toCoreAddress,
     }
   }

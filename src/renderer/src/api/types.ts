@@ -213,5 +213,6 @@ export interface ShieldedSpendState {
   fetched: number
   total: number
   stHash: string | null
+  identityId: string | null
   error: string | null
 }
