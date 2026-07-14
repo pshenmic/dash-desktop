@@ -23,24 +23,31 @@ interface AssetLockFundingModalProps {
 const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: string; label: string}>> = {
   address: [
     { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for a ChainLock (takes a few minutes)' },
+    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
     { key: 'broadcastingST', label: 'Crediting the Platform address' },
   ],
   shielded: [
     { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for a ChainLock (takes a few minutes)' },
+    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
     { key: 'broadcastingST', label: 'Proving and shielding the credits' },
   ],
   identity: [
     { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
+    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
     { key: 'broadcastingST', label: 'Registering the identity on Platform' },
   ],
   identityTopUp: [
     { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
+    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
     { key: 'broadcastingST', label: 'Topping up the identity on Platform' },
   ],
+}
+
+function lockStepLabel(state: AssetLockFundingState, active: boolean): string {
+  if (state.lockKind === 'instant') return 'InstantSend lock received'
+  if (state.lockKind === 'chain') return 'ChainLock received'
+  if (active) return 'Waiting for an InstantSend lock (usually seconds; ChainLock fallback takes minutes)'
+  return 'Network lock (InstantSend or ChainLock)'
 }
 
 const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; emptyTo: string; confirm: string}> = {
@@ -138,10 +145,10 @@ export default function AssetLockFundingModal({
           onSuccess()
         }
         if (next.phase !== 'done' && next.phase !== 'error' && next.phase !== 'resumable') {
-          timer = setTimeout(() => { void poll() }, 3000)
+          timer = setTimeout(() => { void poll() }, 1500)
         }
       } catch {
-        if (!dead) timer = setTimeout(() => { void poll() }, 3000)
+        if (!dead) timer = setTimeout(() => { void poll() }, 1500)
       }
     }
     void poll()
@@ -225,7 +232,7 @@ export default function AssetLockFundingModal({
             </div>
 
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-              Enter your wallet password. The funding waits for a ChainLock on the L1 transaction, which takes a few minutes. If the app is closed meanwhile, the funding can be resumed.
+              Enter your wallet password. The funding waits for the network to lock the L1 transaction — usually a few seconds with InstantSend, or a few minutes if it falls back to a ChainLock. If the app is closed meanwhile, the funding can be resumed.
             </Text>
             <div className={"mt-2"}>
               <Input
@@ -265,6 +272,7 @@ export default function AssetLockFundingModal({
                 const current = phaseIndex(state.phase)
                 const done = i < current
                 const active = i === current
+                const label = p.key === 'waitingChainLock' ? lockStepLabel(state, active) : p.label
                 return (
                   <div key={p.key} className={"flex items-center gap-2"}>
                     {done
@@ -272,7 +280,7 @@ export default function AssetLockFundingModal({
                       : active
                         ? <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
                         : <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
-                    <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{p.label}</Text>
+                    <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{label}</Text>
                   </div>
                 )
               })}

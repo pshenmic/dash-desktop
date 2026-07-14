@@ -35,6 +35,7 @@ export interface AssetLockFundingState {
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
+  lockKind: 'instant' | 'chain' | null
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null
@@ -67,7 +68,7 @@ export class AssetLockService {
   }
 
   private idleState(): AssetLockFundingState {
-    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
+    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, lockKind: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
   }
 
   private isActive(state: AssetLockFundingState | undefined): boolean {
@@ -325,6 +326,7 @@ export class AssetLockService {
     }
 
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
     if (assetLockProof.type === 'chainLock') {
       state.chainLockedHeight = assetLockProof.coreChainLockedHeight
     }
@@ -420,6 +422,7 @@ export class AssetLockService {
     }
     const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)]
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
 
     await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
 
