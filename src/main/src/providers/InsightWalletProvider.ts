@@ -7,6 +7,7 @@ import {Transaction} from '../types/Transaction'
 import {AddressDAO} from '../database/AddressDAO'
 import {processProviderTransactions} from '../utils'
 import {TransactionWalletProviderJSON} from './types'
+import {TxLockStatus} from '../types/TxLockStatus'
 
 const BASE_URLS: Record<Network, string> = {
   mainnet: 'https://insight.dash.org/insight-api',
@@ -108,6 +109,20 @@ export class InsightWalletProvider implements WalletProvider {
     const data = await response.json() as { txid: string }
 
     return data.txid
+  }
+
+  async getTxLockStatus(txid: string): Promise<TxLockStatus> {
+    try {
+      const response = await this.sendRequest(`${this.baseUrl}/tx/${txid}`)
+      const data = await response.json() as Partial<Pick<TransactionWalletProviderJSON, 'txlock' | 'confirmations'>>
+      return {
+        instantLocked: data.txlock === true,
+        chainlocked: false,
+        confirmed: (data.confirmations ?? 0) > 0,
+      }
+    } catch {
+      return {instantLocked: false, chainlocked: false, confirmed: false}
+    }
   }
 
   // TODO: walk receiving addresses and return the first one with no on-chain

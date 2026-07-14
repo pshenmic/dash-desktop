@@ -278,6 +278,8 @@ export class WalletSyncService {
       throw new Error('broadcastTransaction: p2p utility process not started — call startWalletSync first')
     }
     const requestId = randomUUID()
+    await this.pushWatchedTxids(txidFromHex(txHex)).catch(err =>
+      console.error('[walletSync] pushWatchedTxids failed:', err))
     const result = await new Promise<BroadcastResult>((resolve, reject) => {
       this.pendingBroadcasts.set(requestId, ({ok, result, errorMessage}) => {
         if (ok) {
@@ -298,8 +300,6 @@ export class WalletSyncService {
     if (this.activeWalletId && (result.peersAcked.length > 0 || result.peersPropagated.length > 0)) {
       await this.recordOptimisticSpend(this.activeWalletId, txHex).catch(err =>
         console.error('[walletSync] recordOptimisticSpend failed:', err))
-      await this.pushWatchedTxids().catch(err =>
-        console.error('[walletSync] pushWatchedTxids failed:', err))
     }
     return result
   }
@@ -347,10 +347,11 @@ export class WalletSyncService {
   }
 
   // Tell the worker which unconfirmed local txids to watch for an isdlock.
-  private async pushWatchedTxids(): Promise<void> {
+  private async pushWatchedTxids(extraTxid?: string): Promise<void> {
     if (!this.activeWalletId || !this.child) return
     const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
     const txids = pending.filter(p => !p.instantLocked).map(p => p.txid)
+    if (extraTxid && !txids.includes(extraTxid)) txids.push(extraTxid)
     this.send({type: 'watchTxs', walletId: this.activeWalletId, txids})
   }
 
@@ -437,6 +438,14 @@ export class WalletSyncService {
       lastError: null,
       updatedAt: Date.now(),
     }
+  }
+}
+
+function txidFromHex(txHex: string): string | undefined {
+  try {
+    return SDKTransaction.fromHex(txHex).hash()
+  } catch {
+    return undefined
   }
 }
 

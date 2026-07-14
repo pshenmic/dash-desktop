@@ -58,6 +58,7 @@ function groupTransactionsByDay(items: WalletTxItem[]) {
 
 function mapStatus(status: string, confirmations: number): UiStatus {
   if (status === 'Failed' || status === 'Error') return 'failed'
+  if (status === 'Locked') return 'success'
   if (confirmations >= 6) return 'success'
   return 'pending'
 }

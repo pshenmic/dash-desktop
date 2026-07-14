@@ -5,6 +5,7 @@ import {TransactionDAO} from '../database/TransactionDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {WalletSyncService} from '../services/WalletSyncService'
 import {WalletProvider} from './WalletProvider'
+import {TxLockStatus} from '../types/TxLockStatus'
 
 const {addressToPublicKeyHash} = sdkUtils
 
@@ -52,6 +53,10 @@ export class P2PWalletProvider implements WalletProvider {
   async broadcastTx(tx: SDKTransaction): Promise<string> {
     const result = await this.walletSyncService.broadcastTransaction(tx.hex())
     return result.txid
+  }
+
+  async getTxLockStatus(txid: string): Promise<TxLockStatus> {
+    return this.transactionDAO.getTxLockStatus(this.walletId, txid)
   }
 
   async ensureReady(): Promise<void> {

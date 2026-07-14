@@ -26,6 +26,7 @@ declare global {
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<unknown>
       setWalletLabel: (walletId: string, label: string | null) => Promise<{ success: boolean; errorMessage: string | null }>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: string, password: string) => Promise<unknown>
+      getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: string, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: string, password: string) => Promise<unknown>

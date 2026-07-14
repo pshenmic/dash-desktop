@@ -125,6 +125,12 @@ export interface SendResult {
   peersAcked: number
 }
 
+export interface TxLockStatus {
+  instantLocked: boolean
+  chainlocked: boolean
+  confirmed: boolean
+}
+
 export interface PlatformSendResult {
   stHash: string
   amountCredits: string
