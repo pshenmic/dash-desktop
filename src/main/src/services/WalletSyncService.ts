@@ -8,7 +8,7 @@ import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
 import {BroadcastResult} from '../../p2p/types/broadcast'
-import {AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
@@ -99,9 +99,7 @@ export class WalletSyncService {
       if (data.type === 'status') {
         this.status = data.status
       } else if (data.type === 'blockApplied') {
-        this.transactionDAO.applyBlock(data.block).catch(err =>
-          console.error('[walletSync] applyBlock failed:', err)
-        )
+        this.persistAppliedBlock(data.block)
       } else if (data.type === 'cursorAdvanced') {
         this.transactionDAO.advanceCursor(data.walletId, data.height).catch(err =>
           console.error('[walletSync] advanceCursor failed:', err)
@@ -262,6 +260,16 @@ export class WalletSyncService {
 
   getStatus = (): WalletSyncStatus => {
     return this.status
+  }
+
+  private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {
+    this.transactionDAO.applyBlock(block).catch(err => {
+      if (attempt < 2) {
+        setTimeout(() => this.persistAppliedBlock(block, attempt + 1), 1_000)
+      } else {
+        console.error(`[walletSync] applyBlock failed permanently at h=${block.height}:`, err)
+      }
+    })
   }
 
   hasSyncProgress = async (walletId: string): Promise<boolean> => {

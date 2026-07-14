@@ -311,14 +311,14 @@ export class AssetLockService {
 
     state.phase = 'waitingChainLock'
 
-    const provider = this.walletService.getProvider(walletId, network)
+    const coreSDK = this.sdkProvider.getCoreSDK(network)
 
     let txHeight = 0
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && txHeight <= 0; attempt++) {
       try {
-        const tx = await provider.getTransactionByHash(row.txid)
-        if (tx.blockHeight > 0) {
-          txHeight = tx.blockHeight
+        const dapiTx = await coreSDK.getTransaction(row.txid)
+        if (dapiTx.height > 0) {
+          txHeight = dapiTx.height
           break
         }
       } catch {}
