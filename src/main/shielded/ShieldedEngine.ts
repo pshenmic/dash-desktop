@@ -1,6 +1,9 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
+  IdentityCreateFromShieldedPoolTransitionWASM,
   OrchardAddressWASM,
+  OutPointWASM,
+  PrivateKeyWASM,
   RecoveredNoteWASM,
   ShieldedMemoWASM,
   ShieldedTransferTransitionWASM,
@@ -8,15 +11,17 @@ import {
   StateTransitionWASM,
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
-import {InputAddressWASM, AddressFundsFeeStrategyStepWASM} from 'dash-platform-sdk/types.js'
+import {InputAddressWASM, AddressFundsFeeStrategyStepWASM, AssetLockProofWASM, IdentityPublicKeyInCreation} from 'dash-platform-sdk/types.js'
 import {Network} from '../src/types'
 import {coreAddressToScript} from '../src/utils/coreScript'
+import {IDENTITY_KEY_DEFINITIONS} from '../src/utils/identityKeys'
 import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
 import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind} from './types/messages'
 
 type SyncCommand = Extract<ShieldedCommand, {type: 'sync'}>
 type SpendCommand = Extract<ShieldedCommand, {type: 'spend'}>
 type ShieldCommand = Extract<ShieldedCommand, {type: 'shield'}>
+type ShieldFromAssetLockCommand = Extract<ShieldedCommand, {type: 'shieldFromAssetLock'}>
 
 type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShieldedEncryptedNotes']>>[number]
 
@@ -36,6 +41,7 @@ const SPEND_FEE_CREDITS = 6_500_000n
 // only detectable on-chain: a built transition exposes its action nullifiers,
 // so stale selections are caught before broadcast and repaired by re-selecting.
 const MAX_SPEND_ATTEMPTS = 3
+const SHIELD_FUNDING_DUMMY_OUTPUTS = 1
 
 export class ShieldedEngine {
   private sdk: DashPlatformSDK
@@ -86,7 +92,12 @@ export class ShieldedEngine {
         const value = note.note.value
         const isSpent = spent.has(note.index)
         if (!isSpent) balance += value
-        notes.push({ index: note.index, amount: value.toString(), spent: isSpent })
+        notes.push({
+          index: note.index,
+          amount: value.toString(),
+          spent: isSpent,
+          address: note.note.address.toBech32m(command.network),
+        })
       }
       notes.sort((a, b) => b.index - a.index)
 
@@ -120,10 +131,11 @@ export class ShieldedEngine {
         const unspent = recovered.filter((note) => !spent.has(note.index))
         if (unspent.length === 0) throw new Error('No shielded notes available to spend')
 
+        const feeCredits = kind === 'identityCreate' ? 0n : SPEND_FEE_CREDITS
         const selectable = unspent.map((note) => ({ index: note.index, value: note.note.value }))
-        const selection = selectSpendNotes(selectable, amount + SPEND_FEE_CREDITS, MAX_SPEND_NOTES)
+        const selection = selectSpendNotes(selectable, amount + feeCredits, MAX_SPEND_NOTES)
         if (selection == null) {
-          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, SPEND_FEE_CREDITS)
+          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, feeCredits)
           throw new Error(
             `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
             `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
@@ -149,6 +161,18 @@ export class ShieldedEngine {
             ...base,
             outputAddress: command.recipient,
             unshieldAmount: amount,
+          })
+        } else if (kind === 'identityCreate') {
+          if (command.identityIndex == null || command.failureAddress == null) {
+            throw new Error('Identity creation needs an identity index and a failure refund address')
+          }
+          const keys = this.buildIdentityCreationKeys(seed, network, command.identityIndex)
+          stateTransition = await this.sdk.shielded.createStateTransition('identityCreateFromShieldedPool', {
+            ...base,
+            publicKeys: keys.publicKeys,
+            privateKeys: keys.privateKeys,
+            denomination: amount,
+            sendToAddressOnCreationFailure: command.failureAddress,
           })
         } else {
           stateTransition = await this.sdk.shielded.createStateTransition('shieldedWithdrawal', {
@@ -185,12 +209,16 @@ export class ShieldedEngine {
           hash: stateTransition.hash(false),
         })
 
+        const identityId = kind === 'identityCreate'
+          ? IdentityCreateFromShieldedPoolTransitionWASM.fromStateTransition(stateTransition).identityId.base58()
+          : null
+
         this.emit({type: 'spendProgress', requestId, phase: 'broadcasting', fetched: all.length, total: all.length})
         await this.sdk.stateTransitions.broadcast(stateTransition)
         this.emit({type: 'notesSpent', requestId, indexes: toSpend.map((note) => note.index)})
         await this.waitForResult(stateTransition, kind)
 
-        this.emit({type: 'spendResult', requestId, ok: true, stHash: stateTransition.hash(false), error: null})
+        this.emit({type: 'spendResult', requestId, ok: true, stHash: stateTransition.hash(false), identityId, error: null})
         return
       }
     } catch (e) {
@@ -207,7 +235,7 @@ export class ShieldedEngine {
       await this.initProver()
 
       const privateKey = await this.sdk.keyPair.derivePlatformAddressPrivateKey(seed, network, PLATFORM_ACCOUNT, source.index)
-      const recipient = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
+      const recipient = OrchardAddressWASM.fromBech32m(command.recipient)
       const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
 
       const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, BigInt(source.balanceCredits))]
@@ -231,6 +259,48 @@ export class ShieldedEngine {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       console.error('Shield failed', e)
+      this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
+    }
+  }
+
+  async shieldFromAssetLock(command: ShieldFromAssetLockCommand): Promise<void> {
+    const {requestId, seed, network} = command
+    try {
+      this.sdk.setNetwork(network)
+      await this.initProver()
+
+      const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+      const derived = await this.sdk.keyPair.derivePath(hdKey, command.creditDerivationPath)
+      if (!derived.privateKey) {
+        throw new Error('Failed to derive the asset lock credit key')
+      }
+      const privateKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
+
+      const proof = AssetLockProofWASM.createChainAssetLockProof(
+        command.coreChainLockedHeight,
+        new OutPointWASM(command.txid, command.outputIndex),
+      )
+      const recipient = OrchardAddressWASM.fromBech32m(command.recipient)
+      const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
+
+      const stateTransition = await this.sdk.shielded.createStateTransition('shieldFromAssetLock', {
+        recipient,
+        shieldAmount: BigInt(command.shieldAmountCredits),
+        assetLockProof: proof,
+        privateKey,
+        memo: ShieldedMemoWASM.empty() as unknown as string,
+        dummyOutputs: SHIELD_FUNDING_DUMMY_OUTPUTS,
+        senderOvk,
+        ...(command.surplusAddress != null ? {surplusOutput: command.surplusAddress} : {}),
+      })
+
+      await this.sdk.stateTransitions.broadcast(stateTransition)
+      await this.sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
+
+      this.emit({type: 'shieldResult', requestId, ok: true, stHash: stateTransition.hash(false), error: null})
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error('Shield from asset lock failed', e)
       this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
     }
   }
@@ -269,8 +339,33 @@ export class ShieldedEngine {
       ? ShieldedTransferTransitionWASM.fromStateTransition(st)
       : kind === 'unshield'
         ? UnshieldTransitionWASM.fromStateTransition(st)
-        : ShieldedWithdrawalTransitionWASM.fromStateTransition(st)
+        : kind === 'identityCreate'
+          ? IdentityCreateFromShieldedPoolTransitionWASM.fromStateTransition(st)
+          : ShieldedWithdrawalTransitionWASM.fromStateTransition(st)
     return transition.actions.map((action) => action.nullifier)
+  }
+
+  // The SDK's shielded.createStateTransition destructures plain
+  // {id, purpose, ...} objects and builds the WASM key instances itself —
+  // passing IdentityPublicKeyInCreationWASM here breaks (its field is keyId).
+  private buildIdentityCreationKeys(seed: Uint8Array, network: Network, identityIndex: number): {publicKeys: IdentityPublicKeyInCreation[]; privateKeys: PrivateKeyWASM[]} {
+    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+    const privateKeys = IDENTITY_KEY_DEFINITIONS.map(({id}) => {
+      const derived = this.sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, id, network)
+      if (derived.privateKey == null) {
+        throw new Error(`Could not derive identity key ${id}`)
+      }
+      return PrivateKeyWASM.fromBytes(derived.privateKey, network)
+    })
+    const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}, i) => ({
+      id,
+      purpose,
+      securityLevel,
+      keyType,
+      readOnly: false,
+      data: Uint8Array.from(privateKeys[i].getPublicKey().bytes()),
+    }))
+    return {publicKeys, privateKeys}
   }
 
   // Identifies which of the candidate notes are already spent on-chain. Own

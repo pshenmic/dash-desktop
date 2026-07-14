@@ -47,5 +47,8 @@ process.parentPort.on('message', ({data}) => {
     case 'shield':
       void engine.shield(data)
       return
+    case 'shieldFromAssetLock':
+      void engine.shieldFromAssetLock(data)
+      return
   }
 })

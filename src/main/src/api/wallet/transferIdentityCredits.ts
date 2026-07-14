@@ -1,8 +1,8 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { PlatformAddressService } from '../../services/PlatformAddressService'
-import { ShieldResult } from '../../types/ShieldResult'
+import { PlatformSendResult } from '../../types/PlatformSendResult'
 
-export class ShieldToPoolHandler {
+export class TransferIdentityCreditsHandler {
   private platformAddressService: PlatformAddressService
 
   constructor(platformAddressService: PlatformAddressService) {
@@ -12,11 +12,17 @@ export class ShieldToPoolHandler {
   handle = async (
     _event: IpcMainInvokeEvent,
     walletId: string,
-    fromAddress: string,
-    toAddress: string,
+    fromIdentityId: string,
+    toIdentityId: string,
     amountCredits: string,
     password: string,
-  ): Promise<ShieldResult> => {
-    return this.platformAddressService.shieldToPool(walletId, fromAddress, toAddress, BigInt(amountCredits), password)
+  ): Promise<PlatformSendResult> => {
+    return this.platformAddressService.transferIdentityCredits(
+      walletId,
+      fromIdentityId,
+      toIdentityId,
+      BigInt(amountCredits),
+      password,
+    )
   }
 }

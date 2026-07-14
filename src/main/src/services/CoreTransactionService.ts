@@ -1,4 +1,3 @@
-import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
   Input,
   Output,
@@ -9,6 +8,7 @@ import {
   utils as sdkUtils,
 } from 'dash-core-sdk'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
+import {SdkProvider} from './SdkProvider'
 import {Network} from '../types'
 import {ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
 import {buildAssetLockOutputs} from '../utils/assetLockTx'
@@ -38,7 +38,7 @@ export interface BuildSignedTransferParams {
 
 export class CoreTransactionService {
   constructor(
-    private readonly sdk: DashPlatformSDK,
+    private readonly sdkProvider: SdkProvider,
   ) {}
 
   classifyRecipientAddress(address: string, network: Network): RecipientType {
@@ -59,14 +59,15 @@ export class CoreTransactionService {
   }
 
   private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], mnemonic: string, network: Network): Promise<PrivateKey[]> {
-    const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
-    const hdKey = this.sdk.keyPair.seedToHdKey(seed, network)
+    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
+    const seed = keyPair.mnemonicToSeed(mnemonic)
+    const hdKey = keyPair.seedToHdKey(seed, network)
 
     const privateKeys: PrivateKey[] = []
     for (const input of inputs) {
       transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
 
-      const derived = await this.sdk.keyPair.derivePath(hdKey, input.derivationPath)
+      const derived = await keyPair.derivePath(hdKey, input.derivationPath)
       if (!derived.privateKey) {
         throw new Error(`Failed to derive private key for ${input.address}`)
       }

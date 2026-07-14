@@ -10,6 +10,7 @@ export type IdentityApiDto = {
     usdAmount: string
   }
   derivationPath: string
+  assetLockTxid: string | null
 }
 
 const fetchIdentities = (walletId: string): Promise<IdentityApiDto[]> =>

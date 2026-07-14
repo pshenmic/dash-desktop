@@ -30,3 +30,9 @@ export const ADDRESS_PREFIX: Record<'mainnet' | 'testnet', {p2pkh: number; p2sh:
   mainnet: {p2pkh: 76, p2sh: 16},
   testnet: {p2pkh: 140, p2sh: 19},
 }
+
+// Asset-lock proof acquisition during identity registration. The instant lock
+// usually arrives within seconds; the chain-lock fallback can take a few
+// minutes, so the overall timeout is generous.
+export const IDENTITY_LOCK_POLL_INTERVAL_MS = 5_000
+export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000

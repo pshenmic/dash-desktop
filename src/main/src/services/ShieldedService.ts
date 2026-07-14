@@ -1,9 +1,11 @@
 import { utilityProcess, UtilityProcess } from 'electron'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { DashPlatformSDK } from 'dash-platform-sdk'
+import { SdkProvider } from './SdkProvider'
+import { IdentityRegistrationService } from './IdentityRegistrationService'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
+import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { decryptMnemonic } from '../utils'
 import {
@@ -33,6 +35,7 @@ export interface ShieldedNoteInfo {
   index: number
   amount: string
   spent: boolean
+  address: string
 }
 
 export interface ShieldedSyncState {
@@ -50,6 +53,7 @@ export interface ShieldedSpendState {
   fetched: number
   total: number
   stHash: string | null
+  identityId: string | null
   error: string | null
 }
 
@@ -66,9 +70,11 @@ const CHILD_OUTPUT_TAIL_LIMIT = 8192
 // into worker commands, tracks per-wallet sync/spend state from worker
 // events, and persists spent-note bookkeeping through ShieldedNoteDAO.
 export class ShieldedService {
-  private sdk: DashPlatformSDK
+  private sdkProvider: SdkProvider
   private walletDAO: WalletDAO
+  private identityDAO: IdentityDAO
   private shieldedNoteDAO: ShieldedNoteDAO
+  private identityRegistrationService: IdentityRegistrationService
   private child: UtilityProcess | null = null
   private childOutputTail = ''
   private proverState: ShieldedProverState = 'idle'
@@ -78,12 +84,15 @@ export class ShieldedService {
   private addresses = new Map<string, string[]>()
   private pendingSyncs = new Map<string, string>()
   private pendingSpends = new Map<string, string>()
+  private pendingIdentityCreates = new Map<string, {walletId: string; identityIndex: number; network: Network}>()
   private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
 
-  constructor(sdk: DashPlatformSDK, walletDAO: WalletDAO, shieldedNoteDAO: ShieldedNoteDAO) {
-    this.sdk = sdk
+  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, identityRegistrationService: IdentityRegistrationService) {
+    this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
+    this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
+    this.identityRegistrationService = identityRegistrationService
   }
 
   private ensureChild(): UtilityProcess {
@@ -143,10 +152,23 @@ export class ShieldedService {
       }
     }
     this.pendingSpends.clear()
+    this.pendingIdentityCreates.clear()
     for (const {reject} of this.pendingShields.values()) {
       reject(new Error(message))
     }
     this.pendingShields.clear()
+  }
+
+  private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
+    const existing = await this.identityDAO.getByIdentifier(context.walletId, identifier)
+    if (existing != null) return
+    const coinType = context.network === 'mainnet' ? 5 : 1
+    await this.identityDAO.insertIdentity({
+      walletId: context.walletId,
+      identityIndex: context.identityIndex,
+      identifier,
+      derivationPath: `m/9'/${coinType}'/0'/0/${context.identityIndex}`,
+    }, null)
   }
 
   private onEvent(event: ShieldedEvent): void {
@@ -199,11 +221,18 @@ export class ShieldedService {
     }
     if (event.type === 'spendResult') {
       const state = this.stateForSpend(event.requestId)
+      const identityCreate = this.pendingIdentityCreates.get(event.requestId)
       this.pendingSpends.delete(event.requestId)
+      this.pendingIdentityCreates.delete(event.requestId)
       if (state == null) return
       if (event.ok) {
         state.stHash = event.stHash
+        state.identityId = event.identityId ?? null
         state.phase = 'done'
+        if (identityCreate != null && event.identityId != null) {
+          this.persistCreatedIdentity(identityCreate, event.identityId).catch(e =>
+            console.error('Failed to persist identity created from the shielded pool', e))
+        }
       } else {
         state.phase = 'error'
         state.error = event.error
@@ -272,13 +301,13 @@ export class ShieldedService {
     const count = await this.walletDAO.getShieldedAddressCount(walletId)
     const list: string[] = []
     for (let i = 0; i < count; i++) {
-      list.push(this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
+      list.push(this.sdkProvider.getPlatformSDK(network).keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
     }
     this.addresses.set(walletId, list)
     return list
   }
 
-  private async unlock(walletId: string, password: string): Promise<{seed: Uint8Array; network: Network}> {
+  private async unlock(walletId: string, password: string): Promise<{seed: Uint8Array; network: Network; mnemonic: string}> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) throw new Error('Wallet not found')
 
@@ -288,22 +317,22 @@ export class ShieldedService {
     } catch {
       throw new Error('Invalid wallet password')
     }
-    this.sdk.setNetwork(wallet.network)
-    const seed = this.sdk.keyPair.mnemonicToSeed(mnemonic)
+    const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
+    const seed = keyPair.mnemonicToSeed(mnemonic)
 
     if (wallet.platformXpub == null) {
-      const xpub = await this.sdk.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+      const xpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
       await this.walletDAO.setPlatformXpub(walletId, xpub)
     }
 
-    return {seed, network: wallet.network}
+    return {seed, network: wallet.network, mnemonic}
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
-    this.sdk.setNetwork(network)
+    const sdk = this.sdkProvider.getPlatformSDK(network)
     const [poolState, notesCount] = await Promise.all([
-      this.sdk.shielded.getShieldedPoolState(),
-      this.sdk.shielded.getShieldedNotesCount()
+      sdk.shielded.getShieldedPoolState(),
+      sdk.shielded.getShieldedNotesCount()
     ])
     return {
       poolState: poolState != null ? poolState.toString() : null,
@@ -346,7 +375,7 @@ export class ShieldedService {
   }
 
   private idleSpendState(): ShieldedSpendState {
-    return { phase: 'idle', fetched: 0, total: 0, stHash: null, error: null }
+    return { phase: 'idle', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
   }
 
   getSpendState(walletId: string): ShieldedSpendState {
@@ -371,7 +400,7 @@ export class ShieldedService {
       return current
     }
 
-    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, error: null }
+    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
     this.spendStates.set(walletId, state)
 
     try {
@@ -400,13 +429,85 @@ export class ShieldedService {
     return state
   }
 
+  async startIdentityCreate(walletId: string, password: string, denominationCredits: bigint): Promise<ShieldedSpendState> {
+    const current = this.spendStates.get(walletId)
+    if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
+      return current
+    }
+
+    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
+    this.spendStates.set(walletId, state)
+
+    try {
+      if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
+
+      const {seed, network, mnemonic} = await this.unlock(walletId, password)
+      await this.cacheAddresses(walletId, seed, network)
+      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
+
+      const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+      const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
+      const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(mnemonic, startIndex, network)
+
+      const failureAddress = (await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
+
+      const requestId = randomUUID()
+      this.pendingSpends.set(requestId, walletId)
+      this.pendingIdentityCreates.set(requestId, {walletId, identityIndex, network})
+      this.send({
+        type: 'spend',
+        requestId,
+        network,
+        seed,
+        spentIndexes: [...spent],
+        kind: 'identityCreate',
+        recipient: '',
+        amountCredits: denominationCredits.toString(),
+        identityIndex,
+        failureAddress,
+      })
+    } catch (e) {
+      state.phase = 'error'
+      state.error = e instanceof Error ? e.message : String(e)
+    }
+    return state
+  }
+
   // Proves and broadcasts a shield transition in the utility process on
   // behalf of PlatformAddressService. Resolves with the state transition hash.
-  shield(network: Network, seed: Uint8Array, source: ShieldSource, amountCredits: bigint): Promise<string> {
+  shield(network: Network, seed: Uint8Array, source: ShieldSource, recipient: string, amountCredits: bigint): Promise<string> {
     const requestId = randomUUID()
     return new Promise<string>((resolve, reject) => {
       this.pendingShields.set(requestId, {resolve, reject})
-      this.send({type: 'shield', requestId, network, seed, source, amountCredits: amountCredits.toString()})
+      this.send({type: 'shield', requestId, network, seed, source, recipient, amountCredits: amountCredits.toString()})
+    })
+  }
+
+  shieldFromAssetLock(network: Network, seed: Uint8Array, params: {
+    txid: string
+    outputIndex: number
+    coreChainLockedHeight: number
+    creditDerivationPath: string
+    recipient: string
+    shieldAmountCredits: bigint
+    surplusAddress: string | null
+  }): Promise<string> {
+    const requestId = randomUUID()
+    return new Promise<string>((resolve, reject) => {
+      this.pendingShields.set(requestId, {resolve, reject})
+      this.send({
+        type: 'shieldFromAssetLock',
+        requestId,
+        network,
+        seed,
+        txid: params.txid,
+        outputIndex: params.outputIndex,
+        coreChainLockedHeight: params.coreChainLockedHeight,
+        creditDerivationPath: params.creditDerivationPath,
+        recipient: params.recipient,
+        shieldAmountCredits: params.shieldAmountCredits.toString(),
+        surplusAddress: params.surplusAddress,
+      })
     })
   }
 

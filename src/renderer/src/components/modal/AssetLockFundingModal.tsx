@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
-import { AssetLockFundingState } from '@renderer/api/types'
+import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
@@ -16,14 +16,75 @@ interface AssetLockFundingModalProps {
   toPlatformAddress: string
   amountDuffs: string
   resume: boolean
+  kind: AssetLockFundingKind
   onSuccess: () => void
 }
 
-const PHASES = [
-  { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-  { key: 'waitingChainLock', label: 'Waiting for a ChainLock (takes a few minutes)' },
-  { key: 'broadcastingST', label: 'Crediting the Platform address' },
-] as const
+const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: string; label: string}>> = {
+  address: [
+    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
+    { key: 'waitingChainLock', label: 'Waiting for a ChainLock (takes a few minutes)' },
+    { key: 'broadcastingST', label: 'Crediting the Platform address' },
+  ],
+  shielded: [
+    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
+    { key: 'waitingChainLock', label: 'Waiting for a ChainLock (takes a few minutes)' },
+    { key: 'broadcastingST', label: 'Proving and shielding the credits' },
+  ],
+  identity: [
+    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
+    { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
+    { key: 'broadcastingST', label: 'Registering the identity on Platform' },
+  ],
+  identityTopUp: [
+    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
+    { key: 'waitingChainLock', label: 'Waiting for the network lock (instant or chain lock)' },
+    { key: 'broadcastingST', label: 'Topping up the identity on Platform' },
+  ],
+}
+
+const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; emptyTo: string; confirm: string}> = {
+  address: {
+    title: 'Fund Platform address',
+    resumeTitle: 'Resume funding',
+    doneTitle: 'Address funded',
+    doneHeading: 'Platform address funded',
+    doneNote: 'The locked Dash is now available as credits.',
+    toLabel: 'To (Platform)',
+    emptyTo: '',
+    confirm: 'Confirm & Fund',
+  },
+  shielded: {
+    title: 'Shield from L1',
+    resumeTitle: 'Resume shielding',
+    doneTitle: 'Credits shielded',
+    doneHeading: 'Credits shielded',
+    doneNote: 'The locked Dash is now a note in your shielded balance.',
+    toLabel: 'To (Shielded)',
+    emptyTo: 'Your shielded balance',
+    confirm: 'Confirm & Shield',
+  },
+  identity: {
+    title: 'Register identity',
+    resumeTitle: 'Resume registration',
+    doneTitle: 'Identity registered',
+    doneHeading: 'Identity registered',
+    doneNote: "The locked Dash is now this identity's credit balance.",
+    toLabel: 'Creates',
+    emptyTo: 'New Platform identity with 6 keys',
+    confirm: 'Confirm & Register',
+  },
+  identityTopUp: {
+    title: 'Top up identity from L1',
+    resumeTitle: 'Resume top-up',
+    doneTitle: 'Identity topped up',
+    doneHeading: 'Identity topped up',
+    doneNote: "The locked Dash is now credits on the identity's balance.",
+    toLabel: 'Identity',
+    emptyTo: '',
+    confirm: 'Confirm & Top up',
+  },
+}
 
 function phaseIndex(phase: string): number {
   if (phase === 'building' || phase === 'broadcastingL1') return 0
@@ -40,6 +101,7 @@ export default function AssetLockFundingModal({
   toPlatformAddress,
   amountDuffs,
   resume,
+  kind,
   onSuccess,
 }: AssetLockFundingModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
@@ -75,7 +137,7 @@ export default function AssetLockFundingModal({
           notified.current = true
           onSuccess()
         }
-        if (next.phase !== 'done' && next.phase !== 'error') {
+        if (next.phase !== 'done' && next.phase !== 'error' && next.phase !== 'resumable') {
           timer = setTimeout(() => { void poll() }, 3000)
         }
       } catch {
@@ -92,7 +154,7 @@ export default function AssetLockFundingModal({
 
   if (!isOpen) return null
 
-  const running = started && state != null && state.phase !== 'done' && state.phase !== 'error'
+  const running = started && state != null && state.phase !== 'done' && state.phase !== 'error' && state.phase !== 'resumable'
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || busy || started) return
@@ -107,7 +169,7 @@ export default function AssetLockFundingModal({
       }
       const initial = resume
         ? await API.resumeAssetLockFunding(walletId, password)
-        : await API.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password)
+        : await API.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password, kind)
       setState(initial)
       setStarted(true)
       setBusy(false)
@@ -122,7 +184,9 @@ export default function AssetLockFundingModal({
   }
 
   const isDone = state?.phase === 'done'
-  const isError = started && state?.phase === 'error'
+  const isError = started && (state?.phase === 'error' || state?.phase === 'resumable')
+  const texts = TEXTS[kind]
+  const phases = PHASE_LABELS[kind]
 
   return createPortal(
     <div
@@ -135,7 +199,7 @@ export default function AssetLockFundingModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {isDone ? 'Address funded' : resume ? 'Resume funding' : 'Fund Platform address'}
+            {isDone ? texts.doneTitle : resume ? texts.resumeTitle : texts.title}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer"}
@@ -155,8 +219,8 @@ export default function AssetLockFundingModal({
                 </div>
               )}
               <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To (Platform)</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toPlatformAddress}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{texts.toLabel}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toPlatformAddress || texts.emptyTo}</Text>
               </div>
             </div>
 
@@ -188,7 +252,7 @@ export default function AssetLockFundingModal({
               </Button>
               <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
-                {busy ? 'Starting…' : resume ? 'Resume' : 'Confirm & Fund'}
+                {busy ? 'Starting…' : resume ? 'Resume' : texts.confirm}
               </Button>
             </div>
           </div>
@@ -197,7 +261,7 @@ export default function AssetLockFundingModal({
         {running && state && (
           <div className={"phase-fade-in"} key={"progress"}>
             <div className={"mt-5 flex flex-col gap-4 p-[.875rem] rounded-[.9375rem] dash-block"}>
-              {PHASES.map((p, i) => {
+              {phases.map((p, i) => {
                 const current = phaseIndex(state.phase)
                 const done = i < current
                 const active = i === current
@@ -234,6 +298,11 @@ export default function AssetLockFundingModal({
                 <HashField hash={state.txid} label={"L1 txid"} />
               </div>
             )}
+            {state.phase === 'resumable' && (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
+                The locked Dash is safe — you can resume this funding from the Send page.
+              </Text>
+            )}
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
                 Close
@@ -248,19 +317,29 @@ export default function AssetLockFundingModal({
               <div className={"success-pop"}>
                 <SuccessIcon size={56} />
               </div>
-              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>Platform address funded</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{texts.doneHeading}</Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                The locked Dash is now available as credits.
+                {texts.doneNote}
               </Text>
             </div>
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <div className={"flex items-center gap-2 min-w-0"}>
-                  <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
-                  {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
+              {state.identityIdentifier ? (
+                <div className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Identity</Text>
+                  <div className={"flex items-center gap-2 min-w-0"}>
+                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.identityIdentifier}</Text>
+                    <CopyButton text={state.identityIdentifier} className={"shrink-0"} />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
+                  <div className={"flex items-center gap-2 min-w-0"}>
+                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
+                    {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
+                  </div>
+                </div>
+              )}
               {state.stHash && (
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>State transition</Text>

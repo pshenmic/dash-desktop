@@ -13,6 +13,8 @@ export const MAX_RECIPIENTS = 128
 export const WITHDRAWAL_FEE_CREDITS = 400_000_000n
 export const CORE_FEE_PER_BYTE = 1
 
+export const IDENTITY_CREDIT_TRANSFER_FEE_CREDITS = 1_000_000n
+
 export function identityTransferFeeCredits(recipientCount: number): bigint {
   return 500_000n + 6_000_000n * BigInt(recipientCount)
 }

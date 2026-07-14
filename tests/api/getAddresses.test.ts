@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {DashPlatformSDK} from 'dash-platform-sdk'
+import {SdkProvider} from '../../src/main/src/services/SdkProvider'
 import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletService} from '../../src/main/src/services/WalletService'
@@ -29,7 +29,8 @@ describe('GetWalletAddressesHandler', () => {
     const identityDAO = new IdentityDAO(knex)
     const transactionDAO = new TransactionDAO(knex)
 
-    const sdk = new DashPlatformSDK({network: 'testnet'})
+    const sdkProvider = new SdkProvider()
+    const sdk = sdkProvider.getPlatformSDK('testnet')
     vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
     vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
 
@@ -42,7 +43,7 @@ describe('GetWalletAddressesHandler', () => {
 
     const walletService = new WalletService(
       walletDAO, addressDAO, identityDAO, transactionDAO,
-      applicationService, walletSyncService, sdk, TEST_PBKDF2_ITERATIONS,
+      applicationService, walletSyncService, sdkProvider, TEST_PBKDF2_ITERATIONS,
     )
 
     createWalletHandler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)

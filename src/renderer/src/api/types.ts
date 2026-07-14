@@ -143,13 +143,17 @@ export type AssetLockFundingPhase =
   | 'done'
   | 'error'
 
+export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
+
 export interface AssetLockFundingState {
   phase: AssetLockFundingPhase
+  kind: AssetLockFundingKind
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
   stHash: string | null
   toPlatformAddress: string | null
+  identityIdentifier: string | null
   amountDuffs: string | null
   error: string | null
 }
@@ -187,6 +191,7 @@ export interface ShieldedNoteInfo {
   index: number
   amount: string
   spent: boolean
+  address: string
 }
 
 export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
@@ -208,5 +213,6 @@ export interface ShieldedSpendState {
   fetched: number
   total: number
   stHash: string | null
+  identityId: string | null
   error: string | null
 }

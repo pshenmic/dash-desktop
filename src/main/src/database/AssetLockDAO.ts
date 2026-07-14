@@ -1,6 +1,7 @@
 import {Knex} from 'knex'
 
 export type AssetLockFundingStatus = 'l1_broadcast' | 'chainlocked' | 'st_broadcast' | 'done' | 'error'
+export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
 
 export interface AssetLockFundingRow {
   id: number
@@ -10,9 +11,12 @@ export interface AssetLockFundingRow {
   creditDerivationPath: string
   amountDuffs: string
   toPlatformAddress: string
+  kind: AssetLockFundingKind
   status: AssetLockFundingStatus
   stHash: string | null
   error: string | null
+  identityIndex: number | null
+  txHex: string | null
   createdAt: number
 }
 
@@ -25,9 +29,12 @@ function fromRow(row: Record<string, unknown>): AssetLockFundingRow {
     creditDerivationPath: row.credit_derivation_path as string,
     amountDuffs: row.amount_duffs as string,
     toPlatformAddress: row.to_platform_address as string,
+    kind: (row.kind as AssetLockFundingKind | null) ?? 'address',
     status: row.status as AssetLockFundingStatus,
     stHash: (row.st_hash as string | null) ?? null,
     error: (row.error as string | null) ?? null,
+    identityIndex: (row.identity_index as number | null) ?? null,
+    txHex: (row.tx_hex as string | null) ?? null,
     createdAt: row.created_at as number,
   }
 }
@@ -47,7 +54,10 @@ export class AssetLockDAO {
       credit_derivation_path: funding.creditDerivationPath,
       amount_duffs: funding.amountDuffs,
       to_platform_address: funding.toPlatformAddress,
+      kind: funding.kind,
       status: funding.status,
+      identity_index: funding.identityIndex,
+      tx_hex: funding.txHex,
       created_at: funding.createdAt,
     })
   }
@@ -58,6 +68,14 @@ export class AssetLockDAO {
       ...(fields?.stHash != null ? {st_hash: fields.stHash} : {}),
       ...(fields?.error != null ? {error: fields.error} : {}),
     })
+  }
+
+  countFundingsByKind = async (walletId: string, kind: AssetLockFundingKind): Promise<number> => {
+    const row = await this.knex('asset_lock_fundings')
+      .where({wallet_id: walletId, kind})
+      .count({count: '*'})
+      .first()
+    return Number(row?.count ?? 0)
   }
 
   getActiveFunding = async (walletId: string): Promise<AssetLockFundingRow | null> => {

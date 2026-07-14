@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { BigNumber } from 'dash-ui-kit/react'
 import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
+import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { API } from '@renderer/api'
+import { useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { formatCompactCredits } from '@renderer/utils/balance'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -12,6 +16,20 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
+
+  const [syncModalOpen, setSyncModalOpen] = useState(false)
+
+  const sync = useShieldedSyncState(walletId)
+  const synced = sync.phase === 'done'
+  const syncRunning = sync.phase === 'syncing' || sync.phase === 'recovering'
+  const balances = useMemo(() => {
+    const map = new Map<string, bigint>()
+    for (const note of sync.notes) {
+      if (note.spent) continue
+      map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
+    }
+    return map
+  }, [sync.notes])
 
   useEffect(() => {
     setAddresses(null)
@@ -60,6 +78,20 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const handleConfirmAdd = (): Promise<void> => withPassword(async (pwd) => {
     setAddresses(await API.addShieldedAddress(walletId!, pwd))
   })
+
+  const handleSync = async (): Promise<void> => {
+    if (!walletId || syncRunning) return
+    if (unlockedPassword == null) {
+      setSyncModalOpen(true)
+      return
+    }
+    setError(null)
+    try {
+      await API.startShieldedSync(walletId, unlockedPassword)
+    } catch {
+      setError('Could not start sync. Please try again.')
+    }
+  }
 
   const handleNewAddress = async (): Promise<void> => {
     if (!walletId || busy) return
@@ -142,10 +174,23 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             </Text>
             <CopyButton text={address} />
           </div>
+          <div className={"flex items-center gap-2 shrink-0"}>
+            {synced ? (
+              <Text size={14} weight={"medium"} color={"brand"}>
+                <span className={"font-bold"}>
+                  <BigNumber>{formatCompactCredits(balances.get(address) ?? 0n).toString()}</BigNumber>
+                </span>
+                {' Credits'}
+              </Text>
+            ) : (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
+            )}
+          </div>
         </div>
       ))}
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
         Your Orchard shielded addresses. All of them receive into the same private balance — share any of them; incoming payments reveal nothing about sender, recipient or amount on-chain.
+        {!synced && !syncRunning && ' Sync your notes to see per-address balances.'}
       </Text>
       {showPasswordForm ? (
         <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
@@ -168,19 +213,49 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
       ) : (
         <div className={"flex flex-col gap-2 items-start"}>
           {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
-          <Button
-            type={"button"}
-            onClick={handleNewAddress}
-            disabled={!walletId || busy}
-            variant={"solid"}
-            colorScheme={"primary"}
-            size={"md"}
-            className={"rounded-[.9375rem]"}
-          >
-            {busy ? 'Deriving…' : 'New address'}
-          </Button>
+          {sync.phase === 'error' && (
+            <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Note sync failed.'}</Text>
+          )}
+          <div className={"flex items-center gap-2"}>
+            <Button
+              type={"button"}
+              onClick={handleNewAddress}
+              disabled={!walletId || busy}
+              variant={"solid"}
+              colorScheme={"primary"}
+              size={"md"}
+              className={"rounded-[.9375rem]"}
+            >
+              {busy ? 'Deriving…' : 'New address'}
+            </Button>
+            <Button
+              type={"button"}
+              onClick={handleSync}
+              disabled={!walletId || syncRunning}
+              variant={"solid"}
+              colorScheme={"lightBlue-mint"}
+              size={"md"}
+              className={"rounded-[.9375rem]"}
+            >
+              {syncRunning ? 'Syncing…' : synced ? 'Re-sync notes' : 'Sync notes'}
+            </Button>
+            {syncRunning && (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                {sync.phase === 'recovering'
+                  ? 'Recovering your notes…'
+                  : sync.total > 0
+                    ? `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`
+                    : 'Syncing notes…'}
+              </Text>
+            )}
+          </div>
         </div>
       )}
+      <ShieldedUnlockModal
+        isOpen={syncModalOpen}
+        onClose={() => setSyncModalOpen(false)}
+        walletId={walletId ?? null}
+      />
     </div>
   )
 }

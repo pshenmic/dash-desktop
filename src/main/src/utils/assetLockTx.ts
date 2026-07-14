@@ -3,6 +3,18 @@ import {AssetLockTx} from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
+export const CREDITS_PER_DUFF = 1_000n
+export const SHIELD_FUNDING_FEE_RESERVE_CREDITS = 300_000_000n
+
+export function shieldAmountFromLockedDuffs(amountDuffs: bigint): bigint {
+  const totalCredits = amountDuffs * CREDITS_PER_DUFF
+  if (totalCredits <= SHIELD_FUNDING_FEE_RESERVE_CREDITS) {
+    throw new Error(
+      `Locked amount is too small to shield — it must exceed the ${SHIELD_FUNDING_FEE_RESERVE_CREDITS.toLocaleString('en-US')} credit fee reserve`,
+    )
+  }
+  return totalCredits - SHIELD_FUNDING_FEE_RESERVE_CREDITS
+}
 
 export function buildAssetLockOutputs(amountDuffs: bigint, creditAddress: string): {burnOutput: Output; extraPayload: AssetLockTx} {
   if (amountDuffs <= 0n) {

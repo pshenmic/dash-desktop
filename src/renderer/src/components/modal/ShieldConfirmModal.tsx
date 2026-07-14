@@ -13,6 +13,7 @@ interface ShieldConfirmModalProps {
   onClose: () => void
   walletId: string | null
   fromAddress: string
+  toAddress: string
   amountCredits: string
   proverReady: boolean
   onSuccess: () => void
@@ -26,6 +27,7 @@ export default function ShieldConfirmModal({
   onClose,
   walletId,
   fromAddress,
+  toAddress,
   amountCredits,
   proverReady,
   onSuccess,
@@ -54,7 +56,7 @@ export default function ShieldConfirmModal({
     setPhase('shielding')
     setError(null)
     try {
-      const res = await API.shieldToPool(walletId, fromAddress, amountCredits, password)
+      const res = await API.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password)
       setResult(res)
       setPhase('done')
       onSuccess()
@@ -106,9 +108,9 @@ export default function ShieldConfirmModal({
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <div className={"flex items-center gap-1.5"}>
-                  <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
-                  <Text size={12} weight={"medium"} color={"blue-mint"}>your shielded balance</Text>
+                <div className={"flex items-center gap-1.5 min-w-0"}>
+                  <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
+                  <Text size={12} weight={"medium"} color={"blue-mint"} className={"font-mono min-w-0 break-all text-right"}>{toAddress}</Text>
                 </div>
               </div>
             </div>
@@ -188,7 +190,7 @@ export default function ShieldConfirmModal({
                 {result ? result.amountCredits : ''} credits shielded
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                Moved into your shielded balance. Re-sync notes to see it.
+                Moved into the shielded pool. If it went to your own address, re-sync notes to see it.
               </Text>
             </div>
 

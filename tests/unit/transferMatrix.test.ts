@@ -4,6 +4,8 @@ import {
   unsupportedReason,
   operationInfo,
   isLikelyIdentityId,
+  isPoolIdentityDenomination,
+  POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
   DESTINATION_KINDS,
   SourceKind,
@@ -14,9 +16,9 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
   core: {
     coreAddress: 'coreSend',
     platformAddress: 'assetLockFunding',
-    identity: null,
-    newIdentity: null,
-    shielded: null,
+    identity: 'identityTopUpL1',
+    newIdentity: 'identityRegister',
+    shielded: 'assetLockShield',
   },
   platformAddress: {
     coreAddress: 'addressWithdrawal',
@@ -26,9 +28,9 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     shielded: 'shield',
   },
   identity: {
-    coreAddress: null,
+    coreAddress: 'identityWithdrawal',
     platformAddress: 'identityToAddress',
-    identity: null,
+    identity: 'identityToIdentity',
     newIdentity: null,
     shielded: null,
   },
@@ -36,7 +38,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null
     coreAddress: 'shieldedWithdrawal',
     platformAddress: 'unshield',
     identity: null,
-    newIdentity: null,
+    newIdentity: 'identityCreateFromPool',
     shielded: 'shieldedTransfer',
   },
 }
@@ -82,11 +84,30 @@ describe('operationInfo', () => {
   it('exposes credits fee and minimum for platform operations', () => {
     expect(operationInfo('addressFundsTransfer')).toMatchObject({unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n})
     expect(operationInfo('addressWithdrawal').feeCredits).toBe(400_000_000n)
+    expect(operationInfo('identityWithdrawal').feeCredits).toBe(400_000_000n)
     expect(operationInfo('identityTopUp').minCredits).toBe(100_000n)
+    expect(operationInfo('identityToIdentity')).toMatchObject({unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n})
   })
 
   it('uses dash units without a credits fee for L1-sourced operations', () => {
     expect(operationInfo('coreSend')).toMatchObject({unit: 'dash', feeCredits: null})
+    expect(operationInfo('assetLockShield')).toMatchObject({unit: 'dash', feeCredits: null})
+    expect(operationInfo('identityTopUpL1')).toMatchObject({unit: 'dash', feeCredits: null, submitLabel: 'Top up'})
+  })
+})
+
+describe('isPoolIdentityDenomination', () => {
+  it('accepts exactly the protocol exit denominations', () => {
+    for (const denomination of POOL_IDENTITY_DENOMINATIONS) {
+      expect(isPoolIdentityDenomination(denomination)).toBe(true)
+    }
+    expect(isPoolIdentityDenomination(0n)).toBe(false)
+    expect(isPoolIdentityDenomination(20_000_000_000n)).toBe(false)
+    expect(isPoolIdentityDenomination(10_000_000_001n)).toBe(false)
+  })
+
+  it('matches the pool minimum in operationInfo', () => {
+    expect(operationInfo('identityCreateFromPool')).toMatchObject({unit: 'credits', minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
   })
 })
 
