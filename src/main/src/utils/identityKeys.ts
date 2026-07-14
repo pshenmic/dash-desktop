@@ -1,3 +1,17 @@
+import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+
+// Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
+// dropped (added later via IdentityUpdateTransition if needed); MASTER /
+// CRITICAL / HIGH plus ENCRYPTION / DECRYPTION / TRANSFER cover the common path.
+export const IDENTITY_KEY_DEFINITIONS = [
+  {id: 0, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.MASTER, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 1, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 2, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.HIGH, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 3, purpose: Purpose.ENCRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
+] as const
+
 export interface IdentityKeyDescriptor {
   keyId: number
   purpose: string

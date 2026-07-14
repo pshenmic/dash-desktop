@@ -63,6 +63,7 @@ import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
 import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
 import {StartShieldedUnshieldHandler} from './api/shielded/startShieldedUnshield'
 import {StartShieldedWithdrawalHandler} from './api/shielded/startShieldedWithdrawal'
+import {StartShieldedIdentityCreateHandler} from './api/shielded/startShieldedIdentityCreate'
 import {GetShieldedSpendStateHandler} from './api/shielded/getShieldedSpendState'
 import {GetShieldedAddressHandler} from './api/shielded/getShieldedAddress'
 import {GetShieldedAddressesHandler} from './api/shielded/getShieldedAddresses'
@@ -156,6 +157,7 @@ export class WalletBackend {
     ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
+    ipcMain.handle('startShieldedIdentityCreate', new StartShieldedIdentityCreateHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSpendState', new GetShieldedSpendStateHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
@@ -186,10 +188,10 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
-    this.shieldedService = new ShieldedService(sdkProvider, walletDAO, new ShieldedNoteDAO(knex))
+    this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
+    this.shieldedService = new ShieldedService(sdkProvider, walletDAO, identityDAO, new ShieldedNoteDAO(knex), this.identityRegistrationService)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations)
     this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, sdkProvider, this.shieldedService)
-    this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
     this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO

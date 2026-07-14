@@ -18,6 +18,7 @@ export type TransferOperation =
   | 'shieldedTransfer'
   | 'unshield'
   | 'shieldedWithdrawal'
+  | 'identityCreateFromPool'
 
 const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperation>>> = {
   core: {
@@ -42,6 +43,7 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
   shielded: {
     coreAddress: 'shieldedWithdrawal',
     platformAddress: 'unshield',
+    newIdentity: 'identityCreateFromPool',
     shielded: 'shieldedTransfer',
   },
 }
@@ -50,7 +52,6 @@ const COMBO_REASONS: Partial<Record<`${SourceKind}->${DestinationKind}`, string>
   'identity->newIdentity': 'Send to a Platform address first, then create the identity from it.',
   'identity->shielded': 'Send to a Platform address first, then shield from it.',
   'shielded->identity': 'Unshield to a Platform address first, then top up the identity from it.',
-  'shielded->newIdentity': 'This wallet does not support creating an identity from the shielded pool yet.',
 }
 
 export function resolveOperation(from: SourceKind, to: DestinationKind): TransferOperation | null {
@@ -89,10 +90,24 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   shieldedTransfer: {title: 'Send privately', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   unshield: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   shieldedWithdrawal: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  identityCreateFromPool: {title: 'Create identity from pool', submitLabel: 'Create', unit: 'credits', feeCredits: 0n, minCredits: 10_000_000_000n},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {
   return OPERATION_INFO[operation]
+}
+
+// The protocol only lets identities exit the shielded pool at fixed
+// denominations (uniform amounts keep pool spends unlinkable).
+export const POOL_IDENTITY_DENOMINATIONS: readonly bigint[] = [
+  10_000_000_000n,
+  30_000_000_000n,
+  50_000_000_000n,
+  100_000_000_000n,
+]
+
+export function isPoolIdentityDenomination(amountCredits: bigint): boolean {
+  return POOL_IDENTITY_DENOMINATIONS.includes(amountCredits)
 }
 
 export function isLikelyIdentityId(value: string): boolean {

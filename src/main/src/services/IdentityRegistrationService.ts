@@ -4,10 +4,13 @@ import {
   utils as coreUtils,
 } from 'dash-core-sdk'
 import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
-import {KeyType, Purpose, SecurityLevel, PrivateKeyWASM, StateTransitionWASM} from 'dash-platform-sdk/types.js'
+import {KeyType, PrivateKeyWASM, StateTransitionWASM} from 'dash-platform-sdk/types.js'
 import {SdkProvider} from './SdkProvider'
 import {Network} from '../types'
+import {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
 import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
+
+export {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
 
 export type AssetLockProof = InstantAssetLockProofParams | ChainAssetLockProofParams
 
@@ -16,18 +19,6 @@ const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 // Upper bound on the on-chain free-index scan — guards against an infinite
 // loop if Platform keeps reporting an identity for every derived auth key.
 const IDENTITY_INDEX_SCAN_LIMIT = 100
-
-// Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
-// dropped (added later via IdentityUpdateTransition if needed); MASTER /
-// CRITICAL / HIGH plus ENCRYPTION / DECRYPTION / TRANSFER cover the common path.
-export const IDENTITY_KEY_DEFINITIONS = [
-  {id: 0, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.MASTER, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 1, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 2, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.HIGH, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 3, purpose: Purpose.ENCRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
-] as const
 
 // Domain primitives for L1 asset-lock + Platform identity-create. Orchestration
 // (decrypt, UTXO selection, broadcast, persistence) lives in the controller.
