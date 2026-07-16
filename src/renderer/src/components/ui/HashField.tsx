@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Text, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
 import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
+import { openExternal } from '@renderer/utils/explorer'
 
-export default function HashField({ hash, label = 'State transition hash' }: { hash: string; label?: string }): React.JSX.Element {
+export default function HashField({ hash, label = 'State transition hash', explorerUrl }: { hash: string; label?: string; explorerUrl?: string | null }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
 
   const copy = (): void => {
@@ -28,14 +29,22 @@ export default function HashField({ hash, label = 'State transition hash' }: { h
           {hash}
         </Text>
       </button>
-      <button onClick={copy} className={"self-start cursor-pointer flex items-center gap-1"}>
-        {copied
-          ? <CheckIcon size={12} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
-          : <CopyIcon2 size={12} color={"currentColor"} className={"dash-text-default opacity-60"} />}
-        <Text size={10} weight={"medium"} color={copied ? 'blue-mint' : 'brand'} opacity={copied ? 100 : 40} className={"transition-colors duration-200"}>
-          {copied ? 'Copied to clipboard' : 'Click the hash to copy'}
-        </Text>
-      </button>
+      <div className={"flex items-center justify-between gap-2"}>
+        <button onClick={copy} className={"cursor-pointer flex items-center gap-1"}>
+          {copied
+            ? <CheckIcon size={12} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
+            : <CopyIcon2 size={12} color={"currentColor"} className={"dash-text-default opacity-60"} />}
+          <Text size={10} weight={"medium"} color={copied ? 'blue-mint' : 'brand'} opacity={copied ? 100 : 40} className={"transition-colors duration-200"}>
+            {copied ? 'Copied to clipboard' : 'Click the hash to copy'}
+          </Text>
+        </button>
+        {explorerUrl && (
+          <button onClick={() => openExternal(explorerUrl)} className={"cursor-pointer flex items-center gap-1 hover:opacity-60"}>
+            <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-70"} />
+            <Text size={10} weight={"medium"} color={"brand"} opacity={40}>View on Dashscan</Text>
+          </button>
+        )}
+      </div>
     </div>
   )
 }
