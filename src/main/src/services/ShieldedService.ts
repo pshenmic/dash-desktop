@@ -9,6 +9,7 @@ import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { decryptMnemonic } from '../utils'
 import {
+  ShieldAssetLockProofParams,
   ShieldedCommand,
   ShieldedEvent,
   ShieldedProverState,
@@ -486,7 +487,7 @@ export class ShieldedService {
   shieldFromAssetLock(network: Network, seed: Uint8Array, params: {
     txid: string
     outputIndex: number
-    coreChainLockedHeight: number
+    assetLockProof: ShieldAssetLockProofParams
     creditDerivationPath: string
     recipient: string
     shieldAmountCredits: bigint
@@ -502,7 +503,7 @@ export class ShieldedService {
         seed,
         txid: params.txid,
         outputIndex: params.outputIndex,
-        coreChainLockedHeight: params.coreChainLockedHeight,
+        assetLockProof: params.assetLockProof,
         creditDerivationPath: params.creditDerivationPath,
         recipient: params.recipient,
         shieldAmountCredits: params.shieldAmountCredits.toString(),

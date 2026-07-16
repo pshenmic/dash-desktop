@@ -55,8 +55,8 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
   return (
     <>
       {isDeleteOpen && createPortal(
-        <div className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center"} onClick={closeDeleteModal}>
-          <div className={"w-full max-w-97.5 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem]"} onClick={(e) => e.stopPropagation()}>
+        <div className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center"}>
+          <div className={"w-full max-w-97.5 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem]"}>
             <div className={"flex items-center justify-between"}>
               <Text size={24} weight={"extrabold"} color={"brand"}>
                 Delete Wallet

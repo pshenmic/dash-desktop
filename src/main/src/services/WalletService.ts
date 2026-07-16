@@ -21,6 +21,7 @@ import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
+import {TxLockStatus} from "../types/TxLockStatus";
 import {selectCoins, SelectableUtxo} from "../utils/coinSelection";
 import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService, TransferInput} from "./CoreTransactionService";
@@ -443,6 +444,15 @@ export class WalletService {
       changeAddress: hasChange ? changeAddress : null,
       peersAcked: 0,
     }
+  }
+
+  async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const provider = this.getProvider(wallet.walletId, wallet.network)
+    return provider.getTxLockStatus(txid)
   }
 
   private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint): Promise<{

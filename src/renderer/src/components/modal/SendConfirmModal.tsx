@@ -4,11 +4,12 @@ import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon, ExternalLinkIco
 import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
-import { Network, SendResult } from '@renderer/api/types'
+import { Network, SendResult, TxLockStatus } from '@renderer/api/types'
 import { davToDash } from '@renderer/utils/balance'
 import { transactionUrl, openExternal } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
+import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 
 interface SendConfirmModalProps {
   isOpen: boolean
@@ -22,6 +23,19 @@ interface SendConfirmModalProps {
 }
 
 type Phase = 'confirm' | 'sending' | 'done'
+type LockPhase = 'waiting' | 'fallback' | 'instant' | 'chainlocked' | 'confirmed'
+
+const LOCK_POLL_INTERVAL_MS = 2_000
+const FALLBACK_POLL_INTERVAL_MS = 10_000
+const INSTANT_LOCK_FALLBACK_MS = 15_000
+
+const LOCK_PHASE_COPY: Record<LockPhase, string> = {
+  waiting: 'Waiting for InstantSend confirmation…',
+  fallback: 'No InstantSend lock yet — waiting for block confirmation (ChainLock). This can take a few minutes; you can close this window, the transaction list will update.',
+  instant: 'Confirmed by InstantSend — the payment is final.',
+  chainlocked: 'Confirmed by ChainLock — the payment is final.',
+  confirmed: 'Confirmed in a block.',
+}
 
 function TxidField({ txid, network }: { txid: string; network: Network | null }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
@@ -107,6 +121,7 @@ export default function SendConfirmModal({
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<Phase>('confirm')
+  const [lockPhase, setLockPhase] = useState<LockPhase>('waiting')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SendResult | null>(null)
 
@@ -114,14 +129,45 @@ export default function SendConfirmModal({
     if (isOpen) {
       setPassword('')
       setPhase('confirm')
+      setLockPhase('waiting')
       setError(null)
       setResult(null)
     }
   }, [isOpen])
 
+  useEffect(() => {
+    if (!isOpen || phase !== 'done' || !walletId || !result?.txid) return
+    const txid = result.txid
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const startedAt = Date.now()
+    const poll = async (): Promise<void> => {
+      const status: TxLockStatus | null = await API.getTxLockStatus(walletId, txid).catch(() => null)
+      if (cancelled) return
+      const final: LockPhase | null = status?.instantLocked ? 'instant'
+        : status?.chainlocked ? 'chainlocked'
+        : status?.confirmed ? 'confirmed'
+        : null
+      if (final) {
+        setLockPhase(final)
+        refreshTransactions(walletId)
+        return
+      }
+      const fallback = Date.now() - startedAt >= INSTANT_LOCK_FALLBACK_MS
+      if (fallback) setLockPhase('fallback')
+      timer = setTimeout(poll, fallback ? FALLBACK_POLL_INTERVAL_MS : LOCK_POLL_INTERVAL_MS)
+    }
+    poll()
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [isOpen, phase, walletId, result?.txid])
+
   if (!isOpen) return null
 
   const sending = phase === 'sending'
+  const lockFinal = lockPhase !== 'waiting' && lockPhase !== 'fallback'
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || sending) return
@@ -147,15 +193,15 @@ export default function SendConfirmModal({
   return createPortal(
     <div
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
-      onClick={requestClose}
     >
       <div
         className={"w-full max-w-105 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === 'done' ? 'Transaction sent' : 'Confirm send'}
+            {phase === 'done'
+              ? lockFinal ? 'Transaction confirmed' : 'Transaction sent'
+              : 'Confirm send'}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -247,9 +293,19 @@ export default function SendConfirmModal({
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
                 {result ? davToDash(BigInt(result.amount)) : ''} Dash sent
               </Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                Broadcast to the network. It will confirm shortly.
-              </Text>
+              <div className={"mt-2 flex items-center justify-center gap-2"}>
+                {lockFinal
+                  ? <CheckIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
+                  : <Spinner size={14} />}
+                <Text
+                  size={12}
+                  weight={"medium"}
+                  color={lockFinal ? 'blue-mint' : 'brand'}
+                  opacity={lockFinal ? 100 : 50}
+                >
+                  {LOCK_PHASE_COPY[lockPhase]}
+                </Text>
+              </div>
             </div>
 
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>

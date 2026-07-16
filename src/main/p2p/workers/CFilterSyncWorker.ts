@@ -773,11 +773,15 @@ export class CFilterSyncWorker extends Worker {
   private requestFullBlock(height: number, blockHashWire: Uint8Array): void {
     const key = bytesToHex(blockHashWire)
     if (this.blockFetch.inflight.has(key)) return
-    const target = this.pickBlockPeer(new Set())
-    if (!target) return
-    const entry: BlockRequest = {hashWire: blockHashWire, height, triedPeers: new Set([target]), timer: null}
+    const entry: BlockRequest = {hashWire: blockHashWire, height, triedPeers: new Set(), timer: null}
     this.blockFetch.inflight.set(key, entry)
-    target.sendMessage(this.M.GetData([{type: Inventory.TYPE.BLOCK, hash: blockHashWire}]))
+    const target = this.pickBlockPeer(new Set())
+    if (target) {
+      entry.triedPeers.add(target)
+      target.sendMessage(this.M.GetData([{type: Inventory.TYPE.BLOCK, hash: blockHashWire}]))
+    } else {
+      console.warn(`[cfilter] block h=${height} matched but no ready peers — retrying on timer`)
+    }
     this.armBlockRequestTimer(key, entry)
   }
 
@@ -794,7 +798,11 @@ export class CFilterSyncWorker extends Worker {
       if (!next) {
         entry.triedPeers.clear()
         next = this.pickBlockPeer(entry.triedPeers)
-        if (!next) return
+        if (!next) {
+          console.warn(`[cfilter] block h=${entry.height} retry — no ready peers, re-arming`)
+          this.armBlockRequestTimer(key, entry)
+          return
+        }
         console.warn(`[cfilter] block h=${entry.height} retry — no fresh peers, re-asking ${next.host}`)
       } else {
         console.warn(`[cfilter] block h=${entry.height} timeout — retrying via ${next.host} (tried ${entry.triedPeers.size})`)

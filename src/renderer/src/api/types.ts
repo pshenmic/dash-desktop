@@ -125,6 +125,12 @@ export interface SendResult {
   peersAcked: number
 }
 
+export interface TxLockStatus {
+  instantLocked: boolean
+  chainlocked: boolean
+  confirmed: boolean
+}
+
 export interface PlatformSendResult {
   stHash: string
   amountCredits: string
@@ -151,6 +157,7 @@ export interface AssetLockFundingState {
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
+  lockKind: 'instant' | 'chain' | null
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null

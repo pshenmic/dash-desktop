@@ -8,7 +8,7 @@ import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
 import {BroadcastResult} from '../../p2p/types/broadcast'
-import {AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
@@ -99,9 +99,7 @@ export class WalletSyncService {
       if (data.type === 'status') {
         this.status = data.status
       } else if (data.type === 'blockApplied') {
-        this.transactionDAO.applyBlock(data.block).catch(err =>
-          console.error('[walletSync] applyBlock failed:', err)
-        )
+        this.persistAppliedBlock(data.block)
       } else if (data.type === 'cursorAdvanced') {
         this.transactionDAO.advanceCursor(data.walletId, data.height).catch(err =>
           console.error('[walletSync] advanceCursor failed:', err)
@@ -264,6 +262,16 @@ export class WalletSyncService {
     return this.status
   }
 
+  private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {
+    this.transactionDAO.applyBlock(block).catch(err => {
+      if (attempt < 2) {
+        setTimeout(() => this.persistAppliedBlock(block, attempt + 1), 1_000)
+      } else {
+        console.error(`[walletSync] applyBlock failed permanently at h=${block.height}:`, err)
+      }
+    })
+  }
+
   hasSyncProgress = async (walletId: string): Promise<boolean> => {
     const cursor = await this.transactionDAO.getCursor(walletId)
     return cursor !== null
@@ -278,6 +286,8 @@ export class WalletSyncService {
       throw new Error('broadcastTransaction: p2p utility process not started — call startWalletSync first')
     }
     const requestId = randomUUID()
+    await this.pushWatchedTxids(txidFromHex(txHex)).catch(err =>
+      console.error('[walletSync] pushWatchedTxids failed:', err))
     const result = await new Promise<BroadcastResult>((resolve, reject) => {
       this.pendingBroadcasts.set(requestId, ({ok, result, errorMessage}) => {
         if (ok) {
@@ -298,8 +308,6 @@ export class WalletSyncService {
     if (this.activeWalletId && (result.peersAcked.length > 0 || result.peersPropagated.length > 0)) {
       await this.recordOptimisticSpend(this.activeWalletId, txHex).catch(err =>
         console.error('[walletSync] recordOptimisticSpend failed:', err))
-      await this.pushWatchedTxids().catch(err =>
-        console.error('[walletSync] pushWatchedTxids failed:', err))
     }
     return result
   }
@@ -347,10 +355,11 @@ export class WalletSyncService {
   }
 
   // Tell the worker which unconfirmed local txids to watch for an isdlock.
-  private async pushWatchedTxids(): Promise<void> {
+  private async pushWatchedTxids(extraTxid?: string): Promise<void> {
     if (!this.activeWalletId || !this.child) return
     const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
     const txids = pending.filter(p => !p.instantLocked).map(p => p.txid)
+    if (extraTxid && !txids.includes(extraTxid)) txids.push(extraTxid)
     this.send({type: 'watchTxs', walletId: this.activeWalletId, txids})
   }
 
@@ -437,6 +446,14 @@ export class WalletSyncService {
       lastError: null,
       updatedAt: Date.now(),
     }
+  }
+}
+
+function txidFromHex(txHex: string): string | undefined {
+  try {
+    return SDKTransaction.fromHex(txHex).hash()
+  } catch {
+    return undefined
   }
 }
 

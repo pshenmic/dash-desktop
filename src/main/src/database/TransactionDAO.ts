@@ -1,6 +1,7 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
+import type {TxLockStatus} from '../types/TxLockStatus'
 
 // Re-exported so callers (services, future API handlers) can stay decoupled
 // from the p2p IPC types if/when the protocol drifts.
@@ -255,6 +256,18 @@ export class TransactionDAO {
     }))
   }
 
+  getTxLockStatus = async (walletId: string, txid: string): Promise<TxLockStatus> => {
+    const row = await this.knex('transactions')
+      .select('instant_locked', 'chainlocked', 'block_height')
+      .where({wallet_id: walletId, txid})
+      .first()
+    return {
+      instantLocked: Boolean(row?.instant_locked),
+      chainlocked: Boolean(row?.chainlocked),
+      confirmed: (row?.block_height ?? 0) > 0,
+    }
+  }
+
   markInstantLocked = async (walletId: string, txid: string): Promise<void> => {
     await this.knex('transactions')
       .where({wallet_id: walletId, txid})
@@ -370,6 +383,8 @@ export class TransactionDAO {
         't.txid as t_txid',
         't.block_height as t_block_height',
         't.block_time as t_block_time',
+        't.instant_locked as t_instant_locked',
+        't.chainlocked as t_chainlocked',
         this.knex.raw('length(t.raw) as t_size'),
         'o.vout as o_vout',
         'o.address as o_address',
@@ -411,6 +426,8 @@ export class TransactionDAO {
         't.txid as t_txid',
         't.block_height as t_block_height',
         't.block_time as t_block_time',
+        't.instant_locked as t_instant_locked',
+        't.chainlocked as t_chainlocked',
         this.knex.raw('length(t.raw) as t_size'),
         'o.vout as o_vout',
         'o.address as o_address',
@@ -456,7 +473,7 @@ async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: s
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; outputs: Map<number, any>; inputs: Map<number, any>}>()
+  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; locked: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
 
   for (const row of rows) {
     let acc = byTxid.get(row.t_txid)
@@ -465,6 +482,7 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
         blockHeight: row.t_block_height,
         blockTime: row.t_block_time,
         size: row.t_size,
+        locked: Boolean(row.t_instant_locked) || Boolean(row.t_chainlocked),
         outputs: new Map(),
         inputs: new Map(),
       }
@@ -526,7 +544,7 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
       date: new Date(acc.blockTime * 1000),
       size: acc.size,
       blockHeight: acc.blockHeight,
-      status: 'Pending',
+      status: acc.locked ? 'Locked' : 'Pending',
       walletId,
       confirmations: 0,
       txid,

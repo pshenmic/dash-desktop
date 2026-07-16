@@ -6,7 +6,7 @@ import {
   PrivateKeyWASM,
 } from 'dash-platform-sdk/types.js'
 import {OrchardAddressWASM, OutPointWASM} from 'pshenmic-dpp'
-import {Transaction as SDKTransaction} from 'dash-core-sdk'
+import {Transaction as SDKTransaction, utils as coreUtils} from 'dash-core-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
@@ -15,7 +15,7 @@ import {Wallet} from '../types/Wallet'
 import {WalletService} from './WalletService'
 import {ShieldedService} from './ShieldedService'
 import {SdkProvider} from './SdkProvider'
-import {IdentityRegistrationService} from './IdentityRegistrationService'
+import {AssetLockProof, IdentityRegistrationService} from './IdentityRegistrationService'
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
 
@@ -35,6 +35,7 @@ export interface AssetLockFundingState {
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
+  lockKind: 'instant' | 'chain' | null
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null
@@ -42,15 +43,9 @@ export interface AssetLockFundingState {
   error: string | null
 }
 
-const POLL_INTERVAL_MS = 15_000
-const MAX_POLL_ATTEMPTS = 240
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
 const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
 
 export class AssetLockService {
   private walletDAO: WalletDAO
@@ -73,7 +68,7 @@ export class AssetLockService {
   }
 
   private idleState(): AssetLockFundingState {
-    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
+    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, lockKind: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
   }
 
   private isActive(state: AssetLockFundingState | undefined): boolean {
@@ -311,53 +306,38 @@ export class AssetLockService {
 
     state.phase = 'waitingChainLock'
 
-    const provider = this.walletService.getProvider(walletId, network)
+    const decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    const seed = sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
 
-    let txHeight = 0
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && txHeight <= 0; attempt++) {
-      try {
-        const tx = await provider.getTransactionByHash(row.txid)
-        if (tx.blockHeight > 0) {
-          txHeight = tx.blockHeight
-          break
-        }
-      } catch {}
-      await sleep(POLL_INTERVAL_MS)
+    const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
+    if (tx == null) {
+      throw new Error('Funding record is missing the asset lock transaction')
     }
-    if (txHeight <= 0) {
-      throw new Error('Timed out waiting for the asset lock transaction to confirm — resume later')
-    }
-    state.txHeight = txHeight
 
-    let chainLockedHeight = 0
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && chainLockedHeight < txHeight; attempt++) {
-      try {
-        const status = await sdk.node.status()
-        const height = status.chain?.coreChainLockedHeight
-        if (height != null) {
-          state.chainLockedHeight = height
-          if (height >= txHeight) {
-            chainLockedHeight = height
-            break
-          }
-        }
-      } catch {}
-      await sleep(POLL_INTERVAL_MS)
+    let watchAddresses = live?.inputAddresses
+    if (watchAddresses == null) {
+      const hdKey = sdk.keyPair.seedToHdKey(seed, network)
+      const derived = await sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
+      if (!derived.privateKey) {
+        throw new Error('Failed to derive the asset lock credit key')
+      }
+      const creditKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
+      watchAddresses = [sdk.keyPair.p2pkhAddress(creditKey.getPublicKey().bytes(), network)]
     }
-    if (chainLockedHeight < txHeight) {
-      throw new Error('Timed out waiting for a ChainLock covering the asset lock — resume later')
+
+    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
+    if (assetLockProof.type === 'chainLock') {
+      state.chainLockedHeight = assetLockProof.coreChainLockedHeight
     }
 
     await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
 
     state.phase = 'broadcastingST'
 
-    const decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    const seed = sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
-
     const stHash = row.kind === 'shielded'
-      ? await this.broadcastShieldSt(row, seed, network, chainLockedHeight)
-      : await this.broadcastAddressFundingSt(row, seed, network, chainLockedHeight)
+      ? await this.broadcastShieldSt(row, seed, network, assetLockProof)
+      : await this.broadcastAddressFundingSt(row, seed, network, assetLockProof)
 
     state.stHash = stHash
     state.phase = 'done'
@@ -365,7 +345,7 @@ export class AssetLockService {
     await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
   }
 
-  private async broadcastAddressFundingSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, chainLockedHeight: number): Promise<string> {
+  private async broadcastAddressFundingSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, assetLockProof: AssetLockProof): Promise<string> {
     const sdk = this.sdkProvider.getPlatformSDK(network)
     const hdKey = sdk.keyPair.seedToHdKey(seed, network)
     const derived = await sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
@@ -374,7 +354,9 @@ export class AssetLockService {
     }
     const creditKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
 
-    const proof = AssetLockProofWASM.createChainAssetLockProof(chainLockedHeight, new OutPointWASM(row.txid, row.outputIndex))
+    const proof = assetLockProof.type === 'instantLock'
+      ? AssetLockProofWASM.createInstantAssetLockProof(coreUtils.hexToBytes(assetLockProof.instantLock), coreUtils.hexToBytes(assetLockProof.transaction), assetLockProof.outputIndex)
+      : AssetLockProofWASM.createChainAssetLockProof(assetLockProof.coreChainLockedHeight, new OutPointWASM(row.txid, row.outputIndex))
 
     const unsignedSt = sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
       assetLockProof: proof,
@@ -397,7 +379,7 @@ export class AssetLockService {
     return signedSt.hash(false)
   }
 
-  private async broadcastShieldSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, chainLockedHeight: number): Promise<string> {
+  private async broadcastShieldSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, assetLockProof: AssetLockProof): Promise<string> {
     const surplus = await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
 
     await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
@@ -405,7 +387,9 @@ export class AssetLockService {
     return this.shieldedService.shieldFromAssetLock(network, seed, {
       txid: row.txid,
       outputIndex: row.outputIndex,
-      coreChainLockedHeight: chainLockedHeight,
+      assetLockProof: assetLockProof.type === 'instantLock'
+        ? {type: 'instantLock', instantLock: assetLockProof.instantLock, transaction: assetLockProof.transaction}
+        : {type: 'chainLock', coreChainLockedHeight: assetLockProof.coreChainLockedHeight},
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
       shieldAmountCredits: shieldAmountFromLockedDuffs(BigInt(row.amountDuffs)),
@@ -438,6 +422,7 @@ export class AssetLockService {
     }
     const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)]
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
 
     await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
 

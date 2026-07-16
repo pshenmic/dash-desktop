@@ -276,10 +276,16 @@ export class ShieldedEngine {
       }
       const privateKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
 
-      const proof = AssetLockProofWASM.createChainAssetLockProof(
-        command.coreChainLockedHeight,
-        new OutPointWASM(command.txid, command.outputIndex),
-      )
+      const proof = command.assetLockProof.type === 'instantLock'
+        ? AssetLockProofWASM.createInstantAssetLockProof(
+            Uint8Array.from(Buffer.from(command.assetLockProof.instantLock, 'hex')),
+            Uint8Array.from(Buffer.from(command.assetLockProof.transaction, 'hex')),
+            command.outputIndex,
+          )
+        : AssetLockProofWASM.createChainAssetLockProof(
+            command.assetLockProof.coreChainLockedHeight,
+            new OutPointWASM(command.txid, command.outputIndex),
+          )
       const recipient = OrchardAddressWASM.fromBech32m(command.recipient)
       const senderOvk = this.sdk.keyPair.deriveShieldedOutgoingViewingKey(seed, network, SHIELDED_ACCOUNT)
 
