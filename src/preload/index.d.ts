@@ -9,6 +9,7 @@ declare global {
       verifyWalletPassword: (walletId: string, password: string) => Promise<boolean>
       exportMnemonic: (walletId: string, password: string) => Promise<string>
       getAddresses: (walletId: string) => Promise<unknown>
+      addWalletAddress: (walletId: string, password: string, isChange: boolean) => Promise<string>
       getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
@@ -20,6 +21,7 @@ declare global {
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>
+      addPlatformAddress: (walletId: string) => Promise<unknown>
       deleteWallet: (walletId: string) => Promise<unknown>
       selectWallet: (walletId: string) => Promise<unknown>
       getWalletBalance: (walletId: string) => Promise<unknown>
