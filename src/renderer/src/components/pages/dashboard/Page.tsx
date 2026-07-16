@@ -15,7 +15,6 @@ import NoResults from '@renderer/components/ui/NoResults'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletTransactions, WalletTxItem } from '@renderer/hooks/useWalletTransactions'
-import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { useFiat } from '@renderer/hooks/useFiat'
@@ -26,8 +25,19 @@ import HeroBalance from './HeroBalance'
 import StatCard from './StatCard'
 import ActivityChart from './ActivityChart'
 import RecentTransactions from './RecentTransactions'
+import ShieldedCard from './ShieldedCard'
+import IdentitiesCard from './IdentitiesCard'
+import NetworkCard from './NetworkCard'
 
 const RECENT_TX_LIMIT = 5
+
+function SectionHeader({ title }: { title: string }): React.JSX.Element {
+  return (
+    <Text size={12} weight={"medium"} color={"brand"} opacity={40} transform={"uppercase"} className={"tracking-[.08em] px-1"}>
+      {title}
+    </Text>
+  )
+}
 
 function DashboardSkeleton(): React.JSX.Element {
   return (
@@ -78,7 +88,6 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
   const walletId = status?.selectedWalletId ?? undefined
 
   const { groups, loading, err } = useWalletTransactions(walletId)
-  const { balance, loading: balanceLoading } = useWalletBalance(walletId)
   const { receiving } = useAdresses(walletId)
   const { isBalanceVisible } = useBalanceVisibility()
   const { format: formatFiat, rateReady } = useFiat()
@@ -95,12 +104,14 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
 
   return (
     <div className={"px-12 pb-8 flex flex-col gap-4 phase-fade-in"}>
-      <HeroBalance
-        balanceDuffs={balance.dash.amount}
-        netFlow30d={stats.netFlow30d}
-        hasActivity={hasActivity}
-        loading={balanceLoading}
-      />
+      <HeroBalance />
+
+      <SectionHeader title={dashboardPage.sections.services} />
+      <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
+        <ShieldedCard />
+        <IdentitiesCard />
+      </div>
+      <NetworkCard />
 
       {loading && <DashboardSkeleton />}
 
@@ -110,6 +121,7 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
 
       {!loading && !err && hasActivity && (
         <>
+          <SectionHeader title={dashboardPage.sections.stats} />
           <div className={"grid grid-cols-2 xl:grid-cols-4 gap-4"}>
             <StatCard
               icon={TransactionsIcon}
@@ -125,6 +137,7 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
               value={`+${davToDashCompact(stats.totalReceived)} Dash`}
               sub={fiatSub(stats.totalReceived)}
               hidden={hideAmounts}
+              tone={"green"}
             />
             <StatCard
               icon={SendIcon}
@@ -133,6 +146,7 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
               value={`-${davToDashCompact(stats.totalSent)} Dash`}
               sub={fiatSub(stats.totalSent)}
               hidden={hideAmounts}
+              tone={"orange"}
             />
             <StatCard
               icon={TokensIcon}
@@ -162,6 +176,7 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
               label={labels.pending}
               value={stats.pendingCount}
               sub={stats.pendingCount === 0 ? 'all confirmed' : 'awaiting confirmations'}
+              tone={stats.pendingCount > 0 ? 'orange' : 'green'}
             />
             <StatCard
               icon={AddressesIcon}
