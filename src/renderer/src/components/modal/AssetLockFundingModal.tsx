@@ -8,8 +8,6 @@ import Spinner from '@renderer/components/ui/Spinner'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
-import { useAuth } from '@renderer/contexts/AuthContext'
-import { transactionUrl } from '@renderer/utils/explorer'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
@@ -114,8 +112,6 @@ export default function AssetLockFundingModal({
   onSuccess,
 }: AssetLockFundingModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
-  const { status } = useAuth()
-  const network = status?.network ?? null
   const [password, setPassword] = useState('')
   const [preError, setPreError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -289,7 +285,7 @@ export default function AssetLockFundingModal({
             </div>
             {state.txid && (
               <div className={"mt-3"}>
-                <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
+                <HashField hash={state.txid} label={"L1 txid"} />
               </div>
             )}
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
@@ -305,7 +301,7 @@ export default function AssetLockFundingModal({
             </div>
             {state.txid && (
               <div className={"mt-3"}>
-                <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
+                <HashField hash={state.txid} label={"L1 txid"} />
               </div>
             )}
             {state.phase === 'resumable' && (

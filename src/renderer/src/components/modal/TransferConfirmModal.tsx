@@ -6,11 +6,10 @@ import { PlatformSendResult } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
-import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 
 export interface TransferConfirmRow {
   label: string
-  value: string | React.ReactNode
+  value: string
   mono?: boolean
 }
 
@@ -167,7 +166,7 @@ export default function TransferConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? <CreditsAmount credits={BigInt(result.amountCredits)} /> : ''}
+                {result ? `${result.amountCredits} credits` : ''}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Broadcast to Platform. It will confirm shortly.
@@ -186,7 +185,7 @@ export default function TransferConfirmModal({
               {result?.feeCredits && (
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-                  <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={BigInt(result.feeCredits)} align={"end"} /></Text>
+                  <Text size={12} weight={"medium"} color={"brand"}>{result.feeCredits} credits</Text>
                 </div>
               )}
               {result?.stHash && <HashField hash={result.stHash} />}

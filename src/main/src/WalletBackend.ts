@@ -24,8 +24,6 @@ import { GetIdentitiesHandler } from './api/wallet/getIdentities'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
 import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
-import {AddPlatformAddressHandler} from "./api/wallet/addPlatformAddress";
-import {AddWalletAddressHandler} from "./api/wallet/addWalletAddress";
 import {GetTransactionByHashHandler} from "./api/wallet/getTransactionByHash";
 import {GetBlockByHash} from "./api/wallet/getBlockByHash";
 import {GetBalance} from "./api/wallet/getBalance";
@@ -112,7 +110,6 @@ export class WalletBackend {
     ipcMain.handle('selectWallet', new SelectWallet(this.walletService).handle)
     ipcMain.handle('getWalletBalance', new GetWalletBalance(this.walletService).handle)
     ipcMain.handle('getAddresses', new GetWalletAddressesHandler(this.walletService).handle)
-    ipcMain.handle('addWalletAddress', new AddWalletAddressHandler(this.walletService).handle)
     ipcMain.handle('getReceiveAddress', new GetReceiveAddressHandler(this.walletService).handle)
     ipcMain.handle('getStatus', new GetStatusHandler(this.walletService, this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('getTransactions', new GetTransactionsHandler(this.walletService).handle)
@@ -122,7 +119,6 @@ export class WalletBackend {
     ipcMain.handle('getIdentityBalance', new GetIdentityBalance(this.walletService).handle)
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
     ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
-    ipcMain.handle('addPlatformAddress', new AddPlatformAddressHandler(this.platformAddressService).handle)
     ipcMain.handle('getBlockByHash', new GetBlockByHash(this.walletService).handle)
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)

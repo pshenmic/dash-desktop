@@ -3,21 +3,15 @@ import { SUPPORTED_RATE_CURRENCIES } from '../constants'
 
 export type ExchangeRates = Record<string, number>
 
-export interface ProviderRates {
-  rates: ExchangeRates
-  changes24h: ExchangeRates
-}
-
 export interface ExchangeRatesResult {
   rates: ExchangeRates
-  changes24h: ExchangeRates
   updatedAt: number | null
   stale: boolean
 }
 
 export interface RateProvider {
   readonly name: string
-  fetchRates(): Promise<ProviderRates>
+  fetchRates(): Promise<ExchangeRates>
 }
 
 const TTL_MS = 60_000
@@ -53,34 +47,19 @@ function pickRates(raw: Record<string, number>, keyOf: (currency: string) => str
   return rates
 }
 
-function pickChanges(raw: Record<string, number>, keyOf: (currency: string) => string): ExchangeRates {
-  const changes: ExchangeRates = {}
-  for (const currency of SUPPORTED_RATE_CURRENCIES) {
-    const value = raw[keyOf(currency)]
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      changes[currency] = value
-    }
-  }
-  return changes
-}
-
 export class CoinGeckoRateProvider implements RateProvider {
   readonly name = 'coingecko'
   private readonly url =
     'https://api.coingecko.com/api/v3/simple/price' +
-    `?ids=dash&vs_currencies=${SUPPORTED_RATE_CURRENCIES.join(',')}` +
-    '&include_24hr_change=true'
+    `?ids=dash&vs_currencies=${SUPPORTED_RATE_CURRENCIES.join(',')}`
 
-  async fetchRates(): Promise<ProviderRates> {
+  async fetchRates(): Promise<ExchangeRates> {
     const data = (await fetchJson(this.url)) as { dash?: Record<string, number> }
     const dash = data.dash
     if (!dash || typeof dash !== 'object') {
       throw new Error('CoinGecko response missing dash prices')
     }
-    return {
-      rates: pickRates(dash, (c) => c),
-      changes24h: pickChanges(dash, (c) => `${c}_24h_change`),
-    }
+    return pickRates(dash, (c) => c)
   }
 }
 
@@ -90,7 +69,7 @@ export class CryptoCompareRateProvider implements RateProvider {
     'https://min-api.cryptocompare.com/data/price' +
     `?fsym=DASH&tsyms=${SUPPORTED_RATE_CURRENCIES.map((c) => c.toUpperCase()).join(',')}`
 
-  async fetchRates(): Promise<ProviderRates> {
+  async fetchRates(): Promise<ExchangeRates> {
     const data = (await fetchJson(this.url)) as Record<string, number> & {
       Response?: string
       Message?: string
@@ -98,14 +77,14 @@ export class CryptoCompareRateProvider implements RateProvider {
     if (data.Response === 'Error') {
       throw new Error(`CryptoCompare: ${data.Message ?? 'unknown error'}`)
     }
-    return { rates: pickRates(data, (c) => c.toUpperCase()), changes24h: {} }
+    return pickRates(data, (c) => c.toUpperCase())
   }
 }
 
 export class RatesService {
-  private cache: ProviderRates | null = null
+  private cache: ExchangeRates | null = null
   private fetchedAt: number | null = null
-  private inflight: Promise<ProviderRates> | null = null
+  private inflight: Promise<ExchangeRates> | null = null
   private readonly providers: RateProvider[]
   private readonly ttlMs: number
 
@@ -124,24 +103,23 @@ export class RatesService {
       Date.now() - this.fetchedAt < this.ttlMs
 
     if (fresh) {
-      return { ...this.cache!, updatedAt: this.fetchedAt, stale: false }
+      return { rates: this.cache!, updatedAt: this.fetchedAt, stale: false }
     }
 
     try {
       const rates = await this.refresh()
-      return { ...rates, updatedAt: this.fetchedAt, stale: false }
+      return { rates, updatedAt: this.fetchedAt, stale: false }
     } catch (err) {
       console.error('[rates] refresh failed:', err)
       return {
-        rates: this.cache?.rates ?? zeroRates(),
-        changes24h: this.cache?.changes24h ?? {},
+        rates: this.cache ?? zeroRates(),
         updatedAt: this.fetchedAt,
         stale: true,
       }
     }
   }
 
-  private refresh(): Promise<ProviderRates> {
+  private refresh(): Promise<ExchangeRates> {
     if (this.inflight) return this.inflight
 
     this.inflight = this.fetchFromProviders()
@@ -157,13 +135,13 @@ export class RatesService {
     return this.inflight
   }
 
-  private async fetchFromProviders(): Promise<ProviderRates> {
+  private async fetchFromProviders(): Promise<ExchangeRates> {
     const errors: string[] = []
 
     for (const provider of this.providers) {
       try {
         const rates = await provider.fetchRates()
-        if (Object.keys(rates.rates).length === 0) {
+        if (Object.keys(rates).length === 0) {
           errors.push(`${provider.name}: empty rates`)
           continue
         }

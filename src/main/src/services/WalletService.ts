@@ -258,46 +258,6 @@ export class WalletService {
     return this.walletDAO.updateLabel(walletId, label)
   }
 
-  async addAddress(walletId: string, password: string, isChange: boolean): Promise<string> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) throw new Error('Wallet not found')
-
-    let mnemonic: string
-    try {
-      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
-    }
-
-    const sdk = this.sdkProvider.getPlatformSDK(wallet.network)
-    const seed = sdk.keyPair.mnemonicToSeed(mnemonic)
-    const hdKey = sdk.keyPair.seedToHdKey(seed, wallet.network)
-    const coinType = COIN_TYPE[wallet.network]
-    const accountId = 0
-
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const chain = isChange ? grouped.change : grouped.receiving
-    const index = chain.reduce((max, a) => Math.max(max, a.index), -1) + 1
-
-    const derivationPath = `m/44'/${coinType}'/${accountId}'/${isChange ? 1 : 0}/${index}`
-    const key = await sdk.keyPair.derivePath(hdKey, derivationPath)
-    if (!key.publicKey) throw new Error(`Failed to derive public key at index ${index}`)
-    const address = sdk.keyPair.p2pkhAddress(key.publicKey, wallet.network)
-
-    await this.addressDAO.insertAddresses([{
-      walletId,
-      accountId,
-      address,
-      derivationPath,
-      index,
-      isChange,
-      isUsed: false,
-      label: null
-    }])
-
-    return address
-  }
-
   async getReceiveAddress(walletId: string): Promise<string> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) throw new Error('Wallet not found')

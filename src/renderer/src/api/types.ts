@@ -93,7 +93,6 @@ export type ExchangeRates = Record<string, number>
 
 export interface ExchangeRatesResult {
   rates: ExchangeRates
-  changes24h: ExchangeRates
   updatedAt: number | null
   stale: boolean
 }

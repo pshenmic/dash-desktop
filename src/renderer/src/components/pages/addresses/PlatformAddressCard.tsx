@@ -1,7 +1,8 @@
+import { BigNumber } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { PlatformAddressDto } from '@renderer/api/types'
+import { formatCompactCredits } from '@renderer/utils/balance'
 import CopyButton from '@renderer/components/ui/CopyButton'
-import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 
 export default function PlatformAddressCard({
   platformAddress,
@@ -24,7 +25,10 @@ export default function PlatformAddressCard({
 
       <div className={"flex items-center gap-2 shrink-0"}>
         <Text size={14} weight={"medium"} color={"brand"}>
-          <CreditsAmount credits={BigInt(balanceCredits)} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
+          <span className={"font-bold"}>
+            <BigNumber>{formatCompactCredits(BigInt(balanceCredits)).toString()}</BigNumber>
+          </span>
+          {' Credits'}
         </Text>
       </div>
     </div>

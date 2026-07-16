@@ -7,7 +7,6 @@ import { ShieldResult } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
-import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 
 interface ShieldConfirmModalProps {
   isOpen: boolean
@@ -99,7 +98,7 @@ export default function ShieldConfirmModal({
             <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-                <Text size={14} weight={"extrabold"} color={"brand"}><CreditsAmount credits={BigInt(amountCredits)} align={"end"} /></Text>
+                <Text size={14} weight={"extrabold"} color={"brand"}>{amountCredits} credits</Text>
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
@@ -186,7 +185,7 @@ export default function ShieldConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result && <CreditsAmount credits={BigInt(result.amountCredits)} />} shielded
+                {result ? result.amountCredits : ''} credits shielded
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Moved into the shielded pool. If it went to your own address, re-sync notes to see it.

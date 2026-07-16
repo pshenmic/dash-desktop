@@ -5,7 +5,6 @@ import AddressCard from './AddressCard'
 import PlatformAddressCard from './PlatformAddressCard'
 import ShieldedAddressTab from './ShieldedAddressTab'
 import PlatformUnlockTab from './PlatformUnlockTab'
-import AddAddressSection from './AddAddressSection'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -65,34 +64,28 @@ export default function AddressList(): React.JSX.Element {
       value: 'receiving',
       label: tabs.receiving,
       content: (
-        <div className={"flex flex-col gap-[.625rem]"}>
-          <TabContent
-            items={receiving}
-            loading={loading}
-            err={err}
-            errorMessage={"Failed to load addresses"}
-            emptyMessage={"No addresses found"}
-            renderItem={renderAddress}
-          />
-          <AddAddressSection walletId={status?.selectedWalletId ?? undefined} kind={"receiving"} />
-        </div>
+        <TabContent
+          items={receiving}
+          loading={loading}
+          err={err}
+          errorMessage={"Failed to load addresses"}
+          emptyMessage={"No addresses found"}
+          renderItem={renderAddress}
+        />
       ),
     },
     {
       value: 'change',
       label: tabs.change,
       content: (
-        <div className={"flex flex-col gap-[.625rem]"}>
-          <TabContent
-            items={change}
-            loading={loading}
-            err={err}
-            errorMessage={"Failed to load addresses"}
-            emptyMessage={"No addresses found"}
-            renderItem={renderAddress}
-          />
-          <AddAddressSection walletId={status?.selectedWalletId ?? undefined} kind={"change"} />
-        </div>
+        <TabContent
+          items={change}
+          loading={loading}
+          err={err}
+          errorMessage={"Failed to load addresses"}
+          emptyMessage={"No addresses found"}
+          renderItem={renderAddress}
+        />
       ),
     },
     {
@@ -101,19 +94,14 @@ export default function AddressList(): React.JSX.Element {
       content: !platformLoading && !platformErr && platformAddresses.length === 0 ? (
         <PlatformUnlockTab walletId={status?.selectedWalletId ?? undefined} />
       ) : (
-        <div className={"flex flex-col gap-[.625rem]"}>
-          <TabContent
-            items={platformAddresses}
-            loading={platformLoading}
-            err={platformErr}
-            errorMessage={"Failed to load platform addresses"}
-            emptyMessage={"No platform addresses found"}
-            renderItem={(item) => <PlatformAddressCard key={item.platformAddress} {...item} />}
-          />
-          {!platformLoading && !platformErr && (
-            <AddAddressSection walletId={status?.selectedWalletId ?? undefined} kind={"platform"} />
-          )}
-        </div>
+        <TabContent
+          items={platformAddresses}
+          loading={platformLoading}
+          err={platformErr}
+          errorMessage={"Failed to load platform addresses"}
+          emptyMessage={"No platform addresses found"}
+          renderItem={(item) => <PlatformAddressCard key={item.platformAddress} {...item} />}
+        />
       ),
     },
     {

@@ -57,8 +57,8 @@ export default function PlatformUnlockTab({ walletId }: { walletId: string | und
         disabled={!walletId || password.length === 0 || unlocking}
         variant={"solid"}
         colorScheme={"primary"}
-        size={"sm"}
-        className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+        size={"md"}
+        className={"rounded-[.9375rem]"}
       >
         {unlocking ? 'Deriving…' : 'Derive addresses'}
       </Button>

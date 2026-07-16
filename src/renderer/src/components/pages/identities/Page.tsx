@@ -12,6 +12,7 @@ export interface Identity {
   name: string
   balance: {
     total: bigint
+    approx: string
     currency: string
   }
   assetLockTxid: string | null
@@ -27,6 +28,7 @@ export default function Identities(): React.JSX.Element {
     name: item.alias ?? '',
     balance: {
       total: item.balance.amount,
+      approx: item.balance.usdAmount,
       currency: 'Credits',
     },
     assetLockTxid: item.assetLockTxid ?? null,

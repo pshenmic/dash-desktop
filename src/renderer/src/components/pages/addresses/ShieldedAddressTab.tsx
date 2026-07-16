@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { BigNumber } from 'dash-ui-kit/react'
 import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
-import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { formatCompactCredits } from '@renderer/utils/balance'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -153,8 +154,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
           disabled={!walletId || password.length === 0 || busy}
           variant={"solid"}
           colorScheme={"primary"}
-          size={"sm"}
-          className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+          size={"md"}
+          className={"rounded-[.9375rem]"}
         >
           {busy ? 'Deriving…' : 'Reveal addresses'}
         </Button>
@@ -176,7 +177,10 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
           <div className={"flex items-center gap-2 shrink-0"}>
             {synced ? (
               <Text size={14} weight={"medium"} color={"brand"}>
-                <CreditsAmount credits={balances.get(address) ?? 0n} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
+                <span className={"font-bold"}>
+                  <BigNumber>{formatCompactCredits(balances.get(address) ?? 0n).toString()}</BigNumber>
+                </span>
+                {' Credits'}
               </Text>
             ) : (
               <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
@@ -200,8 +204,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             disabled={!walletId || password.length === 0 || busy}
             variant={"solid"}
             colorScheme={"primary"}
-            size={"sm"}
-            className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+            size={"md"}
+            className={"rounded-[.9375rem]"}
           >
             {busy ? 'Deriving…' : 'Add address'}
           </Button>
@@ -219,8 +223,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
               disabled={!walletId || busy}
               variant={"solid"}
               colorScheme={"primary"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem]"}
+              size={"md"}
+              className={"rounded-[.9375rem]"}
             >
               {busy ? 'Deriving…' : 'New address'}
             </Button>
@@ -230,8 +234,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
               disabled={!walletId || syncRunning}
               variant={"solid"}
               colorScheme={"lightBlue-mint"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem]"}
+              size={"md"}
+              className={"rounded-[.9375rem]"}
             >
               {syncRunning ? 'Syncing…' : synced ? 'Re-sync notes' : 'Sync notes'}
             </Button>

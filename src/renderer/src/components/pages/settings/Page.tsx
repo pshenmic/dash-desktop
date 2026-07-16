@@ -56,7 +56,6 @@ function SettingsRow({
           variant={destructive ? 'outline' : 'solid'}
           colorScheme={destructive ? 'red' : 'primary-light'}
           size="sm"
-          className="min-h-0! py-2! rounded-[.75rem]"
         >
           {pending && pendingLabel ? pendingLabel : actionLabel}
         </Button>
@@ -237,7 +236,6 @@ export default function Settings(): React.JSX.Element {
                   variant="solid"
                   colorScheme="primary-light"
                   size="sm"
-                  className="min-h-0! py-2! rounded-[.75rem]"
                 >
                   {renamePending ? 'Saving…' : 'Save'}
                 </Button>

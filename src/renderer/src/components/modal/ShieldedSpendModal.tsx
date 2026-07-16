@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
-import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { ShieldedSpendState } from '@renderer/api/types'
@@ -163,7 +162,7 @@ export default function ShieldedSpendModal({
             <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-                <Text size={14} weight={"extrabold"} color={"brand"}><CreditsAmount credits={BigInt(amountCredits)} align={"end"} /></Text>
+                <Text size={14} weight={"extrabold"} color={"brand"}>{amountCredits} credits</Text>
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{toLabel}</Text>
@@ -263,7 +262,7 @@ export default function ShieldedSpendModal({
             <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
               <div className={"success-pop"}><SuccessIcon size={56} /></div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {spend?.identityId ? 'Identity created' : <><CreditsAmount credits={BigInt(sentAmount || amountCredits || '0')} /> sent</>}
+                {spend?.identityId ? 'Identity created' : `${sentAmount || amountCredits} credits sent`}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 {spend?.identityId

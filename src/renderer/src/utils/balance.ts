@@ -1,11 +1,4 @@
 const DUFFS_PER_DASH = 100_000_000n
-const CREDITS_PER_DUFF = 1_000n
-
-export function creditsToDuffs(credits: bigint): bigint {
-  const sign = credits < 0n ? -1n : 1n
-  const abs = credits < 0n ? -credits : credits
-  return sign * (abs / CREDITS_PER_DUFF)
-}
 
 export function formatCredits(value: bigint): string {
   return value.toLocaleString('en-US')

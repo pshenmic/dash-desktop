@@ -104,8 +104,8 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
         disabled={!walletId || password.length === 0 || revealing}
         variant={"solid"}
         colorScheme={"primary"}
-        size={"sm"}
-        className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+        size={"md"}
+        className={"rounded-[.9375rem]"}
       >
         {revealing ? 'Deriving…' : 'Reveal address'}
       </Button>
