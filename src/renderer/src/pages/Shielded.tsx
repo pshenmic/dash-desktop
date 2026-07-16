@@ -139,7 +139,7 @@ export default function ShieldedPage(): React.JSX.Element {
         <ProverBadge status={prover} />
       </div>
 
-      <div className={"flex flex-col gap-4 w-full max-w-160"}>
+      <div className={"flex flex-col gap-4 w-full"}>
         <div className={"flex flex-col gap-4 p-5 rounded-[.9375rem] dash-block-3"}>
           <div className={"flex items-center justify-between"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Transparent</Text>
