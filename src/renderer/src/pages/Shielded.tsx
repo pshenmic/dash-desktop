@@ -53,7 +53,7 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
           variant={"solid"}
           colorScheme={"primary"}
           size={"sm"}
-          className={"rounded-[.75rem]"}
+          className={"min-h-0! py-2! rounded-[.75rem]"}
         >
           {sync.phase === 'done' ? 'Re-sync' : 'Sync notes'}
         </Button>
@@ -123,7 +123,7 @@ export default function ShieldedPage(): React.JSX.Element {
   const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
 
   return (
-    <div className={"flex flex-col gap-8 px-12 py-10"}>
+    <div className={"flex flex-col gap-8 px-12 pb-10"}>
       <div className={"flex items-end justify-between gap-6"}>
         <div className={"flex flex-col gap-3"}>
           <div className={"flex items-center gap-3"}>
@@ -174,7 +174,7 @@ export default function ShieldedPage(): React.JSX.Element {
               variant={"solid"}
               colorScheme={"lightBlue-mint"}
               size={"sm"}
-              className={"rounded-[.75rem] shrink-0"}
+              className={"min-h-0! py-2! rounded-[.75rem] shrink-0"}
             >
               Shield funds
             </Button>

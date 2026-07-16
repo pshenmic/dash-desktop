@@ -54,8 +54,8 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
           disabled={!walletId || busy}
           variant={"solid"}
           colorScheme={"primary"}
-          size={"md"}
-          className={"rounded-[.9375rem]"}
+          size={"sm"}
+          className={"min-h-0! py-2! rounded-[.75rem]"}
         >
           {busy ? 'Deriving…' : 'New address'}
         </Button>
@@ -72,8 +72,8 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
           disabled={!walletId}
           variant={"solid"}
           colorScheme={"primary"}
-          size={"md"}
-          className={"rounded-[.9375rem]"}
+          size={"sm"}
+          className={"min-h-0! py-2! rounded-[.75rem]"}
         >
           New address
         </Button>
@@ -110,8 +110,8 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
         disabled={!walletId || password.length === 0 || busy}
         variant={"solid"}
         colorScheme={"primary"}
-        size={"md"}
-        className={"rounded-[.9375rem]"}
+        size={"sm"}
+        className={"min-h-0! py-2! rounded-[.75rem] self-start"}
       >
         {busy ? 'Deriving…' : 'Add address'}
       </Button>

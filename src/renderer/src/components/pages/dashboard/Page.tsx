@@ -62,7 +62,7 @@ function EmptyState(): React.JSX.Element {
           {subtitle}
         </Text>
       </div>
-      <Button colorScheme={"primary"} size={"sm"} onClick={() => navigate('/receive')}>
+      <Button colorScheme={"primary"} size={"sm"} className={"min-h-0! py-2! rounded-[.75rem]"} onClick={() => navigate('/receive')}>
         {action}
       </Button>
     </div>
