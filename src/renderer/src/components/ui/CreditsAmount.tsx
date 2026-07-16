@@ -31,7 +31,7 @@ export default function CreditsAmount({
 
   return (
     <span
-      className={`group/credits inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'} ${className ?? ''}`}
+      className={`group/credits relative inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'} ${className ?? ''}`}
       title={`≈ ${davToDash(duffs)} Dash`}
     >
       <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
@@ -44,8 +44,15 @@ export default function CreditsAmount({
       >
         <span className={amountClassName}>{davToDashCompact(duffs)}</span>
         <span className={unitClassName}>{' Dash'}</span>
-        {fiat && <span className={'opacity-60'}>{` ~ ${fiat}`}</span>}
       </span>
+      {fiat && (
+        <span
+          aria-hidden
+          className={`absolute top-full ${align === 'end' ? 'right-0' : 'left-0'} whitespace-nowrap text-[.625rem] font-medium leading-[120%] text-dash-brand dark:text-dash-mint opacity-0 transition-opacity duration-200 group-hover/credits:opacity-100 pointer-events-none`}
+        >
+          ~ {fiat}
+        </span>
+      )}
     </span>
   )
 }
