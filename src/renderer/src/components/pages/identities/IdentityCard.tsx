@@ -1,9 +1,9 @@
-import { Avatar, BigNumber, Identifier } from "dash-ui-kit/react";
+import { Avatar, Identifier } from "dash-ui-kit/react";
 import { Identity } from "./Page";
 import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import AmountSummary from "@renderer/components/ui/AmountSummary";
 import CopyButton from "@renderer/components/ui/CopyButton";
-import { formatCompactCredits } from "@renderer/utils/balance";
+import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { transactionUrl, openExternal } from "@renderer/utils/explorer";
 
@@ -42,9 +42,9 @@ export default function IdentityCard({identity}: {identity: Identity}): React.JS
           </div>
         )}
       </div>
-      <AmountSummary total={<BigNumber className={"text-inherit gap-[.125rem]!"}>{formatCompactCredits(identity.balance.total).toString()}</BigNumber>}
+      <AmountSummary total={<CreditsAmount credits={identity.balance.total} compact unit={identity.balance.currency} showFiat={false} align={"end"} amountClassName={"text-inherit gap-[.125rem]!"} unitClassName={"font-medium"} />}
         textBadge={`~ $${identity.balance.approx}`}
-        currency={identity.balance.currency}
+        currency={""}
       />
     </div>
   )

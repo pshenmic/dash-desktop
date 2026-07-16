@@ -8,7 +8,7 @@ export default function AmountSummary(
   return (
     <div className={"ml-auto flex flex-col items-end"}>
       <div className={"flex items-center gap-[.5rem]"}>
-        <Text size={14} weight={"bold"} color={"default"}>{total} <span className={"font-medium"}>{currency}</span></Text>
+        <Text size={14} weight={"bold"} color={"default"}>{total}{currency && <span className={"font-medium"}> {currency}</span>}</Text>
         <CustomBadge text={textBadge} variant={variant} />
       </div>
       { date &&

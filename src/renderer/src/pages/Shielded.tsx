@@ -6,7 +6,7 @@ import Spinner from '@renderer/components/ui/Spinner'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
-import { formatCredits, formatCompactCredits } from '@renderer/utils/balance'
+import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 
 function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
@@ -119,9 +119,7 @@ export default function ShieldedPage(): React.JSX.Element {
   const spendableNotes = useMemo(() => sync.notes.filter((note) => !note.spent), [sync.notes])
 
   const shieldedReady = sync.phase === 'done' && sync.balance !== null
-  const shieldedDisplay = shieldedReady ? formatCredits(BigInt(sync.balance as string)) : '—'
 
-  const poolStateDisplay = poolInfo.poolState !== null ? formatCompactCredits(BigInt(poolInfo.poolState)) : null
   const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
 
   return (
@@ -143,10 +141,9 @@ export default function ShieldedPage(): React.JSX.Element {
         <div className={"flex flex-col gap-4 p-5 rounded-[.9375rem] dash-block-3"}>
           <div className={"flex items-center justify-between"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Transparent</Text>
-            <div className={"flex items-baseline gap-1.5"}>
-              <Text size={20} weight={"bold"} color={"brand"}>{formatCredits(transparentCredits)}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
-            </div>
+            <Text size={20} weight={"bold"} color={"brand"}>
+              <CreditsAmount credits={transparentCredits} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+            </Text>
           </div>
           <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
           <div className={"flex items-center justify-between"}>
@@ -154,10 +151,16 @@ export default function ShieldedPage(): React.JSX.Element {
               <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Shielded</Text>
             </div>
-            <div className={"flex items-baseline gap-1.5"}>
-              <Text size={20} weight={"bold"} color={"blue-mint"}>{shieldedDisplay}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
-            </div>
+            {shieldedReady ? (
+              <Text size={20} weight={"bold"} color={"blue-mint"}>
+                <CreditsAmount credits={BigInt(sync.balance as string)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+              </Text>
+            ) : (
+              <div className={"flex items-baseline gap-1.5"}>
+                <Text size={20} weight={"bold"} color={"blue-mint"}>—</Text>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
+              </div>
+            )}
           </div>
           <div className={"flex items-center justify-between gap-3"}>
             {!shieldedReady ? (
@@ -194,10 +197,9 @@ export default function ShieldedPage(): React.JSX.Element {
                     <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
                     <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
                   </div>
-                  <div className={"flex items-baseline gap-1.5"}>
-                    <Text size={14} weight={"bold"} color={"brand"}>{formatCredits(BigInt(note.amount))}</Text>
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
-                  </div>
+                  <Text size={14} weight={"bold"} color={"brand"}>
+                    <CreditsAmount credits={BigInt(note.amount)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+                  </Text>
                 </div>
               ))}
             </div>
@@ -208,7 +210,9 @@ export default function ShieldedPage(): React.JSX.Element {
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Shielded pool ({network ?? 'unknown'})</Text>
           <div className={"flex items-center justify-between"}>
             <Text size={14} weight={"medium"} color={"brand"} opacity={70}>Total in pool</Text>
-            <Text size={14} weight={"bold"} color={"brand"}>{poolStateDisplay !== null ? `${poolStateDisplay} credits` : '—'}</Text>
+            <Text size={14} weight={"bold"} color={"brand"}>
+              {poolInfo.poolState !== null ? <CreditsAmount credits={BigInt(poolInfo.poolState)} compact align={"end"} /> : '—'}
+            </Text>
           </div>
           <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
           <div className={"flex items-center justify-between"}>

@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BigNumber } from 'dash-ui-kit/react'
 import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
-import { formatCompactCredits } from '@renderer/utils/balance'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -177,10 +176,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
           <div className={"flex items-center gap-2 shrink-0"}>
             {synced ? (
               <Text size={14} weight={"medium"} color={"brand"}>
-                <span className={"font-bold"}>
-                  <BigNumber>{formatCompactCredits(balances.get(address) ?? 0n).toString()}</BigNumber>
-                </span>
-                {' Credits'}
+                <CreditsAmount credits={balances.get(address) ?? 0n} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
               </Text>
             ) : (
               <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
