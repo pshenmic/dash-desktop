@@ -153,8 +153,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
           disabled={!walletId || password.length === 0 || busy}
           variant={"solid"}
           colorScheme={"primary"}
-          size={"md"}
-          className={"rounded-[.9375rem]"}
+          size={"sm"}
+          className={"min-h-0! py-2! rounded-[.75rem] self-start"}
         >
           {busy ? 'Deriving…' : 'Reveal addresses'}
         </Button>
@@ -200,8 +200,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             disabled={!walletId || password.length === 0 || busy}
             variant={"solid"}
             colorScheme={"primary"}
-            size={"md"}
-            className={"rounded-[.9375rem]"}
+            size={"sm"}
+            className={"min-h-0! py-2! rounded-[.75rem] self-start"}
           >
             {busy ? 'Deriving…' : 'Add address'}
           </Button>
@@ -219,8 +219,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
               disabled={!walletId || busy}
               variant={"solid"}
               colorScheme={"primary"}
-              size={"md"}
-              className={"rounded-[.9375rem]"}
+              size={"sm"}
+              className={"min-h-0! py-2! rounded-[.75rem]"}
             >
               {busy ? 'Deriving…' : 'New address'}
             </Button>
@@ -230,8 +230,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
               disabled={!walletId || syncRunning}
               variant={"solid"}
               colorScheme={"lightBlue-mint"}
-              size={"md"}
-              className={"rounded-[.9375rem]"}
+              size={"sm"}
+              className={"min-h-0! py-2! rounded-[.75rem]"}
             >
               {syncRunning ? 'Syncing…' : synced ? 'Re-sync notes' : 'Sync notes'}
             </Button>

@@ -62,13 +62,13 @@ export default function HeroBalance({ balanceDuffs, netFlow30d, hasActivity, loa
       </div>
 
       <div className={"relative flex items-center gap-3"}>
-        <Button colorScheme={"primary"} size={"sm"} onClick={() => navigate('/send')}>
+        <Button colorScheme={"primary"} size={"sm"} className={"min-h-0! py-2! rounded-[.75rem]"} onClick={() => navigate('/send')}>
           <span className={"flex items-center gap-2"}>
             <SendIcon size={11} color={"currentColor"} />
             {send}
           </span>
         </Button>
-        <Button colorScheme={"lightBlue-mint"} size={"sm"} onClick={() => navigate('/receive')}>
+        <Button colorScheme={"lightBlue-mint"} size={"sm"} className={"min-h-0! py-2! rounded-[.75rem]"} onClick={() => navigate('/receive')}>
           <span className={"flex items-center gap-2"}>
             <ReceiveIcon size={11} color={"currentColor"} />
             {receive}
