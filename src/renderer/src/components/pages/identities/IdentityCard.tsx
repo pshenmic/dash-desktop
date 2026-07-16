@@ -42,8 +42,7 @@ export default function IdentityCard({identity}: {identity: Identity}): React.JS
           </div>
         )}
       </div>
-      <AmountSummary total={<CreditsAmount credits={identity.balance.total} compact unit={identity.balance.currency} showFiat={false} align={"end"} amountClassName={"text-inherit gap-[.125rem]!"} unitClassName={"font-medium"} />}
-        textBadge={`~ $${identity.balance.approx}`}
+      <AmountSummary total={<CreditsAmount credits={identity.balance.total} compact unit={identity.balance.currency} align={"end"} amountClassName={"text-inherit gap-[.125rem]!"} unitClassName={"font-medium"} />}
         currency={""}
       />
     </div>

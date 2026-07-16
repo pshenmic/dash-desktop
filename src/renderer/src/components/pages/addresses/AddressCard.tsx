@@ -4,6 +4,7 @@ import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { WalletAddressDto } from '@renderer/api/types'
 import { davToDash } from '@renderer/utils/balance'
+import { useFiat } from '@renderer/hooks/useFiat'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
@@ -12,9 +13,9 @@ import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 export default function AddressCard({
   address,
   balance,
-  usdBalance,
 }: WalletAddressDto): React.JSX.Element {
   const [isQrOpen, setIsQrOpen] = useState(false)
+  const { format: formatFiat, rateReady } = useFiat()
 
   return (
     <div className={"flex items-center justify-between px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
@@ -41,7 +42,7 @@ export default function AddressCard({
             </span>
             {' Dash'}
           </Text>
-          <CustomBadge text={`~ $${usdBalance}`} variant="default" size="xs" />
+          {rateReady && <CustomBadge text={`~ ${formatFiat(balance)}`} variant="default" size="xs" />}
         </div>
       </div>
     </div>
