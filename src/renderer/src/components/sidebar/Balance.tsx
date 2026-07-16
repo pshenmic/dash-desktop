@@ -1,5 +1,6 @@
 import { BigNumber, DashLogo, useTheme } from "dash-ui-kit/react";
 import { CreditsIcon, Text } from "../dash-ui-kit-enxtended";
+import CreditsAmount from "../ui/CreditsAmount";
 import { cva } from "class-variance-authority";
 
 const logoStyles = cva(
@@ -21,7 +22,7 @@ const logoStyles = cva(
   }
 )
 
-export default function Balance({variant, balance, isVisible, fiat}: {variant: 'dash' | 'credits', balance: string, isVisible: boolean, fiat?: string}): React.JSX.Element {
+export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits', balance?: string, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
   const { theme } = useTheme()
 
   return (
@@ -49,8 +50,14 @@ export default function Balance({variant, balance, isVisible, fiat}: {variant: '
       <div className={"flex flex-col gap-[.125rem]"}>
         <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : 'Platform Credits:'}</Text>
         <Text size={16} weight="extrabold" color="brand" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>
-          <BigNumber className={"gap-[.125rem]!"}>{balance}</BigNumber>
-          {variant === 'dash' ? ' Dash' : ' Credits'}
+          {variant === 'credits' && credits != null ? (
+            <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
+          ) : (
+            <>
+              <BigNumber className={"gap-[.125rem]!"}>{balance ?? ''}</BigNumber>
+              {variant === 'dash' ? ' Dash' : ' Credits'}
+            </>
+          )}
         </Text>
         { fiat &&
           <Text size={10} weight="medium" color="blue-mint" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>~ {fiat}</Text>
