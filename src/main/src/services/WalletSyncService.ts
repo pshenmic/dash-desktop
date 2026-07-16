@@ -68,6 +68,8 @@ export class WalletSyncService {
   // process echoes the requestId back in P2PBroadcastResultMessage so we
   // can resolve the right promise when multiple broadcasts overlap.
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
+  onWalletActivity: ((walletId: string) => void) | null = null
+  private activityDebounce: ReturnType<typeof setTimeout> | null = null
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
     this.walletDAO = walletDAO
@@ -263,13 +265,24 @@ export class WalletSyncService {
   }
 
   private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {
-    this.transactionDAO.applyBlock(block).catch(err => {
+    this.transactionDAO.applyBlock(block).then(() => {
+      if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
+    }).catch(err => {
       if (attempt < 2) {
         setTimeout(() => this.persistAppliedBlock(block, attempt + 1), 1_000)
       } else {
         console.error(`[walletSync] applyBlock failed permanently at h=${block.height}:`, err)
       }
     })
+  }
+
+  private notifyWalletActivity(walletId: string): void {
+    if (this.onWalletActivity == null || this.activityDebounce != null) return
+    this.activityDebounce = setTimeout(() => {
+      this.activityDebounce = null
+      this.onWalletActivity?.(walletId)
+    }, 3_000)
+    this.activityDebounce.unref?.()
   }
 
   hasSyncProgress = async (walletId: string): Promise<boolean> => {

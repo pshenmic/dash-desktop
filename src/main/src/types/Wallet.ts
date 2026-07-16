@@ -7,4 +7,5 @@ export interface Wallet {
   encryptedMnemonic: string
   selected: boolean
   platformXpub: string | null
+  coreXpub: string | null
 }

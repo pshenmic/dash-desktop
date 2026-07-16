@@ -10,6 +10,11 @@ export class SelectWallet {
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<QueryStatus> => {
-    return this.walletService.setSelectedWallet(walletId)
+    const result = await this.walletService.setSelectedWallet(walletId)
+    if (result.success) {
+      this.walletService.discoverCoreAddresses(walletId).catch(err =>
+        console.error('[discovery] address discovery on wallet select failed:', err))
+    }
+    return result
   }
 }

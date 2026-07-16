@@ -26,9 +26,12 @@ import {selectCoins, SelectableUtxo} from "../utils/coinSelection";
 import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService, TransferInput} from "./CoreTransactionService";
 import {decryptMnemonic, encryptMnemonic} from "../utils";
+import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
+import {ShieldedService} from "./ShieldedService";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
+const MAX_DISCOVERY_ROUNDS = 10
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 const PLATFORM_ACCOUNT = 0
 
@@ -42,6 +45,8 @@ export class WalletService {
   private sdkProvider: SdkProvider
   private pbkdf2Iterations: number
   private coreTransactionService: CoreTransactionService
+  private shieldedService: ShieldedService
+  private discoveryInflight = new Map<string, Promise<void>>()
 
   constructor(
     walletDAO: WalletDAO,
@@ -52,6 +57,7 @@ export class WalletService {
     walletSyncService: WalletSyncService,
     sdkProvider: SdkProvider,
     pbkdf2Iterations: number,
+    shieldedService: ShieldedService,
   ) {
     this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
@@ -62,6 +68,7 @@ export class WalletService {
     this.walletSyncService = walletSyncService
     this.sdkProvider = sdkProvider
     this.coreTransactionService = new CoreTransactionService(sdkProvider)
+    this.shieldedService = shieldedService
   }
 
   // Picks the WalletProvider for a wallet at call time, honouring the user's
@@ -99,6 +106,9 @@ export class WalletService {
     const platformXpub = await sdk.keyPair.derivePlatformAccountXpub(seed, network, PLATFORM_ACCOUNT)
     await this.walletDAO.setPlatformXpub(walletId, platformXpub)
 
+    const coreAccountNode = await sdk.keyPair.derivePath(hdKey, coreAccountPath(coinType, accountId))
+    await this.walletDAO.setCoreXpub(walletId, coreAccountNode.publicExtendedKey)
+
     const addresses: Address[] = []
 
     for (let i = 0; i < ADDRESS_LOOKAHEAD; i++) {
@@ -135,9 +145,17 @@ export class WalletService {
 
     await this.addressDAO.insertAddresses(addresses)
 
+    try {
+      await this.discoverCoreAddresses(walletId)
+    } catch (e) {
+      console.error('Core address discovery after wallet creation failed:', e)
+    }
+
+    await this.shieldedService.initAddresses(walletId, seed, network)
+
     const identities: Identity[] = []
 
-    for (let i = 0; i < IDENTITY_LOOKAHEAD; i++) {
+    for (let i = 0, gap = 0; gap < IDENTITY_LOOKAHEAD; i++) {
       const key = sdk.keyPair.deriveIdentityPrivateKey(hdKey, i, 0, network)
       if (!key.publicKey) throw new Error(`Failed to derive identity public key at index ${i}`)
 
@@ -168,6 +186,9 @@ export class WalletService {
           derivationPath: `m/9'/${coinType}'/0'/0/${i}`,
           identifier
         })
+        gap = 0
+      } else {
+        gap++
       }
     }
 
@@ -247,6 +268,11 @@ export class WalletService {
       await this.walletDAO.setPlatformXpub(walletId, platformXpub)
     }
 
+    if (isValid && wallet.coreXpub == null) {
+      const accountNode = await keyPair.derivePath(hdKey, coreAccountPath(coinType, 0))
+      await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
+    }
+
     return isValid
   }
 
@@ -295,7 +321,66 @@ export class WalletService {
       label: null
     }])
 
+    await this.walletSyncService.addWatchAddresses(walletId, [address])
+
     return address
+  }
+
+  discoverCoreAddresses(walletId: string): Promise<void> {
+    const existing = this.discoveryInflight.get(walletId)
+    if (existing) return existing
+    const run = this.runCoreDiscovery(walletId).finally(() => this.discoveryInflight.delete(walletId))
+    this.discoveryInflight.set(walletId, run)
+    return run
+  }
+
+  private async runCoreDiscovery(walletId: string): Promise<void> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null || wallet.coreXpub == null) return
+
+    const coreXpub = wallet.coreXpub
+    const network = wallet.network
+    const provider = this.getProvider(walletId, network)
+    const sdk = this.sdkProvider.getPlatformSDK(network)
+    const coinType = COIN_TYPE[network]
+    const added: string[] = []
+
+    for (const isChange of [false, true]) {
+      for (let round = 0; round < MAX_DISCOVERY_ROUNDS; round++) {
+        const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+        const chain = isChange ? grouped.change : grouped.receiving
+        const unused = chain.filter(a => !a.isUsed)
+        const newlyUsed = unused.length > 0 ? await provider.getUsedAddresses(unused.map(a => a.address)) : []
+        if (newlyUsed.length > 0) {
+          await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
+        }
+
+        const usedSet = new Set(newlyUsed)
+        const entries = chain.map(a => ({index: a.index, isUsed: a.isUsed || usedSet.has(a.address)}))
+        const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD)
+        if (indexes.length === 0) break
+
+        const rows: Address[] = indexes.map(index => {
+          const publicKey = deriveCorePublicKey(coreXpub, network, isChange, index)
+          return {
+            walletId,
+            accountId: 0,
+            address: sdk.keyPair.p2pkhAddress(publicKey, network),
+            derivationPath: `m/44'/${coinType}'/0'/${isChange ? 1 : 0}/${index}`,
+            index,
+            isChange,
+            isUsed: false,
+            label: null
+          }
+        })
+        await this.addressDAO.insertAddresses(rows)
+        added.push(...rows.map(r => r.address))
+      }
+    }
+
+    if (added.length > 0) {
+      await this.walletSyncService.addWatchAddresses(walletId, added)
+    }
   }
 
   async getReceiveAddress(walletId: string): Promise<string> {

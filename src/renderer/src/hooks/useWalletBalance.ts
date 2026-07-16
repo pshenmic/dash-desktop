@@ -26,7 +26,7 @@ export function useWalletBalance(walletId: string | undefined) {
     walletId,
     () => fetchBalance(walletId!),
     initial,
-    { errorMessage: 'Failed to load balance' }
+    { errorMessage: 'Failed to load balance', refreshIntervalMs: 30_000 }
   )
   return { balance: data, loading, err }
 }

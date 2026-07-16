@@ -82,6 +82,10 @@ export class P2PWalletProvider implements WalletProvider {
     return receiving[receiving.length - 1].address
   }
 
+  async getUsedAddresses(): Promise<string[]> {
+    return []
+  }
+
   private p2pkhScript(address: string): Script {
     const s = new Script()
     s.pushOpCode('OP_DUP')

@@ -15,8 +15,7 @@ export interface WalletProvider {
   // Returns the next unused receiving address for the wallet — used by the
   // Receive tab and change-output selection. The provider decides what
   // "unused" means against its source of truth (chain state via API,
-  // local SPV-synced DB, etc.). For the first release this is simplified
-  // to "the first receiving address"; full chain-history iteration is a
-  // follow-up.
+  // local SPV-synced DB, etc.).
   nextUnusedAddress(): Promise<string>
+  getUsedAddresses(addresses: string[]): Promise<string[]>
 }

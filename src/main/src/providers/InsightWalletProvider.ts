@@ -125,13 +125,31 @@ export class InsightWalletProvider implements WalletProvider {
     }
   }
 
-  // TODO: walk receiving addresses and return the first one with no on-chain
-  // history via the Insight API. For the first release we just return the
-  // first receiving address.
   async nextUnusedAddress(): Promise<string> {
     const { receiving } = await this.addressDAO.getAddressesByWalletId(this.walletId)
     if (receiving.length === 0) throw new Error('Wallet has no receiving addresses')
-    return receiving[0].address
+    const unused = receiving.find(a => !a.isUsed)
+    return (unused ?? receiving[receiving.length - 1]).address
+  }
+
+  async getUsedAddresses(addresses: string[]): Promise<string[]> {
+    if (addresses.length === 0) return []
+
+    const probe = await this.sendRequest(`${this.baseUrl}/addrs/txs`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({addrs: addresses.join(','), from: 0, to: 1})
+    })
+    const {totalItems} = await probe.json() as { totalItems: number }
+    if (!totalItems) return []
+
+    const flags = await Promise.all(addresses.map(async (address) => {
+      const response = await this.sendRequest(`${this.baseUrl}/addr/${address}?noTxList=1`)
+      const info = await response.json() as { txApperances?: number; unconfirmedTxApperances?: number }
+      return (info.txApperances ?? 0) + (info.unconfirmedTxApperances ?? 0) > 0
+    }))
+
+    return addresses.filter((_, i) => flags[i])
   }
 
   private async allWalletAddresses() {
