@@ -14,6 +14,8 @@ const BASE_URLS: Record<Network, string> = {
   testnet: 'https://insight.testnet.networks.dash.org/insight-api'
 }
 
+const BALANCE_ADDRESS_CHUNK = 25
+
 export interface InsightUTXO {
   txid: string
   vout: number
@@ -56,14 +58,24 @@ export class InsightWalletProvider implements WalletProvider {
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {
-    const endpoint = Array.isArray(address) ? 'addrs' : 'addr'
-    const parameter = Array.isArray(address) ? address.join(',') : address
+    if (!Array.isArray(address)) {
+      const response = await this.sendRequest(`${this.baseUrl}/addr/${address}/balance`)
+      return BigInt(await response.text())
+    }
 
-    const response = await this.sendRequest(`${this.baseUrl}/${endpoint}/${parameter}/balance`)
+    if (address.length === 0) return 0n
 
-    const data = await response.text()
+    const chunks: string[][] = []
+    for (let i = 0; i < address.length; i += BALANCE_ADDRESS_CHUNK) {
+      chunks.push(address.slice(i, i + BALANCE_ADDRESS_CHUNK))
+    }
 
-    return BigInt(data)
+    const balances = await Promise.all(chunks.map(async (chunk) => {
+      const response = await this.sendRequest(`${this.baseUrl}/addrs/${chunk.join(',')}/balance`)
+      return BigInt(await response.text())
+    }))
+
+    return balances.reduce((acc, value) => acc + value, 0n)
   }
 
   async getTransactionByHash(txId: string): Promise<Transaction> {
