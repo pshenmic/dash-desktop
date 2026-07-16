@@ -194,7 +194,7 @@ export default function AssetLockFundingModal({
     onClose()
   }
 
-  const isDone = state?.phase === 'done'
+  const isDone = started && state?.phase === 'done'
   const isError = started && (state?.phase === 'error' || state?.phase === 'resumable')
   const texts = TEXTS[kind]
   const phases = PHASE_LABELS[kind]
