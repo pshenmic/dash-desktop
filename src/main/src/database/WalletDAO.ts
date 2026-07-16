@@ -118,6 +118,25 @@ export class WalletDAO {
       .where('wallet_id', walletId)
   }
 
+  getPlatformAddressCount = async (walletId: string): Promise<number> => {
+    const rows = await this.knex('wallet')
+      .select('platform_address_count')
+      .where('wallet_id', walletId)
+      .limit(1)
+
+    if (rows.length === 0) {
+      return 20
+    }
+
+    return rows[0].platform_address_count ?? 20
+  }
+
+  setPlatformAddressCount = async (walletId: string, count: number): Promise<void> => {
+    await this.knex('wallet')
+      .update({platform_address_count: count})
+      .where('wallet_id', walletId)
+  }
+
   setPlatformXpub = async (walletId: string, platformXpub: string): Promise<void> => {
     await this.knex('wallet')
       .update({platform_xpub: platformXpub})
