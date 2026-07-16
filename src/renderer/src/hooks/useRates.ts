@@ -4,7 +4,7 @@ import { ExchangeRatesResult } from '@renderer/api/types'
 
 const REFRESH_MS = 60_000
 
-let snapshot: ExchangeRatesResult = { rates: {}, updatedAt: null, stale: true }
+let snapshot: ExchangeRatesResult = { rates: {}, changes24h: {}, updatedAt: null, stale: true }
 let listeners: Array<() => void> = []
 let timer: ReturnType<typeof setInterval> | null = null
 let started = false
