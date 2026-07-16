@@ -1,6 +1,6 @@
 import { BigNumber } from 'dash-ui-kit/react'
 import { useFiat } from '@renderer/hooks/useFiat'
-import { creditsToDuffs, davToDash, davToDashCompact, formatCompactCredits } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDashCompact, formatCompactCredits } from '@renderer/utils/balance'
 
 interface CreditsAmountProps {
   credits: bigint
@@ -32,7 +32,6 @@ export default function CreditsAmount({
   return (
     <span
       className={`group/credits relative inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'} ${className ?? ''}`}
-      title={`≈ ${davToDash(duffs)} Dash`}
     >
       <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
         <BigNumber className={amountClassName}>{compact ? formatCompactCredits(credits) : credits.toString()}</BigNumber>
