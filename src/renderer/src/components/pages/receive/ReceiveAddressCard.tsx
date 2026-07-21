@@ -2,20 +2,29 @@ import React, { useState } from "react"
 import QRCode from "react-qr-code"
 import { Text, Input } from "@renderer/components/dash-ui-kit-enxtended"
 import { ReceivePageType } from "@renderer/constants"
+import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
+import CoreAddressSelect from "./CoreAddressSelect"
 import { useTheme } from "dash-ui-kit/react"
 
 type ReceiveAddressCardProps = {
-  address: string
+  addresses: WalletAddressDto[]
+  defaultAddress: string
   data: ReceivePageType['receiveAddressCard']
 }
 
 export default function ReceiveAddressCard({
-  address,
+  addresses,
+  defaultAddress,
   data,
 }: ReceiveAddressCardProps): React.JSX.Element {
   const [amount, setAmount] = useState('');
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const { theme } = useTheme()
+
+  const selected = addresses.find(a => a.address === selectedAddress)
+    ?? addresses.find(a => a.address === defaultAddress)
+  const address = selected?.address ?? defaultAddress
   const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
 
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
@@ -36,9 +45,13 @@ export default function ReceiveAddressCard({
               {data.adressText}
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
-              <Text size={14} weight={"medium"} color={"brand"} className={"min-w-0 break-all"}>
-                {address}
-              </Text>
+              <div className={"flex-1 min-w-0"}>
+                <CoreAddressSelect
+                  addresses={addresses}
+                  selected={selected}
+                  onSelect={setSelectedAddress}
+                />
+              </div>
               <CopyButton text={address} />
             </div>
           </div>
