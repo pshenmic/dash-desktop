@@ -13,7 +13,6 @@ import { SHIELDED_NOTES_CHUNK_ALIGNMENT, SHIELDED_NOTES_FETCH_BATCH } from '../c
 import {
   ShieldAssetLockProofParams,
   ShieldedCommand,
-  ShieldedEncryptedNotePayload,
   ShieldedEvent,
   ShieldedProverState,
   ShieldedSpendKind,
@@ -100,7 +99,6 @@ export class ShieldedService {
   private addresses = new Map<string, string[]>()
   private pendingSyncs = new Map<string, PendingSync>()
   private noteFetches = new Map<string, Promise<void>>()
-  private notePayloads = new Map<string, Map<number, ShieldedEncryptedNotePayload>>()
   private pendingSpends = new Map<string, string>()
   private pendingIdentityCreates = new Map<string, {walletId: string; identityIndex: number; network: Network}>()
   private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
@@ -228,7 +226,6 @@ export class ShieldedService {
         state.notes = notes
         state.phase = 'done'
         state.syncedAt = Date.now()
-        this.dropDecodedPayloads(pending.walletId, pending.decodedUpTo)
         this.shieldedNoteDAO.upsertNotes(pending.walletId, event.notes)
           .then(() => this.shieldedNoteDAO.markDecodedBelow(pending.walletId, pending.decodedUpTo))
           .catch(e => console.error('Failed to persist shielded notes', e))
@@ -288,15 +285,6 @@ export class ShieldedService {
   private stateForSync(requestId: string): ShieldedSyncState | null {
     const pending = this.pendingSyncs.get(requestId)
     return pending != null ? this.syncStates.get(pending.walletId) ?? null : null
-  }
-
-  private dropDecodedPayloads(walletId: string, decodedUpTo: number): void {
-    const cache = this.notePayloads.get(walletId)
-    if (cache == null) return
-    for (const index of [...cache.keys()]) {
-      if (index < decodedUpTo) cache.delete(index)
-    }
-    if (cache.size === 0) this.notePayloads.delete(walletId)
   }
 
   private stateForSpend(requestId: string): ShieldedSpendState | null {
@@ -395,10 +383,10 @@ export class ShieldedService {
     }
   }
 
-  // Compares the pool note count with the local high-water mark and downloads
-  // the ciphertexts of any notes not yet trial-decrypted. Needs no password:
-  // the DB only records the notes as undecoded (is_decoded = false) while the
-  // payloads stay in memory until the user unlocks a sync that decodes them.
+  // Compares the pool note count with the local cache and downloads the
+  // ciphertexts of any notes not stored yet. Needs no password: the payloads
+  // are persisted undecoded (is_decoded = false) and trial-decrypted later,
+  // when the user unlocks a sync.
   checkForNewNotes(walletId: string, network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
     const inFlight = this.noteFetches.get(walletId)
     if (inFlight != null) return inFlight
@@ -417,35 +405,27 @@ export class ShieldedService {
       await this.shieldedNoteDAO.insertUndecoded(walletId, known, total)
     }
 
-    const undecoded = await this.shieldedNoteDAO.getUndecodedIndexes(walletId)
-    const cache = this.notePayloads.get(walletId) ?? new Map<number, ShieldedEncryptedNotePayload>()
-    const missing = undecoded.filter((index) => !cache.has(index))
-    if (missing.length === 0) return
+    const fetched = await this.shieldedNoteDAO.getFetchedCount(walletId)
+    if (fetched >= total) return
 
-    this.notePayloads.set(walletId, cache)
-    const needed = new Set(missing)
-    const end = missing[missing.length - 1] + 1
-    let cursor = Math.floor(missing[0] / SHIELDED_NOTES_CHUNK_ALIGNMENT) * SHIELDED_NOTES_CHUNK_ALIGNMENT
-    let covered = 0
-    onProgress?.(0, missing.length)
-    while (cursor < end) {
+    const missing = total - fetched
+    let cursor = Math.floor(fetched / SHIELDED_NOTES_CHUNK_ALIGNMENT) * SHIELDED_NOTES_CHUNK_ALIGNMENT
+    let downloaded = 0
+    onProgress?.(0, missing)
+    while (cursor < total) {
       const count = Math.min(SHIELDED_NOTES_FETCH_BATCH, total - cursor)
       const batch = await sdk.shielded.getShieldedEncryptedNotes(BigInt(cursor), count)
       if (batch.length === 0) break
-      batch.forEach((note, i) => {
-        const index = cursor + i
-        if (!needed.has(index)) return
-        cache.set(index, {
-          index,
-          nullifier: note.nullifier,
-          cmx: note.cmx,
-          encryptedNote: note.encryptedNote,
-          cvNet: note.cvNet,
-        })
-        covered++
-      })
+      await this.shieldedNoteDAO.saveEncryptedNotes(walletId, batch.map((note, i) => ({
+        index: cursor + i,
+        nullifier: note.nullifier,
+        cmx: note.cmx,
+        encryptedNote: note.encryptedNote,
+        cvNet: note.cvNet,
+      })))
+      downloaded += batch.length
       cursor += batch.length
-      onProgress?.(covered, missing.length)
+      onProgress?.(Math.min(downloaded, missing), missing)
     }
   }
 
@@ -482,10 +462,7 @@ export class ShieldedService {
 
       const priorNotes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
       const undecoded = await this.shieldedNoteDAO.getUndecodedIndexes(walletId)
-      const cache = this.notePayloads.get(walletId)
-      const notes = undecoded
-        .map((index) => cache?.get(index))
-        .filter((note): note is ShieldedEncryptedNotePayload => note != null)
+      const notes = await this.shieldedNoteDAO.getEncryptedNotes(walletId, undecoded)
       if (notes.length < undecoded.length) {
         throw new Error('Could not download new shielded notes. Check your connection and try again.')
       }

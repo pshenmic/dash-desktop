@@ -7,8 +7,18 @@ export interface PersistNote {
   spent: boolean
 }
 
+export interface EncryptedNoteRecord {
+  index: number
+  nullifier: Uint8Array
+  cmx: Uint8Array
+  encryptedNote: Uint8Array
+  cvNet: Uint8Array
+}
+
 // SQLite bind-variable limit safety.
 const INSERT_CHUNK_SIZE = 400
+const PAYLOAD_CHUNK_SIZE = 100
+const SELECT_CHUNK_SIZE = 500
 
 export class ShieldedNoteDAO {
   knex: Knex
@@ -34,9 +44,9 @@ export class ShieldedNoteDAO {
     return row?.max != null ? Number(row.max) + 1 : 0
   }
 
-  // Records pool notes [from, to) as known-but-undecoded. The ciphertexts
-  // themselves stay in the ShieldedService memory cache; only the pending
-  // trial-decryption is persisted.
+  // Records pool notes [from, to) as known-but-undecoded before their
+  // ciphertexts finish downloading, so the new-notes alert can show right
+  // away.
   insertUndecoded = async (walletId: string, from: number, to: number): Promise<void> => {
     for (let start = from; start < to; start += INSERT_CHUNK_SIZE) {
       const end = Math.min(start + INSERT_CHUNK_SIZE, to)
@@ -49,6 +59,58 @@ export class ShieldedNoteDAO {
         .onConflict(['wallet_id', 'note_index'])
         .ignore()
     }
+  }
+
+  // How many notes already have their ciphertext downloaded. Used as the
+  // fetch cursor: ciphertexts are always fetched sequentially from an
+  // aligned start at or below this count, so any gap self-heals on refetch.
+  getFetchedCount = async (walletId: string): Promise<number> => {
+    const row = await this.knex('shielded_notes')
+      .where({wallet_id: walletId})
+      .whereNotNull('encrypted_note')
+      .count('note_index as count')
+      .first()
+    return Number(row?.count ?? 0)
+  }
+
+  // Persist downloaded ciphertexts. Only payload columns are merged so the
+  // decoded state and locally-recorded spends survive refetches.
+  saveEncryptedNotes = async (walletId: string, notes: EncryptedNoteRecord[]): Promise<void> => {
+    for (let offset = 0; offset < notes.length; offset += PAYLOAD_CHUNK_SIZE) {
+      const chunk = notes.slice(offset, offset + PAYLOAD_CHUNK_SIZE)
+      await this.knex('shielded_notes')
+        .insert(chunk.map((n) => ({
+          wallet_id: walletId,
+          note_index: n.index,
+          nullifier: Buffer.from(n.nullifier),
+          cmx: Buffer.from(n.cmx),
+          encrypted_note: Buffer.from(n.encryptedNote),
+          cv_net: Buffer.from(n.cvNet),
+        })))
+        .onConflict(['wallet_id', 'note_index'])
+        .merge(['nullifier', 'cmx', 'encrypted_note', 'cv_net'])
+    }
+  }
+
+  getEncryptedNotes = async (walletId: string, indexes: number[]): Promise<EncryptedNoteRecord[]> => {
+    const result: EncryptedNoteRecord[] = []
+    for (let offset = 0; offset < indexes.length; offset += SELECT_CHUNK_SIZE) {
+      const chunk = indexes.slice(offset, offset + SELECT_CHUNK_SIZE)
+      const rows = await this.knex('shielded_notes')
+        .select('note_index', 'nullifier', 'cmx', 'encrypted_note', 'cv_net')
+        .where({wallet_id: walletId})
+        .whereIn('note_index', chunk)
+        .whereNotNull('encrypted_note')
+        .orderBy('note_index', 'asc')
+      result.push(...rows.map((row) => ({
+        index: row.note_index,
+        nullifier: row.nullifier,
+        cmx: row.cmx,
+        encryptedNote: row.encrypted_note,
+        cvNet: row.cv_net,
+      })))
+    }
+    return result
   }
 
   getUndecodedIndexes = async (walletId: string): Promise<number[]> => {
