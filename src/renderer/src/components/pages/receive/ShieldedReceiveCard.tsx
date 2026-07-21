@@ -1,18 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import QRCode from 'react-qr-code'
+import { useTheme } from 'dash-ui-kit/react'
 import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
+import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import { API } from '@renderer/api'
+import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 
 export default function ShieldedReceiveCard({ walletId }: { walletId: string | undefined }): React.JSX.Element {
-  const [address, setAddress] = useState<string | null>(null)
+  const [addresses, setAddresses] = useState<string[] | null>(null)
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
+  const { theme } = useTheme()
+
+  const sync = useShieldedSyncState(walletId)
+  const synced = sync.phase === 'done'
+  const balances = useMemo(() => {
+    const map = new Map<string, bigint>()
+    for (const note of sync.notes) {
+      if (note.spent) continue
+      map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
+    }
+    return map
+  }, [sync.notes])
 
   useEffect(() => {
-    setAddress(null)
+    setAddresses(null)
+    setSelectedAddress(null)
     setPassword('')
     setError(null)
     if (!walletId) {
@@ -21,8 +39,8 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     }
     let dead = false
     setChecking(true)
-    API.getShieldedAddress(walletId)
-      .then((cached) => { if (!dead) setAddress(cached) })
+    API.getShieldedAddresses(walletId)
+      .then((cached) => { if (!dead) setAddresses(cached !== null && cached.length > 0 ? cached : null) })
       .catch(() => { /* fall through to unlock form */ })
       .finally(() => { if (!dead) setChecking(false) })
     return () => { dead = true }
@@ -32,22 +50,42 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     return <ListSkeleton rows={1} rowClassName="h-[2.5rem] rounded-[.875rem]" />
   }
 
-  if (address !== null) {
+  if (addresses !== null) {
+    const selected = addresses.find((a) => a === selectedAddress) ?? addresses[0]
+    const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
+
     return (
-      <div className={"flex flex-col gap-3 p-6 rounded-4xl dash-block max-w-190"}>
-        <div className={"flex items-center gap-2"}>
-          <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
-          <Text size={14} weight={"extrabold"} color={"brand"}>Shielded address</Text>
-        </div>
-        <div className={"flex items-center gap-[.625rem]"}>
-          <Text size={14} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all"}>
-            {address}
+      <div className={"flex items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
+        <QRCode
+          value={selected}
+          size={225}
+          fgColor={qrCodeColor}
+          bgColor={"transparent"}
+          className={"rounded-[.5625rem] shrink-0"}
+        />
+
+        <div className={"flex flex-col w-full min-w-0"}>
+          <div className={"flex flex-col gap-[.5rem]"}>
+            <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+              Shielded Address
+            </Text>
+            <div className={"flex items-center gap-[.625rem]"}>
+              <div className={"flex-1 min-w-0"}>
+                <ShieldedAddressSelect
+                  addresses={addresses}
+                  balances={synced ? balances : undefined}
+                  selected={selected}
+                  onSelect={setSelectedAddress}
+                />
+              </div>
+              <CopyButton text={selected} />
+            </div>
+          </div>
+
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
+            Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
           </Text>
-          <CopyButton text={address} />
         </div>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-          Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
-        </Text>
       </div>
     )
   }
@@ -62,7 +100,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
         setError('Incorrect password. Please try again.')
         return
       }
-      setAddress(await API.getShieldedAddress(walletId, password))
+      setAddresses(await API.getShieldedAddresses(walletId, password))
       setPassword('')
     } catch {
       setError('Could not derive the shielded address. Please try again.')
