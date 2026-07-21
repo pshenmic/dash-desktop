@@ -46,7 +46,10 @@ export default function ShieldedCard(): React.JSX.Element {
   }
 
   return (
-    <div className={"relative overflow-hidden flex flex-col gap-3 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)]"}>
+    <div
+      onClick={() => navigate('/addresses?tab=shielded')}
+      className={"relative overflow-hidden flex flex-col gap-3 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)] cursor-pointer"}
+    >
       <div className={"absolute -top-14 -right-8 size-36 rounded-full bg-dash-brand/8 dark:bg-dash-mint/6 blur-3xl pointer-events-none"} />
       <div className={"relative flex items-center justify-between"}>
         <div className={"flex items-center gap-2.5"}>
@@ -58,7 +61,10 @@ export default function ShieldedCard(): React.JSX.Element {
           </Text>
         </div>
         <button
-          onClick={() => navigate('/shielded')}
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate('/shielded')
+          }}
           className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
         >
           <Text size={12} weight={"medium"} color={"blue-mint"}>
@@ -80,7 +86,10 @@ export default function ShieldedCard(): React.JSX.Element {
           <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>Syncing…</Text>
         ) : (
           <button
-            onClick={() => setSyncOpen(true)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setSyncOpen(true)
+            }}
             className={"self-start cursor-pointer hover:opacity-80 transition-opacity duration-200"}
           >
             <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>Sync balances</Text>

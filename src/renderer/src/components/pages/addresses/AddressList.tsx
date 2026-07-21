@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Tabs } from 'dash-ui-kit/react'
 import { addressesPage } from '@renderer/constants'
 import AddressCard from './AddressCard'
@@ -48,8 +49,16 @@ function TabContent<T>({
   )
 }
 
+const TAB_VALUES = ['receiving', 'change', 'platform', 'shielded']
+
 export default function AddressList({ coreGated = false }: { coreGated?: boolean }): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState(coreGated ? 'platform' : 'receiving')
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(
+    requestedTab !== null && TAB_VALUES.includes(requestedTab)
+      ? requestedTab
+      : coreGated ? 'platform' : 'receiving'
+  )
   const { tabs } = addressesPage
   const { status } = useAuth()
   const { receiving, change, loading, err } = useAdresses(status?.selectedWalletId ?? undefined)
