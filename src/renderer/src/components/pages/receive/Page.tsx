@@ -9,6 +9,7 @@ import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
 import { API } from "@renderer/api";
 import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
+import { useAdresses } from "@renderer/hooks/useAdresses";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
 const dashDescription = (
@@ -51,6 +52,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
     null,
     { errorMessage: 'Failed to load receive address' }
   )
+  const { receiving } = useAdresses(syncIncomplete ? undefined : walletId)
 
   const tabItems = [
     {
@@ -59,7 +61,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
       content: syncIncomplete
         ? <SyncGateNotice />
         : address
-          ? <ReceiveAddressCard address={address} data={pageData.receiveAddressCard} />
+          ? <ReceiveAddressCard addresses={receiving} defaultAddress={address} data={pageData.receiveAddressCard} />
           : <></>,
     },
     {

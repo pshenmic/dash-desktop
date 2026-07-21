@@ -117,8 +117,8 @@ export class API {
     return this.api.deleteContact(id) as Promise<QueryStatus>
   }
 
-  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: string, password: string): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password) as Promise<SendResult>
+  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: string, password: string, fromAddress?: string): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {
@@ -185,16 +185,16 @@ export class API {
     return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
   }
 
-  static async startShieldedTransfer(walletId: string, recipient: string, amountCredits: string, password: string): Promise<ShieldedSpendState> {
-    return this.api.startShieldedTransfer(walletId, recipient, amountCredits, password) as Promise<ShieldedSpendState>
+  static async startShieldedTransfer(walletId: string, recipient: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> {
+    return this.api.startShieldedTransfer(walletId, recipient, amountCredits, password, noteIndex) as Promise<ShieldedSpendState>
   }
 
-  static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: string, password: string): Promise<ShieldedSpendState> {
-    return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password) as Promise<ShieldedSpendState>
+  static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> {
+    return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password, noteIndex) as Promise<ShieldedSpendState>
   }
 
-  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: string, password: string): Promise<ShieldedSpendState> {
-    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password) as Promise<ShieldedSpendState>
+  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> {
+    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password, noteIndex) as Promise<ShieldedSpendState>
   }
 
   static async startShieldedIdentityCreate(walletId: string, denominationCredits: string, password: string): Promise<ShieldedSpendState> {

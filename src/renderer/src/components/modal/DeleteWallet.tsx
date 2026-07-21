@@ -8,7 +8,7 @@ import { useTheme } from "dash-ui-kit/react"
 
 const DELETE_CONFIRM_TEXT = 'Delete'
 
-export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, setWalletToDelete, refreshWallets, selectedWallet }) {
+export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, setWalletToDelete, refreshWallets }) {
   const [confirmText, setConfirmText] = useState('')
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const {theme} = useTheme()
@@ -27,9 +27,6 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
     try {
       await API.deleteWallet(walletToDelete)
       refreshWallets()
-      if (selectedWallet === walletToDelete) {
-        // TODO: fallback selected wallet logic
-      }
       closeDeleteModal()
       toast.error('Wallet deleted')
     } catch (e) {

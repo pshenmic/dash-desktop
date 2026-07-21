@@ -42,7 +42,7 @@ export function davToDash(duffs: bigint): string {
   return `${sign}${whole}.${fracStr}`
 }
 
-export function davToDashCompact(duffs: bigint, maxFractionDigits = 4): string {
+export function davToDashCompact(duffs: bigint, maxFractionDigits = 3): string {
   const sign = duffs < 0n ? '-' : ''
   const abs = duffs < 0n ? -duffs : duffs
   const whole = abs / DUFFS_PER_DASH

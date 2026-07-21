@@ -9,4 +9,5 @@ export interface Address {
   label: string | null
   balance?: bigint | null
   usdBalance?: string | null
+  txCount?: number | null
 }

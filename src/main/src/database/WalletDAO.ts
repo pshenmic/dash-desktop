@@ -186,6 +186,12 @@ export class WalletDAO {
 
   deleteWallet = async (walletId: string): Promise<QueryStatus> => {
     try {
+      const target = await this.knex('wallet')
+        .select('selected')
+        .where('wallet_id', walletId)
+        .first()
+      const wasSelected = Boolean(target?.selected)
+
       await this.knex('identities')
         .delete()
         .where('wallet_id', walletId)
@@ -197,6 +203,18 @@ export class WalletDAO {
       await this.knex('wallet')
         .delete()
         .where('wallet_id', walletId)
+
+      if (wasSelected) {
+        const survivor = await this.knex('wallet')
+          .select('wallet_id')
+          .first()
+
+        if (survivor != null) {
+          await this.knex('wallet')
+            .where('wallet_id', survivor.wallet_id)
+            .update({selected: true})
+        }
+      }
 
       return {
         success: true,

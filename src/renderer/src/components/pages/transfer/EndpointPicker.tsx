@@ -9,7 +9,6 @@ import {
   SourceKind,
   DestinationKind,
   SOURCE_KINDS,
-  DESTINATION_KINDS,
 } from "@renderer/utils/transferMatrix";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 
@@ -172,6 +171,7 @@ export function SourcePicker({
 
 interface DestinationPickerProps {
   kind: DestinationKind
+  kinds: Array<{kind: string; label: string}>
   onKindChange: (kind: DestinationKind) => void
   value: string
   onValueChange: (value: string) => void
@@ -182,6 +182,7 @@ interface DestinationPickerProps {
 
 export function DestinationPicker({
   kind,
+  kinds,
   onKindChange,
   value,
   onValueChange,
@@ -192,7 +193,7 @@ export function DestinationPicker({
   return (
     <div className={"flex flex-col gap-2"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
-      <KindDropdown kinds={DESTINATION_KINDS} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
+      <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
       {showValueInput && kind !== 'newIdentity' && (
         <>
           <div className={`${fieldBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>

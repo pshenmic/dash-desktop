@@ -115,7 +115,7 @@ export function isLikelyIdentityId(value: string): boolean {
 }
 
 export const SOURCE_KINDS: Array<{kind: SourceKind; label: string}> = [
-  {kind: 'core', label: 'Dash wallet (L1)'},
+  {kind: 'core', label: 'Dash Core (L1)'},
   {kind: 'platformAddress', label: 'Platform address'},
   {kind: 'identity', label: 'Identity'},
   {kind: 'shielded', label: 'Shielded balance'},

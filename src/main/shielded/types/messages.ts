@@ -35,6 +35,7 @@ export type ShieldedCommand =
       kind: ShieldedSpendKind
       recipient: string
       amountCredits: string
+      noteIndexes?: number[]
       identityIndex?: number
       failureAddress?: string
     }

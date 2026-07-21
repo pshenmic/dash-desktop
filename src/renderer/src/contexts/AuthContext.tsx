@@ -44,6 +44,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [bootstrapped, setBootstrapped] = useState(false)
   const [status, setStatus] = useState<AppStatus | null>(null)
+  const [unlocked, setUnlocked] = useState(false)
   const [preselectedWalletId, setPreselectedWalletId] = useState<string | null>(null)
   const navigate = useNavigate()
 
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   const loginSuccess = useCallback(async () => {
     await refreshStatus()
+    setUnlocked(true)
     setPreselectedWalletId(null)
   }, [refreshStatus])
 
@@ -79,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       console.error('Failed to switch wallet', e)
       return
     }
+    setUnlocked(true)
     await refreshStatus()
     navigate('/')
   }, [navigate, refreshStatus])
@@ -88,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     navigate('/create-wallet')
   }, [navigate])
 
-  const isAuthenticated = Boolean(status?.ready && status?.selectedWalletId)
+  const isAuthenticated = Boolean(status?.ready && status?.selectedWalletId && unlocked)
 
   const value = useMemo<AuthContextValue>(() => ({
     bootstrapped,
@@ -100,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setPreselectedWalletId,
     switchWallet,
     goToCreateWallet
-  }), [bootstrapped, status, isAuthenticated, preselectedWalletId, refreshStatus, loginSuccess, switchWallet, goToCreateWallet])
+  }), [bootstrapped, status, isAuthenticated, unlocked, preselectedWalletId, refreshStatus, loginSuccess, switchWallet, goToCreateWallet])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

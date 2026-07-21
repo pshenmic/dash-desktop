@@ -8,6 +8,7 @@ export type WalletAddressDto = {
   isChange: number
   isUsed: boolean
   balance: bigint
+  txCount: number
   label: string | null
   usdBalance: string | null
 }

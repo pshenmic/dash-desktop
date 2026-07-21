@@ -8,7 +8,7 @@ export class StartShieldedUnshieldHandler {
     this.shieldedService = shieldedService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string, outputAddress: string, amountCredits: string, password: string): Promise<ShieldedSpendState> => {
-    return this.shieldedService.startUnshield(walletId, password, outputAddress, BigInt(amountCredits))
+  handle = async (_event: IpcMainInvokeEvent, walletId: string, outputAddress: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> => {
+    return this.shieldedService.startUnshield(walletId, password, outputAddress, BigInt(amountCredits), noteIndex != null ? [noteIndex] : undefined)
   }
 }

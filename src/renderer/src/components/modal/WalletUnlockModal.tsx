@@ -4,17 +4,19 @@ import { Button, CrossIcon, Input, Text } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 
-interface ShieldedUnlockModalProps {
+interface WalletUnlockModalProps {
   isOpen: boolean
   onClose: () => void
   walletId: string | null
+  onUnlock: (password: string) => void | Promise<void>
 }
 
-export default function ShieldedUnlockModal({
+export default function WalletUnlockModal({
   isOpen,
   onClose,
   walletId,
-}: ShieldedUnlockModalProps): React.JSX.Element | null {
+  onUnlock,
+}: WalletUnlockModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -41,11 +43,11 @@ export default function ShieldedUnlockModal({
         setLoading(false)
         return
       }
-      await API.startShieldedSync(walletId, password)
+      await onUnlock(password)
       onClose()
     } catch (e) {
-      console.error('startShieldedSync failed', e)
-      setError('Could not start sync. Please try again.')
+      console.error('Wallet unlock failed', e)
+      setError('Could not open the wallet. Please try again.')
       setLoading(false)
     }
   }
@@ -59,7 +61,7 @@ export default function ShieldedUnlockModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            Check my notes
+            Open wallet
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer"}
@@ -71,12 +73,12 @@ export default function ShieldedUnlockModal({
         </div>
 
         <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-2 block"}>
-          Enter your wallet password to derive your viewing key and scan the shielded pool for your notes. Your seed never leaves this device.
+          Enter your wallet password to open this wallet and scan the shielded pool for your notes. Your seed never leaves this device.
         </Text>
 
         <div className={"mt-4.5"}>
           <Input
-            id={"shielded-sync-password"}
+            id={"wallet-unlock-password"}
             type={"password"}
             placeholder={"Wallet password"}
             value={password}
@@ -125,7 +127,7 @@ export default function ShieldedUnlockModal({
             size={"md"}
             className={"flex-1 rounded-[.9375rem]"}
           >
-            {loading ? 'Checking…' : 'Check my notes'}
+            {loading ? 'Opening…' : 'Open wallet'}
           </Button>
         </div>
       </div>

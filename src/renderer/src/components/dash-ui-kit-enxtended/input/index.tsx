@@ -213,11 +213,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
   prefix,
   prefixClassName = '',
   showPasswordToggle = true,
-  iconColor = '#0C1C33',
+  iconColor,
   inputSize,
   ...props
 }, ref) => {
   const { theme } = useTheme()
+  const resolvedIconColor = iconColor ?? (theme === 'dark' ? '#F5F7FB' : '#0C1C33')
   const [showPassword, setShowPassword] = useState(false)
   const [prefixWidth, setPrefixWidth] = useState(0)
   const prefixRef = useRef<HTMLDivElement>(null)
@@ -279,8 +280,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
             tabIndex={-1}
           >
             {showPassword
-              ? <EyeClosedIcon size={16} color='#0C1C33' />
-              : <EyeOpenIcon size={16} color='#0C1C33' />}
+              ? <EyeClosedIcon size={16} color={resolvedIconColor} />
+              : <EyeOpenIcon size={16} color={resolvedIconColor} />}
           </button>
         )}
       </div>
@@ -307,8 +308,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
             tabIndex={-1}
           >
             {showPassword
-              ? <EyeClosedIcon color={iconColor} size={16} />
-              : <EyeOpenIcon color={iconColor} size={16} />}
+              ? <EyeClosedIcon color={resolvedIconColor} size={16} />
+              : <EyeOpenIcon color={resolvedIconColor} size={16} />}
           </button>
         )}
       </div>

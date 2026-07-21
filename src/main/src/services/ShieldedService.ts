@@ -398,19 +398,19 @@ export class ShieldedService {
     return this.spendStates.get(walletId) ?? this.idleSpendState()
   }
 
-  startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'transfer', recipient, amountCredits)
+  startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'transfer', recipient, amountCredits, noteIndexes)
   }
 
-  startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'unshield', outputAddress, amountCredits)
+  startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'unshield', outputAddress, amountCredits, noteIndexes)
   }
 
-  startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'withdrawal', coreAddress, amountCredits)
+  startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'withdrawal', coreAddress, amountCredits, noteIndexes)
   }
 
-  private async startSpend(walletId: string, password: string, kind: ShieldedSpendKind, recipient: string, amountCredits: bigint): Promise<ShieldedSpendState> {
+  private async startSpend(walletId: string, password: string, kind: ShieldedSpendKind, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
     const current = this.spendStates.get(walletId)
     if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
       return current
@@ -437,6 +437,7 @@ export class ShieldedService {
         kind,
         recipient,
         amountCredits: amountCredits.toString(),
+        noteIndexes,
       })
     } catch (e) {
       state.phase = 'error'

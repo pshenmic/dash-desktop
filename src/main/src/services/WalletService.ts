@@ -406,6 +406,7 @@ export class WalletService {
     const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({
         ...address,
         balance: await provider.getBalance(address.address),
+        txCount: await provider.getTransactionCount(address.address),
         usdBalance: '0.0'
       })
     ))
@@ -413,6 +414,7 @@ export class WalletService {
     const changeAddressesWithBalance = await Promise.all(addresses.change.map(async (address) => ({
         ...address,
         balance: await provider.getBalance(address.address),
+        txCount: await provider.getTransactionCount(address.address),
         usdBalance: '0.0'
       })
     ))
@@ -522,6 +524,7 @@ export class WalletService {
     toAddress: string,
     amountDuffs: bigint,
     password: string,
+    fromAddress?: string,
   ): Promise<SendResult> {
     if (amountDuffs <= 0n) {
       throw new Error('Send amount must be greater than zero')
@@ -542,7 +545,7 @@ export class WalletService {
       throw new Error('Invalid wallet password')
     }
 
-    const {transferInputs, inputTotal, changeAddress, provider} = await this.gatherTransferInputs(walletId, network, amountDuffs)
+    const {transferInputs, inputTotal, changeAddress, provider} = await this.gatherTransferInputs(walletId, network, amountDuffs, fromAddress)
 
     const tx = await this.coreTransactionService.buildSignedTransfer({
       inputs: transferInputs,
@@ -580,7 +583,7 @@ export class WalletService {
     return provider.getTxLockStatus(txid)
   }
 
-  private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint): Promise<{
+  private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint, fromAddress?: string): Promise<{
     transferInputs: TransferInput[]
     inputTotal: bigint
     changeAddress: string
@@ -594,8 +597,10 @@ export class WalletService {
     const provider = this.getProvider(walletId, network)
     await provider.ensureReady()
 
+    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
+
     const utxoLists = await Promise.all(
-      allAddresses.map(async (a) => {
+      utxoAddresses.map(async (a) => {
         const utxos = await provider.getUTXOs(a.address)
         return utxos.map(u => ({utxo: u, address: a.address}))
       }),
