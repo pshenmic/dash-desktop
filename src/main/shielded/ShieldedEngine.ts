@@ -13,6 +13,7 @@ import {
 } from 'pshenmic-dpp'
 import {InputAddressWASM, AddressFundsFeeStrategyStepWASM, AssetLockProofWASM, IdentityPublicKeyInCreation} from 'dash-platform-sdk/types.js'
 import {Network} from '../src/types'
+import {SHIELDED_NOTES_FETCH_BATCH} from '../src/constants'
 import {coreAddressToScript} from '../src/utils/coreScript'
 import {IDENTITY_KEY_DEFINITIONS} from '../src/utils/identityKeys'
 import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
@@ -27,10 +28,6 @@ type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShielded
 
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
-// getShieldedEncryptedNotes requires startIndex to be chunk-aligned (a multiple
-// of 2048); 8192 is the SDK max-per-query and a multiple of 2048, so advancing
-// the cursor by full batches keeps every startIndex aligned.
-const SHIELDED_SYNC_BATCH = 8192
 const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
 const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 // Platform caps state transitions at ~20KB and the Halo2 proof grows with the
@@ -320,6 +317,8 @@ export class ShieldedEngine {
     }
   }
 
+  // The dpp proof verifier requires startIndex to be a multiple of the
+  // 8192 max-per-query, so the cursor only advances by full batches.
   private async fetchAllNotes(onProgress: (fetched: number, total: number) => void): Promise<EncryptedNote[]> {
     const totalBig = await this.sdk.shielded.getShieldedNotesCount()
     const total = totalBig != null ? Number(totalBig) : 0
@@ -327,11 +326,12 @@ export class ShieldedEngine {
 
     const all: EncryptedNote[] = []
     while (all.length < total) {
-      const count = Math.min(SHIELDED_SYNC_BATCH, total - all.length)
+      const count = Math.min(SHIELDED_NOTES_FETCH_BATCH, total - all.length)
       const batch = await this.sdk.shielded.getShieldedEncryptedNotes(BigInt(all.length), count)
       if (batch.length === 0) break
       all.push(...batch)
       onProgress(all.length, total)
+      if (batch.length < count) break
     }
     return all
   }

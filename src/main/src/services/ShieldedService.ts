@@ -9,7 +9,7 @@ import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
 import { decryptMnemonic } from '../utils'
-import { SHIELDED_NOTES_CHUNK_ALIGNMENT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
+import { SHIELDED_NOTES_FETCH_BATCH } from '../constants'
 import {
   ShieldAssetLockProofParams,
   ShieldedCommand,
@@ -423,7 +423,7 @@ export class ShieldedService {
     if (fetched >= total) return
 
     const missing = total - fetched
-    let cursor = Math.floor(fetched / SHIELDED_NOTES_CHUNK_ALIGNMENT) * SHIELDED_NOTES_CHUNK_ALIGNMENT
+    let cursor = Math.floor(fetched / SHIELDED_NOTES_FETCH_BATCH) * SHIELDED_NOTES_FETCH_BATCH
     let downloaded = 0
     onProgress?.(0, missing)
     while (cursor < total) {
@@ -440,6 +440,7 @@ export class ShieldedService {
       downloaded += batch.length
       cursor += batch.length
       onProgress?.(Math.min(downloaded, missing), missing)
+      if (batch.length < count) break
     }
   }
 

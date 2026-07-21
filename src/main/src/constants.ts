@@ -34,10 +34,10 @@ export const ADDRESS_PREFIX: Record<'mainnet' | 'testnet', {p2pkh: number; p2sh:
 // Background shielded-note download: the pool note count is compared with the
 // local cache on this interval and any new ciphertexts are fetched (no
 // password needed — decoding happens later, when the user unlocks).
-// getShieldedEncryptedNotes requires startIndex to be chunk-aligned (a
-// multiple of 2048); 8192 is the SDK max-per-query and a multiple of 2048.
+// The dpp proof verifier requires getShieldedEncryptedNotes startIndex to be
+// a multiple of SHIELDED_MAX_NOTES_PER_QUERY (8192), so fetches always start
+// at a multiple of the batch size and advance by full batches.
 export const SHIELDED_NOTES_CHECK_INTERVAL_MS = 15_000
-export const SHIELDED_NOTES_CHUNK_ALIGNMENT = 2048
 export const SHIELDED_NOTES_FETCH_BATCH = 8192
 
 // Asset-lock proof acquisition during identity registration. The instant lock
