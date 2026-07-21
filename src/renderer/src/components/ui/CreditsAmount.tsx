@@ -31,23 +31,24 @@ export default function CreditsAmount({
 
   return (
     <span
-      className={`group/credits relative inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'} ${className ?? ''}`}
+      className={`group/credits inline-flex flex-col ${align === 'end' ? 'items-end' : 'items-start'} ${className ?? ''}`}
     >
-      <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
-        <BigNumber className={amountClassName}>{compact ? formatCompactCredits(credits) : credits.toString()}</BigNumber>
-        {unit && <span className={unitClassName}>{` ${unit}`}</span>}
-      </span>
-      <span
-        aria-hidden
-        className={`${face} opacity-0 translate-y-0.5 group-hover/credits:opacity-100 group-hover/credits:translate-y-0`}
-      >
-        <span className={amountClassName}>{davToDashCompact(duffs)}</span>
-        <span className={unitClassName}>{' Dash'}</span>
+      <span className={`relative inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'}`}>
+        <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
+          <BigNumber className={amountClassName}>{compact ? formatCompactCredits(credits) : credits.toString()}</BigNumber>
+          {unit && <span className={unitClassName}>{` ${unit}`}</span>}
+        </span>
+        <span
+          aria-hidden
+          className={`${face} opacity-0 translate-y-0.5 group-hover/credits:opacity-100 group-hover/credits:translate-y-0`}
+        >
+          <span className={amountClassName}>{davToDashCompact(duffs)}</span>
+          <span className={unitClassName}>{' Dash'}</span>
+        </span>
       </span>
       {fiat && (
         <span
-          aria-hidden
-          className={`absolute top-full ${align === 'end' ? 'right-0' : 'left-0'} whitespace-nowrap text-[.625rem] font-medium leading-[120%] text-dash-brand dark:text-dash-mint opacity-0 transition-opacity duration-200 group-hover/credits:opacity-100 pointer-events-none`}
+          className={`whitespace-nowrap text-[.625rem] font-medium leading-[120%] text-dash-brand dark:text-dash-mint`}
         >
           ~ {fiat}
         </span>
