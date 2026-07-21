@@ -73,6 +73,9 @@ interface PendingSync {
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
+// Bound on how far addAddress derives forward while skipping used
+// (already-received-on) diversified addresses.
+const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
 
 // Cap on the per-child output we retain; attached to crash reports so a
 // worker death carries its own cause instead of just an exit code.
@@ -329,10 +332,21 @@ export class ShieldedService {
     await this.cacheAddresses(walletId, seed, network)
   }
 
+  // Grows the derived list so its newest address is unused: diversified
+  // addresses share one viewing key, so a synced wallet can hold notes on
+  // indexes never shown yet — those are skipped (but become visible).
   async addAddress(walletId: string, password: string): Promise<string[]> {
     const {seed, network} = await this.unlock(walletId, password)
-    const count = await this.walletDAO.getShieldedAddressCount(walletId)
-    await this.walletDAO.setShieldedAddressCount(walletId, count + 1)
+    const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
+    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
+    let count = await this.walletDAO.getShieldedAddressCount(walletId)
+    const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
+    let address: string
+    do {
+      count++
+      address = keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
+    } while (used.has(address) && count < limit)
+    await this.walletDAO.setShieldedAddressCount(walletId, count)
     return this.cacheAddresses(walletId, seed, network)
   }
 

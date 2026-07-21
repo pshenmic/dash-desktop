@@ -137,6 +137,14 @@ export class ShieldedNoteDAO {
       .update({is_decoded: true})
   }
 
+  getUsedAddresses = async (walletId: string): Promise<Set<string>> => {
+    const rows = await this.knex('shielded_notes')
+      .distinct('address')
+      .where({wallet_id: walletId})
+      .whereNotNull('address')
+    return new Set(rows.map((row) => row.address))
+  }
+
   getOwnedNotes = async (walletId: string): Promise<PersistNote[]> => {
     const rows = await this.knex('shielded_notes')
       .select('note_index', 'amount', 'address', 'spent')
