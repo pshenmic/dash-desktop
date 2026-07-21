@@ -12,6 +12,14 @@ export interface ShieldedNoteSnapshot {
   address: string
 }
 
+export interface ShieldedEncryptedNotePayload {
+  index: number
+  nullifier: Uint8Array
+  cmx: Uint8Array
+  encryptedNote: Uint8Array
+  cvNet: Uint8Array
+}
+
 export interface ShieldSource {
   platformAddress: string
   nonce: number
@@ -25,7 +33,7 @@ export type ShieldAssetLockProofParams =
 
 export type ShieldedCommand =
   | { type: 'initProver' }
-  | { type: 'sync'; requestId: string; network: Network; seed: Uint8Array; spentIndexes: number[] }
+  | { type: 'sync'; requestId: string; network: Network; seed: Uint8Array; spentIndexes: number[]; notes: ShieldedEncryptedNotePayload[] }
   | {
       type: 'spend'
       requestId: string

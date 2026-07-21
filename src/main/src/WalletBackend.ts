@@ -1,7 +1,7 @@
 import {calibratePBKDF2Iterations, ensureHomeFolder, getKnex, migrateKnex} from './utils'
 import path from 'path'
 import os from 'os'
-import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, StorageFilename} from './constants'
+import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
 import { SdkProvider } from './services/SdkProvider'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
@@ -228,6 +228,18 @@ export class WalletBackend {
     setInterval(() => {
       discoverSelected().catch(err => console.error('[discovery] periodic address discovery failed:', err))
     }, DISCOVERY_INTERVAL_MS).unref()
+
+    const shieldedService = this.shieldedService
+    const fetchShieldedNotes = async (): Promise<void> => {
+      const selected = await walletDAO.getSelectedWallet()
+      if (selected != null) {
+        await shieldedService.checkForNewNotes(selected.walletId, selected.network)
+      }
+    }
+    fetchShieldedNotes().catch(err => console.error('[shielded] startup note fetch failed:', err))
+    setInterval(() => {
+      fetchShieldedNotes().catch(err => console.error('[shielded] periodic note fetch failed:', err))
+    }, SHIELDED_NOTES_CHECK_INTERVAL_MS).unref()
 
     this.applicationService.markReady()
   }

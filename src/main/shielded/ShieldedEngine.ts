@@ -75,12 +75,15 @@ export class ShieldedEngine {
     await this.proverInit
   }
 
+  // Trial-decrypts the ciphertexts passed in by the main process (which
+  // downloads new pool notes in the background) — no network fetch here.
+  // recoverNotes indexes by array position, so each recovered index is
+  // mapped back to the pool index carried by its payload.
   async sync(command: SyncCommand): Promise<void> {
     try {
       this.sdk.setNetwork(command.network)
 
-      const all = await this.fetchAllNotes((fetched, total) =>
-        this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'syncing', fetched, total}))
+      const all = command.notes
 
       this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'recovering', fetched: all.length, total: all.length})
       const recovered = this.sdk.shielded.recoverNotes(all, command.seed, SHIELDED_ACCOUNT)
@@ -90,10 +93,11 @@ export class ShieldedEngine {
       const notes: ShieldedNoteSnapshot[] = []
       for (const note of recovered) {
         const value = note.note.value
-        const isSpent = spent.has(note.index)
+        const poolIndex = all[note.index]?.index ?? note.index
+        const isSpent = spent.has(poolIndex)
         if (!isSpent) balance += value
         notes.push({
-          index: note.index,
+          index: poolIndex,
           amount: value.toString(),
           spent: isSpent,
           address: note.note.address.toBech32m(command.network),
