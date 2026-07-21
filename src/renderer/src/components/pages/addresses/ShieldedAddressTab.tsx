@@ -3,6 +3,7 @@ import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
+import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
@@ -16,6 +17,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
 
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === ShieldedSyncPhase.Done
@@ -144,6 +146,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   }
 
   return (
+    <>
     <div className={"flex flex-col gap-[.625rem]"}>
       {addresses.map((address) => (
         <div key={address} className={"flex items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
@@ -205,6 +208,17 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             >
               {busy ? 'Deriving…' : 'New address'}
             </Button>
+            <Button
+              type={"button"}
+              onClick={() => setSyncOpen(true)}
+              disabled={!walletId || syncRunning}
+              variant={"solid"}
+              colorScheme={"lightBlue-mint"}
+              size={"sm"}
+              className={"min-h-0! py-2! rounded-[.75rem]"}
+            >
+              {syncRunning ? 'Syncing…' : 'Sync balance'}
+            </Button>
             {syncRunning && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 {sync.phase === ShieldedSyncPhase.Recovering
@@ -218,5 +232,11 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
         </div>
       )}
     </div>
+    <ShieldedUnlockModal
+      isOpen={syncOpen}
+      onClose={() => setSyncOpen(false)}
+      walletId={walletId ?? null}
+    />
+    </>
   )
 }

@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
 import Spinner from '@renderer/components/ui/Spinner'
+import CopyButton from '@renderer/components/ui/CopyButton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import { groupShieldedNotesByAddress } from '@renderer/utils/shieldedBalances'
+import { truncateShieldedAddress } from '@renderer/utils/shieldedAddress'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -118,7 +121,7 @@ export default function ShieldedPage(): React.JSX.Element {
     [platformAddresses],
   )
 
-  const spendableNotes = useMemo(() => sync.notes.filter((note) => !note.spent), [sync.notes])
+  const spendableGroups = useMemo(() => groupShieldedNotesByAddress(sync.notes), [sync.notes])
 
   const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
 
@@ -187,21 +190,35 @@ export default function ShieldedPage(): React.JSX.Element {
 
         <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Incoming notes</Text>
-          {spendableNotes.length === 0 ? (
+          {spendableGroups.length === 0 ? (
             <Text size={12} weight={"medium"} color={"brand"} opacity={40}>
               {sync.phase === ShieldedSyncPhase.Done ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
             </Text>
           ) : (
-            <div className={"flex flex-col"}>
-              {spendableNotes.map((note, i) => (
-                <div key={note.index} className={i > 0 ? "flex items-center justify-between py-2.5 border-t border-dash-primary-dark-blue/8 dark:border-white/10" : "flex items-center justify-between py-2.5"}>
-                  <div className={"flex items-center gap-2"}>
-                    <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
+            <div className={"flex flex-col gap-4"}>
+              {spendableGroups.map((group) => (
+                <div key={group.address} className={"flex flex-col gap-1"}>
+                  <div className={"flex items-center justify-between gap-3"}>
+                    <div className={"flex items-center gap-2 min-w-0"}>
+                      <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
+                      <Text size={12} weight={"medium"} color={"brand"} className={"font-mono"}>{truncateShieldedAddress(group.address)}</Text>
+                      <CopyButton text={group.address} />
+                      <Text size={12} weight={"medium"} color={"brand"} opacity={40}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
+                    </div>
+                    <Text size={14} weight={"bold"} color={"brand"}>
+                      <CreditsAmount credits={group.total} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+                    </Text>
                   </div>
-                  <Text size={14} weight={"bold"} color={"brand"}>
-                    <CreditsAmount credits={BigInt(note.amount)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
-                  </Text>
+                  <div className={"flex flex-col pl-[1.375rem]"}>
+                    {group.notes.map((note, i) => (
+                      <div key={note.index} className={i > 0 ? "flex items-center justify-between py-1.5 border-t border-dash-primary-dark-blue/8 dark:border-white/10" : "flex items-center justify-between py-1.5"}>
+                        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
+                        <Text size={12} weight={"medium"} color={"brand"}>
+                          <CreditsAmount credits={BigInt(note.amount)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

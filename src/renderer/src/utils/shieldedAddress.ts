@@ -6,3 +6,8 @@ export function isLikelyShieldedAddress(address: string): boolean {
   const a = address.trim().toLowerCase()
   return /^[a-z0-9]{1,20}1[a-z0-9]{60,}$/.test(a)
 }
+
+export function truncateShieldedAddress(address: string, head = 12, tail = 6): string {
+  if (address.length <= head + tail + 1) return address
+  return `${address.slice(0, head)}…${address.slice(-tail)}`
+}
