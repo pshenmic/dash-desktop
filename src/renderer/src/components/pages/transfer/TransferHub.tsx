@@ -21,8 +21,6 @@ import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import {
-  SourceKind,
-  DestinationKind,
   SOURCE_KINDS,
   DESTINATION_KINDS,
   resolveOperation,
@@ -32,6 +30,10 @@ import {
   isPoolIdentityDenomination,
   POOL_IDENTITY_DENOMINATIONS,
 } from "@renderer/utils/transferMatrix";
+import { SourceKind } from "@renderer/enums/SourceKind";
+import { DestinationKind } from "@renderer/enums/DestinationKind";
+import { TransferOperation } from "@renderer/enums/TransferOperation";
+import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import { sendPageData, MAX_SPEND_NOTES } from "@renderer/constants";
@@ -49,11 +51,11 @@ import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
 
 function initialSourceKind(value: string | null): SourceKind {
-  return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : 'core'
+  return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : SourceKind.Core
 }
 
 function initialDestinationKind(value: string | null): DestinationKind {
-  return DESTINATION_KINDS.some(k => k.kind === value) ? value as DestinationKind : 'coreAddress'
+  return DESTINATION_KINDS.some(k => k.kind === value) ? value as DestinationKind : DestinationKind.CoreAddress
 }
 
 export default function TransferHub(): React.JSX.Element {
@@ -103,11 +105,11 @@ export default function TransferHub(): React.JSX.Element {
   const operation = resolveOperation(fromKind, toKind)
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
-  const shieldedInvolved = fromKind === 'shielded' || toKind === 'shielded'
-  const optionalShieldRecipient = operation === 'assetLockShield'
+  const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
+  const optionalShieldRecipient = operation === TransferOperation.AssetLockShield
 
   const destinationKinds = useMemo(
-    () => DESTINATION_KINDS.filter(d => d.kind !== 'newIdentity' && resolveOperation(fromKind, d.kind) != null),
+    () => DESTINATION_KINDS.filter(d => d.kind !== DestinationKind.NewIdentity && resolveOperation(fromKind, d.kind) != null),
     [fromKind],
   )
 
@@ -142,16 +144,16 @@ export default function TransferHub(): React.JSX.Element {
     [receiving, change],
   )
   const selectedCoreAddress = coreAddresses.find(a => a.address === coreFromAddress) ?? coreAddresses[0]
-  const coreSpecificAddress = operation === 'coreSend' && useSpecificSource ? selectedCoreAddress : undefined
+  const coreSpecificAddress = operation === TransferOperation.CoreSend && useSpecificSource ? selectedCoreAddress : undefined
 
   const spendableNotes = useMemo(
-    () => (shieldedSync.phase === 'done' ? shieldedSync.notes.filter(n => !n.spent) : [])
+    () => (shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes.filter(n => !n.spent) : [])
       .slice()
       .sort((a, b) => (BigInt(a.amount) < BigInt(b.amount) ? 1 : BigInt(a.amount) > BigInt(b.amount) ? -1 : 0)),
     [shieldedSync.phase, shieldedSync.notes],
   )
-  const shieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
-  const notesSyncing = shieldedSync.phase === 'syncing' || shieldedSync.phase === 'recovering'
+  const shieldedSpendOperation = operation === TransferOperation.ShieldedTransfer || operation === TransferOperation.Unshield || operation === TransferOperation.ShieldedWithdrawal
+  const notesSyncing = shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering
   const shieldedAddressBalances = useMemo(() => shieldedBalancesByAddress(spendableNotes), [spendableNotes])
   const shieldedAddresses = useMemo(() => [...shieldedAddressBalances.keys()], [shieldedAddressBalances])
   const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
@@ -165,12 +167,12 @@ export default function TransferHub(): React.JSX.Element {
   )
 
   const balanceDuffs = coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
-  const shieldedBalance = shieldedSync.phase === 'done' && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
+  const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
 
   const availableCredits: bigint | null =
-    fromKind === 'platformAddress' ? (selectedSource ? BigInt(selectedSource.balanceCredits) : 0n)
-    : fromKind === 'identity' ? (selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n)
-    : fromKind === 'shielded' ? (shieldedSpecificNotes != null ? shieldedSpecificNotes.reduce((sum, n) => sum + BigInt(n.amount), 0n) : shieldedBalance)
+    fromKind === SourceKind.PlatformAddress ? (selectedSource ? BigInt(selectedSource.balanceCredits) : 0n)
+    : fromKind === SourceKind.Identity ? (selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n)
+    : fromKind === SourceKind.Shielded ? (shieldedSpecificNotes != null ? shieldedSpecificNotes.reduce((sum, n) => sum + BigInt(n.amount), 0n) : shieldedBalance)
     : null
 
   const isDashUnit = info?.unit === 'dash'
@@ -180,7 +182,7 @@ export default function TransferHub(): React.JSX.Element {
   const minCredits = info?.minCredits ?? 0n
 
   const shieldedMaxPerTx = useMemo(() => {
-    if (fromKind !== 'shielded' || shieldedSync.phase !== 'done') return null
+    if (fromKind !== SourceKind.Shielded || shieldedSync.phase !== ShieldedSyncPhase.Done) return null
     const candidates = shieldedSpecificNotes ?? shieldedSync.notes.filter((note) => !note.spent)
     const top = candidates
       .map((note) => BigInt(note.amount))
@@ -193,34 +195,34 @@ export default function TransferHub(): React.JSX.Element {
   const trimmedTo = toValue.trim()
 
   const sourceReady =
-    fromKind === 'core' ? true
-    : fromKind === 'platformAddress' ? selectedSource != null
-    : fromKind === 'identity' ? selectedIdentity != null
+    fromKind === SourceKind.Core ? true
+    : fromKind === SourceKind.PlatformAddress ? selectedSource != null
+    : fromKind === SourceKind.Identity ? selectedIdentity != null
     : true
 
   const destinationValid =
-    toKind === 'coreAddress' ? isValidDashAddress(trimmedTo, network ?? undefined)
-    : toKind === 'platformAddress' ? isValidPlatformAddress(trimmedTo, network ?? undefined)
-    : toKind === 'identity' ? isLikelyIdentityId(trimmedTo)
-    : toKind === 'newIdentity' ? true
+    toKind === DestinationKind.CoreAddress ? isValidDashAddress(trimmedTo, network ?? undefined)
+    : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
+    : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
+    : toKind === DestinationKind.NewIdentity ? true
     : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
 
   const selfSend =
-    (operation === 'addressFundsTransfer' && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress)
-    || (operation === 'identityToIdentity' && destinationValid && selectedIdentity != null && trimmedTo === selectedIdentity.identifier)
+    (operation === TransferOperation.AddressFundsTransfer && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress)
+    || (operation === TransferOperation.IdentityToIdentity && destinationValid && selectedIdentity != null && trimmedTo === selectedIdentity.identifier)
 
-  const destinationError = toKind === 'newIdentity' || trimmedTo.length === 0
+  const destinationError = toKind === DestinationKind.NewIdentity || trimmedTo.length === 0
     ? null
     : !destinationValid
-      ? (toKind === 'coreAddress' ? `Enter a valid Dash ${network ?? ''} address.`
-        : toKind === 'platformAddress' ? `Enter a valid Platform ${network ?? ''} address.`
-        : toKind === 'identity' ? 'Enter a valid identity identifier.'
+      ? (toKind === DestinationKind.CoreAddress ? `Enter a valid Dash ${network ?? ''} address.`
+        : toKind === DestinationKind.PlatformAddress ? `Enter a valid Platform ${network ?? ''} address.`
+        : toKind === DestinationKind.Identity ? 'Enter a valid identity identifier.'
         : 'Enter a valid shielded address.')
       : selfSend
-        ? (operation === 'identityToIdentity' ? 'Recipient must be different from the source identity.' : 'Recipient must be different from the source address.')
+        ? (operation === TransferOperation.IdentityToIdentity ? 'Recipient must be different from the source identity.' : 'Recipient must be different from the source address.')
         : null
 
-  const needsAck = operation === 'shieldedWithdrawal'
+  const needsAck = operation === TransferOperation.ShieldedWithdrawal
   const destinationReady = destinationValid && !selfSend && (!needsAck || acked)
   const routeReady = operation != null && sourceReady && destinationReady
 
@@ -229,9 +231,9 @@ export default function TransferHub(): React.JSX.Element {
     : amountCredits >= minCredits && amountCredits > 0n
       && (availableCredits === null || amountCredits + feeCredits <= availableCredits)
       && (shieldedMaxPerTx === null || amountCredits <= shieldedMaxPerTx)
-      && (operation !== 'identityCreateFromPool' || isPoolIdentityDenomination(amountCredits))
+      && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
 
-  const canSubmit = routeReady && amountReady && !(operation === 'coreSend' && syncIncomplete)
+  const canSubmit = routeReady && amountReady && !(operation === TransferOperation.CoreSend && syncIncomplete)
 
   const amountFiat = isDashUnit && rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
 
@@ -260,14 +262,14 @@ export default function TransferHub(): React.JSX.Element {
   }
 
   const destinationPlaceholder =
-    toKind === 'coreAddress' ? (network === 'mainnet' ? 'X… (Dash address)' : 'y… (Dash address)')
-    : toKind === 'platformAddress' ? (network === 'mainnet' ? 'dash1…' : 'tdash1…')
-    : toKind === 'identity' ? 'Identity identifier'
+    toKind === DestinationKind.CoreAddress ? (network === 'mainnet' ? 'X… (Dash address)' : 'y… (Dash address)')
+    : toKind === DestinationKind.PlatformAddress ? (network === 'mainnet' ? 'dash1…' : 'tdash1…')
+    : toKind === DestinationKind.Identity ? 'Identity identifier'
     : 'shielded address'
 
   const amountError = isDashUnit || amount.length === 0
     ? null
-    : operation === 'identityCreateFromPool' && !isPoolIdentityDenomination(amountCredits)
+    : operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)
       ? 'Pick one of the fixed denominations above.'
       : amountCredits < minCredits
         ? `Minimum is ${minCredits.toLocaleString('en-US')} credits.`
@@ -301,14 +303,14 @@ export default function TransferHub(): React.JSX.Element {
         onIdentityChange={setFromIdentity}
       />
 
-      {(operation === 'coreSend' || shieldedSpendOperation) && (
+      {(operation === TransferOperation.CoreSend || shieldedSpendOperation) && (
         <div className={"flex flex-col gap-2"}>
           <Checkbox
             checked={useSpecificSource}
             onChange={setUseSpecificSource}
             label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
           />
-          {useSpecificSource && operation === 'coreSend' && (
+          {useSpecificSource && operation === TransferOperation.CoreSend && (
             <CoreAddressSelect
               addresses={coreAddresses}
               selected={selectedCoreAddress}
@@ -336,7 +338,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {toKind === 'coreAddress' && operation === 'coreSend' ? (
+      {toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend ? (
         <div className={"flex flex-col gap-2"}>
           <DestinationPicker
             kind={toKind}
@@ -376,13 +378,13 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'unshield' && (
+      {operation === TransferOperation.Unshield && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
           Unshield moves credits from the pool to a transparent Platform address — the amount and destination become public.
         </Text>
       )}
 
-      {operation === 'assetLockFunding' && (
+      {operation === TransferOperation.AssetLockFunding && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Two-step funding</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -391,7 +393,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'assetLockShield' && (
+      {operation === TransferOperation.AssetLockShield && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Two-step shielding</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -400,7 +402,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'identityRegister' && (
+      {operation === TransferOperation.IdentityRegister && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>New Platform identity</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -409,7 +411,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'identityTopUpL1' && (
+      {operation === TransferOperation.IdentityTopUpL1 && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Top up from L1</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -418,7 +420,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {(operation === 'addressWithdrawal' || operation === 'identityWithdrawal') && (
+      {(operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal) && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Cross-chain withdrawal</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -427,7 +429,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'identityCreateFromPool' && (
+      {operation === TransferOperation.IdentityCreateFromPool && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>New identity from the pool</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -436,7 +438,7 @@ export default function TransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === 'shieldedWithdrawal' && (
+      {operation === TransferOperation.ShieldedWithdrawal && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Output becomes public</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -455,7 +457,7 @@ export default function TransferHub(): React.JSX.Element {
 
   const amountStep = (
     <div>
-      {operation === 'identityCreateFromPool' && (
+      {operation === TransferOperation.IdentityCreateFromPool && (
         <div className={"mb-3 flex flex-wrap gap-2"}>
           {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
             <button
@@ -496,12 +498,12 @@ export default function TransferHub(): React.JSX.Element {
   )
 
   const fromDisplay =
-    fromKind === 'core' ? 'Dash Core (L1)'
-    : fromKind === 'platformAddress' ? (selectedSource?.platformAddress ?? '')
-    : fromKind === 'identity' ? (selectedIdentity?.identifier ?? '')
+    fromKind === SourceKind.Core ? 'Dash Core (L1)'
+    : fromKind === SourceKind.PlatformAddress ? (selectedSource?.platformAddress ?? '')
+    : fromKind === SourceKind.Identity ? (selectedIdentity?.identifier ?? '')
     : 'Your shielded balance'
 
-  const toDisplay = toKind === 'newIdentity' ? 'New identity'
+  const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity'
     : optionalShieldRecipient && trimmedTo.length === 0 ? 'Your shielded balance'
     : trimmedTo
 
@@ -511,14 +513,14 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-1"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
           <div className={"flex items-center gap-1.5"}>
-            {fromKind === 'shielded' && <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />}
+            {fromKind === SourceKind.Shielded && <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />}
             <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all"}>{fromDisplay}</Text>
           </div>
         </div>
         <div className={"flex flex-col gap-1"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
           <div className={"flex items-center gap-1.5"}>
-            {toKind === 'shielded' && <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />}
+            {toKind === DestinationKind.Shielded && <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />}
             <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all"}>{toDisplay}</Text>
           </div>
         </div>
@@ -533,7 +535,7 @@ export default function TransferHub(): React.JSX.Element {
         {!isDashUnit && (
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee{operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal' ? ' (est.)' : ''}</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee{operation === TransferOperation.ShieldedTransfer || operation === TransferOperation.Unshield || operation === TransferOperation.ShieldedWithdrawal ? ' (est.)' : ''}</Text>
               <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
@@ -550,7 +552,7 @@ export default function TransferHub(): React.JSX.Element {
           </div>
         )}
       </div>
-      {operation === 'coreSend' && syncIncomplete && <SyncGateNotice />}
+      {operation === TransferOperation.CoreSend && syncIncomplete && <SyncGateNotice />}
     </div>
   )
 
@@ -559,31 +561,31 @@ export default function TransferHub(): React.JSX.Element {
       return Promise.resolve<ShieldedSpendState>({ phase: 'error', fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
     const noteIndexes = shieldedSpecificNotes?.map(n => n.index)
-    if (operation === 'shieldedTransfer') return API.startShieldedTransfer(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
-    if (operation === 'unshield') return API.startShieldedUnshield(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
-    if (operation === 'identityCreateFromPool') return API.startShieldedIdentityCreate(walletId, amountCredits.toString(), password)
+    if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
+    if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
+    if (operation === TransferOperation.IdentityCreateFromPool) return API.startShieldedIdentityCreate(walletId, amountCredits.toString(), password)
     return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
   }
 
   const runPlatformOperation = (password: string) => {
     if (!walletId) return Promise.reject(new Error('No wallet selected'))
     const sourceAddress = selectedSource?.platformAddress ?? null
-    if (operation === 'addressFundsTransfer') {
+    if (operation === TransferOperation.AddressFundsTransfer) {
       return API.sendPlatformTransfer(walletId, sourceAddress ?? '', trimmedTo, amountCredits.toString(), password)
     }
-    if (operation === 'identityTopUp') {
+    if (operation === TransferOperation.IdentityTopUp) {
       return API.topUpIdentityFromAddresses(walletId, trimmedTo, sourceAddress, amountCredits.toString(), password)
     }
-    if (operation === 'addressWithdrawal') {
+    if (operation === TransferOperation.AddressWithdrawal) {
       return API.withdrawPlatformCredits(walletId, sourceAddress, trimmedTo, amountCredits.toString(), password)
     }
-    if (operation === 'identityToIdentity') {
+    if (operation === TransferOperation.IdentityToIdentity) {
       return API.transferIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
     }
-    if (operation === 'identityWithdrawal') {
+    if (operation === TransferOperation.IdentityWithdrawal) {
       return API.withdrawIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
     }
-    if (operation === 'identityCreate') {
+    if (operation === TransferOperation.IdentityCreate) {
       return API.createIdentityFromAddresses(walletId, sourceAddress, amountCredits.toString(), password)
         .then(result => ({
           stHash: result.stHash,
@@ -596,10 +598,10 @@ export default function TransferHub(): React.JSX.Element {
     return API.sendIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
   }
 
-  const isPlatformModalOperation = operation === 'addressFundsTransfer' || operation === 'identityTopUp'
-    || operation === 'addressWithdrawal' || operation === 'identityWithdrawal'
-    || operation === 'identityToAddress' || operation === 'identityToIdentity' || operation === 'identityCreate'
-  const isShieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal' || operation === 'identityCreateFromPool'
+  const isPlatformModalOperation = operation === TransferOperation.AddressFundsTransfer || operation === TransferOperation.IdentityTopUp
+    || operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal
+    || operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity || operation === TransferOperation.IdentityCreate
+  const isShieldedSpendOperation = operation === TransferOperation.ShieldedTransfer || operation === TransferOperation.Unshield || operation === TransferOperation.ShieldedWithdrawal || operation === TransferOperation.IdentityCreateFromPool
 
   return (
     <div className={"relative flex flex-col h-full pb-4"}>
@@ -648,7 +650,7 @@ export default function TransferHub(): React.JSX.Element {
         submitDisabled={!canSubmit}
       />
 
-      {operation === 'coreSend' && (
+      {operation === TransferOperation.CoreSend && (
         <SendConfirmModal
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
@@ -668,7 +670,7 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
-      {operation === 'shield' && (
+      {operation === TransferOperation.Shield && (
         <ShieldConfirmModal
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
@@ -687,8 +689,8 @@ export default function TransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           title={info?.title ?? 'Send'}
-          toLabel={operation === 'shieldedTransfer' ? 'To (shielded)' : operation === 'unshield' ? 'To (Platform)' : operation === 'identityCreateFromPool' ? 'Creates' : 'To (Core L1)'}
-          toValue={operation === 'identityCreateFromPool' ? 'New Platform identity with 6 keys' : trimmedTo}
+          toLabel={operation === TransferOperation.ShieldedTransfer ? 'To (shielded)' : operation === TransferOperation.Unshield ? 'To (Platform)' : operation === TransferOperation.IdentityCreateFromPool ? 'Creates' : 'To (Core L1)'}
+          toValue={operation === TransferOperation.IdentityCreateFromPool ? 'New Platform identity with 6 keys' : trimmedTo}
           amountCredits={amountCredits.toString()}
           proverReady={prover.ready}
           start={startShieldedSpend}
@@ -696,15 +698,15 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
-      {(operation === 'assetLockFunding' || operation === 'assetLockShield' || operation === 'identityRegister' || operation === 'identityTopUpL1') && (
+      {(operation === TransferOperation.AssetLockFunding || operation === TransferOperation.AssetLockShield || operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityTopUpL1) && (
         <AssetLockFundingModal
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
-          toPlatformAddress={operation === 'identityRegister' ? '' : trimmedTo}
+          toPlatformAddress={operation === TransferOperation.IdentityRegister ? '' : trimmedTo}
           amountDuffs={amountDuffs.toString()}
           resume={false}
-          kind={operation === 'assetLockShield' ? 'shielded' : operation === 'identityRegister' ? 'identity' : operation === 'identityTopUpL1' ? 'identityTopUp' : 'address'}
+          kind={operation === TransferOperation.AssetLockShield ? 'shielded' : operation === TransferOperation.IdentityRegister ? 'identity' : operation === TransferOperation.IdentityTopUpL1 ? 'identityTopUp' : 'address'}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -734,7 +736,7 @@ export default function TransferHub(): React.JSX.Element {
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}
-          successTitle={operation === 'identityCreate' ? 'Identity created' : 'Credits sent'}
+          successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
           rows={[
             {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
             {label: 'Network fee', value: <CreditsAmount credits={feeCredits} align={"end"} />},

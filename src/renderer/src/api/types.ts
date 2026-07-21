@@ -1,3 +1,5 @@
+import { ShieldedSyncPhase } from '../enums/ShieldedSyncPhase'
+
 // getAddresses
 export type WalletAddressDto = {
   walletId: string
@@ -203,7 +205,7 @@ export interface ShieldedNoteInfo {
   address: string
 }
 
-export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
+export { ShieldedSyncPhase }
 
 export interface ShieldedSyncState {
   phase: ShieldedSyncPhase

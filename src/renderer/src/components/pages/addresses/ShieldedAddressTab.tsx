@@ -6,6 +6,7 @@ import ListSkeleton from '@renderer/components/ui/Skeleton'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -17,8 +18,8 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [showPasswordForm, setShowPasswordForm] = useState(false)
 
   const sync = useShieldedSyncState(walletId)
-  const synced = sync.phase === 'done'
-  const syncRunning = sync.phase === 'syncing' || sync.phase === 'recovering'
+  const synced = sync.phase === ShieldedSyncPhase.Done
+  const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
   useEffect(() => {
@@ -189,7 +190,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
       ) : (
         <div className={"flex flex-col gap-2 items-start"}>
           {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
-          {sync.phase === 'error' && (
+          {sync.phase === ShieldedSyncPhase.Error && (
             <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Note sync failed.'}</Text>
           )}
           <div className={"flex items-center gap-2"}>
@@ -206,7 +207,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             </Button>
             {syncRunning && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                {sync.phase === 'recovering'
+                {sync.phase === ShieldedSyncPhase.Recovering
                   ? 'Recovering your notes…'
                   : sync.total > 0
                     ? `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`

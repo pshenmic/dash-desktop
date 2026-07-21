@@ -6,6 +6,7 @@ import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { formatCompactCredits } from '@renderer/utils/balance'
 
 export default function ShieldedCard(): React.JSX.Element {
@@ -21,7 +22,7 @@ export default function ShieldedCard(): React.JSX.Element {
   const labels = dashboardPage.shielded
 
   const spendableNotes = useMemo(() => sync.notes.filter((n) => !n.spent).length, [sync.notes])
-  const shieldedReady = sync.phase === 'done' && sync.balance !== null
+  const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
   const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
 
   const meta: React.ReactNode[] = []

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { Network, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import {
   SHIELDED_POOL_REFRESH_MS,
   SHIELDED_STATUS_POLL_MS,
@@ -61,7 +62,7 @@ export function useShieldedPoolInfo(network: Network | undefined): {
 }
 
 const INITIAL_SYNC_STATE: ShieldedSyncState = {
-  phase: 'idle', fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null
+  phase: ShieldedSyncPhase.Idle, fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null
 }
 
 export function useShieldedSyncState(walletId: string | null | undefined): ShieldedSyncState {
@@ -82,7 +83,7 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
         const next = await API.getShieldedSyncState(walletId)
         if (dead) return
         setState(next)
-        running = next.phase === 'syncing' || next.phase === 'recovering'
+        running = next.phase === ShieldedSyncPhase.Syncing || next.phase === ShieldedSyncPhase.Recovering
       } catch {
         /* keep last state, retry */
       }

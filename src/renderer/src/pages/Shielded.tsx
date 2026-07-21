@@ -8,6 +8,7 @@ import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@r
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
 function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
   if (status.prover === 'ready') {
@@ -37,8 +38,8 @@ function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element 
 }
 
 function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => void }): React.JSX.Element {
-  const running = sync.phase === 'syncing' || sync.phase === 'recovering'
-  const pct = sync.phase === 'recovering'
+  const running = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
+  const pct = sync.phase === ShieldedSyncPhase.Recovering
     ? 100
     : sync.total > 0 ? Math.min(100, Math.round((sync.fetched / sync.total) * 100)) : 0
 
@@ -68,14 +69,14 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
             />
           </div>
           <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
-            {sync.phase === 'recovering'
+            {sync.phase === ShieldedSyncPhase.Recovering
               ? 'Recovering your notes…'
               : `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`}
           </Text>
         </div>
       )}
 
-      {!running && sync.phase === 'done' && (() => {
+      {!running && sync.phase === ShieldedSyncPhase.Done && (() => {
         const unspent = sync.notes.filter((n) => !n.spent).length
         const spentCount = sync.notes.length - unspent
         return (
@@ -85,11 +86,11 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
         )
       })()}
 
-      {!running && sync.phase === 'error' && (
+      {!running && sync.phase === ShieldedSyncPhase.Error && (
         <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Sync failed.'}</Text>
       )}
 
-      {!running && sync.phase === 'idle' && (
+      {!running && sync.phase === ShieldedSyncPhase.Idle && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
           Unlock with your password to scan the shielded pool for notes addressed to you.
         </Text>
@@ -118,7 +119,7 @@ export default function ShieldedPage(): React.JSX.Element {
 
   const spendableNotes = useMemo(() => sync.notes.filter((note) => !note.spent), [sync.notes])
 
-  const shieldedReady = sync.phase === 'done' && sync.balance !== null
+  const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
 
   const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
 
@@ -187,7 +188,7 @@ export default function ShieldedPage(): React.JSX.Element {
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Incoming notes</Text>
           {spendableNotes.length === 0 ? (
             <Text size={12} weight={"medium"} color={"brand"} opacity={40}>
-              {sync.phase === 'done' ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
+              {sync.phase === ShieldedSyncPhase.Done ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
             </Text>
           ) : (
             <div className={"flex flex-col"}>

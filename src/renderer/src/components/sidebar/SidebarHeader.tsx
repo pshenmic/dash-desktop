@@ -7,6 +7,7 @@ import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance } from "@renderer/hooks/useWalletBalance";
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility";
 import { useShieldedSyncState } from "@renderer/hooks/useShielded";
+import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
 
 export default function SidebarHeader(): React.JSX.Element {
   const { status, lock } = useAuth()
@@ -14,7 +15,7 @@ export default function SidebarHeader(): React.JSX.Element {
   const { isBalanceVisible, toggleBalanceVisibility } = useBalanceVisibility()
   const { format: formatFiat, rateReady } = useFiat()
   const shieldedSync = useShieldedSyncState(status?.selectedWalletId ?? null)
-  const shieldedCredits = shieldedSync.phase === 'done' && shieldedSync.balance !== null
+  const shieldedCredits = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? BigInt(shieldedSync.balance)
     : 0n
 

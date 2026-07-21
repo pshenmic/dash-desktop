@@ -9,6 +9,7 @@ import { defaultReceiveShieldedAddress } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
 export default function ShieldedReceiveCard({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -20,7 +21,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   const { theme } = useTheme()
 
   const sync = useShieldedSyncState(walletId)
-  const synced = sync.phase === 'done'
+  const synced = sync.phase === ShieldedSyncPhase.Done
   const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
   useEffect(() => {

@@ -1,50 +1,32 @@
-export type SourceKind = 'core' | 'platformAddress' | 'identity' | 'shielded'
-export type DestinationKind = 'coreAddress' | 'platformAddress' | 'identity' | 'newIdentity' | 'shielded'
-
-export type TransferOperation =
-  | 'coreSend'
-  | 'assetLockFunding'
-  | 'assetLockShield'
-  | 'identityRegister'
-  | 'identityTopUpL1'
-  | 'addressFundsTransfer'
-  | 'identityTopUp'
-  | 'identityCreate'
-  | 'addressWithdrawal'
-  | 'shield'
-  | 'identityToAddress'
-  | 'identityToIdentity'
-  | 'identityWithdrawal'
-  | 'shieldedTransfer'
-  | 'unshield'
-  | 'shieldedWithdrawal'
-  | 'identityCreateFromPool'
+import { SourceKind } from '../enums/SourceKind'
+import { DestinationKind } from '../enums/DestinationKind'
+import { TransferOperation } from '../enums/TransferOperation'
 
 const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperation>>> = {
-  core: {
-    coreAddress: 'coreSend',
-    platformAddress: 'assetLockFunding',
-    identity: 'identityTopUpL1',
-    newIdentity: 'identityRegister',
-    shielded: 'assetLockShield',
+  [SourceKind.Core]: {
+    [DestinationKind.CoreAddress]: TransferOperation.CoreSend,
+    [DestinationKind.PlatformAddress]: TransferOperation.AssetLockFunding,
+    [DestinationKind.Identity]: TransferOperation.IdentityTopUpL1,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityRegister,
+    [DestinationKind.Shielded]: TransferOperation.AssetLockShield,
   },
-  platformAddress: {
-    coreAddress: 'addressWithdrawal',
-    platformAddress: 'addressFundsTransfer',
-    identity: 'identityTopUp',
-    newIdentity: 'identityCreate',
-    shielded: 'shield',
+  [SourceKind.PlatformAddress]: {
+    [DestinationKind.CoreAddress]: TransferOperation.AddressWithdrawal,
+    [DestinationKind.PlatformAddress]: TransferOperation.AddressFundsTransfer,
+    [DestinationKind.Identity]: TransferOperation.IdentityTopUp,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreate,
+    [DestinationKind.Shielded]: TransferOperation.Shield,
   },
-  identity: {
-    coreAddress: 'identityWithdrawal',
-    platformAddress: 'identityToAddress',
-    identity: 'identityToIdentity',
+  [SourceKind.Identity]: {
+    [DestinationKind.CoreAddress]: TransferOperation.IdentityWithdrawal,
+    [DestinationKind.PlatformAddress]: TransferOperation.IdentityToAddress,
+    [DestinationKind.Identity]: TransferOperation.IdentityToIdentity,
   },
-  shielded: {
-    coreAddress: 'shieldedWithdrawal',
-    platformAddress: 'unshield',
-    newIdentity: 'identityCreateFromPool',
-    shielded: 'shieldedTransfer',
+  [SourceKind.Shielded]: {
+    [DestinationKind.CoreAddress]: TransferOperation.ShieldedWithdrawal,
+    [DestinationKind.PlatformAddress]: TransferOperation.Unshield,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreateFromPool,
+    [DestinationKind.Shielded]: TransferOperation.ShieldedTransfer,
   },
 }
 
@@ -74,23 +56,23 @@ export interface OperationInfo {
 }
 
 const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
-  coreSend: {title: 'Send Dash', submitLabel: 'Send', unit: 'dash', feeCredits: null, minCredits: null},
-  assetLockFunding: {title: 'Fund Platform address', submitLabel: 'Fund', unit: 'dash', feeCredits: null, minCredits: null},
-  assetLockShield: {title: 'Shield from L1', submitLabel: 'Shield', unit: 'dash', feeCredits: null, minCredits: null},
-  identityRegister: {title: 'Register identity', submitLabel: 'Register', unit: 'dash', feeCredits: null, minCredits: null},
-  identityTopUpL1: {title: 'Top up identity from L1', submitLabel: 'Top up', unit: 'dash', feeCredits: null, minCredits: null},
-  addressFundsTransfer: {title: 'Transfer credits', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  identityTopUp: {title: 'Top up identity', submitLabel: 'Top up', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
-  identityCreate: {title: 'Create identity', submitLabel: 'Create', unit: 'credits', feeCredits: 28_000_000n, minCredits: 500_000n},
-  addressWithdrawal: {title: 'Withdraw to Core', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 400_000_000n, minCredits: 100_000n},
-  shield: {title: 'Shield credits', submitLabel: 'Shield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  identityToAddress: {title: 'Send from identity', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  identityToIdentity: {title: 'Send to identity', submitLabel: 'Send', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
-  identityWithdrawal: {title: 'Withdraw from identity', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 400_000_000n, minCredits: 100_000n},
-  shieldedTransfer: {title: 'Send privately', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  unshield: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  shieldedWithdrawal: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  identityCreateFromPool: {title: 'Create identity from pool', submitLabel: 'Create', unit: 'credits', feeCredits: 0n, minCredits: 10_000_000_000n},
+  [TransferOperation.CoreSend]: {title: 'Send Dash', submitLabel: 'Send', unit: 'dash', feeCredits: null, minCredits: null},
+  [TransferOperation.AssetLockFunding]: {title: 'Fund Platform address', submitLabel: 'Fund', unit: 'dash', feeCredits: null, minCredits: null},
+  [TransferOperation.AssetLockShield]: {title: 'Shield from L1', submitLabel: 'Shield', unit: 'dash', feeCredits: null, minCredits: null},
+  [TransferOperation.IdentityRegister]: {title: 'Register identity', submitLabel: 'Register', unit: 'dash', feeCredits: null, minCredits: null},
+  [TransferOperation.IdentityTopUpL1]: {title: 'Top up identity from L1', submitLabel: 'Top up', unit: 'dash', feeCredits: null, minCredits: null},
+  [TransferOperation.AddressFundsTransfer]: {title: 'Transfer credits', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.IdentityTopUp]: {title: 'Top up identity', submitLabel: 'Top up', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
+  [TransferOperation.IdentityCreate]: {title: 'Create identity', submitLabel: 'Create', unit: 'credits', feeCredits: 28_000_000n, minCredits: 500_000n},
+  [TransferOperation.AddressWithdrawal]: {title: 'Withdraw to Core', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 400_000_000n, minCredits: 100_000n},
+  [TransferOperation.Shield]: {title: 'Shield credits', submitLabel: 'Shield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.IdentityToAddress]: {title: 'Send from identity', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.IdentityToIdentity]: {title: 'Send to identity', submitLabel: 'Send', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
+  [TransferOperation.IdentityWithdrawal]: {title: 'Withdraw from identity', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 400_000_000n, minCredits: 100_000n},
+  [TransferOperation.ShieldedTransfer]: {title: 'Send privately', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.IdentityCreateFromPool]: {title: 'Create identity from pool', submitLabel: 'Create', unit: 'credits', feeCredits: 0n, minCredits: 10_000_000_000n},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {
@@ -115,16 +97,16 @@ export function isLikelyIdentityId(value: string): boolean {
 }
 
 export const SOURCE_KINDS: Array<{kind: SourceKind; label: string}> = [
-  {kind: 'core', label: 'Dash Core (L1)'},
-  {kind: 'platformAddress', label: 'Platform address'},
-  {kind: 'identity', label: 'Identity'},
-  {kind: 'shielded', label: 'Shielded balance'},
+  {kind: SourceKind.Core, label: 'Dash Core (L1)'},
+  {kind: SourceKind.PlatformAddress, label: 'Platform address'},
+  {kind: SourceKind.Identity, label: 'Identity'},
+  {kind: SourceKind.Shielded, label: 'Shielded balance'},
 ]
 
 export const DESTINATION_KINDS: Array<{kind: DestinationKind; label: string}> = [
-  {kind: 'coreAddress', label: 'Dash address (L1)'},
-  {kind: 'platformAddress', label: 'Platform address'},
-  {kind: 'identity', label: 'Identity'},
-  {kind: 'newIdentity', label: 'New identity'},
-  {kind: 'shielded', label: 'Shielded address'},
+  {kind: DestinationKind.CoreAddress, label: 'Dash address (L1)'},
+  {kind: DestinationKind.PlatformAddress, label: 'Platform address'},
+  {kind: DestinationKind.Identity, label: 'Identity'},
+  {kind: DestinationKind.NewIdentity, label: 'New identity'},
+  {kind: DestinationKind.Shielded, label: 'Shielded address'},
 ]
