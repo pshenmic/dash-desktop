@@ -63,25 +63,14 @@ export default function ShieldedCard(): React.JSX.Element {
         </button>
       </div>
 
-      {shieldedReady ? (
-        <div className={"flex flex-col gap-1"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-            {labels.balance}
-          </Text>
-          <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
-            <CreditsAmount credits={BigInt(sync.balance as string)} compact />
-          </Text>
-        </div>
-      ) : (
-        <div className={"flex flex-col gap-1"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-            {labels.poolTotal}
-          </Text>
-          <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>
-            {poolInfo.poolState !== null ? <CreditsAmount credits={BigInt(poolInfo.poolState)} compact /> : '—'}
-          </Text>
-        </div>
-      )}
+      <div className={"flex flex-col gap-1"}>
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
+          {labels.balance}
+        </Text>
+        <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
+          {shieldedReady ? <CreditsAmount credits={BigInt(sync.balance as string)} compact /> : '—'}
+        </Text>
+      </div>
 
       {meta.length > 0 && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[150%]"}>

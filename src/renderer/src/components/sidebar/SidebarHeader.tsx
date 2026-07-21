@@ -6,12 +6,17 @@ import { davToDashCompact } from "@renderer/utils/balance";
 import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance } from "@renderer/hooks/useWalletBalance";
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility";
+import { useShieldedSyncState } from "@renderer/hooks/useShielded";
 
 export default function SidebarHeader(): React.JSX.Element {
   const { status } = useAuth()
   const { balance } = useWalletBalance(status?.selectedWalletId ?? undefined)
   const { isBalanceVisible, toggleBalanceVisibility } = useBalanceVisibility()
   const { format: formatFiat, rateReady } = useFiat()
+  const shieldedSync = useShieldedSyncState(status?.selectedWalletId ?? null)
+  const shieldedCredits = shieldedSync.phase === 'done' && shieldedSync.balance !== null
+    ? BigInt(shieldedSync.balance)
+    : 0n
 
   return (
     <div className={"flex flex-col gap-8 justify-between w-full"}>
@@ -43,6 +48,7 @@ export default function SidebarHeader(): React.JSX.Element {
       <div className={"flex flex-col gap-[.75rem]"}>
         <Balance variant="dash" balance={davToDashCompact(balance.dash.amount)} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
         <Balance variant="credits" credits={balance.credits.amount} isVisible={isBalanceVisible}/>
+        <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
       </div>
     </div>
   )

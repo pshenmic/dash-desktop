@@ -1,5 +1,5 @@
 import { BigNumber, DashLogo, useTheme } from "dash-ui-kit/react";
-import { CreditsIcon, Text } from "../dash-ui-kit-enxtended";
+import { CreditsIcon, ShieldSmallIcon, Text } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
 import { cva } from "class-variance-authority";
 
@@ -16,13 +16,14 @@ const logoStyles = cva(
     variants: {
       variant: {
         dash: 'bg-dash-brand dark:bg-[var(--color-dash-blue-20)]',
-        credits: 'bg-dash-primary-dark-blue/5 dark:bg-[var(--color-dash-blue-20)]'
+        credits: 'bg-dash-primary-dark-blue/5 dark:bg-[var(--color-dash-blue-20)]',
+        shielded: 'bg-dash-primary-dark-blue/5 dark:bg-[var(--color-dash-blue-20)]'
       }
     }
   }
 )
 
-export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits', balance?: string, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
+export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: string, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
   const { theme } = useTheme()
 
   return (
@@ -43,14 +44,16 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
       >
         {variant === 'dash' ?
           <DashLogo width={20} height={20} containerSize={39} color={theme === 'light' ? 'white' : 'var(--color-dash-brand)'}/>
+        : variant === 'shielded' ?
+          <ShieldSmallIcon size={15}/>
         :
           <CreditsIcon size={15}/>
         }
       </div>
       <div className={"flex flex-col gap-[.125rem]"}>
-        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : 'Platform Credits:'}</Text>
+        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Credits:'}</Text>
         <Text size={16} weight="extrabold" color="brand" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>
-          {variant === 'credits' && credits != null ? (
+          {(variant === 'credits' || variant === 'shielded') && credits != null ? (
             <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
           ) : (
             <>
