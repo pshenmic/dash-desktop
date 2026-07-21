@@ -8,6 +8,8 @@ import DropdownSelect from './ui/DropdownSelect'
 import ConnectionSelect from './ui/ConnectionSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
+import WalletUnlockModal from './modal/WalletUnlockModal'
+import { API } from '@renderer/api'
 import { useResolvedTheme, setThemePreference } from '@renderer/hooks/useThemeController'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import type { ConnectionType } from '@renderer/api/types'
@@ -38,6 +40,7 @@ const connectionOptions = [
 
 export default function Layout({ children }: LayoutProps): React.JSX.Element {
   const [selectedWallet, setSelectedWallet] = useState('')
+  const [pendingWalletId, setPendingWalletId] = useState<string | null>(null)
   const hoverNotification = useRipple()
   const { status, switchWallet, goToCreateWallet } = useAuth()
   const wallets = useWallets()
@@ -64,8 +67,13 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
 
   const handleWalletChange = (walletId: string): void => {
     if (!walletId || walletId === selectedWallet) return
-    setSelectedWallet(walletId)
-    switchWallet(walletId)
+    setPendingWalletId(walletId)
+  }
+
+  const handleUnlock = async (password: string): Promise<void> => {
+    if (!pendingWalletId) return
+    await switchWallet(pendingWalletId)
+    API.startShieldedSync(pendingWalletId, password).catch(() => {})
   }
 
   return (
@@ -106,6 +114,13 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       <main className={"flex-1 mt-12"}>
         {children}
       </main>
+
+      <WalletUnlockModal
+        isOpen={pendingWalletId !== null}
+        onClose={() => setPendingWalletId(null)}
+        walletId={pendingWalletId}
+        onUnlock={handleUnlock}
+      />
     </div>
   )
 }

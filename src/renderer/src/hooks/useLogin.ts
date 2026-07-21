@@ -61,6 +61,8 @@ export function useLogin(): UseLoginReturn {
       return false
     }
 
+    API.startShieldedSync(selectedWalletId, password).catch(() => {})
+
     return true
   }, [selectedWalletId, password])
 
