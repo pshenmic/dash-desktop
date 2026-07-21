@@ -182,6 +182,10 @@ export interface ShieldedPoolInfo {
   notesCount: string | null
 }
 
+export interface ShieldedNotesInfo {
+  undecodedCount: number
+}
+
 export interface ShieldedNoteInfo {
   index: number
   amount: string

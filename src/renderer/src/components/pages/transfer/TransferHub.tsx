@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
+import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
@@ -336,6 +337,7 @@ export default function TransferHub(): React.JSX.Element {
               >
                 <Text size={12} weight={"medium"} color={"brand"}>{notesSyncing ? 'Updating…' : 'Update my notes'}</Text>
               </button>
+              <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
             </>
           )}
         </div>

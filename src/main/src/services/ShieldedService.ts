@@ -35,6 +35,10 @@ export interface ShieldedPoolInfo {
   notesCount: string | null
 }
 
+export interface ShieldedNotesInfo {
+  undecodedCount: number
+}
+
 export interface ShieldedNoteInfo {
   index: number
   amount: string
@@ -443,6 +447,10 @@ export class ShieldedService {
       cursor += batch.length
       onProgress?.(covered, missing.length)
     }
+  }
+
+  async getNotesInfo(walletId: string): Promise<ShieldedNotesInfo> {
+    return {undecodedCount: await this.shieldedNoteDAO.getUndecodedCount(walletId)}
   }
 
   private idleSyncState(): ShieldedSyncState {

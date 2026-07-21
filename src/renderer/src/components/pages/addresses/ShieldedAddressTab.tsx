@@ -4,6 +4,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
@@ -148,6 +149,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   return (
     <>
     <div className={"flex flex-col gap-[.625rem]"}>
+      <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
       {addresses.map((address) => (
         <div key={address} className={"flex items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
           <div className={"flex items-center gap-2 min-w-0"}>

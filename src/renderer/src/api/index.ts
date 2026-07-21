@@ -1,4 +1,4 @@
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -139,6 +139,10 @@ export class API {
 
   static async getShieldedPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
     return this.api.getShieldedPoolInfo(network) as Promise<ShieldedPoolInfo>
+  }
+
+  static async getShieldedNotesInfo(walletId: string): Promise<ShieldedNotesInfo> {
+    return this.api.getShieldedNotesInfo(walletId) as Promise<ShieldedNotesInfo>
   }
 
   static async startShieldedSync(walletId: string, password: string): Promise<ShieldedSyncState> {

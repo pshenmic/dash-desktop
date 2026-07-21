@@ -60,6 +60,7 @@ export const apiDefinitions = (ipcRenderer) => ({
 
   getShieldedStatus: () => ipcRenderer.invoke('getShieldedStatus'),
   getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => ipcRenderer.invoke('getShieldedPoolInfo', network),
+  getShieldedNotesInfo: (walletId: string) => ipcRenderer.invoke('getShieldedNotesInfo', walletId),
   startShieldedSync: (walletId: string, password: string) => ipcRenderer.invoke('startShieldedSync', walletId, password),
   getShieldedSyncState: (walletId: string) => ipcRenderer.invoke('getShieldedSyncState', walletId),
   startShieldedTransfer: (walletId: string, recipient: string, amountCredits: string, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipient, amountCredits, password, noteIndexes),

@@ -6,6 +6,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { defaultReceiveShieldedAddress } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
@@ -57,6 +58,8 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
 
     return (
       <>
+        <div className={"flex flex-col gap-4 max-w-190"}>
+        <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
         <div className={"flex items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
           <QRCode
             value={selected}
@@ -100,6 +103,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
               {syncRunning ? 'Syncing…' : 'Sync balance'}
             </Button>
           </div>
+        </div>
         </div>
 
         <ShieldedUnlockModal

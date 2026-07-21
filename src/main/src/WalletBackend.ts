@@ -64,6 +64,7 @@ import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
+import {GetShieldedNotesInfoHandler} from './api/shielded/getShieldedNotesInfo'
 import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
 import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
 import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
@@ -164,6 +165,7 @@ export class WalletBackend {
     ipcMain.handle('deleteContact', new DeleteContactHandler(this.contactService).handle)
     ipcMain.handle('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)

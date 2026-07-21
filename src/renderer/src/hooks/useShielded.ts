@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
-import { Network, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { Network, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import {
+  SHIELDED_NOTES_INFO_POLL_MS,
   SHIELDED_POOL_REFRESH_MS,
   SHIELDED_STATUS_POLL_MS,
   SHIELDED_STATUS_RETRY_MS,
@@ -60,6 +61,19 @@ export function useShieldedPoolInfo(network: Network | undefined): {
     { errorMessage: 'Failed to load shielded pool info', refreshIntervalMs: SHIELDED_POOL_REFRESH_MS }
   )
   return { poolInfo: data, loading, err }
+}
+
+const INITIAL_NOTES_INFO: ShieldedNotesInfo = { undecodedCount: 0 }
+
+export function useShieldedNotesInfo(walletId: string | undefined): ShieldedNotesInfo {
+  const { data } = useAsyncWithCache<ShieldedNotesInfo>(
+    'shielded-notes-info',
+    walletId,
+    () => API.getShieldedNotesInfo(walletId!),
+    INITIAL_NOTES_INFO,
+    { errorMessage: 'Failed to load shielded notes info', refreshIntervalMs: SHIELDED_NOTES_INFO_POLL_MS }
+  )
+  return data
 }
 
 const INITIAL_SYNC_STATE: ShieldedSyncState = {
