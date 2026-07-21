@@ -185,16 +185,16 @@ export class API {
     return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
   }
 
-  static async startShieldedTransfer(walletId: string, recipient: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> {
-    return this.api.startShieldedTransfer(walletId, recipient, amountCredits, password, noteIndex) as Promise<ShieldedSpendState>
+  static async startShieldedTransfer(walletId: string, recipient: string, amountCredits: string, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    return this.api.startShieldedTransfer(walletId, recipient, amountCredits, password, noteIndexes) as Promise<ShieldedSpendState>
   }
 
-  static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> {
-    return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password, noteIndex) as Promise<ShieldedSpendState>
+  static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: string, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password, noteIndexes) as Promise<ShieldedSpendState>
   }
 
-  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: string, password: string, noteIndex?: number): Promise<ShieldedSpendState> {
-    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password, noteIndex) as Promise<ShieldedSpendState>
+  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: string, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password, noteIndexes) as Promise<ShieldedSpendState>
   }
 
   static async startShieldedIdentityCreate(walletId: string, denominationCredits: string, password: string): Promise<ShieldedSpendState> {
