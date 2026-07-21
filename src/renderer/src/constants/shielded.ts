@@ -1,0 +1,1 @@
+export const SHIELDED_POOL_REFRESH_MS = 15_000

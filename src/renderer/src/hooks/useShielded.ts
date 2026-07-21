@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { Network, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { SHIELDED_POOL_REFRESH_MS } from '@renderer/constants'
 import { useAsyncWithCache } from './useAsyncWithCache'
 
 const INITIAL_STATUS: ShieldedStatus = { prover: 'idle', ready: false, error: null }
@@ -37,8 +38,6 @@ export function useShieldedStatus(): ShieldedStatus {
 }
 
 const INITIAL_POOL_INFO: ShieldedPoolInfo = { poolState: null, notesCount: null }
-
-const SHIELDED_POOL_REFRESH_MS = 15_000
 
 export function useShieldedPoolInfo(network: Network | undefined): {
   poolInfo: ShieldedPoolInfo
