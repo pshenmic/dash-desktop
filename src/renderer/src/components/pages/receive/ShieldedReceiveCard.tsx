@@ -5,6 +5,7 @@ import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
+import { defaultReceiveShieldedAddress } from '@renderer/utils/receiveDefaults'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 
@@ -51,7 +52,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   }
 
   if (addresses !== null) {
-    const selected = addresses.find((a) => a === selectedAddress) ?? addresses[0]
+    const selected = addresses.find((a) => a === selectedAddress) ?? defaultReceiveShieldedAddress(addresses, balances)!
     const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
     return (

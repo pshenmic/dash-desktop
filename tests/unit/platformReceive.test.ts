@@ -27,7 +27,12 @@ describe('defaultReceivePlatformAddress', () => {
     expect(defaultReceivePlatformAddress(list)?.platformAddress).toBe('c')
   })
 
-  it('falls back to the first address when all are used', () => {
+  it('prefers a zero-balance address with an advanced nonce over funded ones', () => {
+    const list = [addr('a', '500', 2), addr('b', '0', 3), addr('c', '10', 0)]
+    expect(defaultReceivePlatformAddress(list)?.platformAddress).toBe('b')
+  })
+
+  it('falls back to the first address when all are funded', () => {
     const list = [addr('a', '500', 2), addr('b', '10', 0)]
     expect(defaultReceivePlatformAddress(list)?.platformAddress).toBe('a')
   })

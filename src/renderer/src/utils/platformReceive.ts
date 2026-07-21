@@ -5,5 +5,7 @@ export function isUnusedPlatformAddress(address: PlatformAddressDto): boolean {
 }
 
 export function defaultReceivePlatformAddress(addresses: PlatformAddressDto[]): PlatformAddressDto | undefined {
-  return addresses.find(isUnusedPlatformAddress) ?? addresses[0]
+  return addresses.find(isUnusedPlatformAddress)
+    ?? addresses.find((a) => BigInt(a.balanceCredits) === 0n)
+    ?? addresses[0]
 }
