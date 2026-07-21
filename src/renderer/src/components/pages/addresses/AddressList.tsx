@@ -6,6 +6,7 @@ import PlatformAddressCard from './PlatformAddressCard'
 import ShieldedAddressTab from './ShieldedAddressTab'
 import PlatformUnlockTab from './PlatformUnlockTab'
 import AddAddressSection from './AddAddressSection'
+import SyncGateNotice from '@renderer/components/ui/SyncGateNotice'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -47,8 +48,8 @@ function TabContent<T>({
   )
 }
 
-export default function AddressList(): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState('receiving')
+export default function AddressList({ coreGated = false }: { coreGated?: boolean }): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState(coreGated ? 'platform' : 'receiving')
   const { tabs } = addressesPage
   const { status } = useAuth()
   const { receiving, change, loading, err } = useAdresses(status?.selectedWalletId ?? undefined)
@@ -64,7 +65,7 @@ export default function AddressList(): React.JSX.Element {
     {
       value: 'receiving',
       label: tabs.receiving,
-      content: (
+      content: coreGated ? <SyncGateNotice /> : (
         <div className={"flex flex-col gap-[.625rem]"}>
           <TabContent
             items={receiving}
@@ -81,7 +82,7 @@ export default function AddressList(): React.JSX.Element {
     {
       value: 'change',
       label: tabs.change,
-      content: (
+      content: coreGated ? <SyncGateNotice /> : (
         <div className={"flex flex-col gap-[.625rem]"}>
           <TabContent
             items={change}
