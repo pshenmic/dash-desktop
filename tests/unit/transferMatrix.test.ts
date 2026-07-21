@@ -90,6 +90,12 @@ describe('operationInfo', () => {
     expect(operationInfo(TransferOperation.IdentityToIdentity)).toMatchObject({unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n})
   })
 
+  it('leaves the fee null for pool-paid shielded spends (computed from note count)', () => {
+    expect(operationInfo(TransferOperation.ShieldedTransfer).feeCredits).toBeNull()
+    expect(operationInfo(TransferOperation.Unshield).feeCredits).toBeNull()
+    expect(operationInfo(TransferOperation.ShieldedWithdrawal).feeCredits).toBeNull()
+  })
+
   it('uses dash units without a credits fee for L1-sourced operations', () => {
     expect(operationInfo(TransferOperation.CoreSend)).toMatchObject({unit: 'dash', feeCredits: null})
     expect(operationInfo(TransferOperation.AssetLockShield)).toMatchObject({unit: 'dash', feeCredits: null})

@@ -21,6 +21,8 @@ import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
+import { minimumShieldedFeeCredits, shieldedWithdrawalFeeCredits, unshieldFeeCredits } from "@renderer/utils/shieldedFee";
+import { maxSpendableCredits, selectSpendNotes, SpendFeeForCount } from "@renderer/utils/shieldedNoteSelection";
 import {
   SOURCE_KINDS,
   DESTINATION_KINDS,
@@ -53,6 +55,18 @@ import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
+
+const ZERO_SPEND_FEE: SpendFeeForCount = () => 0n
+
+function shieldedFeeForOperation(operation: TransferOperation | null): SpendFeeForCount | null {
+  switch (operation) {
+    case TransferOperation.ShieldedTransfer: return minimumShieldedFeeCredits
+    case TransferOperation.Unshield: return unshieldFeeCredits
+    case TransferOperation.ShieldedWithdrawal: return shieldedWithdrawalFeeCredits
+    case TransferOperation.IdentityCreateFromPool: return ZERO_SPEND_FEE
+    default: return null
+  }
+}
 
 function initialSourceKind(value: string | null): SourceKind {
   return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : SourceKind.Core
@@ -182,19 +196,29 @@ export default function TransferHub(): React.JSX.Element {
   const isDashUnit = info?.unit === 'dash'
   const amountDuffs = useMemo(() => (isDashUnit ? dashToDuffs(amount) : 0n), [isDashUnit, amount])
   const amountCredits = !isDashUnit && amount.length > 0 ? BigInt(amount) : 0n
-  const feeCredits = info?.feeCredits ?? 0n
   const minCredits = info?.minCredits ?? 0n
 
+  const shieldedFeeForCount = shieldedFeeForOperation(operation)
+  const shieldedCandidates = useMemo(
+    () => (shieldedFeeForCount != null && shieldedSync.phase === ShieldedSyncPhase.Done
+      ? (shieldedSpecificNotes ?? spendableNotes).map(n => ({ index: n.index, value: BigInt(n.amount) }))
+      : null),
+    [shieldedFeeForCount, shieldedSync.phase, shieldedSpecificNotes, spendableNotes],
+  )
+  const shieldedSelection = useMemo(
+    () => (shieldedCandidates != null && shieldedFeeForCount != null && amountCredits > 0n
+      ? selectSpendNotes(shieldedCandidates, amountCredits, MAX_SPEND_NOTES, shieldedFeeForCount)
+      : null),
+    [shieldedCandidates, shieldedFeeForCount, amountCredits],
+  )
+  const feeCredits = shieldedFeeForCount != null
+    ? (shieldedSelection?.feeCredits ?? shieldedFeeForCount(1))
+    : (info?.feeCredits ?? 0n)
+
   const shieldedMaxPerTx = useMemo(() => {
-    if (fromKind !== SourceKind.Shielded || shieldedSync.phase !== ShieldedSyncPhase.Done) return null
-    const candidates = shieldedSpecificNotes ?? shieldedSync.notes.filter((note) => !note.spent)
-    const top = candidates
-      .map((note) => BigInt(note.amount))
-      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
-      .slice(0, MAX_SPEND_NOTES)
-    const total = top.reduce((sum, value) => sum + value, 0n)
-    return total > feeCredits ? total - feeCredits : 0n
-  }, [fromKind, shieldedSync.phase, shieldedSync.notes, feeCredits, shieldedSpecificNotes])
+    if (shieldedCandidates == null || shieldedFeeForCount == null) return null
+    return maxSpendableCredits(shieldedCandidates, MAX_SPEND_NOTES, shieldedFeeForCount)
+  }, [shieldedCandidates, shieldedFeeForCount])
 
   const trimmedTo = toValue.trim()
 
@@ -262,10 +286,12 @@ export default function TransferHub(): React.JSX.Element {
       setAmount(davToDash(balanceDuffs))
       return
     }
+    if (shieldedMaxPerTx !== null) {
+      setAmount(shieldedMaxPerTx > 0n ? shieldedMaxPerTx.toString() : '0')
+      return
+    }
     if (availableCredits === null) return
-    const spendable = shieldedMaxPerTx !== null && shieldedMaxPerTx < availableCredits - feeCredits
-      ? shieldedMaxPerTx
-      : availableCredits - feeCredits
+    const spendable = availableCredits - feeCredits
     setAmount(spendable > 0n ? spendable.toString() : '0')
   }
 
@@ -284,7 +310,7 @@ export default function TransferHub(): React.JSX.Element {
         : availableCredits !== null && amountCredits + feeCredits > availableCredits
           ? `Amount plus the ${feeCredits.toLocaleString('en-US')} credit fee exceeds this balance.`
           : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
-            ? `Limited to ${MAX_SPEND_NOTES} notes per transaction — max right now is ${shieldedMaxPerTx.toLocaleString('en-US')} credits.`
+            ? `Max per transaction right now is ${shieldedMaxPerTx.toLocaleString('en-US')} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
             : null
 
   const resetForm = (): void => {

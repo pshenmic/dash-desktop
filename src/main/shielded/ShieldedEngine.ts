@@ -16,7 +16,8 @@ import {Network} from '../src/types'
 import {SHIELDED_NOTES_FETCH_BATCH} from '../src/constants'
 import {coreAddressToScript} from '../src/utils/coreScript'
 import {IDENTITY_KEY_DEFINITIONS} from '../src/utils/identityKeys'
-import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
+import {maxSpendableCredits, selectSpendNotes, SpendFeeForCount} from '../src/utils/shieldedNoteSelection'
+import {minimumShieldedFeeCredits, shieldedWithdrawalFeeCredits, unshieldFeeCredits} from '../src/utils/shieldedFee'
 import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind} from './types/messages'
 
 type SyncCommand = Extract<ShieldedCommand, {type: 'sync'}>
@@ -33,7 +34,6 @@ const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 // Platform caps state transitions at ~20KB and the Halo2 proof grows with the
 // number of Orchard actions, so spends are limited to 6 notes per transition.
 const MAX_SPEND_NOTES = 6
-const SPEND_FEE_CREDITS = 6_500_000n
 // Notes spent before local bookkeeping existed (or by another install) are
 // only detectable on-chain: a built transition exposes its action nullifiers,
 // so stale selections are caught before broadcast and repaired by re-selecting.
@@ -137,15 +137,22 @@ export class ShieldedEngine {
           : unspent
         if (available.length === 0) throw new Error('Selected note is no longer available to spend')
 
-        const feeCredits = kind === 'identityCreate' ? 0n : SPEND_FEE_CREDITS
+        const feeForCount: SpendFeeForCount =
+          kind === 'identityCreate' ? () => 0n
+          : kind === 'transfer' ? minimumShieldedFeeCredits
+          : kind === 'unshield' ? unshieldFeeCredits
+          : shieldedWithdrawalFeeCredits
         const selectable = available.map((note) => ({ index: note.index, value: note.note.value }))
-        const selection = selectSpendNotes(selectable, amount + feeCredits, MAX_SPEND_NOTES)
+        const selection = selectSpendNotes(selectable, amount, MAX_SPEND_NOTES, feeForCount)
         if (selection == null) {
-          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, feeCredits)
+          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, feeForCount)
           throw new Error(
-            `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
-            `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
-            `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+            selectable.length > MAX_SPEND_NOTES
+              ? `Amount plus the network fee needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
+                `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
+                `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+              : `Amount plus the network fee exceeds your spendable notes. ` +
+                `Max per transaction right now: ${max.toLocaleString('en-US')} credits.`
           )
         }
         const selectedIndexes = new Set(selection.selected.map((note) => note.index))

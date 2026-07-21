@@ -69,9 +69,9 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.IdentityToAddress]: {title: 'Send from identity', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
   [TransferOperation.IdentityToIdentity]: {title: 'Send to identity', submitLabel: 'Send', unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n},
   [TransferOperation.IdentityWithdrawal]: {title: 'Withdraw from identity', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 400_000_000n, minCredits: 100_000n},
-  [TransferOperation.ShieldedTransfer]: {title: 'Send privately', submitLabel: 'Send', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
-  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n},
+  [TransferOperation.ShieldedTransfer]: {title: 'Send privately', submitLabel: 'Send', unit: 'credits', feeCredits: null, minCredits: 500_000n},
+  [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', feeCredits: null, minCredits: 500_000n},
+  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', feeCredits: null, minCredits: 500_000n},
   [TransferOperation.IdentityCreateFromPool]: {title: 'Create identity from pool', submitLabel: 'Create', unit: 'credits', feeCredits: 0n, minCredits: 10_000_000_000n},
 }
 
