@@ -86,14 +86,10 @@ export default function NavLinkItem({item}: {item: NavGroupProps}): React.JSX.El
   useEffect(() => {
     if (isActive && navRef.current) {
       activeRipple.show(navRef.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isActive) {
+    } else {
       activeRipple.hide()
     }
-  }, [isActive, activeRipple.hide])
+  }, [isActive, activeRipple.show, activeRipple.hide])
 
   return (
     <NavLink
