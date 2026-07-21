@@ -6,8 +6,8 @@ import {
   authTexts,
   forgotPasswordTexts,
   messages,
-  ForgotPasswordStep,
 } from '@renderer/constants'
+import { ForgotPasswordStep } from '@renderer/enums/ForgotPasswordStep'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { toast } from '@renderer/components/ui/Toast'
 import { toDropdownOptions } from '@renderer/utils/wallets'
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
     refreshWallets()
   }, [])
 
-  const [step, setStep] = useState<ForgotPasswordStep>('seed')
+  const [step, setStep] = useState<ForgotPasswordStep>(ForgotPasswordStep.Seed)
   const [mnemonic, setMnemonic] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -56,7 +56,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
         return
       }
       setMnemonic(phrase)
-      setStep('password')
+      setStep(ForgotPasswordStep.Password)
     } catch {
       toast.error(seedMismatch)
     } finally {
@@ -80,7 +80,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
     try {
       const ok = await API.resetWalletPassword(selectedWalletId, mnemonic, password)
       if (ok) {
-        setStep('success')
+        setStep(ForgotPasswordStep.Success)
       } else {
         toast.error(resetFailed)
       }
@@ -115,7 +115,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
           </Text>
         </div>
 
-        {step === 'seed' && (
+        {step === ForgotPasswordStep.Seed && (
           <div className={"flex flex-col gap-6 w-full"}>
             <div className={"flex flex-col gap-[.625rem] max-w-100"}>
               <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
@@ -138,7 +138,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
           </div>
         )}
 
-        {step === 'password' && (
+        {step === ForgotPasswordStep.Password && (
           <form onSubmit={handleReset} className={"flex flex-col gap-3.75 w-full"}>
             <div className={"grid grid-cols-2 gap-3.75"}>
               <div className={"flex flex-col gap-[.625rem]"}>
@@ -190,7 +190,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
           </form>
         )}
 
-        {step === 'success' && (
+        {step === ForgotPasswordStep.Success && (
           <Link to={"/"} className={"w-full"}>
             <Button
               type={"button"}
@@ -203,7 +203,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
           </Link>
         )}
 
-        {step !== 'success' && (
+        {step !== ForgotPasswordStep.Success && (
           <div className={"flex items-center justify-center gap-[.9375rem] mt-6"}>
             <Link
               to={"/"}

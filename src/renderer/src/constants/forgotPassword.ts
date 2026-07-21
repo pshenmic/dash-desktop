@@ -1,12 +1,8 @@
-export type ForgotPasswordStep = 'seed' | 'password' | 'success'
+import { ForgotPasswordStep } from '../enums/ForgotPasswordStep'
 
 export interface ForgotPasswordTexts {
   title: string
-  description: {
-    seed: string
-    password: string
-    success: string
-  }
+  description: Record<ForgotPasswordStep, string>
   form: {
     walletLabel: string
     newPasswordLabel: string
@@ -22,9 +18,9 @@ export interface ForgotPasswordTexts {
 export const forgotPasswordTexts: ForgotPasswordTexts = {
   title: 'Reset Password',
   description: {
-    seed: 'Enter the recovery phrase of the selected wallet to prove ownership.',
-    password: 'The recovery phrase matches. Choose a new password for your wallet.',
-    success: 'Your password has been updated. Log in with your new password.',
+    [ForgotPasswordStep.Seed]: 'Enter the recovery phrase of the selected wallet to prove ownership.',
+    [ForgotPasswordStep.Password]: 'The recovery phrase matches. Choose a new password for your wallet.',
+    [ForgotPasswordStep.Success]: 'Your password has been updated. Log in with your new password.',
   },
   form: {
     walletLabel: 'Wallet',
