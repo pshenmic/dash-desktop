@@ -5,6 +5,7 @@ import { TypeUseCreateWallet } from '@renderer/hooks/useCreateWallet';
 import { CreateWalletTexts, messages } from '@renderer/constants';
 import { getPasswordValidationError } from '@renderer/utils/passwordValidation';
 import { toast } from '@renderer/components/ui/Toast';
+import Spinner from '@renderer/components/ui/Spinner';
 
 type CreateWalletData = Pick<
   CreateWalletTexts,
@@ -126,7 +127,7 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
         className={"rounded-[.9375rem] p-4.5"}
         disabled={tooShortOrEmpty || loading}
       >
-        {data.buttonNext}
+        {loading ? <Spinner size={20} className={"mx-auto"} /> : data.buttonNext}
       </Button>
     </form>
   )
