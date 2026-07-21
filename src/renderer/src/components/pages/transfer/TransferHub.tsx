@@ -39,6 +39,7 @@ import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
 import CoreAddressSelect from "@renderer/components/pages/receive/CoreAddressSelect";
+import ShieldedNoteSelect from "./ShieldedNoteSelect";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
 import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
@@ -70,6 +71,7 @@ export default function TransferHub(): React.JSX.Element {
   const [acked, setAcked] = useState(false)
   const [useSpecificSource, setUseSpecificSource] = useState(false)
   const [coreFromAddress, setCoreFromAddress] = useState<string | null>(null)
+  const [shieldedNoteIndex, setShieldedNoteIndex] = useState<number | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
@@ -141,13 +143,23 @@ export default function TransferHub(): React.JSX.Element {
   const selectedCoreAddress = coreAddresses.find(a => a.address === coreFromAddress) ?? coreAddresses[0]
   const coreSpecificAddress = operation === 'coreSend' && useSpecificSource ? selectedCoreAddress : undefined
 
+  const spendableNotes = useMemo(
+    () => (shieldedSync.phase === 'done' ? shieldedSync.notes.filter(n => !n.spent) : [])
+      .slice()
+      .sort((a, b) => (BigInt(a.amount) < BigInt(b.amount) ? 1 : BigInt(a.amount) > BigInt(b.amount) ? -1 : 0)),
+    [shieldedSync.phase, shieldedSync.notes],
+  )
+  const shieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
+  const selectedNote = spendableNotes.find(n => n.index === shieldedNoteIndex) ?? spendableNotes[0]
+  const shieldedSpecificNote = shieldedSpendOperation && useSpecificSource ? selectedNote : undefined
+
   const balanceDuffs = coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
   const shieldedBalance = shieldedSync.phase === 'done' && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
 
   const availableCredits: bigint | null =
     fromKind === 'platformAddress' ? (selectedSource ? BigInt(selectedSource.balanceCredits) : 0n)
     : fromKind === 'identity' ? (selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n)
-    : fromKind === 'shielded' ? shieldedBalance
+    : fromKind === 'shielded' ? (shieldedSpecificNote ? BigInt(shieldedSpecificNote.amount) : shieldedBalance)
     : null
 
   const isDashUnit = info?.unit === 'dash'
@@ -158,6 +170,10 @@ export default function TransferHub(): React.JSX.Element {
 
   const shieldedMaxPerTx = useMemo(() => {
     if (fromKind !== 'shielded' || shieldedSync.phase !== 'done') return null
+    if (shieldedSpecificNote != null) {
+      const noteAmount = BigInt(shieldedSpecificNote.amount)
+      return noteAmount > feeCredits ? noteAmount - feeCredits : 0n
+    }
     const top = shieldedSync.notes
       .filter((note) => !note.spent)
       .map((note) => BigInt(note.amount))
@@ -165,7 +181,7 @@ export default function TransferHub(): React.JSX.Element {
       .slice(0, MAX_SPEND_NOTES)
     const total = top.reduce((sum, value) => sum + value, 0n)
     return total > feeCredits ? total - feeCredits : 0n
-  }, [fromKind, shieldedSync.phase, shieldedSync.notes, feeCredits])
+  }, [fromKind, shieldedSync.phase, shieldedSync.notes, feeCredits, shieldedSpecificNote])
 
   const trimmedTo = toValue.trim()
 
@@ -278,18 +294,25 @@ export default function TransferHub(): React.JSX.Element {
         onIdentityChange={setFromIdentity}
       />
 
-      {operation === 'coreSend' && (
+      {(operation === 'coreSend' || shieldedSpendOperation) && (
         <div className={"flex flex-col gap-2"}>
           <Checkbox
             checked={useSpecificSource}
             onChange={setUseSpecificSource}
-            label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
+            label={<Text size={12} weight={"medium"} color={"brand"}>{operation === 'coreSend' ? 'Send from a specific address' : 'Send from a specific note'}</Text>}
           />
-          {useSpecificSource && (
+          {useSpecificSource && operation === 'coreSend' && (
             <CoreAddressSelect
               addresses={coreAddresses}
               selected={selectedCoreAddress}
               onSelect={setCoreFromAddress}
+            />
+          )}
+          {useSpecificSource && shieldedSpendOperation && (
+            <ShieldedNoteSelect
+              notes={spendableNotes}
+              selected={selectedNote}
+              onSelect={setShieldedNoteIndex}
             />
           )}
         </div>
@@ -517,10 +540,11 @@ export default function TransferHub(): React.JSX.Element {
     if (!walletId) {
       return Promise.resolve<ShieldedSpendState>({ phase: 'error', fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
-    if (operation === 'shieldedTransfer') return API.startShieldedTransfer(walletId, trimmedTo, amountCredits.toString(), password)
-    if (operation === 'unshield') return API.startShieldedUnshield(walletId, trimmedTo, amountCredits.toString(), password)
+    const noteIndex = shieldedSpecificNote?.index
+    if (operation === 'shieldedTransfer') return API.startShieldedTransfer(walletId, trimmedTo, amountCredits.toString(), password, noteIndex)
+    if (operation === 'unshield') return API.startShieldedUnshield(walletId, trimmedTo, amountCredits.toString(), password, noteIndex)
     if (operation === 'identityCreateFromPool') return API.startShieldedIdentityCreate(walletId, amountCredits.toString(), password)
-    return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits.toString(), password)
+    return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits.toString(), password, noteIndex)
   }
 
   const runPlatformOperation = (password: string) => {

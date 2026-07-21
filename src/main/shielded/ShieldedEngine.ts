@@ -131,8 +131,13 @@ export class ShieldedEngine {
         const unspent = recovered.filter((note) => !spent.has(note.index))
         if (unspent.length === 0) throw new Error('No shielded notes available to spend')
 
+        const available = command.noteIndexes != null
+          ? unspent.filter((note) => command.noteIndexes!.includes(note.index))
+          : unspent
+        if (available.length === 0) throw new Error('Selected note is no longer available to spend')
+
         const feeCredits = kind === 'identityCreate' ? 0n : SPEND_FEE_CREDITS
-        const selectable = unspent.map((note) => ({ index: note.index, value: note.note.value }))
+        const selectable = available.map((note) => ({ index: note.index, value: note.note.value }))
         const selection = selectSpendNotes(selectable, amount + feeCredits, MAX_SPEND_NOTES)
         if (selection == null) {
           const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, feeCredits)
@@ -143,7 +148,7 @@ export class ShieldedEngine {
           )
         }
         const selectedIndexes = new Set(selection.selected.map((note) => note.index))
-        const toSpend = unspent.filter((note) => selectedIndexes.has(note.index))
+        const toSpend = available.filter((note) => selectedIndexes.has(note.index))
 
         const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, toSpend)
 
