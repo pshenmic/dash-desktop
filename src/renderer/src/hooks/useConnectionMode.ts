@@ -6,7 +6,7 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 const LS_DESIRED_KEY = 'wallet.connection.desired'
 const CONNECTION_TYPES: readonly ConnectionType[] = ['rpc', 'p2p']
 
-function readDesired(): ConnectionType {
+export function readDesired(): ConnectionType {
   const raw = localStorage.getItem(LS_DESIRED_KEY)
   return CONNECTION_TYPES.includes(raw as ConnectionType) ? (raw as ConnectionType) : 'rpc'
 }

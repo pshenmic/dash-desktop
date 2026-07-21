@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { Network, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
-import { SHIELDED_POOL_REFRESH_MS } from '@renderer/constants'
+import {
+  SHIELDED_POOL_REFRESH_MS,
+  SHIELDED_STATUS_POLL_MS,
+  SHIELDED_STATUS_RETRY_MS,
+  SHIELDED_SYNC_ACTIVE_POLL_MS,
+  SHIELDED_SYNC_IDLE_POLL_MS
+} from '@renderer/constants'
 import { useAsyncWithCache } from './useAsyncWithCache'
 
 const INITIAL_STATUS: ShieldedStatus = { prover: 'idle', ready: false, error: null }
@@ -19,10 +25,10 @@ export function useShieldedStatus(): ShieldedStatus {
         if (dead) return
         setStatus(next)
         if (next.prover !== 'ready' && next.prover !== 'error') {
-          timer = setTimeout(() => { void poll() }, 1500)
+          timer = setTimeout(() => { void poll() }, SHIELDED_STATUS_POLL_MS)
         }
       } catch {
-        if (!dead) timer = setTimeout(() => { void poll() }, 2000)
+        if (!dead) timer = setTimeout(() => { void poll() }, SHIELDED_STATUS_RETRY_MS)
       }
     }
 
@@ -80,7 +86,7 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
       } catch {
         /* keep last state, retry */
       }
-      if (!dead) timer = setTimeout(() => { void poll() }, running ? 600 : 2500)
+      if (!dead) timer = setTimeout(() => { void poll() }, running ? SHIELDED_SYNC_ACTIVE_POLL_MS : SHIELDED_SYNC_IDLE_POLL_MS)
     }
 
     void poll()

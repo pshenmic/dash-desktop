@@ -61,6 +61,7 @@ export interface ShieldedSpendState {
 
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
+const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 
 // Cap on the per-child output we retain; attached to crash reports so a
 // worker death carries its own cause instead of just an exit code.
@@ -166,7 +167,7 @@ export class ShieldedService {
   private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
     const existing = await this.identityDAO.getByIdentifier(context.walletId, identifier)
     if (existing != null) return
-    const coinType = context.network === 'mainnet' ? 5 : 1
+    const coinType = COIN_TYPE[context.network]
     await this.identityDAO.insertIdentity({
       walletId: context.walletId,
       identityIndex: context.identityIndex,

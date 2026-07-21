@@ -33,7 +33,7 @@ import {
 } from "@renderer/utils/transferMatrix";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import { sendPageData } from "@renderer/constants";
+import { sendPageData, MAX_SPEND_NOTES } from "@renderer/constants";
 import AmountField from "./AmountField";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
@@ -46,8 +46,6 @@ import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
-
-const MAX_SPEND_NOTES = 6
 
 function initialSourceKind(value: string | null): SourceKind {
   return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : 'core'

@@ -8,6 +8,7 @@ import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { ShieldedSpendState } from '@renderer/api/types'
 import Spinner from '@renderer/components/ui/Spinner'
+import { SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
 
 interface ShieldedSpendModalProps {
   isOpen: boolean
@@ -81,10 +82,10 @@ export default function ShieldedSpendModal({
           onSuccess()
         }
         if (next.phase !== 'done' && next.phase !== 'error') {
-          timer = setTimeout(() => { void poll() }, 700)
+          timer = setTimeout(() => { void poll() }, SHIELDED_SPEND_POLL_MS)
         }
       } catch {
-        if (!dead) timer = setTimeout(() => { void poll() }, 1000)
+        if (!dead) timer = setTimeout(() => { void poll() }, SHIELDED_SPEND_RETRY_MS)
       }
     }
     void poll()

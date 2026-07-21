@@ -1,6 +1,6 @@
 import {Knex} from 'knex'
+import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
 
-export type AssetLockFundingStatus = 'l1_broadcast' | 'chainlocked' | 'st_broadcast' | 'done' | 'error'
 export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
 
 export interface AssetLockFundingRow {
@@ -81,7 +81,7 @@ export class AssetLockDAO {
   getActiveFunding = async (walletId: string): Promise<AssetLockFundingRow | null> => {
     const row = await this.knex('asset_lock_fundings')
       .where({wallet_id: walletId})
-      .whereIn('status', ['l1_broadcast', 'chainlocked', 'st_broadcast'])
+      .whereIn('status', [AssetLockFundingStatus.L1Broadcast, AssetLockFundingStatus.ChainLocked, AssetLockFundingStatus.StBroadcast])
       .orderBy('id', 'desc')
       .first()
     return row ? fromRow(row) : null

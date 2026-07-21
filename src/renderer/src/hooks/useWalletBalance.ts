@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { API } from '@renderer/api'
+import { BALANCE_REFRESH_MS } from '@renderer/constants'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type WalletBalanceData = {
@@ -26,7 +27,7 @@ export function useWalletBalance(walletId: string | undefined) {
     walletId,
     () => fetchBalance(walletId!),
     initial,
-    { errorMessage: 'Failed to load balance', refreshIntervalMs: 30_000 }
+    { errorMessage: 'Failed to load balance', refreshIntervalMs: BALANCE_REFRESH_MS }
   )
   return { balance: data, loading, err }
 }

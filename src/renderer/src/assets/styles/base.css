@@ -54,6 +54,41 @@ body::-webkit-scrollbar {
   display: none !important;
 }
 
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-dash-primary-dark-blue) 25%, transparent) transparent;
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  width: 0.375rem;
+  height: 0.375rem;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-dash-primary-dark-blue) 25%, transparent);
+  border-radius: 9999px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-dash-primary-dark-blue) 40%, transparent);
+}
+
+.dark .scrollbar-custom {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.dark .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
 @keyframes sync-shimmer {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }

@@ -115,7 +115,7 @@ export default function DropdownSelect({
         : trigger}
 
       <div className={dropdownStyles({ isOpen })}>
-        <div className={"max-h-72 overflow-y-auto"}>
+        <div className={"max-h-72 overflow-y-auto scrollbar-custom"}>
           {sortedOptions.map((option, index) => {
             const isTestnet = option.network === 'testnet'
             const row = (

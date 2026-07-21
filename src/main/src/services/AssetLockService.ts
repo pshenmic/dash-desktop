@@ -10,6 +10,8 @@ import {Transaction as SDKTransaction, utils as coreUtils} from 'dash-core-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
+import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
+import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
 import {WalletService} from './WalletService'
@@ -19,32 +21,9 @@ import {AssetLockProof, IdentityRegistrationService} from './IdentityRegistratio
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
 
-export type AssetLockFundingPhase =
-  | 'idle'
-  | 'resumable'
-  | 'building'
-  | 'broadcastingL1'
-  | 'waitingChainLock'
-  | 'broadcastingST'
-  | 'done'
-  | 'error'
-
-export interface AssetLockFundingState {
-  phase: AssetLockFundingPhase
-  kind: AssetLockFundingKind
-  txid: string | null
-  txHeight: number | null
-  chainLockedHeight: number | null
-  lockKind: 'instant' | 'chain' | null
-  stHash: string | null
-  toPlatformAddress: string | null
-  identityIdentifier: string | null
-  amountDuffs: string | null
-  error: string | null
-}
-
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
+const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
 
 export class AssetLockService {
@@ -226,7 +205,7 @@ export class AssetLockService {
         amountDuffs: amountDuffs.toString(),
         toPlatformAddress,
         kind,
-        status: 'l1_broadcast',
+        status: AssetLockFundingStatus.L1Broadcast,
         identityIndex,
         txHex: broadcasted.tx.hex(),
         createdAt: Math.floor(Date.now() / 1000),
@@ -331,7 +310,7 @@ export class AssetLockService {
       state.chainLockedHeight = assetLockProof.coreChainLockedHeight
     }
 
-    await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
 
     state.phase = 'broadcastingST'
 
@@ -342,7 +321,7 @@ export class AssetLockService {
     state.stHash = stHash
     state.phase = 'done'
 
-    await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
   }
 
   private async broadcastAddressFundingSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, assetLockProof: AssetLockProof): Promise<string> {
@@ -371,7 +350,7 @@ export class AssetLockService {
     transition.signature = creditKey.sign(unsignedSt.getSignableBytes())
     const signedSt = transition.toStateTransition()
 
-    await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
 
     await sdk.stateTransitions.broadcast(signedSt)
     await sdk.stateTransitions.waitForStateTransitionResult(signedSt)
@@ -382,7 +361,7 @@ export class AssetLockService {
   private async broadcastShieldSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, assetLockProof: AssetLockProof): Promise<string> {
     const surplus = await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
 
-    await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
 
     return this.shieldedService.shieldFromAssetLock(network, seed, {
       txid: row.txid,
@@ -424,7 +403,7 @@ export class AssetLockService {
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
     state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
 
-    await this.assetLockDAO.updateStatus(row.txid, 'chainlocked')
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
 
     state.phase = 'broadcastingST'
 
@@ -432,7 +411,7 @@ export class AssetLockService {
       const stateTransition = this.identityRegistrationService.buildIdentityTopUpTransition(row.toPlatformAddress, fundingKey, assetLockProof, network)
       const stHash = stateTransition.hash(false)
 
-      await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+      await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
 
       let alreadyOnPlatform = false
       try {
@@ -452,7 +431,7 @@ export class AssetLockService {
       state.stHash = stHash
       state.phase = 'done'
 
-      await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
+      await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
       return
     }
 
@@ -469,7 +448,7 @@ export class AssetLockService {
     // back on a non-idempotent broadcast failure so local state never holds a
     // phantom identity. A pre-existing record (a previous attempt) is treated
     // as recovery.
-    const coinType = network === 'mainnet' ? 5 : 1
+    const coinType = COIN_TYPE[network]
     const existing = await this.identityDAO.getByIdentifier(wallet.walletId, identifier)
     let wasJustCreated = false
     if (existing == null) {
@@ -482,7 +461,7 @@ export class AssetLockService {
       wasJustCreated = true
     }
 
-    await this.assetLockDAO.updateStatus(row.txid, 'st_broadcast')
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
 
     let alreadyOnPlatform = false
     try {
@@ -506,7 +485,7 @@ export class AssetLockService {
     state.stHash = stHash
     state.phase = 'done'
 
-    await this.assetLockDAO.updateStatus(row.txid, 'done', {stHash})
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
   }
 
   private isAlreadyInChain(e: unknown): boolean {

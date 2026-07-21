@@ -45,7 +45,7 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
         {variant === 'dash' ?
           <DashLogo width={20} height={20} containerSize={39} color={theme === 'light' ? 'white' : 'var(--color-dash-brand)'}/>
         : variant === 'shielded' ?
-          <ShieldSmallIcon size={15}/>
+          <ShieldSmallIcon size={15} color={"#4C7EFF"}/>
         :
           <CreditsIcon size={15}/>
         }

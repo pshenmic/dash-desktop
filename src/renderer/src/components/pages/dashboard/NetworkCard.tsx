@@ -1,17 +1,13 @@
 import { Text, WebIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { ConnectionType } from '@renderer/api/types'
 import { describeDataSource, describeNetworkStatus, NetworkStatusTone } from '@renderer/utils/networkStatus'
+import { readDesired } from '@renderer/hooks/useConnectionMode'
 
 const STATUS_TONES: Record<NetworkStatusTone, { pill: string; dot: string; text: string }> = {
   ok: { pill: 'bg-dash-green-15', dot: 'bg-dash-green', text: 'text-dash-green' },
   busy: { pill: 'bg-dash-orange-15', dot: 'bg-dash-orange', text: 'text-dash-orange' },
   warn: { pill: 'bg-dash-red-15', dot: 'bg-dash-red', text: 'text-dash-red' }
-}
-
-function desiredConnection(): ConnectionType {
-  return localStorage.getItem('wallet.connection.desired') === 'p2p' ? 'p2p' : 'rpc'
 }
 
 function MiniStat({ label, value }: { label: string; value: React.ReactNode }): React.JSX.Element {
@@ -62,7 +58,7 @@ export default function NetworkCard(): React.JSX.Element {
 
       <MiniStat label={labels.chainTip} value={tipHeight > 0 ? tipHeight.toLocaleString('en-US') : '—'} />
       <MiniStat label={labels.peers} value={syncActive ? peerCount.toLocaleString('en-US') : '—'} />
-      <MiniStat label={labels.dataSource} value={describeDataSource(desiredConnection(), sync?.phase)} />
+      <MiniStat label={labels.dataSource} value={describeDataSource(readDesired(), sync?.phase)} />
     </div>
   )
 }
