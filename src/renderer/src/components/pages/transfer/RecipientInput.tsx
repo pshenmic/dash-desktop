@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { Avatar, Identifier } from 'dash-ui-kit/react'
+import { Identifier } from 'dash-ui-kit/react'
 import { TransferPageType } from '@renderer/constants'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
@@ -87,13 +87,6 @@ export default function RecipientInput({
             className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 p-0 w-full"}
             placeholder={data.placeholder}
             colorScheme={"transparent"}
-            prefixClassName={"flex items-center"}
-            prefix={
-              <Avatar
-                username={"account"}
-                className={"size-5"}
-              />
-            }
           />
           {trimmedValue.length > 0 && (
             isValidRecipient ? (
