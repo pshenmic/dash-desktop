@@ -195,6 +195,7 @@ export class ShieldedService {
       return
     }
     if (event.type === 'syncResult') {
+      const walletId = this.pendingSyncs.get(event.requestId)
       const state = this.stateForSync(event.requestId)
       this.pendingSyncs.delete(event.requestId)
       if (state == null) return
@@ -203,6 +204,10 @@ export class ShieldedService {
         state.notes = event.notes
         state.phase = 'done'
         state.syncedAt = Date.now()
+        if (walletId != null) {
+          this.shieldedNoteDAO.upsertNotes(walletId, event.notes).catch(e =>
+            console.error('Failed to persist shielded notes', e))
+        }
       } else {
         state.phase = 'error'
         state.error = event.error
