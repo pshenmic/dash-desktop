@@ -1,0 +1,2 @@
+export const MIN_WALLET_PASSWORD_LENGTH = 8
+export const MAX_WALLET_PASSWORD_LENGTH = 128

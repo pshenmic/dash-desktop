@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DashLogo, useTheme } from 'dash-ui-kit/react'
 import { Text, Button, Input, WalletIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { Link } from 'react-router-dom'
@@ -7,12 +7,11 @@ import {
   forgotPasswordTexts,
   messages,
   ForgotPasswordStep,
-  MIN_WALLET_PASSWORD_LENGTH,
-  MAX_WALLET_PASSWORD_LENGTH,
 } from '@renderer/constants'
-import { useLogin } from '@renderer/hooks/useLogin'
+import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { toast } from '@renderer/components/ui/Toast'
 import { toDropdownOptions } from '@renderer/utils/wallets'
+import { getPasswordValidationError } from '@renderer/utils/passwordValidation'
 import bgLight from '@renderer/assets/images/pageAuthorization/bg-light.svg'
 import bgDark from '@renderer/assets/images/pageAuthorization/bg-dark.svg'
 import wave from '@renderer/assets/images/pageAuthorization/wave.png'
@@ -28,8 +27,17 @@ export default function ForgotPasswordPage(): React.JSX.Element {
   const backgroundImage = theme === 'dark' ? bgDark : bgLight
   const iconColor = theme === 'dark' ? '#ffffff' : ''
 
-  const { wallets, selectedWalletId, setSelectedWalletId } = useLogin()
+  const wallets = useWallets()
   const walletOptions = useMemo(() => toDropdownOptions(wallets), [wallets])
+  const [pickedWalletId, setPickedWalletId] = useState<string | null>(null)
+  const selectedWalletId = pickedWalletId
+    ?? wallets.find((w) => w.selected)?.walletId
+    ?? wallets[0]?.walletId
+    ?? null
+
+  useEffect(() => {
+    refreshWallets()
+  }, [])
 
   const [step, setStep] = useState<ForgotPasswordStep>('seed')
   const [mnemonic, setMnemonic] = useState<string | null>(null)
@@ -59,13 +67,9 @@ export default function ForgotPasswordPage(): React.JSX.Element {
   const handleReset = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (!selectedWalletId || mnemonic === null || busy) return
-    const trimmed = password.trim()
-    if (trimmed.length < MIN_WALLET_PASSWORD_LENGTH) {
-      toast.error(passwordValidation.minLength)
-      return
-    }
-    if (trimmed.length > MAX_WALLET_PASSWORD_LENGTH) {
-      toast.error(passwordValidation.maxLength)
+    const pwdError = getPasswordValidationError(password)
+    if (pwdError !== null) {
+      toast.error(pwdError)
       return
     }
     if (password !== confirmPassword) {
@@ -121,7 +125,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
                 options={walletOptions}
                 disabled={wallets.length <= 1}
                 value={selectedWalletId ?? ''}
-                onChange={setSelectedWalletId}
+                onChange={setPickedWalletId}
               />
             </div>
             <ImportSeedPhrase

@@ -6,6 +6,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import { defaultReceiveShieldedAddress } from '@renderer/utils/receiveDefaults'
+import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 
@@ -20,14 +21,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
 
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === 'done'
-  const balances = useMemo(() => {
-    const map = new Map<string, bigint>()
-    for (const note of sync.notes) {
-      if (note.spent) continue
-      map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
-    }
-    return map
-  }, [sync.notes])
+  const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
   useEffect(() => {
     setAddresses(null)
@@ -41,7 +35,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     let dead = false
     setChecking(true)
     API.getShieldedAddresses(walletId)
-      .then((cached) => { if (!dead) setAddresses(cached !== null && cached.length > 0 ? cached : null) })
+      .then((cached) => { if (!dead) setAddresses(cached?.length ? cached : null) })
       .catch(() => { /* fall through to unlock form */ })
       .finally(() => { if (!dead) setChecking(false) })
     return () => { dead = true }
@@ -52,7 +46,9 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   }
 
   if (addresses !== null) {
-    const selected = addresses.find((a) => a === selectedAddress) ?? defaultReceiveShieldedAddress(addresses, balances)!
+    const selected = selectedAddress != null && addresses.includes(selectedAddress)
+      ? selectedAddress
+      : defaultReceiveShieldedAddress(addresses, balances) ?? addresses[0]
     const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
     return (

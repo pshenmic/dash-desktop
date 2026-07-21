@@ -19,6 +19,7 @@ import { davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balanc
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
+import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import {
   SourceKind,
   DestinationKind,
@@ -151,15 +152,11 @@ export default function TransferHub(): React.JSX.Element {
   )
   const shieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
   const notesSyncing = shieldedSync.phase === 'syncing' || shieldedSync.phase === 'recovering'
-  const shieldedAddressBalances = useMemo(() => {
-    const map = new Map<string, bigint>()
-    for (const note of spendableNotes) {
-      map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
-    }
-    return map
-  }, [spendableNotes])
+  const shieldedAddressBalances = useMemo(() => shieldedBalancesByAddress(spendableNotes), [spendableNotes])
   const shieldedAddresses = useMemo(() => [...shieldedAddressBalances.keys()], [shieldedAddressBalances])
-  const selectedShieldedAddress = shieldedAddresses.find(a => a === shieldedFromAddress) ?? shieldedAddresses[0]
+  const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
+    ? shieldedFromAddress
+    : shieldedAddresses[0]
   const shieldedSpecificNotes = useMemo(
     () => shieldedSpendOperation && useSpecificSource && selectedShieldedAddress != null
       ? spendableNotes.filter(n => n.address === selectedShieldedAddress)
@@ -173,7 +170,7 @@ export default function TransferHub(): React.JSX.Element {
   const availableCredits: bigint | null =
     fromKind === 'platformAddress' ? (selectedSource ? BigInt(selectedSource.balanceCredits) : 0n)
     : fromKind === 'identity' ? (selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n)
-    : fromKind === 'shielded' ? (shieldedSpecificNotes != null && selectedShieldedAddress != null ? (shieldedAddressBalances.get(selectedShieldedAddress) ?? 0n) : shieldedBalance)
+    : fromKind === 'shielded' ? (shieldedSpecificNotes != null ? shieldedSpecificNotes.reduce((sum, n) => sum + BigInt(n.amount), 0n) : shieldedBalance)
     : null
 
   const isDashUnit = info?.unit === 'dash'

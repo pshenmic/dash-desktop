@@ -5,6 +5,7 @@ import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -18,14 +19,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === 'done'
   const syncRunning = sync.phase === 'syncing' || sync.phase === 'recovering'
-  const balances = useMemo(() => {
-    const map = new Map<string, bigint>()
-    for (const note of sync.notes) {
-      if (note.spent) continue
-      map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
-    }
-    return map
-  }, [sync.notes])
+  const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
   useEffect(() => {
     setAddresses(null)

@@ -17,8 +17,8 @@ import ImportSeedPhrase from "@renderer/components/pages/auth/ImportSeedPhrase";
 import NetworkBadge from "@renderer/components/ui/NetworkBadge";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { API } from "@renderer/api";
+import { useEffect } from "react";
+import { useWallets, refreshWallets } from "@renderer/hooks/useWallets";
 
 export default function CreateWalletWrapper(): React.JSX.Element {
   const {createWallet, saveYourSeedPhrase, fillInYourSeedPhrase, seedPhraseWarning, success, successImport, welcome, importSeedPhrase} = authTexts
@@ -50,15 +50,13 @@ export default function CreateWalletWrapper(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
-  const [hasWallets, setHasWallets] = useState(false)
+  const wallets = useWallets()
 
   useEffect(() => {
-    API.getAllWallets()
-      .then((result) => setHasWallets(Array.isArray(result) && result.length > 0))
-      .catch(() => {})
+    refreshWallets()
   }, [])
 
-  const canExitWelcome = step === 'welcome' && (isAuthenticated || hasWallets)
+  const canExitWelcome = step === 'welcome' && (isAuthenticated || wallets.length > 0)
   const showBackButton = step !== 'welcome' || canExitWelcome
   const handleBack = (): void => {
     if (canExitWelcome) {
