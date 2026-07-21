@@ -1,5 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { AssetLockService, AssetLockFundingState } from '../../services/AssetLockService'
+import { AssetLockService } from '../../services/AssetLockService'
+import { AssetLockFundingState } from '../../types/AssetLockFunding'
 
 export class GetAssetLockFundingStateHandler {
   private assetLockService: AssetLockService
