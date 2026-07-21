@@ -117,8 +117,8 @@ export class API {
     return this.api.deleteContact(id) as Promise<QueryStatus>
   }
 
-  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: string, password: string): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password) as Promise<SendResult>
+  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: string, password: string, fromAddress?: string): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {

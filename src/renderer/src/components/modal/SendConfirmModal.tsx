@@ -19,6 +19,7 @@ interface SendConfirmModalProps {
   toAddress: string
   amountDuffs: bigint
   amountFiat?: string
+  fromAddress?: string
   onSuccess: () => void
 }
 
@@ -116,6 +117,7 @@ export default function SendConfirmModal({
   toAddress,
   amountDuffs,
   amountFiat,
+  fromAddress,
   onSuccess,
 }: SendConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
@@ -174,7 +176,7 @@ export default function SendConfirmModal({
     setPhase('sending')
     setError(null)
     try {
-      const res = await API.sendTransaction(walletId, toAddress, amountDuffs.toString(), password)
+      const res = await API.sendTransaction(walletId, toAddress, amountDuffs.toString(), password, fromAddress)
       setResult(res)
       setPhase('done')
       onSuccess()

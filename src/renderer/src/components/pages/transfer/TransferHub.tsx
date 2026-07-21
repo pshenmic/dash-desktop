@@ -12,6 +12,7 @@ import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance, refreshBalance } from "@renderer/hooks/useWalletBalance";
 import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
 import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
+import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
@@ -37,6 +38,7 @@ import AmountField from "./AmountField";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
+import CoreAddressSelect from "@renderer/components/pages/receive/CoreAddressSelect";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
 import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
@@ -66,6 +68,8 @@ export default function TransferHub(): React.JSX.Element {
   const [toValue, setToValue] = useState('')
   const [amount, setAmount] = useState('')
   const [acked, setAcked] = useState(false)
+  const [useSpecificSource, setUseSpecificSource] = useState(false)
+  const [coreFromAddress, setCoreFromAddress] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
@@ -87,6 +91,7 @@ export default function TransferHub(): React.JSX.Element {
   const { fallbackActive: syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
   const { balance } = useWalletBalance(walletId ?? undefined)
+  const { receiving, change } = useAdresses(walletId ?? undefined)
   const { platformAddresses } = usePlatformAddresses(walletId ?? undefined)
   const { identities } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
@@ -127,7 +132,16 @@ export default function TransferHub(): React.JSX.Element {
   const selectedSource = fundedAddresses.find(a => a.platformAddress === fromAddress) ?? defaultSource
   const selectedIdentity = identities.find(i => i.identifier === fromIdentity) ?? identities[0]
 
-  const balanceDuffs = balance.dash.amount
+  const coreAddresses = useMemo(
+    () => [...receiving, ...change]
+      .filter(a => a.balance > 0n)
+      .sort((a, b) => (a.balance < b.balance ? 1 : a.balance > b.balance ? -1 : 0)),
+    [receiving, change],
+  )
+  const selectedCoreAddress = coreAddresses.find(a => a.address === coreFromAddress) ?? coreAddresses[0]
+  const coreSpecificAddress = operation === 'coreSend' && useSpecificSource ? selectedCoreAddress : undefined
+
+  const balanceDuffs = coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
   const shieldedBalance = shieldedSync.phase === 'done' && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
 
   const availableCredits: bigint | null =
@@ -263,6 +277,23 @@ export default function TransferHub(): React.JSX.Element {
         selectedIdentity={selectedIdentity}
         onIdentityChange={setFromIdentity}
       />
+
+      {operation === 'coreSend' && (
+        <div className={"flex flex-col gap-2"}>
+          <Checkbox
+            checked={useSpecificSource}
+            onChange={setUseSpecificSource}
+            label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
+          />
+          {useSpecificSource && (
+            <CoreAddressSelect
+              addresses={coreAddresses}
+              selected={selectedCoreAddress}
+              onSelect={setCoreFromAddress}
+            />
+          )}
+        </div>
+      )}
 
       {toKind === 'coreAddress' && operation === 'coreSend' ? (
         <div className={"flex flex-col gap-2"}>
@@ -584,6 +615,7 @@ export default function TransferHub(): React.JSX.Element {
           toAddress={trimmedTo}
           amountDuffs={amountDuffs}
           amountFiat={amountFiat}
+          fromAddress={coreSpecificAddress?.address}
           onSuccess={() => {
             resetForm()
             if (walletId) {

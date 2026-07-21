@@ -15,7 +15,8 @@ export class SendTransactionHandler {
     toAddress: string,
     amountDuffs: string,
     password: string,
+    fromAddress?: string,
   ): Promise<SendResult> => {
-    return this.walletService.sendTransaction(walletId, toAddress, BigInt(amountDuffs), password)
+    return this.walletService.sendTransaction(walletId, toAddress, BigInt(amountDuffs), password, fromAddress)
   }
 }

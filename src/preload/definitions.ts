@@ -21,7 +21,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   addPlatformAddress: (walletId: string) => ipcRenderer.invoke('addPlatformAddress', walletId),
   setAddressLabel: (walletId: string, address: string, label: string) => ipcRenderer.invoke('setAddressLabel', walletId, address, label),
   setWalletLabel: (walletId: string, label: string | null) => ipcRenderer.invoke('setWalletLabel', walletId, label),
-  sendTransaction: (walletId: string, toAddress: string, amountDuffs: string, password: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password),
+  sendTransaction: (walletId: string, toAddress: string, amountDuffs: string, password: string, fromAddress?: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password, fromAddress),
   getTxLockStatus: (walletId: string, txid: string) => ipcRenderer.invoke('getTxLockStatus', walletId, txid),
   sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: string, password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, fromAddress, toAddress, amountCredits, password),
   topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: string, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, fromAddress, amountCredits, password),
