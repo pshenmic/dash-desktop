@@ -406,6 +406,7 @@ export class WalletService {
     const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({
         ...address,
         balance: await provider.getBalance(address.address),
+        txCount: await provider.getTransactionCount(address.address),
         usdBalance: '0.0'
       })
     ))
@@ -413,6 +414,7 @@ export class WalletService {
     const changeAddressesWithBalance = await Promise.all(addresses.change.map(async (address) => ({
         ...address,
         balance: await provider.getBalance(address.address),
+        txCount: await provider.getTransactionCount(address.address),
         usdBalance: '0.0'
       })
     ))

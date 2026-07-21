@@ -57,6 +57,12 @@ export class InsightWalletProvider implements WalletProvider {
     return processProviderTransactions(data.txs, this.walletId, allAddresses)
   }
 
+  async getTransactionCount(address: string): Promise<number> {
+    const response = await this.sendRequest(`${this.baseUrl}/addr/${address}?noTxList=1`)
+    const info = await response.json() as { txApperances?: number; unconfirmedTxApperances?: number }
+    return (info.txApperances ?? 0) + (info.unconfirmedTxApperances ?? 0)
+  }
+
   async getBalance(address: string | string[]): Promise<bigint> {
     if (!Array.isArray(address)) {
       const response = await this.sendRequest(`${this.baseUrl}/addr/${address}/balance`)

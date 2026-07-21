@@ -5,6 +5,7 @@ import {TxLockStatus} from '../types/TxLockStatus'
 
 export interface WalletProvider {
   getTransactions(address: string): Promise<Transaction[]>
+  getTransactionCount(address: string): Promise<number>
   getBalance(address: string | string[]): Promise<bigint>
   getTransactionByHash(txId: string): Promise<Transaction>
   getBlockByHash(hash: string): Promise<Block>

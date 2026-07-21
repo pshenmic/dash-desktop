@@ -13,6 +13,7 @@ import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 export default function AddressCard({
   address,
   balance,
+  txCount,
 }: WalletAddressDto): React.JSX.Element {
   const [isQrOpen, setIsQrOpen] = useState(false)
   const { format: formatFiat, rateReady } = useFiat()
@@ -30,6 +31,9 @@ export default function AddressCard({
           <CopyButton text={address} />
           <QrButton onClick={() => setIsQrOpen(true)} />
         </div>
+        <Text size={10} weight={"medium"} color={"default"} opacity={50}>
+          Tx count: <span className={"font-bold"}>{txCount}</span>
+        </Text>
       </div>
 
       {isQrOpen && <AddressQrModal address={address} onClose={() => setIsQrOpen(false)} />}

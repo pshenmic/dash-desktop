@@ -29,6 +29,11 @@ export class P2PWalletProvider implements WalletProvider {
     return this.transactionDAO.getTransactionsByAddress(this.walletId, address)
   }
 
+  async getTransactionCount(address: string): Promise<number> {
+    const txs = await this.transactionDAO.getTransactionsByAddress(this.walletId, address)
+    return txs.length
+  }
+
   async getBalance(address: string | string[]): Promise<bigint> {
     const addrs = Array.isArray(address) ? address : [address]
     return this.transactionDAO.getBalanceForAddresses(this.walletId, addrs)

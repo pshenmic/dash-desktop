@@ -18,7 +18,7 @@ export default function PlatformAddressCard({
           <CopyButton text={platformAddress} />
         </div>
         <Text size={10} weight={"medium"} color={"default"} opacity={50}>
-          Nonce: <span className={"font-bold"}>{nonce}</span>
+          Tx count: <span className={"font-bold"}>{nonce}</span>
         </Text>
       </div>
 
