@@ -116,6 +116,126 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
+const HASH_LEN = 32
+
+// Point-in-time resident-memory probe. RSS is what Activity Monitor / Task
+// Manager show for the dash-p2p process; `external`+`arrayBuffers` cover the
+// off-heap typed-array backing stores that `ps rss` under-counts.
+function logMem(label: string): void {
+  const MB = 1024 * 1024
+  const m = process.memoryUsage()
+  console.log(
+    `[p2p-mem] ${label}: rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +
+    `external=${(m.external / MB).toFixed(0)}MB arrayBuffers=${(m.arrayBuffers / MB).toFixed(0)}MB`,
+  )
+}
+
+// Dense height→wire-hash index backed by one contiguous buffer instead of a
+// Map holding a separate Uint8Array per block. At ~2.5M blocks a
+// Map<number,Uint8Array> costs ~600MB (≈245B/entry: V8 object header +
+// per-array backing store); this stores 32B/block (~80MB) plus a 1-bit/height
+// presence bitmap. get() returns a copy so callers may retain it across the
+// buffer reallocation that tip-follow growth triggers.
+class BlockHashIndex {
+  private data: Uint8Array
+  private present: Uint8Array
+  private capacity: number
+
+  constructor(initialHeights: number) {
+    this.capacity = Math.max(initialHeights + 1, 1024)
+    this.data = new Uint8Array(this.capacity * HASH_LEN)
+    this.present = new Uint8Array((this.capacity + 7) >> 3)
+  }
+
+  private grow(minHeight: number): void {
+    const next = Math.max(minHeight + 1, Math.ceil(this.capacity * 1.5))
+    const data = new Uint8Array(next * HASH_LEN)
+    data.set(this.data)
+    const present = new Uint8Array((next + 7) >> 3)
+    present.set(this.present)
+    this.data = data
+    this.present = present
+    this.capacity = next
+  }
+
+  set(height: number, wire: Uint8Array): void {
+    if (height < 0) return
+    if (height >= this.capacity) this.grow(height)
+    this.data.set(wire, height * HASH_LEN)
+    this.present[height >> 3]! |= 1 << (height & 7)
+  }
+
+  has(height: number): boolean {
+    return height >= 0 && height < this.capacity && (this.present[height >> 3]! & (1 << (height & 7))) !== 0
+  }
+
+  get(height: number): Uint8Array | undefined {
+    if (!this.has(height)) return undefined
+    return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
+  }
+}
+
+// Height → 32-byte filter header, backed by one flat buffer + a presence
+// bitset — same layout as BlockHashIndex. Replaces a Map<number, Uint8Array>
+// whose per-entry V8 overhead (~150-250B/entry) made the whole-chain filter-
+// header cache the p2p process' dominant resident cost (~400MB → ~70MB).
+class FilterHeaderIndex {
+  private data: Uint8Array
+  private present: Uint8Array
+  private capacity: number
+  private count = 0
+
+  constructor(initialHeights: number) {
+    this.capacity = Math.max(initialHeights + 1, 1024)
+    this.data = new Uint8Array(this.capacity * HASH_LEN)
+    this.present = new Uint8Array((this.capacity + 7) >> 3)
+  }
+
+  get size(): number {
+    return this.count
+  }
+
+  private grow(minHeight: number): void {
+    const next = Math.max(minHeight + 1, Math.ceil(this.capacity * 1.5))
+    const data = new Uint8Array(next * HASH_LEN)
+    data.set(this.data)
+    const present = new Uint8Array((next + 7) >> 3)
+    present.set(this.present)
+    this.data = data
+    this.present = present
+    this.capacity = next
+  }
+
+  has(height: number): boolean {
+    return height >= 0 && height < this.capacity && (this.present[height >> 3]! & (1 << (height & 7))) !== 0
+  }
+
+  set(height: number, header: Uint8Array): void {
+    if (height < 0) return
+    if (height >= this.capacity) this.grow(height)
+    if (!this.has(height)) this.count++
+    this.data.set(header, height * HASH_LEN)
+    this.present[height >> 3]! |= 1 << (height & 7)
+  }
+
+  get(height: number): Uint8Array | undefined {
+    if (!this.has(height)) return undefined
+    return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
+  }
+
+  // Drop every stored header at or above `fromHeight` (checkpoint-divergence
+  // recovery). Replaces iterating Map keys to delete a tail.
+  deleteFrom(fromHeight: number): void {
+    const start = Math.max(0, fromHeight)
+    for (let h = start; h < this.capacity; h++) {
+      if (this.has(h)) {
+        this.present[h >> 3]! &= ~(1 << (h & 7))
+        this.count--
+      }
+    }
+  }
+}
+
 export class CFilterSyncWorker extends Worker {
   readonly name = 'CFilterSyncWorker'
 
@@ -139,12 +259,17 @@ export class CFilterSyncWorker extends Worker {
   private stopped = false
   private leader: Peer | null = null
 
-  // ── chain index (height ↔ wire-byte hash) ────────────────────────────────
-  private heightToBlockHash = new Map<number, Uint8Array>()
-  private wireHexToHeight = new Map<string, number>()
+  // ── chain index (height → wire-byte hash) ────────────────────────────────
+  // Forward index only. The reverse (hash→height) lookup is served from
+  // bounded inflight state instead of a whole-chain Map: block fetches carry
+  // their height (blockFetch.inflight), cfilter batches register their hashes
+  // in cfilterInflightHeights, and cfheaders match against the few pending
+  // stop-hashes. This drops a ~250MB full-chain hex-string map.
+  private readonly blockHashIndex: BlockHashIndex
+  private cfilterInflightHeights = new Map<string, number>()
 
   // ── filter-header chain ──────────────────────────────────────────────────
-  private heightToFilterHeader = new Map<number, Uint8Array>()
+  private readonly heightToFilterHeader: FilterHeaderIndex
   private checkpointHeaders = new Map<number, Uint8Array>()
   private anchorHeight = -1
 
@@ -210,6 +335,8 @@ export class CFilterSyncWorker extends Worker {
     this.peerPool = opts.peerPool
     this.chainTipHeight = opts.chainTipHeight
     this.chainTipWire = displayHexToWire(opts.chainTipHashDisplayHex)
+    this.blockHashIndex = new BlockHashIndex(opts.chainTipHeight)
+    this.heightToFilterHeader = new FilterHeaderIndex(opts.chainTipHeight)
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
     this.seedUtxos = opts.seedUtxos
     this.initialCfilterCursor = opts.cfilterCursor
@@ -235,20 +362,23 @@ export class CFilterSyncWorker extends Worker {
       : this.birthdayHeight
 
     await this.buildChainIndex()
+    logMem('after buildChainIndex')
 
     // Seed genesis (height 1) into the index — HeaderSync starts WITH this
     // header as its tip and only persists subsequent ones, so it's not in
     // chain.db.
     this.setHashIndex(1, displayHexToWire(GENESIS[this.network].hash))
 
-    // Network-shared filter-header cache.
-    const cachedFilterHeaders = await this.chainStore.iterateFilterHeadersInRange(1, this.chainTipHeight)
-    for (const {height, header} of cachedFilterHeaders) {
-      this.heightToFilterHeader.set(height, header)
+    // Network-shared filter-header cache. Streamed straight into the flat
+    // index — never materialized as a whole-chain array (see forEachHashInRange).
+    const loadedFilterHeaders = await this.chainStore.forEachFilterHeaderInRange(
+      1, this.chainTipHeight,
+      (height, header) => this.heightToFilterHeader.set(height, header),
+    )
+    if (loadedFilterHeaders > 0) {
+      console.log(`[cfilter] loaded ${loadedFilterHeaders} filter headers from cache`)
     }
-    if (cachedFilterHeaders.length > 0) {
-      console.log(`[cfilter] loaded ${cachedFilterHeaders.length} filter headers from cache`)
-    }
+    logMem(`after filter-header load (index size=${this.heightToFilterHeader.size})`)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const [evt, handler] of this.peerListeners) (this.peerPool as any).on(evt, handler)
@@ -301,6 +431,7 @@ export class CFilterSyncWorker extends Worker {
 
     for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
     this.cfilter.inflightBatches.clear()
+    this.cfilterInflightHeights.clear()
     this.blockFetch.matched.clear()
     this.cfilter.cursor = target
 
@@ -328,8 +459,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private setHashIndex(height: number, wire: Uint8Array): void {
-    this.heightToBlockHash.set(height, wire)
-    this.wireHexToHeight.set(bytesToHex(wire), height)
+    this.blockHashIndex.set(height, wire)
   }
 
   private clearTimers(): void {
@@ -340,6 +470,7 @@ export class CFilterSyncWorker extends Worker {
     for (const r of this.blockFetch.inflight.values()) if (r.timer) clearTimeout(r.timer)
     this.cfHeaders.pending.clear()
     this.cfilter.inflightBatches.clear()
+    this.cfilterInflightHeights.clear()
     this.blockFetch.inflight.clear()
   }
 
@@ -358,24 +489,27 @@ export class CFilterSyncWorker extends Worker {
     const expected = to - from + 1
     console.log(`[cfilter] building chain index ${from}..${to}`)
 
-    const cached = await this.chainStore.iterateHashesInRange(from, to)
-    if (cached.length === expected) {
-      for (const {height, wire} of cached) this.setHashIndex(height, wire)
-      console.log(`[cfilter] chain index loaded from cache (${cached.length} entries)`)
+    // Stream the cached hashes straight into the flat index — the array form
+    // spikes hundreds of MB of transient objects that V8 keeps resident.
+    const cachedCount = await this.chainStore.forEachHashInRange(
+      from, to, (height, wire) => this.setHashIndex(height, wire),
+    )
+    if (cachedCount === expected) {
+      console.log(`[cfilter] chain index loaded from cache (${cachedCount} entries)`)
     } else {
-      // Fallback: x11 + backfill. One-time cost on chain.db that predates the
-      // n: keyspace.
-      console.log(`[cfilter] no hash cache (${cached.length}/${expected}); hashing + backfilling`)
-      const cachedByHeight = new Map<number, Uint8Array>()
-      for (const {height, wire} of cached) cachedByHeight.set(height, wire)
-
+      // Fallback: x11 + backfill for the heights the cache is missing (already-
+      // cached heights are in blockHashIndex from the stream above). One-time
+      // cost on chain.db that predates the n: keyspace.
+      console.log(`[cfilter] no hash cache (${cachedCount}/${expected}); hashing + backfilling`)
       const headers = await this.chainStore.iterateHeadersInRange(from, to)
       let processed = 0
       let backfill: Array<{height: number; wire: Uint8Array}> = []
       for (const {height, raw} of headers) {
-        const wire = cachedByHeight.get(height) ?? x11Wire(raw)
-        this.setHashIndex(height, wire)
-        if (!cachedByHeight.has(height)) backfill.push({height, wire})
+        if (!this.blockHashIndex.has(height)) {
+          const wire = x11Wire(raw)
+          this.setHashIndex(height, wire)
+          backfill.push({height, wire})
+        }
         processed++
         if (processed % 50_000 === 0) {
           console.log(`[cfilter] chain index ${processed}/${headers.length}`)
@@ -391,7 +525,7 @@ export class CFilterSyncWorker extends Worker {
     }
 
     // Tip not in chain.db (HeaderSync starts WITH it, persists only after).
-    if (!this.heightToBlockHash.has(this.chainTipHeight)) {
+    if (!this.blockHashIndex.has(this.chainTipHeight)) {
       this.setHashIndex(this.chainTipHeight, this.chainTipWire)
     }
   }
@@ -424,8 +558,10 @@ export class CFilterSyncWorker extends Worker {
     const blockHashHex = block.hash()
     const blockHashWire = displayHexToWire(blockHashHex)
     const key = bytesToHex(blockHashWire)
-    const height = this.wireHexToHeight.get(key) ?? -1
+    // Blocks only arrive because we requested them, so the inflight request
+    // carries the height — no whole-chain hash→height map needed here.
     const pending = this.blockFetch.inflight.get(key)
+    const height = pending ? pending.height : -1
     if (pending) {
       if (pending.timer) clearTimeout(pending.timer)
       this.blockFetch.inflight.delete(key)
@@ -457,7 +593,7 @@ export class CFilterSyncWorker extends Worker {
     // Highest checkpoint (real height that is a multiple of 1000) at or below
     // the scan tip, expressed in our internal numbering.
     const stopHeight = Math.floor(this.effectiveScanTipHeight() / 1000) * 1000
-    const stopHashWire = this.heightToBlockHash.get(stopHeight)
+    const stopHashWire = this.blockHashIndex.get(stopHeight)
     if (!stopHashWire) {
       console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
       return
@@ -514,9 +650,7 @@ export class CFilterSyncWorker extends Worker {
     }
     if (firstBadCheckpoint !== Infinity) {
       console.warn(`[cfilter] cached filter headers diverge from checkpoint at h=${firstBadCheckpoint} — dropping cache from there`)
-      for (const h of [...this.heightToFilterHeader.keys()]) {
-        if (h >= firstBadCheckpoint) this.heightToFilterHeader.delete(h)
-      }
+      this.heightToFilterHeader.deleteFrom(firstBadCheckpoint)
       this.chainStore.deleteFilterHeadersFrom(firstBadCheckpoint).catch(err => {
         console.error('[cfilter] failed to drop stale filter headers:', err)
         this.reportError(formatChainDbError(err), false)
@@ -563,7 +697,7 @@ export class CFilterSyncWorker extends Worker {
     const startHeight = this.cfHeaders.walkStart
     const nextCkpt = (Math.floor(startHeight / 1000) + 1) * 1000
     const stopHeight = Math.min(nextCkpt, effectiveTip)
-    if (!this.heightToBlockHash.has(stopHeight)) {
+    if (!this.blockHashIndex.has(stopHeight)) {
       console.warn(`[cfilter] cfheaders: no hash for h=${stopHeight}; stopping`)
       return
     }
@@ -579,7 +713,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private dispatchCFHeaders(entry: PendingCFHeaders): void {
-    const stopHashWire = this.heightToBlockHash.get(entry.stopHeight)
+    const stopHashWire = this.blockHashIndex.get(entry.stopHeight)
     if (!stopHashWire) return
     let candidates = [...this.peerPool.filterCapablePeers].filter(p => !entry.triedPeers.has(p))
     if (candidates.length === 0) {
@@ -607,8 +741,13 @@ export class CFilterSyncWorker extends Worker {
   private onCFHeaders(msg: CFHeadersArgs, fromPeer: Peer): void {
     if (this.stopped) return
     const stopHashWire = msg.stopHash ?? new Uint8Array(32)
-    const stopHeight = this.wireHexToHeight.get(bytesToHex(stopHashWire)) ?? -1
-    const pending = stopHeight >= 0 ? this.cfHeaders.pending.get(stopHeight) : undefined
+    // Match by stop-hash against the few pending cfheaders requests rather than
+    // a whole-chain hash→height map; pending is keyed by stopHeight and tiny.
+    let pending: PendingCFHeaders | undefined
+    for (const entry of this.cfHeaders.pending.values()) {
+      const wire = this.blockHashIndex.get(entry.stopHeight)
+      if (wire && equalBytes(wire, stopHashWire)) { pending = entry; break }
+    }
     if (!pending) return
 
     const filterHashes = msg.filterHashes ?? []
@@ -699,10 +838,14 @@ export class CFilterSyncWorker extends Worker {
     while (this.cfilter.cursor <= effectiveTip && this.cfilter.inflightBatches.size < MAX_INFLIGHT_BATCHES) {
       const startHeight = this.cfilter.cursor
       const stopHeight = Math.min(startHeight + CFILTER_BATCH - 1, effectiveTip)
-      const stopHashWire = this.heightToBlockHash.get(stopHeight)
+      const stopHashWire = this.blockHashIndex.get(stopHeight)
       if (!stopHashWire) break
       const remaining = new Set<number>()
-      for (let h = startHeight; h <= stopHeight; h++) remaining.add(h)
+      for (let h = startHeight; h <= stopHeight; h++) {
+        remaining.add(h)
+        const wire = this.blockHashIndex.get(h)
+        if (wire) this.cfilterInflightHeights.set(bytesToHex(wire), h)
+      }
       const batch: CFilterBatch = {startHeight, stopHeight, stopHashWire, remaining, timer: null}
       this.cfilter.inflightBatches.set(startHeight, batch)
       this.dispatchCFilterBatch(batch)
@@ -742,7 +885,8 @@ export class CFilterSyncWorker extends Worker {
   private onCFilter(msg: CFilterArgs): void {
     if (this.stopped) return
     const blockHashWire = msg.blockHash ?? new Uint8Array(32)
-    const height = this.wireHexToHeight.get(bytesToHex(blockHashWire)) ?? -1
+    const hashKey = bytesToHex(blockHashWire)
+    const height = this.cfilterInflightHeights.get(hashKey) ?? -1
     if (height < 0) return
     let owner: CFilterBatch | undefined
     for (const b of this.cfilter.inflightBatches.values()) {
@@ -750,6 +894,7 @@ export class CFilterSyncWorker extends Worker {
     }
     if (!owner) return
     owner.remaining.delete(height)
+    this.cfilterInflightHeights.delete(hashKey)
 
     const cf = new CompactFilter(msg.filter ?? new Uint8Array(0), blockHashWire)
     if (cf.matchAny(this.watchedItems)) {

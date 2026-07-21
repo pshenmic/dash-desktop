@@ -2,6 +2,9 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {ShieldedEngine} from './ShieldedEngine'
 import {ShieldedCommand, ShieldedEvent} from './types/messages'
 
+process.title = 'dash-shielded'
+
+
 // Utility-process entry for the shielded (Orchard) subsystem. The Halo2
 // prover and note trial-decryption are CPU-bound, so they run here instead
 // of blocking the main process' event loop — same split as the L1 p2p

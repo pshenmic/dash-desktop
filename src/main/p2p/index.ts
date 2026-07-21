@@ -1,6 +1,8 @@
 import {SyncService} from './SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
 
+process.title = 'dash-p2p'
+
 // Diagnostic: surface anything that would otherwise silently kill the
 // utility process. Without these the parent only sees `exit code=1`
 // with no clue about the cause. We log (captured by the parent's stderr
@@ -78,3 +80,16 @@ process.parentPort.on('message', ({data}) => {
 
 // Push the initial 'idle' state to the parent.
 process.parentPort.postMessage({type: 'status', status: sync.getStatus()})
+
+// Periodic resident-memory log so the p2p footprint can be tracked over a
+// sync run without an external profiler. RSS is the number that shows up in
+// Activity Monitor / Task Manager for the dash-p2p process.
+const MB = 1024 * 1024
+setInterval(() => {
+  const m = process.memoryUsage()
+  console.log(
+    `[p2p-mem] rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +
+    `heapTotal=${(m.heapTotal / MB).toFixed(0)}MB external=${(m.external / MB).toFixed(0)}MB ` +
+    `arrayBuffers=${(m.arrayBuffers / MB).toFixed(0)}MB`,
+  )
+}, 60_000).unref()
