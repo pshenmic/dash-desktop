@@ -65,7 +65,7 @@ export default function SidebarHeader(): React.JSX.Element {
           </button>
         </div>
       </div>
-      <div className={"flex flex-col gap-[.75rem]"}>
+      <div className={"flex flex-col dash-block rounded-[.875rem] dash-black-border divide-y divide-dash-primary-dark-blue/8 dark:divide-white/12"}>
         <Balance variant="dash" balance={davToDashCompact(balance.dash.amount)} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
         <Balance variant="credits" credits={balance.credits.amount} isVisible={isBalanceVisible}/>
         <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
