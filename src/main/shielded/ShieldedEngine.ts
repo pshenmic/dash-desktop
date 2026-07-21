@@ -33,10 +33,6 @@ const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 // Platform caps state transitions at ~20KB and the Halo2 proof grows with the
 // number of Orchard actions, so spends are limited to 6 notes per transition.
 const MAX_SPEND_NOTES = 6
-// Notes spent before local bookkeeping existed (or by another install) are
-// only detectable on-chain: a built transition exposes its action nullifiers,
-// so stale selections are caught before broadcast and repaired by re-selecting.
-const MAX_SPEND_ATTEMPTS = 3
 const SHIELD_FUNDING_DUMMY_OUTPUTS = 1
 
 export class ShieldedEngine {
@@ -126,7 +122,15 @@ export class ShieldedEngine {
       const memo = ShieldedMemoWASM.empty() as unknown as string
       const spent = new Set(command.spentIndexes)
 
-      for (let attempt = 0; ; attempt++) {
+      // Unbounded but guaranteed to terminate: every iteration that detects an
+      // already-spent note adds >= 1 index to `spent` (probeSpentNotes returns
+      // >= 1 or we throw), strictly shrinking the unspent pool. So it either
+      // reaches a clean fundable selection or runs out of notes/funds and throws.
+      // TODO: this only marks notes that get selected here; notes spent on
+      // another install stay counted until picked, so the balance can read high
+      // until the first spend. Add a proactive on-chain reconcile of all owned
+      // notes (probe in batches) after import to fix the displayed balance.
+      for (;;) {
         const unspent = recovered.filter((note) => !spent.has(note.index))
         if (unspent.length === 0) throw new Error('No shielded notes available to spend')
 
@@ -198,9 +202,6 @@ export class ShieldedEngine {
         const nullifiers = this.extractActionNullifiers(stateTransition, kind)
         const statuses = await this.sdk.shielded.getShieldedNullifiers(nullifiers)
         if (statuses.some((status) => status.isSpent)) {
-          if (attempt >= MAX_SPEND_ATTEMPTS - 1) {
-            throw new Error('Selected notes were already spent on-chain. Re-sync your notes and try again.')
-          }
           console.warn('[shielded] selection includes already-spent notes, probing', toSpend.map((n) => n.index))
           const stale = await this.probeSpentNotes(all, toSpend, seed, network)
           if (stale.length === 0) {
