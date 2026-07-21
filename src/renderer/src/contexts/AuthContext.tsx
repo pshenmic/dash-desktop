@@ -38,6 +38,7 @@ interface AuthContextValue {
   setPreselectedWalletId: (walletId: string | null) => void
   switchWallet: (walletId: string) => Promise<void>
   goToCreateWallet: () => void
+  lock: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -92,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     navigate('/create-wallet')
   }, [navigate])
 
+  const lock = useCallback(() => {
+    setUnlocked(false)
+    navigate('/')
+  }, [navigate])
+
   const isAuthenticated = Boolean(status?.ready && status?.selectedWalletId && unlocked)
 
   const value = useMemo<AuthContextValue>(() => ({
@@ -103,8 +109,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     loginSuccess,
     setPreselectedWalletId,
     switchWallet,
-    goToCreateWallet
-  }), [bootstrapped, status, isAuthenticated, unlocked, preselectedWalletId, refreshStatus, loginSuccess, switchWallet, goToCreateWallet])
+    goToCreateWallet,
+    lock
+  }), [bootstrapped, status, isAuthenticated, unlocked, preselectedWalletId, refreshStatus, loginSuccess, switchWallet, goToCreateWallet, lock])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
