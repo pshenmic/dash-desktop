@@ -18,7 +18,7 @@ export default function RecipientInput({
   onChange,
   data,
 }: RecipientInputProps) {
-  const [isFocused, setIsFocused] = useState(false)
+  const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -38,14 +38,10 @@ export default function RecipientInput({
   const alreadySaved = contacts.some((c) => c.address === trimmedValue)
   const canSaveCurrent = isValidRecipient && !alreadySaved
 
-  const handleFocusChange = (focused: boolean): void => {
-    setIsFocused(focused)
-  }
-
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent): void => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        handleFocusChange(false)
+        setOpen(false)
         setAdding(false)
       }
     }
@@ -55,7 +51,7 @@ export default function RecipientInput({
 
   const handleSelectAddress = (address: string): void => {
     onChange(address)
-    handleFocusChange(false)
+    setOpen(false)
   }
 
   const handleSaveContact = async (): Promise<void> => {
@@ -81,17 +77,13 @@ export default function RecipientInput({
       <div className={"dash-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
         <div
           className={"flex items-center justify-between gap-1 px-4 py-3.5 [&>*:first-child]:flex-1"}
-          onClick={() => {
-            handleFocusChange(true)
-            inputRef.current?.focus()
-          }}
+          onClick={() => inputRef.current?.focus()}
         >
           <Input
             ref={inputRef}
             type={"text"}
             value={value}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            onFocus={() => handleFocusChange(true)}
             className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 p-0 w-full"}
             placeholder={data.placeholder}
             colorScheme={"transparent"}
@@ -110,13 +102,20 @@ export default function RecipientInput({
               <Text size={10} weight={"medium"} color={"red"} className={"shrink-0"}>Invalid</Text>
             )
           )}
-          <SearchIcon size={18} className={"dash-text-default opacity-40 shrink-0"} />
+          <button
+            type={"button"}
+            onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
+            title={data.addressBook}
+            className={"shrink-0 flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity"}
+          >
+            <SearchIcon size={18} className={`dash-text-default shrink-0 transition-opacity ${open ? 'opacity-100' : 'opacity-40'}`} />
+          </button>
         </div>
 
         <div
           className={`
             transition-all duration-300 ease-in-out
-            ${isFocused
+            ${open
               ? 'max-h-145 opacity-100'
               : 'max-h-0 opacity-0'
             }
