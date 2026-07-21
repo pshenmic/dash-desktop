@@ -14,7 +14,7 @@ import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
 import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
-import { davToDash, dashToDuffs } from "@renderer/utils/balance";
+import { davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
@@ -393,7 +393,7 @@ export default function TransferHub(): React.JSX.Element {
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
         {isDashUnit ? (
           <Text size={12} weight={"medium"} color={amountDuffs > 0n && amountDuffs > balanceDuffs ? "red" : "brand"} opacity={amountDuffs > 0n && amountDuffs > balanceDuffs ? 100 : 50}>
-            {amountDuffs > 0n && amountDuffs > balanceDuffs ? 'Amount exceeds balance' : `Balance: ${davToDash(balanceDuffs)} Dash`}
+            {amountDuffs > 0n && amountDuffs > balanceDuffs ? 'Amount exceeds balance' : `Balance: ${davToDashCompact(balanceDuffs)} Dash`}
           </Text>
         ) : availableCredits !== null ? (
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>

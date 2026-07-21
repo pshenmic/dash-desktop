@@ -3,7 +3,7 @@ import { BigNumber } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { WalletAddressDto } from '@renderer/api/types'
-import { davToDash } from '@renderer/utils/balance'
+import { davToDashCompact } from '@renderer/utils/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
@@ -38,7 +38,7 @@ export default function AddressCard({
         <div className={"flex items-center gap-2"}>
           <Text size={14} weight={"medium"} color={"brand"}>
             <span className={"font-bold"}>
-              <BigNumber>{davToDash(balance).toString()}</BigNumber>
+              <BigNumber>{davToDashCompact(balance).toString()}</BigNumber>
             </span>
             {' Dash'}
           </Text>

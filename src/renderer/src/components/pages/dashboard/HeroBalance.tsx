@@ -9,7 +9,7 @@ import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useRates } from '@renderer/hooks/useRates'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { creditsToDuffs, davToDash } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDashCompact } from '@renderer/utils/balance'
 import { formatFiat as formatFiatValue } from '@renderer/utils/fiat'
 import { formatChange24h } from '@renderer/utils/networkStatus'
 import coreArt from '@renderer/assets/images/pageAuthorization/auth-bg-flower.png'
@@ -56,7 +56,7 @@ export default function HeroBalance(): React.JSX.Element {
           ) : (
             <div className={"flex items-center gap-3.5 flex-wrap"}>
               <Text size={40} weight={"extrabold"} className={`text-dash-brand dark:text-dash-mint leading-[110%] ${blur}`}>
-                <BigNumber className={"gap-[.1875rem]! text-dash-brand! dark:text-dash-mint!"}>{davToDash(totalDuffs)}</BigNumber>
+                <BigNumber className={"gap-[.1875rem]! text-dash-brand! dark:text-dash-mint!"}>{davToDashCompact(totalDuffs)}</BigNumber>
                 {' Dash'}
               </Text>
               {rateReady && (
@@ -93,7 +93,7 @@ export default function HeroBalance(): React.JSX.Element {
           balanceLabel={core.balance}
           amount={
             <>
-              <BigNumber className={"gap-[.1875rem]! text-white!"}>{davToDash(balance.dash.amount)}</BigNumber>
+              <BigNumber className={"gap-[.1875rem]! text-white!"}>{davToDashCompact(balance.dash.amount)}</BigNumber>
               {' Dash'}
             </>
           }
