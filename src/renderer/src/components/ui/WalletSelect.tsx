@@ -26,7 +26,7 @@ function DefaultBadge(): React.JSX.Element {
 const dropdownStyles = cva(
   `absolute bottom-0 left-0 right-0 z-50
    rounded-[1.25rem]
-   overflow-y-auto overflow-x-hidden
+   overflow-y-auto overflow-x-hidden scrollbar-custom
    max-h-52
    bg-white dark:bg-white/4
    border border-dash-primary-dark-blue/32
