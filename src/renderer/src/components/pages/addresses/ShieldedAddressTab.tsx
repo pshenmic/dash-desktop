@@ -72,6 +72,9 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
 
   const handleReveal = (): Promise<void> => withPassword(async (pwd) => {
     setAddresses(await API.getShieldedAddresses(walletId!, pwd))
+    if (!synced && !syncRunning) {
+      API.startShieldedSync(walletId!, pwd).catch(() => {})
+    }
   })
 
   const handleConfirmAdd = (): Promise<void> => withPassword(async (pwd) => {

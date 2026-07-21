@@ -59,6 +59,7 @@ import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/WalletSyncService'
 import {ShieldedService} from './services/ShieldedService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
+import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
 import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
@@ -84,6 +85,7 @@ import {GetUtxosHandler} from './api/walletSync/getUtxos'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
 
+const DISCOVERY_INTERVAL_MS = 120_000
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -194,9 +196,10 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
+    const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
-    this.shieldedService = new ShieldedService(sdkProvider, walletDAO, identityDAO, new ShieldedNoteDAO(knex), this.identityRegistrationService)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations)
+    this.shieldedService = new ShieldedService(sdkProvider, walletDAO, identityDAO, new ShieldedNoteDAO(knex), shieldedAddressDAO, this.identityRegistrationService)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations, this.shieldedService)
     this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, sdkProvider, this.shieldedService)
     this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
     this.sdkProvider = sdkProvider
@@ -205,6 +208,22 @@ export class WalletBackend {
     this.identityDAO = identityDAO
 
     this.initHandlers()
+
+    const walletService = this.walletService
+    const discoverSelected = async (): Promise<void> => {
+      const selected = await walletDAO.getSelectedWallet()
+      if (selected != null) {
+        await walletService.discoverCoreAddresses(selected.walletId)
+      }
+    }
+    this.walletSyncService.onWalletActivity = (walletId) => {
+      walletService.discoverCoreAddresses(walletId).catch(err =>
+        console.error('[discovery] post-sync address discovery failed:', err))
+    }
+    discoverSelected().catch(err => console.error('[discovery] startup address discovery failed:', err))
+    setInterval(() => {
+      discoverSelected().catch(err => console.error('[discovery] periodic address discovery failed:', err))
+    }, DISCOVERY_INTERVAL_MS).unref()
 
     this.applicationService.markReady()
   }

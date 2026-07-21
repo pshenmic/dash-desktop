@@ -2,16 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 
 const cache = new Map<string, unknown>()
 const inflight = new Map<string, Promise<unknown>>()
-const invalidationListeners = new Map<string, Set<() => void>>()
+const listeners = new Map<string, Set<() => void>>()
+const refreshTimers = new Map<string, { timer: ReturnType<typeof setInterval>; count: number }>()
 
-function subscribeInvalidation(cacheKey: string, listener: () => void): () => void {
-  const set = invalidationListeners.get(cacheKey) ?? new Set()
+function subscribe(cacheKey: string, listener: () => void): () => void {
+  const set = listeners.get(cacheKey) ?? new Set()
   set.add(listener)
-  invalidationListeners.set(cacheKey, set)
+  listeners.set(cacheKey, set)
   return () => {
     set.delete(listener)
-    if (set.size === 0) invalidationListeners.delete(cacheKey)
+    if (set.size === 0) listeners.delete(cacheKey)
   }
+}
+
+function notify(cacheKey: string): void {
+  const set = listeners.get(cacheKey)
+  if (set) for (const listener of [...set]) listener()
 }
 
 function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
@@ -21,6 +27,7 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
   const p = fetcher()
     .then((result) => {
       cache.set(cacheKey, result)
+      notify(cacheKey)
       return result
     })
     .finally(() => {
@@ -31,8 +38,32 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
   return p
 }
 
+function retainRefreshTimer(cacheKey: string, intervalMs: number, fetcher: () => Promise<unknown>): () => void {
+  let entry = refreshTimers.get(cacheKey)
+  if (!entry) {
+    entry = {
+      timer: setInterval(() => {
+        runFetch(cacheKey, fetcher).catch(() => {})
+      }, intervalMs),
+      count: 0
+    }
+    refreshTimers.set(cacheKey, entry)
+  }
+  entry.count++
+  return () => {
+    const current = refreshTimers.get(cacheKey)
+    if (!current) return
+    current.count--
+    if (current.count <= 0) {
+      clearInterval(current.timer)
+      refreshTimers.delete(cacheKey)
+    }
+  }
+}
+
 export interface UseAsyncWithCacheOptions {
   errorMessage?: string
+  refreshIntervalMs?: number
 }
 
 export function useAsyncWithCache<T>(
@@ -54,8 +85,23 @@ export function useAsyncWithCache<T>(
 
   useEffect(() => {
     if (cacheKey === undefined) return
-    return subscribeInvalidation(cacheKey, () => setRefetchTick((t) => t + 1))
+    return subscribe(cacheKey, () => {
+      const cached = cache.get(cacheKey) as T | undefined
+      if (cached !== undefined) {
+        setData(cached)
+        setLoading(false)
+        setErr(null)
+      } else {
+        setRefetchTick((t) => t + 1)
+      }
+    })
   }, [cacheKey])
+
+  const refreshIntervalMs = options?.refreshIntervalMs
+  useEffect(() => {
+    if (cacheKey === undefined || refreshIntervalMs === undefined) return
+    return retainRefreshTimer(cacheKey, refreshIntervalMs, () => fetcherRef.current())
+  }, [cacheKey, refreshIntervalMs])
 
   useEffect(() => {
     if (cacheKey === undefined) {
@@ -108,8 +154,7 @@ export function useAsyncWithCache<T>(
 export function invalidateAsyncCache(namespace: string, key: string): void {
   const cacheKey = `${namespace}:${key}`
   cache.delete(cacheKey)
-  const listeners = invalidationListeners.get(cacheKey)
-  if (listeners) for (const listener of [...listeners]) listener()
+  notify(cacheKey)
 }
 
 export function prefetchAsyncCache<T>(

@@ -60,6 +60,14 @@ export class AddressDAO {
     }, {receiving: [], change: []})
   }
 
+  markAddressesUsed = async (walletId: string, addresses: string[]): Promise<void> => {
+    if (addresses.length === 0) return
+    await this.knex('addresses')
+      .where('wallet_id', walletId)
+      .whereIn('address', addresses)
+      .update({is_used: true})
+  }
+
   setAddressLabel = async (walletId: string, address: string, label: string): Promise<QueryStatus> => {
     const result = await this.knex('addresses')
       .where('address', address)

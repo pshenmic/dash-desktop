@@ -7,6 +7,7 @@ import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
+import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
 import { decryptMnemonic } from '../utils'
 import {
   ShieldAssetLockProofParams,
@@ -75,6 +76,7 @@ export class ShieldedService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private shieldedNoteDAO: ShieldedNoteDAO
+  private shieldedAddressDAO: ShieldedAddressDAO
   private identityRegistrationService: IdentityRegistrationService
   private child: UtilityProcess | null = null
   private childOutputTail = ''
@@ -88,11 +90,12 @@ export class ShieldedService {
   private pendingIdentityCreates = new Map<string, {walletId: string; identityIndex: number; network: Network}>()
   private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
 
-  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, identityRegistrationService: IdentityRegistrationService) {
+  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService) {
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
+    this.shieldedAddressDAO = shieldedAddressDAO
     this.identityRegistrationService = identityRegistrationService
   }
 
@@ -282,10 +285,21 @@ export class ShieldedService {
   async getAddresses(walletId: string, password?: string): Promise<string[] | null> {
     const cached = this.addresses.get(walletId)
     if (cached != null) return cached
+
+    const persisted = await this.shieldedAddressDAO.getAddresses(walletId)
+    if (persisted.length > 0) {
+      this.addresses.set(walletId, persisted)
+      return persisted
+    }
+
     if (password == null || password.length === 0) return null
 
     const {seed, network} = await this.unlock(walletId, password)
     return this.cacheAddresses(walletId, seed, network)
+  }
+
+  async initAddresses(walletId: string, seed: Uint8Array, network: Network): Promise<void> {
+    await this.cacheAddresses(walletId, seed, network)
   }
 
   async addAddress(walletId: string, password: string): Promise<string[]> {
@@ -305,6 +319,7 @@ export class ShieldedService {
       list.push(this.sdkProvider.getPlatformSDK(network).keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
     }
     this.addresses.set(walletId, list)
+    await this.shieldedAddressDAO.saveAddresses(walletId, list)
     return list
   }
 

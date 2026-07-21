@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
+import { refreshBalance } from '@renderer/hooks/useWalletBalance'
 
 export default function AddAddressSection({ walletId, kind }: { walletId: string | undefined, kind: 'receiving' | 'change' | 'platform' }): React.JSX.Element {
   const [password, setPassword] = useState('')
@@ -16,6 +17,7 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
     try {
       await API.addPlatformAddress(walletId)
       invalidateAsyncCache('platformAddresses', walletId)
+      refreshBalance(walletId)
     } catch {
       setError('Could not derive a new platform address. Please try again.')
     } finally {
@@ -35,6 +37,7 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
       }
       await API.addWalletAddress(walletId, password, kind === 'change')
       invalidateAsyncCache('addresses', walletId)
+      refreshBalance(walletId)
       setPassword('')
       setShowForm(false)
     } catch {

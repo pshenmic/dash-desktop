@@ -44,6 +44,7 @@ import {
 const PLATFORM_ACCOUNT = 0
 const PLATFORM_ADDRESS_LOOKAHEAD = 20
 const IDENTITY_KEY_LOOKAHEAD = 20
+const MAX_DISCOVERY_BATCHES = 50
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
@@ -72,6 +73,8 @@ export class PlatformAddressService {
     if (wallet.platformXpub == null) {
       return []
     }
+
+    await this.extendPlatformWindow(walletId, wallet.platformXpub, wallet.network)
 
     const candidates = await this.loadPlatformCandidates(walletId, wallet.platformXpub, wallet.network)
     return candidates.map(candidate => ({
@@ -607,6 +610,37 @@ export class PlatformAddressService {
     }
 
     return {wallet, seed, xpub}
+  }
+
+  private async extendPlatformWindow(walletId: string, xpub: string, network: Network): Promise<void> {
+    const stored = await this.walletDAO.getPlatformAddressCount(walletId)
+    const windowEnd = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, stored)
+    let probeStart = windowEnd
+    let lastUsed = -1
+
+    for (let batch = 0; batch < MAX_DISCOVERY_BATCHES; batch++) {
+      const addresses: string[] = []
+      for (let index = probeStart; index < probeStart + PLATFORM_ADDRESS_LOOKAHEAD; index++) {
+        addresses.push(this.platformSDK(network).keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network))
+      }
+      const infos = await this.fetchPlatformAddressInfos(addresses, network)
+
+      let usedInBatch = -1
+      addresses.forEach((address, i) => {
+        const info = infos.get(address)
+        if (info != null && (info.balance > 0n || info.nonce > 0)) {
+          usedInBatch = probeStart + i
+        }
+      })
+      if (usedInBatch === -1) break
+
+      lastUsed = usedInBatch
+      probeStart += PLATFORM_ADDRESS_LOOKAHEAD
+    }
+
+    if (lastUsed >= windowEnd) {
+      await this.walletDAO.setPlatformAddressCount(walletId, lastUsed + 1)
+    }
   }
 
   private async loadPlatformCandidates(walletId: string, xpub: string, network: Network): Promise<PlatformSourceCandidate[]> {
