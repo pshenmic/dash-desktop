@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { cva } from 'class-variance-authority'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import { WalletIcon, ChevronIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { WalletDropdownOption } from '@renderer/utils/wallets'
@@ -54,6 +54,7 @@ export default function WalletSelect({
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedOption = options.find((o) => o.value === value)
+  const selectedIsTestnet = selectedOption?.network === 'testnet'
 
   const sortedOptions = useMemo(
     () => [...options].sort((a, b) => (b.value === value ? 1 : 0) - (a.value === value ? 1 : 0)),
@@ -76,41 +77,49 @@ export default function WalletSelect({
 
   useClickOutside(containerRef, close)
 
+  const trigger = (
+    <button
+      type={"button"}
+      disabled={disabled}
+      onClick={toggle}
+      className={`
+        flex items-center w-full px-6.25 h-14.25
+        rounded-[1.25rem]
+        border border-dash-primary-dark-blue/32 dark:border-white/32
+        cursor-pointer
+        focus:outline-none
+        ${disabled ? 'cursor-default!' : ''}
+        ${selectedIsTestnet ? '!bg-dash-yellow/30' : ''}
+      `}
+    >
+      <div className={"flex flex-1 items-center justify-between"}>
+        <div className={"flex items-center gap-2"}>
+          <WalletIcon size={16} color={"currentColor"} className={"dash-text-default"} />
+          <div className={"flex items-center gap-2"}>
+            <Text size={14} weight={"medium"} color={"brand"}>
+              {selectedOption?.label}
+            </Text>
+            {selectedOption?.isSelected && <DefaultBadge />}
+          </div>
+        </div>
+        {!disabled &&
+          <ChevronIcon size={12} color={"currentColor"} className={"dash-text-default"} />
+        }
+      </div>
+    </button>
+  )
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      <button
-        type={"button"}
-        disabled={disabled}
-        onClick={toggle}
-        className={`
-          flex items-center w-full px-6.25 h-14.25
-          rounded-[1.25rem]
-          border border-dash-primary-dark-blue/32 dark:border-white/32
-          cursor-pointer
-          focus:outline-none
-          ${disabled ? 'cursor-default!' : ''}
-        `}
-      >
-        <div className={"flex flex-1 items-center justify-between"}>
-          <div className={"flex items-center gap-2"}>
-            <WalletIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-            <div className={"flex items-center gap-2"}>
-              <Text size={14} weight={"medium"} color={"brand"}>
-                {selectedOption?.label}
-              </Text>
-              {selectedOption?.isSelected && <DefaultBadge />}
-            </div>
-          </div>
-          {!disabled &&
-            <ChevronIcon size={12} color={"currentColor"} className={"dash-text-default"} />
-          }
-        </div>
-      </button>
+      {selectedIsTestnet
+        ? <Tooltip label={"Testnet wallet"}>{trigger}</Tooltip>
+        : trigger}
 
       <div className={dropdownStyles({ isOpen })}>
         {sortedOptions.map((option, index) => {
           const isSelected = option.value === value
-          return (
+          const isTestnet = option.network === 'testnet'
+          const row = (
             <div
               key={option.value}
               onClick={() => handleSelect(option.value)}
@@ -118,9 +127,11 @@ export default function WalletSelect({
                 flex items-center
                 px-6.25 h-14.25
                 cursor-pointer transition-colors
-                ${isSelected
-                  ? 'bg-dash-primary-dark-blue/5 dark:bg-white/5'
-                  : 'hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5'}
+                ${isTestnet
+                  ? 'bg-dash-yellow/25 hover:bg-dash-yellow/40'
+                  : isSelected
+                    ? 'bg-dash-primary-dark-blue/5 dark:bg-white/5'
+                    : 'hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5'}
                 ${index < sortedOptions.length - 1
                   ? 'border-b border-dash-primary-dark-blue/32 dark:border-b-white/32'
                   : ''}
@@ -137,6 +148,10 @@ export default function WalletSelect({
               </div>
             </div>
           )
+
+          return isTestnet
+            ? <Tooltip key={option.value} label={"Testnet wallet"}>{row}</Tooltip>
+            : row
         })}
       </div>
     </div>
