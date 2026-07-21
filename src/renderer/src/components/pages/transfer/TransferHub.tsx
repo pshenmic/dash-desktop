@@ -480,6 +480,11 @@ export default function TransferHub(): React.JSX.Element {
         onMax={handleMax}
         unit={isDashUnit ? <DashLogo size={20} /> : <CreditsIcon size={20} />}
       />
+      {amountError && (
+        <div className={"mt-2 px-1"}>
+          <Text size={12} weight={"medium"} color={"red"}>{amountError}</Text>
+        </div>
+      )}
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
         {isDashUnit ? (
           <Text size={12} weight={"medium"} color={amountDuffs > 0n && amountDuffs > balanceDuffs ? "red" : "brand"} opacity={amountDuffs > 0n && amountDuffs > balanceDuffs ? 100 : 50}>
@@ -492,7 +497,6 @@ export default function TransferHub(): React.JSX.Element {
         ) : (
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Sync notes on the Shielded page to see your balance</Text>
         )}
-        {amountError && <Text size={12} weight={"medium"} color={"red"} className={"text-right"}>{amountError}</Text>}
         {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
       </div>
     </div>
