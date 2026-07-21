@@ -342,7 +342,6 @@ export default function Settings(): React.JSX.Element {
         walletToDelete={walletToDelete}
         setWalletToDelete={setWalletToDelete}
         refreshWallets={refreshWallets}
-        selectedWallet={walletId}
       />
 
       <ExportMnemonic
