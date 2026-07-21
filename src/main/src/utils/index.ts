@@ -10,15 +10,10 @@ import * as migration0003 from '../../migrations/0003_address_used'
 import * as migration0004 from '../../migrations/0004_pending_tx'
 import * as migration0005 from '../../migrations/0005_contacts'
 import * as migration0006 from '../../migrations/0006_asset_lock_fundings'
-import * as migration0007 from '../../migrations/0007_shielded_spent_notes'
-import * as migration0008 from '../../migrations/0008_platform_xpub'
-import * as migration0009 from '../../migrations/0009_shielded_address_count'
-import * as migration0010 from '../../migrations/0010_asset_lock_funding_kind'
-import * as migration0011 from '../../migrations/0011_identity_asset_lock'
-import * as migration0012 from '../../migrations/0012_asset_lock_identity_funding'
-import * as migration0013 from '../../migrations/0013_platform_address_count'
-import * as migration0014 from '../../migrations/0014_core_xpub'
-import * as migration0015 from '../../migrations/0015_shielded_addresses'
+import * as migration0007 from '../../migrations/0007_shielded_notes'
+import * as migration0008 from '../../migrations/0008_wallet_columns'
+import * as migration0009 from '../../migrations/0009_identity_asset_lock'
+import * as migration0010 from '../../migrations/0010_shielded_addresses'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -28,15 +23,10 @@ const migrations = [
   { name: '0004_pending_tx.ts', migration: migration0004 },
   { name: '0005_contacts.ts', migration: migration0005 },
   { name: '0006_asset_lock_fundings.ts', migration: migration0006 },
-  { name: '0007_shielded_spent_notes.ts', migration: migration0007 },
-  { name: '0008_platform_xpub.ts', migration: migration0008 },
-  { name: '0009_shielded_address_count.ts', migration: migration0009 },
-  { name: '0010_asset_lock_funding_kind.ts', migration: migration0010 },
-  { name: '0011_identity_asset_lock.ts', migration: migration0011 },
-  { name: '0012_asset_lock_identity_funding.ts', migration: migration0012 },
-  { name: '0013_platform_address_count.ts', migration: migration0013 },
-  { name: '0014_core_xpub.ts', migration: migration0014 },
-  { name: '0015_shielded_addresses.ts', migration: migration0015 },
+  { name: '0007_shielded_notes.ts', migration: migration0007 },
+  { name: '0008_wallet_columns.ts', migration: migration0008 },
+  { name: '0009_identity_asset_lock.ts', migration: migration0009 },
+  { name: '0010_shielded_addresses.ts', migration: migration0010 },
 ]
 
 const inlineMigrationSource = {
