@@ -45,6 +45,7 @@ export interface AssetLockFundingState {
 
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
+const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
 
 export class AssetLockService {
@@ -469,7 +470,7 @@ export class AssetLockService {
     // back on a non-idempotent broadcast failure so local state never holds a
     // phantom identity. A pre-existing record (a previous attempt) is treated
     // as recovery.
-    const coinType = network === 'mainnet' ? 5 : 1
+    const coinType = COIN_TYPE[network]
     const existing = await this.identityDAO.getByIdentifier(wallet.walletId, identifier)
     let wasJustCreated = false
     if (existing == null) {

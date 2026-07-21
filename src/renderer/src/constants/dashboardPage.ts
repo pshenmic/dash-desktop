@@ -1,3 +1,5 @@
+export const RECENT_TX_LIMIT = 5
+
 export const dashboardPage = {
   hero: {
     totalBalance: 'Total Balance:',

@@ -1,5 +1,9 @@
 import type {Knex} from 'knex'
 
+// Address book. One row per saved contact, scoped to a network so the same
+// label/address pair can exist independently on testnet and mainnet. The
+// unique (address, network) constraint prevents duplicate entries.
+
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('contacts', table => {
     table.increments('id').primary()

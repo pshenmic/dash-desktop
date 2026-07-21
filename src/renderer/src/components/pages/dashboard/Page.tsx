@@ -12,7 +12,7 @@ import {
   TransactionsIcon
 } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import NoResults from '@renderer/components/ui/NoResults'
-import { dashboardPage } from '@renderer/constants'
+import { dashboardPage, RECENT_TX_LIMIT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletTransactions, WalletTxItem } from '@renderer/hooks/useWalletTransactions'
 import { useAdresses } from '@renderer/hooks/useAdresses'
@@ -28,8 +28,6 @@ import RecentTransactions from './RecentTransactions'
 import ShieldedCard from './ShieldedCard'
 import IdentitiesCard from './IdentitiesCard'
 import NetworkCard from './NetworkCard'
-
-const RECENT_TX_LIMIT = 5
 
 function SectionHeader({ title }: { title: string }): React.JSX.Element {
   return (

@@ -1,5 +1,11 @@
 import type {Knex} from 'knex'
 
+// Resumable asset-lock funding flow. One row per L1 asset-lock funding a
+// platform destination (address/identity), tracking the flow through its
+// status stages (l1_broadcast -> chainlocked -> st_broadcast -> done/error)
+// so an interrupted funding can be resumed after restart. Keyed uniquely by
+// the funding txid.
+
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('asset_lock_fundings', table => {
     table.increments('id').primary()

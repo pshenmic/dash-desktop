@@ -10,6 +10,7 @@ import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { transactionUrl } from '@renderer/utils/explorer'
+import { ASSET_LOCK_FUNDING_POLL_MS } from '@renderer/constants'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
@@ -149,10 +150,10 @@ export default function AssetLockFundingModal({
           onSuccess()
         }
         if (next.phase !== 'done' && next.phase !== 'error' && next.phase !== 'resumable') {
-          timer = setTimeout(() => { void poll() }, 1500)
+          timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
         }
       } catch {
-        if (!dead) timer = setTimeout(() => { void poll() }, 1500)
+        if (!dead) timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
       }
     }
     void poll()

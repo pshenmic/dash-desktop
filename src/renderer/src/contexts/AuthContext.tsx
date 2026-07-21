@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { API } from '@renderer/api'
 import { useNavigate } from 'react-router-dom'
 import { AppStatus, WalletSyncStatus } from '@renderer/api/types'
+import { APP_STATUS_POLL_MS } from '@renderer/constants'
 
 function isSameSync(a: WalletSyncStatus, b: WalletSyncStatus): boolean {
   return a.phase === b.phase
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   useEffect(() => {
     const id = setInterval(() => {
       refreshStatus().catch(() => {})
-    }, 1000)
+    }, APP_STATUS_POLL_MS)
     return () => clearInterval(id)
   }, [refreshStatus])
 
