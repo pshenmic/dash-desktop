@@ -74,7 +74,7 @@ export default function RecipientInput({
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>
-      <div className={"dash-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
+      <div className={"dash-input-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
         <div
           className={"flex items-center justify-between gap-1 px-4 py-3.5 [&>*:first-child]:flex-1"}
           onClick={() => inputRef.current?.focus()}

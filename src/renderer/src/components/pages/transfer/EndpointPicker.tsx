@@ -13,6 +13,7 @@ import {
 import PlatformAddressSelect from "./PlatformAddressSelect";
 
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
+const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
 
 function KindIcon({kind}: {kind: string}): React.JSX.Element {
   if (kind === 'core' || kind === 'coreAddress') return <DashLogo size={16} />
@@ -196,7 +197,7 @@ export function DestinationPicker({
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
       {showValueInput && kind !== 'newIdentity' && (
         <>
-          <div className={`${fieldBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
+          <div className={`${inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
             <input
               type={"text"}
               value={value}
