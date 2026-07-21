@@ -3,7 +3,6 @@ import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
-import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 
@@ -15,8 +14,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
-
-  const [syncModalOpen, setSyncModalOpen] = useState(false)
 
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === 'done'
@@ -80,20 +77,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const handleConfirmAdd = (): Promise<void> => withPassword(async (pwd) => {
     setAddresses(await API.addShieldedAddress(walletId!, pwd))
   })
-
-  const handleSync = async (): Promise<void> => {
-    if (!walletId || syncRunning) return
-    if (unlockedPassword == null) {
-      setSyncModalOpen(true)
-      return
-    }
-    setError(null)
-    try {
-      await API.startShieldedSync(walletId, unlockedPassword)
-    } catch {
-      setError('Could not start sync. Please try again.')
-    }
-  }
 
   const handleNewAddress = async (): Promise<void> => {
     if (!walletId || busy) return
@@ -227,17 +210,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             >
               {busy ? 'Deriving…' : 'New address'}
             </Button>
-            <Button
-              type={"button"}
-              onClick={handleSync}
-              disabled={!walletId || syncRunning}
-              variant={"solid"}
-              colorScheme={"lightBlue-mint"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem]"}
-            >
-              {syncRunning ? 'Syncing…' : synced ? 'Re-sync notes' : 'Sync notes'}
-            </Button>
             {syncRunning && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 {sync.phase === 'recovering'
@@ -250,11 +222,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
           </div>
         </div>
       )}
-      <ShieldedUnlockModal
-        isOpen={syncModalOpen}
-        onClose={() => setSyncModalOpen(false)}
-        walletId={walletId ?? null}
-      />
     </div>
   )
 }

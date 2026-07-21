@@ -59,7 +59,7 @@ export default function ShieldedUnlockModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            Sync shielded notes
+            Check my notes
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer"}
@@ -125,7 +125,7 @@ export default function ShieldedUnlockModal({
             size={"md"}
             className={"flex-1 rounded-[.9375rem]"}
           >
-            {loading ? 'Starting…' : 'Sync notes'}
+            {loading ? 'Checking…' : 'Check my notes'}
           </Button>
         </div>
       </div>

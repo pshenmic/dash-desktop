@@ -55,7 +55,7 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
           size={"sm"}
           className={"min-h-0! py-2! rounded-[.75rem]"}
         >
-          {sync.phase === 'done' ? 'Re-sync' : 'Sync notes'}
+          {running ? 'Checking…' : 'Check my notes'}
         </Button>
       </div>
 
