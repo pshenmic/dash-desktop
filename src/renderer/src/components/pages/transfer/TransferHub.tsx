@@ -409,7 +409,7 @@ export default function TransferHub(): React.JSX.Element {
   )
 
   const fromDisplay =
-    fromKind === 'core' ? 'Dash wallet (L1)'
+    fromKind === 'core' ? 'Dash Core (L1)'
     : fromKind === 'platformAddress' ? (selectedSource?.platformAddress ?? '')
     : fromKind === 'identity' ? (selectedIdentity?.identifier ?? '')
     : 'Your shielded balance'
@@ -519,7 +519,7 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-3"}>
           <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Send</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%] max-w-152.5"}>
-            Move funds between your Dash wallet, Platform addresses, identities and the shielded pool. Pick where the funds come from and where they go.
+            Move funds between your Dash Core, Platform addresses, identities and the shielded pool. Pick where the funds come from and where they go.
           </Text>
         </div>
         {shieldedInvolved && <ProverPill status={prover} />}
