@@ -19,8 +19,9 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('note_index').notNullable()
     table.text('amount').nullable()
     table.text('address').nullable()
-    table.boolean('spent').notNullable().defaultTo(false)
-    table.boolean('is_mine').notNullable().defaultTo(true)
+    table.boolean('spent').nullable()
+    table.boolean('is_mine').nullable()
+    table.boolean('is_decoded').notNullable().defaultTo(false)
     table.primary(['wallet_id', 'note_index'])
   })
 }
