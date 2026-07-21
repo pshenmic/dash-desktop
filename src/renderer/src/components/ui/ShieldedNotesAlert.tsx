@@ -11,7 +11,7 @@ export default function ShieldedNotesAlert({ walletId, onSync, syncing = false }
   if (undecodedCount === 0) return null
 
   return (
-    <div className={"flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+    <div className={"flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] border border-dash-brand/35 bg-dash-brand/8 dark:border-dash-mint/40 dark:bg-dash-mint/10"}>
       <div className={"flex flex-col gap-[.375rem]"}>
         <div className={"flex items-center gap-2"}>
           <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />

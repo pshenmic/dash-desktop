@@ -210,17 +210,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             >
               {busy ? 'Deriving…' : 'New address'}
             </Button>
-            <Button
-              type={"button"}
-              onClick={() => setSyncOpen(true)}
-              disabled={!walletId || syncRunning}
-              variant={"solid"}
-              colorScheme={"lightBlue-mint"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem]"}
-            >
-              {syncRunning ? 'Syncing…' : 'Sync balance'}
-            </Button>
             {syncRunning && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 {sync.phase === ShieldedSyncPhase.Recovering

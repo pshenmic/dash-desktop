@@ -90,18 +90,6 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
               Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
             </Text>
-
-            <Button
-              type={"button"}
-              onClick={() => setSyncOpen(true)}
-              disabled={syncRunning}
-              variant={"solid"}
-              colorScheme={"primary"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem] self-start mt-4"}
-            >
-              {syncRunning ? 'Syncing…' : 'Sync balance'}
-            </Button>
           </div>
         </div>
         </div>

@@ -329,14 +329,6 @@ export default function TransferHub(): React.JSX.Element {
                 selected={selectedShieldedAddress}
                 onSelect={setShieldedFromAddress}
               />
-              <button
-                type={"button"}
-                onClick={() => setNotesUnlockOpen(true)}
-                disabled={notesSyncing}
-                className={"self-start cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-50 disabled:cursor-default"}
-              >
-                <Text size={12} weight={"medium"} color={"brand"}>{notesSyncing ? 'Updating…' : 'Update my notes'}</Text>
-              </button>
               <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
             </>
           )}
