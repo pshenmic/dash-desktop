@@ -38,6 +38,8 @@ export function useShieldedStatus(): ShieldedStatus {
 
 const INITIAL_POOL_INFO: ShieldedPoolInfo = { poolState: null, notesCount: null }
 
+const SHIELDED_POOL_REFRESH_MS = 15_000
+
 export function useShieldedPoolInfo(network: Network | undefined): {
   poolInfo: ShieldedPoolInfo
   loading: boolean
@@ -48,7 +50,7 @@ export function useShieldedPoolInfo(network: Network | undefined): {
     network,
     () => API.getShieldedPoolInfo(network!),
     INITIAL_POOL_INFO,
-    { errorMessage: 'Failed to load shielded pool info' }
+    { errorMessage: 'Failed to load shielded pool info', refreshIntervalMs: SHIELDED_POOL_REFRESH_MS }
   )
   return { poolInfo: data, loading, err }
 }
