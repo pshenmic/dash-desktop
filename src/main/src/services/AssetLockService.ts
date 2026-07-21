@@ -11,6 +11,8 @@ import {WalletDAO} from '../database/WalletDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
+import {AssetLockFundingPhase} from '../enums/AssetLockFundingPhase'
+import {LockKind} from '../enums/LockKind'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
@@ -20,6 +22,10 @@ import {SdkProvider} from './SdkProvider'
 import {AssetLockProof, IdentityRegistrationService} from './IdentityRegistrationService'
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
+
+function lockKindFromProof(proof: AssetLockProof): LockKind {
+  return proof.type === 'instantLock' ? LockKind.Instant : LockKind.Chain
+}
 
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
@@ -47,7 +53,7 @@ export class AssetLockService {
   }
 
   private idleState(): AssetLockFundingState {
-    return {phase: 'idle', kind: 'address', txid: null, txHeight: null, chainLockedHeight: null, lockKind: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
+    return {phase: AssetLockFundingPhase.Idle, kind: AssetLockFundingKind.Address, txid: null, txHeight: null, chainLockedHeight: null, lockKind: null, stHash: null, toPlatformAddress: null, identityIdentifier: null, amountDuffs: null, error: null}
   }
 
   private isActive(state: AssetLockFundingState | undefined): boolean {
@@ -63,7 +69,7 @@ export class AssetLockService {
     if (row != null) {
       return {
         ...this.idleState(),
-        phase: 'resumable',
+        phase: AssetLockFundingPhase.Resumable,
         kind: row.kind,
         txid: row.txid,
         toPlatformAddress: row.toPlatformAddress,
@@ -73,7 +79,7 @@ export class AssetLockService {
     return current ?? this.idleState()
   }
 
-  async startFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind: AssetLockFundingKind = 'address'): Promise<AssetLockFundingState> {
+  async startFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind: AssetLockFundingKind = AssetLockFundingKind.Address): Promise<AssetLockFundingState> {
     const current = this.states.get(walletId)
     if (this.isActive(current)) {
       return current!
@@ -127,7 +133,7 @@ export class AssetLockService {
 
     const state: AssetLockFundingState = {
       ...this.idleState(),
-      phase: 'building',
+      phase: AssetLockFundingPhase.Building,
       kind,
       toPlatformAddress: destination,
       amountDuffs: amountDuffs.toString(),
@@ -160,7 +166,7 @@ export class AssetLockService {
 
     const state: AssetLockFundingState = {
       ...this.idleState(),
-      phase: 'waitingChainLock',
+      phase: AssetLockFundingPhase.WaitingChainLock,
       kind: row.kind,
       txid: row.txid,
       toPlatformAddress: row.toPlatformAddress,
@@ -173,7 +179,7 @@ export class AssetLockService {
 
   private async failState(state: AssetLockFundingState, txid: string | null, error: unknown): Promise<void> {
     state.error = error instanceof Error ? error.message : String(error)
-    state.phase = txid != null ? 'resumable' : 'error'
+    state.phase = txid != null ? AssetLockFundingPhase.Resumable : AssetLockFundingPhase.Error
   }
 
   private async runNewFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, state: AssetLockFundingState, kind: AssetLockFundingKind): Promise<void> {
@@ -192,7 +198,7 @@ export class AssetLockService {
         identityIndex = prepared.topUpIndex
       }
 
-      state.phase = 'broadcastingL1'
+      state.phase = AssetLockFundingPhase.BroadcastingL1
       const broadcasted = await this.walletService.buildAndBroadcastAssetLock(walletId, amountDuffs, password, credit)
       txid = broadcasted.txid
       state.txid = txid
@@ -261,7 +267,7 @@ export class AssetLockService {
       throw new Error('Invalid wallet password')
     }
 
-    const topUpIndex = await this.assetLockDAO.countFundingsByKind(walletId, 'identityTopUp')
+    const topUpIndex = await this.assetLockDAO.countFundingsByKind(walletId, AssetLockFundingKind.IdentityTopUp)
     const fundingKey = await this.identityRegistrationService.deriveTopUpKey(mnemonic, topUpIndex, network)
     const address = this.sdkProvider.getPlatformSDK(network).keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)
 
@@ -279,11 +285,11 @@ export class AssetLockService {
     const network = wallet.network
     const sdk = this.sdkProvider.getPlatformSDK(network)
 
-    if (row.kind === 'identity' || row.kind === 'identityTopUp') {
+    if (row.kind === AssetLockFundingKind.Identity || row.kind === AssetLockFundingKind.IdentityTopUp) {
       return this.completeIdentityFunding(wallet, row, password, state, live)
     }
 
-    state.phase = 'waitingChainLock'
+    state.phase = AssetLockFundingPhase.WaitingChainLock
 
     const decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
     const seed = sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
@@ -305,21 +311,21 @@ export class AssetLockService {
     }
 
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
-    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
+    state.lockKind = lockKindFromProof(assetLockProof)
     if (assetLockProof.type === 'chainLock') {
       state.chainLockedHeight = assetLockProof.coreChainLockedHeight
     }
 
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
 
-    state.phase = 'broadcastingST'
+    state.phase = AssetLockFundingPhase.BroadcastingST
 
-    const stHash = row.kind === 'shielded'
+    const stHash = row.kind === AssetLockFundingKind.Shielded
       ? await this.broadcastShieldSt(row, seed, network, assetLockProof)
       : await this.broadcastAddressFundingSt(row, seed, network, assetLockProof)
 
     state.stHash = stHash
-    state.phase = 'done'
+    state.phase = AssetLockFundingPhase.Done
 
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
   }
@@ -389,11 +395,11 @@ export class AssetLockService {
     } catch {
       throw new Error('Invalid wallet password')
     }
-    const fundingKey = row.kind === 'identityTopUp'
+    const fundingKey = row.kind === AssetLockFundingKind.IdentityTopUp
       ? await this.identityRegistrationService.deriveTopUpKey(mnemonic, row.identityIndex, network)
       : await this.identityRegistrationService.deriveRegistrationKey(mnemonic, row.identityIndex, network)
 
-    state.phase = 'waitingChainLock'
+    state.phase = AssetLockFundingPhase.WaitingChainLock
 
     const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
     if (tx == null) {
@@ -401,13 +407,13 @@ export class AssetLockService {
     }
     const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)]
     const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
-    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
+    state.lockKind = lockKindFromProof(assetLockProof)
 
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
 
-    state.phase = 'broadcastingST'
+    state.phase = AssetLockFundingPhase.BroadcastingST
 
-    if (row.kind === 'identityTopUp') {
+    if (row.kind === AssetLockFundingKind.IdentityTopUp) {
       const stateTransition = this.identityRegistrationService.buildIdentityTopUpTransition(row.toPlatformAddress, fundingKey, assetLockProof, network)
       const stHash = stateTransition.hash(false)
 
@@ -429,7 +435,7 @@ export class AssetLockService {
 
       state.identityIdentifier = row.toPlatformAddress
       state.stHash = stHash
-      state.phase = 'done'
+      state.phase = AssetLockFundingPhase.Done
 
       await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
       return
@@ -483,7 +489,7 @@ export class AssetLockService {
 
     state.identityIdentifier = identifier
     state.stHash = stHash
-    state.phase = 'done'
+    state.phase = AssetLockFundingPhase.Done
 
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
   }

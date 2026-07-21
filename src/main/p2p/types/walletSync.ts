@@ -9,16 +9,9 @@ import {Network} from '../../src/types'
 
 // ── Sync status ─────────────────────────────────────────────────────────────
 
-export type WalletSyncPhase =
-  | 'idle'
-  | 'connecting'
-  | 'syncing-headers'
-  | 'synced-headers'
-  | 'syncing-cfcheckpt'
-  | 'syncing-cfheaders'
-  | 'syncing-cfilters'
-  | 'synced'
-  | 'stopped'
+import {WalletSyncPhase} from '../../src/enums/WalletSyncPhase'
+
+export {WalletSyncPhase}
 
 export interface WalletSyncStatus {
   phase: WalletSyncPhase

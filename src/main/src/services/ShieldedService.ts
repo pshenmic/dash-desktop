@@ -81,7 +81,7 @@ export class ShieldedService {
   private identityRegistrationService: IdentityRegistrationService
   private child: UtilityProcess | null = null
   private childOutputTail = ''
-  private proverState: ShieldedProverState = 'idle'
+  private proverState: ShieldedProverState = ShieldedProverState.Idle
   private proverError: string | null = null
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
@@ -128,7 +128,7 @@ export class ShieldedService {
       if (tail) console.error(`[shielded] last output before exit:\n${tail}`)
       this.child = null
       this.failPending(`shielded utility process exited (code=${code})${tail ? `\n--- shielded output (tail) ---\n${tail}` : ''}`)
-      this.proverState = 'idle'
+      this.proverState = ShieldedProverState.Idle
       this.proverError = null
     })
 
@@ -143,16 +143,16 @@ export class ShieldedService {
   private failPending(message: string): void {
     for (const walletId of this.pendingSyncs.values()) {
       const state = this.syncStates.get(walletId)
-      if (state != null && state.phase !== 'done') {
-        state.phase = 'error'
+      if (state != null && state.phase !== ShieldedSyncPhase.Done) {
+        state.phase = ShieldedSyncPhase.Error
         state.error = message
       }
     }
     this.pendingSyncs.clear()
     for (const walletId of this.pendingSpends.values()) {
       const state = this.spendStates.get(walletId)
-      if (state != null && state.phase !== 'done') {
-        state.phase = 'error'
+      if (state != null && state.phase !== ShieldedSpendPhase.Done) {
+        state.phase = ShieldedSpendPhase.Error
         state.error = message
       }
     }
@@ -201,10 +201,10 @@ export class ShieldedService {
       if (event.ok) {
         state.balance = event.balance
         state.notes = event.notes
-        state.phase = 'done'
+        state.phase = ShieldedSyncPhase.Done
         state.syncedAt = Date.now()
       } else {
-        state.phase = 'error'
+        state.phase = ShieldedSyncPhase.Error
         state.error = event.error
       }
       return
@@ -233,13 +233,13 @@ export class ShieldedService {
       if (event.ok) {
         state.stHash = event.stHash
         state.identityId = event.identityId ?? null
-        state.phase = 'done'
+        state.phase = ShieldedSpendPhase.Done
         if (identityCreate != null && event.identityId != null) {
           this.persistCreatedIdentity(identityCreate, event.identityId).catch(e =>
             console.error('Failed to persist identity created from the shielded pool', e))
         }
       } else {
-        state.phase = 'error'
+        state.phase = ShieldedSpendPhase.Error
         state.error = event.error
       }
       return
@@ -268,12 +268,12 @@ export class ShieldedService {
 
   getStatus(): ShieldedStatus {
     if (this.proverState === 'idle') {
-      this.proverState = 'preparing'
+      this.proverState = ShieldedProverState.Preparing
       this.send({type: 'initProver'})
     }
     return {
       prover: this.proverState,
-      ready: this.proverState === 'ready',
+      ready: this.proverState === ShieldedProverState.Ready,
       error: this.proverError
     }
   }
@@ -358,7 +358,7 @@ export class ShieldedService {
   }
 
   private idleSyncState(): ShieldedSyncState {
-    return { phase: 'idle', fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null }
+    return { phase: ShieldedSyncPhase.Idle, fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null }
   }
 
   getSyncState(walletId: string): ShieldedSyncState {
@@ -367,12 +367,12 @@ export class ShieldedService {
 
   async startSync(walletId: string, password: string): Promise<ShieldedSyncState> {
     const current = this.syncStates.get(walletId)
-    if (current != null && (current.phase === 'syncing' || current.phase === 'recovering')) {
+    if (current != null && (current.phase === ShieldedSyncPhase.Syncing || current.phase === ShieldedSyncPhase.Recovering)) {
       return current
     }
 
     const state: ShieldedSyncState = {
-      phase: 'syncing', fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null
+      phase: ShieldedSyncPhase.Syncing, fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null
     }
     this.syncStates.set(walletId, state)
 
@@ -385,14 +385,14 @@ export class ShieldedService {
       this.pendingSyncs.set(requestId, walletId)
       this.send({type: 'sync', requestId, network, seed, spentIndexes: [...spent]})
     } catch (e) {
-      state.phase = 'error'
+      state.phase = ShieldedSyncPhase.Error
       state.error = e instanceof Error ? e.message : String(e)
     }
     return state
   }
 
   private idleSpendState(): ShieldedSpendState {
-    return { phase: 'idle', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
+    return { phase: ShieldedSpendPhase.Idle, fetched: 0, total: 0, stHash: null, identityId: null, error: null }
   }
 
   getSpendState(walletId: string): ShieldedSpendState {
@@ -400,24 +400,24 @@ export class ShieldedService {
   }
 
   startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'transfer', recipient, amountCredits, noteIndexes)
+    return this.startSpend(walletId, password, ShieldedSpendKind.Transfer, recipient, amountCredits, noteIndexes)
   }
 
   startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'unshield', outputAddress, amountCredits, noteIndexes)
+    return this.startSpend(walletId, password, ShieldedSpendKind.Unshield, outputAddress, amountCredits, noteIndexes)
   }
 
   startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'withdrawal', coreAddress, amountCredits, noteIndexes)
+    return this.startSpend(walletId, password, ShieldedSpendKind.Withdrawal, coreAddress, amountCredits, noteIndexes)
   }
 
   private async startSpend(walletId: string, password: string, kind: ShieldedSpendKind, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
     const current = this.spendStates.get(walletId)
-    if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
+    if (current != null && (current.phase === ShieldedSpendPhase.Syncing || current.phase === ShieldedSpendPhase.Proving || current.phase === ShieldedSpendPhase.Broadcasting)) {
       return current
     }
 
-    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
+    const state: ShieldedSpendState = { phase: ShieldedSpendPhase.Syncing, fetched: 0, total: 0, stHash: null, identityId: null, error: null }
     this.spendStates.set(walletId, state)
 
     try {
@@ -441,7 +441,7 @@ export class ShieldedService {
         noteIndexes,
       })
     } catch (e) {
-      state.phase = 'error'
+      state.phase = ShieldedSpendPhase.Error
       state.error = e instanceof Error ? e.message : String(e)
     }
     return state
@@ -449,11 +449,11 @@ export class ShieldedService {
 
   async startIdentityCreate(walletId: string, password: string, denominationCredits: bigint): Promise<ShieldedSpendState> {
     const current = this.spendStates.get(walletId)
-    if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
+    if (current != null && (current.phase === ShieldedSpendPhase.Syncing || current.phase === ShieldedSpendPhase.Proving || current.phase === ShieldedSpendPhase.Broadcasting)) {
       return current
     }
 
-    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
+    const state: ShieldedSpendState = { phase: ShieldedSpendPhase.Syncing, fetched: 0, total: 0, stHash: null, identityId: null, error: null }
     this.spendStates.set(walletId, state)
 
     try {
@@ -478,14 +478,14 @@ export class ShieldedService {
         network,
         seed,
         spentIndexes: [...spent],
-        kind: 'identityCreate',
+        kind: ShieldedSpendKind.IdentityCreate,
         recipient: '',
         amountCredits: denominationCredits.toString(),
         identityIndex,
         failureAddress,
       })
     } catch (e) {
-      state.phase = 'error'
+      state.phase = ShieldedSpendPhase.Error
       state.error = e instanceof Error ? e.message : String(e)
     }
     return state

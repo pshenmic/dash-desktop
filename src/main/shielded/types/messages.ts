@@ -1,9 +1,10 @@
 import {Network} from '../../src/types'
+import {ShieldedProverState} from '../../src/enums/ShieldedProverState'
+import {ShieldedSyncPhase} from '../../src/enums/ShieldedSyncPhase'
+import {ShieldedSpendPhase} from '../../src/enums/ShieldedSpendPhase'
+import {ShieldedSpendKind} from '../../src/enums/ShieldedSpendKind'
 
-export type ShieldedProverState = 'idle' | 'preparing' | 'ready' | 'error'
-export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
-export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
-export type ShieldedSpendKind = 'transfer' | 'unshield' | 'withdrawal' | 'identityCreate'
+export {ShieldedProverState, ShieldedSyncPhase, ShieldedSpendPhase, ShieldedSpendKind}
 
 export interface ShieldedNoteSnapshot {
   index: number

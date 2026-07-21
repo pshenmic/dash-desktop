@@ -3,13 +3,9 @@ import type {ChainStore} from '../ChainStore'
 import type {PoolService} from '../PoolService'
 import type {WalletSyncUtxo} from '../types/walletSync'
 
-export type CFilterPhase =
-  | 'connecting'
-  | 'cfcheckpt'
-  | 'cfheaders'
-  | 'cfilters'
-  | 'synced'
-  | 'stopped'
+import {CFilterPhase} from '../../src/enums/CFilterPhase'
+
+export {CFilterPhase}
 
 export interface CFilterSyncWorkerStatus {
   phase: CFilterPhase

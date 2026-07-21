@@ -1,7 +1,9 @@
 import type {ChainStore} from '../ChainStore'
 import type {PoolService} from '../PoolService'
 
-export type HeaderSyncPhase = 'connecting' | 'syncing-headers' | 'synced' | 'stopped'
+import {HeaderSyncPhase} from '../../src/enums/HeaderSyncPhase'
+
+export {HeaderSyncPhase}
 
 export interface HeaderSyncWorkerStatus {
   phase: HeaderSyncPhase

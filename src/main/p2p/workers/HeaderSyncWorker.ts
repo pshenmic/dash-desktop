@@ -11,8 +11,8 @@ import {
 } from '../pow'
 import {Worker} from './Worker'
 import {HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS} from '../constants'
+import {HeaderSyncPhase} from '../types/headerSync'
 import type {
-  HeaderSyncPhase,
   HeaderSyncWorkerOptions,
   HeaderSyncWorkerStatus,
 } from '../types/headerSync'
@@ -54,7 +54,7 @@ export class HeaderSyncWorker extends Worker {
   private maxPeerHeight = 0
 
   private currentRace: HeaderRace | null = null
-  private phase: HeaderSyncPhase = 'connecting'
+  private phase: HeaderSyncPhase = HeaderSyncPhase.Connecting
   private stopped = false
 
   // Bound listener references so stop() can detach cleanly.
@@ -78,7 +78,7 @@ export class HeaderSyncWorker extends Worker {
     this.peerPool.on('peerheaders', this.onPeerHeaders)
     this.peerPool.on('peerinv', this.onPeerInv)
     this.peerPool.on('peerdisconnect', this.onPeerDisconnect)
-    this.emitStatus('connecting')
+    this.emitStatus(HeaderSyncPhase.Connecting)
 
     // Any peers already ready when we attached should kick off the race.
     for (const peer of this.peerPool.readyPeers) this.handlePeerReady(peer)
@@ -93,8 +93,8 @@ export class HeaderSyncWorker extends Worker {
     this.peerPool.off('peerheaders', this.onPeerHeaders)
     this.peerPool.off('peerinv', this.onPeerInv)
     this.peerPool.off('peerdisconnect', this.onPeerDisconnect)
-    this.phase = 'stopped'
-    this.emitStatus('stopped')
+    this.phase = HeaderSyncPhase.Stopped
+    this.emitStatus(HeaderSyncPhase.Stopped)
   }
 
   // ── status ────────────────────────────────────────────────────────────────
@@ -121,8 +121,8 @@ export class HeaderSyncWorker extends Worker {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     peer.sendMessage((this.peerPool.messages as any).SendHeaders())
 
-    if (this.phase === 'connecting' || this.phase === 'syncing-headers') {
-      if (this.phase === 'connecting') this.emitStatus('syncing-headers')
+    if (this.phase === HeaderSyncPhase.Connecting || this.phase === HeaderSyncPhase.SyncingHeaders) {
+      if (this.phase === HeaderSyncPhase.Connecting) this.emitStatus(HeaderSyncPhase.SyncingHeaders)
       if (!this.currentRace) {
         this.startHeaderRace()
       } else if (this.currentRace.racers.size < HEADER_RACE_PEERS) {
@@ -143,7 +143,7 @@ export class HeaderSyncWorker extends Worker {
     if (this.stopped) return
     console.log(`[p2p] peerheaders ${peer.host} count=${rawHeaders.length} phase=${this.phase}`)
 
-    if (this.phase !== 'syncing-headers') {
+    if (this.phase !== HeaderSyncPhase.SyncingHeaders) {
       // Tip-following: post-sync, accept unsolicited extensions.
       if (rawHeaders.length === 0 || rawHeaders[0]!.length < 80) return
       if (rawPrevHash(rawHeaders[0]!) !== this.chainTipHash) return
@@ -204,7 +204,7 @@ export class HeaderSyncWorker extends Worker {
       race.racers.delete(peer)
       if (race.racers.size === 0) {
         this.endRace(race)
-        if (this.phase === 'syncing-headers') this.startHeaderRace()
+        if (this.phase === HeaderSyncPhase.SyncingHeaders) this.startHeaderRace()
       }
     }
   }
@@ -255,7 +255,7 @@ export class HeaderSyncWorker extends Worker {
 
   private finishHeaderSync(): void {
     if (this.currentRace) this.endRace(this.currentRace)
-    this.emitStatus('synced')
+    this.emitStatus(HeaderSyncPhase.Synced)
   }
 
   // Validate + persist a batch of raw 80-byte headers. See the original
@@ -314,8 +314,8 @@ export class HeaderSyncWorker extends Worker {
     // Don't reset the phase to 'syncing-headers' if a tip-follow batch
     // arrives after we've already announced 'synced' — that flips the phase
     // backward and confuses downstream consumers. We just emit progress.
-    if (this.phase === 'syncing-headers' || this.phase === 'connecting') {
-      this.emitStatus('syncing-headers')
+    if (this.phase === HeaderSyncPhase.SyncingHeaders || this.phase === HeaderSyncPhase.Connecting) {
+      this.emitStatus(HeaderSyncPhase.SyncingHeaders)
     } else {
       // 'synced' or 'stopped' — re-emit current phase to push the new
       // tipHeight without changing phase.

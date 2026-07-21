@@ -6,6 +6,7 @@ import {ChainStorageFilename, HomeFolderName} from '../constants'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
+import {WalletSyncPhase} from '../enums/WalletSyncPhase'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
 import {BroadcastResult} from '../../p2p/types/broadcast'
 import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
@@ -41,7 +42,7 @@ export class WalletSyncService {
   // exits) we hold a 'stopped' snapshot — same shape the orchestrator emits
   // on teardown — so the renderer never sees null.
   private status: WalletSyncStatus = {
-    phase: 'stopped',
+    phase: WalletSyncPhase.Stopped,
     network: null,
     walletId: null,
     tipHeight: 0,
@@ -147,7 +148,7 @@ export class WalletSyncService {
       }
       this.pendingBroadcasts.clear()
       this.status = {
-        phase: 'stopped',
+        phase: WalletSyncPhase.Stopped,
         network: null,
         walletId: null,
         tipHeight: 0,
@@ -438,13 +439,13 @@ export class WalletSyncService {
     // before we kill it. A hard kill leaves the lock held until the OS reaps
     // the process, which can block the next launch's open.
     this.send({ type: 'stop' })
-    await this.waitForPhase('stopped', 3000)
+    await this.waitForPhase(WalletSyncPhase.Stopped, 3000)
     child.kill()
     await exited
     this.child = null
     this.activeWalletId = null
     this.status = {
-      phase: 'stopped',
+      phase: WalletSyncPhase.Stopped,
       network: null,
       walletId: null,
       tipHeight: 0,

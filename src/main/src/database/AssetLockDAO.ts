@@ -1,7 +1,8 @@
 import {Knex} from 'knex'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
+import {AssetLockFundingKind} from '../enums/AssetLockFundingKind'
 
-export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
+export {AssetLockFundingKind}
 
 export interface AssetLockFundingRow {
   id: number
@@ -29,7 +30,7 @@ function fromRow(row: Record<string, unknown>): AssetLockFundingRow {
     creditDerivationPath: row.credit_derivation_path as string,
     amountDuffs: row.amount_duffs as string,
     toPlatformAddress: row.to_platform_address as string,
-    kind: (row.kind as AssetLockFundingKind | null) ?? 'address',
+    kind: (row.kind as AssetLockFundingKind | null) ?? AssetLockFundingKind.Address,
     status: row.status as AssetLockFundingStatus,
     stHash: (row.st_hash as string | null) ?? null,
     error: (row.error as string | null) ?? null,

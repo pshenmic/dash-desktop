@@ -16,7 +16,7 @@ import {Network} from '../src/types'
 import {coreAddressToScript} from '../src/utils/coreScript'
 import {IDENTITY_KEY_DEFINITIONS} from '../src/utils/identityKeys'
 import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
-import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind} from './types/messages'
+import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind, ShieldedProverState, ShieldedSyncPhase, ShieldedSpendPhase} from './types/messages'
 
 type SyncCommand = Extract<ShieldedCommand, {type: 'sync'}>
 type SpendCommand = Extract<ShieldedCommand, {type: 'spend'}>
@@ -56,19 +56,19 @@ export class ShieldedEngine {
 
   async initProver(): Promise<void> {
     if (this.proverReady) {
-      this.emit({type: 'proverStatus', state: 'ready', error: null})
+      this.emit({type: 'proverStatus', state: ShieldedProverState.Ready, error: null})
       return
     }
     if (this.proverInit == null) {
-      this.emit({type: 'proverStatus', state: 'preparing', error: null})
+      this.emit({type: 'proverStatus', state: ShieldedProverState.Preparing, error: null})
       this.proverInit = this.sdk.shielded.init().then(() => {
         this.proverReady = true
-        this.emit({type: 'proverStatus', state: 'ready', error: null})
+        this.emit({type: 'proverStatus', state: ShieldedProverState.Ready, error: null})
       }).catch(e => {
         this.proverInit = null
         const message = e instanceof Error ? e.message : String(e)
         console.error('[shielded] prover init failed', e)
-        this.emit({type: 'proverStatus', state: 'error', error: message})
+        this.emit({type: 'proverStatus', state: ShieldedProverState.Error, error: message})
         throw e
       })
     }
@@ -80,9 +80,9 @@ export class ShieldedEngine {
       this.sdk.setNetwork(command.network)
 
       const all = await this.fetchAllNotes((fetched, total) =>
-        this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'syncing', fetched, total}))
+        this.emit({type: 'syncProgress', requestId: command.requestId, phase: ShieldedSyncPhase.Syncing, fetched, total}))
 
-      this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'recovering', fetched: all.length, total: all.length})
+      this.emit({type: 'syncProgress', requestId: command.requestId, phase: ShieldedSyncPhase.Recovering, fetched: all.length, total: all.length})
       const recovered = this.sdk.shielded.recoverNotes(all, command.seed, SHIELDED_ACCOUNT)
       const spent = new Set(command.spentIndexes)
 
@@ -120,7 +120,7 @@ export class ShieldedEngine {
       const coinType = COIN_TYPE[network]
 
       const all = await this.fetchAllNotes((fetched, total) =>
-        this.emit({type: 'spendProgress', requestId, phase: 'syncing', fetched, total}))
+        this.emit({type: 'spendProgress', requestId, phase: ShieldedSpendPhase.Syncing, fetched, total}))
 
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
       const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
@@ -136,7 +136,7 @@ export class ShieldedEngine {
           : unspent
         if (available.length === 0) throw new Error('Selected note is no longer available to spend')
 
-        const feeCredits = kind === 'identityCreate' ? 0n : SPEND_FEE_CREDITS
+        const feeCredits = kind === ShieldedSpendKind.IdentityCreate ? 0n : SPEND_FEE_CREDITS
         const selectable = available.map((note) => ({ index: note.index, value: note.note.value }))
         const selection = selectSpendNotes(selectable, amount + feeCredits, MAX_SPEND_NOTES)
         if (selection == null) {
@@ -152,22 +152,22 @@ export class ShieldedEngine {
 
         const { spends, anchor } = this.sdk.shielded.buildSpendableNotes(all, toSpend)
 
-        this.emit({type: 'spendProgress', requestId, phase: 'proving', fetched: all.length, total: all.length})
+        this.emit({type: 'spendProgress', requestId, phase: ShieldedSpendPhase.Proving, fetched: all.length, total: all.length})
         const base = { spends, changeAddress, seed, coinType, account: SHIELDED_ACCOUNT, anchor, memo }
         let stateTransition: StateTransitionWASM
-        if (kind === 'transfer') {
+        if (kind === ShieldedSpendKind.Transfer) {
           stateTransition = await this.sdk.shielded.createStateTransition('shieldedTransfer', {
             ...base,
             recipient: OrchardAddressWASM.fromBech32m(command.recipient),
             transferAmount: amount,
           })
-        } else if (kind === 'unshield') {
+        } else if (kind === ShieldedSpendKind.Unshield) {
           stateTransition = await this.sdk.shielded.createStateTransition('unshield', {
             ...base,
             outputAddress: command.recipient,
             unshieldAmount: amount,
           })
-        } else if (kind === 'identityCreate') {
+        } else if (kind === ShieldedSpendKind.IdentityCreate) {
           if (command.identityIndex == null || command.failureAddress == null) {
             throw new Error('Identity creation needs an identity index and a failure refund address')
           }
@@ -214,11 +214,11 @@ export class ShieldedEngine {
           hash: stateTransition.hash(false),
         })
 
-        const identityId = kind === 'identityCreate'
+        const identityId = kind === ShieldedSpendKind.IdentityCreate
           ? IdentityCreateFromShieldedPoolTransitionWASM.fromStateTransition(stateTransition).identityId.base58()
           : null
 
-        this.emit({type: 'spendProgress', requestId, phase: 'broadcasting', fetched: all.length, total: all.length})
+        this.emit({type: 'spendProgress', requestId, phase: ShieldedSpendPhase.Broadcasting, fetched: all.length, total: all.length})
         await this.sdk.stateTransitions.broadcast(stateTransition)
         this.emit({type: 'notesSpent', requestId, indexes: toSpend.map((note) => note.index)})
         await this.waitForResult(stateTransition, kind)
@@ -337,7 +337,7 @@ export class ShieldedEngine {
       await this.sdk.stateTransitions.waitForStateTransitionResult(st)
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      if (kind === 'withdrawal' && /withdrawals contract not available/i.test(message)) {
+      if (kind === ShieldedSpendKind.Withdrawal && /withdrawals contract not available/i.test(message)) {
         console.warn('[shielded] withdrawal included; skipping local proof verification (SDK lacks withdrawals contract):', message)
         return
       }
@@ -346,11 +346,11 @@ export class ShieldedEngine {
   }
 
   private extractActionNullifiers(st: StateTransitionWASM, kind: ShieldedSpendKind): Uint8Array[] {
-    const transition = kind === 'transfer'
+    const transition = kind === ShieldedSpendKind.Transfer
       ? ShieldedTransferTransitionWASM.fromStateTransition(st)
-      : kind === 'unshield'
+      : kind === ShieldedSpendKind.Unshield
         ? UnshieldTransitionWASM.fromStateTransition(st)
-        : kind === 'identityCreate'
+        : kind === ShieldedSpendKind.IdentityCreate
           ? IdentityCreateFromShieldedPoolTransitionWASM.fromStateTransition(st)
           : ShieldedWithdrawalTransitionWASM.fromStateTransition(st)
     return transition.actions.map((action) => action.nullifier)

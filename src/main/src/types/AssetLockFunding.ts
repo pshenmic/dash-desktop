@@ -1,14 +1,8 @@
-import {AssetLockFundingKind} from '../database/AssetLockDAO'
+import {AssetLockFundingKind} from '../enums/AssetLockFundingKind'
+import {AssetLockFundingPhase} from '../enums/AssetLockFundingPhase'
+import {LockKind} from '../enums/LockKind'
 
-export type AssetLockFundingPhase =
-  | 'idle'
-  | 'resumable'
-  | 'building'
-  | 'broadcastingL1'
-  | 'waitingChainLock'
-  | 'broadcastingST'
-  | 'done'
-  | 'error'
+export {AssetLockFundingKind, AssetLockFundingPhase, LockKind}
 
 export interface AssetLockFundingState {
   phase: AssetLockFundingPhase
@@ -16,7 +10,7 @@ export interface AssetLockFundingState {
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
-  lockKind: 'instant' | 'chain' | null
+  lockKind: LockKind | null
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null

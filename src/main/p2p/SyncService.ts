@@ -13,6 +13,9 @@ import {
 import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
 import {BroadcastResult} from './types/broadcast'
 import {AppliedBlock, WalletSyncStatus} from './types/walletSync'
+import {WalletSyncPhase} from '../src/enums/WalletSyncPhase'
+import {HeaderSyncPhase} from '../src/enums/HeaderSyncPhase'
+import {CFilterPhase} from '../src/enums/CFilterPhase'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
 
 // Top-level controller for the p2p utility process. Owns the shared
@@ -61,7 +64,7 @@ export class SyncService {
   private chainlockedHeight = 0
 
   private status: WalletSyncStatus = {
-    phase: 'idle',
+    phase: WalletSyncPhase.Idle,
     network: null,
     walletId: null,
     tipHeight: 0,
@@ -115,7 +118,7 @@ export class SyncService {
     this.chainlockedHeight = 0
 
     this.emit({
-      phase: 'connecting',
+      phase: WalletSyncPhase.Connecting,
       network: cmd.network,
       walletId: cmd.walletId,
       tipHeight: 0,
@@ -141,7 +144,7 @@ export class SyncService {
       const labelled = `chain.db unusable (${code}): ${describeError(err)}. Call resetWalletSync to recover.`
       await this.chainStore.close().catch(() => { /* ignore */ })
       this.chainStore = null
-      this.emit({phase: 'stopped', lastError: labelled})
+      this.emit({phase: WalletSyncPhase.Stopped, lastError: labelled})
       this.events.error(labelled)
       return
     }
@@ -194,7 +197,7 @@ export class SyncService {
     this.activeSeedUtxos = []
     this.activeCFilterCursor = null
     this.emit({
-      phase: 'stopped',
+      phase: WalletSyncPhase.Stopped,
       network: null,
       walletId: null,
       tipHeight: 0,
@@ -374,16 +377,17 @@ export class SyncService {
       // updates only push tipHeight, not phase.
       phase: this.cfilterStarted
         ? this.status.phase
-        : s.phase === 'syncing-headers' || s.phase === 'connecting' || s.phase === 'stopped'
-          ? s.phase
-          : 'synced-headers',
+        : s.phase === HeaderSyncPhase.SyncingHeaders ? WalletSyncPhase.SyncingHeaders
+        : s.phase === HeaderSyncPhase.Connecting ? WalletSyncPhase.Connecting
+        : s.phase === HeaderSyncPhase.Stopped ? WalletSyncPhase.Stopped
+        : WalletSyncPhase.SyncedHeaders,
       tipHeight: s.tipHeight,
       tipHash: s.tipHash,
       estimatedChainHeight: s.estimatedChainHeight,
       peerCount: s.peerCount,
     })
 
-    if (s.phase === 'synced' && !this.cfilterStarted && this.chainStore && this.peerPool && s.tipHash) {
+    if (s.phase === HeaderSyncPhase.Synced && !this.cfilterStarted && this.chainStore && this.peerPool && s.tipHash) {
       this.cfilterStarted = true
       this.startCFilterWorker(s.tipHeight, s.tipHash).catch(err =>
         this.handleWorkerError('CFilterSyncWorker', err instanceof Error ? err.message : String(err))
@@ -418,12 +422,12 @@ export class SyncService {
 
   private onCFilterStatus(s: CFilterSyncWorkerStatus): void {
     const phase: WalletSyncStatus['phase'] =
-      s.phase === 'connecting' ? 'syncing-cfcheckpt'
-      : s.phase === 'cfcheckpt' ? 'syncing-cfcheckpt'
-      : s.phase === 'cfheaders' ? 'syncing-cfheaders'
-      : s.phase === 'cfilters' ? 'syncing-cfilters'
-      : s.phase === 'synced' ? 'synced'
-      : s.phase === 'stopped' ? 'stopped'
+      s.phase === CFilterPhase.Connecting ? WalletSyncPhase.SyncingCfcheckpt
+      : s.phase === CFilterPhase.Cfcheckpt ? WalletSyncPhase.SyncingCfcheckpt
+      : s.phase === CFilterPhase.Cfheaders ? WalletSyncPhase.SyncingCfheaders
+      : s.phase === CFilterPhase.Cfilters ? WalletSyncPhase.SyncingCfilters
+      : s.phase === CFilterPhase.Synced ? WalletSyncPhase.Synced
+      : s.phase === CFilterPhase.Stopped ? WalletSyncPhase.Stopped
       : this.status.phase
     this.emit({
       phase,
@@ -447,7 +451,7 @@ export class SyncService {
     if (fatal) {
       this.teardown()
         .catch(() => { /* ignore */ })
-        .finally(() => this.emit({phase: 'stopped'}))
+        .finally(() => this.emit({phase: WalletSyncPhase.Stopped}))
     }
   }
 }

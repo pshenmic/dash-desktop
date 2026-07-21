@@ -18,6 +18,6 @@ export class StartAssetLockFundingHandler {
     password: string,
     kind?: AssetLockFundingKind,
   ): Promise<AssetLockFundingState> => {
-    return this.assetLockService.startFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind ?? 'address')
+    return this.assetLockService.startFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind ?? AssetLockFundingKind.Address)
   }
 }
