@@ -34,6 +34,9 @@ import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
 import { TransferOperation } from "@renderer/enums/TransferOperation";
 import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
+import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
+import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
+import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import { sendPageData, MAX_SPEND_NOTES } from "@renderer/constants";
@@ -85,7 +88,7 @@ export default function TransferHub(): React.JSX.Element {
     let dead = false
     API.getAssetLockFundingState(walletId)
       .then(state => {
-        if (!dead && state.phase !== 'idle' && state.phase !== 'done' && state.phase !== 'error') {
+        if (!dead && state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error) {
           setResumableFunding(state)
         }
       })
@@ -558,7 +561,7 @@ export default function TransferHub(): React.JSX.Element {
 
   const startShieldedSpend = (password: string): Promise<ShieldedSpendState> => {
     if (!walletId) {
-      return Promise.resolve<ShieldedSpendState>({ phase: 'error', fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
+      return Promise.resolve<ShieldedSpendState>({ phase: ShieldedSpendPhase.Error, fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
     const noteIndexes = shieldedSpecificNotes?.map(n => n.index)
     if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
@@ -619,13 +622,13 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"mx-12 mt-4 flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <div className={"flex flex-col gap-1 min-w-0"}>
             <Text size={14} weight={"extrabold"} color={"brand"}>
-              {resumableFunding.kind === 'shielded' ? 'Unfinished L1 shielding'
-                : resumableFunding.kind === 'identity' ? 'Unfinished identity registration'
-                : resumableFunding.kind === 'identityTopUp' ? 'Unfinished identity top-up'
+              {resumableFunding.kind === AssetLockFundingKind.Shielded ? 'Unfinished L1 shielding'
+                : resumableFunding.kind === AssetLockFundingKind.Identity ? 'Unfinished identity registration'
+                : resumableFunding.kind === AssetLockFundingKind.IdentityTopUp ? 'Unfinished identity top-up'
                 : 'Unfinished Platform address funding'}
             </Text>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
-              {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === 'identity' ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
+              {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === AssetLockFundingKind.Identity ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
             </Text>
           </div>
           <button
@@ -706,7 +709,7 @@ export default function TransferHub(): React.JSX.Element {
           toPlatformAddress={operation === TransferOperation.IdentityRegister ? '' : trimmedTo}
           amountDuffs={amountDuffs.toString()}
           resume={false}
-          kind={operation === TransferOperation.AssetLockShield ? 'shielded' : operation === TransferOperation.IdentityRegister ? 'identity' : operation === TransferOperation.IdentityTopUpL1 ? 'identityTopUp' : 'address'}
+          kind={operation === TransferOperation.AssetLockShield ? AssetLockFundingKind.Shielded : operation === TransferOperation.IdentityRegister ? AssetLockFundingKind.Identity : operation === TransferOperation.IdentityTopUpL1 ? AssetLockFundingKind.IdentityTopUp : AssetLockFundingKind.Address}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -724,7 +727,7 @@ export default function TransferHub(): React.JSX.Element {
         toPlatformAddress={resumableFunding?.toPlatformAddress ?? ''}
         amountDuffs={''}
         resume={true}
-        kind={resumableFunding?.kind ?? 'address'}
+        kind={resumableFunding?.kind ?? AssetLockFundingKind.Address}
         onSuccess={() => {
           setResumableFunding(null)
           resetForm()

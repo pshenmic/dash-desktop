@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { PlatformSendResult } from '@renderer/api/types'
+import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
@@ -24,7 +25,6 @@ interface TransferConfirmModalProps {
   onSuccess: () => void
 }
 
-type Phase = 'confirm' | 'sending' | 'done'
 
 export default function TransferConfirmModal({
   isOpen,
@@ -37,14 +37,14 @@ export default function TransferConfirmModal({
 }: TransferConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
-  const [phase, setPhase] = useState<Phase>('confirm')
+  const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<PlatformSendResult | null>(null)
 
   useEffect(() => {
     if (isOpen) {
       setPassword('')
-      setPhase('confirm')
+      setPhase(ConfirmModalPhase.Confirm)
       setError(null)
       setResult(null)
     }
@@ -52,20 +52,20 @@ export default function TransferConfirmModal({
 
   if (!isOpen) return null
 
-  const sending = phase === 'sending'
+  const sending = phase === ConfirmModalPhase.Sending
 
   const handleConfirm = async (): Promise<void> => {
     if (password.length === 0 || sending) return
-    setPhase('sending')
+    setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
       const res = await run(password)
       setResult(res)
-      setPhase('done')
+      setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Transfer failed')
-      setPhase('confirm')
+      setPhase(ConfirmModalPhase.Confirm)
     }
   }
 
@@ -83,7 +83,7 @@ export default function TransferConfirmModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === 'done' ? successTitle : title}
+            {phase === ConfirmModalPhase.Done ? successTitle : title}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -94,7 +94,7 @@ export default function TransferConfirmModal({
           </button>
         </div>
 
-        {phase !== 'done' ? (
+        {phase !== ConfirmModalPhase.Done ? (
           <div className={"phase-fade-in"} key={"confirm"}>
             <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               {rows.map(row => (

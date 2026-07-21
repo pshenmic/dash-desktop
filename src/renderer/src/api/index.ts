@@ -177,7 +177,7 @@ export class API {
     return this.api.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password) as Promise<IdentityCreateResult>
   }
 
-  static async startAssetLockFunding(walletId: string, toPlatformAddress: string, amountDuffs: string, password: string, kind: AssetLockFundingKind = 'address'): Promise<AssetLockFundingState> {
+  static async startAssetLockFunding(walletId: string, toPlatformAddress: string, amountDuffs: string, password: string, kind: AssetLockFundingKind = AssetLockFundingKind.Address): Promise<AssetLockFundingState> {
     return this.api.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password, kind) as Promise<AssetLockFundingState>
   }
 

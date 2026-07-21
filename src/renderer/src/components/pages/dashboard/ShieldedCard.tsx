@@ -7,6 +7,7 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
+import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import { formatCompactCredits } from '@renderer/utils/balance'
 
 export default function ShieldedCard(): React.JSX.Element {
@@ -35,9 +36,9 @@ export default function ShieldedCard(): React.JSX.Element {
   if (poolInfo.notesCount !== null) {
     meta.push(`${BigInt(poolInfo.notesCount).toLocaleString('en-US')} ${labels.notesInTree}`)
   }
-  if (prover.prover === 'error') {
+  if (prover.prover === ShieldedProverState.Error) {
     meta.push(<span key={"prover"} className={"text-dash-red"}>{labels.proverError}</span>)
-  } else if (prover.prover !== 'ready') {
+  } else if (prover.prover !== ShieldedProverState.Ready) {
     meta.push(<span key={"prover"} className={"text-dash-orange"}>{labels.proverPreparing}</span>)
   }
 

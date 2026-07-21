@@ -7,6 +7,7 @@ import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { ShieldedSpendState } from '@renderer/api/types'
+import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import Spinner from '@renderer/components/ui/Spinner'
 import { SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
 
@@ -24,12 +25,12 @@ interface ShieldedSpendModalProps {
 }
 
 const PHASES = [
-  { key: 'syncing', label: 'Syncing notes' },
-  { key: 'proving', label: 'Generating zero-knowledge proof' },
-  { key: 'broadcasting', label: 'Broadcasting' },
+  { key: ShieldedSpendPhase.Syncing, label: 'Syncing notes' },
+  { key: ShieldedSpendPhase.Proving, label: 'Generating zero-knowledge proof' },
+  { key: ShieldedSpendPhase.Broadcasting, label: 'Broadcasting' },
 ] as const
 
-function phaseIndex(phase: string): number {
+function phaseIndex(phase: ShieldedSpendPhase): number {
   return PHASES.findIndex(p => p.key === phase)
 }
 
@@ -77,11 +78,11 @@ export default function ShieldedSpendModal({
         const next = await API.getShieldedSpendState(walletId)
         if (dead) return
         setSpend(next)
-        if (next.phase === 'done' && !notified.current) {
+        if (next.phase === ShieldedSpendPhase.Done && !notified.current) {
           notified.current = true
           onSuccess()
         }
-        if (next.phase !== 'done' && next.phase !== 'error') {
+        if (next.phase !== ShieldedSpendPhase.Done && next.phase !== ShieldedSpendPhase.Error) {
           timer = setTimeout(() => { void poll() }, SHIELDED_SPEND_POLL_MS)
         }
       } catch {
@@ -98,7 +99,7 @@ export default function ShieldedSpendModal({
 
   if (!isOpen) return null
 
-  const running = started && spend != null && spend.phase !== 'done' && spend.phase !== 'error'
+  const running = started && spend != null && spend.phase !== ShieldedSpendPhase.Done && spend.phase !== ShieldedSpendPhase.Error
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || busy || !proverReady || started) return
@@ -135,8 +136,8 @@ export default function ShieldedSpendModal({
     onClose()
   }
 
-  const isDone = spend?.phase === 'done'
-  const isError = started && spend?.phase === 'error'
+  const isDone = spend?.phase === ShieldedSpendPhase.Done
+  const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const confirmLabel = busy ? 'Starting…' : !proverReady ? 'Preparing…' : 'Confirm & Send'
 
   return createPortal(
@@ -223,7 +224,7 @@ export default function ShieldedSpendModal({
                           : <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
                       <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{p.label}</Text>
                     </div>
-                    {active && p.key === 'syncing' && spend.total > 0 && (
+                    {active && p.key === ShieldedSpendPhase.Syncing && spend.total > 0 && (
                       <div className={"ml-6 flex flex-col gap-1"}>
                         <div className={"h-2 w-full rounded-full dash-block overflow-hidden"}>
                           <div className={"h-full rounded-full dash-bg-inverse transition-[width] duration-300"} style={{ width: `${Math.min(100, Math.round((spend.fetched / spend.total) * 100))}%` }} />

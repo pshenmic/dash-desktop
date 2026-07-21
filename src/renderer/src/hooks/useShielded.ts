@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { Network, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
+import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import {
   SHIELDED_POOL_REFRESH_MS,
   SHIELDED_STATUS_POLL_MS,
@@ -11,7 +12,7 @@ import {
 } from '@renderer/constants'
 import { useAsyncWithCache } from './useAsyncWithCache'
 
-const INITIAL_STATUS: ShieldedStatus = { prover: 'idle', ready: false, error: null }
+const INITIAL_STATUS: ShieldedStatus = { prover: ShieldedProverState.Idle, ready: false, error: null }
 
 export function useShieldedStatus(): ShieldedStatus {
   const [status, setStatus] = useState<ShieldedStatus>(INITIAL_STATUS)
@@ -25,7 +26,7 @@ export function useShieldedStatus(): ShieldedStatus {
         const next = await API.getShieldedStatus()
         if (dead) return
         setStatus(next)
-        if (next.prover !== 'ready' && next.prover !== 'error') {
+        if (next.prover !== ShieldedProverState.Ready && next.prover !== ShieldedProverState.Error) {
           timer = setTimeout(() => { void poll() }, SHIELDED_STATUS_POLL_MS)
         }
       } catch {

@@ -9,9 +9,10 @@ import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
+import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 
 function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
-  if (status.prover === 'ready') {
+  if (status.prover === ShieldedProverState.Ready) {
     return (
       <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5"}>
         <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
@@ -20,7 +21,7 @@ function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element 
     )
   }
 
-  if (status.prover === 'error') {
+  if (status.prover === ShieldedProverState.Error) {
     return (
       <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3"}>
         <ErrorIcon size={14} />

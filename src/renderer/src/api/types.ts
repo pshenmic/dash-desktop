@@ -1,4 +1,12 @@
 import { ShieldedSyncPhase } from '../enums/ShieldedSyncPhase'
+import { ShieldedSpendPhase } from '../enums/ShieldedSpendPhase'
+import { ShieldedProverState } from '../enums/ShieldedProverState'
+import { WalletSyncPhase } from '../enums/WalletSyncPhase'
+import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
+import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
+import { LockKind } from '../enums/LockKind'
+
+export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
 // getAddresses
 export type WalletAddressDto = {
@@ -28,17 +36,6 @@ export interface PlatformAddressDto {
 
 // getStatus
 export type Network = 'mainnet' | 'testnet'
-
-export type WalletSyncPhase =
-  | 'idle'
-  | 'connecting'
-  | 'syncing-headers'
-  | 'synced-headers'
-  | 'syncing-cfcheckpt'
-  | 'syncing-cfheaders'
-  | 'syncing-cfilters'
-  | 'synced'
-  | 'stopped'
 
 export interface WalletSyncStatus {
   phase: WalletSyncPhase
@@ -143,25 +140,13 @@ export interface PlatformSendResult {
   toAddress: string
 }
 
-export type AssetLockFundingPhase =
-  | 'idle'
-  | 'resumable'
-  | 'building'
-  | 'broadcastingL1'
-  | 'waitingChainLock'
-  | 'broadcastingST'
-  | 'done'
-  | 'error'
-
-export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
-
 export interface AssetLockFundingState {
   phase: AssetLockFundingPhase
   kind: AssetLockFundingKind
   txid: string | null
   txHeight: number | null
   chainLockedHeight: number | null
-  lockKind: 'instant' | 'chain' | null
+  lockKind: LockKind | null
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null
@@ -185,7 +170,6 @@ export interface ShieldResult {
 }
 
 // shielded
-export type ShieldedProverState = 'idle' | 'preparing' | 'ready' | 'error'
 
 export interface ShieldedStatus {
   prover: ShieldedProverState
@@ -216,8 +200,6 @@ export interface ShieldedSyncState {
   error: string | null
   syncedAt: number | null
 }
-
-export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
 
 export interface ShieldedSpendState {
   phase: ShieldedSpendPhase

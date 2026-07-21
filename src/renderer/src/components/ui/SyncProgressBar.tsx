@@ -17,35 +17,35 @@ function safeRatio(num: number, denom: number): number {
 function describePhase(s: WalletSyncStatus): PhaseInfo {
   const { phase, tipHeight, estimatedChainHeight, cfheadersHeight, cfilterScanHeight } = s
   switch (phase) {
-    case 'stopped':
+    case WalletSyncPhase.Stopped:
       return { label: 'Sync stopped', progress: 0, caption: 'No sync running' }
-    case 'idle':
+    case WalletSyncPhase.Idle:
       return { label: 'Idle', progress: 0, caption: 'Waiting to start' }
-    case 'connecting':
+    case WalletSyncPhase.Connecting:
       return { label: 'Connecting', progress: 0.02, caption: 'Discovering peers' }
-    case 'syncing-headers':
+    case WalletSyncPhase.SyncingHeaders:
       return {
         label: 'Syncing headers',
         progress: safeRatio(tipHeight, estimatedChainHeight) * 0.30,
         caption: `${tipHeight.toLocaleString()} / ${estimatedChainHeight.toLocaleString()} blocks`,
       }
-    case 'synced-headers':
+    case WalletSyncPhase.SyncedHeaders:
       return { label: 'Headers synced', progress: 0.30, caption: 'Preparing filter sync' }
-    case 'syncing-cfcheckpt':
+    case WalletSyncPhase.SyncingCfcheckpt:
       return { label: 'Syncing filter checkpoints', progress: 0.33, caption: 'Negotiating cfilter peers' }
-    case 'syncing-cfheaders':
+    case WalletSyncPhase.SyncingCfheaders:
       return {
         label: 'Syncing filter headers',
         progress: 0.33 + safeRatio(cfheadersHeight, tipHeight) * 0.37,
         caption: `${cfheadersHeight.toLocaleString()} / ${tipHeight.toLocaleString()}`,
       }
-    case 'syncing-cfilters':
+    case WalletSyncPhase.SyncingCfilters:
       return {
         label: 'Scanning filters',
         progress: 0.70 + safeRatio(cfilterScanHeight, tipHeight) * 0.30,
         caption: `${cfilterScanHeight.toLocaleString()} / ${tipHeight.toLocaleString()}`,
       }
-    case 'synced':
+    case WalletSyncPhase.Synced:
       return { label: 'Synced', progress: 1, caption: `Chain tip at ${tipHeight.toLocaleString()}` }
   }
 }
@@ -85,11 +85,11 @@ export default function SyncProgressBar(): React.JSX.Element {
   }, [sync])
 
   const pct = Math.round(info.progress * 100)
-  const phase: WalletSyncPhase = sync?.phase ?? 'stopped'
-  const isComplete = phase === 'synced'
+  const phase: WalletSyncPhase = sync?.phase ?? WalletSyncPhase.Stopped
+  const isComplete = phase === WalletSyncPhase.Synced
   const isError = Boolean(sync?.lastError)
-  const isActive = !isComplete && phase !== 'stopped'
-  const isIndeterminate = phase === 'connecting' || phase === 'synced-headers' || phase === 'syncing-cfcheckpt'
+  const isActive = !isComplete && phase !== WalletSyncPhase.Stopped
+  const isIndeterminate = phase === WalletSyncPhase.Connecting || phase === WalletSyncPhase.SyncedHeaders || phase === WalletSyncPhase.SyncingCfcheckpt
 
   const fillClass = isError ? 'bg-red-500' : isComplete ? 'bg-dash-mint' : 'bg-dash-brand'
 
@@ -154,10 +154,10 @@ export default function SyncProgressBar(): React.JSX.Element {
             label="Chain tip"
             value={`${(sync?.tipHeight ?? 0).toLocaleString()} / ${(sync?.estimatedChainHeight ?? 0).toLocaleString()}`}
           />
-          {phase === 'syncing-cfheaders' && (
+          {phase === WalletSyncPhase.SyncingCfheaders && (
             <Row label="Filter headers" value={(sync?.cfheadersHeight ?? 0).toLocaleString()} />
           )}
-          {phase === 'syncing-cfilters' && (
+          {phase === WalletSyncPhase.SyncingCfilters && (
             <Row label="Scanned filters" value={(sync?.cfilterScanHeight ?? 0).toLocaleString()} />
           )}
           {sync?.matchedBlocksPending ? (
