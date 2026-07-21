@@ -5,6 +5,7 @@ import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
+import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { defaultReceiveShieldedAddress } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
@@ -18,10 +19,12 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
   const { theme } = useTheme()
 
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === ShieldedSyncPhase.Done
+  const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
   useEffect(() => {
@@ -53,38 +56,58 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
     return (
-      <div className={"flex items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
-        <QRCode
-          value={selected}
-          size={225}
-          fgColor={qrCodeColor}
-          bgColor={"transparent"}
-          className={"rounded-[.5625rem] shrink-0"}
-        />
+      <>
+        <div className={"flex items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
+          <QRCode
+            value={selected}
+            size={225}
+            fgColor={qrCodeColor}
+            bgColor={"transparent"}
+            className={"rounded-[.5625rem] shrink-0"}
+          />
 
-        <div className={"flex flex-col w-full min-w-0"}>
-          <div className={"flex flex-col gap-[.5rem]"}>
-            <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
-              Shielded Address
-            </Text>
-            <div className={"flex items-center gap-[.625rem]"}>
-              <div className={"flex-1 min-w-0"}>
-                <ShieldedAddressSelect
-                  addresses={addresses}
-                  balances={synced ? balances : undefined}
-                  selected={selected}
-                  onSelect={setSelectedAddress}
-                />
+          <div className={"flex flex-col w-full min-w-0"}>
+            <div className={"flex flex-col gap-[.5rem]"}>
+              <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+                Shielded Address
+              </Text>
+              <div className={"flex items-center gap-[.625rem]"}>
+                <div className={"flex-1 min-w-0"}>
+                  <ShieldedAddressSelect
+                    addresses={addresses}
+                    balances={synced ? balances : undefined}
+                    selected={selected}
+                    onSelect={setSelectedAddress}
+                  />
+                </div>
+                <CopyButton text={selected} />
               </div>
-              <CopyButton text={selected} />
             </div>
-          </div>
 
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
-            Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
-          </Text>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
+              Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
+            </Text>
+
+            <Button
+              type={"button"}
+              onClick={() => setSyncOpen(true)}
+              disabled={syncRunning}
+              variant={"solid"}
+              colorScheme={"primary"}
+              size={"sm"}
+              className={"min-h-0! py-2! rounded-[.75rem] self-start mt-4"}
+            >
+              {syncRunning ? 'Syncing…' : 'Sync balance'}
+            </Button>
+          </div>
         </div>
-      </div>
+
+        <ShieldedUnlockModal
+          isOpen={syncOpen}
+          onClose={() => setSyncOpen(false)}
+          walletId={walletId ?? null}
+        />
+      </>
     )
   }
 
