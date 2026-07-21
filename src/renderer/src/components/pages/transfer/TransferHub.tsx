@@ -45,6 +45,7 @@ import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingMo
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
+import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
 
 const MAX_SPEND_NOTES = 6
 
@@ -73,6 +74,7 @@ export default function TransferHub(): React.JSX.Element {
   const [coreFromAddress, setCoreFromAddress] = useState<string | null>(null)
   const [shieldedNoteIndex, setShieldedNoteIndex] = useState<number | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
@@ -150,6 +152,7 @@ export default function TransferHub(): React.JSX.Element {
     [shieldedSync.phase, shieldedSync.notes],
   )
   const shieldedSpendOperation = operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal'
+  const notesSyncing = shieldedSync.phase === 'syncing' || shieldedSync.phase === 'recovering'
   const selectedNote = spendableNotes.find(n => n.index === shieldedNoteIndex) ?? spendableNotes[0]
   const shieldedSpecificNote = shieldedSpendOperation && useSpecificSource ? selectedNote : undefined
 
@@ -309,11 +312,21 @@ export default function TransferHub(): React.JSX.Element {
             />
           )}
           {useSpecificSource && shieldedSpendOperation && (
-            <ShieldedNoteSelect
-              notes={spendableNotes}
-              selected={selectedNote}
-              onSelect={setShieldedNoteIndex}
-            />
+            <>
+              <ShieldedNoteSelect
+                notes={spendableNotes}
+                selected={selectedNote}
+                onSelect={setShieldedNoteIndex}
+              />
+              <button
+                type={"button"}
+                onClick={() => setNotesUnlockOpen(true)}
+                disabled={notesSyncing}
+                className={"self-start cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-50 disabled:cursor-default"}
+              >
+                <Text size={12} weight={"medium"} color={"brand"}>{notesSyncing ? 'Updating…' : 'Update my notes'}</Text>
+              </button>
+            </>
           )}
         </div>
       )}
@@ -727,6 +740,12 @@ export default function TransferHub(): React.JSX.Element {
           onSuccess={resetForm}
         />
       )}
+
+      <ShieldedUnlockModal
+        isOpen={notesUnlockOpen}
+        onClose={() => setNotesUnlockOpen(false)}
+        walletId={walletId}
+      />
     </div>
   )
 }
