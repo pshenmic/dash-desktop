@@ -51,6 +51,8 @@ import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
+import {VerifyWalletMnemonicHandler} from "./api/wallet/verifyWalletMnemonic";
+import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
 import {SetLanguageHandler} from "./api/setLanguage";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
@@ -143,6 +145,8 @@ export class WalletBackend {
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
+    ipcMain.handle('verifyWalletMnemonic', new VerifyWalletMnemonicHandler(this.walletService).handle)
+    ipcMain.handle('resetWalletPassword', new ResetWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)

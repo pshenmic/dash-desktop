@@ -97,6 +97,14 @@ export class API {
     return this.api.exportMnemonic(walletId, password)
   }
 
+  static async verifyWalletMnemonic(walletId: string, mnemonic: string): Promise<boolean> {
+    return this.api.verifyWalletMnemonic(walletId, mnemonic)
+  }
+
+  static async resetWalletPassword(walletId: string, mnemonic: string, newPassword: string): Promise<boolean> {
+    return this.api.resetWalletPassword(walletId, mnemonic, newPassword)
+  }
+
   static async getExchangeRates(): Promise<ExchangeRatesResult> {
     return this.api.getExchangeRates() as Promise<ExchangeRatesResult>
   }

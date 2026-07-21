@@ -276,6 +276,58 @@ export class WalletService {
     return isValid
   }
 
+  async verifyWalletMnemonic(walletId: string, mnemonic: string): Promise<boolean> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    return this.mnemonicMatchesWallet(walletId, wallet.network, mnemonic)
+  }
+
+  async resetWalletPassword(walletId: string, mnemonic: string, newPassword: string): Promise<boolean> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    const matches = await this.mnemonicMatchesWallet(walletId, wallet.network, mnemonic)
+    if (!matches) {
+      return false
+    }
+
+    const encryptedMnemonic = encryptMnemonic(mnemonic.trim(), newPassword, this.pbkdf2Iterations)
+    await this.walletDAO.updateEncryptedMnemonic(walletId, encryptedMnemonic)
+
+    return true
+  }
+
+  private async mnemonicMatchesWallet(walletId: string, network: Network, mnemonic: string): Promise<boolean> {
+    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
+    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
+
+    if (referenceWalletAddress == null) {
+      return false
+    }
+
+    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
+
+    try {
+      const seed = keyPair.mnemonicToSeed(mnemonic.trim())
+      const hdKey = keyPair.seedToHdKey(seed, network)
+      const coinType = COIN_TYPE[network]
+
+      const key = await keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
+      if (!key.publicKey) {
+        return false
+      }
+
+      return keyPair.p2pkhAddress(key.publicKey, network) === referenceWalletAddress.address
+    } catch {
+      return false
+    }
+  }
+
   async setAddressLabel(walletId: string, address: string, label: string): Promise<QueryStatus> {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }

@@ -4,6 +4,7 @@ import TransactionsPage from "./pages/Transactions"
 import SendPage from "./pages/Send"
 import Sidebar from "./components/sidebar"
 import LoginPage from "./pages/auth/Login"
+import ForgotPasswordPage from "./pages/auth/ForgotPassword"
 import Layout from "./components/Layout"
 import CreateWalletWrapper from "./pages/auth/CreateWalletWrapper"
 import ReceivePage from "./pages/Receive"
@@ -35,6 +36,7 @@ function App(): React.JSX.Element {
     return (
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     )
