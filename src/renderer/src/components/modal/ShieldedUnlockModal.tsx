@@ -125,7 +125,7 @@ export default function ShieldedUnlockModal({
             size={"md"}
             className={"flex-1 rounded-[.9375rem]"}
           >
-            {loading ? 'Checking…' : 'Check my notes'}
+            {loading ? 'Syncing…' : 'Sync my balances'}
           </Button>
         </div>
       </div>
