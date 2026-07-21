@@ -13,6 +13,7 @@ import { SHIELDED_NOTES_FETCH_BATCH } from '../constants'
 import {
   ShieldAssetLockProofParams,
   ShieldedCommand,
+  ShieldedEncryptedNotePayload,
   ShieldedEvent,
   ShieldedProverState,
   ShieldedSpendKind,
@@ -513,6 +514,22 @@ export class ShieldedService {
     return { phase: 'idle', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
   }
 
+  // The worker rebuilds the commitment tree from the complete pool note set,
+  // so spends ship the DB-cached ciphertexts after a delta top-up (a stale
+  // cache would witness against an expired anchor).
+  private async loadSpendNotes(walletId: string, network: Network, state: ShieldedSpendState): Promise<ShieldedEncryptedNotePayload[]> {
+    await this.checkForNewNotes(walletId, network, (fetched, total) => {
+      state.fetched = fetched
+      state.total = total
+    })
+    const known = await this.shieldedNoteDAO.getKnownCount(walletId)
+    const notes = await this.shieldedNoteDAO.getAllEncryptedNotes(walletId)
+    if (notes.length < known) {
+      throw new Error('Could not download new shielded notes. Check your connection and try again.')
+    }
+    return notes
+  }
+
   getSpendState(walletId: string): ShieldedSpendState {
     return this.spendStates.get(walletId) ?? this.idleSpendState()
   }
@@ -544,6 +561,7 @@ export class ShieldedService {
       const {seed, network} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
       const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
+      const notes = await this.loadSpendNotes(walletId, network, state)
 
       const requestId = randomUUID()
       this.pendingSpends.set(requestId, walletId)
@@ -556,6 +574,7 @@ export class ShieldedService {
         kind,
         recipient,
         amountCredits: amountCredits.toString(),
+        notes,
         noteIndexes,
       })
     } catch (e) {
@@ -580,6 +599,7 @@ export class ShieldedService {
       const {seed, network, mnemonic} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
       const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
+      const notes = await this.loadSpendNotes(walletId, network, state)
 
       const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
       const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
@@ -599,6 +619,7 @@ export class ShieldedService {
         kind: 'identityCreate',
         recipient: '',
         amountCredits: denominationCredits.toString(),
+        notes,
         identityIndex,
         failureAddress,
       })

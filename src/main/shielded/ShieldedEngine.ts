@@ -13,7 +13,6 @@ import {
 } from 'pshenmic-dpp'
 import {InputAddressWASM, AddressFundsFeeStrategyStepWASM, AssetLockProofWASM, IdentityPublicKeyInCreation} from 'dash-platform-sdk/types.js'
 import {Network} from '../src/types'
-import {SHIELDED_NOTES_FETCH_BATCH} from '../src/constants'
 import {coreAddressToScript} from '../src/utils/coreScript'
 import {IDENTITY_KEY_DEFINITIONS} from '../src/utils/identityKeys'
 import {maxSpendableCredits, selectSpendNotes, SpendFeeForCount} from '../src/utils/shieldedNoteSelection'
@@ -120,8 +119,7 @@ export class ShieldedEngine {
       await this.initProver()
       const coinType = COIN_TYPE[network]
 
-      const all = await this.fetchAllNotes((fetched, total) =>
-        this.emit({type: 'spendProgress', requestId, phase: 'syncing', fetched, total}))
+      const all = command.notes
 
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
       const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
@@ -322,25 +320,6 @@ export class ShieldedEngine {
       console.error('Shield from asset lock failed', e)
       this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
     }
-  }
-
-  // The dpp proof verifier requires startIndex to be a multiple of the
-  // 8192 max-per-query, so the cursor only advances by full batches.
-  private async fetchAllNotes(onProgress: (fetched: number, total: number) => void): Promise<EncryptedNote[]> {
-    const totalBig = await this.sdk.shielded.getShieldedNotesCount()
-    const total = totalBig != null ? Number(totalBig) : 0
-    onProgress(0, total)
-
-    const all: EncryptedNote[] = []
-    while (all.length < total) {
-      const count = Math.min(SHIELDED_NOTES_FETCH_BATCH, total - all.length)
-      const batch = await this.sdk.shielded.getShieldedEncryptedNotes(BigInt(all.length), count)
-      if (batch.length === 0) break
-      all.push(...batch)
-      onProgress(all.length, total)
-      if (batch.length < count) break
-    }
-    return all
   }
 
   private async waitForResult(st: StateTransitionWASM, kind: ShieldedSpendKind): Promise<void> {

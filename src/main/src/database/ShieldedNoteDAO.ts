@@ -113,6 +113,21 @@ export class ShieldedNoteDAO {
     return result
   }
 
+  getAllEncryptedNotes = async (walletId: string): Promise<EncryptedNoteRecord[]> => {
+    const rows = await this.knex('shielded_notes')
+      .select('note_index', 'nullifier', 'cmx', 'encrypted_note', 'cv_net')
+      .where({wallet_id: walletId})
+      .whereNotNull('encrypted_note')
+      .orderBy('note_index', 'asc')
+    return rows.map((row) => ({
+      index: row.note_index,
+      nullifier: row.nullifier,
+      cmx: row.cmx,
+      encryptedNote: row.encrypted_note,
+      cvNet: row.cv_net,
+    }))
+  }
+
   getUndecodedIndexes = async (walletId: string): Promise<number[]> => {
     const rows = await this.knex('shielded_notes')
       .select('note_index')
