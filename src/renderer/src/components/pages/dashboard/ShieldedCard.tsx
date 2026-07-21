@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Text, ArrowIcon, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
@@ -22,8 +23,10 @@ export default function ShieldedCard(): React.JSX.Element {
   const { isBalanceVisible } = useBalanceVisibility()
   const labels = dashboardPage.shielded
 
+  const [syncOpen, setSyncOpen] = useState(false)
   const spendableNotes = useMemo(() => sync.notes.filter((n) => !n.spent).length, [sync.notes])
   const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
+  const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
 
   const meta: React.ReactNode[] = []
@@ -69,9 +72,20 @@ export default function ShieldedCard(): React.JSX.Element {
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
           {labels.balance}
         </Text>
-        <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
-          {shieldedReady ? <CreditsAmount credits={BigInt(sync.balance as string)} compact /> : '—'}
-        </Text>
+        {shieldedReady ? (
+          <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
+            <CreditsAmount credits={BigInt(sync.balance as string)} compact />
+          </Text>
+        ) : syncRunning ? (
+          <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>Syncing…</Text>
+        ) : (
+          <button
+            onClick={() => setSyncOpen(true)}
+            className={"self-start cursor-pointer hover:opacity-80 transition-opacity duration-200"}
+          >
+            <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>Sync balances</Text>
+          </button>
+        )}
       </div>
 
       {meta.length > 0 && (
@@ -84,6 +98,12 @@ export default function ShieldedCard(): React.JSX.Element {
           ))}
         </Text>
       )}
+
+      <ShieldedUnlockModal
+        isOpen={syncOpen}
+        onClose={() => setSyncOpen(false)}
+        walletId={walletId}
+      />
     </div>
   )
 }
