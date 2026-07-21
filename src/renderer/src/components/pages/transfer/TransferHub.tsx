@@ -16,7 +16,7 @@ import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
-import { davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
+import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
@@ -239,7 +239,11 @@ export default function TransferHub(): React.JSX.Element {
 
   const canSubmit = routeReady && amountReady && !(operation === TransferOperation.CoreSend && syncIncomplete)
 
-  const amountFiat = isDashUnit && rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
+  const amountFiat = !rateReady
+    ? undefined
+    : isDashUnit
+      ? amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
+      : amountCredits > 0n ? formatFiat(creditsToDuffs(amountCredits)) : undefined
 
   const handleAmount = (e: React.ChangeEvent<HTMLInputElement>): void => {
     if (isDashUnit) {
