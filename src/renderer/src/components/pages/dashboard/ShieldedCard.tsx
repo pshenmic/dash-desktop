@@ -63,7 +63,7 @@ export default function ShieldedCard(): React.JSX.Element {
         <button
           onClick={(e) => {
             e.stopPropagation()
-            navigate('/shielded')
+            navigate('/addresses?tab=shielded')
           }}
           className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
         >
