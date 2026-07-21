@@ -41,6 +41,10 @@ export class API {
     return this.api.getAddresses(walletId)
   }
 
+  static async addWalletAddress(walletId: string, password: string, isChange: boolean): Promise<string> {
+    return this.api.addWalletAddress(walletId, password, isChange)
+  }
+
   static async getReceiveAddress(walletId: string): Promise<string | null> {
     return this.api.getReceiveAddress(walletId)
   }
@@ -67,6 +71,10 @@ export class API {
 
   static async getPlatformAddresses(walletId: string): Promise<PlatformAddressDto[]> {
     return this.api.getPlatformAddresses(walletId) as Promise<PlatformAddressDto[]>
+  }
+
+  static async addPlatformAddress(walletId: string): Promise<PlatformAddressDto[]> {
+    return this.api.addPlatformAddress(walletId) as Promise<PlatformAddressDto[]>
   }
 
   static async deleteWallet(walletId: string) {

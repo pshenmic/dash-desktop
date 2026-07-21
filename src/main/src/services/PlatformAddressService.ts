@@ -73,12 +73,25 @@ export class PlatformAddressService {
       return []
     }
 
-    const candidates = await this.loadPlatformCandidates(wallet.platformXpub, wallet.network)
+    const candidates = await this.loadPlatformCandidates(walletId, wallet.platformXpub, wallet.network)
     return candidates.map(candidate => ({
       platformAddress: candidate.platformAddress,
       balanceCredits: candidate.balanceCredits.toString(),
       nonce: candidate.nonce,
     }))
+  }
+
+  async addPlatformAddress(walletId: string): Promise<PlatformAddressEntry[]> {
+    const wallet = await this.requireWallet(walletId)
+
+    if (wallet.platformXpub == null) {
+      throw new Error('Platform addresses are not derived yet')
+    }
+
+    const count = await this.walletDAO.getPlatformAddressCount(walletId)
+    await this.walletDAO.setPlatformAddressCount(walletId, count + 1)
+
+    return this.getPlatformAddresses(walletId)
   }
 
   async sendPlatformTransfer(
@@ -95,7 +108,7 @@ export class PlatformAddressService {
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(xpub, network)
+    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
 
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
@@ -292,7 +305,7 @@ export class PlatformAddressService {
       }
     })
 
-    const candidates = await this.loadPlatformCandidates(xpub, network)
+    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const plan = selectPlatformInputsWithFee(
       candidates,
       amountCredits,
@@ -380,7 +393,7 @@ export class PlatformAddressService {
       throw new Error('Identity not found on Platform')
     }
 
-    const candidates = await this.loadPlatformCandidates(xpub, network)
+    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const plan = selectPlatformInputsWithFee(candidates, amountCredits, topUpFeeCredits, fromPlatformAddress ?? undefined)
 
     const inputs = plan.inputs.map(({candidate, credits}) =>
@@ -430,7 +443,7 @@ export class PlatformAddressService {
 
     const outputScript = coreAddressToScript(toCoreAddress, network)
 
-    const candidates = await this.loadPlatformCandidates(xpub, network)
+    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const plan = selectPlatformInputsWithFee(
       candidates,
       amountCredits,
@@ -547,7 +560,7 @@ export class PlatformAddressService {
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(xpub, network)
+    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
 
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
@@ -596,9 +609,10 @@ export class PlatformAddressService {
     return {wallet, seed, xpub}
   }
 
-  private async loadPlatformCandidates(xpub: string, network: Network): Promise<PlatformSourceCandidate[]> {
+  private async loadPlatformCandidates(walletId: string, xpub: string, network: Network): Promise<PlatformSourceCandidate[]> {
+    const count = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, await this.walletDAO.getPlatformAddressCount(walletId))
     const owned: Array<{platformAddress: string; index: number}> = []
-    for (let index = 0; index < PLATFORM_ADDRESS_LOOKAHEAD; index++) {
+    for (let index = 0; index < count; index++) {
       const address = this.platformSDK(network).keyPair.derivePlatformAddressFromXpub(xpub, network, index)
       owned.push({platformAddress: address.toBech32m(network), index})
     }

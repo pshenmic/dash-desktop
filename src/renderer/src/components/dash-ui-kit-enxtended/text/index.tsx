@@ -15,6 +15,7 @@ const textStyles = cva(
         red: 'text-red-700',
         brand: 'text-dash-primary-dark-blue dark:text-white',
         blue: 'text-dash-brand',
+        white: 'text-white',
       },
       size: {
         10: 'text-[0.625rem]',

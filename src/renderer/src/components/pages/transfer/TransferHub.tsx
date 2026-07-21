@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { DashLogo, BigNumber } from "dash-ui-kit/react";
+import { DashLogo } from "dash-ui-kit/react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
+import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import { useAuth } from "@renderer/contexts/AuthContext";
@@ -396,7 +397,7 @@ export default function TransferHub(): React.JSX.Element {
           </Text>
         ) : availableCredits !== null ? (
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            Available: <BigNumber>{availableCredits.toString()}</BigNumber> credits
+            Available: <CreditsAmount credits={availableCredits} />
           </Text>
         ) : (
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Sync notes on the Shielded page to see your balance</Text>
@@ -439,19 +440,19 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex justify-between items-baseline gap-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
           <Text size={14} weight={"medium"} color={"brand"}>
-            {isDashUnit ? `${davToDash(amountDuffs)} Dash` : <><BigNumber>{amountCredits.toString()}</BigNumber> credits</>}
+            {isDashUnit ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits} align={"end"} />}
           </Text>
         </div>
         {!isDashUnit && (
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee{operation === 'shieldedTransfer' || operation === 'unshield' || operation === 'shieldedWithdrawal' ? ' (est.)' : ''}</Text>
-              <Text size={14} weight={"medium"} color={"brand"}><BigNumber>{feeCredits.toString()}</BigNumber> credits</Text>
+              <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}><BigNumber>{(amountCredits + feeCredits).toString()}</BigNumber> credits</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}><CreditsAmount credits={amountCredits + feeCredits} align={"end"} /></Text>
             </div>
           </>
         )}
@@ -646,8 +647,8 @@ export default function TransferHub(): React.JSX.Element {
           title={info?.title ?? 'Confirm transfer'}
           successTitle={operation === 'identityCreate' ? 'Identity created' : 'Credits sent'}
           rows={[
-            {label: 'Amount', value: `${amountCredits.toString()} credits`},
-            {label: 'Network fee', value: `${feeCredits.toString()} credits`},
+            {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
+            {label: 'Network fee', value: <CreditsAmount credits={feeCredits} align={"end"} />},
             {label: 'From', value: fromDisplay, mono: true},
             {label: 'To', value: toDisplay, mono: true},
           ]}

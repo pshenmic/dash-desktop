@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { Text, CreditsIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { BigNumber, ChevronIcon } from "dash-ui-kit/react";
+import { ChevronIcon } from "dash-ui-kit/react";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
+import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
 
@@ -31,7 +32,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
             <div className={"flex flex-col items-start min-w-0"}>
               <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{selected.platformAddress}</Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                <BigNumber>{selected.balanceCredits}</BigNumber> credits
+                <CreditsAmount credits={BigInt(selected.balanceCredits)} />
               </Text>
             </div>
           </div>
@@ -58,7 +59,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
               <div className={"flex flex-col min-w-0"}>
                 <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{a.platformAddress}</Text>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                  <BigNumber>{a.balanceCredits}</BigNumber> credits
+                  <CreditsAmount credits={BigInt(a.balanceCredits)} />
                 </Text>
               </div>
             </button>

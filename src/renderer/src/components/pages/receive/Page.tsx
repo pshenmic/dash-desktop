@@ -11,14 +11,6 @@ import { API } from "@renderer/api";
 import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
-const selectedAsset = {
-  id: 'dash',
-  name: 'Dash',
-  symbol: 'DASH',
-  initials: 'D',
-  currency: 'DASH',
-}
-
 const dashDescription = (
   <span>This is your <span className={"font-extrabold"}>Dash</span>{' '}
     receival address. You can use this address to send funds to your wallet. It is{' '}
@@ -84,9 +76,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
 
   return (
     <div className={`relative flex flex-col pb-12`}>
-        <Header data={{...pageData.header, description: descriptions[activeTab] ?? dashDescription}}
-          selectedAsset={selectedAsset}
-        />
+        <Header data={{...pageData.header, description: descriptions[activeTab] ?? dashDescription}} />
         <div className={"px-12 mt-8"}>
           <Tabs
             items={tabItems}

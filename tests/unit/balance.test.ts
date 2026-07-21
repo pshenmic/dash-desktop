@@ -1,7 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits } from '../../src/renderer/src/utils/balance'
+import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits, creditsToDuffs } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
+
+describe('creditsToDuffs', () => {
+  it('converts at 1000 credits per duff', () => {
+    expect(creditsToDuffs(1_000n)).toBe(1n)
+    expect(creditsToDuffs(100_000_000_000n)).toBe(ONE_DASH)
+    expect(creditsToDuffs(0n)).toBe(0n)
+  })
+
+  it('truncates sub-duff remainders toward zero', () => {
+    expect(creditsToDuffs(999n)).toBe(0n)
+    expect(creditsToDuffs(1_999n)).toBe(1n)
+    expect(creditsToDuffs(-1_999n)).toBe(-1n)
+  })
+})
 
 describe('davToDash', () => {
   it('formats whole and fractional amounts', () => {

@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { BigNumber, ChevronIcon, DashLogo } from "dash-ui-kit/react";
+import { ChevronIcon, DashLogo } from "dash-ui-kit/react";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
+import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import {
   SourceKind,
   DestinationKind,
@@ -94,7 +95,7 @@ function IdentitySelect({identities, selected, onSelect}: IdentitySelectProps): 
               {selected.alias ?? selected.identifier}
             </Text>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-              <BigNumber>{selected.balance.amount.toString()}</BigNumber> credits
+              <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
             </Text>
           </div>
         ) : (
@@ -120,7 +121,7 @@ function IdentitySelect({identities, selected, onSelect}: IdentitySelectProps): 
                 {identity.alias ?? identity.identifier}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                <BigNumber>{identity.balance.amount.toString()}</BigNumber> credits
+                <CreditsAmount credits={BigInt(String(identity.balance.amount))} />
               </Text>
             </button>
           ))}
