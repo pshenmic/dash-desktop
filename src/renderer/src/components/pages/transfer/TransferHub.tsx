@@ -98,6 +98,19 @@ export default function TransferHub(): React.JSX.Element {
   const shieldedInvolved = fromKind === 'shielded' || toKind === 'shielded'
   const optionalShieldRecipient = operation === 'assetLockShield'
 
+  const destinationKinds = useMemo(
+    () => DESTINATION_KINDS.filter(d => d.kind !== 'newIdentity' && resolveOperation(fromKind, d.kind) != null),
+    [fromKind],
+  )
+
+  useEffect(() => {
+    if (!destinationKinds.some(d => d.kind === toKind)) {
+      setToKind(destinationKinds[0].kind)
+      setToValue('')
+      setAcked(false)
+    }
+  }, [destinationKinds, toKind])
+
   const fundedAddresses = useMemo(
     () => platformAddresses.filter(a => BigInt(a.balanceCredits) > 0n),
     [platformAddresses],
@@ -255,6 +268,7 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-2"}>
           <DestinationPicker
             kind={toKind}
+            kinds={destinationKinds}
             onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
             value={trimmedTo}
             onValueChange={setToValue}
@@ -268,6 +282,7 @@ export default function TransferHub(): React.JSX.Element {
       ) : (
         <DestinationPicker
           kind={toKind}
+          kinds={destinationKinds}
           onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
           value={toValue}
           onValueChange={setToValue}
