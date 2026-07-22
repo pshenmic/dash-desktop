@@ -70,6 +70,9 @@ export class WalletSyncService {
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
+  // Wallets already latched as fully-scanned this process — avoids a SQL write
+  // on every 'synced' status tick (status streams continuously).
+  private initialScanMarked = new Set<string>()
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
     this.walletDAO = walletDAO
@@ -100,6 +103,7 @@ export class WalletSyncService {
     child.on('message', (data: P2PEvent) => {
       if (data.type === 'status') {
         this.status = data.status
+        this.maybeMarkInitialScanComplete(data.status)
       } else if (data.type === 'blockApplied') {
         this.persistAppliedBlock(data.block)
       } else if (data.type === 'cursorAdvanced') {
@@ -244,24 +248,63 @@ export class WalletSyncService {
     this.activeWalletId = null
   }
 
-  // Hot-add of newly created wallet addresses. We rewind the cfilter cursor
-  // (in SQL and in the running worker) so historical filters get re-matched
-  // against the new addresses. No-op when no p2p child is running OR when
-  // the active sync is for a different wallet — utility process gates on
-  // walletId match.
-  addWatchAddresses = async (walletId: string, addresses: string[]): Promise<void> => {
+  // Hot-add of newly created wallet addresses. No-op when no p2p child is
+  // running OR when the active sync is for a different wallet — utility
+  // process gates on walletId match.
+  //
+  // Rewind policy: re-matching historical filters against the new addresses
+  // (rewind cursor to genesis) is only needed when a re-derived address may
+  // carry past on-chain activity — i.e. while restoring/catching up. Three
+  // cases skip the rewind because the address is provably fresh:
+  //   - forwardOnly: the caller just derived the address at the frontier
+  //     (next-address / runtime gap fill), so it has never been published.
+  //   - initial scan complete: the wallet has scanned to the tip at least
+  //     once, so anything derived now can only be new. This is persistent, so
+  //     it holds during the connecting/header-sync window right after login —
+  //     where the live phase is not yet 'synced' — and stops a relogin from
+  //     rewinding to genesis.
+  //   - the live phase is 'synced' for THIS wallet (covers the first sync,
+  //     before the latch is persisted).
+  // Skipping the rewind avoids a full-chain rescan on every self-send (which
+  // shifts the used frontier and triggers gap-fill discovery) and on login.
+  addWatchAddresses = async (
+    walletId: string,
+    addresses: string[],
+    opts: {forwardOnly?: boolean} = {},
+  ): Promise<void> => {
     if (addresses.length === 0) return
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) return
     const network = wallet.network as 'mainnet' | 'testnet'
-    const rewindToHeight = GENESIS[network].height
-    await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+
+    const live = this.status.phase === 'synced' && this.status.walletId === walletId
+    const scannedOnce = await this.transactionDAO.getInitialScanComplete(walletId)
+    const skipRewind = opts.forwardOnly === true || scannedOnce || live
+    const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
+
+    if (rewindToHeight != null) {
+      await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+    }
     if (!this.child) return
     this.send({type: 'addWatchAddresses', walletId, addresses, rewindToHeight})
   }
 
   getStatus = (): WalletSyncStatus => {
     return this.status
+  }
+
+  // Latch the "initial scan complete" flag the first time a wallet reaches the
+  // tip. This is the persistent, timing-independent signal that later address
+  // hot-adds are frontier-fresh (see addWatchAddresses) — unlike the live
+  // phase, it survives a restart, so a relogin no longer rewinds to genesis.
+  private maybeMarkInitialScanComplete(status: WalletSyncStatus): void {
+    if (status.phase !== 'synced' || !status.walletId) return
+    if (this.initialScanMarked.has(status.walletId)) return
+    this.initialScanMarked.add(status.walletId)
+    this.transactionDAO.markInitialScanComplete(status.walletId).catch(err => {
+      this.initialScanMarked.delete(status.walletId as string)
+      console.error('[walletSync] markInitialScanComplete failed:', err)
+    })
   }
 
   private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {

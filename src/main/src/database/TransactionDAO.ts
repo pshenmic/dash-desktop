@@ -177,6 +177,25 @@ export class TransactionDAO {
     return row ? row.cfilter_cursor_height : null
   }
 
+  // True once the wallet has completed a full cfilter scan to the tip. From
+  // that point every derived address is frontier-fresh, so hot-adding one
+  // must not rewind the scan cursor. Missing row → never synced → false.
+  getInitialScanComplete = async (walletId: string): Promise<boolean> => {
+    const row = await this.knex('wallet_sync_state')
+      .select('initial_scan_complete')
+      .where({wallet_id: walletId})
+      .first()
+    return row ? Boolean(row.initial_scan_complete) : false
+  }
+
+  // Monotonic latch — set the first time a wallet reaches the tip; never cleared.
+  markInitialScanComplete = async (walletId: string): Promise<void> => {
+    await this.knex('wallet_sync_state')
+      .insert({wallet_id: walletId, initial_scan_complete: true})
+      .onConflict('wallet_id')
+      .merge({initial_scan_complete: true})
+  }
+
   // ── Pending (locally-broadcast, pre-confirmation) txs ──────────────────────
 
   // Record a just-broadcast tx optimistically, before any block confirms it.

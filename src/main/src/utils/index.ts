@@ -15,6 +15,7 @@ import * as migration0008 from '../../migrations/0008_wallet_columns'
 import * as migration0009 from '../../migrations/0009_identity_asset_lock'
 import * as migration0010 from '../../migrations/0010_shielded_addresses'
 import * as migration0011 from '../../migrations/0011_shielded_note_ciphertext'
+import * as migration0012 from '../../migrations/0012_wallet_sync_initial_scan'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -29,6 +30,7 @@ const migrations = [
   { name: '0009_identity_asset_lock.ts', migration: migration0009 },
   { name: '0010_shielded_addresses.ts', migration: migration0010 },
   { name: '0011_shielded_note_ciphertext.ts', migration: migration0011 },
+  { name: '0012_wallet_sync_initial_scan.ts', migration: migration0012 },
 ]
 
 const inlineMigrationSource = {

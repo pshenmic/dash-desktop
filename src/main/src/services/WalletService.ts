@@ -361,7 +361,7 @@ export class WalletService {
       label: null
     }])
 
-    await this.walletSyncService.addWatchAddresses(walletId, [address])
+    await this.walletSyncService.addWatchAddresses(walletId, [address], {forwardOnly: true})
 
     return address
   }
