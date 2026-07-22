@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
 import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
+import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
@@ -252,7 +252,8 @@ export default function TransferHub(): React.JSX.Element {
 
   const needsAck = operation === TransferOperation.ShieldedWithdrawal
   const destinationReady = destinationValid && !selfSend && (!needsAck || acked)
-  const routeReady = operation != null && sourceReady && destinationReady
+  const coreSourceGated = fromKind === SourceKind.Core && syncIncomplete
+  const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
 
   const amountReady = isDashUnit
     ? amountDuffs > 0n && amountDuffs <= balanceDuffs
@@ -261,7 +262,7 @@ export default function TransferHub(): React.JSX.Element {
       && (shieldedMaxPerTx === null || amountCredits <= shieldedMaxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
 
-  const canSubmit = routeReady && amountReady && !(operation === TransferOperation.CoreSend && syncIncomplete)
+  const canSubmit = routeReady && amountReady
 
   const amountFiat = !rateReady
     ? undefined
@@ -392,6 +393,8 @@ export default function TransferHub(): React.JSX.Element {
           showValueInput={operation != null}
         />
       )}
+
+      {coreSourceGated && <P2pSyncAlert />}
 
       {optionalShieldRecipient && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
@@ -583,7 +586,7 @@ export default function TransferHub(): React.JSX.Element {
           </div>
         )}
       </div>
-      {operation === TransferOperation.CoreSend && syncIncomplete && <SyncGateNotice />}
+      {coreSourceGated && <P2pSyncAlert />}
     </div>
   )
 
