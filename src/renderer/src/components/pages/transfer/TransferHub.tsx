@@ -44,6 +44,7 @@ import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import { sendPageData, MAX_SPEND_NOTES } from "@renderer/constants";
 import AmountField from "./AmountField";
+import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
@@ -219,6 +220,28 @@ export default function TransferHub(): React.JSX.Element {
     if (shieldedCandidates == null || shieldedFeeForCount == null) return null
     return maxSpendableCredits(shieldedCandidates, MAX_SPEND_NOTES, shieldedFeeForCount)
   }, [shieldedCandidates, shieldedFeeForCount])
+
+  const sliderMaxAmount = useMemo((): bigint | null => {
+    if (isDashUnit) return balanceDuffs
+    if (shieldedMaxPerTx !== null) return shieldedMaxPerTx > 0n ? shieldedMaxPerTx : 0n
+    if (availableCredits === null) return null
+    const spendable = availableCredits - feeCredits
+    return spendable > 0n ? spendable : 0n
+  }, [isDashUnit, balanceDuffs, shieldedMaxPerTx, availableCredits, feeCredits])
+
+  const sliderPercent = useMemo(() => {
+    if (sliderMaxAmount === null || sliderMaxAmount === 0n) return 0
+    const current = isDashUnit ? amountDuffs : amountCredits
+    if (current <= 0n) return 0
+    if (current >= sliderMaxAmount) return 100
+    return Math.max(0, Math.min(100, Math.round(Number(current) * 100 / Number(sliderMaxAmount))))
+  }, [sliderMaxAmount, isDashUnit, amountDuffs, amountCredits])
+
+  const handleSliderPercent = (percent: number): void => {
+    if (sliderMaxAmount === null) return
+    const value = (sliderMaxAmount * BigInt(percent)) / 100n
+    setAmount(isDashUnit ? davToDash(value) : value.toString())
+  }
 
   const trimmedTo = toValue.trim()
 
@@ -509,6 +532,13 @@ export default function TransferHub(): React.JSX.Element {
         onMax={handleMax}
         unit={isDashUnit ? <DashLogo size={20} /> : <CreditsIcon size={20} />}
       />
+      {operation !== TransferOperation.IdentityCreateFromPool && sliderMaxAmount !== null && (
+        <AmountSlider
+          percent={sliderPercent}
+          onPercentChange={handleSliderPercent}
+          disabled={sliderMaxAmount === 0n}
+        />
+      )}
       {amountError && (
         <div className={"mt-2 px-1"}>
           <Text size={12} weight={"medium"} color={"red"}>{amountError}</Text>
