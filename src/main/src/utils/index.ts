@@ -131,9 +131,7 @@ export async function migrateKnex (knex: Knex): Promise<void> {
 }
 
 export function ensureHomeFolder (): void {
-  if (!fs.existsSync(path.join(os.homedir(), HomeFolderName))) {
-    fs.mkdirSync(path.join(os.homedir(), HomeFolderName))
-  }
+  fs.mkdirSync(path.join(os.homedir(), HomeFolderName), { recursive: true })
 }
 
 export const fetchIdentitiesBySeed = async (seed: Uint8Array, sdk: DashPlatformSDK, network: Network): Promise<IdentityWASM[]> => {

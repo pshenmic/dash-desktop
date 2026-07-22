@@ -3,6 +3,7 @@ import path from 'path'
 import os from 'os'
 import fs from 'fs'
 import {ChainStorageFilename, HomeFolderName} from '../constants'
+import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
@@ -94,12 +95,12 @@ export class WalletSyncService {
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      process.stdout.write(text)
+      logChildOutput('p2p', text, false)
     })
     child.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      process.stderr.write(text)
+      logChildOutput('p2p', text, true)
     })
 
     child.on('message', (data: P2PEvent) => {

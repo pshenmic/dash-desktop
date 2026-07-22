@@ -2,6 +2,12 @@ export const HOME_FOLDER_NAME = '.dash-platform-wallet'
 export const HomeFolderName = '.dash-platform-wallet'
 export const StorageFilename = 'storage.db'
 export const ChainStorageFilename = 'ChainStorage'
+export const LogsFolderName = 'logs'
+
+// Rotate the current day's log file once it grows past this, and delete daily
+// log files older than this many days on startup.
+export const LOG_FILE_MAX_SIZE = 5 * 1024 * 1024
+export const LOG_RETENTION_DAYS = 14
 
 export const PreferencesFilename = 'preferences.json'
 

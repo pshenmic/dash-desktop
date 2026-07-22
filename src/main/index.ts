@@ -4,7 +4,10 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
+import { initLogger } from './src/logger'
 import packageJSON from '../../package.json'
+
+initLogger()
 
 const backend = new WalletBackend()
 
