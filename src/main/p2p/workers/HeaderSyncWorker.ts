@@ -132,11 +132,22 @@ export class HeaderSyncWorker extends Worker {
     }
   }
 
-  private handlePeerInv(peer: Peer, inventory: Array<{ type: number }>): void {
+  private handlePeerInv(peer: Peer, inventory: Array<{ type: number; hash?: Uint8Array }>): void {
     const counts: Record<number, number> = {}
     for (const item of inventory) counts[item.type] = (counts[item.type] ?? 0) + 1
+    // With relay enabled peers stream mempool tx inv (TX / DSTX) continuously.
+    // Those carry no signal here — lock inv is handled in SyncService — so we
+    // only log batches that contain something else (blocks, clsig, islock).
+    const interesting = Object.keys(counts).some(t => Number(t) !== 1 && Number(t) !== 16)
+    if (!interesting) return
     const summary = Object.entries(counts).map(([t, n]) => `${typeName(Number(t))}=${n}`).join(' ')
-    console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'}`)
+    // Log the display-order hash of each non-mempool item (block hash, clsig /
+    // islock / isdlock inventory hash) to correlate with the lock watcher.
+    const hashes = inventory
+      .filter(i => i.type !== 1 && i.type !== 16 && i.hash)
+      .map(i => `${typeName(i.type)}:${Buffer.from(i.hash!).reverse().toString('hex')}`)
+      .join(' ')
+    console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'}${hashes ? ` [${hashes}]` : ''}`)
   }
 
   private handlePeerHeaders(peer: Peer, rawHeaders: Uint8Array[]): void {

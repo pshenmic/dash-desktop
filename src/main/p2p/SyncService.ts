@@ -38,7 +38,7 @@ export interface SyncServiceEvents {
     result: BroadcastResult,
     errorMessage: string | null,
   ) => void
-  txInstantLocked: (walletId: string, txid: string) => void
+  txInstantLocked: (walletId: string, txid: string, islockHex: string) => void
   chainLocked: (walletId: string, height: number) => void
 }
 
@@ -267,6 +267,7 @@ export class SyncService {
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
     if (!this.activeWalletId || cmd.walletId !== this.activeWalletId) return
     this.watchedTxids = new Set(cmd.txids)
+    console.log(`[locks] watchTxs set (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
   }
 
   // ── lock watcher ────────────────────────────────────────────────────────────
@@ -284,8 +285,14 @@ export class SyncService {
     for (const item of msg.inventory ?? []) {
       if (item.type === Inventory.TYPE.CLSIG) {
         wanted.push({type: item.type, hash: item.hash})
-      } else if (item.type === Inventory.TYPE.ISDLOCK && this.watchedTxids.size > 0) {
-        wanted.push({type: item.type, hash: item.hash})
+      } else if (item.type === Inventory.TYPE.ISDLOCK) {
+        const hashHex = Buffer.from(item.hash).reverse().toString('hex')
+        if (this.watchedTxids.size > 0) {
+          console.log(`[locks] isdlock inv ${hashHex} — requesting getdata (watching ${this.watchedTxids.size})`)
+          wanted.push({type: item.type, hash: item.hash})
+        } else {
+          console.log(`[locks] isdlock inv ${hashHex} — skipped, watch set empty`)
+        }
       }
     }
     if (wanted.length === 0) return
@@ -295,11 +302,20 @@ export class SyncService {
 
   // isdlock.txid is wire/internal byte order; our watch set is display order.
   private onIsdlock = (_peer: Peer, msg: Message & {txid?: string}): void => {
-    if (!this.activeWalletId || !msg.txid) return
+    if (!this.activeWalletId || !msg.txid) {
+      console.log(`[locks] isdlock received but no txid/wallet (txid=${msg.txid ?? 'undefined'})`)
+      return
+    }
     const displayTxid = reverseHex(msg.txid)
-    if (!this.watchedTxids.has(displayTxid)) return
+    const matched = this.watchedTxids.has(displayTxid)
+    console.log(`[locks] isdlock received wire=${msg.txid} display=${displayTxid} matched=${matched} watching=[${[...this.watchedTxids].join(',')}]`)
+    if (!matched) return
     this.watchedTxids.delete(displayTxid)
-    this.events.txInstantLocked(this.activeWalletId, displayTxid)
+    // Serialize the lock so the main process can build an InstantAssetLockProof
+    // from it — we broadcast L1 txs over this pool, so this is where the isdlock
+    // actually arrives (DAPI's subscribeToTransactions does not deliver it).
+    const islockHex = Buffer.from((msg as unknown as {getPayload(): Uint8Array}).getPayload()).toString('hex')
+    this.events.txInstantLocked(this.activeWalletId, displayTxid, islockHex)
   }
 
   private onClsig = (_peer: Peer, msg: Message & {height?: number}): void => {
