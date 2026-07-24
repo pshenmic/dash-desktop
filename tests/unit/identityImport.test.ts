@@ -20,6 +20,8 @@ describe('PlatformAddressService.importIdentity', () => {
   let identityDAO: IdentityDAO
   let identityKeyDAO: IdentityKeyDAO
   let insertImportedIdentity: ReturnType<typeof vi.fn>
+  let getIdentityByIdentifier: ReturnType<typeof vi.fn>
+  let searchByName: ReturnType<typeof vi.fn>
   let publicKeyHash: string
 
   const wallet: Wallet = {
@@ -48,15 +50,21 @@ describe('PlatformAddressService.importIdentity', () => {
       insertImportedIdentity,
     } as unknown as IdentityKeyDAO
 
+    getIdentityByIdentifier = vi.fn().mockResolvedValue({id: {base58: () => IDENTITY_ID}})
+    searchByName = vi.fn().mockResolvedValue([])
     const sdkProvider = {
       getPlatformSDK: vi.fn().mockReturnValue({
         identities: {
-          getIdentityByIdentifier: vi.fn().mockResolvedValue({id: {base58: () => IDENTITY_ID}}),
+          getIdentityByIdentifier,
           getIdentityPublicKeys: vi.fn().mockResolvedValue([{
             keyId: 3,
             purpose: 'TRANSFER',
             getPublicKeyHash: () => publicKeyHash,
           }]),
+        },
+        names: {
+          normalizeLabel: vi.fn((label: string) => label),
+          searchByName,
         },
       }),
     } as unknown as SdkProvider
@@ -91,6 +99,46 @@ describe('PlatformAddressService.importIdentity', () => {
     expect(keys).toHaveLength(1)
     expect(keys[0].encryptedPrivateKey).not.toContain(TRANSFER_KEY_HEX)
     expect(decryptSecret(keys[0].encryptedPrivateKey, MNEMONIC)).toBe(TRANSFER_KEY_HEX)
+  })
+
+  it.each(['latte', 'latte.dash'])('resolves the DPNS reference %s before importing', async (reference) => {
+    searchByName.mockResolvedValue([
+      {
+        ownerId: {base58: () => '8h3vUj4TFp7L9XQmW2Kc6nYzR5sAeBdG1iJoNvCxPkEt'},
+        properties: {
+          normalizedLabel: 'latte-other',
+          normalizedParentDomainName: 'dash',
+        },
+      },
+      {
+        ownerId: {base58: () => IDENTITY_ID},
+        properties: {
+          normalizedLabel: 'latte',
+          normalizedParentDomainName: 'dash',
+        },
+      },
+    ])
+
+    const result = await service.importIdentity(WALLET_ID, reference, [TRANSFER_KEY_HEX], PASSWORD)
+
+    expect(searchByName).toHaveBeenCalledWith('latte.dash')
+    expect(getIdentityByIdentifier).toHaveBeenCalledWith(IDENTITY_ID)
+    expect(result.identifier).toBe(IDENTITY_ID)
+    expect(insertImportedIdentity).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a DPNS prefix match when the exact name is not registered', async () => {
+    searchByName.mockResolvedValue([{
+      ownerId: {base58: () => IDENTITY_ID},
+      properties: {
+        normalizedLabel: 'latte-other',
+        normalizedParentDomainName: 'dash',
+      },
+    }])
+
+    await expect(service.importIdentity(WALLET_ID, 'latte', [TRANSFER_KEY_HEX], PASSWORD))
+      .rejects.toThrow('DPNS name latte.dash was not found on testnet')
+    expect(insertImportedIdentity).not.toHaveBeenCalled()
   })
 
   it('rejects a key that is not registered on the identity', async () => {

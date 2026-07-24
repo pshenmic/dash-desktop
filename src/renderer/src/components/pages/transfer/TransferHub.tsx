@@ -86,7 +86,7 @@ export default function TransferHub(): React.JSX.Element {
   const [fromKind, setFromKind] = useState<SourceKind>(() => initialSourceKind(searchParams.get('from')))
   const [toKind, setToKind] = useState<DestinationKind>(() => initialDestinationKind(searchParams.get('to')))
   const [fromAddress, setFromAddress] = useState('')
-  const [fromIdentity, setFromIdentity] = useState('')
+  const [fromIdentity, setFromIdentity] = useState(() => searchParams.get('source') ?? '')
   const [toValue, setToValue] = useState('')
   const [amount, setAmount] = useState('')
   const [acked, setAcked] = useState(false)
@@ -154,7 +154,17 @@ export default function TransferHub(): React.JSX.Element {
   )
 
   const selectedSource = fundedAddresses.find(a => a.platformAddress === fromAddress) ?? defaultSource
-  const selectedIdentity = identities.find(i => i.identifier === fromIdentity) ?? identities[0]
+  const fundedIdentities = useMemo(
+    () => identities
+      .filter(identity => BigInt(String(identity.balance.amount)) > 0n)
+      .sort((a, b) => {
+        const aBalance = BigInt(String(a.balance.amount))
+        const bBalance = BigInt(String(b.balance.amount))
+        return aBalance < bBalance ? 1 : aBalance > bBalance ? -1 : 0
+      }),
+    [identities],
+  )
+  const selectedIdentity = fundedIdentities.find(i => i.identifier === fromIdentity) ?? fundedIdentities[0]
 
   const coreAddresses = useMemo(
     () => [...receiving, ...change]
@@ -356,10 +366,26 @@ export default function TransferHub(): React.JSX.Element {
         platformAddresses={fundedAddresses}
         selectedPlatformAddress={selectedSource}
         onPlatformAddressChange={setFromAddress}
-        identities={identities}
+        identities={fundedIdentities}
         selectedIdentity={selectedIdentity}
         onIdentityChange={setFromIdentity}
       />
+
+      {fromKind === SourceKind.PlatformAddress && fundedAddresses.length === 0 && fundedIdentities.length > 0 && (
+        <button
+          type={"button"}
+          onClick={() => {
+            setFromKind(SourceKind.Identity)
+            setFromIdentity(fundedIdentities[0].identifier)
+            setAcked(false)
+          }}
+          className={"rounded-[.875rem] dash-subtle px-4 py-3 text-left cursor-pointer hover:opacity-80 transition-opacity"}
+        >
+          <Text size={12} weight={"medium"} color={"brand"}>
+            Your credits are held by {fundedIdentities[0].alias ?? 'an imported identity'}, not a Platform address. Use the identity balance →
+          </Text>
+        </button>
+      )}
 
       {(operation === TransferOperation.CoreSend || shieldedSpendOperation) && (
         <div className={"flex flex-col gap-2"}>

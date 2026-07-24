@@ -48,6 +48,7 @@ const PLATFORM_ADDRESS_LOOKAHEAD = 20
 const IDENTITY_KEY_LOOKAHEAD = 20
 const MAX_DISCOVERY_BATCHES = 50
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
+const IDENTITY_IDENTIFIER_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{42,44}$/
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
 // The account-level xpub is persisted per wallet so the address list derives
@@ -125,13 +126,9 @@ export class PlatformAddressService {
       throw new Error('Invalid wallet password')
     }
 
-    const identifier = identityIdentifier.trim()
-    if (identifier.length === 0) {
-      throw new Error('Identity identifier is required')
-    }
-
-    if (await this.identityDAO.getByIdentifier(walletId, identifier) != null) {
-      throw new Error('Identity is already in this wallet')
+    const identityReference = identityIdentifier.trim()
+    if (identityReference.length === 0) {
+      throw new Error('Identity identifier or DPNS name is required')
     }
 
     const values = privateKeyValues.map(value => value.trim()).filter(Boolean)
@@ -139,12 +136,17 @@ export class PlatformAddressService {
       throw new Error('At least one private key is required')
     }
 
+    const identifier = await this.resolveIdentityIdentifier(identityReference, wallet.network)
+
+    if (await this.identityDAO.getByIdentifier(walletId, identifier) != null) {
+      throw new Error('Identity is already in this wallet')
+    }
+
     let identityPublicKeys: IdentityPublicKeyWASM[]
     try {
-      await this.platformSDK(wallet.network).identities.getIdentityByIdentifier(identifier)
       identityPublicKeys = await this.platformSDK(wallet.network).identities.getIdentityPublicKeys(identifier)
     } catch {
-      throw new Error('Identity was not found on the selected network')
+      throw new Error(`Identity keys could not be loaded from ${wallet.network}`)
     }
 
     const matched = values.map(value => {
@@ -197,6 +199,46 @@ export class PlatformAddressService {
       identifier,
       importedKeyIds: keyIds.sort((a, b) => a - b),
       hasTransferKey: matched.some(({publicKey}) => publicKey.purpose.toUpperCase() === 'TRANSFER'),
+    }
+  }
+
+  private async resolveIdentityIdentifier(reference: string, network: Network): Promise<string> {
+    const sdk = this.platformSDK(network)
+
+    if (IDENTITY_IDENTIFIER_PATTERN.test(reference)) {
+      try {
+        const identity = await sdk.identities.getIdentityByIdentifier(reference)
+        return identity.id.base58()
+      } catch {
+        throw new Error(`Identity was not found on ${network}`)
+      }
+    }
+
+    const lowered = reference.toLowerCase()
+    const fullName = lowered.endsWith('.dash') ? lowered : `${lowered}.dash`
+    const parts = fullName.split('.')
+    if (parts.length !== 2 || parts[0].length === 0 || parts[1] !== 'dash') {
+      throw new Error('Enter an identity identifier, DPNS name, or bare .dash username')
+    }
+
+    try {
+      const normalizedLabel = sdk.names.normalizeLabel(parts[0])
+      const documents = await sdk.names.searchByName(fullName)
+      const exact = documents.find(document => {
+        const properties = document.properties as Record<string, unknown>
+        return properties.normalizedLabel === normalizedLabel
+          && properties.normalizedParentDomainName === 'dash'
+      })
+
+      if (exact == null) {
+        throw new Error('not found')
+      }
+
+      const identifier = exact.ownerId.base58()
+      const identity = await sdk.identities.getIdentityByIdentifier(identifier)
+      return identity.id.base58()
+    } catch {
+      throw new Error(`DPNS name ${fullName} was not found on ${network}`)
     }
   }
 

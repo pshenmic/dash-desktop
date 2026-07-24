@@ -97,7 +97,7 @@ function IdentitySelect({identities, selected, onSelect}: IdentitySelectProps): 
             </Text>
           </div>
         ) : (
-          <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
+          <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No funded identities in this wallet</Text>
         )}
         <ChevronIcon size={12} className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>

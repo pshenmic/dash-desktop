@@ -99,7 +99,7 @@ export function isLikelyIdentityId(value: string): boolean {
 export const SOURCE_KINDS: Array<{kind: SourceKind; label: string}> = [
   {kind: SourceKind.Core, label: 'Dash Core (L1)'},
   {kind: SourceKind.PlatformAddress, label: 'Platform address'},
-  {kind: SourceKind.Identity, label: 'Identity'},
+  {kind: SourceKind.Identity, label: 'Identity balance'},
   {kind: SourceKind.Shielded, label: 'Shielded balance'},
 ]
 

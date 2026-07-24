@@ -128,14 +128,14 @@ export default function ImportIdentity({
         ) : (
           <div className={"phase-fade-in"}>
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-2 block"}>
-              Add an existing identity to this wallet using one or more private keys. Keys are checked against Platform before they are encrypted and saved.
+              Enter an identity ID, a DPNS name such as alice.dash, or just alice. Keys are checked against Platform before they are encrypted and saved.
             </Text>
 
             <div className={"mt-5 flex flex-col gap-3"}>
               <Input
                 id={"import-identity-identifier"}
                 type={"text"}
-                placeholder={"Identity identifier"}
+                placeholder={"Identity ID or name (for example, alice)"}
                 value={identifier}
                 variant={"outlined"}
                 onChange={(e) => {
