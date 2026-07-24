@@ -1,8 +1,15 @@
 import type { Knex } from 'knex'
 import { Identity } from '../types/Identity'
 
-function identityFromRow ({ wallet_id, identity_index, identifier, derivation_path, asset_lock_txid }): Identity {
-  return { walletId: wallet_id, identityIndex: identity_index, identifier, derivationPath: derivation_path, assetLockTxid: asset_lock_txid ?? null }
+function identityFromRow ({ wallet_id, identity_index, identifier, derivation_path, asset_lock_txid, is_imported }): Identity {
+  return {
+    walletId: wallet_id,
+    identityIndex: identity_index,
+    identifier,
+    derivationPath: derivation_path,
+    assetLockTxid: asset_lock_txid ?? null,
+    isImported: Boolean(is_imported),
+  }
 }
 
 export class IdentityDAO {
@@ -25,7 +32,7 @@ export class IdentityDAO {
 
   getIdentitiesByWalletId = async (walletId: string): Promise<Identity[]> => {
     const rows = await this.knex('identities')
-      .select('wallet_id', 'identity_index', 'identifier', 'derivation_path', 'asset_lock_txid')
+      .select('wallet_id', 'identity_index', 'identifier', 'derivation_path', 'asset_lock_txid', 'is_imported')
       .where('wallet_id', walletId)
       .orderBy('identity_index', 'asc')
 
@@ -34,7 +41,7 @@ export class IdentityDAO {
 
   getByIdentifier = async (walletId: string, identifier: string): Promise<Identity | null> => {
     const row = await this.knex('identities')
-      .select('wallet_id', 'identity_index', 'identifier', 'derivation_path', 'asset_lock_txid')
+      .select('wallet_id', 'identity_index', 'identifier', 'derivation_path', 'asset_lock_txid', 'is_imported')
       .where({ wallet_id: walletId, identifier })
       .first()
 

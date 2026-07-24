@@ -1,5 +1,5 @@
 import {describe, it, expect, vi} from 'vitest'
-import {SdkProvider} from '../../src/main/src/services/SdkProvider'
+import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
 import {IdentityRegistrationService, IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/services/IdentityRegistrationService'
 
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'

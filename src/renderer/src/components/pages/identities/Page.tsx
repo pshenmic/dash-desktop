@@ -1,9 +1,13 @@
 import { Tabs } from "dash-ui-kit/react";
+import {useState} from "react";
 import { useIdentities } from "@renderer/hooks/useIdentities";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import IdentityCard from "./IdentityCard";
 import NoResults from "@renderer/components/ui/NoResults";
 import ListSkeleton from "@renderer/components/ui/Skeleton";
+import {Button, PlusIcon} from "@renderer/components/dash-ui-kit-enxtended";
+import ImportIdentity from "@renderer/components/modal/ImportIdentity";
+import {invalidateAsyncCache} from "@renderer/hooks/useAsyncWithCache";
 
 export interface Identity {
   walletAddress: string
@@ -13,10 +17,12 @@ export interface Identity {
     currency: string
   }
   assetLockTxid: string | null
+  isImported: boolean
 }
 
 export default function Identities(): React.JSX.Element {
   const { status } = useAuth()
+  const [isImportOpen, setIsImportOpen] = useState(false)
   const { identities, loading, err } = useIdentities(status?.selectedWalletId ?? undefined)
 
   const mappedIdentities: Identity[] = identities.map((item) => ({
@@ -27,6 +33,7 @@ export default function Identities(): React.JSX.Element {
       currency: 'Credits',
     },
     assetLockTxid: item.assetLockTxid ?? null,
+    isImported: item.isImported,
   }))
 
   const assetsList = [
@@ -35,6 +42,21 @@ export default function Identities(): React.JSX.Element {
       label: 'Your Identities',
       content: (
         <div className={"flex flex-col gap-5"}>
+          <div className={"flex justify-end"}>
+            <Button
+              type={"button"}
+              onClick={() => setIsImportOpen(true)}
+              disabled={!status?.selectedWalletId}
+              colorScheme={"primary"}
+              size={"sm"}
+              className={"min-h-0! py-2! rounded-[.75rem]"}
+            >
+              <span className={"flex items-center gap-2"}>
+                <PlusIcon size={10} color={"currentColor"} />
+                Import identity
+              </span>
+            </Button>
+          </div>
           <div className={"flex flex-col gap-[.625rem] w-full"}>
             {loading && <ListSkeleton rows={5} />}
             {!loading && err && (
@@ -68,6 +90,16 @@ export default function Identities(): React.JSX.Element {
           }
         />
       </div>
+      <ImportIdentity
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        walletId={status?.selectedWalletId ?? null}
+        onImported={() => {
+          if (status?.selectedWalletId) {
+            invalidateAsyncCache('identities', status.selectedWalletId)
+          }
+        }}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import {randomBytes} from 'crypto'
+import type {DashPlatformSDK} from 'dash-platform-sdk'
 import {SdkProvider} from '../providers/SdkProvider'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
@@ -804,32 +805,41 @@ export class WalletService {
     const results: IdentityInfo[] = []
 
     for (const entry of stored) {
+      let identity: Awaited<ReturnType<DashPlatformSDK['identities']['getIdentityByIdentifier']>>
       try {
-        const identity = await sdk.identities.getIdentityByIdentifier(entry.identifier)
+        identity = await sdk.identities.getIdentityByIdentifier(entry.identifier)
+      } catch {
+        // Identity is not registered on Platform yet, or could not currently
+        // be loaded. Do not let one entry prevent the others from rendering.
+        continue
+      }
+
+      let alias: string | null = null
+      try {
         const [aliasDocument] = await sdk.names.searchByIdentity(entry.identifier)
         const {label, parentDomainName} = aliasDocument?.properties ?? {}
-
-        let alias: string | null = null
 
         if (label != null && parentDomainName != null) {
           alias = `${label}.${parentDomainName}`
         }
-
-        // TODO: Implement read usd amount
-        results.push({
-          identityIndex: entry.identityIndex,
-          identifier: identity.id.base58(),
-          alias,
-          balance: {
-            amount: BigInt(identity.balance),
-            usdAmount: '0.0'
-          },
-          derivationPath: entry.derivationPath,
-          assetLockTxid: entry.assetLockTxid ?? null
-        })
       } catch {
-        // identity not registered on platform yet, skip
+        // DPNS is optional. A transient name lookup failure must not hide an
+        // otherwise valid identity or its balance.
       }
+
+      // TODO: Implement read usd amount
+      results.push({
+        identityIndex: entry.identityIndex,
+        identifier: identity.id.base58(),
+        alias,
+        balance: {
+          amount: BigInt(identity.balance),
+          usdAmount: '0.0'
+        },
+        derivationPath: entry.derivationPath,
+        assetLockTxid: entry.assetLockTxid ?? null,
+        isImported: entry.isImported ?? false,
+      })
     }
 
     return results
@@ -851,4 +861,3 @@ export class WalletService {
     return this.sdkProvider.getPlatformSDK(wallet.network).identities.getIdentityNonce(identifier)
   }
 }
-

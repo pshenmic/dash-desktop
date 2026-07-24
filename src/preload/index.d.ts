@@ -20,6 +20,7 @@ declare global {
       getBlockByHash: (hash: string, network: string) => Promise<unknown>
       getBalance: (address: string | string[], network: string) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
+      importIdentity: (walletId: string, identityIdentifier: string, privateKeys: string[], password: string) => Promise<{ identifier: string; importedKeyIds: number[]; hasTransferKey: boolean }>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>

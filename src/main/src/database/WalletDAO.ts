@@ -198,6 +198,10 @@ export class WalletDAO {
         .first()
       const wasSelected = Boolean(target?.selected)
 
+      await this.knex('identity_keys')
+        .delete()
+        .where('wallet_id', walletId)
+
       await this.knex('identities')
         .delete()
         .where('wallet_id', walletId)

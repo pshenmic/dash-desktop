@@ -163,6 +163,12 @@ export interface IdentityCreateResult {
   fromAddress: string
 }
 
+export interface IdentityImportResult {
+  identifier: string
+  importedKeyIds: number[]
+  hasTransferKey: boolean
+}
+
 export interface ShieldResult {
   stHash: string
   amountCredits: string

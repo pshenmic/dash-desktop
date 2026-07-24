@@ -11,6 +11,7 @@ export type IdentityApiDto = {
   }
   derivationPath: string
   assetLockTxid: string | null
+  isImported: boolean
 }
 
 const fetchIdentities = (walletId: string): Promise<IdentityApiDto[]> =>

@@ -1,9 +1,10 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {SdkProvider} from '../../src/main/src/services/SdkProvider'
+import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
 import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletService} from '../../src/main/src/services/WalletService'
 import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import type {ShieldedService} from '../../src/main/src/services/ShieldedService'
 import {ApplicationService} from '../../src/main/src/services/ApplicationService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
@@ -40,10 +41,13 @@ describe('GetWalletAddressesHandler', () => {
     preferences.general.connectionType = 'p2p'
     const applicationService = new ApplicationService(preferences)
     const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+    const shieldedService = {
+      initAddresses: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ShieldedService
 
     const walletService = new WalletService(
       walletDAO, addressDAO, identityDAO, transactionDAO,
-      applicationService, walletSyncService, sdkProvider, TEST_PBKDF2_ITERATIONS,
+      applicationService, walletSyncService, sdkProvider, TEST_PBKDF2_ITERATIONS, shieldedService,
     )
 
     createWalletHandler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)

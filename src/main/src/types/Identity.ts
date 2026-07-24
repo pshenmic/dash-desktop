@@ -6,6 +6,7 @@ export interface Identity {
   derivationPath: string
   identifier: string
   assetLockTxid?: string | null
+  isImported?: boolean
 }
 
 export interface IdentityInfo {
@@ -15,4 +16,5 @@ export interface IdentityInfo {
   balance: AmountWithUsd
   derivationPath: string
   assetLockTxid: string | null
+  isImported: boolean
 }
