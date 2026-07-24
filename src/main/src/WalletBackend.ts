@@ -2,7 +2,7 @@ import {calibratePBKDF2Iterations, ensureHomeFolder, getKnex, migrateKnex} from 
 import path from 'path'
 import os from 'os'
 import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
-import { SdkProvider } from './services/SdkProvider'
+import { SdkProvider } from './providers/SdkProvider'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'

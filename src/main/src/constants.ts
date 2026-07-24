@@ -1,6 +1,12 @@
 export const HomeFolderName = '.dash-desktop'
 export const StorageFilename = 'storage.db'
 export const ChainStorageFilename = 'ChainStorage'
+export const LogsFolderName = 'logs'
+
+// Rotate the current day's log file once it grows past this, and delete daily
+// log files older than this many days on startup.
+export const LOG_FILE_MAX_SIZE = 5 * 1024 * 1024
+export const LOG_RETENTION_DAYS = 14
 
 export const PreferencesFilename = 'preferences.json'
 
@@ -19,9 +25,6 @@ export const SUPPORTED_CURRENCIES = [
   "btc",
   "rub"
 ]
-
-// Currencies we request live DASH prices for — every selectable fiat needs a rate.
-export const SUPPORTED_RATE_CURRENCIES = SUPPORTED_CURRENCIES
 
 export const SEQUENCE_FINAL = 0xffffffff
 

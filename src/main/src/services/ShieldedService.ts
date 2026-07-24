@@ -1,5 +1,6 @@
 import { utilityProcess, UtilityProcess } from 'electron'
 import path from 'path'
+import { logChildOutput } from '../logger'
 import { randomUUID } from 'crypto'
 import { SdkProvider } from './SdkProvider'
 import { IdentityRegistrationService } from './IdentityRegistrationService'
@@ -126,12 +127,12 @@ export class ShieldedService {
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      process.stdout.write(text)
+      logChildOutput('shielded', text, false)
     })
     child.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      process.stderr.write(text)
+      logChildOutput('shielded', text, true)
     })
 
     child.on('message', (event: ShieldedEvent) => {

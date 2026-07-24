@@ -1,5 +1,5 @@
 import { net } from 'electron'
-import { SUPPORTED_RATE_CURRENCIES } from '../constants'
+import {SUPPORTED_CURRENCIES} from "../constants";
 
 export type ExchangeRates = Record<string, number>
 
@@ -24,7 +24,7 @@ const TTL_MS = 60_000
 const REQUEST_TIMEOUT_MS = 8_000
 
 function zeroRates(): ExchangeRates {
-  return Object.fromEntries(SUPPORTED_RATE_CURRENCIES.map((c) => [c, 0]))
+  return Object.fromEntries(SUPPORTED_CURRENCIES.map((c) => [c, 0]))
 }
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -44,7 +44,7 @@ async function fetchJson(url: string): Promise<unknown> {
 
 function pickRates(raw: Record<string, number>, keyOf: (currency: string) => string): ExchangeRates {
   const rates: ExchangeRates = {}
-  for (const currency of SUPPORTED_RATE_CURRENCIES) {
+  for (const currency of SUPPORTED_CURRENCIES) {
     const value = raw[keyOf(currency)]
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
       rates[currency] = value
@@ -55,7 +55,7 @@ function pickRates(raw: Record<string, number>, keyOf: (currency: string) => str
 
 function pickChanges(raw: Record<string, number>, keyOf: (currency: string) => string): ExchangeRates {
   const changes: ExchangeRates = {}
-  for (const currency of SUPPORTED_RATE_CURRENCIES) {
+  for (const currency of SUPPORTED_CURRENCIES) {
     const value = raw[keyOf(currency)]
     if (typeof value === 'number' && Number.isFinite(value)) {
       changes[currency] = value
@@ -68,7 +68,7 @@ export class CoinGeckoRateProvider implements RateProvider {
   readonly name = 'coingecko'
   private readonly url =
     'https://api.coingecko.com/api/v3/simple/price' +
-    `?ids=dash&vs_currencies=${SUPPORTED_RATE_CURRENCIES.join(',')}` +
+    `?ids=dash&vs_currencies=${SUPPORTED_CURRENCIES.join(',')}` +
     '&include_24hr_change=true'
 
   async fetchRates(): Promise<ProviderRates> {
@@ -88,7 +88,7 @@ export class CryptoCompareRateProvider implements RateProvider {
   readonly name = 'cryptocompare'
   private readonly url =
     'https://min-api.cryptocompare.com/data/price' +
-    `?fsym=DASH&tsyms=${SUPPORTED_RATE_CURRENCIES.map((c) => c.toUpperCase()).join(',')}`
+    `?fsym=DASH&tsyms=${SUPPORTED_CURRENCIES.map((c) => c.toUpperCase()).join(',')}`
 
   async fetchRates(): Promise<ProviderRates> {
     const data = (await fetchJson(this.url)) as Record<string, number> & {

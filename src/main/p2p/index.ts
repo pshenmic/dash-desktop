@@ -42,8 +42,8 @@ const sync = new SyncService({
   error: message => process.parentPort.postMessage({type: 'error', message}),
   broadcastResult: (requestId, ok, result, errorMessage) =>
     process.parentPort.postMessage({type: 'broadcastResult', requestId, ok, result, errorMessage}),
-  txInstantLocked: (walletId, txid) =>
-    process.parentPort.postMessage({type: 'txInstantLocked', walletId, txid}),
+  txInstantLocked: (walletId, txid, islockHex) =>
+    process.parentPort.postMessage({type: 'txInstantLocked', walletId, txid, islockHex}),
   chainLocked: (walletId, height) =>
     process.parentPort.postMessage({type: 'chainLocked', walletId, height}),
 })

@@ -283,9 +283,12 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
-  // Hot-add of newly created wallet addresses. Cursor is rewound to the
-  // caller-supplied height (defaults to birthday) so historical filters
-  // are re-matched against the new addresses.
+  // Hot-add of newly created wallet addresses. When rewindToHeight is set,
+  // the cursor is rewound (clamped to birthday) so historical filters are
+  // re-matched against the new addresses. When it is omitted the addresses
+  // are known to be fresh (frontier-derived / added while synced), so we
+  // only extend the match set and keep scanning forward from the current
+  // cursor — no rewind, no re-scan.
   addWatchAddresses = (addresses: string[], rewindToHeight?: number): void => {
     if (this.stopped) return
     let added = 0
@@ -296,13 +299,17 @@ export class CFilterSyncWorker extends Worker {
       added++
     }
     if (added === 0) return
-    const target = Math.max(this.birthdayHeight, rewindToHeight ?? this.birthdayHeight)
-    console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); rewinding cursor to h=${target}`)
 
-    for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
-    this.cfilter.inflightBatches.clear()
-    this.blockFetch.matched.clear()
-    this.cfilter.cursor = target
+    if (rewindToHeight != null) {
+      const target = Math.max(this.birthdayHeight, rewindToHeight)
+      console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); rewinding cursor to h=${target}`)
+      for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
+      this.cfilter.inflightBatches.clear()
+      this.blockFetch.matched.clear()
+      this.cfilter.cursor = target
+    } else {
+      console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); forward-only (no rewind)`)
+    }
 
     if (this.phase === 'cfheaders' || this.phase === 'cfcheckpt' || this.phase === 'connecting') return
     if (this.heightToFilterHeader.size === 0) {

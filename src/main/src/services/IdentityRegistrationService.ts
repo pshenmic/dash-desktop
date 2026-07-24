@@ -111,15 +111,33 @@ export class IdentityRegistrationService {
     network: Network,
     pollIntervalMs: number = IDENTITY_LOCK_POLL_INTERVAL_MS,
     timeoutMs: number = IDENTITY_LOCK_TIMEOUT_MS,
+    instantLockHexProvider?: (txid: string, timeoutMs: number) => Promise<string | null>,
   ): Promise<AssetLockProof> {
     const coreSDK = this.sdkProvider.getCoreSDK(network)
     const platformSDK = this.sdkProvider.getPlatformSDK(network)
-    const subscription = coreSDK.subscribeToTransactions(watchAddresses, [coreUtils.hexToBytes(txid)])
+    // We broadcast L1 txs over our own p2p pool, so the isdlock arrives there —
+    // DAPI's subscribeToTransactions does not deliver it. Prefer the p2p islock
+    // provider; only open the DAPI subscription when no provider is supplied.
+    const subscription = instantLockHexProvider
+      ? null
+      : coreSDK.subscribeToTransactions(watchAddresses, [coreUtils.hexToBytes(txid)])
 
     let settled = false
 
     const instantLockRace = async (): Promise<AssetLockProof> => {
-      for await (const event of subscription) {
+      if (instantLockHexProvider) {
+        const hex = await instantLockHexProvider(txid, timeoutMs)
+        if (settled) throw new Error('cancelled')
+        if (!hex) {
+          // No p2p islock within the window — let chainLockRace settle the race.
+          return await new Promise<AssetLockProof>(() => {})
+        }
+        const instantLock = InstantLock.fromHex(hex)
+        console.log(`[assetlock] building instant proof from p2p islock for ${txid} (lockTxId=${instantLock.txId})`)
+        return coreUtils.createAssetLockProof({transaction: assetLockTx, instantLock, outputIndex: 0}) as InstantAssetLockProofParams
+      }
+
+      for await (const event of subscription!) {
         if (settled) throw new Error('cancelled')
         if (event.event !== 'instantSendLockMessage') continue
 
