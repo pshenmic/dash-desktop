@@ -1,5 +1,5 @@
 import {randomBytes} from 'crypto'
-import {SdkProvider} from './SdkProvider'
+import {SdkProvider} from '../providers/SdkProvider'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'

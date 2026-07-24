@@ -1,5 +1,5 @@
 import type {DashPlatformSDK} from 'dash-platform-sdk'
-import {SdkProvider} from './SdkProvider'
+import {SdkProvider} from '../providers/SdkProvider'
 import {
   InputAddressWASM,
   OutputAddressWASM,

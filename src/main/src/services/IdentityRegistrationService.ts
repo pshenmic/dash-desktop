@@ -5,7 +5,7 @@ import {
 } from 'dash-core-sdk'
 import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
 import {KeyType, PrivateKeyWASM, StateTransitionWASM} from 'dash-platform-sdk/types.js'
-import {SdkProvider} from './SdkProvider'
+import {SdkProvider} from '../providers/SdkProvider'
 import {Network} from '../types'
 import {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
 import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
