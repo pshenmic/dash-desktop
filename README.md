@@ -89,7 +89,7 @@ Output is placed in the `dist/` directory.
 
 ## Data storage
 
-All data is stored locally under `~/.dash-platform-wallet/`.
+All data is stored locally under `~/.dash-desktop/`.
 
 | File | Purpose |
 |------|---------|
