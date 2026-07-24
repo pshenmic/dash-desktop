@@ -3,7 +3,9 @@ import { Button, Input, Text } from "@renderer/components/dash-ui-kit-enxtended"
 import { useTheme } from 'dash-ui-kit/react';
 import { TypeUseCreateWallet } from '@renderer/hooks/useCreateWallet';
 import { CreateWalletTexts, messages } from '@renderer/constants';
+import { getPasswordValidationError } from '@renderer/utils/passwordValidation';
 import { toast } from '@renderer/components/ui/Toast';
+import Spinner from '@renderer/components/ui/Spinner';
 
 type CreateWalletData = Pick<
   CreateWalletTexts,
@@ -20,23 +22,9 @@ type CreateWalletProps = Pick<TypeUseCreateWallet, 'password' | 'setPassword'> &
   data: CreateWalletData
 }
 
-const MIN_WALLET_PASSWORD_LENGTH = 8
-const MAX_WALLET_PASSWORD_LENGTH = 128
-
-const { createWallet: { passwordValidation: { minLength, maxLength, passwordsDoNotMatch },
+const { createWallet: { passwordValidation: { passwordsDoNotMatch },
   seedPhrase: { warning, errorMessage, errorTitle }
 }} = messages
-
-function getPasswordValidationError(password: string): string | null {
-  const t = password.trim()
-  if (t.length < MIN_WALLET_PASSWORD_LENGTH) {
-    return minLength
-  }
-  if (t.length > MAX_WALLET_PASSWORD_LENGTH) {
-    return maxLength
-  }
-  return null
-}
 
 export default function  CreateWallet({ password, setPassword, generateSeedPhrase, createImportedWallet, data } : CreateWalletProps): React.JSX.Element {
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -139,7 +127,7 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
         className={"rounded-[.9375rem] p-4.5"}
         disabled={tooShortOrEmpty || loading}
       >
-        {data.buttonNext}
+        {loading ? <Spinner size={20} className={"mx-auto"} /> : data.buttonNext}
       </Button>
     </form>
   )

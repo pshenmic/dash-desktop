@@ -6,6 +6,7 @@ import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
 import CoreAddressSelect from "./CoreAddressSelect"
 import { useTheme } from "dash-ui-kit/react"
+import { defaultReceiveCoreAddress } from "@renderer/utils/receiveDefaults"
 
 type ReceiveAddressCardProps = {
   addresses: WalletAddressDto[]
@@ -23,7 +24,7 @@ export default function ReceiveAddressCard({
   const { theme } = useTheme()
 
   const selected = addresses.find(a => a.address === selectedAddress)
-    ?? addresses.find(a => a.address === defaultAddress)
+    ?? defaultReceiveCoreAddress(addresses, defaultAddress)
   const address = selected?.address ?? defaultAddress
   const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
 

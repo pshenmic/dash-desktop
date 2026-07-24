@@ -240,9 +240,6 @@ export class WalletService {
       throw new Error('No selected wallet found')
     }
 
-    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
-
     let decryptedMnemonic: string
 
     try {
@@ -251,29 +248,72 @@ export class WalletService {
       return false
     }
 
-    const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
-    const seed = keyPair.mnemonicToSeed(decryptedMnemonic)
-    const hdKey = keyPair.seedToHdKey(seed, wallet.network)
-    const coinType = COIN_TYPE[wallet.network]
+    const isValid = await this.mnemonicMatchesWallet(walletId, wallet.network, decryptedMnemonic)
 
-    const key = await keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
-    if (!key.publicKey) throw new Error(`Failed to derive public key at index ${referenceWalletAddress.index}`)
+    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null)) {
+      const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
+      const seed = keyPair.mnemonicToSeed(decryptedMnemonic)
+      const hdKey = keyPair.seedToHdKey(seed, wallet.network)
 
-    const address = keyPair.p2pkhAddress(key.publicKey, wallet.network)
+      if (wallet.platformXpub == null) {
+        const platformXpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+        await this.walletDAO.setPlatformXpub(walletId, platformXpub)
+      }
 
-    const isValid = address === referenceWalletAddress.address
-
-    if (isValid && wallet.platformXpub == null) {
-      const platformXpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
-      await this.walletDAO.setPlatformXpub(walletId, platformXpub)
-    }
-
-    if (isValid && wallet.coreXpub == null) {
-      const accountNode = await keyPair.derivePath(hdKey, coreAccountPath(coinType, 0))
-      await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
+      if (wallet.coreXpub == null) {
+        const accountNode = await keyPair.derivePath(hdKey, coreAccountPath(COIN_TYPE[wallet.network], 0))
+        await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
+      }
     }
 
     return isValid
+  }
+
+  async verifyWalletMnemonic(walletId: string, mnemonic: string): Promise<boolean> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    return this.mnemonicMatchesWallet(walletId, wallet.network, mnemonic)
+  }
+
+  async resetWalletPassword(walletId: string, mnemonic: string, newPassword: string): Promise<boolean> {
+    const matches = await this.verifyWalletMnemonic(walletId, mnemonic)
+    if (!matches) {
+      return false
+    }
+
+    const encryptedMnemonic = encryptMnemonic(mnemonic.trim(), newPassword, this.pbkdf2Iterations)
+    await this.walletDAO.updateEncryptedMnemonic(walletId, encryptedMnemonic)
+
+    return true
+  }
+
+  private async mnemonicMatchesWallet(walletId: string, network: Network, mnemonic: string): Promise<boolean> {
+    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
+    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
+
+    if (referenceWalletAddress == null) {
+      return false
+    }
+
+    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
+
+    try {
+      const seed = keyPair.mnemonicToSeed(mnemonic.trim())
+      const hdKey = keyPair.seedToHdKey(seed, network)
+      const coinType = COIN_TYPE[network]
+
+      const key = await keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
+      if (!key.publicKey) {
+        return false
+      }
+
+      return keyPair.p2pkhAddress(key.publicKey, network) === referenceWalletAddress.address
+    } catch {
+      return false
+    }
   }
 
   async setAddressLabel(walletId: string, address: string, label: string): Promise<QueryStatus> {

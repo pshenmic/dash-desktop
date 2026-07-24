@@ -4,6 +4,7 @@ import { Button, CrossIcon, Input, Text, SuccessIcon, ShieldSmallIcon } from '..
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
+import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
@@ -20,7 +21,6 @@ interface ShieldConfirmModalProps {
   onSuccess: () => void
 }
 
-type Phase = 'confirm' | 'shielding' | 'done'
 
 
 export default function ShieldConfirmModal({
@@ -35,14 +35,14 @@ export default function ShieldConfirmModal({
 }: ShieldConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
-  const [phase, setPhase] = useState<Phase>('confirm')
+  const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ShieldResult | null>(null)
 
   useEffect(() => {
     if (isOpen) {
       setPassword('')
-      setPhase('confirm')
+      setPhase(ConfirmModalPhase.Confirm)
       setError(null)
       setResult(null)
     }
@@ -50,20 +50,20 @@ export default function ShieldConfirmModal({
 
   if (!isOpen) return null
 
-  const shielding = phase === 'shielding'
+  const shielding = phase === ConfirmModalPhase.Sending
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || shielding || !proverReady) return
-    setPhase('shielding')
+    setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
       const res = await API.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password)
       setResult(res)
-      setPhase('done')
+      setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Shield failed')
-      setPhase('confirm')
+      setPhase(ConfirmModalPhase.Confirm)
     }
   }
 
@@ -83,7 +83,7 @@ export default function ShieldConfirmModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === 'done' ? 'Funds shielded' : 'Confirm shield'}
+            {phase === ConfirmModalPhase.Done ? 'Funds shielded' : 'Confirm shield'}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -94,7 +94,7 @@ export default function ShieldConfirmModal({
           </button>
         </div>
 
-        {phase !== 'done' ? (
+        {phase !== ConfirmModalPhase.Done ? (
           <div className={"phase-fade-in"} key={"confirm"}>
             <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>

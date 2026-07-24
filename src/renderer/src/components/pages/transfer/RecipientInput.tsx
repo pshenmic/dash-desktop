@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { Avatar, Identifier } from 'dash-ui-kit/react'
+import { Identifier } from 'dash-ui-kit/react'
 import { TransferPageType } from '@renderer/constants'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
@@ -74,7 +74,7 @@ export default function RecipientInput({
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>
-      <div className={"dash-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
+      <div className={"dash-input-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
         <div
           className={"flex items-center justify-between gap-1 px-4 py-3.5 [&>*:first-child]:flex-1"}
           onClick={() => inputRef.current?.focus()}
@@ -87,13 +87,6 @@ export default function RecipientInput({
             className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 p-0 w-full"}
             placeholder={data.placeholder}
             colorScheme={"transparent"}
-            prefixClassName={"flex items-center"}
-            prefix={
-              <Avatar
-                username={"account"}
-                className={"size-5"}
-              />
-            }
           />
           {trimmedValue.length > 0 && (
             isValidRecipient ? (

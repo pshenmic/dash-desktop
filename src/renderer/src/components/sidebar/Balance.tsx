@@ -34,9 +34,6 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
         gap-[.9375rem]
         px-[.9375rem]
         py-[.625rem]
-        dash-block
-        rounded-[.875rem]
-        dash-black-border
       `}
     >
       <div

@@ -3,8 +3,12 @@ import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
+import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -14,18 +18,12 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
 
   const sync = useShieldedSyncState(walletId)
-  const synced = sync.phase === 'done'
-  const syncRunning = sync.phase === 'syncing' || sync.phase === 'recovering'
-  const balances = useMemo(() => {
-    const map = new Map<string, bigint>()
-    for (const note of sync.notes) {
-      if (note.spent) continue
-      map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
-    }
-    return map
-  }, [sync.notes])
+  const synced = sync.phase === ShieldedSyncPhase.Done
+  const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
+  const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
   useEffect(() => {
     setAddresses(null)
@@ -149,7 +147,9 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   }
 
   return (
+    <>
     <div className={"flex flex-col gap-[.625rem]"}>
+      <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
       {addresses.map((address) => (
         <div key={address} className={"flex items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
           <div className={"flex items-center gap-2 min-w-0"}>
@@ -195,7 +195,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
       ) : (
         <div className={"flex flex-col gap-2 items-start"}>
           {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
-          {sync.phase === 'error' && (
+          {sync.phase === ShieldedSyncPhase.Error && (
             <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Note sync failed.'}</Text>
           )}
           <div className={"flex items-center gap-2"}>
@@ -212,7 +212,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
             </Button>
             {syncRunning && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                {sync.phase === 'recovering'
+                {sync.phase === ShieldedSyncPhase.Recovering
                   ? 'Recovering your notes…'
                   : sync.total > 0
                     ? `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`
@@ -223,5 +223,11 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
         </div>
       )}
     </div>
+    <ShieldedUnlockModal
+      isOpen={syncOpen}
+      onClose={() => setSyncOpen(false)}
+      walletId={walletId ?? null}
+    />
+    </>
   )
 }

@@ -15,7 +15,8 @@ import {InputAddressWASM, AddressFundsFeeStrategyStepWASM, AssetLockProofWASM, I
 import {Network} from '../src/types'
 import {coreAddressToScript} from '../src/utils/coreScript'
 import {IDENTITY_KEY_DEFINITIONS} from '../src/utils/identityKeys'
-import {maxSpendableCredits, selectSpendNotes} from '../src/utils/shieldedNoteSelection'
+import {maxSpendableCredits, selectSpendNotes, SpendFeeForCount} from '../src/utils/shieldedNoteSelection'
+import {minimumShieldedFeeCredits, shieldedWithdrawalFeeCredits, unshieldFeeCredits} from '../src/utils/shieldedFee'
 import {ShieldedCommand, ShieldedEvent, ShieldedNoteSnapshot, ShieldedSpendKind} from './types/messages'
 
 type SyncCommand = Extract<ShieldedCommand, {type: 'sync'}>
@@ -27,20 +28,11 @@ type EncryptedNote = Awaited<ReturnType<DashPlatformSDK['shielded']['getShielded
 
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
-// getShieldedEncryptedNotes requires startIndex to be chunk-aligned (a multiple
-// of 2048); 8192 is the SDK max-per-query and a multiple of 2048, so advancing
-// the cursor by full batches keeps every startIndex aligned.
-const SHIELDED_SYNC_BATCH = 8192
 const COIN_TYPE: Record<Network, number> = { mainnet: 5, testnet: 1 }
 const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 // Platform caps state transitions at ~20KB and the Halo2 proof grows with the
 // number of Orchard actions, so spends are limited to 6 notes per transition.
 const MAX_SPEND_NOTES = 6
-const SPEND_FEE_CREDITS = 6_500_000n
-// Notes spent before local bookkeeping existed (or by another install) are
-// only detectable on-chain: a built transition exposes its action nullifiers,
-// so stale selections are caught before broadcast and repaired by re-selecting.
-const MAX_SPEND_ATTEMPTS = 3
 const SHIELD_FUNDING_DUMMY_OUTPUTS = 1
 
 export class ShieldedEngine {
@@ -75,12 +67,15 @@ export class ShieldedEngine {
     await this.proverInit
   }
 
+  // Trial-decrypts the ciphertexts passed in by the main process (which
+  // downloads new pool notes in the background) — no network fetch here.
+  // recoverNotes indexes by array position, so each recovered index is
+  // mapped back to the pool index carried by its payload.
   async sync(command: SyncCommand): Promise<void> {
     try {
       this.sdk.setNetwork(command.network)
 
-      const all = await this.fetchAllNotes((fetched, total) =>
-        this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'syncing', fetched, total}))
+      const all = command.notes
 
       this.emit({type: 'syncProgress', requestId: command.requestId, phase: 'recovering', fetched: all.length, total: all.length})
       const recovered = this.sdk.shielded.recoverNotes(all, command.seed, SHIELDED_ACCOUNT)
@@ -90,10 +85,11 @@ export class ShieldedEngine {
       const notes: ShieldedNoteSnapshot[] = []
       for (const note of recovered) {
         const value = note.note.value
-        const isSpent = spent.has(note.index)
+        const poolIndex = all[note.index]?.index ?? note.index
+        const isSpent = spent.has(poolIndex)
         if (!isSpent) balance += value
         notes.push({
-          index: note.index,
+          index: poolIndex,
           amount: value.toString(),
           spent: isSpent,
           address: note.note.address.toBech32m(command.network),
@@ -119,15 +115,22 @@ export class ShieldedEngine {
       await this.initProver()
       const coinType = COIN_TYPE[network]
 
-      const all = await this.fetchAllNotes((fetched, total) =>
-        this.emit({type: 'spendProgress', requestId, phase: 'syncing', fetched, total}))
+      const all = command.notes
 
       const recovered = this.sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
       const changeAddress = this.sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
       const memo = ShieldedMemoWASM.empty() as unknown as string
       const spent = new Set(command.spentIndexes)
 
-      for (let attempt = 0; ; attempt++) {
+      // Unbounded but guaranteed to terminate: every iteration that detects an
+      // already-spent note adds >= 1 index to `spent` (probeSpentNotes returns
+      // >= 1 or we throw), strictly shrinking the unspent pool. So it either
+      // reaches a clean fundable selection or runs out of notes/funds and throws.
+      // TODO: this only marks notes that get selected here; notes spent on
+      // another install stay counted until picked, so the balance can read high
+      // until the first spend. Add a proactive on-chain reconcile of all owned
+      // notes (probe in batches) after import to fix the displayed balance.
+      for (;;) {
         const unspent = recovered.filter((note) => !spent.has(note.index))
         if (unspent.length === 0) throw new Error('No shielded notes available to spend')
 
@@ -136,15 +139,22 @@ export class ShieldedEngine {
           : unspent
         if (available.length === 0) throw new Error('Selected note is no longer available to spend')
 
-        const feeCredits = kind === 'identityCreate' ? 0n : SPEND_FEE_CREDITS
+        const feeForCount: SpendFeeForCount =
+          kind === 'identityCreate' ? () => 0n
+          : kind === 'transfer' ? minimumShieldedFeeCredits
+          : kind === 'unshield' ? unshieldFeeCredits
+          : shieldedWithdrawalFeeCredits
         const selectable = available.map((note) => ({ index: note.index, value: note.note.value }))
-        const selection = selectSpendNotes(selectable, amount + feeCredits, MAX_SPEND_NOTES)
+        const selection = selectSpendNotes(selectable, amount, MAX_SPEND_NOTES, feeForCount)
         if (selection == null) {
-          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, feeCredits)
+          const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, feeForCount)
           throw new Error(
-            `Amount needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
-            `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
-            `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+            selectable.length > MAX_SPEND_NOTES
+              ? `Amount plus the network fee needs more than ${MAX_SPEND_NOTES} notes (transaction size limit). ` +
+                `Max per transaction right now: ${max.toLocaleString('en-US')} credits. ` +
+                `Send a smaller amount, or consolidate notes by sending to your own shielded address.`
+              : `Amount plus the network fee exceeds your spendable notes. ` +
+                `Max per transaction right now: ${max.toLocaleString('en-US')} credits.`
           )
         }
         const selectedIndexes = new Set(selection.selected.map((note) => note.index))
@@ -192,9 +202,6 @@ export class ShieldedEngine {
         const nullifiers = this.extractActionNullifiers(stateTransition, kind)
         const statuses = await this.sdk.shielded.getShieldedNullifiers(nullifiers)
         if (statuses.some((status) => status.isSpent)) {
-          if (attempt >= MAX_SPEND_ATTEMPTS - 1) {
-            throw new Error('Selected notes were already spent on-chain. Re-sync your notes and try again.')
-          }
           console.warn('[shielded] selection includes already-spent notes, probing', toSpend.map((n) => n.index))
           const stale = await this.probeSpentNotes(all, toSpend, seed, network)
           if (stale.length === 0) {
@@ -314,22 +321,6 @@ export class ShieldedEngine {
       console.error('Shield from asset lock failed', e)
       this.emit({type: 'shieldResult', requestId, ok: false, stHash: null, error: message})
     }
-  }
-
-  private async fetchAllNotes(onProgress: (fetched: number, total: number) => void): Promise<EncryptedNote[]> {
-    const totalBig = await this.sdk.shielded.getShieldedNotesCount()
-    const total = totalBig != null ? Number(totalBig) : 0
-    onProgress(0, total)
-
-    const all: EncryptedNote[] = []
-    while (all.length < total) {
-      const count = Math.min(SHIELDED_SYNC_BATCH, total - all.length)
-      const batch = await this.sdk.shielded.getShieldedEncryptedNotes(BigInt(all.length), count)
-      if (batch.length === 0) break
-      all.push(...batch)
-      onProgress(all.length, total)
-    }
-    return all
   }
 
   private async waitForResult(st: StateTransitionWASM, kind: ShieldedSpendKind): Promise<void> {

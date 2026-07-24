@@ -1,7 +1,7 @@
 import {calibratePBKDF2Iterations, ensureHomeFolder, getKnex, migrateKnex} from './utils'
 import path from 'path'
 import os from 'os'
-import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, StorageFilename} from './constants'
+import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
 import { SdkProvider } from './services/SdkProvider'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
@@ -51,6 +51,8 @@ import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
+import {VerifyWalletMnemonicHandler} from "./api/wallet/verifyWalletMnemonic";
+import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
 import {SetLanguageHandler} from "./api/setLanguage";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
@@ -62,6 +64,7 @@ import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
+import {GetShieldedNotesInfoHandler} from './api/shielded/getShieldedNotesInfo'
 import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
 import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
 import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
@@ -143,6 +146,8 @@ export class WalletBackend {
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
+    ipcMain.handle('verifyWalletMnemonic', new VerifyWalletMnemonicHandler(this.walletService).handle)
+    ipcMain.handle('resetWalletPassword', new ResetWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
@@ -160,6 +165,7 @@ export class WalletBackend {
     ipcMain.handle('deleteContact', new DeleteContactHandler(this.contactService).handle)
     ipcMain.handle('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
+    ipcMain.handle('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
@@ -224,6 +230,18 @@ export class WalletBackend {
     setInterval(() => {
       discoverSelected().catch(err => console.error('[discovery] periodic address discovery failed:', err))
     }, DISCOVERY_INTERVAL_MS).unref()
+
+    const shieldedService = this.shieldedService
+    const fetchShieldedNotes = async (): Promise<void> => {
+      const selected = await walletDAO.getSelectedWallet()
+      if (selected != null) {
+        await shieldedService.checkForNewNotes(selected.walletId, selected.network)
+      }
+    }
+    fetchShieldedNotes().catch(err => console.error('[shielded] startup note fetch failed:', err))
+    setInterval(() => {
+      fetchShieldedNotes().catch(err => console.error('[shielded] periodic note fetch failed:', err))
+    }, SHIELDED_NOTES_CHECK_INTERVAL_MS).unref()
 
     this.applicationService.markReady()
   }

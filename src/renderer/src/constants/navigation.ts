@@ -2,6 +2,7 @@ export interface NavItem {
   id: string
   label: string
   to: string
+  debugOnly?: boolean
 }
 
 export interface NavGroup {
@@ -52,7 +53,8 @@ export const navGroups: NavGroup[] = [
       {
         id: 'shielded',
         label: 'Shielded',
-        to: '/shielded'
+        to: '/shielded',
+        debugOnly: true
       },
       {
         id: 'settings',

@@ -5,18 +5,17 @@ import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
-import {
-  SourceKind,
-  DestinationKind,
-  SOURCE_KINDS,
-} from "@renderer/utils/transferMatrix";
+import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
+import { SourceKind } from "@renderer/enums/SourceKind";
+import { DestinationKind } from "@renderer/enums/DestinationKind";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
+const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
 
 function KindIcon({kind}: {kind: string}): React.JSX.Element {
-  if (kind === 'core' || kind === 'coreAddress') return <DashLogo size={16} />
-  if (kind === 'shielded') return <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
+  if (kind === SourceKind.Core || kind === DestinationKind.CoreAddress) return <DashLogo size={16} />
+  if (kind === SourceKind.Shielded) return <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
   return <CreditsIcon size={16} />
 }
 
@@ -155,14 +154,14 @@ export function SourcePicker({
     <div className={"flex flex-col gap-2"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
       <KindDropdown kinds={SOURCE_KINDS} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
-      {kind === 'platformAddress' && (
+      {kind === SourceKind.PlatformAddress && (
         <PlatformAddressSelect
           addresses={platformAddresses}
           selected={selectedPlatformAddress}
           onSelect={onPlatformAddressChange}
         />
       )}
-      {kind === 'identity' && (
+      {kind === SourceKind.Identity && (
         <IdentitySelect identities={identities} selected={selectedIdentity} onSelect={onIdentityChange} />
       )}
     </div>
@@ -194,9 +193,9 @@ export function DestinationPicker({
     <div className={"flex flex-col gap-2"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
-      {showValueInput && kind !== 'newIdentity' && (
+      {showValueInput && kind !== DestinationKind.NewIdentity && (
         <>
-          <div className={`${fieldBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
+          <div className={`${inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
             <input
               type={"text"}
               value={value}
@@ -208,7 +207,7 @@ export function DestinationPicker({
           {error && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{error}</Text>}
         </>
       )}
-      {showValueInput && kind === 'newIdentity' && (
+      {showValueInput && kind === DestinationKind.NewIdentity && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
           A new identity with a standard key set will be registered and funded from the selected address.
         </Text>
