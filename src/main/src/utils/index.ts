@@ -16,6 +16,7 @@ import * as migration0009 from '../../migrations/0009_identity_asset_lock'
 import * as migration0010 from '../../migrations/0010_shielded_addresses'
 import * as migration0011 from '../../migrations/0011_shielded_note_ciphertext'
 import * as migration0012 from '../../migrations/0012_wallet_sync_initial_scan'
+import * as migration0013 from '../../migrations/0013_imported_identity_keys'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -31,6 +32,7 @@ const migrations = [
   { name: '0010_shielded_addresses.ts', migration: migration0010 },
   { name: '0011_shielded_note_ciphertext.ts', migration: migration0011 },
   { name: '0012_wallet_sync_initial_scan.ts', migration: migration0012 },
+  { name: '0013_imported_identity_keys.ts', migration: migration0013 },
 ]
 
 const inlineMigrationSource = {
@@ -43,7 +45,7 @@ import {Address} from "../types/Address";
 import {TransactionStatus} from "../enums/TransactionStatus";
 import {Transaction} from "../types/Transaction";
 import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
-import {DashPlatformSDK} from "dash-platform-sdk";
+import type {DashPlatformSDK} from "dash-platform-sdk";
 import {Network} from "../types";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
@@ -80,13 +82,13 @@ export function deriveKeyFromPassword(password: string, iterations: number, salt
 // AES-256-GCM with a PBKDF2-derived key. Layout written to storage:
 //   iv(12) | salt(32) | iterations(u32 BE) | ciphertext | tag(16)
 // Returns a hex-encoded blob ready for SQL persistence.
-export function encryptMnemonic(mnemonic: string, password: string, iterations: number): string {
+export function encryptSecret(secret: string, password: string, iterations: number): string {
   const salt = randomBytes(32)
   const passwordKey = deriveKeyFromPassword(password, iterations, salt)
 
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', passwordKey, iv)
-  const ciphertext = Buffer.concat([cipher.update(mnemonic, 'utf8'), cipher.final()])
+  const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
 
   const iterBuf = Buffer.alloc(4)
@@ -95,10 +97,10 @@ export function encryptMnemonic(mnemonic: string, password: string, iterations: 
   return Buffer.concat([iv, salt, iterBuf, ciphertext, tag]).toString('hex')
 }
 
-// Reverse of encryptMnemonic. Throws if the password is wrong (GCM auth
+// Reverse of encryptSecret. Throws if the password is wrong (GCM auth
 // tag mismatch) or the blob is shorter than the fixed header — callers
 // translate to user-facing errors.
-export function decryptMnemonic(encryptedHex: string, password: string): string {
+export function decryptSecret(encryptedHex: string, password: string): string {
   const data = Buffer.from(encryptedHex, 'hex')
 
   const iv = data.slice(0, 12)
@@ -114,6 +116,14 @@ export function decryptMnemonic(encryptedHex: string, password: string): string 
 
   const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
   return decrypted.toString('utf8')
+}
+
+export function encryptMnemonic(mnemonic: string, password: string, iterations: number): string {
+  return encryptSecret(mnemonic, password, iterations)
+}
+
+export function decryptMnemonic(encryptedHex: string, password: string): string {
+  return decryptSecret(encryptedHex, password)
 }
 
 export function getKnex (path?: string): Knex {

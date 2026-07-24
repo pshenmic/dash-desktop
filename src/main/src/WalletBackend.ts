@@ -7,6 +7,7 @@ import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
 import { IdentityDAO } from './database/IdentityDAO'
+import { IdentityKeyDAO } from './database/IdentityKeyDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/WalletService'
@@ -42,6 +43,7 @@ import {SendIdentityCreditsHandler} from "./api/wallet/sendIdentityCredits";
 import {TransferIdentityCreditsHandler} from "./api/wallet/transferIdentityCredits";
 import {WithdrawIdentityCreditsHandler} from "./api/wallet/withdrawIdentityCredits";
 import {CreateIdentityFromAddressesHandler} from "./api/wallet/createIdentityFromAddresses";
+import {ImportIdentityHandler} from "./api/wallet/importIdentity";
 import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
 import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
 import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding";
@@ -140,6 +142,7 @@ export class WalletBackend {
     ipcMain.handle('transferIdentityCredits', new TransferIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('withdrawIdentityCredits', new WithdrawIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformAddressService).handle)
+    ipcMain.handle('importIdentity', new ImportIdentityHandler(this.platformAddressService).handle)
     ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
     ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService).handle)
@@ -203,10 +206,18 @@ export class WalletBackend {
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
+    const identityKeyDAO = new IdentityKeyDAO(knex)
     this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
     this.shieldedService = new ShieldedService(sdkProvider, walletDAO, identityDAO, new ShieldedNoteDAO(knex), shieldedAddressDAO, this.identityRegistrationService)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations, this.shieldedService)
-    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, sdkProvider, this.shieldedService)
+    this.platformAddressService = new PlatformAddressService(
+      walletDAO,
+      identityDAO,
+      identityKeyDAO,
+      sdkProvider,
+      this.shieldedService,
+      calibratedIterations,
+    )
     this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO

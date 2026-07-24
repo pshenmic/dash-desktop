@@ -1,5 +1,5 @@
 import type {DashPlatformSDK} from 'dash-platform-sdk'
-import {SdkProvider} from '../providers/SdkProvider'
+import type {SdkProvider} from '../providers/SdkProvider'
 import {
   InputAddressWASM,
   OutputAddressWASM,
@@ -13,19 +13,21 @@ import {
   PrivateKeyWASM,
   IdentityPublicKeyWASM,
 } from 'dash-platform-sdk/types.js'
-import {WalletDAO} from '../database/WalletDAO'
-import {ShieldedService} from './ShieldedService'
-import {IdentityDAO} from '../database/IdentityDAO'
+import type {WalletDAO} from '../database/WalletDAO'
+import type {ShieldedService} from './ShieldedService'
+import type {IdentityDAO} from '../database/IdentityDAO'
+import type {IdentityKeyDAO, ImportedIdentityKey} from '../database/IdentityKeyDAO'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
 import {Identity} from '../types/Identity'
 import {PlatformAddressEntry} from '../types/PlatformAddress'
 import {PlatformSendResult} from '../types/PlatformSendResult'
 import {IdentityCreateResult} from '../types/IdentityCreateResult'
+import {IdentityImportResult} from '../types/IdentityImportResult'
 import {ShieldResult} from '../types/ShieldResult'
-import {decryptMnemonic} from '../utils'
+import {decryptMnemonic, decryptSecret, encryptSecret} from '../utils'
 import {coreAddressToScript} from '../utils/coreScript'
-import {matchIdentityKey, DerivedKeyHash} from '../utils/identityKeys'
+import {matchIdentityKey, DerivedKeyHash, parseIdentityPrivateKey} from '../utils/identityKeys'
 import {
   PlatformSourceCandidate,
   selectPlatformSource,
@@ -53,14 +55,25 @@ const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 export class PlatformAddressService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
+  private identityKeyDAO: IdentityKeyDAO
   private sdkProvider: SdkProvider
   private shieldedService: ShieldedService
+  private pbkdf2Iterations: number
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, sdkProvider: SdkProvider, shieldedService: ShieldedService) {
+  constructor(
+    walletDAO: WalletDAO,
+    identityDAO: IdentityDAO,
+    identityKeyDAO: IdentityKeyDAO,
+    sdkProvider: SdkProvider,
+    shieldedService: ShieldedService,
+    pbkdf2Iterations: number,
+  ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
+    this.identityKeyDAO = identityKeyDAO
     this.sdkProvider = sdkProvider
     this.shieldedService = shieldedService
+    this.pbkdf2Iterations = pbkdf2Iterations
   }
 
   private platformSDK(network: Network): DashPlatformSDK {
@@ -95,6 +108,96 @@ export class PlatformAddressService {
     await this.walletDAO.setPlatformAddressCount(walletId, count + 1)
 
     return this.getPlatformAddresses(walletId)
+  }
+
+  async importIdentity(
+    walletId: string,
+    identityIdentifier: string,
+    privateKeyValues: string[],
+    password: string,
+  ): Promise<IdentityImportResult> {
+    const wallet = await this.requireWallet(walletId)
+
+    let mnemonic: string
+    try {
+      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
+    } catch {
+      throw new Error('Invalid wallet password')
+    }
+
+    const identifier = identityIdentifier.trim()
+    if (identifier.length === 0) {
+      throw new Error('Identity identifier is required')
+    }
+
+    if (await this.identityDAO.getByIdentifier(walletId, identifier) != null) {
+      throw new Error('Identity is already in this wallet')
+    }
+
+    const values = privateKeyValues.map(value => value.trim()).filter(Boolean)
+    if (values.length === 0) {
+      throw new Error('At least one private key is required')
+    }
+
+    let identityPublicKeys: IdentityPublicKeyWASM[]
+    try {
+      await this.platformSDK(wallet.network).identities.getIdentityByIdentifier(identifier)
+      identityPublicKeys = await this.platformSDK(wallet.network).identities.getIdentityPublicKeys(identifier)
+    } catch {
+      throw new Error('Identity was not found on the selected network')
+    }
+
+    const matched = values.map(value => {
+      let privateKey: PrivateKeyWASM
+      try {
+        privateKey = parseIdentityPrivateKey(value, wallet.network)
+      } catch {
+        throw new Error('One or more private keys are not valid hex or WIF keys')
+      }
+
+      const publicKeyHash = privateKey.getPublicKeyHash()
+      const publicKey = identityPublicKeys.find(key =>
+        key.getPublicKeyHash().toLowerCase() === publicKeyHash.toLowerCase())
+
+      if (publicKey == null) {
+        throw new Error('One or more private keys do not belong to this identity')
+      }
+
+      return {privateKey, publicKey, publicKeyHash}
+    })
+
+    const keyIds = matched.map(({publicKey}) => publicKey.keyId)
+    if (new Set(keyIds).size !== keyIds.length) {
+      throw new Error('The same identity key was entered more than once')
+    }
+
+    const existing = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identityIndex = existing.reduce(
+      (next, identity) => identity.isImported ? Math.min(next, identity.identityIndex - 1) : next,
+      -1,
+    )
+    const keyEncryptionSecret = mnemonic.trim().replace(/\s+/g, ' ')
+    const keys: ImportedIdentityKey[] = matched.map(({privateKey, publicKey, publicKeyHash}) => ({
+      walletId,
+      identityIdentifier: identifier,
+      keyId: publicKey.keyId,
+      publicKeyHash,
+      encryptedPrivateKey: encryptSecret(privateKey.hex().toLowerCase(), keyEncryptionSecret, this.pbkdf2Iterations),
+    }))
+
+    await this.identityKeyDAO.insertImportedIdentity({
+      walletId,
+      identityIndex,
+      derivationPath: '',
+      identifier,
+      isImported: true,
+    }, keys)
+
+    return {
+      identifier,
+      importedKeyIds: keyIds.sort((a, b) => a - b),
+      hasTransferKey: matched.some(({publicKey}) => publicKey.purpose.toUpperCase() === 'TRANSFER'),
+    }
   }
 
   async sendPlatformTransfer(
@@ -165,7 +268,7 @@ export class PlatformAddressService {
       }
     }
 
-    const {wallet, seed} = await this.unlock(walletId, password)
+    const {wallet, seed, mnemonic} = await this.unlock(walletId, password)
     const network = wallet.network
 
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
@@ -183,7 +286,7 @@ export class PlatformAddressService {
     }
 
     const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network, mnemonic)
 
     const nonce = await this.platformSDK(network).identities.getIdentityNonce(identityIdentifier) + 1n
 
@@ -226,7 +329,7 @@ export class PlatformAddressService {
       throw new Error('Recipient identity must be different from the source identity')
     }
 
-    const {wallet, seed} = await this.unlock(walletId, password)
+    const {wallet, seed, mnemonic} = await this.unlock(walletId, password)
     const network = wallet.network
 
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
@@ -241,7 +344,7 @@ export class PlatformAddressService {
     }
 
     const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network, mnemonic)
 
     const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(fromIdentityIdentifier) + 1n
 
@@ -498,7 +601,7 @@ export class PlatformAddressService {
       throw new Error('Withdrawal amount must be greater than zero')
     }
 
-    const {wallet, seed} = await this.unlock(walletId, password)
+    const {wallet, seed, mnemonic} = await this.unlock(walletId, password)
     const network = wallet.network
 
     const outputScript = coreAddressToScript(toCoreAddress, network)
@@ -515,7 +618,7 @@ export class PlatformAddressService {
     }
 
     const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
+    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network, mnemonic)
 
     const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(identityIdentifier) + 1n
 
@@ -591,7 +694,7 @@ export class PlatformAddressService {
 
   // Decrypts the mnemonic, derives the seed, and backfills the persisted
   // DIP-17 account xpub for wallets created before the column existed.
-  private async unlock(walletId: string, password: string): Promise<{wallet: Wallet; seed: Uint8Array; xpub: string}> {
+  private async unlock(walletId: string, password: string): Promise<{wallet: Wallet; seed: Uint8Array; xpub: string; mnemonic: string}> {
     const wallet = await this.requireWallet(walletId)
 
     let mnemonic: string
@@ -609,7 +712,7 @@ export class PlatformAddressService {
       await this.walletDAO.setPlatformXpub(walletId, xpub)
     }
 
-    return {wallet, seed, xpub}
+    return {wallet, seed, xpub, mnemonic}
   }
 
   private async extendPlatformWindow(walletId: string, xpub: string, network: Network): Promise<void> {
@@ -709,8 +812,29 @@ export class PlatformAddressService {
     identity: Identity,
     hdKey: ReturnType<DashPlatformSDK['keyPair']['seedToHdKey']>,
     network: Network,
+    mnemonic: string,
   ): Promise<{privateKey: PrivateKeyWASM; publicKey: IdentityPublicKeyWASM}> {
     const identityKeys = await this.platformSDK(network).identities.getIdentityPublicKeys(identity.identifier)
+
+    const importedKeys = await this.identityKeyDAO.getByIdentity(identity.walletId, identity.identifier)
+    for (const publicKey of identityKeys
+      .filter(key => key.purpose.toUpperCase() === 'TRANSFER')
+      .sort((a, b) => a.keyId - b.keyId)) {
+      const imported = importedKeys.find(key => key.keyId === publicKey.keyId)
+      if (imported == null) continue
+
+      let privateKey: PrivateKeyWASM
+      try {
+        const keyEncryptionSecret = mnemonic.trim().replace(/\s+/g, ' ')
+        privateKey = PrivateKeyWASM.fromHex(decryptSecret(imported.encryptedPrivateKey, keyEncryptionSecret), network)
+      } catch {
+        throw new Error('Could not decrypt the imported identity key')
+      }
+
+      if (privateKey.getPublicKeyHash().toLowerCase() === publicKey.getPublicKeyHash().toLowerCase()) {
+        return {privateKey, publicKey}
+      }
+    }
 
     const derivedKeys: Array<{keyIndex: number; privateKey: PrivateKeyWASM}> = []
     const derivedHashes: DerivedKeyHash[] = []

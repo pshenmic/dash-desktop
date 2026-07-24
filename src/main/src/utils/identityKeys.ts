@@ -1,4 +1,5 @@
-import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import {KeyType, PrivateKeyWASM, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import {Network} from '../types'
 
 // Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
 // dropped (added later via IdentityUpdateTransition if needed); MASTER /
@@ -43,4 +44,18 @@ export function matchIdentityKey(
   }
 
   return null
+}
+
+export function parseIdentityPrivateKey(value: string, network: Network): PrivateKeyWASM {
+  const trimmed = value.trim()
+
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return PrivateKeyWASM.fromHex(trimmed, network)
+  }
+
+  if (/^[1-9A-HJ-NP-Za-km-z]{51,52}$/.test(trimmed)) {
+    return PrivateKeyWASM.fromWIF(trimmed)
+  }
+
+  throw new Error('Private keys must be 64-character hex or WIF')
 }

@@ -825,7 +825,8 @@ export class WalletService {
             usdAmount: '0.0'
           },
           derivationPath: entry.derivationPath,
-          assetLockTxid: entry.assetLockTxid ?? null
+          assetLockTxid: entry.assetLockTxid ?? null,
+          isImported: entry.isImported ?? false,
         })
       } catch {
         // identity not registered on platform yet, skip
@@ -851,4 +852,3 @@ export class WalletService {
     return this.sdkProvider.getPlatformSDK(wallet.network).identities.getIdentityNonce(identifier)
   }
 }
-

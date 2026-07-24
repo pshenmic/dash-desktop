@@ -1,4 +1,4 @@
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, IdentityImportResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -67,6 +67,10 @@ export class API {
 
   static async getIdentities(walletId: string) {
     return this.api.getIdentities(walletId)
+  }
+
+  static async importIdentity(walletId: string, identityIdentifier: string, privateKeys: string[], password: string): Promise<IdentityImportResult> {
+    return this.api.importIdentity(walletId, identityIdentifier, privateKeys, password)
   }
 
   static async getPlatformAddresses(walletId: string): Promise<PlatformAddressDto[]> {

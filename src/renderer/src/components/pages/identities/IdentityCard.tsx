@@ -22,6 +22,11 @@ export default function IdentityCard({identity}: {identity: Identity}): React.JS
             {identity.walletAddress}
           </Identifier>
           <CopyButton text={identity.walletAddress} />
+          {identity.isImported && (
+            <span className={"rounded-full dash-subtle px-2 py-0.5 text-[.625rem] font-bold dash-text-default"}>
+              Imported
+            </span>
+          )}
         </div>
         {identity.name && <Text size={10} weight={"medium"} color={"default"} opacity={50}>Username: <span className={"font-bold"}>{identity.name}</span></Text>}
         {identity.assetLockTxid && (
