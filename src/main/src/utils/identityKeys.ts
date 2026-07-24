@@ -48,14 +48,15 @@ export function matchIdentityKey(
 
 export function parseIdentityPrivateKey(value: string, network: Network): PrivateKeyWASM {
   const trimmed = value.trim()
+  const hex = trimmed.replace(/^0x/i, '')
 
-  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
-    return PrivateKeyWASM.fromHex(trimmed, network)
+  if (/^[0-9a-fA-F]{64}$/.test(hex)) {
+    return PrivateKeyWASM.fromHex(hex, network)
   }
 
   if (/^[1-9A-HJ-NP-Za-km-z]{51,52}$/.test(trimmed)) {
     return PrivateKeyWASM.fromWIF(trimmed)
   }
 
-  throw new Error('Private keys must be 64-character hex or WIF')
+  throw new Error('Private keys must be 64-character hex (optionally 0x-prefixed) or WIF')
 }

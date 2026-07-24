@@ -11,6 +11,7 @@ import type {Wallet} from '../../src/main/src/types/Wallet'
 
 const WALLET_ID = 'wallet-1'
 const IDENTITY_ID = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
+const SHORT_IDENTITY_ID = '11111111111111111111111111111111'
 const PASSWORD = 'password123'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const TRANSFER_KEY_HEX = 'a1286dd195e2b8e1f6bdc946c56a53e0c544750d6452ddc0f4c593ef311f21af'
@@ -101,6 +102,16 @@ describe('PlatformAddressService.importIdentity', () => {
     expect(decryptSecret(keys[0].encryptedPrivateKey, MNEMONIC)).toBe(TRANSFER_KEY_HEX)
   })
 
+  it('accepts a valid identifier shorter than the usual 42 to 44 characters', async () => {
+    getIdentityByIdentifier.mockResolvedValueOnce({id: {base58: () => SHORT_IDENTITY_ID}})
+
+    const result = await service.importIdentity(WALLET_ID, SHORT_IDENTITY_ID, [TRANSFER_KEY_HEX], PASSWORD)
+
+    expect(getIdentityByIdentifier).toHaveBeenCalledWith(SHORT_IDENTITY_ID)
+    expect(result.identifier).toBe(SHORT_IDENTITY_ID)
+    expect(insertImportedIdentity).toHaveBeenCalledOnce()
+  })
+
   it.each(['latte', 'latte.dash'])('resolves the DPNS reference %s before importing', async (reference) => {
     searchByName.mockResolvedValue([
       {
@@ -125,6 +136,35 @@ describe('PlatformAddressService.importIdentity', () => {
     expect(getIdentityByIdentifier).toHaveBeenCalledWith(IDENTITY_ID)
     expect(result.identifier).toBe(IDENTITY_ID)
     expect(insertImportedIdentity).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to a bare DPNS name when its label looks like an identifier', async () => {
+    getIdentityByIdentifier
+      .mockRejectedValueOnce(new Error(`Identity with identifier ${IDENTITY_ID} not found`))
+      .mockResolvedValueOnce({id: {base58: () => IDENTITY_ID}})
+    searchByName.mockResolvedValue([{
+      ownerId: {base58: () => IDENTITY_ID},
+      properties: {
+        normalizedLabel: IDENTITY_ID.toLowerCase(),
+        normalizedParentDomainName: 'dash',
+      },
+    }])
+
+    const result = await service.importIdentity(WALLET_ID, IDENTITY_ID, [TRANSFER_KEY_HEX], PASSWORD)
+
+    expect(searchByName).toHaveBeenCalledWith(`${IDENTITY_ID.toLowerCase()}.dash`)
+    expect(getIdentityByIdentifier).toHaveBeenCalledTimes(2)
+    expect(result.identifier).toBe(IDENTITY_ID)
+    expect(insertImportedIdentity).toHaveBeenCalledOnce()
+  })
+
+  it('does not report an identity lookup connectivity failure as not found', async () => {
+    getIdentityByIdentifier.mockRejectedValueOnce(new Error('DAPI request timed out'))
+
+    await expect(service.importIdentity(WALLET_ID, IDENTITY_ID, [TRANSFER_KEY_HEX], PASSWORD))
+      .rejects.toThrow('Identity lookup failed on testnet')
+    expect(searchByName).not.toHaveBeenCalled()
+    expect(insertImportedIdentity).not.toHaveBeenCalled()
   })
 
   it('rejects a DPNS prefix match when the exact name is not registered', async () => {

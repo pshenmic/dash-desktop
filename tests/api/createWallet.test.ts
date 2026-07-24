@@ -32,11 +32,13 @@ describe('CreateWalletHandler', () => {
     const transactionDAO = new TransactionDAO(knex)
 
     const sdkProvider = new SdkProvider()
-    const sdk = sdkProvider.getPlatformSDK('testnet')
     // Short-circuit identity discovery so wallet creation stays offline.
     // WalletService.createWallet catches these errors and proceeds.
-    vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
-    vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
+    for (const network of ['testnet', 'mainnet'] as const) {
+      const sdk = sdkProvider.getPlatformSDK(network)
+      vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
+      vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
+    }
 
     const preferences = Preferences.default()
     preferences.general.connectionType = 'p2p'

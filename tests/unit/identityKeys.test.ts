@@ -46,12 +46,17 @@ describe('parseIdentityPrivateKey', () => {
     expect(parseIdentityPrivateKey(hex, 'testnet').hex().toLowerCase()).toBe(hex)
   })
 
+  it('accepts 0x-prefixed hex', () => {
+    const hex = 'a1286dd195e2b8e1f6bdc946c56a53e0c544750d6452ddc0f4c593ef311f21af'
+    expect(parseIdentityPrivateKey(`0x${hex}`, 'testnet').hex().toLowerCase()).toBe(hex)
+  })
+
   it('accepts WIF', () => {
     const wif = 'cPGCETHtoevguQoyTSdsowCEF91yqhrcikcvBNK2CuTwpSLV7m9Z'
     expect(parseIdentityPrivateKey(wif, 'testnet').hex()).toHaveLength(64)
   })
 
   it('rejects malformed values', () => {
-    expect(() => parseIdentityPrivateKey('not-a-private-key', 'testnet')).toThrow(/64-character hex or WIF/)
+    expect(() => parseIdentityPrivateKey('not-a-private-key', 'testnet')).toThrow(/64-character hex/)
   })
 })

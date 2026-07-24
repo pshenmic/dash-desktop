@@ -12,6 +12,7 @@ import {
   IdentityPublicKeyInCreationWASM,
   PrivateKeyWASM,
   IdentityPublicKeyWASM,
+  IdentifierWASM,
 } from 'dash-platform-sdk/types.js'
 import type {WalletDAO} from '../database/WalletDAO'
 import type {ShieldedService} from './ShieldedService'
@@ -48,7 +49,10 @@ const PLATFORM_ADDRESS_LOOKAHEAD = 20
 const IDENTITY_KEY_LOOKAHEAD = 20
 const MAX_DISCOVERY_BATCHES = 50
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-const IDENTITY_IDENTIFIER_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{42,44}$/
+
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof Error && /\bnot found\b/i.test(error.message)
+}
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
 // The account-level xpub is persisted per wallet so the address list derives
@@ -204,13 +208,28 @@ export class PlatformAddressService {
 
   private async resolveIdentityIdentifier(reference: string, network: Network): Promise<string> {
     const sdk = this.platformSDK(network)
+    const isExplicitName = reference.includes('.')
+    let isIdentifier = false
 
-    if (IDENTITY_IDENTIFIER_PATTERN.test(reference)) {
+    if (!isExplicitName) {
       try {
-        const identity = await sdk.identities.getIdentityByIdentifier(reference)
-        return identity.id.base58()
+        new IdentifierWASM(reference)
+        isIdentifier = true
       } catch {
-        throw new Error(`Identity was not found on ${network}`)
+        // A bare DPNS label is expected not to parse as an identifier.
+      }
+
+      if (isIdentifier) {
+        try {
+          const identity = await sdk.identities.getIdentityByIdentifier(reference)
+          return identity.id.base58()
+        } catch (error) {
+          if (!isNotFoundError(error)) {
+            throw new Error(`Identity lookup failed on ${network}`)
+          }
+          // A Base58-looking bare DPNS label can also be a syntactically valid
+          // identifier. Fall through to exact-name resolution before failing.
+        }
       }
     }
 
@@ -221,24 +240,36 @@ export class PlatformAddressService {
       throw new Error('Enter an identity identifier, DPNS name, or bare .dash username')
     }
 
+    const normalizedLabel = sdk.names.normalizeLabel(parts[0])
+    let documents: Awaited<ReturnType<DashPlatformSDK['names']['searchByName']>>
     try {
-      const normalizedLabel = sdk.names.normalizeLabel(parts[0])
-      const documents = await sdk.names.searchByName(fullName)
-      const exact = documents.find(document => {
-        const properties = document.properties as Record<string, unknown>
-        return properties.normalizedLabel === normalizedLabel
-          && properties.normalizedParentDomainName === 'dash'
-      })
+      documents = await sdk.names.searchByName(fullName)
+    } catch {
+      throw new Error(`DPNS lookup failed on ${network}`)
+    }
 
-      if (exact == null) {
-        throw new Error('not found')
+    const exact = documents.find(document => {
+      const properties = document.properties as Record<string, unknown>
+      return properties.normalizedLabel === normalizedLabel
+        && properties.normalizedParentDomainName === 'dash'
+    })
+
+    if (exact == null) {
+      if (isIdentifier) {
+        throw new Error(`No identity or DPNS name matching ${reference} was found on ${network}`)
       }
+      throw new Error(`DPNS name ${fullName} was not found on ${network}`)
+    }
 
-      const identifier = exact.ownerId.base58()
+    const identifier = exact.ownerId.base58()
+    try {
       const identity = await sdk.identities.getIdentityByIdentifier(identifier)
       return identity.id.base58()
-    } catch {
-      throw new Error(`DPNS name ${fullName} was not found on ${network}`)
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new Error(`Identity for DPNS name ${fullName} was not found on ${network}`)
+      }
+      throw new Error(`Identity lookup failed on ${network}`)
     }
   }
 
