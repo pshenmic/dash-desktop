@@ -45,11 +45,11 @@ export const FILTER_TYPE = 0
 
 // Heights per getcfilters request. <= 1000 per spec; smaller = more round-
 // trips, larger = bigger memory spikes per response.
-export const CFILTER_BATCH = 800
+export const CFILTER_BATCH = 900
 
 // Concurrent in-flight cfilter batches. 4 is a reasonable middle ground —
 // pipelines well across multiple +CF peers without overwhelming any one.
-export const MAX_INFLIGHT_BATCHES = 4
+export const MAX_INFLIGHT_BATCHES = 6
 
 // Number of peers raced for cfcheckpt. Same logic as HEADER_RACE_PEERS but
 // only against the +CF subset of the pool.
@@ -70,7 +70,7 @@ export const BLOCK_REQUEST_TIMEOUT_MS = 15_000
 // (reorgs / peer lag), so anything closer than this fails intermittently.
 // Trade-off: larger value = more reliable cfilter requests but longer
 // confirmation latency before a wallet sees a new UTXO.
-export const SCAN_TIP_DEPTH = 10
+export const SCAN_TIP_DEPTH = 5
 
 // ── Broadcast ───────────────────────────────────────────────────────────────
 
