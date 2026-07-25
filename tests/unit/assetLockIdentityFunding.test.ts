@@ -6,7 +6,7 @@ import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingRow} from '../../src/main/src/database/AssetLockDAO'
 import {WalletService} from '../../src/main/src/services/WalletService'
 import {ShieldedService} from '../../src/main/src/services/ShieldedService'
-import {SdkProvider} from '../../src/main/src/services/SdkProvider'
+import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
 import {IdentityRegistrationService} from '../../src/main/src/services/IdentityRegistrationService'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
@@ -129,7 +129,10 @@ describe('AssetLockService identity funding', () => {
       {address: 'credit-addr', derivationPath: REGISTRATION_PATH},
     )
     expect(insertFunding).toHaveBeenCalledWith(expect.objectContaining({kind: 'identity', identityIndex: 0, txHex: 'aabbcc'}))
-    expect(waitForAssetLockProof).toHaveBeenCalledWith(assetLockTx, 'assetlock-txid', ['recv-addr'], 'testnet')
+    expect(waitForAssetLockProof).toHaveBeenCalledWith(
+      assetLockTx, 'assetlock-txid', ['recv-addr'], 'testnet',
+      undefined, undefined, expect.any(Function),
+    )
     expect(insertIdentity).toHaveBeenCalledWith(
       expect.objectContaining({walletId: WALLET_ID, identityIndex: 0, identifier: 'identifierABC'}),
       'assetlock-txid',

@@ -37,7 +37,7 @@ export const loginTexts: LoginTexts = {
     },
     forgotPassword: {
       label: 'Forgot password?',
-      to: '/'
+      to: '/forgot-password'
     },
   },
 }

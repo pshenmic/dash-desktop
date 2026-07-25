@@ -137,6 +137,12 @@ export class WalletDAO {
       .where('wallet_id', walletId)
   }
 
+  updateEncryptedMnemonic = async (walletId: string, encryptedMnemonic: string): Promise<void> => {
+    await this.knex('wallet')
+      .update({encrypted_mnemonic: encryptedMnemonic})
+      .where('wallet_id', walletId)
+  }
+
   setPlatformXpub = async (walletId: string, platformXpub: string): Promise<void> => {
     await this.knex('wallet')
       .update({platform_xpub: platformXpub})

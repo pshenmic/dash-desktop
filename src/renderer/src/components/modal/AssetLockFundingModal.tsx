@@ -4,6 +4,8 @@ import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
+import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
+import { LockKind } from '@renderer/enums/LockKind'
 import Spinner from '@renderer/components/ui/Spinner'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
@@ -23,32 +25,32 @@ interface AssetLockFundingModalProps {
   onSuccess: () => void
 }
 
-const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: string; label: string}>> = {
+const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: AssetLockFundingPhase; label: string}>> = {
   address: [
-    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
-    { key: 'broadcastingST', label: 'Crediting the Platform address' },
+    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
+    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
+    { key: AssetLockFundingPhase.BroadcastingST, label: 'Crediting the Platform address' },
   ],
   shielded: [
-    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
-    { key: 'broadcastingST', label: 'Proving and shielding the credits' },
+    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
+    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
+    { key: AssetLockFundingPhase.BroadcastingST, label: 'Proving and shielding the credits' },
   ],
   identity: [
-    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
-    { key: 'broadcastingST', label: 'Registering the identity on Platform' },
+    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
+    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
+    { key: AssetLockFundingPhase.BroadcastingST, label: 'Registering the identity on Platform' },
   ],
   identityTopUp: [
-    { key: 'broadcastingL1', label: 'Broadcasting the L1 asset lock transaction' },
-    { key: 'waitingChainLock', label: 'Waiting for a network lock' },
-    { key: 'broadcastingST', label: 'Topping up the identity on Platform' },
+    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
+    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
+    { key: AssetLockFundingPhase.BroadcastingST, label: 'Topping up the identity on Platform' },
   ],
 }
 
 function lockStepLabel(state: AssetLockFundingState, active: boolean): string {
-  if (state.lockKind === 'instant') return 'InstantSend lock received'
-  if (state.lockKind === 'chain') return 'ChainLock received'
+  if (state.lockKind === LockKind.Instant) return 'InstantSend lock received'
+  if (state.lockKind === LockKind.Chain) return 'ChainLock received'
   if (active) return 'Waiting for an InstantSend lock (usually seconds; ChainLock fallback takes minutes)'
   return 'Network lock (InstantSend or ChainLock)'
 }
@@ -96,11 +98,11 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
   },
 }
 
-function phaseIndex(phase: string): number {
-  if (phase === 'building' || phase === 'broadcastingL1') return 0
-  if (phase === 'waitingChainLock') return 1
-  if (phase === 'broadcastingST') return 2
-  if (phase === 'done') return 3
+function phaseIndex(phase: AssetLockFundingPhase): number {
+  if (phase === AssetLockFundingPhase.Building || phase === AssetLockFundingPhase.BroadcastingL1) return 0
+  if (phase === AssetLockFundingPhase.WaitingChainLock) return 1
+  if (phase === AssetLockFundingPhase.BroadcastingST) return 2
+  if (phase === AssetLockFundingPhase.Done) return 3
   return 0
 }
 
@@ -145,11 +147,11 @@ export default function AssetLockFundingModal({
         const next = await API.getAssetLockFundingState(walletId)
         if (dead) return
         setState(next)
-        if (next.phase === 'done' && !notified.current) {
+        if (next.phase === AssetLockFundingPhase.Done && !notified.current) {
           notified.current = true
           onSuccess()
         }
-        if (next.phase !== 'done' && next.phase !== 'error' && next.phase !== 'resumable') {
+        if (next.phase !== AssetLockFundingPhase.Done && next.phase !== AssetLockFundingPhase.Error && next.phase !== AssetLockFundingPhase.Resumable) {
           timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
         }
       } catch {
@@ -166,7 +168,7 @@ export default function AssetLockFundingModal({
 
   if (!isOpen) return null
 
-  const running = started && state != null && state.phase !== 'done' && state.phase !== 'error' && state.phase !== 'resumable'
+  const running = started && state != null && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error && state.phase !== AssetLockFundingPhase.Resumable
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || busy || started) return
@@ -195,8 +197,8 @@ export default function AssetLockFundingModal({
     onClose()
   }
 
-  const isDone = started && state?.phase === 'done'
-  const isError = started && (state?.phase === 'error' || state?.phase === 'resumable')
+  const isDone = started && state?.phase === AssetLockFundingPhase.Done
+  const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
   const texts = TEXTS[kind]
   const phases = PHASE_LABELS[kind]
 
@@ -275,7 +277,7 @@ export default function AssetLockFundingModal({
                 const current = phaseIndex(state.phase)
                 const done = i < current
                 const active = i === current
-                const label = p.key === 'waitingChainLock' ? lockStepLabel(state, active) : p.label
+                const label = p.key === AssetLockFundingPhase.WaitingChainLock ? lockStepLabel(state, active) : p.label
                 return (
                   <div key={p.key} className={"flex items-center gap-2"}>
                     {done
@@ -309,7 +311,7 @@ export default function AssetLockFundingModal({
                 <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
               </div>
             )}
-            {state.phase === 'resumable' && (
+            {state.phase === AssetLockFundingPhase.Resumable && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
                 The locked Dash is safe — you can resume this funding from the Send page.
               </Text>

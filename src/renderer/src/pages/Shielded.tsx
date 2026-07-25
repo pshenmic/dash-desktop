@@ -3,14 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
 import Spinner from '@renderer/components/ui/Spinner'
+import CopyButton from '@renderer/components/ui/CopyButton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import { groupShieldedNotesByAddress } from '@renderer/utils/shieldedBalances'
+import { truncateShieldedAddress } from '@renderer/utils/shieldedAddress'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
+import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 
 function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
-  if (status.prover === 'ready') {
+  if (status.prover === ShieldedProverState.Ready) {
     return (
       <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5"}>
         <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
@@ -19,7 +24,7 @@ function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element 
     )
   }
 
-  if (status.prover === 'error') {
+  if (status.prover === ShieldedProverState.Error) {
     return (
       <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3"}>
         <ErrorIcon size={14} />
@@ -37,8 +42,8 @@ function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element 
 }
 
 function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => void }): React.JSX.Element {
-  const running = sync.phase === 'syncing' || sync.phase === 'recovering'
-  const pct = sync.phase === 'recovering'
+  const running = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
+  const pct = sync.phase === ShieldedSyncPhase.Recovering
     ? 100
     : sync.total > 0 ? Math.min(100, Math.round((sync.fetched / sync.total) * 100)) : 0
 
@@ -68,14 +73,14 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
             />
           </div>
           <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
-            {sync.phase === 'recovering'
+            {sync.phase === ShieldedSyncPhase.Recovering
               ? 'Recovering your notes…'
               : `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`}
           </Text>
         </div>
       )}
 
-      {!running && sync.phase === 'done' && (() => {
+      {!running && sync.phase === ShieldedSyncPhase.Done && (() => {
         const unspent = sync.notes.filter((n) => !n.spent).length
         const spentCount = sync.notes.length - unspent
         return (
@@ -85,11 +90,11 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
         )
       })()}
 
-      {!running && sync.phase === 'error' && (
+      {!running && sync.phase === ShieldedSyncPhase.Error && (
         <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Sync failed.'}</Text>
       )}
 
-      {!running && sync.phase === 'idle' && (
+      {!running && sync.phase === ShieldedSyncPhase.Idle && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
           Unlock with your password to scan the shielded pool for notes addressed to you.
         </Text>
@@ -116,9 +121,9 @@ export default function ShieldedPage(): React.JSX.Element {
     [platformAddresses],
   )
 
-  const spendableNotes = useMemo(() => sync.notes.filter((note) => !note.spent), [sync.notes])
+  const spendableGroups = useMemo(() => groupShieldedNotesByAddress(sync.notes), [sync.notes])
 
-  const shieldedReady = sync.phase === 'done' && sync.balance !== null
+  const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
 
   const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
 
@@ -185,21 +190,35 @@ export default function ShieldedPage(): React.JSX.Element {
 
         <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Incoming notes</Text>
-          {spendableNotes.length === 0 ? (
+          {spendableGroups.length === 0 ? (
             <Text size={12} weight={"medium"} color={"brand"} opacity={40}>
-              {sync.phase === 'done' ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
+              {sync.phase === ShieldedSyncPhase.Done ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
             </Text>
           ) : (
-            <div className={"flex flex-col"}>
-              {spendableNotes.map((note, i) => (
-                <div key={note.index} className={i > 0 ? "flex items-center justify-between py-2.5 border-t border-dash-primary-dark-blue/8 dark:border-white/10" : "flex items-center justify-between py-2.5"}>
-                  <div className={"flex items-center gap-2"}>
-                    <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
-                    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
+            <div className={"flex flex-col gap-4"}>
+              {spendableGroups.map((group) => (
+                <div key={group.address} className={"flex flex-col gap-1"}>
+                  <div className={"flex items-center justify-between gap-3"}>
+                    <div className={"flex items-center gap-2 min-w-0"}>
+                      <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
+                      <Text size={12} weight={"medium"} color={"brand"} className={"font-mono"}>{truncateShieldedAddress(group.address)}</Text>
+                      <CopyButton text={group.address} />
+                      <Text size={12} weight={"medium"} color={"brand"} opacity={40}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
+                    </div>
+                    <Text size={14} weight={"bold"} color={"brand"}>
+                      <CreditsAmount credits={group.total} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+                    </Text>
                   </div>
-                  <Text size={14} weight={"bold"} color={"brand"}>
-                    <CreditsAmount credits={BigInt(note.amount)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
-                  </Text>
+                  <div className={"flex flex-col pl-[1.375rem]"}>
+                    {group.notes.map((note, i) => (
+                      <div key={note.index} className={i > 0 ? "flex items-center justify-between py-1.5 border-t border-dash-primary-dark-blue/8 dark:border-white/10" : "flex items-center justify-between py-1.5"}>
+                        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>note #{note.index}</Text>
+                        <Text size={12} weight={"medium"} color={"brand"}>
+                          <CreditsAmount credits={BigInt(note.amount)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

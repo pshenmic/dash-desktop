@@ -8,6 +8,8 @@ declare global {
       createWallet: (seedphrase: string, network: string, password: string) => Promise<unknown>
       verifyWalletPassword: (walletId: string, password: string) => Promise<boolean>
       exportMnemonic: (walletId: string, password: string) => Promise<string>
+      verifyWalletMnemonic: (walletId: string, mnemonic: string) => Promise<boolean>
+      resetWalletPassword: (walletId: string, mnemonic: string, newPassword: string) => Promise<boolean>
       getAddresses: (walletId: string) => Promise<unknown>
       addWalletAddress: (walletId: string, password: string, isChange: boolean) => Promise<string>
       getReceiveAddress: (walletId: string) => Promise<string | null>
@@ -58,11 +60,12 @@ declare global {
       deleteContact: (id: number) => Promise<unknown>
       getShieldedStatus: () => Promise<{ prover: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
       getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => Promise<{ poolState: string | null; notesCount: string | null }>
+      getShieldedNotesInfo: (walletId: string) => Promise<{ undecodedCount: number }>
       startShieldedSync: (walletId: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: string | null; notes: { index: number; amount: string; spent: boolean }[]; error: string | null; syncedAt: number | null }>
       getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: string | null; notes: { index: number; amount: string; spent: boolean }[]; error: string | null; syncedAt: number | null }>
-      startShieldedTransfer: (walletId: string, recipient: string, amountCredits: string, password: string, noteIndex?: number) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
-      startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: string, password: string, noteIndex?: number) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
-      startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: string, password: string, noteIndex?: number) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedTransfer: (walletId: string, recipient: string, amountCredits: string, password: string, noteIndexes?: number[]) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: string, password: string, noteIndexes?: number[]) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: string, password: string, noteIndexes?: number[]) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedIdentityCreate: (walletId: string, denominationCredits: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; identityId: string | null; error: string | null }>
       getShieldedSpendState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; identityId: string | null; error: string | null }>
       getShieldedAddress: (walletId: string, password?: string) => Promise<string | null>

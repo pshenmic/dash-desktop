@@ -3,6 +3,7 @@ import path from 'path'
 import os from 'os'
 import fs from 'fs'
 import {ChainStorageFilename, HomeFolderName} from '../constants'
+import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
@@ -70,6 +71,11 @@ export class WalletSyncService {
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
+  // txid -> serialized isdlock (hex) received over the p2p pool, plus waiters
+  // blocked in waitForInstantLock. Feeds InstantAssetLockProof construction for
+  // shield / asset-lock funding (see IdentityRegistrationService).
+  private instantLocks = new Map<string, string>()
+  private instantLockWaiters = new Map<string, Array<(hex: string) => void>>()
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
     this.walletDAO = walletDAO
@@ -89,12 +95,12 @@ export class WalletSyncService {
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      process.stdout.write(text)
+      logChildOutput('p2p', text, false)
     })
     child.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      process.stderr.write(text)
+      logChildOutput('p2p', text, true)
     })
 
     child.on('message', (data: P2PEvent) => {
@@ -113,6 +119,7 @@ export class WalletSyncService {
           resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
         }
       } else if (data.type === 'txInstantLocked') {
+        this.recordInstantLock(data.txid, data.islockHex)
         this.transactionDAO.markInstantLocked(data.walletId, data.txid).catch(err =>
           console.error('[walletSync] markInstantLocked failed:', err)
         )
@@ -244,24 +251,93 @@ export class WalletSyncService {
     this.activeWalletId = null
   }
 
-  // Hot-add of newly created wallet addresses. We rewind the cfilter cursor
-  // (in SQL and in the running worker) so historical filters get re-matched
-  // against the new addresses. No-op when no p2p child is running OR when
-  // the active sync is for a different wallet — utility process gates on
-  // walletId match.
-  addWatchAddresses = async (walletId: string, addresses: string[]): Promise<void> => {
+  // Hot-add of newly created wallet addresses. No-op when no p2p child is
+  // running OR when the active sync is for a different wallet — utility
+  // process gates on walletId match.
+  //
+  // Rewind policy: re-matching historical filters against the new addresses
+  // (rewind cursor to genesis) is only needed when a re-derived address may
+  // carry past on-chain activity — i.e. while restoring/catching up. Two
+  // cases skip the rewind because the address is provably fresh:
+  //   - forwardOnly: the caller just derived the address at the frontier
+  //     (next-address / runtime gap fill), so it has never been published.
+  //   - initial scan complete: the wallet has finished its first full scan AND
+  //     gap-limit discovery has converged (see WalletService.runCoreDiscovery),
+  //     so the watch set is stable and anything derived now can only be new.
+  //     This is persistent, so it also holds during the connecting/header-sync
+  //     window right after login and stops a relogin from rewinding to genesis.
+  //
+  // We deliberately do NOT skip on the live 'synced' phase alone: during a
+  // restore the scan can reach the tip and flip to 'synced' at the exact
+  // moment the final gap batch is derived — those addresses may still carry
+  // pre-tip history, so they must trigger the rewind. Only convergence (the
+  // persisted latch) is a safe signal.
+  addWatchAddresses = async (
+    walletId: string,
+    addresses: string[],
+    opts: {forwardOnly?: boolean} = {},
+  ): Promise<void> => {
     if (addresses.length === 0) return
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) return
     const network = wallet.network as 'mainnet' | 'testnet'
-    const rewindToHeight = GENESIS[network].height
-    await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+
+    const scannedOnce = await this.transactionDAO.getInitialScanComplete(walletId)
+    const skipRewind = opts.forwardOnly === true || scannedOnce
+    const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
+
+    if (rewindToHeight != null) {
+      await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+    }
     if (!this.child) return
     this.send({type: 'addWatchAddresses', walletId, addresses, rewindToHeight})
   }
 
   getStatus = (): WalletSyncStatus => {
     return this.status
+  }
+
+  private recordInstantLock(txid: string, islockHex: string): void {
+    this.instantLocks.set(txid, islockHex)
+    const waiters = this.instantLockWaiters.get(txid)
+    if (waiters) {
+      this.instantLockWaiters.delete(txid)
+      for (const w of waiters) w(islockHex)
+    }
+  }
+
+  // Resolve with the serialized isdlock (hex) for a locally-broadcast txid,
+  // received over the p2p pool — or null if none arrives within timeoutMs.
+  // The tx must be in the worker's watch set (broadcastTransaction/watchTxs)
+  // for the lock to be captured.
+  waitForInstantLock = (txid: string, timeoutMs: number): Promise<string | null> => {
+    const cached = this.instantLocks.get(txid)
+    if (cached) return Promise.resolve(cached)
+    return new Promise<string | null>(resolve => {
+      let done = false
+      const finish = (hex: string | null): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        const arr = this.instantLockWaiters.get(txid)
+        if (arr) {
+          const i = arr.indexOf(onLock)
+          if (i >= 0) arr.splice(i, 1)
+          if (arr.length === 0) this.instantLockWaiters.delete(txid)
+        }
+        resolve(hex)
+      }
+      const onLock = (hex: string): void => finish(hex)
+      const timer = setTimeout(() => finish(null), timeoutMs)
+      timer.unref?.()
+      const arr = this.instantLockWaiters.get(txid) ?? []
+      arr.push(onLock)
+      this.instantLockWaiters.set(txid, arr)
+    })
+  }
+
+  isSyncedFor(walletId: string): boolean {
+    return this.status.phase === 'synced' && this.status.walletId === walletId
   }
 
   private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {

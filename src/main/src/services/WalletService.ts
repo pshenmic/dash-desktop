@@ -1,5 +1,5 @@
 import {randomBytes} from 'crypto'
-import {SdkProvider} from './SdkProvider'
+import {SdkProvider} from '../providers/SdkProvider'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {IdentityDAO} from '../database/IdentityDAO'
@@ -47,6 +47,9 @@ export class WalletService {
   private coreTransactionService: CoreTransactionService
   private shieldedService: ShieldedService
   private discoveryInflight = new Map<string, Promise<void>>()
+  // Wallets whose initial scan + gap-limit discovery has converged this process.
+  // Avoids re-issuing the (idempotent) latch write on every discovery tick.
+  private scanCompleteLatched = new Set<string>()
 
   constructor(
     walletDAO: WalletDAO,
@@ -240,9 +243,6 @@ export class WalletService {
       throw new Error('No selected wallet found')
     }
 
-    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
-
     let decryptedMnemonic: string
 
     try {
@@ -251,29 +251,72 @@ export class WalletService {
       return false
     }
 
-    const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
-    const seed = keyPair.mnemonicToSeed(decryptedMnemonic)
-    const hdKey = keyPair.seedToHdKey(seed, wallet.network)
-    const coinType = COIN_TYPE[wallet.network]
+    const isValid = await this.mnemonicMatchesWallet(walletId, wallet.network, decryptedMnemonic)
 
-    const key = await keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
-    if (!key.publicKey) throw new Error(`Failed to derive public key at index ${referenceWalletAddress.index}`)
+    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null)) {
+      const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
+      const seed = keyPair.mnemonicToSeed(decryptedMnemonic)
+      const hdKey = keyPair.seedToHdKey(seed, wallet.network)
 
-    const address = keyPair.p2pkhAddress(key.publicKey, wallet.network)
+      if (wallet.platformXpub == null) {
+        const platformXpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+        await this.walletDAO.setPlatformXpub(walletId, platformXpub)
+      }
 
-    const isValid = address === referenceWalletAddress.address
-
-    if (isValid && wallet.platformXpub == null) {
-      const platformXpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
-      await this.walletDAO.setPlatformXpub(walletId, platformXpub)
-    }
-
-    if (isValid && wallet.coreXpub == null) {
-      const accountNode = await keyPair.derivePath(hdKey, coreAccountPath(coinType, 0))
-      await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
+      if (wallet.coreXpub == null) {
+        const accountNode = await keyPair.derivePath(hdKey, coreAccountPath(COIN_TYPE[wallet.network], 0))
+        await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
+      }
     }
 
     return isValid
+  }
+
+  async verifyWalletMnemonic(walletId: string, mnemonic: string): Promise<boolean> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    return this.mnemonicMatchesWallet(walletId, wallet.network, mnemonic)
+  }
+
+  async resetWalletPassword(walletId: string, mnemonic: string, newPassword: string): Promise<boolean> {
+    const matches = await this.verifyWalletMnemonic(walletId, mnemonic)
+    if (!matches) {
+      return false
+    }
+
+    const encryptedMnemonic = encryptMnemonic(mnemonic.trim(), newPassword, this.pbkdf2Iterations)
+    await this.walletDAO.updateEncryptedMnemonic(walletId, encryptedMnemonic)
+
+    return true
+  }
+
+  private async mnemonicMatchesWallet(walletId: string, network: Network, mnemonic: string): Promise<boolean> {
+    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
+    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
+
+    if (referenceWalletAddress == null) {
+      return false
+    }
+
+    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
+
+    try {
+      const seed = keyPair.mnemonicToSeed(mnemonic.trim())
+      const hdKey = keyPair.seedToHdKey(seed, network)
+      const coinType = COIN_TYPE[network]
+
+      const key = await keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
+      if (!key.publicKey) {
+        return false
+      }
+
+      return keyPair.p2pkhAddress(key.publicKey, network) === referenceWalletAddress.address
+    } catch {
+      return false
+    }
   }
 
   async setAddressLabel(walletId: string, address: string, label: string): Promise<QueryStatus> {
@@ -321,7 +364,7 @@ export class WalletService {
       label: null
     }])
 
-    await this.walletSyncService.addWatchAddresses(walletId, [address])
+    await this.walletSyncService.addWatchAddresses(walletId, [address], {forwardOnly: true})
 
     return address
   }
@@ -380,6 +423,28 @@ export class WalletService {
 
     if (added.length > 0) {
       await this.walletSyncService.addWatchAddresses(walletId, added)
+      return
+    }
+
+    // Convergence: a synced wallet whose gap-limit discovery added nothing has
+    // a stable, fully-scanned watch set. Latch that so later frontier-derived
+    // addresses skip the historical rewind (see addWatchAddresses). Gating on
+    // "added nothing" — not merely "reached the tip" — is what keeps a restore
+    // safe: while gap batches are still being discovered this stays unlatched,
+    // so those batches keep triggering the rewind that finds their history.
+    //
+    // KNOWN RESIDUAL (accepted): the scan tip is chainTip - SCAN_TIP_DEPTH, so
+    // convergence can be declared while a used address hides in the last ~10
+    // blocks. In a restore with activity that recent, that address can surface
+    // later, extend the frontier, and derive an index whose deep history is
+    // then skipped. Extremely narrow; revisit if we ever track a birthday or
+    // scan the tip window before latching.
+    if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
+      this.scanCompleteLatched.add(walletId)
+      await this.transactionDAO.markInitialScanComplete(walletId).catch(err => {
+        this.scanCompleteLatched.delete(walletId)
+        console.error('[discovery] markInitialScanComplete failed:', err)
+      })
     }
   }
 
@@ -581,6 +646,13 @@ export class WalletService {
     }
     const provider = this.getProvider(wallet.walletId, wallet.network)
     return provider.getTxLockStatus(txid)
+  }
+
+  // Serialized isdlock (hex) for a locally-broadcast txid, received over the
+  // p2p pool — or null within timeoutMs. Used to build an InstantAssetLockProof
+  // for shield / asset-lock funding without depending on DAPI islock delivery.
+  waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null> {
+    return this.walletSyncService.waitForInstantLock(txid, timeoutMs)
   }
 
   private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint, fromAddress?: string): Promise<{

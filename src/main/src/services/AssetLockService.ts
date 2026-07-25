@@ -16,7 +16,7 @@ import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
 import {WalletService} from './WalletService'
 import {ShieldedService} from './ShieldedService'
-import {SdkProvider} from './SdkProvider'
+import {SdkProvider} from '../providers/SdkProvider'
 import {AssetLockProof, IdentityRegistrationService} from './IdentityRegistrationService'
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
@@ -304,7 +304,10 @@ export class AssetLockService {
       watchAddresses = [sdk.keyPair.p2pkhAddress(creditKey.getPublicKey().bytes(), network)]
     }
 
-    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(
+      tx, row.txid, watchAddresses, network, undefined, undefined,
+      (txid, timeoutMs) => this.walletService.waitForInstantLock(txid, timeoutMs),
+    )
     state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
     if (assetLockProof.type === 'chainLock') {
       state.chainLockedHeight = assetLockProof.coreChainLockedHeight
@@ -400,7 +403,10 @@ export class AssetLockService {
       throw new Error('Funding record is missing the asset lock transaction')
     }
     const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)]
-    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(tx, row.txid, watchAddresses, network)
+    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(
+      tx, row.txid, watchAddresses, network, undefined, undefined,
+      (txid, timeoutMs) => this.walletService.waitForInstantLock(txid, timeoutMs),
+    )
     state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
 
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)

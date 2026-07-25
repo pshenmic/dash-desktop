@@ -115,6 +115,9 @@ export interface P2PTxInstantLockedMessage {
   type: 'txInstantLocked'
   walletId: string
   txid: string
+  // Serialized DIP-24 isdlock (hex). Reused to build an InstantAssetLockProof
+  // for shield / asset-lock funding without depending on DAPI islock delivery.
+  islockHex: string
 }
 
 // A ChainLock (clsig) was observed for `height` — every tx in blocks at or

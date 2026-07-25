@@ -5,6 +5,8 @@ import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { Network, SendResult, TxLockStatus } from '@renderer/api/types'
+import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
+import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
 import { transactionUrl, openExternal } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
@@ -23,19 +25,16 @@ interface SendConfirmModalProps {
   onSuccess: () => void
 }
 
-type Phase = 'confirm' | 'sending' | 'done'
-type LockPhase = 'waiting' | 'fallback' | 'instant' | 'chainlocked' | 'confirmed'
-
 const LOCK_POLL_INTERVAL_MS = 2_000
 const FALLBACK_POLL_INTERVAL_MS = 10_000
 const INSTANT_LOCK_FALLBACK_MS = 15_000
 
-const LOCK_PHASE_COPY: Record<LockPhase, string> = {
-  waiting: 'Waiting for InstantSend confirmation…',
-  fallback: 'No InstantSend lock yet — waiting for block confirmation (ChainLock). This can take a few minutes; you can close this window, the transaction list will update.',
-  instant: 'Confirmed by InstantSend — the payment is final.',
-  chainlocked: 'Confirmed by ChainLock — the payment is final.',
-  confirmed: 'Confirmed in a block.',
+const LOCK_PHASE_COPY: Record<SendLockPhase, string> = {
+  [SendLockPhase.Waiting]: 'Waiting for InstantSend confirmation…',
+  [SendLockPhase.Fallback]: 'No InstantSend lock yet — waiting for block confirmation (ChainLock). This can take a few minutes; you can close this window, the transaction list will update.',
+  [SendLockPhase.Instant]: 'Confirmed by InstantSend — the payment is final.',
+  [SendLockPhase.Chainlocked]: 'Confirmed by ChainLock — the payment is final.',
+  [SendLockPhase.Confirmed]: 'Confirmed in a block.',
 }
 
 function TxidField({ txid, network }: { txid: string; network: Network | null }): React.JSX.Element {
@@ -122,23 +121,23 @@ export default function SendConfirmModal({
 }: SendConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
-  const [phase, setPhase] = useState<Phase>('confirm')
-  const [lockPhase, setLockPhase] = useState<LockPhase>('waiting')
+  const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
+  const [lockPhase, setLockPhase] = useState<SendLockPhase>(SendLockPhase.Waiting)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SendResult | null>(null)
 
   useEffect(() => {
     if (isOpen) {
       setPassword('')
-      setPhase('confirm')
-      setLockPhase('waiting')
+      setPhase(ConfirmModalPhase.Confirm)
+      setLockPhase(SendLockPhase.Waiting)
       setError(null)
       setResult(null)
     }
   }, [isOpen])
 
   useEffect(() => {
-    if (!isOpen || phase !== 'done' || !walletId || !result?.txid) return
+    if (!isOpen || phase !== ConfirmModalPhase.Done || !walletId || !result?.txid) return
     const txid = result.txid
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -146,9 +145,9 @@ export default function SendConfirmModal({
     const poll = async (): Promise<void> => {
       const status: TxLockStatus | null = await API.getTxLockStatus(walletId, txid).catch(() => null)
       if (cancelled) return
-      const final: LockPhase | null = status?.instantLocked ? 'instant'
-        : status?.chainlocked ? 'chainlocked'
-        : status?.confirmed ? 'confirmed'
+      const final: SendLockPhase | null = status?.instantLocked ? SendLockPhase.Instant
+        : status?.chainlocked ? SendLockPhase.Chainlocked
+        : status?.confirmed ? SendLockPhase.Confirmed
         : null
       if (final) {
         setLockPhase(final)
@@ -156,7 +155,7 @@ export default function SendConfirmModal({
         return
       }
       const fallback = Date.now() - startedAt >= INSTANT_LOCK_FALLBACK_MS
-      if (fallback) setLockPhase('fallback')
+      if (fallback) setLockPhase(SendLockPhase.Fallback)
       timer = setTimeout(poll, fallback ? FALLBACK_POLL_INTERVAL_MS : LOCK_POLL_INTERVAL_MS)
     }
     poll()
@@ -168,21 +167,21 @@ export default function SendConfirmModal({
 
   if (!isOpen) return null
 
-  const sending = phase === 'sending'
-  const lockFinal = lockPhase !== 'waiting' && lockPhase !== 'fallback'
+  const sending = phase === ConfirmModalPhase.Sending
+  const lockFinal = lockPhase !== SendLockPhase.Waiting && lockPhase !== SendLockPhase.Fallback
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || sending) return
-    setPhase('sending')
+    setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
       const res = await API.sendTransaction(walletId, toAddress, amountDuffs.toString(), password, fromAddress)
       setResult(res)
-      setPhase('done')
+      setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Transaction failed')
-      setPhase('confirm')
+      setPhase(ConfirmModalPhase.Confirm)
     }
   }
 
@@ -201,7 +200,7 @@ export default function SendConfirmModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === 'done'
+            {phase === ConfirmModalPhase.Done
               ? lockFinal ? 'Transaction confirmed' : 'Transaction sent'
               : 'Confirm send'}
           </Text>
@@ -214,7 +213,7 @@ export default function SendConfirmModal({
           </button>
         </div>
 
-        {phase !== 'done' ? (
+        {phase !== ConfirmModalPhase.Done ? (
           <div className={"phase-fade-in"} key={"confirm"}>
             <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>

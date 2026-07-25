@@ -4,6 +4,7 @@ import TransactionsPage from "./pages/Transactions"
 import SendPage from "./pages/Send"
 import Sidebar from "./components/sidebar"
 import LoginPage from "./pages/auth/Login"
+import ForgotPasswordPage from "./pages/auth/ForgotPassword"
 import Layout from "./components/Layout"
 import CreateWalletWrapper from "./pages/auth/CreateWalletWrapper"
 import ReceivePage from "./pages/Receive"
@@ -13,11 +14,13 @@ import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
 import { useAuth } from "./contexts/AuthContext"
 import { usePrefetchWalletData } from "./hooks/usePrefetchWalletData"
+import { useDebugMode } from "./hooks/useDebugMode"
 import { ConnectionModeProvider } from "./contexts/ConnectionModeContext"
 
 function App(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
   const location = useLocation()
+  const debugMode = useDebugMode()
 
   usePrefetchWalletData()
 
@@ -33,6 +36,7 @@ function App(): React.JSX.Element {
     return (
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     )
@@ -48,7 +52,7 @@ function App(): React.JSX.Element {
             <Route path={"/transactions"} element={<TransactionsPage />} />
             <Route path={"/send"} element={<SendPage />} />
             <Route path={"/receive"} element={<ReceivePage />} />
-            <Route path={"/shielded"} element={<ShieldedPage />} />
+            <Route path={"/shielded"} element={debugMode ? <ShieldedPage /> : <Navigate to={"/"} replace />} />
             <Route path={"/shield"} element={<Navigate to={"/send?from=platformAddress&to=shielded"} replace />} />
             <Route path={"/send-private"} element={<Navigate to={"/send?from=shielded&to=shielded"} replace />} />
             <Route path={"/unshield"} element={<Navigate to={"/send?from=shielded&to=platformAddress"} replace />} />

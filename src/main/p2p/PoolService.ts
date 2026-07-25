@@ -52,12 +52,16 @@ export class PoolService extends EventEmitter {
     super()
     this.network = network
     this.messages = new Messages({network} as never)
-    // dnsSeed: true lets us self-bootstrap; relay: false disables tx
-    // relay (we only care about blocks/headers/cfilter messages).
+    // dnsSeed: true lets us self-bootstrap. relay: true is required for
+    // InstantSend: Dash Core gates ISLOCK/ISDLOCK inv behind the peer's tx-relay
+    // preference (fRelayTxes), so relay: false means we never receive lock inv
+    // and instant-send confirmation can never fire. We do NOT fetch tx bodies
+    // for the mempool inv this lets in — getdata is issued only for CLSIG/
+    // ISDLOCK (SyncService.onPeerInvForLocks) — so the cost is just inv traffic.
     this.pool = new Pool({
       network,
       maxSize: POOL_MAX_SIZE,
-      relay: false,
+      relay: true,
       messages: this.messages,
       dnsSeed: true,
     } as never)

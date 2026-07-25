@@ -12,7 +12,7 @@ export function readDesired(): ConnectionType {
 }
 
 function isP2pInactive(phase: WalletSyncPhase | undefined): boolean {
-  return phase === undefined || phase === 'stopped' || phase === 'idle'
+  return phase === undefined || phase === WalletSyncPhase.Stopped || phase === WalletSyncPhase.Idle
 }
 
 export interface UseConnectionMode {
@@ -43,7 +43,7 @@ export function useConnectionMode(): UseConnectionMode {
 
   useEffect(() => {
     if (lastApplied.current === null) return
-    const target: ConnectionType = desired === 'p2p' && phase === 'synced' ? 'p2p' : 'rpc'
+    const target: ConnectionType = desired === 'p2p' && phase === WalletSyncPhase.Synced ? 'p2p' : 'rpc'
     if (target === lastApplied.current) return
     const previous = lastApplied.current
     lastApplied.current = target
@@ -95,7 +95,7 @@ export function useConnectionMode(): UseConnectionMode {
   }, [walletId])
 
   const fallbackActive = useMemo(
-    () => desired === 'p2p' && phase !== 'synced',
+    () => desired === 'p2p' && phase !== WalletSyncPhase.Synced,
     [desired, phase],
   )
 

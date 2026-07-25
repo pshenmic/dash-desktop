@@ -158,7 +158,6 @@ export default function LoginPage(): React.JSX.Element {
               {links.register.label}
             </Text>
           </Link>
-          {/* TODO: re-enable once password recovery flow is implemented
           <span className={"h-4 w-px dash-block-solid opacity-35"} />
           <Link
             to={links.forgotPassword.to}
@@ -179,7 +178,6 @@ export default function LoginPage(): React.JSX.Element {
               {links.forgotPassword.label}
             </Text>
           </Link>
-          */}
         </div>
       </div>
     </div>

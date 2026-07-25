@@ -17,6 +17,10 @@ export interface Messages {
   login: {
     invalidPassword: string
   }
+  forgotPassword: {
+    seedMismatch: string
+    resetFailed: string
+  }
 }
 
 export const messages: Messages = {
@@ -39,5 +43,9 @@ export const messages: Messages = {
   },
   login: {
     invalidPassword: "**Invalid password** please try again.",
+  },
+  forgotPassword: {
+    seedMismatch: "**Recovery phrase does not match** This phrase does not belong to the selected wallet.",
+    resetFailed: "**Could not reset password** Please try again.",
   }
 }

@@ -132,7 +132,7 @@ structured-clone boundary in every path. Amounts crossing IPC are passed as
 
 ## Database & migrations
 
-SQLite via Knex, at `~/.dash-platform-wallet/storage.db`. Tables: `wallet`,
+SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,
 `addresses`, `identities`, `transactions` (+ `transaction_inputs/_outputs`,
 `wallet_sync_state`), `contacts`.
 

@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {Output, Script, TransactionType, utils as sdkUtils} from 'dash-core-sdk'
 import {CoreTransactionService, TransferInput} from '../../src/main/src/services/CoreTransactionService'
-import {SdkProvider} from '../../src/main/src/services/SdkProvider'
+import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
 
 // classifyRecipientAddress only touches the SDK's pure address utils, so the
 // service can be built with a stub SDK for this suite.

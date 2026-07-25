@@ -7,7 +7,7 @@ import ListSkeleton from '@renderer/components/ui/Skeleton'
 import PlatformUnlockTab from '@renderer/components/pages/addresses/PlatformUnlockTab'
 import PlatformAddressSelect from '@renderer/components/pages/transfer/PlatformAddressSelect'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
-import { defaultReceivePlatformAddress } from '@renderer/utils/platformReceive'
+import { defaultReceivePlatformAddress } from '@renderer/utils/receiveDefaults'
 
 export default function PlatformReceiveCard({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const { platformAddresses, loading, err } = usePlatformAddresses(walletId)

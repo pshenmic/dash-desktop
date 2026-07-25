@@ -8,7 +8,7 @@ import {
   utils as sdkUtils,
 } from 'dash-core-sdk'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
-import {SdkProvider} from './SdkProvider'
+import {SdkProvider} from '../providers/SdkProvider'
 import {Network} from '../types'
 import {ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
 import {buildAssetLockOutputs} from '../utils/assetLockTx'

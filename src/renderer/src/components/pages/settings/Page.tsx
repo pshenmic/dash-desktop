@@ -6,6 +6,7 @@ import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import { toast } from '@renderer/components/ui/Toast'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useThemePreference, setThemePreference } from '@renderer/hooks/useThemeController'
+import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
 import { ThemePreference } from '@renderer/utils/theme'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { WalletTxDto } from '@renderer/hooks/useWalletTransactions'
@@ -88,6 +89,11 @@ const CURRENCY_OPTIONS = [
   { value: 'rub', label: 'RUB' },
 ]
 
+const DEBUG_OPTIONS = [
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
+]
+
 export default function Settings(): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
@@ -95,6 +101,7 @@ export default function Settings(): React.JSX.Element {
 
   const themePreference = useThemePreference()
   const { currency, setCurrency } = useFiat()
+  const debugMode = useDebugMode()
 
   const [restartPending, setRestartPending] = useState(false)
   const [clearPending, setClearPending] = useState(false)
@@ -282,6 +289,21 @@ export default function Settings(): React.JSX.Element {
                 options={CURRENCY_OPTIONS}
                 value={currency}
                 onChange={setCurrency}
+              />
+            }
+          />
+        </div>
+
+        <SectionLabel>Advanced</SectionLabel>
+        <div className="flex flex-col">
+          <SettingsRow
+            title="Debug mode"
+            description="Show developer pages like the Shielded debug view."
+            control={
+              <SegmentedControl
+                options={DEBUG_OPTIONS}
+                value={debugMode ? 'on' : 'off'}
+                onChange={(value) => setDebugMode(value === 'on')}
               />
             }
           />

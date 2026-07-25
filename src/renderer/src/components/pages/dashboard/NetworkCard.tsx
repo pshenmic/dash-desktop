@@ -3,6 +3,7 @@ import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { describeDataSource, describeNetworkStatus, NetworkStatusTone } from '@renderer/utils/networkStatus'
 import { readDesired } from '@renderer/hooks/useConnectionMode'
+import { WalletSyncPhase } from '@renderer/enums/WalletSyncPhase'
 
 const STATUS_TONES: Record<NetworkStatusTone, { pill: string; dot: string; text: string }> = {
   ok: { pill: 'bg-dash-green-15', dot: 'bg-dash-green', text: 'text-dash-green' },
@@ -33,7 +34,7 @@ export default function NetworkCard(): React.JSX.Element {
   const networkName = status?.network === 'testnet' ? 'Testnet' : status?.network === 'mainnet' ? 'Mainnet' : null
   const tipHeight = sync?.tipHeight ?? 0
   const peerCount = sync?.peerCount ?? 0
-  const syncActive = sync !== undefined && sync.phase !== 'stopped' && sync.phase !== 'idle'
+  const syncActive = sync !== undefined && sync.phase !== WalletSyncPhase.Stopped && sync.phase !== WalletSyncPhase.Idle
 
   return (
     <div className={"relative overflow-hidden grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-x-10 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>

@@ -8,38 +8,39 @@ import {
   POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
   DESTINATION_KINDS,
-  SourceKind,
-  DestinationKind,
 } from '../../src/renderer/src/utils/transferMatrix'
+import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
+import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
+import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
 
-const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, string | null>>> = {
-  core: {
-    coreAddress: 'coreSend',
-    platformAddress: 'assetLockFunding',
-    identity: 'identityTopUpL1',
-    newIdentity: 'identityRegister',
-    shielded: 'assetLockShield',
+const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, TransferOperation | null>>> = {
+  [SourceKind.Core]: {
+    [DestinationKind.CoreAddress]: TransferOperation.CoreSend,
+    [DestinationKind.PlatformAddress]: TransferOperation.AssetLockFunding,
+    [DestinationKind.Identity]: TransferOperation.IdentityTopUpL1,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityRegister,
+    [DestinationKind.Shielded]: TransferOperation.AssetLockShield,
   },
-  platformAddress: {
-    coreAddress: 'addressWithdrawal',
-    platformAddress: 'addressFundsTransfer',
-    identity: 'identityTopUp',
-    newIdentity: 'identityCreate',
-    shielded: 'shield',
+  [SourceKind.PlatformAddress]: {
+    [DestinationKind.CoreAddress]: TransferOperation.AddressWithdrawal,
+    [DestinationKind.PlatformAddress]: TransferOperation.AddressFundsTransfer,
+    [DestinationKind.Identity]: TransferOperation.IdentityTopUp,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreate,
+    [DestinationKind.Shielded]: TransferOperation.Shield,
   },
-  identity: {
-    coreAddress: 'identityWithdrawal',
-    platformAddress: 'identityToAddress',
-    identity: 'identityToIdentity',
-    newIdentity: null,
-    shielded: null,
+  [SourceKind.Identity]: {
+    [DestinationKind.CoreAddress]: TransferOperation.IdentityWithdrawal,
+    [DestinationKind.PlatformAddress]: TransferOperation.IdentityToAddress,
+    [DestinationKind.Identity]: TransferOperation.IdentityToIdentity,
+    [DestinationKind.NewIdentity]: null,
+    [DestinationKind.Shielded]: null,
   },
-  shielded: {
-    coreAddress: 'shieldedWithdrawal',
-    platformAddress: 'unshield',
-    identity: null,
-    newIdentity: 'identityCreateFromPool',
-    shielded: 'shieldedTransfer',
+  [SourceKind.Shielded]: {
+    [DestinationKind.CoreAddress]: TransferOperation.ShieldedWithdrawal,
+    [DestinationKind.PlatformAddress]: TransferOperation.Unshield,
+    [DestinationKind.Identity]: null,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreateFromPool,
+    [DestinationKind.Shielded]: TransferOperation.ShieldedTransfer,
   },
 }
 
@@ -75,24 +76,30 @@ describe('unsupportedReason', () => {
   })
 
   it('supports every operation defined in the matrix', () => {
-    expect(unsupportedReason('core', 'platformAddress')).toBeNull()
-    expect(unsupportedReason('platformAddress', 'newIdentity')).toBeNull()
+    expect(unsupportedReason(SourceKind.Core, DestinationKind.PlatformAddress)).toBeNull()
+    expect(unsupportedReason(SourceKind.PlatformAddress, DestinationKind.NewIdentity)).toBeNull()
   })
 })
 
 describe('operationInfo', () => {
   it('exposes credits fee and minimum for platform operations', () => {
-    expect(operationInfo('addressFundsTransfer')).toMatchObject({unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n})
-    expect(operationInfo('addressWithdrawal').feeCredits).toBe(400_000_000n)
-    expect(operationInfo('identityWithdrawal').feeCredits).toBe(400_000_000n)
-    expect(operationInfo('identityTopUp').minCredits).toBe(100_000n)
-    expect(operationInfo('identityToIdentity')).toMatchObject({unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n})
+    expect(operationInfo(TransferOperation.AddressFundsTransfer)).toMatchObject({unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n})
+    expect(operationInfo(TransferOperation.AddressWithdrawal).feeCredits).toBe(400_000_000n)
+    expect(operationInfo(TransferOperation.IdentityWithdrawal).feeCredits).toBe(400_000_000n)
+    expect(operationInfo(TransferOperation.IdentityTopUp).minCredits).toBe(100_000n)
+    expect(operationInfo(TransferOperation.IdentityToIdentity)).toMatchObject({unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n})
+  })
+
+  it('leaves the fee null for pool-paid shielded spends (computed from note count)', () => {
+    expect(operationInfo(TransferOperation.ShieldedTransfer).feeCredits).toBeNull()
+    expect(operationInfo(TransferOperation.Unshield).feeCredits).toBeNull()
+    expect(operationInfo(TransferOperation.ShieldedWithdrawal).feeCredits).toBeNull()
   })
 
   it('uses dash units without a credits fee for L1-sourced operations', () => {
-    expect(operationInfo('coreSend')).toMatchObject({unit: 'dash', feeCredits: null})
-    expect(operationInfo('assetLockShield')).toMatchObject({unit: 'dash', feeCredits: null})
-    expect(operationInfo('identityTopUpL1')).toMatchObject({unit: 'dash', feeCredits: null, submitLabel: 'Top up'})
+    expect(operationInfo(TransferOperation.CoreSend)).toMatchObject({unit: 'dash', feeCredits: null})
+    expect(operationInfo(TransferOperation.AssetLockShield)).toMatchObject({unit: 'dash', feeCredits: null})
+    expect(operationInfo(TransferOperation.IdentityTopUpL1)).toMatchObject({unit: 'dash', feeCredits: null, submitLabel: 'Top up'})
   })
 })
 
@@ -107,7 +114,7 @@ describe('isPoolIdentityDenomination', () => {
   })
 
   it('matches the pool minimum in operationInfo', () => {
-    expect(operationInfo('identityCreateFromPool')).toMatchObject({unit: 'credits', minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
+    expect(operationInfo(TransferOperation.IdentityCreateFromPool)).toMatchObject({unit: 'credits', minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
   })
 })
 

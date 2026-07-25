@@ -1,5 +1,7 @@
 export * from './navigation'
 export * from './login'
+export * from './forgotPassword'
+export * from './password'
 export * from './sendPages'
 export * from './receivePage'
 export * from './transactionsPage'
