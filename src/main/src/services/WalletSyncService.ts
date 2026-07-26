@@ -13,6 +13,7 @@ import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
+import {ScanCursorGate} from '../utils/scanCursorGate'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 
 // Cap on the per-child output we retain. The tail is attached to broadcast
@@ -25,6 +26,12 @@ const CHILD_OUTPUT_TAIL_LIMIT = 8192
 // no reject message), so we keep rebroadcasting until a block / lock settles
 // the tx rather than timing it out.
 const REBROADCAST_INTERVAL_MS = 60_000
+
+// applyBlock retry ladder. A failure here is almost always transient lock
+// contention on storage.db, which the busy_timeout pragma already absorbs;
+// what survives the ladder is treated as a persistence gap.
+const PERSIST_ATTEMPTS = 3
+const PERSIST_RETRY_MS = 1_000
 
 // Main-process facade for wallet sync. Forks the p2p utility process,
 // translates wallet-domain calls into the internal P2P protocol, and
@@ -76,6 +83,16 @@ export class WalletSyncService {
   // shield / asset-lock funding (see IdentityRegistrationService).
   private instantLocks = new Map<string, string>()
   private instantLockWaiters = new Map<string, Array<(hex: string) => void>>()
+  // Holds the scan cursor back when a block failed to reach SQL. The worker
+  // emits cursorAdvanced at the end of every scan regardless of what landed,
+  // so without this the resume marker steps over the missing block and its
+  // coins are gone until a full resetSync.
+  private cursorGate = new ScanCursorGate()
+  // Sticky: status snapshots arrive wholesale from the utility process and
+  // would otherwise overwrite lastError on the next push.
+  private persistenceError: string | null = null
+  // Serialises block writes and cursor advances so they land in emit order.
+  private persistQueue: Promise<void> = Promise.resolve()
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
     this.walletDAO = walletDAO
@@ -103,34 +120,7 @@ export class WalletSyncService {
       logChildOutput('p2p', text, true)
     })
 
-    child.on('message', (data: P2PEvent) => {
-      if (data.type === 'status') {
-        this.status = data.status
-      } else if (data.type === 'blockApplied') {
-        this.persistAppliedBlock(data.block)
-      } else if (data.type === 'cursorAdvanced') {
-        this.transactionDAO.advanceCursor(data.walletId, data.height).catch(err =>
-          console.error('[walletSync] advanceCursor failed:', err)
-        )
-      } else if (data.type === 'broadcastResult') {
-        const resolve = this.pendingBroadcasts.get(data.requestId)
-        if (resolve) {
-          this.pendingBroadcasts.delete(data.requestId)
-          resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
-        }
-      } else if (data.type === 'txInstantLocked') {
-        this.recordInstantLock(data.txid, data.islockHex)
-        this.transactionDAO.markInstantLocked(data.walletId, data.txid).catch(err =>
-          console.error('[walletSync] markInstantLocked failed:', err)
-        )
-      } else if (data.type === 'chainLocked') {
-        this.transactionDAO.markChainlockedUpTo(data.walletId, data.height).catch(err =>
-          console.error('[walletSync] markChainlockedUpTo failed:', err)
-        )
-      } else if (data.type === 'error') {
-        console.error('[p2p] utility process error:', data.message)
-      }
-    })
+    child.on('message', (data: P2PEvent) => this.handleP2PEvent(data))
 
     child.on('exit', code => {
       const tail = this.childOutputTail.trim()
@@ -178,6 +168,33 @@ export class WalletSyncService {
     return child
   }
 
+  private handleP2PEvent(data: P2PEvent): void {
+    if (data.type === 'status') {
+      this.status = data.status
+    } else if (data.type === 'blockApplied') {
+      this.persistAppliedBlock(data.block)
+    } else if (data.type === 'cursorAdvanced') {
+      this.enqueuePersist(() => this.advanceCursorGated(data.walletId, data.height))
+    } else if (data.type === 'broadcastResult') {
+      const resolve = this.pendingBroadcasts.get(data.requestId)
+      if (resolve) {
+        this.pendingBroadcasts.delete(data.requestId)
+        resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
+      }
+    } else if (data.type === 'txInstantLocked') {
+      this.recordInstantLock(data.txid, data.islockHex)
+      this.transactionDAO.markInstantLocked(data.walletId, data.txid).catch(err =>
+        console.error('[walletSync] markInstantLocked failed:', err)
+      )
+    } else if (data.type === 'chainLocked') {
+      this.transactionDAO.markChainlockedUpTo(data.walletId, data.height).catch(err =>
+        console.error('[walletSync] markChainlockedUpTo failed:', err)
+      )
+    } else if (data.type === 'error') {
+      console.error('[p2p] utility process error:', data.message)
+    }
+  }
+
   private send(command: P2PCommand): void {
     this.ensureChild().postMessage(command)
   }
@@ -214,6 +231,10 @@ export class WalletSyncService {
 
     this.activeWalletId = walletId
     this.activeNetwork = network
+    // The persisted cursor is already capped below any gap, so this scan
+    // re-covers it — the previous session's failures stop applying here.
+    this.cursorGate.clear(walletId)
+    if (!this.cursorGate.hasFailures()) this.persistenceError = null
     this.startRebroadcastLoop()
     // Seed the worker's in-memory spend-detection map from SQL.
     const seedUtxos = await this.transactionDAO.getUtxos(walletId)
@@ -294,7 +315,8 @@ export class WalletSyncService {
   }
 
   getStatus = (): WalletSyncStatus => {
-    return this.status
+    if (this.persistenceError == null) return this.status
+    return {...this.status, lastError: this.persistenceError}
   }
 
   private recordInstantLock(txid: string, islockHex: string): void {
@@ -340,16 +362,52 @@ export class WalletSyncService {
     return this.status.phase === 'synced' && this.status.walletId === walletId
   }
 
-  private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {
-    this.transactionDAO.applyBlock(block).then(() => {
-      if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
-    }).catch(err => {
-      if (attempt < 2) {
-        setTimeout(() => this.persistAppliedBlock(block, attempt + 1), 1_000)
-      } else {
+  // Block writes and cursor advances share one queue: the worker emits
+  // cursorAdvanced right after the last blockApplied of a scan, and a cursor
+  // advance that overtakes an in-flight (or retrying) block write would move
+  // the resume marker past data that never landed.
+  private enqueuePersist(task: () => Promise<void>): void {
+    this.persistQueue = this.persistQueue
+      .catch(() => undefined)
+      .then(task)
+      .catch(err => console.error('[walletSync] persist task failed:', err))
+  }
+
+  private persistAppliedBlock = (block: AppliedBlock): void => {
+    this.enqueuePersist(() => this.writeAppliedBlock(block))
+  }
+
+  private async writeAppliedBlock(block: AppliedBlock): Promise<void> {
+    for (let attempt = 0; attempt < PERSIST_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, PERSIST_RETRY_MS))
+      try {
+        const advanceCursor = this.cursorGate.allowsBlockCursor(block.walletId, block.height)
+        await this.transactionDAO.applyBlock(block, {advanceCursor})
+        this.cursorGate.succeed(block.walletId, block.height)
+        if (!this.cursorGate.hasFailures()) this.persistenceError = null
+        if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
+        return
+      } catch (err) {
+        if (attempt < PERSIST_ATTEMPTS - 1) continue
+        this.cursorGate.fail(block.walletId, block.height)
+        const message = err instanceof Error ? err.message : String(err)
+        const heldAt = this.cursorGate.lowestFailed(block.walletId)! - 1
+        this.persistenceError =
+          `Block ${block.height} could not be saved (${message}). Sync is held at height ${heldAt} ` +
+          'and will rescan from there on the next start.'
         console.error(`[walletSync] applyBlock failed permanently at h=${block.height}:`, err)
       }
-    })
+    }
+  }
+
+  // Never past the lowest height whose write failed: everything the cursor
+  // passes is skipped by the next scan.
+  private async advanceCursorGated(walletId: string, height: number): Promise<void> {
+    const target = this.cursorGate.allowedHeight(walletId, height)
+    if (target == null) return
+    await this.transactionDAO.advanceCursor(walletId, target).catch(err =>
+      console.error('[walletSync] advanceCursor failed:', err)
+    )
   }
 
   private notifyWalletActivity(walletId: string): void {

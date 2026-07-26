@@ -116,13 +116,34 @@ export function decryptMnemonic(encryptedHex: string, password: string): string 
   return decrypted.toString('utf8')
 }
 
+// One file is written by applyBlock, advanceCursor, markInstantLocked,
+// markChainlockedUpTo and recordPendingBroadcast while getStatus reads it
+// once a second, so lock contention is the expected condition. SQLite
+// defaults to busy_timeout=0 (a writer meeting a held lock fails with
+// SQLITE_BUSY immediately) and the rollback journal (readers block writers);
+// both defaults turn routine contention into a failed write.
+function applyConnectionPragmas (conn: SqliteConnection, done: (err: Error | null, conn: SqliteConnection) => void): void {
+  conn.run('PRAGMA busy_timeout = 5000', err => {
+    if (err) {
+      done(err, conn)
+      return
+    }
+    conn.run('PRAGMA journal_mode = WAL', walErr => done(walErr, conn))
+  })
+}
+
+interface SqliteConnection {
+  run: (sql: string, callback: (err: Error | null) => void) => void
+}
+
 export function getKnex (path?: string): Knex {
   return knex({
     client: 'sqlite3',
     connection: {
       filename: path ?? ':memory:'
     },
-    useNullAsDefault: true
+    useNullAsDefault: true,
+    pool: {afterCreate: applyConnectionPragmas}
   })
 }
 

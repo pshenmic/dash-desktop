@@ -23,11 +23,17 @@ export class TransactionDAO {
   // cursor advance, all in one SQL transaction. Cursor uses MAX semantics
   // so out-of-order block application (tip-follow racing the scan) can't
   // regress the resume marker.
-  applyBlock = async (block: AppliedBlock): Promise<void> => {
+  //
+  // advanceCursor: false writes the block data without moving the resume
+  // marker — used once an earlier block has failed to persist, so the scan
+  // re-covers the gap instead of stepping over it.
+  applyBlock = async (block: AppliedBlock, opts: {advanceCursor?: boolean} = {}): Promise<void> => {
+    const advanceCursor = opts.advanceCursor ?? true
+
     if (block.txs.length === 0 && block.spends.length === 0) {
       // Cursor-only advance; still useful when the scan tip moves past a
       // run of unmatched blocks.
-      await this.advanceCursor(block.walletId, block.height)
+      if (advanceCursor) await this.advanceCursor(block.walletId, block.height)
       return
     }
 
@@ -134,14 +140,16 @@ export class TransactionDAO {
         console.log(`[walletSync] marked ${updated} address(es) used at h=${block.height} (${usedAddresses.size} candidate(s))`)
       }
 
-      await trx('wallet_sync_state')
-        .insert({wallet_id: block.walletId, cfilter_cursor_height: block.height})
-        .onConflict('wallet_id')
-        .merge({
-          cfilter_cursor_height: trx.raw(
-            'MAX(wallet_sync_state.cfilter_cursor_height, excluded.cfilter_cursor_height)'
-          ),
-        })
+      if (advanceCursor) {
+        await trx('wallet_sync_state')
+          .insert({wallet_id: block.walletId, cfilter_cursor_height: block.height})
+          .onConflict('wallet_id')
+          .merge({
+            cfilter_cursor_height: trx.raw(
+              'MAX(wallet_sync_state.cfilter_cursor_height, excluded.cfilter_cursor_height)'
+            ),
+          })
+      }
     })
   }
 
