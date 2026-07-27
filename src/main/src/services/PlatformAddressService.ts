@@ -1,20 +1,7 @@
-import type {DashPlatformSDK} from 'dash-platform-sdk'
-import {SdkProvider} from '../providers/SdkProvider'
-import {
-  InputAddressWASM,
-  OutputAddressWASM,
-  AddressFundsFeeStrategyStepWASM,
-  AddressWitnessWASM,
-  AddressFundsTransferTransitionWASM,
-  IdentityTopUpFromAddressesTransitionWASM,
-  AddressCreditWithdrawalTransitionWASM,
-  IdentityCreateFromAddressesTransitionWASM,
-  IdentityPublicKeyInCreationWASM,
-  PrivateKeyWASM,
-  IdentityPublicKeyWASM,
-} from 'dash-platform-sdk/types.js'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../database/WalletDAO'
 import {ShieldedService} from './ShieldedService'
+import {PlatformWorkerService} from './PlatformWorkerService'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
@@ -24,8 +11,7 @@ import {PlatformSendResult} from '../types/PlatformSendResult'
 import {IdentityCreateResult} from '../types/IdentityCreateResult'
 import {ShieldResult} from '../types/ShieldResult'
 import {decryptMnemonic} from '../utils'
-import {coreAddressToScript} from '../utils/coreScript'
-import {matchIdentityKey, DerivedKeyHash} from '../utils/identityKeys'
+import {AddressInput} from '../../platform/types/messages'
 import {
   PlatformSourceCandidate,
   selectPlatformSource,
@@ -33,9 +19,9 @@ import {
   topUpFeeCredits,
   TRANSFER_FEE_CREDITS,
   WITHDRAWAL_FEE_CREDITS,
-  CORE_FEE_PER_BYTE,
   MAX_RECIPIENTS,
   MIN_OUTPUT_CREDITS,
+  IDENTITY_CREATE_KEY_COUNT,
   identityTransferFeeCredits,
   identityCreateFeeCredits,
   IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
@@ -43,36 +29,46 @@ import {
 
 const PLATFORM_ACCOUNT = 0
 const PLATFORM_ADDRESS_LOOKAHEAD = 20
-const IDENTITY_KEY_LOOKAHEAD = 20
 const MAX_DISCOVERY_BATCHES = 50
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
+
+const toInput = (candidate: PlatformSourceCandidate, credits: bigint): AddressInput => ({
+  platformAddress: candidate.platformAddress,
+  index: candidate.index,
+  nonce: candidate.nonce,
+  credits,
+})
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
 // The account-level xpub is persisted per wallet so the address list derives
 // publicly (no password); spends derive the index key from the seed.
+//
+// This class owns the wallet side only — unlocking, address derivation for
+// display, input selection, fee policy and DAO writes. Every key derivation
+// for signing, transition build, broadcast and wait is a platform worker
+// request; no state transition is built on the main event loop.
 export class PlatformAddressService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
-  private sdkProvider: SdkProvider
   private shieldedService: ShieldedService
+  private platform: PlatformWorkerService
+  private keyPair = new KeyPairController()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, sdkProvider: SdkProvider, shieldedService: ShieldedService) {
+  constructor(
+    walletDAO: WalletDAO,
+    identityDAO: IdentityDAO,
+    shieldedService: ShieldedService,
+    platform: PlatformWorkerService,
+  ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
-    this.sdkProvider = sdkProvider
     this.shieldedService = shieldedService
-  }
-
-  private platformSDK(network: Network): DashPlatformSDK {
-    return this.sdkProvider.getPlatformSDK(network)
+    this.platform = platform
   }
 
   async getPlatformAddresses(walletId: string): Promise<PlatformAddressEntry[]> {
     const wallet = await this.requireWallet(walletId)
-
-    if (wallet.platformXpub == null) {
-      return []
-    }
+    if (wallet.platformXpub == null) return []
 
     await this.extendPlatformWindow(walletId, wallet.platformXpub, wallet.network)
 
@@ -86,7 +82,6 @@ export class PlatformAddressService {
 
   async addPlatformAddress(walletId: string): Promise<PlatformAddressEntry[]> {
     const wallet = await this.requireWallet(walletId)
-
     if (wallet.platformXpub == null) {
       throw new Error('Platform addresses are not derived yet')
     }
@@ -112,37 +107,17 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
-    if (toPlatformAddress === source.platformAddress) {
-      throw new Error('Recipient must be different from the source address')
-    }
-
-    const inputs = [new InputAddressWASM(source.platformAddress, source.nonce + 1, amountCredits)]
-    const outputs = [new OutputAddressWASM(toPlatformAddress, amountCredits)]
-    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
-
-    const unsignedSt = this.platformSDK(network).platformAddresses.createStateTransition('addressFundsTransfer', {
-      inputs,
-      feeStrategy,
-      userFeeIncrease: 0,
-      inputWitness: [],
-      outputs,
+    const {stHash} = await this.platform.request('addressTransfer', network, {
+      seed,
+      input: toInput(source, amountCredits),
+      recipient: toPlatformAddress,
+      amountCredits,
     })
 
-    const signable = unsignedSt.getSignableBytes()
-    const witnesses = await this.signAddressInputs(signable, [source], seed, network)
-
-    const transition = AddressFundsTransferTransitionWASM.fromStateTransition(unsignedSt)
-    transition.inputWitness = witnesses
-    const signedSt = transition.toStateTransition()
-
-    await this.platformSDK(network).stateTransitions.broadcast(signedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(signedSt)
-
     return {
-      stHash: signedSt.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       feeCredits: TRANSFER_FEE_CREDITS.toString(),
       fromAddress: source.platformAddress,
@@ -167,44 +142,21 @@ export class PlatformAddressService {
 
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
-
-    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const identity = identities.find(entry => entry.identifier === identityIdentifier)
-    if (identity == null) {
-      throw new Error('Identity not found in this wallet')
-    }
+    const identity = await this.requireIdentity(walletId, identityIdentifier)
 
     const totalCredits = recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
     const feeCredits = identityTransferFeeCredits(recipients.length)
+    await this.requireIdentityBalance(network, identityIdentifier, totalCredits + feeCredits, 'transfer')
 
-    const balance = await this.platformSDK(network).identities.getIdentityBalance(identityIdentifier)
-    if (balance < totalCredits + feeCredits) {
-      throw new Error('Identity has insufficient credits for this transfer plus fee')
-    }
-
-    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
-
-    const nonce = await this.platformSDK(network).identities.getIdentityNonce(identityIdentifier) + 1n
-
-    const unsignedSt = this.platformSDK(network).platformAddresses.createStateTransition('identityCreditTransferToAddresses', {
-      identityId: identityIdentifier,
-      recipients: recipients.map(recipient => new OutputAddressWASM(recipient.address, recipient.amountCredits)),
-      nonce,
-      userFeeIncrease: 0,
+    const {stHash} = await this.platform.request('identityCreditsToAddresses', network, {
+      seed,
+      identifier: identityIdentifier,
+      identityIndex: identity.identityIndex,
+      recipients,
     })
 
-    const signature = unsignedSt.sign(privateKey, publicKey)
-    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
-      unsignedSt.signature = signature
-      unsignedSt.signaturePublicKeyId = publicKey.keyId
-    }
-
-    await this.platformSDK(network).stateTransitions.broadcast(unsignedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(unsignedSt)
-
     return {
-      stHash: unsignedSt.hash(false),
+      stHash,
       amountCredits: totalCredits.toString(),
       feeCredits: feeCredits.toString(),
       fromAddress: identityIdentifier,
@@ -228,41 +180,25 @@ export class PlatformAddressService {
 
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
+    const identity = await this.requireIdentity(walletId, fromIdentityIdentifier)
 
-    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const identity = identities.find(entry => entry.identifier === fromIdentityIdentifier)
-    if (identity == null) {
-      throw new Error('Identity not found in this wallet')
-    }
+    await this.requireIdentityBalance(
+      network,
+      fromIdentityIdentifier,
+      amountCredits + IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
+      'transfer',
+    )
 
-    const balance = await this.platformSDK(network).identities.getIdentityBalance(fromIdentityIdentifier)
-    if (balance < amountCredits + IDENTITY_CREDIT_TRANSFER_FEE_CREDITS) {
-      throw new Error('Identity has insufficient credits for this transfer plus fee')
-    }
-
-    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
-
-    const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(fromIdentityIdentifier) + 1n
-
-    const unsignedSt = this.platformSDK(network).identities.createStateTransition('creditTransfer', {
-      identityId: fromIdentityIdentifier,
-      recipientId: toIdentityIdentifier,
-      amount: amountCredits,
-      identityNonce,
+    const {stHash} = await this.platform.request('identityCreditTransfer', network, {
+      seed,
+      identifier: fromIdentityIdentifier,
+      identityIndex: identity.identityIndex,
+      recipientIdentifier: toIdentityIdentifier,
+      amountCredits,
     })
 
-    const signature = unsignedSt.sign(privateKey, publicKey)
-    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
-      unsignedSt.signature = signature
-      unsignedSt.signaturePublicKeyId = publicKey.keyId
-    }
-
-    await this.platformSDK(network).stateTransitions.broadcast(unsignedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(unsignedSt)
-
     return {
-      stHash: unsignedSt.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       feeCredits: IDENTITY_CREDIT_TRANSFER_FEE_CREDITS.toString(),
       fromAddress: fromIdentityIdentifier,
@@ -286,78 +222,19 @@ export class PlatformAddressService {
     const existing = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
 
-    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-
-    const keySpecs: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
-      {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
-      {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
-      {purpose: 'AUTHENTICATION', securityLevel: 'CRITICAL'},
-      {purpose: 'TRANSFER', securityLevel: 'CRITICAL'},
-    ]
-
-    const identityKeys = keySpecs.map((spec, keyIndex) => {
-      const child = this.platformSDK(network).keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, keyIndex, network)
-      if (!child.privateKey || !child.publicKey) {
-        throw new Error(`Failed to derive identity key at index ${keyIndex}`)
-      }
-      return {
-        keyId: keyIndex,
-        spec,
-        privateKey: PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network),
-        publicKey: child.publicKey as Uint8Array,
-      }
-    })
-
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const plan = selectPlatformInputsWithFee(
       candidates,
       amountCredits,
-      () => identityCreateFeeCredits(keySpecs.length),
+      () => identityCreateFeeCredits(IDENTITY_CREATE_KEY_COUNT),
       fromPlatformAddress ?? undefined,
     )
 
-    const inputs = plan.inputs.map(({candidate, credits}) =>
-      new InputAddressWASM(candidate.platformAddress, candidate.nonce + 1, credits))
-    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
-
-    const publicKeysInCreation = identityKeys.map(key =>
-      new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey))
-
-    const unsignedSt = this.platformSDK(network).platformAddresses.createStateTransition('identityCreateFromAddresses', {
-      publicKeys: publicKeysInCreation,
-      inputs,
-      feeStrategy,
-      inputWitness: [],
-      userFeeIncrease: 0,
+    const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
+      seed,
+      identityIndex,
+      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
     })
-
-    const signable = unsignedSt.getSignableBytes()
-
-    const signedKeys = identityKeys.map(key =>
-      new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey, key.privateKey.sign(signable)))
-    const witnesses = await this.signAddressInputs(signable, plan.inputs.map(input => input.candidate), seed, network)
-
-    const transition = IdentityCreateFromAddressesTransitionWASM.fromStateTransition(unsignedSt)
-    transition.publicKeys = signedKeys
-    transition.inputWitness = witnesses
-    const signedSt = transition.toStateTransition()
-
-    await this.platformSDK(network).stateTransitions.broadcast(signedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(signedSt)
-
-    const masterKeyHash = identityKeys[0].privateKey.getPublicKeyHash()
-    let identifier: string | null = null
-    try {
-      const identity = await this.platformSDK(network).identities.getIdentityByPublicKeyHash(masterKeyHash)
-      identifier = identity.id.base58()
-    } catch {
-      try {
-        const identity = await this.platformSDK(network).identities.getIdentityByNonUniquePublicKeyHash(masterKeyHash)
-        identifier = identity.id.base58()
-      } catch {
-        throw new Error('Identity was broadcast but could not be resolved yet — re-open the wallet to pick it up')
-      }
-    }
 
     await this.identityDAO.insertIdentities([{
       walletId,
@@ -369,7 +246,7 @@ export class PlatformAddressService {
     return {
       identifier,
       identityIndex,
-      stHash: signedSt.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       feeCredits: plan.feeCredits.toString(),
       fromAddress: plan.inputs[0].candidate.platformAddress,
@@ -390,39 +267,20 @@ export class PlatformAddressService {
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    try {
-      await this.platformSDK(network).identities.getIdentityByIdentifier(identityId)
-    } catch {
-      throw new Error('Identity not found on Platform')
-    }
+    const {exists} = await this.platform.request('identityExists', network, {identifier: identityId})
+    if (!exists) throw new Error('Identity not found on Platform')
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const plan = selectPlatformInputsWithFee(candidates, amountCredits, topUpFeeCredits, fromPlatformAddress ?? undefined)
 
-    const inputs = plan.inputs.map(({candidate, credits}) =>
-      new InputAddressWASM(candidate.platformAddress, candidate.nonce + 1, credits))
-    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
-
-    const unsignedSt = this.platformSDK(network).platformAddresses.createStateTransition('identityTopUpFromAddresses', {
-      identityId,
-      inputs,
-      feeStrategy,
-      inputWitness: [],
-      userFeeIncrease: 0,
+    const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
+      seed,
+      identifier: identityId,
+      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
     })
 
-    const signable = unsignedSt.getSignableBytes()
-    const witnesses = await this.signAddressInputs(signable, plan.inputs.map(input => input.candidate), seed, network)
-
-    const transition = IdentityTopUpFromAddressesTransitionWASM.fromStateTransition(unsignedSt)
-    transition.inputWitness = witnesses
-    const signedSt = transition.toStateTransition()
-
-    await this.platformSDK(network).stateTransitions.broadcast(signedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(signedSt)
-
     return {
-      stHash: signedSt.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       feeCredits: plan.feeCredits.toString(),
       fromAddress: plan.inputs[0].candidate.platformAddress,
@@ -444,8 +302,6 @@ export class PlatformAddressService {
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const outputScript = coreAddressToScript(toCoreAddress, network)
-
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const plan = selectPlatformInputsWithFee(
       candidates,
@@ -454,32 +310,14 @@ export class PlatformAddressService {
       fromPlatformAddress ?? undefined,
     )
 
-    const inputs = plan.inputs.map(({candidate, credits}) =>
-      new InputAddressWASM(candidate.platformAddress, candidate.nonce + 1, credits))
-    const feeStrategy = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
-
-    const unsignedSt = this.platformSDK(network).platformAddresses.createStateTransition('addressCreditWithdrawal', {
-      inputs,
-      feeStrategy,
-      inputWitness: [],
-      userFeeIncrease: 0,
-      coreFeePerByte: CORE_FEE_PER_BYTE,
-      pooling: 'Never',
-      outputScript,
+    const {stHash} = await this.platform.request('addressWithdrawal', network, {
+      seed,
+      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      coreAddress: toCoreAddress,
     })
 
-    const signable = unsignedSt.getSignableBytes()
-    const witnesses = await this.signAddressInputs(signable, plan.inputs.map(input => input.candidate), seed, network)
-
-    const transition = AddressCreditWithdrawalTransitionWASM.fromStateTransition(unsignedSt)
-    transition.inputWitness = witnesses
-    const signedSt = transition.toStateTransition()
-
-    await this.platformSDK(network).stateTransitions.broadcast(signedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(signedSt)
-
     return {
-      stHash: signedSt.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       feeCredits: plan.feeCredits.toString(),
       fromAddress: plan.inputs[0].candidate.platformAddress,
@@ -500,45 +338,25 @@ export class PlatformAddressService {
 
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
+    const identity = await this.requireIdentity(walletId, identityIdentifier)
 
-    const outputScript = coreAddressToScript(toCoreAddress, network)
+    await this.requireIdentityBalance(
+      network,
+      identityIdentifier,
+      amountCredits + WITHDRAWAL_FEE_CREDITS,
+      'withdrawal',
+    )
 
-    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const identity = identities.find(entry => entry.identifier === identityIdentifier)
-    if (identity == null) {
-      throw new Error('Identity not found in this wallet')
-    }
-
-    const balance = await this.platformSDK(network).identities.getIdentityBalance(identityIdentifier)
-    if (balance < amountCredits + WITHDRAWAL_FEE_CREDITS) {
-      throw new Error('Identity has insufficient credits for this withdrawal plus fee')
-    }
-
-    const hdKey = this.platformSDK(network).keyPair.seedToHdKey(seed, network)
-    const {privateKey, publicKey} = await this.resolveIdentitySigningKey(identity, hdKey, network)
-
-    const identityNonce = await this.platformSDK(network).identities.getIdentityNonce(identityIdentifier) + 1n
-
-    const unsignedSt = this.platformSDK(network).identities.createStateTransition('withdrawal', {
-      identityId: identityIdentifier,
-      amount: amountCredits,
-      coreFeePerByte: CORE_FEE_PER_BYTE,
-      pooling: 'Never',
-      identityNonce,
-      outputScript,
+    const {stHash} = await this.platform.request('identityWithdrawal', network, {
+      seed,
+      identifier: identityIdentifier,
+      identityIndex: identity.identityIndex,
+      amountCredits,
+      coreAddress: toCoreAddress,
     })
 
-    const signature = unsignedSt.sign(privateKey, publicKey)
-    if (unsignedSt.signature == null || unsignedSt.signature.length === 0) {
-      unsignedSt.signature = signature
-      unsignedSt.signaturePublicKeyId = publicKey.keyId
-    }
-
-    await this.platformSDK(network).stateTransitions.broadcast(unsignedSt)
-    await this.platformSDK(network).stateTransitions.waitForStateTransitionResult(unsignedSt)
-
     return {
-      stHash: unsignedSt.hash(false),
+      stHash,
       amountCredits: amountCredits.toString(),
       feeCredits: WITHDRAWAL_FEE_CREDITS.toString(),
       fromAddress: identityIdentifier,
@@ -564,13 +382,12 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
     const stHash = await this.shieldedService.shield(network, seed, {
       platformAddress: source.platformAddress,
       nonce: source.nonce,
-      balanceCredits: source.balanceCredits.toString(),
+      balanceCredits: source.balanceCredits,
       index: source.index,
     }, toShieldedAddress, amountCredits)
 
@@ -589,6 +406,22 @@ export class PlatformAddressService {
     return wallet
   }
 
+  private async requireIdentity(walletId: string, identifier: string): Promise<Identity> {
+    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const identity = identities.find(entry => entry.identifier === identifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+    return identity
+  }
+
+  private async requireIdentityBalance(network: Network, identifier: string, needed: bigint, action: string): Promise<void> {
+    const {credits} = await this.platform.request('identityBalance', network, {identifier})
+    if (credits < needed) {
+      throw new Error(`Identity has insufficient credits for this ${action} plus fee`)
+    }
+  }
+
   // Decrypts the mnemonic, derives the seed, and backfills the persisted
   // DIP-17 account xpub for wallets created before the column existed.
   private async unlock(walletId: string, password: string): Promise<{wallet: Wallet; seed: Uint8Array; xpub: string}> {
@@ -601,15 +434,19 @@ export class PlatformAddressService {
       throw new Error('Invalid wallet password')
     }
 
-    const seed = this.platformSDK(wallet.network).keyPair.mnemonicToSeed(mnemonic)
+    const seed = this.keyPair.mnemonicToSeed(mnemonic)
 
     let xpub = wallet.platformXpub
     if (xpub == null) {
-      xpub = await this.platformSDK(wallet.network).keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+      xpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
       await this.walletDAO.setPlatformXpub(walletId, xpub)
     }
 
     return {wallet, seed, xpub}
+  }
+
+  private deriveAddress(xpub: string, network: Network, index: number): string {
+    return this.keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network)
   }
 
   private async extendPlatformWindow(walletId: string, xpub: string, network: Network): Promise<void> {
@@ -621,13 +458,14 @@ export class PlatformAddressService {
     for (let batch = 0; batch < MAX_DISCOVERY_BATCHES; batch++) {
       const addresses: string[] = []
       for (let index = probeStart; index < probeStart + PLATFORM_ADDRESS_LOOKAHEAD; index++) {
-        addresses.push(this.platformSDK(network).keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network))
+        addresses.push(this.deriveAddress(xpub, network, index))
       }
-      const infos = await this.fetchPlatformAddressInfos(addresses, network)
+      const {infos} = await this.platform.request('addressInfos', network, {addresses})
+      const byAddress = new Map(infos.map(info => [info.address, info]))
 
       let usedInBatch = -1
       addresses.forEach((address, i) => {
-        const info = infos.get(address)
+        const info = byAddress.get(address)
         if (info != null && (info.balance > 0n || info.nonce > 0)) {
           usedInBatch = probeStart + i
         }
@@ -645,101 +483,28 @@ export class PlatformAddressService {
 
   private async loadPlatformCandidates(walletId: string, xpub: string, network: Network): Promise<PlatformSourceCandidate[]> {
     const count = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, await this.walletDAO.getPlatformAddressCount(walletId))
-    const owned: Array<{platformAddress: string; index: number}> = []
-    for (let index = 0; index < count; index++) {
-      const address = this.platformSDK(network).keyPair.derivePlatformAddressFromXpub(xpub, network, index)
-      owned.push({platformAddress: address.toBech32m(network), index})
+    const owned = Array.from({length: count}, (_, index) => ({
+      platformAddress: this.deriveAddress(xpub, network, index),
+      index,
+    }))
+
+    const {infos, missing} = await this.platform.request('addressInfos', network, {
+      addresses: owned.map(entry => entry.platformAddress),
+    })
+    if (missing.length > 0) {
+      // Treated as empty below, which is right for an address that has never
+      // been used and wrong for one the API failed on (finding R-4).
+      console.warn(`[platform-addresses] ${missing.length}/${owned.length} addresses returned no info`)
     }
 
-    const infoByPlatformAddress = await this.fetchPlatformAddressInfos(
-      owned.map(entry => entry.platformAddress),
-      network,
-    )
+    const byAddress = new Map(infos.map(info => [info.address, info]))
     return owned.map(entry => {
-      const info = infoByPlatformAddress.get(entry.platformAddress)
+      const info = byAddress.get(entry.platformAddress)
       return {
         ...entry,
         balanceCredits: info?.balance ?? 0n,
         nonce: info?.nonce ?? 0,
       }
     })
-  }
-
-  private async fetchPlatformAddressInfos(platformAddresses: string[], network: Network): Promise<Map<string, { balance: bigint; nonce: number }>> {
-    const result = new Map<string, { balance: bigint; nonce: number }>()
-
-    if (platformAddresses.length === 0) {
-      return result
-    }
-
-    try {
-      const infos = await this.platformSDK(network).platformAddresses.getAddressesInfos(platformAddresses)
-      for (const info of infos) {
-        result.set(info.address.toBech32m(network), { balance: info.balance, nonce: info.nonce })
-      }
-      return result
-    } catch {
-      const settled = await Promise.allSettled(
-        platformAddresses.map(address => this.platformSDK(network).platformAddresses.getAddressInfo(address))
-      )
-      settled.forEach((outcome, i) => {
-        if (outcome.status === 'fulfilled') {
-          result.set(platformAddresses[i], { balance: outcome.value.balance, nonce: outcome.value.nonce })
-        }
-      })
-      return result
-    }
-  }
-
-  private async signAddressInputs(
-    signable: Uint8Array,
-    sources: Array<{index: number; platformAddress: string}>,
-    seed: Uint8Array,
-    network: Network,
-  ): Promise<AddressWitnessWASM[]> {
-    const witnesses: AddressWitnessWASM[] = []
-    for (const source of sources) {
-      const privateKey = await this.platformSDK(network).keyPair.derivePlatformAddressPrivateKey(seed, network, PLATFORM_ACCOUNT, source.index)
-      witnesses.push(AddressWitnessWASM.P2PKH(privateKey.sign(signable)))
-    }
-    return witnesses
-  }
-
-  private async resolveIdentitySigningKey(
-    identity: Identity,
-    hdKey: ReturnType<DashPlatformSDK['keyPair']['seedToHdKey']>,
-    network: Network,
-  ): Promise<{privateKey: PrivateKeyWASM; publicKey: IdentityPublicKeyWASM}> {
-    const identityKeys = await this.platformSDK(network).identities.getIdentityPublicKeys(identity.identifier)
-
-    const derivedKeys: Array<{keyIndex: number; privateKey: PrivateKeyWASM}> = []
-    const derivedHashes: DerivedKeyHash[] = []
-    for (let keyIndex = 0; keyIndex < IDENTITY_KEY_LOOKAHEAD; keyIndex++) {
-      const child = this.platformSDK(network).keyPair.deriveIdentityPrivateKey(hdKey, identity.identityIndex, keyIndex, network)
-      if (!child.privateKey) continue
-      const privateKey = PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network)
-      derivedKeys.push({keyIndex, privateKey})
-      derivedHashes.push({keyIndex, publicKeyHashHex: privateKey.getPublicKeyHash()})
-    }
-
-    const match = matchIdentityKey(
-      identityKeys.map(key => ({
-        keyId: key.keyId,
-        purpose: key.purpose,
-        publicKeyHashHex: key.getPublicKeyHash(),
-      })),
-      derivedHashes,
-    )
-    if (match == null) {
-      throw new Error('This identity has no transfer key this wallet can sign with')
-    }
-
-    const derived = derivedKeys.find(entry => entry.keyIndex === match.keyIndex)
-    const publicKey = identityKeys.find(key => key.keyId === match.keyId)
-    if (derived == null || publicKey == null) {
-      throw new Error('This identity has no transfer key this wallet can sign with')
-    }
-
-    return {privateKey: derived.privateKey, publicKey}
   }
 }

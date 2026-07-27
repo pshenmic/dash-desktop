@@ -1,8 +1,4 @@
-import { utilityProcess, UtilityProcess } from 'electron'
-import path from 'path'
-import { logChildOutput } from '../logger'
-import { randomUUID } from 'crypto'
-import { SdkProvider } from '../providers/SdkProvider'
+import { KeyPairController } from 'dash-platform-sdk/src/keyPair/index.js'
 import { IdentityRegistrationService } from './IdentityRegistrationService'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
@@ -11,19 +7,22 @@ import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
 import { decryptMnemonic } from '../utils'
 import { SHIELDED_NOTES_FETCH_BATCH } from '../constants'
+import { PlatformWorkerService } from './PlatformWorkerService'
 import {
-  ShieldAssetLockProofParams,
-  ShieldedCommand,
-  ShieldedEncryptedNotePayload,
-  ShieldedEvent,
-  ShieldedProverState,
-  ShieldedSpendKind,
-  ShieldedSpendPhase,
-  ShieldedSyncPhase,
+  AssetLockProofParams,
+  EncryptedNotePayload,
+  PlatformPayload,
+  PlatformPhase,
+  ProverState,
   ShieldSource,
-} from '../../shielded/types/messages'
+  SpendKind,
+} from '../../platform/types/messages'
 
-export type { ShieldedProverState, ShieldedSyncPhase, ShieldedSpendPhase } from '../../shielded/types/messages'
+export type ShieldedProverState = ProverState
+export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
+export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
+
+export type { AssetLockProofParams, ShieldSource }
 
 export interface ShieldedStatus {
   prover: ShieldedProverState
@@ -66,10 +65,19 @@ export interface ShieldedSpendState {
   error: string | null
 }
 
-interface PendingSync {
-  walletId: string
-  decodedUpTo: number
-  priorNotes: ShieldedNoteInfo[]
+type SpendPayload = PlatformPayload<'spend'>
+
+function syncPhase(phase: PlatformPhase): ShieldedSyncPhase | null {
+  return phase === 'recovering' ? 'recovering' : null
+}
+
+function spendPhase(phase: PlatformPhase): ShieldedSpendPhase | null {
+  switch (phase) {
+    case 'proving': return 'proving'
+    case 'broadcasting':
+    case 'awaitingResult': return 'broadcasting'
+    default: return null
+  }
 }
 
 const SHIELDED_ACCOUNT = 0
@@ -79,106 +87,32 @@ const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 // (already-received-on) diversified addresses.
 const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
 
-// Cap on the per-child output we retain; attached to crash reports so a
-// worker death carries its own cause instead of just an exit code.
-const CHILD_OUTPUT_TAIL_LIMIT = 8192
-
-// Main-process facade for the shielded subsystem. Everything CPU-bound
-// (Halo2 prover, note trial-decryption, proof building) runs in a forked
-// utility process (shielded.js); this class translates wallet-domain calls
-// into worker commands, tracks per-wallet sync/spend state from worker
-// events, and persists spent-note bookkeeping through ShieldedNoteDAO.
+// Wallet-domain layer over the shielded operations of the platform worker.
+// Owns unlocking, address derivation for display, per-wallet sync/spend state
+// and the ShieldedNoteDAO; everything CPU-bound or network-bound is a
+// PlatformWorkerService request.
 export class ShieldedService {
-  private sdkProvider: SdkProvider
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private shieldedNoteDAO: ShieldedNoteDAO
   private shieldedAddressDAO: ShieldedAddressDAO
   private identityRegistrationService: IdentityRegistrationService
-  private child: UtilityProcess | null = null
-  private childOutputTail = ''
-  private proverState: ShieldedProverState = 'idle'
-  private proverError: string | null = null
+  private platform: PlatformWorkerService
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string[]>()
-  private pendingSyncs = new Map<string, PendingSync>()
   private noteFetches = new Map<string, Promise<void>>()
-  private pendingSpends = new Map<string, string>()
-  private pendingIdentityCreates = new Map<string, {walletId: string; identityIndex: number; network: Network}>()
-  private pendingShields = new Map<string, {resolve: (stHash: string) => void; reject: (error: Error) => void}>()
+  // Derivation only. A DashPlatformSDK would build a gRPC pool and fetch the
+  // evonode list to do local maths.
+  private keyPair = new KeyPairController()
 
-  constructor(sdkProvider: SdkProvider, walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService) {
-    this.sdkProvider = sdkProvider
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
     this.shieldedAddressDAO = shieldedAddressDAO
     this.identityRegistrationService = identityRegistrationService
-  }
-
-  private ensureChild(): UtilityProcess {
-    if (this.child) return this.child
-
-    const scriptPath = path.join(__dirname, 'shielded.js')
-    this.childOutputTail = ''
-    const child = utilityProcess.fork(scriptPath, [], { serviceName: 'shielded', stdio: ['ignore', 'pipe', 'pipe'] })
-
-    child.stdout?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString()
-      this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      logChildOutput('shielded', text, false)
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString()
-      this.childOutputTail = (this.childOutputTail + text).slice(-CHILD_OUTPUT_TAIL_LIMIT)
-      logChildOutput('shielded', text, true)
-    })
-
-    child.on('message', (event: ShieldedEvent) => {
-      this.onEvent(event)
-    })
-
-    child.on('exit', code => {
-      const tail = this.childOutputTail.trim()
-      console.log(`[shielded] utility process exited code=${code}`)
-      if (tail) console.error(`[shielded] last output before exit:\n${tail}`)
-      this.child = null
-      this.failPending(`shielded utility process exited (code=${code})${tail ? `\n--- shielded output (tail) ---\n${tail}` : ''}`)
-      this.proverState = 'idle'
-      this.proverError = null
-    })
-
-    this.child = child
-    return child
-  }
-
-  private send(command: ShieldedCommand): void {
-    this.ensureChild().postMessage(command)
-  }
-
-  private failPending(message: string): void {
-    for (const {walletId} of this.pendingSyncs.values()) {
-      const state = this.syncStates.get(walletId)
-      if (state != null && state.phase !== 'done') {
-        state.phase = 'error'
-        state.error = message
-      }
-    }
-    this.pendingSyncs.clear()
-    for (const walletId of this.pendingSpends.values()) {
-      const state = this.spendStates.get(walletId)
-      if (state != null && state.phase !== 'done') {
-        state.phase = 'error'
-        state.error = message
-      }
-    }
-    this.pendingSpends.clear()
-    this.pendingIdentityCreates.clear()
-    for (const {reject} of this.pendingShields.values()) {
-      reject(new Error(message))
-    }
-    this.pendingShields.clear()
+    this.platform = platform
   }
 
   private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
@@ -193,120 +127,14 @@ export class ShieldedService {
     }, null)
   }
 
-  private onEvent(event: ShieldedEvent): void {
-    if (event.type === 'proverStatus') {
-      this.proverState = event.state
-      this.proverError = event.error
-      return
-    }
-    if (event.type === 'error') {
-      console.error('[shielded] utility process error:', event.message)
-      return
-    }
-    if (event.type === 'syncProgress') {
-      const state = this.stateForSync(event.requestId)
-      if (state == null) return
-      state.phase = event.phase
-      state.fetched = event.fetched
-      state.total = event.total
-      return
-    }
-    if (event.type === 'syncResult') {
-      const pending = this.pendingSyncs.get(event.requestId)
-      const state = this.stateForSync(event.requestId)
-      this.pendingSyncs.delete(event.requestId)
-      if (pending == null || state == null) return
-      if (event.ok) {
-        // The worker only decoded the new ciphertexts; merge with the owned
-        // notes already cached in the DB and recompute the full balance.
-        const merged = new Map<number, ShieldedNoteInfo>()
-        for (const note of pending.priorNotes) merged.set(note.index, note)
-        for (const note of event.notes) merged.set(note.index, note)
-        const notes = [...merged.values()].sort((a, b) => b.index - a.index)
-        let balance = 0n
-        for (const note of notes) {
-          if (!note.spent) balance += BigInt(note.amount)
-        }
-        state.balance = balance.toString()
-        state.notes = notes
-        state.phase = 'done'
-        state.syncedAt = Date.now()
-        this.shieldedNoteDAO.upsertNotes(pending.walletId, event.notes)
-          .then(() => this.shieldedNoteDAO.markDecodedBelow(pending.walletId, pending.decodedUpTo))
-          .catch(e => console.error('Failed to persist shielded notes', e))
-      } else {
-        state.phase = 'error'
-        state.error = event.error
-      }
-      return
-    }
-    if (event.type === 'spendProgress') {
-      const state = this.stateForSpend(event.requestId)
-      if (state == null) return
-      state.phase = event.phase
-      state.fetched = event.fetched
-      state.total = event.total
-      return
-    }
-    if (event.type === 'notesSpent') {
-      const walletId = this.pendingSpends.get(event.requestId)
-      if (walletId == null) return
-      this.markNotesSpent(walletId, event.indexes).catch(e =>
-        console.error('Failed to record spent shielded notes', e))
-      return
-    }
-    if (event.type === 'spendResult') {
-      const state = this.stateForSpend(event.requestId)
-      const identityCreate = this.pendingIdentityCreates.get(event.requestId)
-      this.pendingSpends.delete(event.requestId)
-      this.pendingIdentityCreates.delete(event.requestId)
-      if (state == null) return
-      if (event.ok) {
-        state.stHash = event.stHash
-        state.identityId = event.identityId ?? null
-        state.phase = 'done'
-        if (identityCreate != null && event.identityId != null) {
-          this.persistCreatedIdentity(identityCreate, event.identityId).catch(e =>
-            console.error('Failed to persist identity created from the shielded pool', e))
-        }
-      } else {
-        state.phase = 'error'
-        state.error = event.error
-      }
-      return
-    }
-    if (event.type === 'shieldResult') {
-      const pending = this.pendingShields.get(event.requestId)
-      this.pendingShields.delete(event.requestId)
-      if (pending == null) return
-      if (event.ok && event.stHash != null) {
-        pending.resolve(event.stHash)
-      } else {
-        pending.reject(new Error(event.error ?? 'Shield failed'))
-      }
-    }
-  }
-
-  private stateForSync(requestId: string): ShieldedSyncState | null {
-    const pending = this.pendingSyncs.get(requestId)
-    return pending != null ? this.syncStates.get(pending.walletId) ?? null : null
-  }
-
-  private stateForSpend(requestId: string): ShieldedSpendState | null {
-    const walletId = this.pendingSpends.get(requestId)
-    return walletId != null ? this.spendStates.get(walletId) ?? null : null
+  private failed(state: {phase: string; error: string | null}, e: unknown): void {
+    state.phase = 'error'
+    state.error = e instanceof Error ? e.message : String(e)
   }
 
   getStatus(): ShieldedStatus {
-    if (this.proverState === 'idle') {
-      this.proverState = 'preparing'
-      this.send({type: 'initProver'})
-    }
-    return {
-      prover: this.proverState,
-      ready: this.proverState === 'ready',
-      error: this.proverError
-    }
+    const {prover, proverError} = this.platform.getStatus()
+    return {prover, ready: prover === 'ready', error: proverError}
   }
 
   async getAddress(walletId: string, password?: string): Promise<string | null> {
@@ -340,13 +168,12 @@ export class ShieldedService {
   async addAddress(walletId: string, password: string): Promise<string[]> {
     const {seed, network} = await this.unlock(walletId, password)
     const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
-    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
     let count = await this.walletDAO.getShieldedAddressCount(walletId)
     const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
     let address: string
     do {
       count++
-      address = keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
+      address = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
     } while (used.has(address) && count < limit)
     await this.walletDAO.setShieldedAddressCount(walletId, count)
     return this.cacheAddresses(walletId, seed, network)
@@ -359,7 +186,7 @@ export class ShieldedService {
     const count = await this.walletDAO.getShieldedAddressCount(walletId)
     const list: string[] = []
     for (let i = 0; i < count; i++) {
-      list.push(this.sdkProvider.getPlatformSDK(network).keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
+      list.push(this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
     }
     this.addresses.set(walletId, list)
     await this.shieldedAddressDAO.saveAddresses(walletId, list)
@@ -376,11 +203,10 @@ export class ShieldedService {
     } catch {
       throw new Error('Invalid wallet password')
     }
-    const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
-    const seed = keyPair.mnemonicToSeed(mnemonic)
+    const seed = this.keyPair.mnemonicToSeed(mnemonic)
 
     if (wallet.platformXpub == null) {
-      const xpub = await keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+      const xpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
       await this.walletDAO.setPlatformXpub(walletId, xpub)
     }
 
@@ -388,11 +214,7 @@ export class ShieldedService {
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
-    const sdk = this.sdkProvider.getPlatformSDK(network)
-    const [poolState, notesCount] = await Promise.all([
-      sdk.shielded.getShieldedPoolState(),
-      sdk.shielded.getShieldedNotesCount()
-    ])
+    const {poolState, notesCount} = await this.platform.request('poolInfo', network, {})
     return {
       poolState: poolState != null ? poolState.toString() : null,
       notesCount: notesCount != null ? notesCount.toString() : null
@@ -413,9 +235,8 @@ export class ShieldedService {
   }
 
   private async fetchNewNotes(walletId: string, network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
-    const sdk = this.sdkProvider.getPlatformSDK(network)
-    const totalBig = await sdk.shielded.getShieldedNotesCount()
-    const total = totalBig != null ? Number(totalBig) : 0
+    const {count} = await this.platform.request('notesCount', network, {})
+    const total = count != null ? Number(count) : 0
     const known = await this.shieldedNoteDAO.getKnownCount(walletId)
     if (total > known) {
       await this.shieldedNoteDAO.insertUndecoded(walletId, known, total)
@@ -429,20 +250,14 @@ export class ShieldedService {
     let downloaded = 0
     onProgress?.(0, missing)
     while (cursor < total) {
-      const count = Math.min(SHIELDED_NOTES_FETCH_BATCH, total - cursor)
-      const batch = await sdk.shielded.getShieldedEncryptedNotes(BigInt(cursor), count)
-      if (batch.length === 0) break
-      await this.shieldedNoteDAO.saveEncryptedNotes(walletId, batch.map((note, i) => ({
-        index: cursor + i,
-        nullifier: note.nullifier,
-        cmx: note.cmx,
-        encryptedNote: note.encryptedNote,
-        cvNet: note.cvNet,
-      })))
-      downloaded += batch.length
-      cursor += batch.length
+      const batchSize = Math.min(SHIELDED_NOTES_FETCH_BATCH, total - cursor)
+      const {notes} = await this.platform.request('encryptedNotes', network, {startIndex: cursor, count: batchSize})
+      if (notes.length === 0) break
+      await this.shieldedNoteDAO.saveEncryptedNotes(walletId, notes)
+      downloaded += notes.length
+      cursor += notes.length
       onProgress?.(Math.min(downloaded, missing), missing)
-      if (batch.length < count) break
+      if (notes.length < batchSize) break
     }
   }
 
@@ -496,14 +311,33 @@ export class ShieldedService {
         return state
       }
 
-      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
-      const requestId = randomUUID()
-      this.pendingSyncs.set(requestId, {
-        walletId,
-        decodedUpTo: notes[notes.length - 1].index + 1,
-        priorNotes,
-      })
-      this.send({type: 'sync', requestId, network, seed, spentIndexes: [...spent], notes})
+      const decodedUpTo = notes[notes.length - 1].index + 1
+      this.platform.request('sync', network, {seed, notes}, {
+        onProgress: phase => { state.phase = syncPhase(phase) ?? state.phase },
+      }).then(async result => {
+        // The worker only decoded the new ciphertexts; merge with the owned
+        // notes already cached in the DB and recompute the full balance.
+        const decoded: ShieldedNoteInfo[] = result.notes.map(note => ({
+          index: note.index,
+          amount: note.amount.toString(),
+          spent: note.spent,
+          address: note.address,
+        }))
+        const merged = new Map<number, ShieldedNoteInfo>()
+        for (const note of priorNotes) merged.set(note.index, note)
+        for (const note of decoded) merged.set(note.index, note)
+        const all = [...merged.values()].sort((a, b) => b.index - a.index)
+        let balance = 0n
+        for (const note of all) {
+          if (!note.spent) balance += BigInt(note.amount)
+        }
+        state.balance = balance.toString()
+        state.notes = all
+        state.phase = 'done'
+        state.syncedAt = Date.now()
+        await this.shieldedNoteDAO.upsertNotes(walletId, decoded)
+        await this.shieldedNoteDAO.markDecodedBelow(walletId, decodedUpTo)
+      }).catch(e => this.failed(state, e))
     } catch (e) {
       state.phase = 'error'
       state.error = e instanceof Error ? e.message : String(e)
@@ -518,7 +352,7 @@ export class ShieldedService {
   // The worker rebuilds the commitment tree from the complete pool note set,
   // so spends ship the DB-cached ciphertexts after a delta top-up (a stale
   // cache would witness against an expired anchor).
-  private async loadSpendNotes(walletId: string, network: Network, state: ShieldedSpendState): Promise<ShieldedEncryptedNotePayload[]> {
+  private async loadSpendNotes(walletId: string, network: Network, state: ShieldedSpendState): Promise<EncryptedNotePayload[]> {
     await this.checkForNewNotes(walletId, network, (fetched, total) => {
       state.fetched = fetched
       state.total = total
@@ -547,126 +381,122 @@ export class ShieldedService {
     return this.startSpend(walletId, password, 'withdrawal', coreAddress, amountCredits, noteIndexes)
   }
 
-  private async startSpend(walletId: string, password: string, kind: ShieldedSpendKind, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+  // Returns the in-flight state when a spend is already running for this
+  // wallet, otherwise installs a fresh one.
+  private beginSpend(walletId: string): {state: ShieldedSpendState; running: boolean} {
     const current = this.spendStates.get(walletId)
     if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
-      return current
+      return {state: current, running: true}
     }
-
-    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
+    const state: ShieldedSpendState = {phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null}
     this.spendStates.set(walletId, state)
+    return {state, running: false}
+  }
+
+  private async startSpend(walletId: string, password: string, kind: SpendKind, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+    const {state, running} = this.beginSpend(walletId)
+    if (running) return state
 
     try {
       if (amountCredits <= 0n) throw new Error('Amount must be greater than zero')
 
       const {seed, network} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
-      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
       const notes = await this.loadSpendNotes(walletId, network, state)
 
-      const requestId = randomUUID()
-      this.pendingSpends.set(requestId, walletId)
-      this.send({
-        type: 'spend',
-        requestId,
-        network,
+      this.runSpend(walletId, network, state, {
         seed,
-        spentIndexes: [...spent],
         kind,
         recipient,
-        amountCredits: amountCredits.toString(),
+        amountCredits,
         notes,
-        noteIndexes,
+        noteIndexes: noteIndexes ?? null,
+        identityIndex: null,
+        failureAddress: null,
       })
     } catch (e) {
-      state.phase = 'error'
-      state.error = e instanceof Error ? e.message : String(e)
+      this.failed(state, e)
     }
     return state
   }
 
-  async startIdentityCreate(walletId: string, password: string, denominationCredits: bigint): Promise<ShieldedSpendState> {
-    const current = this.spendStates.get(walletId)
-    if (current != null && (current.phase === 'syncing' || current.phase === 'proving' || current.phase === 'broadcasting')) {
-      return current
-    }
+  // Fire-and-forget: callers poll getSpendState, so the request settles into
+  // the state object rather than being awaited.
+  private runSpend(
+    walletId: string,
+    network: Network,
+    state: ShieldedSpendState,
+    payload: SpendPayload,
+    identityCreate?: {identityIndex: number},
+  ): void {
+    this.platform.request('spend', network, payload, {
+      onProgress: phase => { state.phase = spendPhase(phase) ?? state.phase },
+      onNotesSpent: indexes => {
+        this.markNotesSpent(walletId, indexes).catch(e =>
+          console.error('Failed to record spent shielded notes', e))
+      },
+    }).then(result => {
+      state.stHash = result.stHash
+      state.identityId = result.identityId
+      state.phase = 'done'
+      if (identityCreate != null && result.identityId != null) {
+        this.persistCreatedIdentity({walletId, network, ...identityCreate}, result.identityId).catch(e =>
+          console.error('Failed to persist identity created from the shielded pool', e))
+      }
+    }).catch(e => this.failed(state, e))
+  }
 
-    const state: ShieldedSpendState = { phase: 'syncing', fetched: 0, total: 0, stHash: null, identityId: null, error: null }
-    this.spendStates.set(walletId, state)
+  async startIdentityCreate(walletId: string, password: string, denominationCredits: bigint): Promise<ShieldedSpendState> {
+    const {state, running} = this.beginSpend(walletId)
+    if (running) return state
 
     try {
       if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
 
       const {seed, network, mnemonic} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
-      const spent = await this.shieldedNoteDAO.getSpentIndexes(walletId)
       const notes = await this.loadSpendNotes(walletId, network, state)
 
       const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
       const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
       const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(mnemonic, startIndex, network)
 
-      const failureAddress = (await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
+      const failureAddress = (await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
 
-      const requestId = randomUUID()
-      this.pendingSpends.set(requestId, walletId)
-      this.pendingIdentityCreates.set(requestId, {walletId, identityIndex, network})
-      this.send({
-        type: 'spend',
-        requestId,
-        network,
+      this.runSpend(walletId, network, state, {
         seed,
-        spentIndexes: [...spent],
         kind: 'identityCreate',
         recipient: '',
-        amountCredits: denominationCredits.toString(),
+        amountCredits: denominationCredits,
         notes,
+        noteIndexes: null,
         identityIndex,
         failureAddress,
-      })
+      }, {identityIndex})
     } catch (e) {
-      state.phase = 'error'
-      state.error = e instanceof Error ? e.message : String(e)
+      this.failed(state, e)
     }
     return state
   }
 
-  // Proves and broadcasts a shield transition in the utility process on
+  // Proves and broadcasts a shield transition in the platform worker on
   // behalf of PlatformAddressService. Resolves with the state transition hash.
-  shield(network: Network, seed: Uint8Array, source: ShieldSource, recipient: string, amountCredits: bigint): Promise<string> {
-    const requestId = randomUUID()
-    return new Promise<string>((resolve, reject) => {
-      this.pendingShields.set(requestId, {resolve, reject})
-      this.send({type: 'shield', requestId, network, seed, source, recipient, amountCredits: amountCredits.toString()})
-    })
+  async shield(network: Network, seed: Uint8Array, source: ShieldSource, recipient: string, amountCredits: bigint): Promise<string> {
+    const {stHash} = await this.platform.request('shield', network, {seed, source, recipient, amountCredits})
+    return stHash
   }
 
-  shieldFromAssetLock(network: Network, seed: Uint8Array, params: {
+  async shieldFromAssetLock(network: Network, seed: Uint8Array, params: {
     txid: string
     outputIndex: number
-    assetLockProof: ShieldAssetLockProofParams
+    assetLockProof: AssetLockProofParams
     creditDerivationPath: string
     recipient: string
     shieldAmountCredits: bigint
     surplusAddress: string | null
   }): Promise<string> {
-    const requestId = randomUUID()
-    return new Promise<string>((resolve, reject) => {
-      this.pendingShields.set(requestId, {resolve, reject})
-      this.send({
-        type: 'shieldFromAssetLock',
-        requestId,
-        network,
-        seed,
-        txid: params.txid,
-        outputIndex: params.outputIndex,
-        assetLockProof: params.assetLockProof,
-        creditDerivationPath: params.creditDerivationPath,
-        recipient: params.recipient,
-        shieldAmountCredits: params.shieldAmountCredits.toString(),
-        surplusAddress: params.surplusAddress,
-      })
-    })
+    const {stHash} = await this.platform.request('shieldFromAssetLock', network, {seed, ...params})
+    return stHash
   }
 
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {
@@ -684,14 +514,4 @@ export class ShieldedService {
     sync.balance = (balance > 0n ? balance : 0n).toString()
   }
 
-  shutdown = async (): Promise<void> => {
-    if (!this.child) return
-    const child = this.child
-    const exited = new Promise<void>((resolve) => {
-      child.once('exit', () => resolve())
-    })
-    child.kill()
-    await exited
-    this.child = null
-  }
 }

@@ -60,6 +60,7 @@ import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/WalletSyncService'
 import {ShieldedService} from './services/ShieldedService'
+import {PlatformWorkerService} from './services/PlatformWorkerService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
@@ -100,6 +101,7 @@ export class WalletBackend {
   private identityRegistrationService?: IdentityRegistrationService
   private sdkProvider?: SdkProvider
   private shieldedService?: ShieldedService
+  private readonly platformWorkerService = new PlatformWorkerService()
   private assetLockService?: AssetLockService
 
   private walletDAO?: WalletDAO
@@ -203,10 +205,11 @@ export class WalletBackend {
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
+    this.platformWorkerService.start()
     this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
-    this.shieldedService = new ShieldedService(sdkProvider, walletDAO, identityDAO, new ShieldedNoteDAO(knex), shieldedAddressDAO, this.identityRegistrationService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations, this.shieldedService)
-    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, sdkProvider, this.shieldedService)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.shieldedService, this.platformWorkerService)
     this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
@@ -248,6 +251,6 @@ export class WalletBackend {
 
   async shutdown(): Promise<void> {
     await this.walletSyncService?.shutdown()
-    await this.shieldedService?.shutdown()
+    await this.platformWorkerService.shutdown()
   }
 }

@@ -125,11 +125,6 @@ UI: `dash-ui-kit` + Tailwind v4. Extended kit wrappers/icons live in
 5. Renderer wrapper in `src/renderer/src/api/index.ts` (`API` class) + any
    DTO in `src/renderer/src/api/types.ts`.
 
-**IPC value boundary:** `bigint` does not round-trip reliably across the
-structured-clone boundary in every path. Amounts crossing IPC are passed as
-**strings** and converted with `BigInt(...)` inside the handler (see
-`sendTransaction`). Mirror that for new money-carrying channels.
-
 ## Database & migrations
 
 SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,

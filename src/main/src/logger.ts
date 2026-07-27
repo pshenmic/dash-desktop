@@ -64,7 +64,7 @@ export function initLogger (): void {
  * (and terminal), tagged with its scope. The child already flushes to the
  * main-process streams; this adds the file sink.
  */
-export function logChildOutput (scope: 'p2p' | 'shielded', text: string, isError: boolean): void {
+export function logChildOutput (scope: 'p2p' | 'platform', text: string, isError: boolean): void {
   const trimmed = text.replace(/\r?\n$/, '')
   if (trimmed.length === 0) return
   const scoped = log.scope(scope)
