@@ -8,13 +8,12 @@ import {KeyType, PrivateKeyWASM, StateTransitionWASM} from 'dash-platform-sdk/ty
 import {SdkProvider} from '../providers/SdkProvider'
 import {Network} from '../types'
 import {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
-import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
+import {COIN_TYPE, IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
 
 export {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
 
 export type AssetLockProof = InstantAssetLockProofParams | ChainAssetLockProofParams
 
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 
 // Upper bound on the on-chain free-index scan — guards against an infinite
 // loop if Platform keeps reporting an identity for every derived auth key.

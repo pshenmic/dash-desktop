@@ -1,4 +1,11 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import {COIN_TYPE} from '../constants'
+
+// The path recorded on every identity row. Four services wrote this literal;
+// they must agree or the same identity gets two different recorded paths.
+export function identityPath(network: 'mainnet' | 'testnet', identityIndex: number): string {
+  return `m/9'/${COIN_TYPE[network]}'/0'/0/${identityIndex}`
+}
 
 // Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
 // dropped (added later via IdentityUpdateTransition if needed); MASTER /

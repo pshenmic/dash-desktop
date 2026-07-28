@@ -6,7 +6,8 @@ import {consensusMessage} from '../../consensusMessage'
 import {buildTransition} from './buildTransition'
 import {checkSpent} from '../checkSpent'
 import {actualFee, minimumFee} from './fee'
-import {MAX_SPEND_NOTES, SHIELDED_ACCOUNT} from '../constants'
+import {MAX_SPEND_NOTES} from '../constants'
+import {SHIELDED_ACCOUNT} from '../../../../src/constants'
 import {waitForResult} from './waitForResult'
 
 type Payload = PlatformOperations['spend']['payload']

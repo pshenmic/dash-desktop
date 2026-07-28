@@ -3,7 +3,8 @@ import {OrchardAddressWASM, OutPointWASM, PrivateKeyWASM, ShieldedMemoWASM} from
 import {AssetLockProofParams, PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
-import {SHIELD_FUNDING_DUMMY_OUTPUTS, SHIELDED_ACCOUNT} from './constants'
+import {SHIELD_FUNDING_DUMMY_OUTPUTS} from './constants'
+import {SHIELDED_ACCOUNT} from '../../../src/constants'
 
 type Payload = PlatformOperations['shieldFromAssetLock']['payload']
 type Result = PlatformOperations['shieldFromAssetLock']['result']

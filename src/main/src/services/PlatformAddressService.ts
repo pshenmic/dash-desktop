@@ -11,6 +11,8 @@ import {PlatformSendResult} from '../types/PlatformSendResult'
 import {IdentityCreateResult} from '../types/IdentityCreateResult'
 import {ShieldResult} from '../types/ShieldResult'
 import {decryptMnemonic} from '../utils'
+import {PLATFORM_ACCOUNT} from '../constants'
+import {identityPath} from '../utils/identityKeys'
 import {AddressInput} from '../../platform/types/messages'
 import {
   PlatformSourceCandidate,
@@ -27,10 +29,8 @@ import {
   IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
 } from '../utils/platformTransfer'
 
-const PLATFORM_ACCOUNT = 0
 const PLATFORM_ADDRESS_LOOKAHEAD = 20
 const MAX_DISCOVERY_BATCHES = 50
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 
 const toInput = (candidate: PlatformSourceCandidate, credits: bigint): AddressInput => ({
   platformAddress: candidate.platformAddress,
@@ -239,7 +239,7 @@ export class PlatformAddressService {
     await this.identityDAO.insertIdentities([{
       walletId,
       identityIndex,
-      derivationPath: `m/9'/${COIN_TYPE[network]}'/0'/0/${identityIndex}`,
+      derivationPath: identityPath(network, identityIndex),
       identifier,
     }])
 
@@ -488,14 +488,9 @@ export class PlatformAddressService {
       index,
     }))
 
-    const {infos, missing} = await this.platform.request('addressInfos', network, {
+    const {infos} = await this.platform.request('addressInfos', network, {
       addresses: owned.map(entry => entry.platformAddress),
     })
-    if (missing.length > 0) {
-      // Treated as empty below, which is right for an address that has never
-      // been used and wrong for one the API failed on (finding R-4).
-      console.warn(`[platform-addresses] ${missing.length}/${owned.length} addresses returned no info`)
-    }
 
     const byAddress = new Map(infos.map(info => [info.address, info]))
     return owned.map(entry => {

@@ -9,6 +9,8 @@ import {OrchardAddressWASM, OutPointWASM} from 'pshenmic-dpp'
 import {Transaction as SDKTransaction, utils as coreUtils} from 'dash-core-sdk'
 import {WalletDAO} from '../database/WalletDAO'
 import {isAlreadyInChain} from '../utils/sdkErrors'
+import {PLATFORM_ACCOUNT, SHIELDED_ACCOUNT} from '../constants'
+import {identityPath} from '../utils/identityKeys'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
@@ -22,9 +24,6 @@ import {AssetLockProof, IdentityRegistrationService} from './IdentityRegistratio
 import {decryptMnemonic} from '../utils'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
 
-const SHIELDED_ACCOUNT = 0
-const PLATFORM_ACCOUNT = 0
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 
 export class AssetLockService {
   private walletDAO: WalletDAO
@@ -454,7 +453,6 @@ export class AssetLockService {
     // back on a non-idempotent broadcast failure so local state never holds a
     // phantom identity. A pre-existing record (a previous attempt) is treated
     // as recovery.
-    const coinType = COIN_TYPE[network]
     const existing = await this.identityDAO.getByIdentifier(wallet.walletId, identifier)
     let wasJustCreated = false
     if (existing == null) {
@@ -462,7 +460,7 @@ export class AssetLockService {
         walletId: wallet.walletId,
         identityIndex: row.identityIndex,
         identifier,
-        derivationPath: `m/9'/${coinType}'/0'/0/${row.identityIndex}`,
+        derivationPath: identityPath(network, row.identityIndex),
       }, row.txid)
       wasJustCreated = true
     }

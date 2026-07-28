@@ -129,9 +129,9 @@ export interface PlatformOperations {
   }
   addressInfos: {
     payload: {addresses: string[]}
-    // `missing` is explicit so a systematic API failure cannot read as a set of
-    // zero-balance addresses (finding R-4).
-    result: {infos: AddressInfo[]; missing: string[]}
+    // An address absent from `infos` is unused; a failed lookup rejects rather
+    // than reporting zeros (finding R-4).
+    result: {infos: AddressInfo[]}
   }
   addressTransfer: {
     payload: {seed: Uint8Array; input: AddressInput; recipient: string; amountCredits: bigint}

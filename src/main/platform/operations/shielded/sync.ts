@@ -1,7 +1,7 @@
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, throwIfAborted} from '../types'
 import {checkSpent} from './checkSpent'
-import {SHIELDED_ACCOUNT} from './constants'
+import {SHIELDED_ACCOUNT} from '../../../src/constants'
 
 type Payload = PlatformOperations['sync']['payload']
 type Result = PlatformOperations['sync']['result']

@@ -1,8 +1,3 @@
-import {Network} from '../../../src/types'
-
-export const SHIELDED_ACCOUNT = 0
-export const PLATFORM_ACCOUNT = 0
-export const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 export const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 export const SHIELD_FUNDING_DUMMY_OUTPUTS = 1
 

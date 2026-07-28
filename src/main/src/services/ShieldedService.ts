@@ -4,9 +4,11 @@ import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
 import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
+import { ShieldedPoolDAO } from '../database/ShieldedPoolDAO'
 import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
 import { decryptMnemonic } from '../utils'
-import { SHIELDED_NOTES_FETCH_BATCH } from '../constants'
+import { PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
+import { identityPath } from '../utils/identityKeys'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
   AssetLockProofParams,
@@ -80,36 +82,35 @@ function spendPhase(phase: PlatformPhase): ShieldedSpendPhase | null {
   }
 }
 
-const SHIELDED_ACCOUNT = 0
-const PLATFORM_ACCOUNT = 0
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
 // Bound on how far addAddress derives forward while skipping used
 // (already-received-on) diversified addresses.
 const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
 
 // Wallet-domain layer over the shielded operations of the platform worker.
 // Owns unlocking, address derivation for display, per-wallet sync/spend state
-// and the ShieldedNoteDAO; everything CPU-bound or network-bound is a
+// and the note DAOs; everything CPU-bound or network-bound is a
 // PlatformWorkerService request.
 export class ShieldedService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private shieldedNoteDAO: ShieldedNoteDAO
+  private shieldedPoolDAO: ShieldedPoolDAO
   private shieldedAddressDAO: ShieldedAddressDAO
   private identityRegistrationService: IdentityRegistrationService
   private platform: PlatformWorkerService
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string[]>()
-  private noteFetches = new Map<string, Promise<void>>()
+  private noteFetches = new Map<Network, Promise<void>>()
   // Derivation only. A DashPlatformSDK would build a gRPC pool and fetch the
   // evonode list to do local maths.
   private keyPair = new KeyPairController()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
+    this.shieldedPoolDAO = shieldedPoolDAO
     this.shieldedAddressDAO = shieldedAddressDAO
     this.identityRegistrationService = identityRegistrationService
     this.platform = platform
@@ -118,12 +119,11 @@ export class ShieldedService {
   private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
     const existing = await this.identityDAO.getByIdentifier(context.walletId, identifier)
     if (existing != null) return
-    const coinType = COIN_TYPE[context.network]
     await this.identityDAO.insertIdentity({
       walletId: context.walletId,
       identityIndex: context.identityIndex,
       identifier,
-      derivationPath: `m/9'/${coinType}'/0'/0/${context.identityIndex}`,
+      derivationPath: identityPath(context.network, context.identityIndex),
     }, null)
   }
 
@@ -221,48 +221,61 @@ export class ShieldedService {
     }
   }
 
-  // Compares the pool note count with the local cache and downloads the
-  // ciphertexts of any notes not stored yet. Needs no password: the payloads
-  // are persisted undecoded (is_decoded = false) and trial-decrypted later,
-  // when the user unlocks a sync.
-  checkForNewNotes(walletId: string, network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
-    const inFlight = this.noteFetches.get(walletId)
+  // Downloads the ciphertexts of pool notes not stored yet. Needs no password:
+  // the payloads are network state, trial-decrypted later when the user unlocks
+  // a sync. Deduped per network, so wallets sharing one share the download.
+  checkForNewNotes(network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
+    const inFlight = this.noteFetches.get(network)
     if (inFlight != null) return inFlight
-    const fetch = this.fetchNewNotes(walletId, network, onProgress)
-      .finally(() => this.noteFetches.delete(walletId))
-    this.noteFetches.set(walletId, fetch)
+    const fetch = this.fetchNewNotes(network, onProgress)
+      .finally(() => this.noteFetches.delete(network))
+    this.noteFetches.set(network, fetch)
     return fetch
   }
 
-  private async fetchNewNotes(walletId: string, network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
+  // Keeps the pool warm for a wallet that has synced before. It cannot detect
+  // incoming notes on its own — that needs trial-decryption, so a password —
+  // which is why a wallet that has never opened the feature polls nothing.
+  async prefetchNotes(walletId: string, network: Network): Promise<void> {
+    const decoded = await this.walletDAO.getShieldedDecodedCount(walletId)
+    if (decoded === 0) return
+    await this.checkForNewNotes(network)
+  }
+
+  private async fetchNewNotes(network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
     const {count} = await this.platform.request('notesCount', network, {})
     const total = count != null ? Number(count) : 0
-    const known = await this.shieldedNoteDAO.getKnownCount(walletId)
-    if (total > known) {
-      await this.shieldedNoteDAO.insertUndecoded(walletId, known, total)
-    }
+    const stored = await this.shieldedPoolDAO.getCount(network)
+    if (stored >= total) return
 
-    const fetched = await this.shieldedNoteDAO.getFetchedCount(walletId)
-    if (fetched >= total) return
-
-    const missing = total - fetched
-    let cursor = Math.floor(fetched / SHIELDED_NOTES_FETCH_BATCH) * SHIELDED_NOTES_FETCH_BATCH
+    const missing = total - stored
+    let cursor = Math.floor(stored / SHIELDED_NOTES_FETCH_BATCH) * SHIELDED_NOTES_FETCH_BATCH
     let downloaded = 0
     onProgress?.(0, missing)
     while (cursor < total) {
       const batchSize = Math.min(SHIELDED_NOTES_FETCH_BATCH, total - cursor)
       const {notes} = await this.platform.request('encryptedNotes', network, {startIndex: cursor, count: batchSize})
       if (notes.length === 0) break
-      await this.shieldedNoteDAO.saveEncryptedNotes(walletId, notes)
+      await this.shieldedPoolDAO.saveEncryptedNotes(network, notes)
       downloaded += notes.length
       cursor += notes.length
       onProgress?.(Math.min(downloaded, missing), missing)
       if (notes.length < batchSize) break
     }
+
+    // A short pool witnesses against an expired anchor, so callers must not
+    // proceed on a partial download.
+    if (await this.shieldedPoolDAO.getCount(network) < total) {
+      throw new Error('Could not download new shielded notes. Check your connection and try again.')
+    }
   }
 
   async getNotesInfo(walletId: string): Promise<ShieldedNotesInfo> {
-    return {undecodedCount: await this.shieldedNoteDAO.getUndecodedCount(walletId)}
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) return {undecodedCount: 0}
+    const stored = await this.shieldedPoolDAO.getCount(wallet.network)
+    const decoded = await this.walletDAO.getShieldedDecodedCount(walletId)
+    return {undecodedCount: Math.max(stored - decoded, 0)}
   }
 
   private idleSyncState(): ShieldedSyncState {
@@ -287,17 +300,14 @@ export class ShieldedService {
     try {
       const {seed, network} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
-      await this.checkForNewNotes(walletId, network, (fetched, total) => {
+      await this.checkForNewNotes(network, (fetched, total) => {
         state.fetched = fetched
         state.total = total
       })
 
       const priorNotes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
-      const undecoded = await this.shieldedNoteDAO.getUndecodedIndexes(walletId)
-      const notes = await this.shieldedNoteDAO.getEncryptedNotes(walletId, undecoded)
-      if (notes.length < undecoded.length) {
-        throw new Error('Could not download new shielded notes. Check your connection and try again.')
-      }
+      const decodedFrom = await this.walletDAO.getShieldedDecodedCount(walletId)
+      const notes = await this.shieldedPoolDAO.getEncryptedNotesFrom(network, decodedFrom)
 
       if (notes.length === 0) {
         let balance = 0n
@@ -336,7 +346,7 @@ export class ShieldedService {
         state.phase = 'done'
         state.syncedAt = Date.now()
         await this.shieldedNoteDAO.upsertNotes(walletId, decoded)
-        await this.shieldedNoteDAO.markDecodedBelow(walletId, decodedUpTo)
+        await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
       }).catch(e => this.failed(state, e))
     } catch (e) {
       state.phase = 'error'
@@ -352,17 +362,12 @@ export class ShieldedService {
   // The worker rebuilds the commitment tree from the complete pool note set,
   // so spends ship the DB-cached ciphertexts after a delta top-up (a stale
   // cache would witness against an expired anchor).
-  private async loadSpendNotes(walletId: string, network: Network, state: ShieldedSpendState): Promise<EncryptedNotePayload[]> {
-    await this.checkForNewNotes(walletId, network, (fetched, total) => {
+  private async loadSpendNotes(network: Network, state: ShieldedSpendState): Promise<EncryptedNotePayload[]> {
+    await this.checkForNewNotes(network, (fetched, total) => {
       state.fetched = fetched
       state.total = total
     })
-    const known = await this.shieldedNoteDAO.getKnownCount(walletId)
-    const notes = await this.shieldedNoteDAO.getAllEncryptedNotes(walletId)
-    if (notes.length < known) {
-      throw new Error('Could not download new shielded notes. Check your connection and try again.')
-    }
-    return notes
+    return this.shieldedPoolDAO.getAllEncryptedNotes(network)
   }
 
   getSpendState(walletId: string): ShieldedSpendState {
@@ -402,7 +407,7 @@ export class ShieldedService {
 
       const {seed, network} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
-      const notes = await this.loadSpendNotes(walletId, network, state)
+      const notes = await this.loadSpendNotes(network, state)
 
       this.runSpend(walletId, network, state, {
         seed,
@@ -455,7 +460,7 @@ export class ShieldedService {
 
       const {seed, network, mnemonic} = await this.unlock(walletId, password)
       await this.cacheAddresses(walletId, seed, network)
-      const notes = await this.loadSpendNotes(walletId, network, state)
+      const notes = await this.loadSpendNotes(network, state)
 
       const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
       const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)

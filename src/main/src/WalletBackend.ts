@@ -62,6 +62,7 @@ import {WalletSyncService} from './services/WalletSyncService'
 import {ShieldedService} from './services/ShieldedService'
 import {PlatformWorkerService} from './services/PlatformWorkerService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
+import {ShieldedPoolDAO} from './database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
@@ -207,7 +208,7 @@ export class WalletBackend {
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.platformWorkerService.start()
     this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
-    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations, this.shieldedService)
     this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.shieldedService, this.platformWorkerService)
     this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
@@ -238,7 +239,7 @@ export class WalletBackend {
     const fetchShieldedNotes = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
       if (selected != null) {
-        await shieldedService.checkForNewNotes(selected.walletId, selected.network)
+        await shieldedService.prefetchNotes(selected.walletId, selected.network)
       }
     }
     fetchShieldedNotes().catch(err => console.error('[shielded] startup note fetch failed:', err))

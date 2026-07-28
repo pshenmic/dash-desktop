@@ -118,6 +118,27 @@ export class WalletDAO {
       .where('wallet_id', walletId)
   }
 
+  // How far into the pool this wallet has trial-decrypted. Decoding always runs
+  // as a prefix, so one cursor replaces a per-note flag.
+  getShieldedDecodedCount = async (walletId: string): Promise<number> => {
+    const rows = await this.knex('wallet')
+      .select('shielded_decoded_count')
+      .where('wallet_id', walletId)
+      .limit(1)
+
+    if (rows.length === 0) {
+      return 0
+    }
+
+    return rows[0].shielded_decoded_count ?? 0
+  }
+
+  setShieldedDecodedCount = async (walletId: string, count: number): Promise<void> => {
+    await this.knex('wallet')
+      .update({shielded_decoded_count: count})
+      .where('wallet_id', walletId)
+  }
+
   getPlatformAddressCount = async (walletId: string): Promise<number> => {
     const rows = await this.knex('wallet')
       .select('platform_address_count')

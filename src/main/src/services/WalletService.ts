@@ -26,14 +26,14 @@ import {selectCoins, SelectableUtxo} from "../utils/coinSelection";
 import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService, TransferInput} from "./CoreTransactionService";
 import {decryptMnemonic, encryptMnemonic} from "../utils";
+import {COIN_TYPE, PLATFORM_ACCOUNT} from '../constants'
+import {identityPath} from '../utils/identityKeys'
 import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
 import {ShieldedService} from "./ShieldedService";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
 const MAX_DISCOVERY_ROUNDS = 10
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-const PLATFORM_ACCOUNT = 0
 
 export class WalletService {
   private walletDAO: WalletDAO
@@ -186,7 +186,7 @@ export class WalletService {
         identities.push({
           walletId,
           identityIndex: i,
-          derivationPath: `m/9'/${coinType}'/0'/0/${i}`,
+          derivationPath: identityPath(network, i),
           identifier
         })
         gap = 0

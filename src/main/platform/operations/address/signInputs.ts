@@ -1,9 +1,8 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {AddressWitnessWASM, InputAddressWASM, AddressFundsFeeStrategyStepWASM} from 'dash-platform-sdk/types.js'
 import {Network} from '../../../src/types'
+import {PLATFORM_ACCOUNT} from '../../../src/constants'
 import {AddressInput} from '../../types/messages'
-
-export const PLATFORM_ACCOUNT = 0
 
 // Fees come out of the first input for every address-funded transition.
 export const DEDUCT_FROM_FIRST = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
