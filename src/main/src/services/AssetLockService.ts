@@ -8,6 +8,7 @@ import {
 import {OrchardAddressWASM, OutPointWASM} from 'pshenmic-dpp'
 import {Transaction as SDKTransaction, utils as coreUtils} from 'dash-core-sdk'
 import {WalletDAO} from '../database/WalletDAO'
+import {isAlreadyInChain} from '../utils/sdkErrors'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
@@ -24,7 +25,6 @@ import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../ut
 const SHIELDED_ACCOUNT = 0
 const PLATFORM_ACCOUNT = 0
 const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
 
 export class AssetLockService {
   private walletDAO: WalletDAO
@@ -423,7 +423,7 @@ export class AssetLockService {
       try {
         await sdk.stateTransitions.broadcast(stateTransition)
       } catch (e) {
-        if (this.isAlreadyInChain(e)) {
+        if (isAlreadyInChain(e)) {
           alreadyOnPlatform = true
         } else {
           throw e
@@ -473,7 +473,7 @@ export class AssetLockService {
     try {
       await sdk.stateTransitions.broadcast(stateTransition)
     } catch (e) {
-      if (this.isAlreadyInChain(e)) {
+      if (isAlreadyInChain(e)) {
         alreadyOnPlatform = true
       } else {
         if (wasJustCreated) {
@@ -494,8 +494,4 @@ export class AssetLockService {
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
   }
 
-  private isAlreadyInChain(e: unknown): boolean {
-    const message = e instanceof Error ? e.message : String(e ?? '')
-    return message.includes(ALREADY_IN_CHAIN_MESSAGE)
-  }
 }

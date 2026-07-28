@@ -2,6 +2,7 @@ import type {Knex} from 'knex'
 import {Contact} from '../types/Contact'
 import {Network} from '../types'
 import {QueryStatus} from '../types/QueryStatus'
+import {isConstraintViolation} from './errors'
 
 function fromRow({id, label, address, network, created_at}): Contact {
   return {id, label, address, network, createdAt: created_at}
@@ -37,10 +38,13 @@ export class ContactDAO {
       await this.knex('contacts').insert({label, address, network, created_at: createdAt})
       return {success: true, errorMessage: null}
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('UNIQUE') || message.includes('SQLITE_CONSTRAINT')) {
+      // The only constraint a well-formed insert can violate is the
+      // (address, network) unique index — the rest are NOT NULL columns the
+      // signature always supplies and a CHECK on a typed union.
+      if (isConstraintViolation(error)) {
         return {success: false, errorMessage: 'This address is already in your address book'}
       }
+      console.error('[contacts] failed to add contact:', error)
       return {success: false, errorMessage: 'Failed to add contact'}
     }
   }

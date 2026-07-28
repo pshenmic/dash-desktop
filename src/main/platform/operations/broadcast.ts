@@ -1,5 +1,6 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {StateTransitionWASM} from 'pshenmic-dpp'
+import {isAlreadyInChain} from '../../src/utils/sdkErrors'
 import {consensusMessage} from './consensusMessage'
 import {OperationContext, OperationError} from './types'
 
@@ -18,8 +19,12 @@ export async function broadcast(
     await sdk.stateTransitions.broadcast(st)
   } catch (e) {
     const message = consensusMessage(e)
-    const code = /already in chain|already exists/i.test(message) ? 'alreadyInChain' : 'network'
-    throw new OperationError(message, code, code === 'alreadyInChain' ? stHash : null)
+    const alreadyInChain = isAlreadyInChain(message)
+    throw new OperationError(
+      message,
+      alreadyInChain ? 'alreadyInChain' : 'network',
+      alreadyInChain ? stHash : null,
+    )
   }
 
   ctx.progress('awaitingResult', 0, 0)
