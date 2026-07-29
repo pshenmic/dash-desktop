@@ -30,6 +30,16 @@ export interface P2PStartMessage {
   cfilterCursor: number | null
 }
 
+// Start only the lock pool: peer connections, InstantSend/ChainLock watching
+// and broadcast, with no chain.db and no header/cfilter sync. This is what an
+// rpc-mode wallet runs — it needs locks for asset-lock funding but must not
+// download the chain. `start` is a superset and brings the same core up.
+export interface P2PListenMessage {
+  type: 'listen'
+  network: Network
+  walletId: string
+}
+
 export interface P2PStopMessage {
   type: 'stop'
 }
@@ -67,6 +77,7 @@ export interface P2PWatchTxsMessage {
 
 export type P2PCommand =
   | P2PStartMessage
+  | P2PListenMessage
   | P2PStopMessage
   | P2PAddWatchAddressesMessage
   | P2PBroadcastMessage

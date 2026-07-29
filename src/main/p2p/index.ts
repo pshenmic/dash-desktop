@@ -59,6 +59,12 @@ process.parentPort.on('message', ({data}) => {
         process.parentPort.postMessage({type: 'error', message})
       })
       return
+    case 'listen':
+      sync.listen(data).catch(err => {
+        const message = err instanceof Error ? err.message : String(err)
+        process.parentPort.postMessage({type: 'error', message})
+      })
+      return
     case 'stop':
       console.log(data)
       sync.stop().catch(err => {

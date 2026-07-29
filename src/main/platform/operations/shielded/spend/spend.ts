@@ -65,7 +65,6 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   } catch (e) {
     throw new OperationError(consensusMessage(e), 'network', stHash)
   }
-  ctx.notesSpent(toSpend.map(note => note.index))
 
   ctx.progress('awaitingResult', all.length, all.length)
   try {
@@ -73,6 +72,8 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   } catch (e) {
     throw new OperationError(consensusMessage(e), 'network', stHash)
   }
+
+  ctx.notesSpent(toSpend.map(note => note.index))
 
   return {stHash, identityId, feeCredits: actualFee(stateTransition, kind, amount)}
 }

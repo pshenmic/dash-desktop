@@ -11,6 +11,7 @@ export interface EncryptedNoteRecord {
 
 // SQLite bind-variable limit safety.
 const PAYLOAD_CHUNK_SIZE = 100
+const SELECT_CHUNK_SIZE = 500
 
 // The Orchard pool: network state, shared by every wallet on that network.
 // Trial-decryption is what makes a note a wallet's own, and that lives in
@@ -48,6 +49,19 @@ export class ShieldedPoolDAO {
         .onConflict(['network', 'note_index'])
         .ignore()
     }
+  }
+
+  getEncryptedNotes = async (network: Network, indexes: number[]): Promise<EncryptedNoteRecord[]> => {
+    const result: EncryptedNoteRecord[] = []
+    for (let offset = 0; offset < indexes.length; offset += SELECT_CHUNK_SIZE) {
+      const rows = await this.knex('shielded_pool_notes')
+        .select('note_index', 'nullifier', 'cmx', 'encrypted_note', 'cv_net')
+        .where({network})
+        .whereIn('note_index', indexes.slice(offset, offset + SELECT_CHUNK_SIZE))
+        .orderBy('note_index', 'asc')
+      result.push(...rows.map(toRecord))
+    }
+    return result
   }
 
   getEncryptedNotesFrom = async (network: Network, startIndex: number): Promise<EncryptedNoteRecord[]> => {

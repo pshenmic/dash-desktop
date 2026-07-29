@@ -1,6 +1,6 @@
 import {BroadcastService} from './BroadcastService'
 import {ChainStore, ChainTipState, PersistedHeader} from './ChainStore'
-import {GENESIS} from './constants'
+import {GENESIS, LOCK_POOL_MIN_PEERS, LOCK_POOL_READY_PEERS} from './constants'
 import {PoolService} from './PoolService'
 import {
   HeaderSyncWorker,
@@ -10,7 +10,8 @@ import {
   CFilterSyncWorker,
   CFilterSyncWorkerStatus,
 } from './workers/CFilterSyncWorker'
-import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
+import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
+import {Network} from '../src/types'
 import {BroadcastResult} from './types/broadcast'
 import {AppliedBlock, WalletSyncStatus} from './types/walletSync'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
@@ -44,7 +45,10 @@ export interface SyncServiceEvents {
 
 export class SyncService {
   private chainStore: ChainStore | null = null
-  private peerPool: PoolService | null = null
+  // relay:true, always up: lock watching + broadcast.
+  private lockPool: PoolService | null = null
+  // relay:false, p2p mode only: headers, cfilters, blocks.
+  private bulkPool: PoolService | null = null
   private headerSyncWorker: HeaderSyncWorker | null = null
   private cfilterSyncWorker: CFilterSyncWorker | null = null
 
@@ -98,12 +102,49 @@ export class SyncService {
 
   stop = (): Promise<void> => this.runExclusive(() => this.stopInner())
 
+  // Bring up the lock core without the bulk layer. `start` is a superset, so
+  // calling this first and starting a sync later grows the session rather than
+  // restarting it.
+  listen = (cmd: P2PListenMessage): Promise<void> =>
+    this.runExclusive(async () => this.startLockCore(cmd.network, cmd.walletId))
+
+  // Peers, lock watching and broadcast — everything that does not touch
+  // chain.db or the sync workers. Safe to run in rpc mode, and left alone when
+  // the bulk layer stops, so pending lock waiters survive a mode switch.
+  private startLockCore = (network: Network, walletId: string): void => {
+    if (this.lockPool && this.activeWalletId === walletId) return
+
+    this.teardownLock()
+    this.activeWalletId = walletId
+    this.watchedTxids = new Set()
+    this.chainlockedHeight = 0
+
+    this.lockPool = new PoolService(network, {
+      relay: true,
+      readyPeers: LOCK_POOL_READY_PEERS,
+      minPeers: LOCK_POOL_MIN_PEERS,
+    })
+    this.lockPool.on('peerinv', this.onPeerInvForLocks)
+    this.lockPool.on('peerisdlock', this.onIsdlock)
+    this.lockPool.on('peerclsig', this.onClsig)
+    // The bulk pool neither seeds from DNS nor gossips, so this is its only
+    // source of addresses.
+    this.lockPool.on('peeraddr', this.onLockPoolAddr)
+    this.lockPool.start()
+  }
+
+  private onLockPoolAddr = (): void => {
+    if (!this.bulkPool || !this.lockPool) return
+    this.bulkPool.addAddresses(this.lockPool.knownAddresses)
+  }
+
   private startInner = async (cmd: P2PStartMessage): Promise<void> => {
     // Already syncing this wallet — a duplicate start (StrictMode double-invoke,
     // overlapping auto-start). Ignore rather than tear down and re-open chain.db.
     if (this.chainStore && this.activeWalletId === cmd.walletId) return
 
-    await this.teardown()
+    await this.teardownBulk()
+    this.startLockCore(cmd.network, cmd.walletId)
 
     this.activeWalletId = cmd.walletId
     this.activeWatchAddresses = cmd.watchAddresses ?? []
@@ -111,8 +152,6 @@ export class SyncService {
     this.activeSeedUtxos = cmd.seedUtxos ?? []
     this.activeCFilterCursor = cmd.cfilterCursor ?? null
     this.cfilterStarted = false
-    this.watchedTxids = new Set()
-    this.chainlockedHeight = 0
 
     this.emit({
       phase: 'connecting',
@@ -157,22 +196,21 @@ export class SyncService {
     }
     console.log(`[p2p] starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
-    // Boot shared peer pool.
-    this.peerPool = new PoolService(cmd.network)
-    this.peerPool.start()
-
-    // Lock watcher: fetch + match InstantSend (isdlock) / ChainLock (clsig)
-    // objects so locally-broadcast txs can be finalized fast.
-    this.peerPool.on('peerinv', this.onPeerInvForLocks)
-    this.peerPool.on('peerisdlock', this.onIsdlock)
-    this.peerPool.on('peerclsig', this.onClsig)
+    // Bulk pool: headers, cfilters and block bodies only. `relay: false` drops
+    // the tx inv stream these workers never read — Dash Core gates ISLOCK /
+    // ISDLOCK inv behind the same flag, which is exactly why lock watching
+    // stays on the other pool. Addresses come from the lock pool rather than
+    // DNS, so the two never contend for the same peers.
+    this.bulkPool = new PoolService(cmd.network, {relay: false, dnsSeed: false})
+    this.bulkPool.addAddresses(this.lockPool?.knownAddresses ?? [])
+    this.bulkPool.start()
 
     // Boot HeaderSyncWorker. CFilterSyncWorker is booted lazily once header
     // sync emits 'synced' status (so we don't compete for chain.db state
     // mid-sync).
     this.headerSyncWorker = new HeaderSyncWorker({
       chainStore: this.chainStore,
-      peerPool: this.peerPool,
+      peerPool: this.bulkPool,
       initialTipHeight: resumeHeight,
       initialTipHash: resumeHash,
     })
@@ -187,7 +225,8 @@ export class SyncService {
   }
 
   private stopInner = async (): Promise<void> => {
-    await this.teardown()
+    await this.teardownBulk()
+    this.teardownLock()
     this.activeWalletId = null
     this.activeWatchAddresses = []
     this.activeBirthdayHeight = 1
@@ -242,11 +281,13 @@ export class SyncService {
       rejections: [],
       durationMs: 0,
     }
-    if (!this.peerPool) {
-      this.events.broadcastResult(cmd.requestId, false, emptyResult, 'broadcast: peer pool not started — call startSync first')
+    if (!this.lockPool) {
+      this.events.broadcastResult(cmd.requestId, false, emptyResult, 'broadcast: peer pool not started')
       return
     }
-    const service = new BroadcastService(this.peerPool)
+    // The lock pool, so the isdlock for this tx arrives on the connections we
+    // announced it to.
+    const service = new BroadcastService(this.lockPool)
     service.broadcast(cmd.txHex).then(result => {
       this.events.broadcastResult(cmd.requestId, true, result, null)
     }).catch(err => {
@@ -280,11 +321,15 @@ export class SyncService {
     peer: Peer,
     msg: Message & {inventory?: Array<{type: number; hash: Uint8Array}>},
   ): void => {
-    if (!this.peerPool) return
+    if (!this.lockPool) return
+    // Chainlocks are only acted on while a lock is being waited for, or by the
+    // sync layer marking transactions final. With neither, fetching one per
+    // block is a permanent background cost for nothing.
+    const wantChainlocks = this.watchedTxids.size > 0 || this.bulkPool != null
     const wanted: Array<{type: number; hash: Uint8Array}> = []
     for (const item of msg.inventory ?? []) {
       if (item.type === Inventory.TYPE.CLSIG) {
-        wanted.push({type: item.type, hash: item.hash})
+        if (wantChainlocks) wanted.push({type: item.type, hash: item.hash})
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
         const hashHex = Buffer.from(item.hash).reverse().toString('hex')
         if (this.watchedTxids.size > 0) {
@@ -297,7 +342,7 @@ export class SyncService {
     }
     if (wanted.length === 0) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    peer.sendMessage((this.peerPool.messages as any).GetData(wanted))
+    peer.sendMessage((this.lockPool.messages as any).GetData(wanted))
   }
 
   // isdlock.txid is wire/internal byte order; our watch set is display order.
@@ -328,7 +373,7 @@ export class SyncService {
 
   // ── private ───────────────────────────────────────────────────────────────
 
-  private async teardown(): Promise<void> {
+  private async teardownBulk(): Promise<void> {
     if (this.cfilterSyncWorker) {
       this.cfilterSyncWorker.stop()
       this.cfilterSyncWorker.removeAllListeners()
@@ -339,16 +384,23 @@ export class SyncService {
       this.headerSyncWorker.removeAllListeners()
       this.headerSyncWorker = null
     }
-    if (this.peerPool) {
-      this.peerPool.stop()
-      this.peerPool.removeAllListeners()
-      this.peerPool = null
+    if (this.bulkPool) {
+      this.bulkPool.stop()
+      this.bulkPool.removeAllListeners()
+      this.bulkPool = null
     }
     if (this.chainStore) {
       await this.chainStore.close().catch(() => { /* ignore */ })
       this.chainStore = null
     }
     this.cfilterStarted = false
+  }
+
+  private teardownLock(): void {
+    if (!this.lockPool) return
+    this.lockPool.stop()
+    this.lockPool.removeAllListeners()
+    this.lockPool = null
   }
 
   private emit(next: Partial<WalletSyncStatus>): void {
@@ -399,7 +451,7 @@ export class SyncService {
       peerCount: s.peerCount,
     })
 
-    if (s.phase === 'synced' && !this.cfilterStarted && this.chainStore && this.peerPool && s.tipHash) {
+    if (s.phase === 'synced' && !this.cfilterStarted && this.chainStore && this.bulkPool && s.tipHash) {
       this.cfilterStarted = true
       this.startCFilterWorker(s.tipHeight, s.tipHash).catch(err =>
         this.handleWorkerError('CFilterSyncWorker', err instanceof Error ? err.message : String(err))
@@ -408,12 +460,12 @@ export class SyncService {
   }
 
   private async startCFilterWorker(tipHeight: number, tipHashDisplayHex: string): Promise<void> {
-    if (!this.chainStore || !this.peerPool || !this.activeWalletId) return
+    if (!this.chainStore || !this.bulkPool || !this.activeWalletId) return
     this.cfilterSyncWorker = new CFilterSyncWorker({
       network: this.chainStore.network,
       walletId: this.activeWalletId,
       chainStore: this.chainStore,
-      peerPool: this.peerPool,
+      peerPool: this.bulkPool,
       chainTipHeight: tipHeight,
       chainTipHashDisplayHex: tipHashDisplayHex,
       watchAddresses: this.activeWatchAddresses,
@@ -461,7 +513,9 @@ export class SyncService {
     this.events.status(this.status)
     this.events.error(err)
     if (fatal) {
-      this.teardown()
+      // Bulk layer only — a header/cfilter failure says nothing about the lock
+      // pool, and dropping it would strand anything waiting on an isdlock.
+      this.teardownBulk()
         .catch(() => { /* ignore */ })
         .finally(() => this.emit({phase: 'stopped'}))
     }

@@ -307,36 +307,28 @@ export class ShieldedService {
 
       const priorNotes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
       const decodedFrom = await this.walletDAO.getShieldedDecodedCount(walletId)
-      const notes = await this.shieldedPoolDAO.getEncryptedNotesFrom(network, decodedFrom)
+      const fresh = await this.shieldedPoolDAO.getEncryptedNotesFrom(network, decodedFrom)
+      
+      const owned = await this.shieldedPoolDAO.getEncryptedNotes(network, priorNotes.map(note => note.index))
+      const notes = [...owned, ...fresh]
 
       if (notes.length === 0) {
-        let balance = 0n
-        for (const note of priorNotes) {
-          if (!note.spent) balance += BigInt(note.amount)
-        }
-        state.balance = balance.toString()
-        state.notes = priorNotes
+        state.balance = '0'
         state.phase = 'done'
         state.syncedAt = Date.now()
         return state
       }
 
-      const decodedUpTo = notes[notes.length - 1].index + 1
+      const decodedUpTo = fresh.length > 0 ? fresh[fresh.length - 1].index + 1 : decodedFrom
       this.platform.request('sync', network, {seed, notes}, {
         onProgress: phase => { state.phase = syncPhase(phase) ?? state.phase },
       }).then(async result => {
-        // The worker only decoded the new ciphertexts; merge with the owned
-        // notes already cached in the DB and recompute the full balance.
-        const decoded: ShieldedNoteInfo[] = result.notes.map(note => ({
+        const all: ShieldedNoteInfo[] = result.notes.map(note => ({
           index: note.index,
           amount: note.amount.toString(),
           spent: note.spent,
           address: note.address,
-        }))
-        const merged = new Map<number, ShieldedNoteInfo>()
-        for (const note of priorNotes) merged.set(note.index, note)
-        for (const note of decoded) merged.set(note.index, note)
-        const all = [...merged.values()].sort((a, b) => b.index - a.index)
+        })).sort((a, b) => b.index - a.index)
         let balance = 0n
         for (const note of all) {
           if (!note.spent) balance += BigInt(note.amount)
@@ -345,7 +337,7 @@ export class ShieldedService {
         state.notes = all
         state.phase = 'done'
         state.syncedAt = Date.now()
-        await this.shieldedNoteDAO.upsertNotes(walletId, decoded)
+        await this.shieldedNoteDAO.upsertNotes(walletId, all)
         await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
       }).catch(e => this.failed(state, e))
     } catch (e) {

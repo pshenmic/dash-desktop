@@ -18,9 +18,38 @@ export const GENESIS: Record<Network, ChainAnchor> = {
 
 // ── Peer pool ───────────────────────────────────────────────────────────────
 
-// Upper bound on the connection pool. dash-core-p2p will only connect this
-// many simultaneously; extras stay in its address book.
-export const POOL_MAX_SIZE = 256
+// Target number of *ready* peers — the real cost knob, since inv traffic only
+// flows after a handshake. Measured on testnet: 98% of peers that complete one
+// advertise compact filters, so there is no need to over-connect hunting for
+// the +CF subset; this only has to clear the races below with margin.
+export const POOL_READY_PEERS = 25
+
+// Refill threshold. Below this the pool reopens capacity; between here and
+// POOL_READY_PEERS it coasts. Must stay under what the network can supply
+export const POOL_MIN_PEERS = 15
+
+// Connection slots while refilling. Most addresses learned from `addr` gossip
+// are dead, and a socket that never completes its handshake still holds a slot
+// while costing no traffic — so capacity has to exceed the ready target or
+// dead sockets crowd out live peers. Measured: 20 slots against an 840-entry
+// book reached only 7 ready peers in two minutes, while 36 slots sustained 31.
+export const POOL_MAX_CONNECTIONS = 64
+
+// Consecutive refill ticks with no change in ready-peer count before we accept
+// that the network has no more to give and stop widening. Without it a supply
+// below POOL_MIN_PEERS pins the pool in its refill branch indefinitely —
+// measured at 72k connection attempts in 50s, which reads as a port scan to
+// the nodes we depend on for locks.
+export const POOL_FILL_STALL_LIMIT = 36
+
+// The lock pool runs whenever the process is up, including in rpc mode where
+// nothing else about p2p is wanted, so it is sized down to what lock detection
+// and broadcast actually need: locks are relayed network-wide, so one peer
+// would hear them, and BROADCAST_POLICY only asks for 3 acks. It carries
+// `relay: true` and therefore the whole tx inv stream — every peer here is a
+// duplicate copy of it, which is why this is the one pool kept small.
+export const LOCK_POOL_READY_PEERS = 10
+export const LOCK_POOL_MIN_PEERS = 6
 
 // How often the pool refills connections when below the soft minimum.
 // 5s matches dash-core-p2p's internal default; lower is wasteful, higher
@@ -29,18 +58,12 @@ export const POOL_REFILL_INTERVAL_MS = 5_000
 
 // ── Header sync ─────────────────────────────────────────────────────────────
 
-// Number of peers raced for each getheaders round. Higher = more redundancy
-// against slow peers, but more wasted bandwidth (only one wins per round).
-export const HEADER_RACE_PEERS = 12
+export const HEADER_RACE_PEERS = 15
 
-// Round timeout. If no peer responds in this window, the race is aborted
-// and a new one starts from the same locator.
 export const HEADER_SYNC_TIMEOUT_MS = 30_000
 
 // ── CFilter sync ────────────────────────────────────────────────────────────
 
-// BIP 158 filter type. 0 = basic filter (P2PKH + P2SH outputs). Currently
-// the only type Dash Core serves.
 export const FILTER_TYPE = 0
 
 // Heights per getcfilters request. <= 1000 per spec; smaller = more round-
@@ -51,19 +74,14 @@ export const CFILTER_BATCH = 900
 // pipelines well across multiple +CF peers without overwhelming any one.
 export const MAX_INFLIGHT_BATCHES = 6
 
-// Number of peers raced for cfcheckpt. Same logic as HEADER_RACE_PEERS but
-// only against the +CF subset of the pool.
-export const CFCHECKPT_RACE_PEERS = 12
+export const CFCHECKPT_RACE_PEERS = 15
 
-// Number of +CF peers raced per cfheaders checkpoint range. On a bad or
-// missing response the range rotates to the next untried subset, so this is
-// the redundancy per attempt, not a hard cap on peers tried.
-export const CFHEADERS_RACE_PEERS = 12
+export const CFHEADERS_RACE_PEERS = 15
 
-export const CFCHECKPT_RACE_TIMEOUT_MS = 15_000
-export const CFHEADERS_RACE_TIMEOUT_MS = 15_000
-export const CFILTER_BATCH_TIMEOUT_MS = 15_000
-export const BLOCK_REQUEST_TIMEOUT_MS = 15_000
+export const CFCHECKPT_RACE_TIMEOUT_MS = 10_000
+export const CFHEADERS_RACE_TIMEOUT_MS = 10_000
+export const CFILTER_BATCH_TIMEOUT_MS = 10_000
+export const BLOCK_REQUEST_TIMEOUT_MS = 10_000
 
 // Stop hashes for cf* requests are capped this far below the synced tip.
 // Dash Core silently drops requests for blocks not in its active chain
@@ -80,7 +98,7 @@ export const SCAN_TIP_DEPTH = 5
 // dash-core-p2p doesn't parse yet, so islock can't be a success signal on
 // mainnet/testnet today; both flags stay false.
 export const BROADCAST_POLICY = {
-  minPeerAcks: 1,
+  minPeerAcks: 3,
   waitForInstantLock: false,
   requireInstantLock: false,
   peerWaitMs: 10_000,
