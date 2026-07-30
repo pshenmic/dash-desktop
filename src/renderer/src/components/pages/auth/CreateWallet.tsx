@@ -23,7 +23,7 @@ type CreateWalletProps = Pick<TypeUseCreateWallet, 'password' | 'setPassword'> &
 }
 
 const { createWallet: { passwordValidation: { passwordsDoNotMatch },
-  seedPhrase: { warning, errorMessage, errorTitle }
+  seedPhrase: { errorMessage, errorTitle }
 }} = messages
 
 export default function  CreateWallet({ password, setPassword, generateSeedPhrase, createImportedWallet, data } : CreateWalletProps): React.JSX.Element {
@@ -57,7 +57,6 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
           await generateSeedPhrase()
         }
       }
-      toast.error(warning)
     } catch (err) {
       const message =
         err instanceof Error
