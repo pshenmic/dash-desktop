@@ -37,8 +37,7 @@ export const dashboardPage = {
     many: 'identities',
     top: 'top',
     credits: 'credits',
-    empty: 'No identities yet',
-    register: 'Register identity'
+    empty: 'No identities yet'
   },
   network: {
     title: 'Network',
