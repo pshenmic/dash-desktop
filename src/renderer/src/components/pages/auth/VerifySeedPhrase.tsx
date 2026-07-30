@@ -2,13 +2,15 @@ import { useState, useEffect } from "react"
 import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
 import { TypeUseCreateWallet } from "@renderer/hooks/useCreateWallet";
 import SeedPhraseWarning from "./SeedPhraseWarning";
-import { BaseTexts, FillInYourSeedPhraseTexts } from "@renderer/constants";
+import { BaseTexts, FillInYourSeedPhraseTexts, WALLET_CREATE_SLOW_NOTICE_MS } from "@renderer/constants";
+import { useDelayedVisible } from "@renderer/hooks/useDelayedVisible";
 
 type VerifySeedPhraseData = Pick<
   FillInYourSeedPhraseTexts,
   'buttonContinue'
 > & {
   seedPhraseWarning: BaseTexts
+  slowCreationNotice: string
 }
 
 type VerifySeedPhraseProps = Pick<TypeUseCreateWallet, 'verifyPhrase' | 'verifyMissingWords'> & {
@@ -18,6 +20,7 @@ type VerifySeedPhraseProps = Pick<TypeUseCreateWallet, 'verifyPhrase' | 'verifyM
 export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, data } : VerifySeedPhraseProps): React.JSX.Element {
   const [answers, setAnswers] = useState<string[]>(() => [...verifyPhrase])
   const [loading, setLoading] = useState(false)
+  const showSlowNotice = useDelayedVisible(loading, WALLET_CREATE_SLOW_NOTICE_MS)
 
   useEffect(() => {
     setAnswers([...verifyPhrase])
@@ -115,6 +118,12 @@ export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, dat
           {data.buttonContinue}
         </Button>
       </div>
+
+      {showSlowNotice &&
+        <Text as={"p"} size={14} weight={"medium"} color={"brand"} opacity={50} className={"text-center"}>
+          {data.slowCreationNotice}
+        </Text>
+      }
     </div>
   )
 }

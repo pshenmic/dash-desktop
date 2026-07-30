@@ -10,6 +10,7 @@ export interface CreateWalletTexts extends BaseTexts {
   placeholderConfirmPassword: string
   buttonNext: string
   importWallet: string
+  slowCreationNotice: string
 }
 
 export interface SaveYourSeedPhraseTexts extends BaseTexts {
@@ -60,7 +61,8 @@ export const authTexts: AuthTexts = {
     placeholderPassword: 'Type Your Password',
     placeholderConfirmPassword: 'Repeat your Password',
     buttonNext: 'Next',
-    importWallet: 'Import wallet instead'
+    importWallet: 'Import wallet instead',
+    slowCreationNotice: 'Securing your wallet can take a while on some machines. Everything is fine, just wait a little bit longer.'
   },
   saveYourSeedPhrase: {
     title: 'Save your Seed Phrase',
