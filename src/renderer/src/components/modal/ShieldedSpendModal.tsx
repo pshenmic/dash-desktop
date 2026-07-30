@@ -24,6 +24,7 @@ interface ShieldedSpendModalProps {
   proverReady: boolean
   start: (password: string) => Promise<ShieldedSpendState>
   onSuccess: () => void
+  successNote?: string
 }
 
 const PHASES = [
@@ -48,6 +49,7 @@ export default function ShieldedSpendModal({
   proverReady,
   start,
   onSuccess,
+  successNote,
 }: ShieldedSpendModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const { status } = useAuth()
@@ -277,6 +279,11 @@ export default function ShieldedSpendModal({
                   ? `Funded with ${sentAmount || amountCredits} credits from the pool (minus the Platform fee). Re-sync notes to update your balance.`
                   : 'Broadcast to Platform. Re-sync notes to update your balance.'}
               </Text>
+              {successNote && (
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 leading-[130%]"}>
+                  {successNote}
+                </Text>
+              )}
             </div>
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               {spend?.identityId && <HashField hash={spend.identityId} label={"Identity"} />}

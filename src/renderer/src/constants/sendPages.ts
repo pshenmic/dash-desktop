@@ -19,6 +19,8 @@ export interface TransferPageType {
   }
 }
 
+export const WITHDRAWAL_SUCCESS_NOTE = 'Withdrawals are processed by Core with a delay — the Dash payout usually takes several minutes to appear in your transaction list.'
+
 export const sendPageData: TransferPageType = {
   header: {
     title: 'Send',

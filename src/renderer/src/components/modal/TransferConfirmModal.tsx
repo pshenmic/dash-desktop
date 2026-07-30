@@ -25,6 +25,7 @@ interface TransferConfirmModalProps {
   rows: TransferConfirmRow[]
   run: (password: string) => Promise<PlatformSendResult>
   onSuccess: () => void
+  successNote?: string
 }
 
 
@@ -36,6 +37,7 @@ export default function TransferConfirmModal({
   rows,
   run,
   onSuccess,
+  successNote,
 }: TransferConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const { status } = useAuth()
@@ -176,6 +178,11 @@ export default function TransferConfirmModal({
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Broadcast to Platform. It will confirm shortly.
               </Text>
+              {successNote && (
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 leading-[130%]"}>
+                  {successNote}
+                </Text>
+              )}
             </div>
 
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>

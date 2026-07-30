@@ -42,7 +42,7 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import { sendPageData, MAX_SPEND_NOTES } from "@renderer/constants";
+import { sendPageData, MAX_SPEND_NOTES, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
@@ -759,6 +759,7 @@ export default function TransferHub(): React.JSX.Element {
           proverReady={prover.ready}
           start={startShieldedSpend}
           onSuccess={resetForm}
+          successNote={operation === TransferOperation.ShieldedWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
       )}
 
@@ -809,6 +810,7 @@ export default function TransferHub(): React.JSX.Element {
           ]}
           run={runPlatformOperation}
           onSuccess={resetForm}
+          successNote={operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
       )}
 
