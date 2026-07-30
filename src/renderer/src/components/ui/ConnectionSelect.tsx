@@ -15,14 +15,20 @@ export interface ConnectionSelectProps {
   options: ConnectionSelectOption[]
   value: string
   onChange: (value: string) => void
+  syncing?: boolean
   className?: string
 }
 
-export function StatusDot({ active }: { active: boolean }): React.JSX.Element {
+export function StatusDot({ active, busy = false }: { active: boolean; busy?: boolean }): React.JSX.Element {
   if (active) {
     return (
       <span
-        className={`
+        className={busy
+          ? `
+          block size-3 shrink-0 rounded-full bg-dash-orange
+          shadow-[0_0_12px_var(--color-dash-orange)]
+        `
+          : `
           block size-3 shrink-0 rounded-full bg-dash-mint
           shadow-[0_0_12px_var(--color-dash-mint)]
         `}
@@ -65,6 +71,7 @@ export default function ConnectionSelect({
   options,
   value,
   onChange,
+  syncing = false,
   className = '',
 }: ConnectionSelectProps): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
@@ -109,7 +116,7 @@ export default function ConnectionSelect({
           focus:outline-none
         `}
       >
-        <StatusDot active={true} />
+        <StatusDot active={true} busy={syncing} />
         <div className={"flex items-center min-w-0 flex-1 text-left"}>
           <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
             {selectedOption?.label}
@@ -136,7 +143,7 @@ export default function ConnectionSelect({
               `}
             >
               <div className={"flex items-center gap-3 min-w-0 flex-1"}>
-                <StatusDot active={isSelected} />
+                <StatusDot active={isSelected} busy={isSelected && syncing} />
                 <Text size={14} weight={"medium"} color={"brand"} className={"truncate max-w-full"}>
                   {option.label}
                 </Text>
