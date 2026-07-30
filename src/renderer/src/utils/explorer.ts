@@ -9,6 +9,10 @@ export function transactionUrl(txid: string, network: Network): string {
   return `${EXPLORER_HOST[network]}/transactions/${txid}`
 }
 
+export function addressUrl(address: string, network: Network): string {
+  return `${EXPLORER_HOST[network]}/address/${address}`
+}
+
 export function openExternal(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
 }

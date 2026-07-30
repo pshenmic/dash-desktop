@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { BigNumber } from 'dash-ui-kit/react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { WalletAddressDto } from '@renderer/api/types'
 import { davToDashCompact } from '@renderer/utils/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { useAuth } from '@renderer/contexts/AuthContext'
+import { addressUrl, openExternal } from '@renderer/utils/explorer'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
@@ -17,6 +19,8 @@ export default function AddressCard({
 }: WalletAddressDto): React.JSX.Element {
   const [isQrOpen, setIsQrOpen] = useState(false)
   const { format: formatFiat, rateReady } = useFiat()
+  const { status: appStatus } = useAuth()
+  const network = appStatus?.network ?? null
 
   return (
     <div className={"flex items-center justify-between px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
@@ -30,6 +34,15 @@ export default function AddressCard({
           </Text>
           <CopyButton text={address} />
           <QrButton onClick={() => setIsQrOpen(true)} />
+          {network && (
+            <button
+              onClick={() => openExternal(addressUrl(address, network))}
+              title={"Open in explorer"}
+              className={"size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
+            >
+              <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-50"} />
+            </button>
+          )}
         </div>
         <Text size={10} weight={"medium"} color={"default"} opacity={50}>
           Tx count: <span className={"font-bold"}>{txCount}</span>
