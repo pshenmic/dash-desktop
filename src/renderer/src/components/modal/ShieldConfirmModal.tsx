@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, ShieldSmallIcon } from '../dash-ui-kit-enxtended'
+import { Button, CrossIcon, Input, Text, SuccessIcon, ShieldSmallIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
+import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
+import { platformTransactionUrl, openExternal } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
@@ -34,6 +36,8 @@ export default function ShieldConfirmModal({
   onSuccess,
 }: ShieldConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const { status } = useAuth()
+  const network = status?.network ?? null
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [error, setError] = useState<string | null>(null)
@@ -202,6 +206,19 @@ export default function ShieldConfirmModal({
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
+              {result?.stHash && network && (
+                <Button
+                  type={"button"}
+                  onClick={() => openExternal(platformTransactionUrl(result.stHash, network))}
+                  variant={"outline"}
+                  colorScheme={"primary-light"}
+                  size={"md"}
+                  className={"flex-1 rounded-[.9375rem] gap-2"}
+                >
+                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
+                  View on explorer
+                </Button>
+              )}
               <Button
                 type={"button"}
                 onClick={onClose}

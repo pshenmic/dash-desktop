@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { useTheme } from 'dash-ui-kit/react'
+import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldedSpendState } from '@renderer/api/types'
+import { platformTransactionUrl, openExternal } from '@renderer/utils/explorer'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import Spinner from '@renderer/components/ui/Spinner'
 import { SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
@@ -48,6 +50,8 @@ export default function ShieldedSpendModal({
   onSuccess,
 }: ShieldedSpendModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const { status } = useAuth()
+  const network = status?.network ?? null
   const [password, setPassword] = useState('')
   const [preError, setPreError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -137,6 +141,7 @@ export default function ShieldedSpendModal({
   }
 
   const isDone = spend?.phase === ShieldedSpendPhase.Done
+  const doneStHash = spend?.stHash ?? null
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const confirmLabel = busy ? 'Starting…' : !proverReady ? 'Preparing…' : 'Confirm & Send'
 
@@ -278,6 +283,12 @@ export default function ShieldedSpendModal({
               {spend?.stHash && <HashField hash={spend.stHash} />}
             </div>
             <div className={"mt-4.5 flex gap-2"}>
+              {doneStHash && network && (
+                <Button type={"button"} onClick={() => openExternal(platformTransactionUrl(doneStHash, network))} variant={"outline"} colorScheme={"primary-light"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
+                  View on explorer
+                </Button>
+              )}
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
                 Done
               </Button>

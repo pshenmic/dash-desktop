@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
@@ -11,7 +11,7 @@ import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { transactionUrl } from '@renderer/utils/explorer'
+import { transactionUrl, platformTransactionUrl, openExternal } from '@renderer/utils/explorer'
 import { ASSET_LOCK_FUNDING_POLL_MS } from '@renderer/constants'
 
 interface AssetLockFundingModalProps {
@@ -198,6 +198,8 @@ export default function AssetLockFundingModal({
   }
 
   const isDone = started && state?.phase === AssetLockFundingPhase.Done
+  const doneTxid = state?.txid ?? null
+  const doneStHash = state?.stHash ?? null
   const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
   const texts = TEXTS[kind]
   const phases = PHASE_LABELS[kind]
@@ -364,6 +366,18 @@ export default function AssetLockFundingModal({
               )}
             </div>
             <div className={"mt-4.5 flex gap-2"}>
+              {doneTxid && network && (
+                <Button type={"button"} onClick={() => openExternal(transactionUrl(doneTxid, network))} variant={"outline"} colorScheme={"primary-light"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
+                  L1 explorer
+                </Button>
+              )}
+              {doneStHash && network && (
+                <Button type={"button"} onClick={() => openExternal(platformTransactionUrl(doneStHash, network))} variant={"outline"} colorScheme={"primary-light"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
+                  Platform explorer
+                </Button>
+              )}
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
                 Done
               </Button>
