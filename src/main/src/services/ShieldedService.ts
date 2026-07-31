@@ -1,4 +1,5 @@
 import { KeyPairController } from 'dash-platform-sdk/src/keyPair/index.js'
+import { OrchardAddressWASM } from 'pshenmic-dpp'
 import { IdentityRegistrationService } from './IdentityRegistrationService'
 import { Network } from '../types'
 import { WalletDAO } from '../database/WalletDAO'
@@ -6,9 +7,13 @@ import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { ShieldedPoolDAO } from '../database/ShieldedPoolDAO'
 import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
+import { AssetLockFundingRow } from '../database/AssetLockDAO'
+import { AssetLockFundingState } from '../types/AssetLockFunding'
+import { AcquiredAssetLock, AssetLockService } from './AssetLockService'
 import { decryptMnemonic } from '../utils'
 import { PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
 import { identityPath } from '../utils/identityKeys'
+import { shieldAmountFromLockedDuffs } from '../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
   AssetLockProofParams,
@@ -98,6 +103,7 @@ export class ShieldedService {
   private shieldedAddressDAO: ShieldedAddressDAO
   private identityRegistrationService: IdentityRegistrationService
   private platform: PlatformWorkerService
+  private assetLock: AssetLockService
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string[]>()
@@ -106,7 +112,7 @@ export class ShieldedService {
   // evonode list to do local maths.
   private keyPair = new KeyPairController()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService, assetLock: AssetLockService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
@@ -114,6 +120,7 @@ export class ShieldedService {
     this.shieldedAddressDAO = shieldedAddressDAO
     this.identityRegistrationService = identityRegistrationService
     this.platform = platform
+    this.assetLock = assetLock
   }
 
   private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
@@ -156,10 +163,6 @@ export class ShieldedService {
 
     const {seed, network} = await this.unlock(walletId, password)
     return this.cacheAddresses(walletId, seed, network)
-  }
-
-  async initAddresses(walletId: string, seed: Uint8Array, network: Network): Promise<void> {
-    await this.cacheAddresses(walletId, seed, network)
   }
 
   // Grows the derived list so its newest address is unused: diversified
@@ -476,24 +479,70 @@ export class ShieldedService {
     return state
   }
 
-  // Proves and broadcasts a shield transition in the platform worker on
-  // behalf of PlatformAddressService. Resolves with the state transition hash.
-  async shield(network: Network, seed: Uint8Array, source: ShieldSource, recipient: string, amountCredits: bigint): Promise<string> {
-    const {stHash} = await this.platform.request('shield', network, {seed, source, recipient, amountCredits})
-    return stHash
+  // Locks L1 coins and shields the credits straight into the pool, so they
+  // never sit on a transparent platform address. An empty recipient shields to
+  // this wallet's own address.
+  async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+    shieldAmountFromLockedDuffs(amountDuffs)
+    const {seed, network} = await this.unlock(walletId, password)
+
+    let destination = recipient
+    if (destination.length > 0) {
+      try {
+        OrchardAddressWASM.fromBech32m(destination)
+      } catch {
+        throw new Error('Invalid shielded recipient address')
+      }
+    } else {
+      destination = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT).toBech32m(network)
+    }
+
+    const state = await this.assetLock.begin(walletId, 'shielded', destination, amountDuffs)
+    void this.runFunding(state, async () => {
+      const acquired = await this.assetLock.acquire(state, {
+        walletId, kind: 'shielded', destination, amountDuffs, password,
+      })
+      await this.settleShield(seed, network, state, acquired)
+    })
+    return state
   }
 
-  async shieldFromAssetLock(network: Network, seed: Uint8Array, params: {
-    txid: string
-    outputIndex: number
-    assetLockProof: AssetLockProofParams
-    creditDerivationPath: string
-    recipient: string
-    shieldAmountCredits: bigint
-    surplusAddress: string | null
-  }): Promise<string> {
-    const {stHash} = await this.platform.request('shieldFromAssetLock', network, {seed, ...params})
-    return stHash
+  async resumeShieldFromL1(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
+    const {seed, network} = await this.unlock(walletId, password)
+
+    const state = this.assetLock.resume(walletId, row)
+    void this.runFunding(state, async () => {
+      const acquired = await this.assetLock.reacquire(state, row)
+      await this.settleShield(seed, network, state, acquired)
+    })
+    return state
+  }
+
+  private runFunding(state: AssetLockFundingState, work: () => Promise<void>): Promise<void> {
+    return work().catch(error => this.assetLock.fail(state, error))
+  }
+
+  private async settleShield(
+    seed: Uint8Array,
+    network: Network,
+    state: AssetLockFundingState,
+    {row, proof}: AcquiredAssetLock,
+  ): Promise<void> {
+    await this.assetLock.markBroadcastingSt(state, row.txid)
+
+    const surplus = await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
+    const {stHash} = await this.platform.request('shieldFromAssetLock', network, {
+      seed,
+      txid: row.txid,
+      outputIndex: row.outputIndex,
+      assetLockProof: proof,
+      creditDerivationPath: row.creditDerivationPath,
+      recipient: row.toPlatformAddress,
+      shieldAmountCredits: shieldAmountFromLockedDuffs(BigInt(row.amountDuffs)),
+      surplusAddress: surplus.toBech32m(network),
+    })
+
+    await this.assetLock.done(state, row.txid, stHash)
   }
 
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {

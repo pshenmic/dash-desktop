@@ -29,7 +29,6 @@ import {decryptMnemonic, encryptMnemonic} from "../utils";
 import {COIN_TYPE, PLATFORM_ACCOUNT} from '../constants'
 import {identityPath} from '../utils/identityKeys'
 import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
-import {ShieldedService} from "./ShieldedService";
 
 const ADDRESS_LOOKAHEAD = 20
 const IDENTITY_LOOKAHEAD = 10
@@ -45,7 +44,6 @@ export class WalletService {
   private sdkProvider: SdkProvider
   private pbkdf2Iterations: number
   private coreTransactionService: CoreTransactionService
-  private shieldedService: ShieldedService
   private discoveryInflight = new Map<string, Promise<void>>()
   // Wallets whose initial scan + gap-limit discovery has converged this process.
   // Avoids re-issuing the (idempotent) latch write on every discovery tick.
@@ -60,7 +58,6 @@ export class WalletService {
     walletSyncService: WalletSyncService,
     sdkProvider: SdkProvider,
     pbkdf2Iterations: number,
-    shieldedService: ShieldedService,
   ) {
     this.pbkdf2Iterations = pbkdf2Iterations
     this.walletDAO = walletDAO
@@ -71,7 +68,6 @@ export class WalletService {
     this.walletSyncService = walletSyncService
     this.sdkProvider = sdkProvider
     this.coreTransactionService = new CoreTransactionService(sdkProvider)
-    this.shieldedService = shieldedService
   }
 
   // Picks the WalletProvider for a wallet at call time, honouring the user's
@@ -152,8 +148,6 @@ export class WalletService {
     } catch (e) {
       console.error('Core address discovery after wallet creation failed:', e)
     }
-
-    await this.shieldedService.initAddresses(walletId, seed, network)
 
     const identities: Identity[] = []
 

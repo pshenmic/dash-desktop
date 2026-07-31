@@ -114,7 +114,7 @@ export class WalletBackend {
       throw new Error('Services not initialized. Call start() first.')
     }
 
-    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.addressDAO, this.walletSyncService).handle)
+    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.addressDAO, this.walletSyncService, this.shieldedService).handle)
     ipcMain.handle('deleteWallet', new DeleteWalletHandler(this.walletService).handle)
     ipcMain.handle('getAllWallets', new GetAllWalletsHandler(this.walletService).handle)
     ipcMain.handle('selectWallet', new SelectWallet(this.walletService).handle)
@@ -143,9 +143,9 @@ export class WalletBackend {
     ipcMain.handle('transferIdentityCredits', new TransferIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('withdrawIdentityCredits', new WithdrawIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformAddressService).handle)
-    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
-    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
@@ -207,11 +207,15 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.platformWorkerService.start()
-    this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
-    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations, this.shieldedService)
-    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.shieldedService, this.platformWorkerService)
-    this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
+
+    // Consumers depend on the asset lock primitive, never the other way round:
+    // WalletService funds the L1 lock, AssetLockService turns it into a proof,
+    // and each consumer settles that proof into its own transition.
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations)
+    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, sdkProvider)
+    this.identityRegistrationService = new IdentityRegistrationService(sdkProvider, walletDAO, identityDAO, this.assetLockService, this.platformWorkerService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService, this.assetLockService)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService)
     this.sdkProvider = sdkProvider
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO

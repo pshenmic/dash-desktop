@@ -1,8 +1,10 @@
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../database/WalletDAO'
-import {ShieldedService} from './ShieldedService'
+import {AcquiredAssetLock, AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {IdentityDAO} from '../database/IdentityDAO'
+import {AssetLockFundingRow} from '../database/AssetLockDAO'
+import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
 import {Identity} from '../types/Identity'
@@ -50,19 +52,19 @@ const toInput = (candidate: PlatformSourceCandidate, credits: bigint): AddressIn
 export class PlatformAddressService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
-  private shieldedService: ShieldedService
+  private assetLock: AssetLockService
   private platform: PlatformWorkerService
   private keyPair = new KeyPairController()
 
   constructor(
     walletDAO: WalletDAO,
     identityDAO: IdentityDAO,
-    shieldedService: ShieldedService,
+    assetLock: AssetLockService,
     platform: PlatformWorkerService,
   ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
-    this.shieldedService = shieldedService
+    this.assetLock = assetLock
     this.platform = platform
   }
 
@@ -384,18 +386,72 @@ export class PlatformAddressService {
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
     const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
 
-    const stHash = await this.shieldedService.shield(network, seed, {
-      platformAddress: source.platformAddress,
-      nonce: source.nonce,
-      balanceCredits: source.balanceCredits,
-      index: source.index,
-    }, toShieldedAddress, amountCredits)
+    const {stHash} = await this.platform.request('shield', network, {
+      seed,
+      source: {
+        platformAddress: source.platformAddress,
+        nonce: source.nonce,
+        balanceCredits: source.balanceCredits,
+        index: source.index,
+      },
+      recipient: toShieldedAddress,
+      amountCredits,
+    })
 
     return {
       stHash,
       amountCredits: amountCredits.toString(),
       fromAddress: source.platformAddress,
     }
+  }
+
+  // Locks L1 coins and credits them to one of this wallet's platform addresses.
+  async startFundingFromL1(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+    const {wallet, seed} = await this.unlock(walletId, password)
+
+    const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, amountDuffs)
+    void this.runFunding(state, async () => {
+      const acquired = await this.assetLock.acquire(state, {
+        walletId, kind: 'address', destination: toPlatformAddress, amountDuffs, password,
+      })
+      await this.settleFunding(seed, wallet.network, state, acquired)
+    })
+    return state
+  }
+
+  async resumeFundingFromL1(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
+    const {wallet, seed} = await this.unlock(walletId, password)
+
+    const state = this.assetLock.resume(walletId, row)
+    void this.runFunding(state, async () => {
+      const acquired = await this.assetLock.reacquire(state, row)
+      await this.settleFunding(seed, wallet.network, state, acquired)
+    })
+    return state
+  }
+
+  private runFunding(state: AssetLockFundingState, work: () => Promise<void>): Promise<void> {
+    return work().catch(error => this.assetLock.fail(state, error))
+  }
+
+  private async settleFunding(
+    seed: Uint8Array,
+    network: Network,
+    state: AssetLockFundingState,
+    {row, proof}: AcquiredAssetLock,
+  ): Promise<void> {
+    await this.assetLock.markBroadcastingSt(state, row.txid)
+
+    const {stHash} = await this.platform.request('addressFundingFromAssetLock', network, {
+      seed,
+      txid: row.txid,
+      outputIndex: row.outputIndex,
+      assetLockProof: proof,
+      creditDerivationPath: row.creditDerivationPath,
+      recipient: row.toPlatformAddress,
+    })
+
+    await this.assetLock.done(state, row.txid, stHash)
   }
 
   private async requireWallet(walletId: string): Promise<Wallet> {
