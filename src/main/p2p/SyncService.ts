@@ -1,6 +1,6 @@
 import {BroadcastService} from './BroadcastService'
 import {ChainStore, ChainTipState, PersistedHeader} from './ChainStore'
-import {GENESIS, LOCK_POOL_MIN_PEERS, LOCK_POOL_READY_PEERS} from './constants'
+import {GENESIS, LOCK_POOL_MAX_CONNECTIONS, LOCK_POOL_MIN_PEERS, LOCK_POOL_READY_PEERS} from './constants'
 import {PoolService} from './PoolService'
 import {
   HeaderSyncWorker,
@@ -16,18 +16,13 @@ import {BroadcastResult} from './types/broadcast'
 import {AppliedBlock, WalletSyncStatus} from './types/walletSync'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
 
-// Top-level controller for the p2p utility process. Owns the shared
-// infrastructure (ChainStore + PoolService), spawns workers per session,
-// and aggregates per-worker status updates into the wire WalletSyncStatus.
+// Top-level controller for the p2p utility process: owns ChainStore and the
+// pools, spawns workers per session, aggregates their status.
 //
-// Workers are pure: they don't talk to parentPort, they don't hold a Pool,
-// they don't open chain.db. SyncService wires them to the shared
-// dependencies and forwards their events.
-//
-// Wallet-scoped state (UTXOs, transactions, cfilter cursor) does NOT pass
-// through chain.db or ChainStore — the start command carries seedUtxos +
-// cfilterCursor from main (sourced from SQL), and per-block effects flow
-// back as blockApplied / cursorAdvanced events for main to persist.
+// chain.db holds network-scoped data only. Wallet state never passes through
+// it — seedUtxos + cfilterCursor arrive in the start command from SQL, and
+// per-block effects flow back as blockApplied / cursorAdvanced for main to
+// persist.
 export interface SyncServiceEvents {
   status: (status: WalletSyncStatus) => void
   blockApplied: (block: AppliedBlock) => void
@@ -39,14 +34,15 @@ export interface SyncServiceEvents {
     result: BroadcastResult,
     errorMessage: string | null,
   ) => void
-  txInstantLocked: (walletId: string, txid: string, islockHex: string) => void
-  chainLocked: (walletId: string, height: number) => void
+  txInstantLocked: (txid: string, islockHex: string) => void
+  chainLocked: (network: Network, height: number) => void
 }
 
 export class SyncService {
   private chainStore: ChainStore | null = null
   // relay:true, always up: lock watching + broadcast.
   private lockPool: PoolService | null = null
+  private lockNetwork: Network | null = null
   // relay:false, p2p mode only: headers, cfilters, blocks.
   private bulkPool: PoolService | null = null
   private headerSyncWorker: HeaderSyncWorker | null = null
@@ -58,8 +54,8 @@ export class SyncService {
   private activeSeedUtxos: P2PStartMessage['seedUtxos'] = []
   private activeCFilterCursor: number | null = null
   private cfilterStarted = false
-  // Display-order txids of unconfirmed local txs to watch for an isdlock.
-  // While non-empty the watcher fetches isdlock objects to match them.
+  // Display order, not wire order. While non-empty the watcher fetches isdlock
+  // objects to match against it.
   private watchedTxids = new Set<string>()
   // Highest ChainLock height observed — dedupes repeated clsig emits.
   private chainlockedHeight = 0
@@ -76,6 +72,7 @@ export class SyncService {
     matchedBlocksPending: 0,
     peerCount: 0,
     filterCapablePeerCount: 0,
+    lockPeerCount: 0,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: Date.now(),
@@ -87,9 +84,8 @@ export class SyncService {
 
   getStatus = (): WalletSyncStatus => this.status
 
-  // Serialize lifecycle ops so two near-simultaneous start commands can't both
-  // open chain.db — LevelDB is single-owner and a second concurrent open fails
-  // the lock (surfacing as LEVEL_DATABASE_NOT_OPEN).
+  // LevelDB is single-owner, so two near-simultaneous starts would race to open
+  // chain.db and the loser fails the lock as LEVEL_DATABASE_NOT_OPEN.
   private opChain: Promise<unknown> = Promise.resolve()
 
   private runExclusive = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -102,49 +98,62 @@ export class SyncService {
 
   stop = (): Promise<void> => this.runExclusive(() => this.stopInner())
 
-  // Bring up the lock core without the bulk layer. `start` is a superset, so
-  // calling this first and starting a sync later grows the session rather than
-  // restarting it.
+  // `start` is a superset, so listening first and syncing later grows the
+  // session rather than restarting it.
   listen = (cmd: P2PListenMessage): Promise<void> =>
-    this.runExclusive(async () => this.startLockCore(cmd.network, cmd.walletId))
+    this.runExclusive(async () => this.startLockCore(cmd.network))
 
-  // Peers, lock watching and broadcast — everything that does not touch
-  // chain.db or the sync workers. Safe to run in rpc mode, and left alone when
-  // the bulk layer stops, so pending lock waiters survive a mode switch.
-  private startLockCore = (network: Network, walletId: string): void => {
-    if (this.lockPool && this.activeWalletId === walletId) return
+  // Everything that touches neither chain.db nor the sync workers, so it runs
+  // in rpc mode and survives the bulk layer stopping — pending lock waiters
+  // outlive a mode switch. Network-scoped rather than wallet-scoped so
+  // switching wallets reuses a filled pool instead of re-crawling DNS.
+  private startLockCore = (network: Network): void => {
+    if (this.lockPool && this.lockNetwork === network) return
 
     this.teardownLock()
-    this.activeWalletId = walletId
+    this.lockNetwork = network
     this.watchedTxids = new Set()
     this.chainlockedHeight = 0
 
     this.lockPool = new PoolService(network, {
+      label: 'lock-pool',
       relay: true,
       readyPeers: LOCK_POOL_READY_PEERS,
       minPeers: LOCK_POOL_MIN_PEERS,
+      maxConnections: LOCK_POOL_MAX_CONNECTIONS,
     })
     this.lockPool.on('peerinv', this.onPeerInvForLocks)
     this.lockPool.on('peerisdlock', this.onIsdlock)
     this.lockPool.on('peerclsig', this.onClsig)
-    // The bulk pool neither seeds from DNS nor gossips, so this is its only
-    // source of addresses.
-    this.lockPool.on('peeraddr', this.onLockPoolAddr)
+    this.lockPool.on('peeraddr', this.feedBulkPool)
+    // Nothing else emits status while the bulk layer is down, so lock-pool
+    // churn is a lazy-mode wallet's only signal.
+    this.lockPool.on('peerready', this.onLockPeerChange)
+    this.lockPool.on('peerdisconnect', this.onLockPeerChange)
     this.lockPool.start()
   }
 
-  private onLockPoolAddr = (): void => {
+  private onLockPeerChange = (): void => {
+    this.emit({})
+    this.feedBulkPool()
+  }
+
+  // The bulk pool has no DNS seed, so this is its only supply. Driven off peer
+  // events as well as `peeraddr` because at creation the lock pool's book is
+  // still just DNS entries — waiting for gossip alone would leave it empty.
+  private feedBulkPool = (): void => {
     if (!this.bulkPool || !this.lockPool) return
-    this.bulkPool.addAddresses(this.lockPool.knownAddresses)
+    if (this.bulkPool.network !== this.lockPool.network) return
+    this.bulkPool.addAddresses(this.lockPool.takeAddresses())
   }
 
   private startInner = async (cmd: P2PStartMessage): Promise<void> => {
-    // Already syncing this wallet — a duplicate start (StrictMode double-invoke,
-    // overlapping auto-start). Ignore rather than tear down and re-open chain.db.
+    // Duplicate start (StrictMode double-invoke, overlapping auto-start).
+    // Ignoring beats tearing down and re-opening chain.db.
     if (this.chainStore && this.activeWalletId === cmd.walletId) return
 
     await this.teardownBulk()
-    this.startLockCore(cmd.network, cmd.walletId)
+    this.startLockCore(cmd.network)
 
     this.activeWalletId = cmd.walletId
     this.activeWatchAddresses = cmd.watchAddresses ?? []
@@ -165,12 +174,12 @@ export class SyncService {
       matchedBlocksPending: 0,
       peerCount: 0,
       filterCapablePeerCount: 0,
+      lockPeerCount: 0,
       phaseEtaMs: null,
       lastError: null,
     })
 
-    // Open chain.db (single-owner LevelDB lock). Chain.db now holds only
-    // network-scoped data (headers, hash cache, filter headers).
+    // Single-owner LevelDB lock.
     this.chainStore = new ChainStore(cmd.chainDbPath, cmd.network)
     let persisted: ChainTipState
     try {
@@ -196,18 +205,15 @@ export class SyncService {
     }
     console.log(`[p2p] starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
-    // Bulk pool: headers, cfilters and block bodies only. `relay: false` drops
-    // the tx inv stream these workers never read — Dash Core gates ISLOCK /
-    // ISDLOCK inv behind the same flag, which is exactly why lock watching
-    // stays on the other pool. Addresses come from the lock pool rather than
-    // DNS, so the two never contend for the same peers.
-    this.bulkPool = new PoolService(cmd.network, {relay: false, dnsSeed: false})
-    this.bulkPool.addAddresses(this.lockPool?.knownAddresses ?? [])
+    // `relay: false` drops the tx inv stream these workers never read — and
+    // Dash Core gates ISLOCK/ISDLOCK inv behind the same flag, which is why
+    // lock watching stays on the other pool.
+    this.bulkPool = new PoolService(cmd.network, {label: 'bulk-pool', relay: false, dnsSeed: false})
+    this.feedBulkPool()
     this.bulkPool.start()
 
-    // Boot HeaderSyncWorker. CFilterSyncWorker is booted lazily once header
-    // sync emits 'synced' status (so we don't compete for chain.db state
-    // mid-sync).
+    // CFilterSyncWorker boots lazily once header sync reports 'synced', so the
+    // two never compete for chain.db state mid-sync.
     this.headerSyncWorker = new HeaderSyncWorker({
       chainStore: this.chainStore,
       peerPool: this.bulkPool,
@@ -226,7 +232,6 @@ export class SyncService {
 
   private stopInner = async (): Promise<void> => {
     await this.teardownBulk()
-    this.teardownLock()
     this.activeWalletId = null
     this.activeWatchAddresses = []
     this.activeBirthdayHeight = 1
@@ -244,13 +249,14 @@ export class SyncService {
       matchedBlocksPending: 0,
       peerCount: 0,
       filterCapablePeerCount: 0,
+      lockPeerCount: 0,
       phaseEtaMs: null,
     })
   }
 
-  // Open chain.db, retrying a few times on failure. The common transient is a
-  // still-held LevelDB lock (a prior session's utility process releasing it);
-  // a short backoff recovers automatically instead of forcing a resetWalletSync.
+  // Retries because the common failure is a prior session's utility process
+  // still releasing the LevelDB lock; a short backoff beats forcing a
+  // resetWalletSync.
   private async openWithRetry(store: ChainStore): Promise<ChainTipState> {
     const ATTEMPTS = 5
     const BACKOFF_MS = 400
@@ -276,8 +282,12 @@ export class SyncService {
       txid: '',
       peersInvited: 0,
       peersAcked: [],
+      peersDelivered: [],
       peersPropagated: [],
       instantLocked: false,
+      islockHex: null,
+      lockLatencyMs: null,
+      waitedForLock: false,
       rejections: [],
       durationMs: 0,
     }
@@ -288,7 +298,7 @@ export class SyncService {
     // The lock pool, so the isdlock for this tx arrives on the connections we
     // announced it to.
     const service = new BroadcastService(this.lockPool)
-    service.broadcast(cmd.txHex).then(result => {
+    service.broadcast(cmd.txHex, cmd.policy).then(result => {
       this.events.broadcastResult(cmd.requestId, true, result, null)
     }).catch(err => {
       const message = err instanceof Error ? err.message : String(err)
@@ -306,25 +316,25 @@ export class SyncService {
   }
 
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
-    if (!this.activeWalletId || cmd.walletId !== this.activeWalletId) return
-    this.watchedTxids = new Set(cmd.txids)
-    console.log(`[locks] watchTxs set (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
+    if (cmd.mode === 'replace') {
+      this.watchedTxids = new Set(cmd.txids)
+    } else {
+      for (const txid of cmd.txids) this.watchedTxids.add(txid)
+    }
+    console.log(`[locks] watchTxs ${cmd.mode} (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
   }
 
   // ── lock watcher ────────────────────────────────────────────────────────────
 
-  // On every inv, fetch ChainLock objects (cheap, ~1/block) and — only while
-  // we have local txs awaiting confirmation — InstantSend objects, so we can
-  // match them by txid. The inv carries only the object's hash, so we must
-  // getdata it to read its contents.
+  // An inv carries only the object's hash, so matching by txid means issuing a
+  // getdata to read its contents.
   private onPeerInvForLocks = (
     peer: Peer,
     msg: Message & {inventory?: Array<{type: number; hash: Uint8Array}>},
   ): void => {
     if (!this.lockPool) return
-    // Chainlocks are only acted on while a lock is being waited for, or by the
-    // sync layer marking transactions final. With neither, fetching one per
-    // block is a permanent background cost for nothing.
+    // With no waiter and no sync layer to mark txs final, fetching one per
+    // block is permanent background cost for nothing.
     const wantChainlocks = this.watchedTxids.size > 0 || this.bulkPool != null
     const wanted: Array<{type: number; hash: Uint8Array}> = []
     for (const item of msg.inventory ?? []) {
@@ -347,8 +357,8 @@ export class SyncService {
 
   // isdlock.txid is wire/internal byte order; our watch set is display order.
   private onIsdlock = (_peer: Peer, msg: Message & {txid?: string}): void => {
-    if (!this.activeWalletId || !msg.txid) {
-      console.log(`[locks] isdlock received but no txid/wallet (txid=${msg.txid ?? 'undefined'})`)
+    if (!msg.txid) {
+      console.log('[locks] isdlock received without a txid')
       return
     }
     const displayTxid = reverseHex(msg.txid)
@@ -356,19 +366,19 @@ export class SyncService {
     console.log(`[locks] isdlock received wire=${msg.txid} display=${displayTxid} matched=${matched} watching=[${[...this.watchedTxids].join(',')}]`)
     if (!matched) return
     this.watchedTxids.delete(displayTxid)
-    // Serialize the lock so the main process can build an InstantAssetLockProof
-    // from it — we broadcast L1 txs over this pool, so this is where the isdlock
-    // actually arrives (DAPI's subscribeToTransactions does not deliver it).
+    // Serialized for InstantAssetLockProof construction in main. We broadcast
+    // L1 over this pool, so this is where the isdlock actually arrives — DAPI's
+    // subscribeToTransactions never delivers it.
     const islockHex = Buffer.from((msg as unknown as {getPayload(): Uint8Array}).getPayload()).toString('hex')
-    this.events.txInstantLocked(this.activeWalletId, displayTxid, islockHex)
+    this.events.txInstantLocked(displayTxid, islockHex)
   }
 
   private onClsig = (_peer: Peer, msg: Message & {height?: number}): void => {
-    if (!this.activeWalletId) return
+    if (!this.lockNetwork) return
     const height = msg.height ?? 0
     if (height <= this.chainlockedHeight) return
     this.chainlockedHeight = height
-    this.events.chainLocked(this.activeWalletId, height)
+    this.events.chainLocked(this.lockNetwork, height)
   }
 
   // ── private ───────────────────────────────────────────────────────────────
@@ -397,6 +407,7 @@ export class SyncService {
   }
 
   private teardownLock(): void {
+    this.lockNetwork = null
     if (!this.lockPool) return
     this.lockPool.stop()
     this.lockPool.removeAllListeners()
@@ -405,15 +416,15 @@ export class SyncService {
 
   private emit(next: Partial<WalletSyncStatus>): void {
     const merged = {...this.status, ...next, updatedAt: Date.now()}
+    // Owned here rather than by the workers: the lock pool outlives them.
+    merged.lockPeerCount = this.lockPool?.readyPeers.size ?? 0
     merged.phaseEtaMs = this.computePhaseEta(merged)
     this.status = merged
     this.events.status(this.status)
   }
 
-  // Returns ms remaining for the active phase, based on the rate of height
-  // progress since the phase started. null for phases with no height target
-  // (idle, connecting, synced-headers, synced, stopped) and while we don't
-  // yet have a usable rate sample.
+  // Extrapolates from height progress since the phase started. null for phases
+  // with no height target, and until there is a usable rate sample.
   private computePhaseEta(status: WalletSyncStatus): number | null {
     const target = phaseTargetHeight(status)
     const current = phaseCurrentHeight(status)
@@ -522,9 +533,9 @@ export class SyncService {
   }
 }
 
-// abstract-level wraps a failed open as LEVEL_DATABASE_NOT_OPEN ("Database
-// failed to open") and hides the real reason (held lock, IO error) in `cause`.
-// Surface it so logs name the actual problem instead of the generic wrapper.
+// abstract-level reports every failed open as LEVEL_DATABASE_NOT_OPEN and
+// buries the real reason (held lock, IO error) in `cause`. Unwrap it so logs
+// name the actual problem.
 function describeError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
   const cause = (err as { cause?: unknown })?.cause
@@ -543,9 +554,8 @@ function reverseHex(hex: string): string {
   return out
 }
 
-// Errors that mean chain.db is no longer usable — corruption, IO errors,
-// or the folder being unlinked under us mid-sync. Once we hit one, we can't
-// safely keep workers running; main process must resetSync to recover.
+// chain.db is unusable past this point (corruption, IO error, folder unlinked
+// mid-sync) — workers cannot safely keep running and main must resetSync.
 function isFatalChainDbError(message: string): boolean {
   return /LEVEL_(CORRUPTION|IO_ERROR|DATABASE_NOT_OPEN|NOT_FOUND)|ENOENT|EBADF/i.test(message)
 }

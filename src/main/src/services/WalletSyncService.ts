@@ -2,13 +2,13 @@ import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import {ChainStorageFilename, HomeFolderName} from '../constants'
+import {ChainStorageFilename, HomeFolderName, LOCK_WATCH_TTL_MS} from '../constants'
 import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
 import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
-import {BroadcastResult} from '../../p2p/types/broadcast'
+import {BroadcastPolicyOverrides, BroadcastResult} from '../../p2p/types/broadcast'
 import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
@@ -60,6 +60,7 @@ export class WalletSyncService {
     matchedBlocksPending: 0,
     peerCount: 0,
     filterCapablePeerCount: 0,
+    lockPeerCount: 0,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: Date.now(),
@@ -83,6 +84,10 @@ export class WalletSyncService {
   // shield / asset-lock funding (see IdentityRegistrationService).
   private instantLocks = new Map<string, string>()
   private instantLockWaiters = new Map<string, Array<(hex: string) => void>>()
+  // Txids armed for lock capture that SQL does not know are pending yet, held
+  // here so the periodic replace-mode refresh cannot drop them.
+  private armedLockTxids = new Map<string, number>()
+  private lockListenNetwork: 'mainnet' | 'testnet' | null = null
   // Holds the scan cursor back when a block failed to reach SQL. The worker
   // emits cursorAdvanced at the end of every scan regardless of what landed,
   // so without this the resume marker steps over the missing block and its
@@ -136,8 +141,9 @@ export class WalletSyncService {
         resolve({
           ok: false,
           result: {
-            txid: '', peersInvited: 0, peersAcked: [], peersPropagated: [],
-            instantLocked: false, rejections: [], durationMs: 0,
+            txid: '', peersInvited: 0, peersAcked: [], peersDelivered: [], peersPropagated: [],
+            instantLocked: false, islockHex: null, lockLatencyMs: null,
+            waitedForLock: false, rejections: [], durationMs: 0,
           },
           errorMessage: `p2p utility process exited (code=${code}) before broadcast ${requestId} completed${crashDetail}`,
         })
@@ -155,6 +161,7 @@ export class WalletSyncService {
         matchedBlocksPending: 0,
         peerCount: 0,
         filterCapablePeerCount: 0,
+        lockPeerCount: 0,
         phaseEtaMs: null,
         lastError: null,
         updatedAt: Date.now(),
@@ -182,12 +189,12 @@ export class WalletSyncService {
         resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
       }
     } else if (data.type === 'txInstantLocked') {
-      this.recordInstantLock(data.txid, data.islockHex)
-      this.transactionDAO.markInstantLocked(data.walletId, data.txid).catch(err =>
+      this.transactionDAO.markInstantLocked(data.txid).catch(err =>
         console.error('[walletSync] markInstantLocked failed:', err)
       )
+      this.recordInstantLock(data.txid, data.islockHex)
     } else if (data.type === 'chainLocked') {
-      this.transactionDAO.markChainlockedUpTo(data.walletId, data.height).catch(err =>
+      this.transactionDAO.markChainlockedUpTo(data.network, data.height).catch(err =>
         console.error('[walletSync] markChainlockedUpTo failed:', err)
       )
     } else if (data.type === 'error') {
@@ -321,6 +328,7 @@ export class WalletSyncService {
 
   private recordInstantLock(txid: string, islockHex: string): void {
     this.instantLocks.set(txid, islockHex)
+    this.disarmLockWatch(txid)
     const waiters = this.instantLockWaiters.get(txid)
     if (waiters) {
       this.instantLockWaiters.delete(txid)
@@ -328,10 +336,35 @@ export class WalletSyncService {
     }
   }
 
-  // Resolve with the serialized isdlock (hex) for a locally-broadcast txid,
-  // received over the p2p pool — or null if none arrives within timeoutMs.
-  // The tx must be in the worker's watch set (broadcastTransaction/watchTxs)
-  // for the lock to be captured.
+  // The worker's set only shrinks when we reinstall it, and the periodic
+  // refresh belongs to the rebroadcast loop, which rpc mode never starts.
+  private disarmLockWatch(txid: string): void {
+    if (!this.armedLockTxids.delete(txid)) return
+    this.refreshWatchedTxids().catch(err =>
+      console.error('[walletSync] refreshWatchedTxids failed:', err))
+  }
+
+  // Bring up the lock pool without syncing anything. Runs in both connection
+  // modes: an rpc-mode wallet still needs InstantSend locks for asset-lock
+  // funding, and nothing else in the process listens for them.
+  startLockListen = (network: 'mainnet' | 'testnet'): void => {
+    if (this.lockListenNetwork === network && this.child) return
+    this.lockListenNetwork = network
+    this.send({type: 'listen', network})
+  }
+
+  // Arm lock capture for a txid. Without this the utility process never issues
+  // the getdata an ISDLOCK inv requires, so the lock is seen and dropped.
+  watchForInstantLock = (txid: string): void => {
+    if (!this.child) return
+    this.armedLockTxids.set(txid, Date.now())
+    this.send({type: 'watchTxs', mode: 'add', txids: [txid]})
+  }
+
+  // Resolve with the serialized isdlock (hex) for a watched txid, received over
+  // the p2p pool — or null if none arrives within timeoutMs. The tx must have
+  // been armed (watchForInstantLock / broadcastTransaction) for the lock to be
+  // captured.
   waitForInstantLock = (txid: string, timeoutMs: number): Promise<string | null> => {
     const cached = this.instantLocks.get(txid)
     if (cached) return Promise.resolve(cached)
@@ -350,13 +383,18 @@ export class WalletSyncService {
         resolve(hex)
       }
       const onLock = (hex: string): void => finish(hex)
-      const timer = setTimeout(() => finish(null), timeoutMs)
+      const timer = setTimeout(() => {
+        this.disarmLockWatch(txid)
+        finish(null)
+      }, timeoutMs)
       timer.unref?.()
       const arr = this.instantLockWaiters.get(txid) ?? []
       arr.push(onLock)
       this.instantLockWaiters.set(txid, arr)
     })
   }
+
+  hasInstantLock = (txid: string): boolean => this.instantLocks.has(txid)
 
   isSyncedFor(walletId: string): boolean {
     return this.status.phase === 'synced' && this.status.walletId === walletId
@@ -424,17 +462,19 @@ export class WalletSyncService {
     return cursor !== null
   }
 
-  // Broadcast a signed transaction over the active peer pool. Requires
-  // startSync to have been called (the utility process owns the pool).
-  // The retry / timeout / ack policy is hardcoded in
-  // p2p/constants.BROADCAST_POLICY — callers pass only the tx hex.
-  broadcastTransaction = async (txHex: string): Promise<BroadcastResult> => {
+  // The only way a locally-signed transaction reaches the network, in both
+  // connection modes: it goes over the lock pool, which is also the only pool
+  // that can hear the resulting isdlock. Defaults come from
+  // p2p/constants.BROADCAST_POLICY; `policy` overrides the lock knobs.
+  broadcastTransaction = async (txHex: string, policy?: BroadcastPolicyOverrides): Promise<BroadcastResult> => {
+    // Re-forks the utility process if it died since the last send.
+    if (this.lockListenNetwork) this.startLockListen(this.lockListenNetwork)
     if (!this.child) {
-      throw new Error('broadcastTransaction: p2p utility process not started — call startWalletSync first')
+      throw new Error('broadcastTransaction: p2p transport not started — no wallet selected')
     }
     const requestId = randomUUID()
-    await this.pushWatchedTxids(txidFromHex(txHex)).catch(err =>
-      console.error('[walletSync] pushWatchedTxids failed:', err))
+    const txid = txidFromHex(txHex)
+    if (txid) this.watchForInstantLock(txid)
     const result = await new Promise<BroadcastResult>((resolve, reject) => {
       this.pendingBroadcasts.set(requestId, ({ok, result, errorMessage}) => {
         if (ok) {
@@ -445,14 +485,18 @@ export class WalletSyncService {
           reject(err)
         }
       })
-      this.send({type: 'broadcast', requestId, txHex})
+      this.send({type: 'broadcast', requestId, txHex, policy})
     })
+
+    // A lock observed inside the session reaches the cache here; the watcher's
+    // txInstantLocked event is the other path and either may land first.
+    if (result.islockHex) this.recordInstantLock(result.txid, result.islockHex)
 
     // The tx reached at least one peer — optimistically record the spend so
     // the UTXO set reflects it immediately. The cfilter scan reconciles it on
     // confirmation; the rebroadcast loop keeps it alive meanwhile. Best-effort:
     // a record failure must not turn a successful broadcast into an error.
-    if (this.activeWalletId && (result.peersAcked.length > 0 || result.peersPropagated.length > 0)) {
+    if (this.activeWalletId && result.peersDelivered.length > 0) {
       await this.recordOptimisticSpend(this.activeWalletId, txHex).catch(err =>
         console.error('[walletSync] recordOptimisticSpend failed:', err))
     }
@@ -489,25 +533,33 @@ export class WalletSyncService {
   private async rebroadcastPending(): Promise<void> {
     if (!this.activeWalletId || !this.child) return
     const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
-    const watch: string[] = []
     for (const p of pending) {
       if (p.instantLocked) continue
-      watch.push(p.txid)
       const hex = Buffer.from(p.raw).toString('hex')
       this.broadcastTransaction(hex).catch(() => { /* best-effort re-push */ })
     }
-    // Refresh the worker's isdlock watch set (covers the "all confirmed →
-    // stop fetching isdlocks" case, where no broadcast fires above).
-    this.send({type: 'watchTxs', walletId: this.activeWalletId, txids: watch})
+    await this.refreshWatchedTxids()
   }
 
-  // Tell the worker which unconfirmed local txids to watch for an isdlock.
-  private async pushWatchedTxids(extraTxid?: string): Promise<void> {
-    if (!this.activeWalletId || !this.child) return
-    const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
-    const txids = pending.filter(p => !p.instantLocked).map(p => p.txid)
-    if (extraTxid && !txids.includes(extraTxid)) txids.push(extraTxid)
-    this.send({type: 'watchTxs', walletId: this.activeWalletId, txids})
+  // Reinstall the worker's isdlock watch set: unconfirmed local txs from SQL,
+  // plus txids armed directly. Also covers the "all confirmed → stop fetching
+  // isdlocks" case, where no broadcast fires above.
+  //
+  // Armed entries expire: a tx that never got a lock would otherwise keep the
+  // worker fetching isdlock objects for the life of the process.
+  private async refreshWatchedTxids(): Promise<void> {
+    if (!this.child) return
+    const cutoff = Date.now() - LOCK_WATCH_TTL_MS
+    const txids = new Set<string>()
+    for (const [txid, armedAt] of this.armedLockTxids) {
+      if (armedAt < cutoff) this.armedLockTxids.delete(txid)
+      else txids.add(txid)
+    }
+    if (this.activeWalletId) {
+      const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
+      for (const p of pending) if (!p.instantLocked) txids.add(p.txid)
+    }
+    this.send({type: 'watchTxs', mode: 'replace', txids: [...txids]})
   }
 
   // Parse a just-broadcast tx and record it as pending: its inputs become
@@ -589,6 +641,7 @@ export class WalletSyncService {
       matchedBlocksPending: 0,
       peerCount: 0,
       filterCapablePeerCount: 0,
+      lockPeerCount: 0,
       phaseEtaMs: null,
       lastError: null,
       updatedAt: Date.now(),

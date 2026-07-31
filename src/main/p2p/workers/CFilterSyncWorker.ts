@@ -1,19 +1,11 @@
-// Compact-filter (BIP 157/158) UTXO scan worker. Phases:
-//   1. cfcheckpt   anchor filter-header chain at every 1000-block boundary
-//   2. cfheaders   walk birthday→tip, derive filter headers locally, verify
-//                  against checkpoints; persist to chain.db (network-shared)
-//   3. cfilters    pull GCS payloads, match watched scripts/outpoints, fetch
-//                  matched blocks, emit blockApplied events with full tx data
+// Compact-filter (BIP 157/158) UTXO scan worker, in three phases: cfcheckpt
+// anchors the filter-header chain every 1000 blocks, cfheaders walks
+// birthday→tip deriving headers locally and verifying them against those
+// anchors, cfilters pulls GCS payloads and fetches the blocks that match.
 //
-// Persists to chain.db:
-//   - f:<height>           filter headers (network-scoped, reusable)
-//   - n:<height>           wire-byte block hashes (network-scoped)
-//
-// Wallet-scoped state (UTXOs, cfilter cursor, transactions) lives in SQL
-// in the main process. The worker emits 'blockApplied' / 'cursorAdvanced'
-// events and main writes them through TransactionDAO. The worker keeps an
-// in-memory UTXO map for spend detection in subsequent blocks; it's seeded
-// from main at start time via the start command.
+// Only network-scoped data reaches chain.db (f: filter headers, n: wire-byte
+// block hashes). Wallet state stays in SQL: the worker emits blockApplied /
+// cursorAdvanced and main persists them.
 
 import {
   type CFCheckptArgs,
@@ -118,9 +110,8 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
 
 const HASH_LEN = 32
 
-// Point-in-time resident-memory probe. RSS is what Activity Monitor / Task
-// Manager show for the dash-p2p process; `external`+`arrayBuffers` cover the
-// off-heap typed-array backing stores that `ps rss` under-counts.
+// `external`+`arrayBuffers` are reported because they cover the off-heap
+// typed-array backing stores that `ps rss` under-counts.
 function logMem(label: string): void {
   const MB = 1024 * 1024
   const m = process.memoryUsage()
@@ -130,12 +121,10 @@ function logMem(label: string): void {
   )
 }
 
-// Dense height→wire-hash index backed by one contiguous buffer instead of a
-// Map holding a separate Uint8Array per block. At ~2.5M blocks a
-// Map<number,Uint8Array> costs ~600MB (≈245B/entry: V8 object header +
-// per-array backing store); this stores 32B/block (~80MB) plus a 1-bit/height
-// presence bitmap. get() returns a copy so callers may retain it across the
-// buffer reallocation that tip-follow growth triggers.
+// One contiguous buffer rather than a Map<number,Uint8Array>: at ~2.5M blocks
+// the Map costs ~600MB (~245B/entry in V8 headers and per-array backing
+// stores), this ~80MB. get() returns a copy so callers can hold it across the
+// reallocation tip-follow growth triggers.
 class BlockHashIndex {
   private data: Uint8Array
   private present: Uint8Array
@@ -175,10 +164,8 @@ class BlockHashIndex {
   }
 }
 
-// Height → 32-byte filter header, backed by one flat buffer + a presence
-// bitset — same layout as BlockHashIndex. Replaces a Map<number, Uint8Array>
-// whose per-entry V8 overhead (~150-250B/entry) made the whole-chain filter-
-// header cache the p2p process' dominant resident cost (~400MB → ~70MB).
+// Same layout as BlockHashIndex, for the same reason: as a Map this cache was
+// the p2p process' dominant resident cost (~400MB → ~70MB).
 class FilterHeaderIndex {
   private data: Uint8Array
   private present: Uint8Array
@@ -223,8 +210,7 @@ class FilterHeaderIndex {
     return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
   }
 
-  // Drop every stored header at or above `fromHeight` (checkpoint-divergence
-  // recovery). Replaces iterating Map keys to delete a tail.
+  // Checkpoint-divergence recovery: drop everything at or above `fromHeight`.
   deleteFrom(fromHeight: number): void {
     const start = Math.max(0, fromHeight)
     for (let h = start; h < this.capacity; h++) {
@@ -260,11 +246,9 @@ export class CFilterSyncWorker extends Worker {
   private leader: Peer | null = null
 
   // ── chain index (height → wire-byte hash) ────────────────────────────────
-  // Forward index only. The reverse (hash→height) lookup is served from
-  // bounded inflight state instead of a whole-chain Map: block fetches carry
-  // their height (blockFetch.inflight), cfilter batches register their hashes
-  // in cfilterInflightHeights, and cfheaders match against the few pending
-  // stop-hashes. This drops a ~250MB full-chain hex-string map.
+  // Forward only. The reverse lookup comes from bounded inflight state — block
+  // fetches carry their height, cfilter batches register their hashes, cfheaders
+  // match the few pending stop-hashes — dropping a ~250MB full-chain map.
   private readonly blockHashIndex: BlockHashIndex
   private cfilterInflightHeights = new Map<string, number>()
 
@@ -299,21 +283,11 @@ export class CFilterSyncWorker extends Worker {
     matched: new Map<number, Block>(),
   }
 
-  // In-memory UTXO map. Source of truth lives in SQL (main process); this
-  // is a session cache seeded at start time and mutated as blocks apply.
-  // Discarded on stop and re-derived from SQL on next start.
-  //
-  // Why the worker holds this at all (we can't be fully stateless):
-  //
-  //   1. BIP 158 outpoint watching — STRUCTURAL, can't move.
-  //      The cfilter match (cf.matchAny(this.watchedItems)) runs in this
-  //      worker because that's where peer messages arrive. The match set
-  //      must include both our scriptPubKeys AND our outpoints, otherwise
-  //      we'd miss any tx that spends one of our UTXOs without paying any
-  //      of our addresses (i.e. pure outgoing txs). Adding a received
-  //      output's outpoint to watchedItems requires knowing it's ours;
-  //      removing a spent outpoint requires knowing which one matched.
-  //
+  // Session cache seeded from SQL at start, discarded on stop. The worker
+  // cannot be stateless here: matchAny runs where peer messages arrive, and its
+  // set needs our outpoints as well as our scripts or a purely outgoing tx —
+  // one spending our UTXOs without paying any of our addresses — is missed.
+  // Maintaining those outpoints requires knowing which outputs are ours.
   private utxos = new Map<string, WalletSyncUtxo>()
 
   // Bound peer-event listeners. Stable references kept for stop()'s off().
@@ -364,13 +338,11 @@ export class CFilterSyncWorker extends Worker {
     await this.buildChainIndex()
     logMem('after buildChainIndex')
 
-    // Seed genesis (height 1) into the index — HeaderSync starts WITH this
-    // header as its tip and only persists subsequent ones, so it's not in
-    // chain.db.
+    // HeaderSync starts WITH genesis as its tip and persists only what follows,
+    // so height 1 is never in chain.db.
     this.setHashIndex(1, displayHexToWire(GENESIS[this.network].hash))
 
-    // Network-shared filter-header cache. Streamed straight into the flat
-    // index — never materialized as a whole-chain array (see forEachHashInRange).
+    // Streamed for the same reason as forEachHashInRange.
     const loadedFilterHeaders = await this.chainStore.forEachFilterHeaderInRange(
       1, this.chainTipHeight,
       (height, header) => this.heightToFilterHeader.set(height, header),
@@ -413,12 +385,9 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
-  // Hot-add of newly created wallet addresses. When rewindToHeight is set,
-  // the cursor is rewound (clamped to birthday) so historical filters are
-  // re-matched against the new addresses. When it is omitted the addresses
-  // are known to be fresh (frontier-derived / added while synced), so we
-  // only extend the match set and keep scanning forward from the current
-  // cursor — no rewind, no re-scan.
+  // rewindToHeight set means the addresses may carry past on-chain activity, so
+  // historical filters get re-matched. Omitted means main proved them fresh
+  // (frontier-derived, or added while synced) and the match set just widens.
   addWatchAddresses = (addresses: string[], rewindToHeight?: number): void => {
     if (this.stopped) return
     let added = 0
@@ -488,25 +457,22 @@ export class CFilterSyncWorker extends Worker {
   // ── chain index ───────────────────────────────────────────────────────────
 
   private async buildChainIndex(): Promise<void> {
-    // Always cover the full chain (1..chainTip). Optimizing to a narrow
-    // resume window breaks cfcheckpt's stop-hash lookup and addWatchAddresses
-    // re-scan from birthday. The n: cache makes this a fast range scan.
+    // Full chain, not a narrow resume window: that would break cfcheckpt's
+    // stop-hash lookup and addWatchAddresses' re-scan from birthday.
     const from = 1
     const to = this.chainTipHeight
     const expected = to - from + 1
     console.log(`[cfilter] building chain index ${from}..${to}`)
 
-    // Stream the cached hashes straight into the flat index — the array form
-    // spikes hundreds of MB of transient objects that V8 keeps resident.
+    // Streamed, because the array form spikes hundreds of MB of transient
+    // objects that V8 keeps resident afterward.
     const cachedCount = await this.chainStore.forEachHashInRange(
       from, to, (height, wire) => this.setHashIndex(height, wire),
     )
     if (cachedCount === expected) {
       console.log(`[cfilter] chain index loaded from cache (${cachedCount} entries)`)
     } else {
-      // Fallback: x11 + backfill for the heights the cache is missing (already-
-      // cached heights are in blockHashIndex from the stream above). One-time
-      // cost on chain.db that predates the n: keyspace.
+      // One-time cost on chain.db predating the n: keyspace.
       console.log(`[cfilter] no hash cache (${cachedCount}/${expected}); hashing + backfilling`)
       const headers = await this.chainStore.iterateHeadersInRange(from, to)
       let processed = 0
@@ -565,8 +531,8 @@ export class CFilterSyncWorker extends Worker {
     const blockHashHex = block.hash()
     const blockHashWire = displayHexToWire(blockHashHex)
     const key = bytesToHex(blockHashWire)
-    // Blocks only arrive because we requested them, so the inflight request
-    // carries the height — no whole-chain hash→height map needed here.
+    // Blocks arrive only because we asked, so the inflight request carries the
+    // height and no hash→height map is needed.
     const pending = this.blockFetch.inflight.get(key)
     const height = pending ? pending.height : -1
     if (pending) {
@@ -748,8 +714,8 @@ export class CFilterSyncWorker extends Worker {
   private onCFHeaders(msg: CFHeadersArgs, fromPeer: Peer): void {
     if (this.stopped) return
     const stopHashWire = msg.stopHash ?? new Uint8Array(32)
-    // Match by stop-hash against the few pending cfheaders requests rather than
-    // a whole-chain hash→height map; pending is keyed by stopHeight and tiny.
+    // Matched against the few pending requests instead of a whole-chain
+    // hash→height map.
     let pending: PendingCFHeaders | undefined
     for (const entry of this.cfHeaders.pending.values()) {
       const wire = this.blockHashIndex.get(entry.stopHeight)
@@ -881,8 +847,8 @@ export class CFilterSyncWorker extends Worker {
       await this.applyBlock(this.blockFetch.matched.get(h)!, h)
     }
     this.blockFetch.matched.clear()
-    // Advance the persisted cursor to the effective scan tip — covers the
-    // run of unmatched blocks that produced no blockApplied events.
+    // Covers the run of unmatched blocks, which produced no blockApplied event
+    // to carry the cursor forward.
     this.emit('cursorAdvanced', {walletId: this.walletId, height: this.effectiveScanTipHeight()})
     this.emitStatus('synced')
     const balance = [...this.utxos.values()].reduce((s, u) => s + BigInt(u.satoshis), 0n)
@@ -1020,8 +986,8 @@ export class CFilterSyncWorker extends Worker {
   }
 }
 
-// Include the LevelDB error code (LEVEL_IO_ERROR, LEVEL_CORRUPTION, …) in
-// the message so SyncService.isFatalChainDbError picks it up and tears down.
+// The LevelDB code has to reach the message text — that string is what
+// SyncService.isFatalChainDbError matches on to decide to tear down.
 function formatChainDbError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
   const code = (err as { code?: string }).code

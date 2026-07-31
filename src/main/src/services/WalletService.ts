@@ -75,9 +75,8 @@ export class WalletService {
   }
 
   // Picks the WalletProvider for a wallet at call time, honouring the user's
-  // connection-type preference. In p2p mode broadcast is routed through
-  // WalletSyncService (the p2p utility process); in rpc mode everything
-  // (including broadcast) goes through Insight.
+  // connection-type preference. Reads only — broadcast goes over our own peer
+  // pool in both modes, so the preference does not reach it.
   getProvider(walletId: string, network: Network): WalletProvider {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
       return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
@@ -219,7 +218,12 @@ export class WalletService {
   }
 
   async setSelectedWallet(walletId: string): Promise<QueryStatus> {
-    return this.walletDAO.setSelectedWallet(walletId)
+    const result = await this.walletDAO.setSelectedWallet(walletId)
+    if (result.success) {
+      const wallet = await this.walletDAO.getWalletById(walletId)
+      if (wallet != null) this.walletSyncService.startLockListen(wallet.network)
+    }
+    return result
   }
 
   async exportMnemonic(walletId: string, password: string): Promise<string> {
@@ -610,7 +614,7 @@ export class WalletService {
       throw new Error('Invalid wallet password')
     }
 
-    const {transferInputs, inputTotal, changeAddress, provider} = await this.gatherTransferInputs(walletId, network, amountDuffs, fromAddress)
+    const {transferInputs, inputTotal, changeAddress} = await this.gatherTransferInputs(walletId, network, amountDuffs, fromAddress)
 
     const tx = await this.coreTransactionService.buildSignedTransfer({
       inputs: transferInputs,
@@ -623,19 +627,19 @@ export class WalletService {
       network,
     })
 
-    const txid = await provider.broadcastTx(tx)
+    const broadcast = await this.walletSyncService.broadcastTransaction(tx.hex())
 
     const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
     const actualFee = inputTotal - outputTotal
     const hasChange = tx.outputs.length > 1
 
     return {
-      txid,
+      txid: broadcast.txid,
       amount: amountDuffs.toString(),
       fee: actualFee.toString(),
       toAddress,
       changeAddress: hasChange ? changeAddress : null,
-      peersAcked: 0,
+      peersAcked: broadcast.peersDelivered.length,
     }
   }
 
@@ -645,7 +649,11 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
     const provider = this.getProvider(wallet.walletId, wallet.network)
-    return provider.getTxLockStatus(txid)
+    const status = await provider.getTxLockStatus(txid)
+    if (status.instantLocked) return status
+    // The isdlock arrives on our own pool in both modes, but rpc mode keeps no
+    // local row for markInstantLocked to have written it to.
+    return {...status, instantLocked: this.walletSyncService.hasInstantLock(txid)}
   }
 
   // Serialized isdlock (hex) for a locally-broadcast txid, received over the
@@ -660,7 +668,6 @@ export class WalletService {
     inputTotal: bigint
     changeAddress: string
     grouped: GroupedAddresses
-    provider: WalletProvider
   }> {
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const allAddresses = [...grouped.receiving, ...grouped.change]
@@ -671,28 +678,22 @@ export class WalletService {
 
     const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
 
-    const utxoLists = await Promise.all(
-      utxoAddresses.map(async (a) => {
-        const utxos = await provider.getUTXOs(a.address)
-        return utxos.map(u => ({utxo: u, address: a.address}))
-      }),
-    )
-    const ownedUtxos = utxoLists.flat()
+    const ownedUtxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
 
     if (ownedUtxos.length === 0) {
       throw new Error('No spendable funds in this wallet')
     }
 
-    const selectable: SelectableUtxo[] = ownedUtxos.map(({utxo, address}) => ({
+    const selectable: SelectableUtxo[] = ownedUtxos.map(utxo => ({
       txid: utxo.txId,
       vout: utxo.vOut,
       satoshis: utxo.satoshis,
-      address,
+      address: utxo.address,
     }))
 
     const selection = selectCoins(selectable, amountDuffs)
 
-    const utxoByKey = new Map(ownedUtxos.map(o => [`${o.utxo.txId}:${o.utxo.vOut}`, o]))
+    const utxoByKey = new Map(ownedUtxos.map(u => [`${u.txId}:${u.vOut}`, u]))
 
     const changeAddress = this.pickChangeAddress(grouped)
 
@@ -704,15 +705,15 @@ export class WalletService {
       if (derivationPath == null) throw new Error(`No derivation path for address ${input.address}`)
 
       return {
-        txId: owned.utxo.txId,
-        vOut: owned.utxo.vOut,
-        script: owned.utxo.script,
+        txId: owned.txId,
+        vOut: owned.vOut,
+        script: owned.script,
         derivationPath,
         address: input.address,
       }
     })
 
-    return {transferInputs, inputTotal: selection.inputTotal, changeAddress, grouped, provider}
+    return {transferInputs, inputTotal: selection.inputTotal, changeAddress, grouped}
   }
 
   async buildAndBroadcastAssetLock(walletId: string, amountDuffs: bigint, password: string, credit?: {address: string; derivationPath: string}): Promise<{
@@ -739,7 +740,7 @@ export class WalletService {
       throw new Error('Invalid wallet password')
     }
 
-    const {transferInputs, inputTotal, changeAddress, grouped, provider} = await this.gatherTransferInputs(walletId, network, amountDuffs)
+    const {transferInputs, inputTotal, changeAddress, grouped} = await this.gatherTransferInputs(walletId, network, amountDuffs)
 
     const creditTarget = credit ?? this.pickCreditChangeAddress(grouped, changeAddress)
 
@@ -755,7 +756,7 @@ export class WalletService {
 
     let txid: string
     try {
-      txid = await provider.broadcastTx(tx)
+      txid = (await this.walletSyncService.broadcastTransaction(tx.hex())).txid
     } catch (error) {
       console.error('Asset lock broadcast failed, rawtx:', tx.hex())
       throw error

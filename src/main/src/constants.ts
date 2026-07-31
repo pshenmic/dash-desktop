@@ -53,3 +53,9 @@ export const SHIELDED_NOTES_FETCH_BATCH = 8192
 // minutes, so the overall timeout is generous.
 export const IDENTITY_LOCK_POLL_INTERVAL_MS = 5_000
 export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
+
+// How long a txid stays armed for isdlock capture. Outlives the asset-lock
+// timeout above so the arm never expires under a live waiter; past it nothing
+// is waiting, and staying armed only makes the worker fetch isdlock objects
+// it will discard.
+export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000

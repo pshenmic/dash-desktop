@@ -220,11 +220,19 @@ export class WalletBackend {
     this.initHandlers()
 
     const walletService = this.walletService
+    const walletSyncService = this.walletSyncService
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
-      if (selected != null) {
-        await walletService.discoverCoreAddresses(selected.walletId)
+      if (selected == null) return
+      // Locks are needed in both connection modes, and this is the only place
+      // that starts listening for them. Re-run on the periodic tick so a lost
+      // utility process is picked back up.
+      try {
+        walletSyncService.startLockListen(selected.network)
+      } catch (err) {
+        console.error('[locks] failed to start lock listener:', err)
       }
+      await walletService.discoverCoreAddresses(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
       walletService.discoverCoreAddresses(walletId).catch(err =>

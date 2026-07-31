@@ -18,42 +18,42 @@ export const GENESIS: Record<Network, ChainAnchor> = {
 
 // ── Peer pool ───────────────────────────────────────────────────────────────
 
-// Target number of *ready* peers — the real cost knob, since inv traffic only
-// flows after a handshake. Measured on testnet: 98% of peers that complete one
-// advertise compact filters, so there is no need to over-connect hunting for
-// the +CF subset; this only has to clear the races below with margin.
+// Measured on testnet: 98% of peers completing a handshake advertise compact
+// filters, so this only has to clear the races below — not hunt for +CF peers.
 export const POOL_READY_PEERS = 25
 
-// Refill threshold. Below this the pool reopens capacity; between here and
-// POOL_READY_PEERS it coasts. Must stay under what the network can supply
+// Must stay under what the network can actually supply, or the pool never
+// leaves its refill branch.
 export const POOL_MIN_PEERS = 15
 
-// Connection slots while refilling. Most addresses learned from `addr` gossip
-// are dead, and a socket that never completes its handshake still holds a slot
-// while costing no traffic — so capacity has to exceed the ready target or
-// dead sockets crowd out live peers. Measured: 20 slots against an 840-entry
-// book reached only 7 ready peers in two minutes, while 36 slots sustained 31.
+// Must exceed the ready target: most gossiped addresses are dead, and a socket
+// that never completes its handshake holds a slot anyway. Measured against an
+// 840-entry book — 20 slots reached 7 ready in two minutes, 36 sustained 31.
 export const POOL_MAX_CONNECTIONS = 64
 
-// Consecutive refill ticks with no change in ready-peer count before we accept
-// that the network has no more to give and stop widening. Without it a supply
-// below POOL_MIN_PEERS pins the pool in its refill branch indefinitely —
-// measured at 72k connection attempts in 50s, which reads as a port scan to
-// the nodes we depend on for locks.
-export const POOL_FILL_STALL_LIMIT = 36
+// Refill ticks with no gain in ready peers before we stop widening. Without it
+// a supply below POOL_MIN_PEERS pins the pool in refill — measured at 72k
+// connection attempts in 50s, which reads as a port scan to the nodes we
+// depend on for locks.
+export const POOL_FILL_STALL_LIMIT = 72
 
-// The lock pool runs whenever the process is up, including in rpc mode where
-// nothing else about p2p is wanted, so it is sized down to what lock detection
-// and broadcast actually need: locks are relayed network-wide, so one peer
-// would hear them, and BROADCAST_POLICY only asks for 3 acks. It carries
-// `relay: true` and therefore the whole tx inv stream — every peer here is a
-// duplicate copy of it, which is why this is the one pool kept small.
+// Sized down because this pool carries `relay: true`, so every peer on it is a
+// duplicate copy of the whole tx inv stream. Locks are relayed network-wide and
+// BROADCAST_POLICY asks for 3 acks, so a small pool covers both jobs.
 export const LOCK_POOL_READY_PEERS = 10
 export const LOCK_POOL_MIN_PEERS = 6
 
-// How often the pool refills connections when below the soft minimum.
-// 5s matches dash-core-p2p's internal default; lower is wasteful, higher
-// makes initial sync slow to find +CF peers.
+// Without its own cap this pool inherits POOL_MAX_CONNECTIONS and dials 60+
+// sockets to seat 10 peers, competing with the app's own HTTPS traffic.
+export const LOCK_POOL_MAX_CONNECTIONS = 24
+
+// Slots kept above the ready target once coasting. A clamp of exactly the
+// target leaves no room to replace a socket still timing out — measured a lock
+// pool resting at 6-7 ready against a target of 10 for want of this.
+export const POOL_CONNECT_HEADROOM = 8
+
+// Matches dash-core-p2p's internal default; higher makes initial sync slow to
+// find +CF peers.
 export const POOL_REFILL_INTERVAL_MS = 5_000
 
 // ── Header sync ─────────────────────────────────────────────────────────────
@@ -66,12 +66,10 @@ export const HEADER_SYNC_TIMEOUT_MS = 30_000
 
 export const FILTER_TYPE = 0
 
-// Heights per getcfilters request. <= 1000 per spec; smaller = more round-
-// trips, larger = bigger memory spikes per response.
+// Capped at 1000 per spec; smaller costs round-trips, larger spikes memory per
+// response.
 export const CFILTER_BATCH = 900
 
-// Concurrent in-flight cfilter batches. 4 is a reasonable middle ground —
-// pipelines well across multiple +CF peers without overwhelming any one.
 export const MAX_INFLIGHT_BATCHES = 6
 
 export const CFCHECKPT_RACE_PEERS = 15
@@ -83,21 +81,21 @@ export const CFHEADERS_RACE_TIMEOUT_MS = 10_000
 export const CFILTER_BATCH_TIMEOUT_MS = 10_000
 export const BLOCK_REQUEST_TIMEOUT_MS = 10_000
 
-// Stop hashes for cf* requests are capped this far below the synced tip.
-// Dash Core silently drops requests for blocks not in its active chain
-// (reorgs / peer lag), so anything closer than this fails intermittently.
-// Trade-off: larger value = more reliable cfilter requests but longer
-// confirmation latency before a wallet sees a new UTXO.
+// How far below the synced tip cf* stop hashes are capped. Dash Core silently
+// drops requests for blocks not in its active chain, so anything closer fails
+// intermittently — at the cost of confirmation latency.
 export const SCAN_TIP_DEPTH = 5
 
 // ── Broadcast ───────────────────────────────────────────────────────────────
 
-// Fixed broadcast policy. The wallet does not expose any of these knobs to
-// callers — broadcastTransaction takes only a tx hex. Notes on the
-// instant-lock fields: current Dash Core ships isdlock (DIP-24) which
-// dash-core-p2p doesn't parse yet, so islock can't be a success signal on
-// mainnet/testnet today; both flags stay false.
+// Defaults, overridable per call via BroadcastPolicyOverrides. With both
+// instant-lock flags false a broadcast settles once the tx has spread, well
+// before a lock could arrive — so `instantLocked` is then absence of evidence,
+// not evidence of absence. See waitedForLock.
 export const BROADCAST_POLICY = {
+  // Counts peers we pushed to, not just those answering an inv with getdata:
+  // observed on testnet, that getdata often never comes, so a threshold on acks
+  // alone is unreachable and every send burns the full timeout.
   minPeerAcks: 3,
   waitForInstantLock: false,
   requireInstantLock: false,

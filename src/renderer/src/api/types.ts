@@ -49,6 +49,7 @@ export interface WalletSyncStatus {
   matchedBlocksPending: number
   peerCount: number
   filterCapablePeerCount: number
+  lockPeerCount: number
   phaseEtaMs: number | null
   lastError: string | null
   updatedAt: number

@@ -1,15 +1,10 @@
 import {Network} from '../../src/types'
-import {BroadcastResult} from './broadcast'
+import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
 import {AppliedBlock, WalletSyncStatus, WalletSyncUtxo} from './walletSync'
 
-// IPC envelopes between the main process and the p2p utility process.
-// This file only describes the wire format — payload shapes (status,
-// utxos, applied blocks) live in p2p/types.ts.
-//
-// Naming: P2P* = an envelope (the thing electron ships across processes).
-// The payload it wraps is named for the consumer concept (WalletSync* /
-// Applied*) since those types are also used by SQL writes and renderer
-// code, not just IPC.
+// IPC envelopes between the main process and the p2p utility process. P2P* is
+// the envelope; the payload keeps its consumer-side name (WalletSync* /
+// Applied*) because SQL writes and renderer code use those types too.
 
 // ── Commands (main -> utility) ──────────────────────────────────────────────
 
@@ -20,24 +15,19 @@ export interface P2PStartMessage {
   chainDbPath: string
   watchAddresses: string[]
   birthdayHeight?: number
-  // Seed for the cfilter worker's in-memory spend-detection map. SQL is
-  // the source of truth — main process queries TransactionDAO and ships
-  // the unspent outputs in the start command so the utility process never
-  // touches wallet-scoped storage.
+  // Shipped in the command rather than read by the worker, so the utility
+  // process never touches wallet-scoped storage — SQL stays the source of truth.
   seedUtxos: WalletSyncUtxo[]
-  // Persisted cfilter scan cursor (null = never synced). Worker resumes
-  // from max(birthday, cfilterCursor + 1).
+  // null = never synced. Worker resumes from max(birthday, cfilterCursor + 1).
   cfilterCursor: number | null
 }
 
-// Start only the lock pool: peer connections, InstantSend/ChainLock watching
-// and broadcast, with no chain.db and no header/cfilter sync. This is what an
-// rpc-mode wallet runs — it needs locks for asset-lock funding but must not
-// download the chain. `start` is a superset and brings the same core up.
+// Lock pool only — no chain.db, no header/cfilter sync. What an rpc-mode wallet
+// runs: it needs locks for asset-lock funding but must not download the chain.
+// `start` is a superset and brings the same core up.
 export interface P2PListenMessage {
   type: 'listen'
   network: Network
-  walletId: string
 }
 
 export interface P2PStopMessage {
@@ -48,30 +38,30 @@ export interface P2PAddWatchAddressesMessage {
   type: 'addWatchAddresses'
   walletId: string
   addresses: string[]
-  // When set, the worker rewinds its cfilter cursor to this height so
-  // historical filters get re-matched against the new addresses. The
-  // main process is responsible for choosing the height (lowest birthday
-  // across the new addresses, or 0/genesis if no birthday is tracked yet).
+  // Rewinds the cfilter cursor so historical filters re-match the new
+  // addresses. Main picks the height — the worker does not decide.
   rewindToHeight?: number
 }
 
-// Broadcast a signed transaction over the active peer pool. requestId is
-// echoed in the matching P2PBroadcastResultMessage so the main-process
-// service can correlate concurrent broadcasts. Policy is not on the wire
-// — the utility process reads BROADCAST_POLICY from constants.
+// requestId is echoed back in P2PBroadcastResultMessage so concurrent
+// broadcasts can be correlated. `policy` overrides individual BROADCAST_POLICY
+// defaults — an asset lock waits for its lock where an ordinary send returns on
+// peer acks.
 export interface P2PBroadcastMessage {
   type: 'broadcast'
   requestId: string
   txHex: string
+  policy?: BroadcastPolicyOverrides
 }
 
-// Tell the utility process which locally-broadcast txids to watch for an
-// InstantSend (isdlock) confirmation. The worker only fetches isdlock objects
-// while this set is non-empty (they're high-volume to over-fetch), and emits
-// P2PTxInstantLockedMessage when one matches. Empty list = stop watching.
+// Which txids to watch for an isdlock. The worker only fetches isdlock objects
+// while this set is non-empty — they are high-volume to over-fetch.
+//
+// 'add' exists because the periodic 'replace' derives its set from SQL, which
+// does not yet know about a txid armed moments earlier by a broadcast.
 export interface P2PWatchTxsMessage {
   type: 'watchTxs'
-  walletId: string
+  mode: 'add' | 'replace'
   txids: string[]
 }
 
@@ -95,9 +85,7 @@ export interface P2PBlockAppliedMessage {
   block: AppliedBlock
 }
 
-// Cursor-only advance — emitted at cfilter scan completion when the scan
-// tip moves past a stretch of unmatched blocks. No tx data, just the
-// resume marker.
+// Resume marker only, no tx data — the scan tip moved past unmatched blocks.
 export interface P2PCursorAdvancedMessage {
   type: 'cursorAdvanced'
   walletId: string
@@ -109,9 +97,8 @@ export interface P2PErrorMessage {
   message: string
 }
 
-// Response to a P2PBroadcastMessage. ok=true carries the final result;
-// ok=false carries the failure reason plus whatever partial state the
-// session accumulated before giving up (peers invited, acks, etc).
+// ok=false still carries whatever partial state the session accumulated before
+// giving up.
 export interface P2PBroadcastResultMessage {
   type: 'broadcastResult'
   requestId: string
@@ -120,22 +107,19 @@ export interface P2PBroadcastResultMessage {
   errorMessage: string | null
 }
 
-// A watched local tx received a DIP-24 InstantSend lock — irreversibly final
-// before it's even mined. Main flags it instant_locked.
+// A DIP-24 InstantSend lock — irreversibly final before the tx is even mined.
 export interface P2PTxInstantLockedMessage {
   type: 'txInstantLocked'
-  walletId: string
   txid: string
-  // Serialized DIP-24 isdlock (hex). Reused to build an InstantAssetLockProof
-  // for shield / asset-lock funding without depending on DAPI islock delivery.
+  // Reused to build an InstantAssetLockProof for shield / asset-lock funding
+  // without depending on DAPI islock delivery.
   islockHex: string
 }
 
-// A ChainLock (clsig) was observed for `height` — every tx in blocks at or
-// below it is irreversible. Main flags those txs chainlocked.
+// Every tx in blocks at or below `height` is irreversible.
 export interface P2PChainLockedMessage {
   type: 'chainLocked'
-  walletId: string
+  network: Network
   height: number
 }
 

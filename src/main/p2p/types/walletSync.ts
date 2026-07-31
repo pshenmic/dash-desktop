@@ -1,11 +1,7 @@
 import {Network} from '../../src/types'
 
-// Domain types for the wallet sync subsystem. These describe the data
-// model — what wallet state looks like, what a status snapshot contains,
-// what a per-block apply payload carries — independent of how it gets
-// transported. The IPC envelope layer (p2p/messages.ts) wraps these for
-// the wire; the SQL layer (TransactionDAO) consumes the apply payload
-// directly.
+// Domain types for wallet sync, independent of transport: messages.ts wraps
+// them for the wire, TransactionDAO consumes the apply payload directly.
 
 // ── Sync status ─────────────────────────────────────────────────────────────
 
@@ -28,28 +24,27 @@ export interface WalletSyncStatus {
   // Headers
   tipHeight: number
   tipHash: string | null
-  // Best height advertised by any connected peer — proxy for the live chain
-  // tip. Used by the renderer to compute % progress during header sync.
+  // Best height advertised by any connected peer — proxy for the live chain tip.
   estimatedChainHeight: number
 
   // CFilter sub-phases
-  // Walk frontier: highest height with a verified filter header (cfheaders
-  // walk). Lags tipHeight during cfheaders phase, equal once walk is done.
+  // Highest height with a verified filter header. Lags tipHeight during the
+  // cfheaders walk, equal once it is done.
   cfheadersHeight: number
-  // Scan cursor: highest height whose cfilter has been matched against the
-  // wallet's watch set.
+  // Highest height whose cfilter has been matched against the watch set.
   cfilterScanHeight: number
-  // Matched blocks awaiting full-block fetch (or already fetched, awaiting
-  // application). Useful when scan is "stuck" waiting for a peer to deliver.
+  // Matched blocks awaiting full-block fetch or application — tells you why a
+  // scan looks stuck.
   matchedBlocksPending: number
 
   // Peers
   peerCount: number
-  // Subset of peers advertising NODE_COMPACT_FILTERS — required for cfilter
-  // requests to succeed.
+  // Subset advertising NODE_COMPACT_FILTERS, without which cfilter requests fail.
   filterCapablePeerCount: number
+  // Separate set from the counts above: the lock pool runs even when no chain
+  // sync does. Zero here means locks cannot be detected.
+  lockPeerCount: number
 
-  // Estimated milliseconds remaining until the current phase completes.
   phaseEtaMs: number | null
 
   lastError: string | null
@@ -67,13 +62,9 @@ export interface WalletSyncUtxo {
 }
 
 // ── BlockApplied payload ────────────────────────────────────────────────────
-//
-// Per-matched-block effects emitted by the cfilter worker, consumed by
-// TransactionDAO.applyBlock. Same shape on the wire and at the SQL boundary.
 
-// Output as-recorded for the wallet. address may be null for non-standard
-// scripts (OP_RETURN, exotic multisig); we still store the row so a future
-// SQL-backed tx-info API has the full output set.
+// address is null for non-standard scripts (OP_RETURN, exotic multisig); the
+// row is still stored so a future tx-info API has the full output set.
 export interface AppliedTxOutput {
   vout: number
   address: string | null
@@ -90,17 +81,16 @@ export interface AppliedTxInput {
 
 export interface AppliedTx {
   txid: string
-  // Raw tx bytes — stored as BLOB so explorer-style views can re-parse
-  // without going back to a peer. Postable via electron utilityProcess
-  // postMessage (Uint8Array passes through structuredClone).
+  // Stored as BLOB so explorer-style views can re-parse without going back to a
+  // peer. Uint8Array survives structuredClone, so it posts across the process
+  // boundary as-is.
   raw: Uint8Array
   inputs: AppliedTxInput[]
   outputs: AppliedTxOutput[]
 }
 
-// Back-edge: an input of one of the txs above spends a previously-recorded
-// output of ours. The worker resolves the linkage via its in-memory UTXO
-// map (cheap O(1)); SQL just records spent_in_txid + spent_at_height.
+// Back-edge: an input above spends a previously-recorded output of ours. The
+// worker resolves the linkage from its in-memory UTXO map; SQL just records it.
 export interface AppliedSpend {
   prevTxid: string
   prevVout: number

@@ -2,6 +2,7 @@ import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
+import type {Network} from '../types'
 
 // Re-exported so callers (services, future API handlers) can stay decoupled
 // from the p2p IPC types if/when the protocol drifts.
@@ -295,16 +296,16 @@ export class TransactionDAO {
     }
   }
 
-  markInstantLocked = async (walletId: string, txid: string): Promise<void> => {
+  markInstantLocked = async (txid: string): Promise<void> => {
     await this.knex('transactions')
-      .where({wallet_id: walletId, txid})
+      .where({txid})
       .update({instant_locked: true})
   }
 
   // Flag every confirmed tx at or below `height` as chainlocked (irreversible).
-  markChainlockedUpTo = async (walletId: string, height: number): Promise<void> => {
+  markChainlockedUpTo = async (network: Network, height: number): Promise<void> => {
     await this.knex('transactions')
-      .where('wallet_id', walletId)
+      .whereIn('wallet_id', this.knex('wallet').select('wallet_id').where({network}))
       .andWhere('block_height', '>', 0)
       .andWhere('block_height', '<=', height)
       .andWhere('chainlocked', false)
@@ -350,14 +351,16 @@ export class TransactionDAO {
       await trx('addresses').whereIn('wallet_id', walletIds).update({is_used: false})
     })
   }
-  getUtxosByAddress = async (walletId: string, address: string): Promise<WalletSyncUtxo[]> => {
+  getUtxosByAddresses = async (walletId: string, addresses: string[]): Promise<WalletSyncUtxo[]> => {
+    if (addresses.length === 0) return []
+
     const rows = await this.knex('transaction_outputs as o')
       .innerJoin('transactions as t', function() {
         this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
       })
       .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height')
       .where('o.wallet_id', walletId)
-      .andWhere('o.address', address)
+      .whereIn('o.address', addresses)
       .whereNull('o.spent_in_txid')
 
     return rows.map(row => ({
