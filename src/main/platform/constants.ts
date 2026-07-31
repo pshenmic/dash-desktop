@@ -26,6 +26,13 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityTopUpFromAddresses':
       return `${request.network}:addresses`
 
+    // No nonce to order, so the lane only stops one funding being submitted
+    // twice concurrently.
+    case 'addressFundingFromAssetLock':
+    case 'identityCreateFromAssetLock':
+    case 'identityTopUpFromAssetLock':
+      return `${request.network}:assetlock:${request.payload.txid}`
+
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
     case 'identityWithdrawal':

@@ -81,6 +81,17 @@ export type AssetLockProofParams =
   | {type: 'chainLock'; coreChainLockedHeight: number}
   | {type: 'instantLock'; instantLock: string; transaction: string}
 
+// Common half of every transition funded by an asset lock. Main resolves the
+// proof (the islock arrives on our own p2p pool) and the worker only consumes
+// it — the credit key is derived here from the seed and the path main recorded.
+export interface AssetLockFunded {
+  seed: Uint8Array
+  txid: string
+  outputIndex: number
+  assetLockProof: AssetLockProofParams
+  creditDerivationPath: string
+}
+
 // The operation catalogue. `laneFor` in ../constants.ts switches over the same
 // union, so a new kind that forgets its lane fails to compile.
 //
@@ -115,16 +126,23 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   shieldFromAssetLock: {
-    payload: {
-      seed: Uint8Array
-      txid: string
-      outputIndex: number
-      assetLockProof: AssetLockProofParams
-      creditDerivationPath: string
+    payload: AssetLockFunded & {
       recipient: string
       shieldAmountCredits: bigint
       surplusAddress: string | null
     }
+    result: {stHash: string}
+  }
+  addressFundingFromAssetLock: {
+    payload: AssetLockFunded & {recipient: string}
+    result: {stHash: string}
+  }
+  identityCreateFromAssetLock: {
+    payload: AssetLockFunded & {identityIndex: number}
+    result: {stHash: string; identifier: string}
+  }
+  identityTopUpFromAssetLock: {
+    payload: AssetLockFunded & {identifier: string}
     result: {stHash: string}
   }
   addressInfos: {

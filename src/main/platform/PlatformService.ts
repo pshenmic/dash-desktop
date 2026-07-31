@@ -19,7 +19,10 @@ import {encryptedNotes} from './operations/shielded/reads/encryptedNotes'
 import {notesCount} from './operations/shielded/reads/notesCount'
 import {poolInfo} from './operations/shielded/reads/poolInfo'
 import {shield} from './operations/shielded/shield'
-import {shieldFromAssetLock} from './operations/shielded/shieldFromAssetLock'
+import {shieldFromAssetLock} from './operations/assetLock/shield'
+import {addressFundingFromAssetLock} from './operations/assetLock/addressFunding'
+import {identityCreateFromAssetLock} from './operations/assetLock/identityCreate'
+import {identityTopUpFromAssetLock} from './operations/assetLock/identityTopUp'
 import {spend} from './operations/shielded/spend/spend'
 import {sync} from './operations/shielded/sync'
 import {
@@ -191,6 +194,9 @@ export class PlatformService {
       case 'spend': return spend(request.payload, ctx)
       case 'shield': return shield(request.payload, ctx)
       case 'shieldFromAssetLock': return shieldFromAssetLock(request.payload, ctx)
+      case 'addressFundingFromAssetLock': return addressFundingFromAssetLock(request.payload, ctx)
+      case 'identityCreateFromAssetLock': return identityCreateFromAssetLock(request.payload, ctx)
+      case 'identityTopUpFromAssetLock': return identityTopUpFromAssetLock(request.payload, ctx)
       case 'addressInfos': return addressInfos(request.payload, ctx)
       case 'addressTransfer': return addressTransfer(request.payload, ctx)
       case 'addressWithdrawal': return addressWithdrawal(request.payload, ctx)
