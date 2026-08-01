@@ -62,9 +62,11 @@ and TypeScript. Three processes:
   **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied). The
   `src/main/src/api/WalletAPI.ts` file is dead/unused — do not add to it.
 - `src/main/p2p/` — the SPV P2P subsystem runs in a separate **Electron
-  utility process** (forked from `WalletSyncService`). It owns the peer pool,
-  header/cfilter sync, and transaction broadcast. Communicates with the main
-  process by message passing (`p2p/types/messages.ts`).
+  utility process** (forked from `WalletSyncService`). It owns two peer pools —
+  a lock pool that is up in **both** connection modes and a bulk pool that is
+  not, see "Connection modes" below — plus header/cfilter sync and transaction
+  broadcast. Communicates with the main process by message passing
+  (`p2p/types/messages.ts`).
 - `src/main/shielded/` — the shielded (Orchard) subsystem runs in its own
   **Electron utility process** (forked from `ShieldedService`): Halo2 prover,
   note trial-decryption, proof building, ST broadcast. The main-process
@@ -163,13 +165,42 @@ implementations based on the `connectionType` preference:
   Implements `getUTXOs` + `broadcastTx` (POST `/tx/send`).
 - **`p2p`** → `P2PWalletProvider`: reads the local SPV SQLite store; broadcast
   routes through the p2p utility process (`WalletSyncService.broadcastTransaction`).
-  **Requires `startWalletSync` to be running** (broadcast needs an open peer
-  pool) and throws `Unimplemented` for `getBlockByHash`.
+  Throws `Unimplemented` for `getBlockByHash`.
 
 Write wallet features against the `WalletProvider` interface so they work in
 both modes. Note `getTransactions` fetches per-address and is de-duped by txid
 in `WalletService` (one tx touches several owned addresses: spent inputs +
 change) — see `dedupeTransactions`.
+
+### The lock pool runs in BOTH modes — `connectionType` does not gate it
+
+The p2p utility process owns **two pools**, and only one of them is a mode:
+
+| Pool | Peers | Carries | Lifetime |
+|---|---|---|---|
+| `lockPool` | relay=**true**, network-scoped | broadcast, InstantSend (`isdlock`) and ChainLock (`clsig`) watching | **always up**, both modes |
+| `bulkPool` | relay=false, dnsSeed=false | headers, cfilters, blocks | `p2p` mode only, via `startWalletSync` |
+
+`startLockListen(network)` is called from `WalletBackend` at boot and
+`WalletService` on wallet select, with **no `connectionType` check**. So the
+child process exists and hears locks even in the default `rpc` mode.
+
+Two consequences that are easy to get wrong:
+
+- **Locally-signed transactions never go out over Insight.** `getProvider()`
+  covers *reads* and third-party broadcast; asset locks bypass it —
+  `WalletService.buildAndBroadcastAssetLock` calls
+  `walletSyncService.broadcastTransaction` directly, in both modes, because the
+  lock pool is the only pool that can hear the resulting `isdlock`.
+- **A tx must be armed before its lock can arrive.** An ISDLOCK inv requires an
+  explicit `getdata`, so `broadcastTransaction` calls `watchForInstantLock(txid)`
+  before sending. A tx nobody armed gets its lock seen and dropped.
+
+Corollary: **never reach for `coreSDK.subscribeToTransactions` for a transaction
+this wallet broadcast.** DAPI is a different network path and does not deliver
+that lock in either mode. Use `WalletService.waitForInstantLock(txid, timeoutMs)`.
+Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have no
+waiter yet — they only feed `markChainlockedUpTo`.
 
 ## Renderer conventions worth knowing
 
