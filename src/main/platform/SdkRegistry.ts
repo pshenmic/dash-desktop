@@ -5,10 +5,9 @@ import {Network} from '../src/types'
 import {NETWORKS} from './constants'
 import {SdkSource} from './types/sdk'
 
-// One SDK per network, constructed once and never mutated. `setNetwork` is not
-// called anywhere in this directory: it rebuilds the gRPC pool and replaces
-// every controller, so anything already in flight is left holding objects that
-// were swapped out from under it (finding X-5).
+// One SDK per network, constructed once and never mutated. `setNetwork` is
+// deliberately never called: it rebuilds the gRPC pool and replaces every
+// controller, leaving anything in flight holding swapped-out objects.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
   private builder: ShieldedBuilderWASM | null = null
@@ -26,15 +25,14 @@ export class SdkRegistry implements SdkSource {
     return this.builder
   }
 
-  // Builds the Halo2 proving key once and injects that one builder into every
-  // network's shielded controller. The builder carries no network — nothing in
-  // its signature set takes one, and network enters only through the gRPC pool
-  // that reads anchors and nullifiers and broadcasts — so one instance serving
-  // both networks is correct, not a shortcut.
+  // The Halo2 proving key is built once and the one builder injected into every
+  // network's shielded controller. Sharing it across networks is correct rather
+  // than a shortcut: the builder carries no network, which enters only through
+  // the gRPC pool that reads anchors/nullifiers and broadcasts.
   //
-  // ShieldedBuilderWASM also memoises the raw builder on a private static, so
-  // this would converge without injection. Relying on a dependency's private
-  // static is not a contract. Inject.
+  // ShieldedBuilderWASM memoises the raw builder on a private static, so this
+  // would converge without injection — but a dependency's private static is not
+  // a contract to rely on.
   warmup(): Promise<void> {
     if (this.warming != null) return this.warming
     this.warming = (async () => {

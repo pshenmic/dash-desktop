@@ -34,8 +34,8 @@ function coreSDK(network: Network): DashCoreSDK {
 }
 
 // Locks L1 coins and produces the proof that funds a platform state transition.
-// Knows nothing about what the proof is spent on — identities, shielded notes
-// and platform addresses each own their own settlement and call in here.
+// Deliberately knows nothing about what the proof is spent on — identities,
+// shielded notes and platform addresses each own their settlement.
 export class AssetLockService {
   private walletDAO: WalletDAO
   private assetLockDAO: AssetLockDAO
@@ -212,10 +212,10 @@ export class AssetLockService {
     if (resolved.type === 'instantLock') {
       proof = {type: 'instantLock', instantLock: resolved.instantLock, transaction: resolved.transaction}
     } else {
-      // The worker rebuilds the outpoint from the row, while the proof carries
-      // the txid the SDK read off the transaction. They are the same value in
-      // display order — a mismatch means one side is holding wire order, which
-      // would otherwise silently produce a proof against the wrong outpoint.
+      // The worker rebuilds the outpoint from the row, the proof carries the
+      // txid the SDK read off the transaction. Equal in display order — a
+      // mismatch means one side holds wire order, which would silently prove
+      // against the wrong outpoint.
       if (resolved.txid !== row.txid) {
         throw new Error(`Asset lock proof txid ${resolved.txid} does not match the funding record ${row.txid}`)
       }

@@ -42,25 +42,21 @@ export const COIN_TYPE: Record<'mainnet' | 'testnet', number> = {mainnet: 5, tes
 export const PLATFORM_ACCOUNT = 0
 export const SHIELDED_ACCOUNT = 0
 
-// Background pool prefetch. It cannot detect incoming notes on its own —
-// that needs trial-decryption, so a password — so this only keeps the
-// ciphertext cache warm for a wallet that has already synced once.
-// The dpp proof verifier requires getShieldedEncryptedNotes startIndex to be
-// a multiple of SHIELDED_MAX_NOTES_PER_QUERY (8192), so fetches always start
-// at a multiple of the batch size and advance by full batches.
+// Background prefetch only keeps the ciphertext cache warm — detecting incoming
+// notes needs trial-decryption, so a password. The batch size is fixed: the dpp
+// proof verifier requires getShieldedEncryptedNotes startIndex to be a multiple
+// of SHIELDED_MAX_NOTES_PER_QUERY.
 export const SHIELDED_NOTES_CHECK_INTERVAL_MS = 30_000
 export const SHIELDED_NOTES_FETCH_BATCH = 8192
 
-// Asset-lock proof acquisition during identity registration. The instant lock
-// usually arrives within seconds; the chain-lock fallback can take a few
-// minutes, so the overall timeout is generous.
+// The instant lock usually arrives within seconds; the chain-lock fallback can
+// take minutes, hence the generous timeout.
 export const IDENTITY_LOCK_POLL_INTERVAL_MS = 5_000
 export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
 
-// How long a txid stays armed for isdlock capture. Outlives the asset-lock
-// timeout above so the arm never expires under a live waiter; past it nothing
-// is waiting, and staying armed only makes the worker fetch isdlock objects
-// it will discard.
+// Outlives the asset-lock timeout above, so an arm never expires under a live
+// waiter. Past it nothing is waiting and staying armed only makes the worker
+// fetch isdlock objects it will discard.
 export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 
 // BIP-44 gap limits and the ceiling on each discovery walk. Without a ceiling
@@ -72,27 +68,24 @@ export const IDENTITY_SCAN_LIMIT = 100
 export const PLATFORM_ADDRESS_LOOKAHEAD = 20
 export const MAX_DISCOVERY_BATCHES = 50
 
-// Bound on how far addAddress derives forward while skipping used
-// (already-received-on) diversified addresses.
+// Bounds how far addAddress derives forward while skipping already-used
+// diversified addresses.
 export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
 
 // How often the backend re-runs address discovery for the selected wallet.
 export const DISCOVERY_INTERVAL_MS = 120_000
 
-// Cap on the per-child output we retain. The tail is attached to request and
-// broadcast failures and logged on exit so a worker crash carries its own
-// cause instead of just "code=1".
+// The retained tail rides along on request and broadcast failures, so a worker
+// crash carries its own cause instead of just "code=1".
 export const CHILD_OUTPUT_TAIL_LIMIT = 8192
 
-// How often we re-push still-unconfirmed local txs to keep them alive in
-// peer mempools. Absence of confirmation is never proof of failure (Dash has
-// no reject message), so we keep rebroadcasting until a block / lock settles
-// the tx rather than timing it out.
+// Dash has no reject message, so absence of confirmation is never proof of
+// failure — a tx is re-pushed until a block or lock settles it, never timed out.
 export const REBROADCAST_INTERVAL_MS = 60_000
 
-// applyBlock retry ladder. A failure here is almost always transient lock
-// contention on storage.db, which the busy_timeout pragma already absorbs;
-// what survives the ladder is treated as a persistence gap.
+// applyBlock retry ladder. Failures here are almost always transient lock
+// contention that busy_timeout already absorbs; what survives is a persistence
+// gap.
 export const PERSIST_ATTEMPTS = 3
 export const PERSIST_RETRY_MS = 1_000
 
@@ -109,8 +102,8 @@ export const INSIGHT_BASE_URLS: Record<'mainnet' | 'testnet', string> = {
 }
 export const INSIGHT_ADDRESS_CHUNK = 25
 
-// Per-attempt deadline and backoff. Chromium's own timeout runs into the tens
-// of seconds, long enough that a stalled read looks like a hung wallet.
+// Chromium's own timeout runs into the tens of seconds — long enough that a
+// stalled read reads as a hung wallet.
 export const INSIGHT_REQUEST_TIMEOUT_MS = 15_000
 export const INSIGHT_RETRY_DELAYS_MS = [300, 1_200]
 

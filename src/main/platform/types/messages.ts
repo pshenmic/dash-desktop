@@ -2,8 +2,8 @@ import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {Network} from '../../src/types'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
-// shapes live with their operations. Every command carries a requestId and
-// every terminal event echoes it back.
+// shapes live with their operations. Every terminal event echoes back the
+// requestId its command carried.
 
 export type ProverState = 'idle' | 'preparing' | 'ready' | 'error'
 export type PoolState = 'idle' | 'discovering' | 'ready' | 'error'
@@ -148,8 +148,8 @@ export interface PlatformOperations {
   }
   addressInfos: {
     payload: {addresses: string[]}
-    // An address absent from `infos` is unused; a failed lookup rejects rather
-    // than reporting zeros (finding R-4).
+    // An address absent from `infos` is unused. A failed lookup rejects rather
+    // than reporting zeros, which would read as "no funds".
     result: {infos: AddressInfo[]}
   }
   addressTransfer: {
@@ -261,8 +261,8 @@ export interface PlatformNetworkStatus {
   error: string | null
 }
 
-// inFlight is here so health surfaces read a value instead of triggering work
-// (finding P-4: getShieldedStatus dispatched initProver as a side effect).
+// inFlight is a value so health surfaces read it instead of triggering work —
+// getShieldedStatus used to dispatch initProver as a side effect.
 export interface PlatformWorkerStatus {
   prover: ProverState
   proverError: string | null

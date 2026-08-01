@@ -158,9 +158,9 @@ export class WalletService {
       console.error('Core address discovery after wallet creation failed:', e)
     }
 
-    // The wallet and its addresses are already persisted, so a scan that cannot
-    // reach the worker must not abandon them — the caller would retry and get a
-    // second wallet for the same seed.
+    // The wallet and addresses are already persisted, so a scan that cannot
+    // reach the worker must not abandon them — a retry would create a second
+    // wallet for the same seed.
     try {
       const {identities} = await this.platform.request('identityScan', network, {
         seed,
@@ -402,18 +402,16 @@ export class WalletService {
       return
     }
 
-    // Convergence: a synced wallet whose gap-limit discovery added nothing has
-    // a stable, fully-scanned watch set. Latch that so later frontier-derived
-    // addresses skip the historical rewind (see addWatchAddresses). Gating on
-    // "added nothing" — not merely "reached the tip" — is what keeps a restore
-    // safe: while gap batches are still being discovered this stays unlatched,
-    // so those batches keep triggering the rewind that finds their history.
+    // Latching convergence lets later frontier-derived addresses skip the
+    // historical rewind (see addWatchAddresses). The gate is "discovery added
+    // nothing", not merely "reached the tip": while gap batches are still being
+    // found this stays unlatched, so they keep triggering the rewind that finds
+    // their history.
     //
-    // KNOWN RESIDUAL (accepted): the scan tip is chainTip - SCAN_TIP_DEPTH, so
+    // Accepted residual: the scan tip is chainTip - SCAN_TIP_DEPTH, so
     // convergence can be declared while a used address hides in the last ~10
-    // blocks. In a restore with activity that recent, that address can surface
-    // later, extend the frontier, and derive an index whose deep history is
-    // then skipped. Extremely narrow; revisit if we ever track a birthday or
+    // blocks. It could then surface later, extend the frontier, and derive an
+    // index whose deep history is skipped. Revisit if we track a birthday or
     // scan the tip window before latching.
     if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
       this.scanCompleteLatched.add(walletId)
@@ -619,9 +617,8 @@ export class WalletService {
     return {...status, instantLocked: this.walletSyncService.hasInstantLock(txid)}
   }
 
-  // Serialized isdlock (hex) for a locally-broadcast txid, received over the
-  // p2p pool — or null within timeoutMs. Used to build an InstantAssetLockProof
-  // for shield / asset-lock funding without depending on DAPI islock delivery.
+  // Builds an InstantAssetLockProof for shield / asset-lock funding without
+  // depending on DAPI islock delivery. Null if none arrives within timeoutMs.
   waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null> {
     return this.walletSyncService.waitForInstantLock(txid, timeoutMs)
   }
@@ -737,9 +734,8 @@ export class WalletService {
     return {address: credit.address, derivationPath: credit.derivationPath}
   }
 
-  // Next unused change address, falling back to the first change address (or
-  // the recipient-less wallet's first receiving address) so change never
-  // leaves the wallet.
+  // Falls back to the first change address, then to a receiving one, so change
+  // never leaves the wallet.
   private pickChangeAddress(grouped: GroupedAddresses): string {
     const unusedChange = grouped.change.find(a => !a.isUsed)
     if (unusedChange) return unusedChange.address

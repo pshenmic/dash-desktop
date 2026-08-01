@@ -8,14 +8,10 @@ import {PendingTx} from '../types/PendingTx'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 
-  // Atomic per-block write: tx + outputs + inputs + spend back-edges +
-  // cursor advance, all in one SQL transaction. Cursor uses MAX semantics
-  // so out-of-order block application (tip-follow racing the scan) can't
-  // regress the resume marker.
-  //
-  // advanceCursor: false writes the block data without moving the resume
-  // marker — used once an earlier block has failed to persist, so the scan
-  // re-covers the gap instead of stepping over it.
+  // One SQL transaction for the whole block. The cursor uses MAX semantics so
+  // out-of-order application (tip-follow racing the scan) cannot regress the
+  // resume marker; advanceCursor:false holds it back entirely once an earlier
+  // block failed to persist, so the scan re-covers the gap.
   applyBlock = async (block: AppliedBlock, opts: {advanceCursor?: boolean} = {}): Promise<void> => {
     const advanceCursor = opts.advanceCursor ?? true
 
@@ -79,10 +75,8 @@ export class TransactionDAO {
           .ignore()
       }
 
-      // Collect addresses to mark used. Receive side: outputs paying our
-      // watched addresses. Send side: previous outputs being spent here —
-      // SELECT each one's address right before flipping spent_in_txid so
-      // we don't have to re-issue the lookup.
+      // The send-side address is read right before flipping spent_in_txid, to
+      // avoid re-issuing the lookup afterwards.
       const usedAddresses = new Set<string>()
       for (const tx of block.txs) {
         for (const o of tx.outputs) {
@@ -105,10 +99,8 @@ export class TransactionDAO {
           .update({spent_in_txid: s.spentInTxid, spent_at_height: block.height})
       }
 
-      // Anchor the confirmation height of optimistic spends made by the txs
-      // that just landed in this block. The cfilter scan can't re-detect them
-      // once their inputs were excluded from the seed (after a restart), so
-      // pin spent_at_height here off the now-confirmed spending txid.
+      // Pinned here because after a restart the cfilter scan cannot re-detect
+      // these spends — their inputs were excluded from the seed.
       for (const tx of block.txs) {
         await trx('transaction_outputs')
           .where({wallet_id: block.walletId, spent_in_txid: tx.txid})
@@ -155,10 +147,8 @@ export class TransactionDAO {
       })
   }
 
-  // Force-set the cursor (no MAX). Used by the rewind path when new
-  // addresses are added to a wallet — we need to drop the cursor to a
-  // lower height so historical filters get re-matched against the new
-  // addresses.
+  // No MAX, unlike advanceCursor: the rewind path has to move the cursor
+  // *down* so historical filters re-match newly added addresses.
   resetCursor = async (walletId: string, height: number): Promise<void> => {
     await this.knex('wallet_sync_state')
       .insert({wallet_id: walletId, cfilter_cursor_height: height})
@@ -174,9 +164,8 @@ export class TransactionDAO {
     return row ? row.cfilter_cursor_height : null
   }
 
-  // True once the wallet has completed a full cfilter scan to the tip. From
-  // that point every derived address is frontier-fresh, so hot-adding one
-  // must not rewind the scan cursor. Missing row → never synced → false.
+  // Past a full scan to the tip every derived address is frontier-fresh, so
+  // hot-adding one must not rewind the cursor. Missing row → never synced.
   getInitialScanComplete = async (walletId: string): Promise<boolean> => {
     const row = await this.knex('wallet_sync_state')
       .select('initial_scan_complete')
@@ -195,10 +184,9 @@ export class TransactionDAO {
 
   // ── Pending (locally-broadcast, pre-confirmation) txs ──────────────────────
 
-  // Record a just-broadcast tx optimistically, before any block confirms it.
-  // block_height = 0 marks it unconfirmed; its inputs are flagged spent so
-  // getUtxos stops offering them immediately, and its outputs are inserted so
-  // the change is spendable right away. Idempotent (safe on rebroadcast).
+  // block_height = 0 marks it unconfirmed; inputs are flagged spent so getUtxos
+  // stops offering them immediately and outputs are inserted so change is
+  // spendable right away. Idempotent, so rebroadcast is safe.
   recordPendingBroadcast = async (walletId: string, tx: AppliedTx): Promise<void> => {
     const now = Date.now()
     await this.knex.transaction(async trx => {
@@ -239,8 +227,8 @@ export class TransactionDAO {
         await trx('transaction_inputs').insert(inputRows).onConflict(['wallet_id', 'txid', 'vin']).ignore()
       }
 
-      // Flag the spent inputs (pending: no height yet). Only touch outputs that
-      // are currently unspent so we never clobber an already-recorded spend.
+      // Only currently-unspent outputs, so an already-recorded spend is never
+      // clobbered. No height yet — the spend is still pending.
       for (const i of tx.inputs) {
         await trx('transaction_outputs')
           .where({wallet_id: walletId, txid: i.prevTxid, vout: i.prevVout})
@@ -300,16 +288,13 @@ export class TransactionDAO {
       .update({chainlocked: true})
   }
 
-  // Drop a still-unconfirmed local tx and free the inputs it held pending —
-  // used for manual "abandon" and automatic conflict resolution. No-op once
-  // the tx has confirmed.
+  // Manual "abandon" and automatic conflict resolution. No-op once confirmed.
   abandonTransaction = async (walletId: string, txid: string): Promise<void> => {
     await this.knex.transaction(trx => abandonWithinTrx(trx, walletId, txid))
   }
 
-  // Unspent outputs that pay the wallet. Same shape as WalletSyncUtxo so
-  // both the renderer (via getUtxos IPC) and the cfilter worker (as
-  // spend-detection seed in the start command) consume it directly.
+  // WalletSyncUtxo shape, so the renderer and the cfilter worker's
+  // spend-detection seed both consume it without conversion.
   getUtxos = async (walletId: string): Promise<WalletSyncUtxo[]> => {
     const rows = await this.knex('transaction_outputs as o')
       .innerJoin('transactions as t', function() {
@@ -372,9 +357,8 @@ export class TransactionDAO {
     return rows.reduce((sum: bigint, row: {satoshis: string}) => sum + BigInt(row.satoshis), 0n)
   }
 
-  // Single SQL query: every (tx × output × input × prev-output) row for
-  // txs that touch `address` (received or spent from). Pivots in JS to
-  // one Transaction per txid before returning.
+  // One query returning the (tx × output × input × prev-output) product, pivoted
+  // in JS to one Transaction per txid.
   getTransactionsByAddress = async (walletId: string, address: string): Promise<Transaction[]> => {
     const txidsForAddress = this.knex('transaction_outputs')
       .select('txid')
@@ -469,9 +453,8 @@ export class TransactionDAO {
   }
 }
 
-// Remove a still-unconfirmed (block_height = 0) tx: free the inputs it held
-// pending (never a confirmed spend), then delete its phantom outputs, inputs,
-// and the tx row. Confirmed txs are left untouched.
+// Frees only inputs held pending, never a confirmed spend, then deletes the
+// phantom rows. Confirmed txs are left untouched.
 async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: string): Promise<void> {
   const tx = await trx('transactions').select('block_height').where({wallet_id: walletId, txid}).first()
   if (!tx || tx.block_height > 0) return
@@ -484,10 +467,9 @@ async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: s
   await trx('transactions').where({wallet_id: walletId, txid}).delete()
 }
 
-// Pivot the cartesian-product join rows (one per output × input combo
-// within each tx) into one Transaction per txid. Determines wallet-side
-// direction/amounts/primary address using the is_mine column on each
-// output (and on the prev output for inputs).
+// Collapses the cartesian-product join rows into one Transaction per txid.
+// Direction, amounts and primary address come from the is_mine column on each
+// output, and on the prev output for inputs.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

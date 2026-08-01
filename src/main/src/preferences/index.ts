@@ -68,8 +68,7 @@ export class Preferences {
 
     const preferences = Preferences.migrate(rawConfig)
 
-    // migration mechanism
-    // needed for app updates which change preferences fields
+    // Needed for app updates that change preferences fields.
     if (preferences.version !== (rawConfig.version ?? 0)) {
       console.log(`Preferences migrated from v${rawConfig.version ?? 0} to v${preferences.version}`)
       await fs.writeFile(path, JSON.stringify(preferences))
@@ -78,10 +77,8 @@ export class Preferences {
     return preferences
   }
 
-  // Forgiving construction: any missing field falls back to the current
-  // default. Used by both on-disk migration (when a stored prefs.json was
-  // written by an older app version and lacks new fields) and by the
-  // in-memory fromObject() entrypoint.
+  // Missing fields fall back to defaults, so a prefs.json written by an older
+  // app version migrates without special-casing each added field.
   private static migrate(raw: Record<string, unknown>): Preferences {
     const defaults = Preferences.default()
     const rawGeneral = (raw.general ?? {}) as Partial<GeneralPreferencesJSON>
@@ -142,8 +139,7 @@ export class Preferences {
     return instance
   }
 
-  // Same forgiving logic as the on-disk migration path — any missing field
-  // falls back to defaults, so callers can pass partial v(N-k) shapes.
+  // Same fallback as the on-disk path, so callers can pass partial shapes.
   static fromObject(value: unknown): Preferences {
     return Preferences.migrate((value ?? {}) as Record<string, unknown>)
   }

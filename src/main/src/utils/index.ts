@@ -100,9 +100,8 @@ export function encryptMnemonic(mnemonic: string, password: string, iterations: 
   return Buffer.concat([iv, salt, iterBuf, ciphertext, tag]).toString('hex')
 }
 
-// Reverse of encryptMnemonic. Throws if the password is wrong (GCM auth
-// tag mismatch) or the blob is shorter than the fixed header — callers
-// translate to user-facing errors.
+// Throws on a wrong password (GCM auth tag mismatch) or a blob shorter than the
+// fixed header; callers translate to user-facing errors.
 export function decryptMnemonic(encryptedHex: string, password: string): string {
   const data = Buffer.from(encryptedHex, 'hex')
 
@@ -121,12 +120,10 @@ export function decryptMnemonic(encryptedHex: string, password: string): string 
   return decrypted.toString('utf8')
 }
 
-// One file is written by applyBlock, advanceCursor, markInstantLocked,
-// markChainlockedUpTo and recordPendingBroadcast while getStatus reads it
-// once a second, so lock contention is the expected condition. SQLite
-// defaults to busy_timeout=0 (a writer meeting a held lock fails with
-// SQLITE_BUSY immediately) and the rollback journal (readers block writers);
-// both defaults turn routine contention into a failed write.
+// Several writers share one file while getStatus reads it once a second, so
+// lock contention is the expected condition — and both SQLite defaults turn it
+// into a failed write: busy_timeout=0 fails a blocked writer immediately, and
+// the rollback journal lets readers block writers.
 function applyConnectionPragmas (conn: SqliteConnection, done: (err: Error | null, conn: SqliteConnection) => void): void {
   conn.run('PRAGMA busy_timeout = 5000', err => {
     if (err) {

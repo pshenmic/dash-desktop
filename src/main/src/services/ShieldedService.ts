@@ -48,10 +48,9 @@ function spendPhase(phase: PlatformPhase): ShieldedSpendPhase | null {
 }
 
 
-// Wallet-domain layer over the shielded operations of the platform worker.
-// Owns unlocking, address derivation for display, per-wallet sync/spend state
-// and the note DAOs; everything CPU-bound or network-bound is a
-// PlatformWorkerService request.
+// Wallet-domain layer over the platform worker's shielded operations: owns
+// unlocking, display-address derivation, per-wallet sync/spend state and the
+// note DAOs. Anything CPU- or network-bound is a PlatformWorkerService request.
 export class ShieldedService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
@@ -139,9 +138,8 @@ export class ShieldedService {
     return this.cacheAddresses(walletId, seed, network)
   }
 
-  // All diversified addresses of the account share one incoming viewing key,
-  // so sync/spend in the worker are unaffected by how many exist — only
-  // derivation for display happens here.
+  // Display only: all diversified addresses of the account share one incoming
+  // viewing key, so how many exist never reaches the worker's sync/spend.
   private async cacheAddresses(walletId: string, seed: Uint8Array, network: Network): Promise<string[]> {
     const count = await this.walletDAO.getShieldedAddressCount(walletId)
     const list: string[] = []
@@ -161,9 +159,9 @@ export class ShieldedService {
     }
   }
 
-  // Downloads the ciphertexts of pool notes not stored yet. Needs no password:
-  // the payloads are network state, trial-decrypted later when the user unlocks
-  // a sync. Deduped per network, so wallets sharing one share the download.
+  // No password needed — the payloads are network state, trial-decrypted later
+  // when the user unlocks a sync. Deduped per network, so wallets sharing one
+  // share the download.
   checkForNewNotes(network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
     const inFlight = this.noteFetches.get(network)
     if (inFlight != null) return inFlight
@@ -173,9 +171,8 @@ export class ShieldedService {
     return fetch
   }
 
-  // Keeps the pool warm for a wallet that has synced before. It cannot detect
-  // incoming notes on its own — that needs trial-decryption, so a password —
-  // which is why a wallet that has never opened the feature polls nothing.
+  // Cannot detect incoming notes on its own — that needs trial-decryption, so a
+  // password — which is why a wallet that never opened the feature polls nothing.
   async prefetchNotes(walletId: string, network: Network): Promise<void> {
     const decoded = await this.walletDAO.getShieldedDecodedCount(walletId)
     if (decoded === 0) return

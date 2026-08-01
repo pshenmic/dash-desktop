@@ -1,11 +1,10 @@
-// The cfilter scan cursor is the wallet's resume marker: whatever it has
-// passed is never rescanned, and advanceCursor uses MAX semantics so a cursor
-// that moved too far cannot be walked back. getUtxos reads SQL only, so a
-// block whose write failed while the cursor moved past it leaves confirmed
-// coins invisible and unspendable with no signal to the user.
+// Whatever the scan cursor passes is never rescanned, and MAX semantics mean a
+// cursor that moved too far cannot be walked back. So a block whose write failed
+// while the cursor stepped over it leaves confirmed coins invisible and
+// unspendable, with no signal to the user.
 //
-// This tracks the heights whose write failed permanently and caps how far the
-// cursor may move, so the next scan re-covers the gap.
+// Tracks the permanently-failed heights and caps how far the cursor may move,
+// so the next scan re-covers the gap.
 export class ScanCursorGate {
   private failed = new Map<string, Set<number>>()
 

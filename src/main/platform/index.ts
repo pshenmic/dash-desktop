@@ -5,11 +5,9 @@ import {MB} from './constants'
 
 process.title = 'dash-platform'
 
-// Diagnostic: surface anything that would otherwise silently kill the utility
-// process. Without these the parent only sees `exit code=1` with no clue about
-// the cause. We log (captured by the parent's stderr tail) AND forward to the
-// parent as an `error` event so the cause is recorded centrally even when no
-// one is watching the terminal.
+// Without these the parent sees only `exit code=1` with no cause. Logged (for
+// the parent's stderr tail) *and* forwarded as an `error` event, so the cause
+// is recorded even when no one is watching the terminal.
 function reportFatal(label: string, value: unknown): void {
   const detail = value instanceof Error ? (value.stack ?? value.message) : String(value)
   console.error(`[platform] ${label}:`, value)
@@ -26,9 +24,8 @@ process.on('unhandledRejection', reason => {
   reportFatal('unhandledRejection', reason)
 })
 
-// Utility-process entry for every Dash Platform state transition. Pure IPC
-// adapter — the SDKs, lanes and engines live in PlatformService and below.
-// This file exists only to bridge parentPort messages to method calls.
+// Pure IPC adapter — the SDKs, lanes and engines live in PlatformService and
+// below. Keep logic out of this file.
 
 declare const process: NodeJS.Process & {
   parentPort: {
@@ -51,9 +48,8 @@ service.warmup().catch(() => {
   // Already reported as prover: 'error' on the status push.
 })
 
-// Periodic resident-memory log so the platform footprint can be tracked
-// without an external profiler. With two SDK instances in one process this is
-// the number that answers whether that costs anything.
+// Tracks the platform footprint without an external profiler — with two SDK
+// instances in one process, this is what says whether that costs anything.
 setInterval(() => {
   const m = process.memoryUsage()
   console.log(
