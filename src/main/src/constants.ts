@@ -1,3 +1,6 @@
+import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import type {CoinSelectionParams} from './types/CoinSelection'
+
 export const HomeFolderName = '.dash-desktop'
 export const StorageFilename = 'storage.db'
 export const ChainStorageFilename = 'ChainStorage'
@@ -59,3 +62,116 @@ export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
 // is waiting, and staying armed only makes the worker fetch isdlock objects
 // it will discard.
 export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
+
+// BIP-44 gap limits and the ceiling on each discovery walk. Without a ceiling
+// only the gap can stop the loop.
+export const ADDRESS_LOOKAHEAD = 20
+export const IDENTITY_LOOKAHEAD = 10
+export const MAX_DISCOVERY_ROUNDS = 10
+export const IDENTITY_SCAN_LIMIT = 100
+export const PLATFORM_ADDRESS_LOOKAHEAD = 20
+export const MAX_DISCOVERY_BATCHES = 50
+
+// Bound on how far addAddress derives forward while skipping used
+// (already-received-on) diversified addresses.
+export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
+
+// How often the backend re-runs address discovery for the selected wallet.
+export const DISCOVERY_INTERVAL_MS = 120_000
+
+// Cap on the per-child output we retain. The tail is attached to request and
+// broadcast failures and logged on exit so a worker crash carries its own
+// cause instead of just "code=1".
+export const CHILD_OUTPUT_TAIL_LIMIT = 8192
+
+// How often we re-push still-unconfirmed local txs to keep them alive in
+// peer mempools. Absence of confirmation is never proof of failure (Dash has
+// no reject message), so we keep rebroadcasting until a block / lock settles
+// the tx rather than timing it out.
+export const REBROADCAST_INTERVAL_MS = 60_000
+
+// applyBlock retry ladder. A failure here is almost always transient lock
+// contention on storage.db, which the busy_timeout pragma already absorbs;
+// what survives the ladder is treated as a persistence gap.
+export const PERSIST_ATTEMPTS = 3
+export const PERSIST_RETRY_MS = 1_000
+
+// SQLite bind-variable limit safety.
+export const PAYLOAD_CHUNK_SIZE = 100
+export const SELECT_CHUNK_SIZE = 500
+
+export const RATES_TTL_MS = 60_000
+export const RATES_REQUEST_TIMEOUT_MS = 8_000
+
+export const INSIGHT_BASE_URLS: Record<'mainnet' | 'testnet', string> = {
+  mainnet: 'https://insight.dash.org/insight-api',
+  testnet: 'https://insight.testnet.networks.dash.org/insight-api'
+}
+export const INSIGHT_ADDRESS_CHUNK = 25
+
+// Per-attempt deadline and backoff. Chromium's own timeout runs into the tens
+// of seconds, long enough that a stalled read looks like a hung wallet.
+export const INSIGHT_REQUEST_TIMEOUT_MS = 15_000
+export const INSIGHT_RETRY_DELAYS_MS = [300, 1_200]
+
+// base58check payload: 1 version byte + 20 hash bytes.
+export const ADDRESS_DECODED_LENGTH = 21
+
+export const HD_VERSIONS: Record<'mainnet' | 'testnet', {private: number; public: number}> = {
+  mainnet: {private: 0x0488ade4, public: 0x0488b21e},
+  testnet: {private: 0x04358394, public: 0x043587cf},
+}
+
+export const ALREADY_IN_CHAIN = 'state transition already in chain'
+
+export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
+  feePerByte: 1n,
+  signedInputSize: 32n + 4n + 8n + 108n + 4n,
+  changeOutputSize: 20n + 4n + 34n + 4n,
+  baseTxSize: 10n,
+  recipientOutputSize: 34n,
+  minFee: 1000n,
+}
+
+export const MIN_OUTPUT_CREDITS = 500_000n
+export const TRANSFER_FEE_CREDITS = 6_500_000n
+export const MIN_INPUT_CREDITS = 100_000n
+export const MAX_ADDRESS_INPUTS = 16
+export const MAX_RECIPIENTS = 128
+export const WITHDRAWAL_FEE_CREDITS = 400_000_000n
+export const CORE_FEE_PER_BYTE = 1
+export const IDENTITY_CREDIT_TRANSFER_FEE_CREDITS = 1_000_000n
+
+// The key set identityCreateFromAddresses builds; the fee scales with it, so
+// the worker that creates the keys and main that reserves the fee read the
+// same number.
+export const IDENTITY_CREATE_KEY_COUNT = 4
+
+// Mirrors compute_minimum_shielded_fee in rs-dpp (pshenmic/platform@1ba1ca5):
+// consensus pins a pool-paid spend's value_balance to exactly this minimum, so
+// note selection must reserve it. num_actions = max(spends, 2). Keep in sync
+// with src/renderer/src/utils/shieldedFee.ts (pinned by tests/unit/shieldedFee.test.ts).
+export const SHIELDED_PROOF_VERIFICATION_FEE_CREDITS = 100_000_000n
+export const SHIELDED_PER_ACTION_PROCESSING_FEE_CREDITS = 22_000_000n
+export const SHIELDED_STORAGE_BYTES_PER_ACTION = 344n
+export const SHIELDED_UNSHIELD_ADDRESS_STORAGE_BYTES = 222n
+export const SHIELDED_WITHDRAWAL_DOCUMENT_STORAGE_BYTES = 4_100n
+export const SHIELDED_STORAGE_CREDIT_PER_BYTE = 27_400n
+export const MIN_BUNDLE_ACTIONS = 2
+
+export const ASSET_LOCK_PAYLOAD_VERSION = 1
+export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
+export const CREDITS_PER_DUFF = 1_000n
+export const SHIELD_FUNDING_FEE_RESERVE_CREDITS = 300_000_000n
+
+// Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
+// dropped (added later via IdentityUpdateTransition if needed); MASTER /
+// CRITICAL / HIGH plus ENCRYPTION / DECRYPTION / TRANSFER cover the common path.
+export const IDENTITY_KEY_DEFINITIONS = [
+  {id: 0, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.MASTER, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 1, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 2, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.HIGH, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 3, purpose: Purpose.ENCRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
+] as const

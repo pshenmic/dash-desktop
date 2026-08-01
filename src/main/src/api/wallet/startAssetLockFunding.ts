@@ -1,9 +1,9 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
-import { AssetLockFundingKind } from '../../database/AssetLockDAO'
 import { IdentityRegistrationService } from '../../services/IdentityRegistrationService'
 import { PlatformAddressService } from '../../services/PlatformAddressService'
 import { ShieldedService } from '../../services/ShieldedService'
+import {AssetLockFundingKind} from '../../types/AssetLock'
 
 export class StartAssetLockFundingHandler {
   constructor(

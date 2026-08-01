@@ -1,18 +1,8 @@
 import type {Knex} from 'knex'
 import {Network} from '../types'
 
-export interface EncryptedNoteRecord {
-  index: number
-  nullifier: Uint8Array
-  cmx: Uint8Array
-  encryptedNote: Uint8Array
-  cvNet: Uint8Array
-}
-
-// SQLite bind-variable limit safety.
-const PAYLOAD_CHUNK_SIZE = 100
-const SELECT_CHUNK_SIZE = 500
-
+import {EncryptedNoteRecord} from '../types/ShieldedNote'
+import {PAYLOAD_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants' 
 // The Orchard pool: network state, shared by every wallet on that network.
 // Trial-decryption is what makes a note a wallet's own, and that lives in
 // ShieldedNoteDAO.

@@ -1,6 +1,26 @@
 import {PlatformRequestMessage} from './types/messages'
+import type {Network} from '../src/types'
 
 export const PROVER_LANE = 'prover'
+
+export const MB = 1024 * 1024
+
+export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
+
+export const ERROR_CODES: readonly string[] =
+  ['cancelled', 'alreadyInChain', 'insufficientFunds', 'network', 'internal']
+
+// Trailing base64 blob of a serialized consensus error.
+export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
+
+export const IDENTITY_KEY_LOOKAHEAD = 20
+
+export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
+  {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
+  {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
+  {purpose: 'AUTHENTICATION', securityLevel: 'CRITICAL'},
+  {purpose: 'TRANSFER', securityLevel: 'CRITICAL'},
+]
 
 // Prover-lane work saturates the single thread this process has, so serialising
 // it costs nothing and guarantees a spend sees what the sync before it
@@ -42,6 +62,9 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityExists':
     case 'identityBalance':
     case 'identityNonce':
+    case 'identityInfos':
+    case 'identityScan':
+    case 'nodeStatus':
     case 'poolInfo':
     case 'notesCount':
     case 'encryptedNotes':

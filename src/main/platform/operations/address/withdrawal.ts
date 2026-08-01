@@ -1,10 +1,10 @@
 import {AddressCreditWithdrawalTransitionWASM} from 'dash-platform-sdk/types.js'
 import {coreAddressToScript} from '../../../src/utils/coreScript'
-import {CORE_FEE_PER_BYTE} from '../../../src/utils/platformTransfer'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
 import {DEDUCT_FROM_FIRST, signInputs, toInputAddresses} from './signInputs'
+import {CORE_FEE_PER_BYTE} from '../../../src/constants'
 
 type Payload = PlatformOperations['addressWithdrawal']['payload']
 type Result = PlatformOperations['addressWithdrawal']['result']

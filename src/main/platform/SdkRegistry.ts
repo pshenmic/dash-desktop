@@ -2,14 +2,11 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types'
 
-export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
+import {NETWORKS} from './constants'
+import {SdkSource} from './types/sdk'
 
-// What the dispatcher needs from an SDK source. Narrow on purpose: it is the
-// seam the network-isolation test stubs.
-export interface SdkSource {
-  get: (network: Network) => DashPlatformSDK
-  warmup: () => Promise<void>
-}
+export {NETWORKS}
+export type {SdkSource}
 
 // One SDK per network, constructed once and never mutated. `setNetwork` is not
 // called anywhere in this directory: it rebuilds the gRPC pool and replaces

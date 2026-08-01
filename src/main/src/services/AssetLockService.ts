@@ -1,52 +1,36 @@
 import {
+  DashCoreSDK,
   InstantLock,
   Transaction as SDKTransaction,
   utils as coreUtils,
 } from 'dash-core-sdk'
 import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
 import {WalletDAO} from '../database/WalletDAO'
-import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
+import {AssetLockDAO} from '../database/AssetLockDAO'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
-import {SdkProvider} from '../providers/SdkProvider'
+import {PlatformWorkerService} from './PlatformWorkerService'
 import {AssetLockProofParams} from '../../platform/types/messages'
-import {ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../utils/assetLockTx'
-import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
+import {
+  AcquireParams,
+  AcquiredAssetLock,
+  AssetLockFunder,
+} from '../types/AssetLock'
+import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../constants'
+import {AssetLockFundingKind, AssetLockFundingRow} from '../types/AssetLock'
+const coreSDKs = new Map<Network, DashCoreSDK>()
 
-export interface BroadcastedAssetLock {
-  tx: SDKTransaction
-  txid: string
-  creditAddress: string
-  creditDerivationPath: string
-  inputAddresses: string[]
-}
-
-// What this primitive needs from the wallet's L1 side. Coin selection, read
-// providers and UTXOs belong to WalletService, which satisfies this as-is.
-export interface AssetLockFunder {
-  buildAndBroadcastAssetLock(
-    walletId: string,
-    amountDuffs: bigint,
-    password: string,
-    credit?: {address: string; derivationPath: string},
-  ): Promise<BroadcastedAssetLock>
-  waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null>
-}
-
-export interface AcquiredAssetLock {
-  row: AssetLockFundingRow
-  proof: AssetLockProofParams
-}
-
-export interface AcquireParams {
-  walletId: string
-  kind: AssetLockFundingKind
-  destination: string
-  amountDuffs: bigint
-  password: string
-  credit?: {address: string; derivationPath: string}
-  identityIndex?: number | null
+// The constructor starts evonode discovery in the background, so one is kept per
+// network — a fresh instance answers its first request against an empty DAPI
+// url list.
+function coreSDK(network: Network): DashCoreSDK {
+  let sdk = coreSDKs.get(network)
+  if (sdk == null) {
+    sdk = new DashCoreSDK({network})
+    coreSDKs.set(network, sdk)
+  }
+  return sdk
 }
 
 // Locks L1 coins and produces the proof that funds a platform state transition.
@@ -56,16 +40,19 @@ export class AssetLockService {
   private walletDAO: WalletDAO
   private assetLockDAO: AssetLockDAO
   private funder: AssetLockFunder
-  // Only for the chain-lock fallback below; the instant-lock path is our own
-  // p2p pool.
-  private sdkProvider: SdkProvider
+  private platform: PlatformWorkerService
   private states = new Map<string, AssetLockFundingState>()
 
-  constructor(walletDAO: WalletDAO, assetLockDAO: AssetLockDAO, funder: AssetLockFunder, sdkProvider: SdkProvider) {
+  constructor(
+    walletDAO: WalletDAO,
+    assetLockDAO: AssetLockDAO,
+    funder: AssetLockFunder,
+    platform: PlatformWorkerService,
+  ) {
     this.walletDAO = walletDAO
     this.assetLockDAO = assetLockDAO
     this.funder = funder
-    this.sdkProvider = sdkProvider
+    this.platform = platform
   }
 
   private idleState(): AssetLockFundingState {
@@ -161,10 +148,10 @@ export class AssetLockService {
 
   // Builds and broadcasts the L1 lock, records it, then waits for the proof.
   async acquire(state: AssetLockFundingState, params: AcquireParams): Promise<AcquiredAssetLock> {
-    const {walletId, amountDuffs, password} = params
+    const {walletId, amountDuffs, seed} = params
 
     state.phase = 'broadcastingL1'
-    const broadcasted = await this.funder.buildAndBroadcastAssetLock(walletId, amountDuffs, password, params.credit)
+    const broadcasted = await this.funder.buildAndBroadcastAssetLock(walletId, amountDuffs, seed, params.credit)
     state.txid = broadcasted.txid
 
     await this.assetLockDAO.insertFunding({
@@ -201,6 +188,11 @@ export class AssetLockService {
     row: AssetLockFundingRow,
     live?: {tx: SDKTransaction},
   ): Promise<AssetLockProofParams> {
+    if (row.assetLockProof != null) {
+      this.applyLockKind(state, row.assetLockProof)
+      return row.assetLockProof
+    }
+
     const wallet = await this.walletDAO.getWalletById(row.walletId)
     if (wallet == null) {
       throw new Error('Wallet not found')
@@ -214,26 +206,34 @@ export class AssetLockService {
       throw new Error('Funding record is missing the asset lock transaction')
     }
 
-    const proof = await this.waitForAssetLockProof(tx, row.txid, network)
+    const resolved = await this.waitForAssetLockProof(tx, row.txid, network)
+
+    let proof: AssetLockProofParams
+    if (resolved.type === 'instantLock') {
+      proof = {type: 'instantLock', instantLock: resolved.instantLock, transaction: resolved.transaction}
+    } else {
+      // The worker rebuilds the outpoint from the row, while the proof carries
+      // the txid the SDK read off the transaction. They are the same value in
+      // display order — a mismatch means one side is holding wire order, which
+      // would otherwise silently produce a proof against the wrong outpoint.
+      if (resolved.txid !== row.txid) {
+        throw new Error(`Asset lock proof txid ${resolved.txid} does not match the funding record ${row.txid}`)
+      }
+      proof = {type: 'chainLock', coreChainLockedHeight: resolved.coreChainLockedHeight}
+    }
+
+    this.applyLockKind(state, proof)
+    await this.assetLockDAO.saveProof(row.txid, proof)
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
+
+    return proof
+  }
+
+  private applyLockKind(state: AssetLockFundingState, proof: AssetLockProofParams): void {
     state.lockKind = proof.type === 'instantLock' ? 'instant' : 'chain'
     if (proof.type === 'chainLock') {
       state.chainLockedHeight = proof.coreChainLockedHeight
     }
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
-
-    if (proof.type === 'instantLock') {
-      return {type: 'instantLock', instantLock: proof.instantLock, transaction: proof.transaction}
-    }
-
-    // The worker rebuilds the outpoint from the row, while the proof carries the
-    // txid the SDK read off the transaction. They are the same value in display
-    // order — a mismatch means one side is holding wire order, which would
-    // otherwise silently produce a proof against the wrong outpoint.
-    if (proof.txid !== row.txid) {
-      throw new Error(`Asset lock proof txid ${proof.txid} does not match the funding record ${row.txid}`)
-    }
-    return {type: 'chainLock', coreChainLockedHeight: proof.coreChainLockedHeight}
   }
 
   // Races the instant lock (our own p2p pool) against the chain lock (DAPI
@@ -261,15 +261,14 @@ export class AssetLockService {
     }
 
     const chainLockRace = async (): Promise<ChainAssetLockProofParams> => {
-      const coreSDK = this.sdkProvider.getCoreSDK(network)
-      const platformSDK = this.sdkProvider.getPlatformSDK(network)
+      const sdk = coreSDK(network)
       const deadline = Date.now() + IDENTITY_LOCK_TIMEOUT_MS
 
       while (Date.now() < deadline) {
         if (settled) throw new Error('cancelled')
 
         try {
-          const dapiTx = await coreSDK.getTransaction(txid)
+          const dapiTx = await sdk.getTransaction(txid)
 
           if (dapiTx.isChainLocked) {
             const requiredHeight = dapiTx.height
@@ -278,10 +277,10 @@ export class AssetLockService {
               if (settled) throw new Error('cancelled')
 
               try {
-                const nodeStatus = await platformSDK.node.status()
-                const latestHeight = nodeStatus.chain?.coreChainLockedHeight ?? 0
+                const {chain} = await this.platform.request('nodeStatus', network, {})
+                const latestHeight = chain?.coreChainLockedHeight
 
-                if (Number.isSafeInteger(latestHeight) && latestHeight >= requiredHeight) {
+                if (latestHeight != null && latestHeight >= requiredHeight) {
                   return coreUtils.createAssetLockProof({
                     transaction: assetLockTx,
                     coreChainLockedHeight: dapiTx.height,

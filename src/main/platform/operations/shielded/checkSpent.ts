@@ -1,10 +1,9 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {RecoveredNoteWASM} from 'pshenmic-dpp'
 
-export interface CheckedNote {
-  note: RecoveredNoteWASM
-  spent: boolean
-}
+import {CheckedNote} from '../../types/service'
+
+export type {CheckedNote}
 
 const hex = (bytes: Uint8Array): string => Buffer.from(bytes).toString('hex')
 

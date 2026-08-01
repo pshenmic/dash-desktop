@@ -1,9 +1,10 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {KeyedLane, Lane} from './Lane'
 import {laneFor, PROVER_LANE} from './constants'
-import {SdkSource} from './SdkRegistry'
+import {SdkSource} from './types/sdk'
 import {Network} from '../src/types'
 import {OperationContext} from './operations/types'
+import {nodeStatus} from './operations/nodeStatus'
 import {addressInfos} from './operations/address/infos'
 import {addressTransfer} from './operations/address/transfer'
 import {addressWithdrawal} from './operations/address/withdrawal'
@@ -13,6 +14,8 @@ import {identityBalance} from './operations/identity/balance'
 import {identityCreditTransfer} from './operations/identity/creditTransfer'
 import {identityCreditsToAddresses} from './operations/identity/creditsToAddresses'
 import {identityExists} from './operations/identity/exists'
+import {identityInfos} from './operations/identity/infos'
+import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
 import {encryptedNotes} from './operations/shielded/reads/encryptedNotes'
@@ -35,11 +38,8 @@ import {
   PlatformWorkerStatus,
   ProverState,
 } from './types/messages'
-
-interface InFlight {
-  controller: AbortController
-  settled: boolean
-}
+import {ERROR_CODES} from './constants'
+import {InFlight} from './types/service'
 
 // Orchestrator for the platform utility process: owns the SDKs and the lanes,
 // dispatches commands, and aggregates status. Mirrors p2p/SyncService — it
@@ -208,6 +208,9 @@ export class PlatformService {
       case 'identityExists': return identityExists(request.payload, ctx)
       case 'identityBalance': return identityBalance(request.payload, ctx)
       case 'identityNonce': return identityNonce(request.payload, ctx)
+      case 'identityInfos': return identityInfos(request.payload, ctx)
+      case 'identityScan': return identityScan(request.payload, ctx)
+      case 'nodeStatus': return nodeStatus(ctx)
       case 'poolInfo': return poolInfo(ctx)
       case 'notesCount': return notesCount(ctx)
       case 'encryptedNotes': return encryptedNotes(request.payload, ctx)
@@ -251,9 +254,6 @@ function sameStatus(a: PlatformWorkerStatus, b: PlatformWorkerStatus): boolean {
     a.networks.testnet.error === b.networks.testnet.error
   )
 }
-
-const ERROR_CODES: readonly string[] =
-  ['cancelled', 'alreadyInChain', 'insufficientFunds', 'network', 'internal']
 
 // Always a plain object: structured clone drops the own properties of an Error
 // subclass, so an OperationError forwarded as-is would arrive without its code.

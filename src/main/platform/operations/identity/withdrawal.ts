@@ -1,9 +1,9 @@
 import {coreAddressToScript} from '../../../src/utils/coreScript'
-import {CORE_FEE_PER_BYTE} from '../../../src/utils/platformTransfer'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
 import {applySignature, signingKey} from './signingKey'
+import {CORE_FEE_PER_BYTE} from '../../../src/constants'
 
 type Payload = PlatformOperations['identityWithdrawal']['payload']
 type Result = PlatformOperations['identityWithdrawal']['result']

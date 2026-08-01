@@ -1,3 +1,4 @@
+import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {Network} from '../../src/types'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
@@ -190,6 +191,19 @@ export interface PlatformOperations {
   identityNonce: {
     payload: {identifier: string}
     result: {nonce: bigint}
+  }
+  identityInfos: {
+    payload: {identifiers: string[]}
+    // Identifiers Platform does not know are omitted, not reported as zero.
+    result: {infos: Array<{identifier: string; balance: bigint; alias: string | null}>}
+  }
+  identityScan: {
+    payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}
+    result: {identities: Array<{index: number; identifier: string}>; nextFreeIndex: number}
+  }
+  nodeStatus: {
+    payload: Record<string, never>
+    result: NodeStatus
   }
   poolInfo: {
     payload: Record<string, never>

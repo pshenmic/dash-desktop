@@ -1,6 +1,7 @@
 import {PlatformService} from './PlatformService'
 import {SdkRegistry} from './SdkRegistry'
 import {PlatformCommand, PlatformEvent} from './types/messages'
+import {MB} from './constants'
 
 process.title = 'dash-platform'
 
@@ -53,7 +54,6 @@ service.warmup().catch(() => {
 // Periodic resident-memory log so the platform footprint can be tracked
 // without an external profiler. With two SDK instances in one process this is
 // the number that answers whether that costs anything.
-const MB = 1024 * 1024
 setInterval(() => {
   const m = process.memoryUsage()
   console.log(

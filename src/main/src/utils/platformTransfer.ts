@@ -1,24 +1,5 @@
-export interface PlatformSourceCandidate {
-  platformAddress: string
-  index: number
-  balanceCredits: bigint
-  nonce: number
-}
-
-export const MIN_OUTPUT_CREDITS = 500_000n
-export const TRANSFER_FEE_CREDITS = 6_500_000n
-export const MIN_INPUT_CREDITS = 100_000n
-export const MAX_ADDRESS_INPUTS = 16
-export const MAX_RECIPIENTS = 128
-export const WITHDRAWAL_FEE_CREDITS = 400_000_000n
-export const CORE_FEE_PER_BYTE = 1
-
-// The key set identityCreateFromAddresses builds; the fee scales with it, so
-// the worker that creates the keys and main that reserves the fee read the
-// same number.
-export const IDENTITY_CREATE_KEY_COUNT = 4
-
-export const IDENTITY_CREDIT_TRANSFER_FEE_CREDITS = 1_000_000n
+import {PlatformInputPlan, PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
+import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS, TRANSFER_FEE_CREDITS} from '../constants'
 
 export function identityTransferFeeCredits(recipientCount: number): bigint {
   return 500_000n + 6_000_000n * BigInt(recipientCount)
@@ -30,16 +11,6 @@ export function identityCreateFeeCredits(publicKeyCount: number): bigint {
 
 export function topUpFeeCredits(inputCount: number): bigint {
   return 500_000n + 500_000n * BigInt(inputCount)
-}
-
-export interface PlatformInputSelection {
-  candidate: PlatformSourceCandidate
-  credits: bigint
-}
-
-export interface PlatformInputPlan {
-  inputs: PlatformInputSelection[]
-  feeCredits: bigint
 }
 
 export function selectPlatformInputs(

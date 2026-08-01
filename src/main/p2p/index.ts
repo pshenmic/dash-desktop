@@ -1,5 +1,6 @@
 import {SyncService} from './SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
+import {MB} from './constants'
 
 process.title = 'dash-p2p'
 
@@ -83,9 +84,6 @@ process.parentPort.on('message', ({data}) => {
 // Push the initial 'idle' state to the parent.
 process.parentPort.postMessage({type: 'status', status: sync.getStatus()})
 
-// Tracks the p2p footprint over a sync run without an external profiler; rss
-// is what Activity Monitor shows for the dash-p2p process.
-const MB = 1024 * 1024
 setInterval(() => {
   const m = process.memoryUsage()
   console.log(

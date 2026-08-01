@@ -5,6 +5,12 @@ import fs from 'fs'
 import {ChainStorageFilename, HomeFolderName, LOCK_WATCH_TTL_MS} from '../constants'
 import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
+import {
+  CHILD_OUTPUT_TAIL_LIMIT,
+  PERSIST_ATTEMPTS,
+  PERSIST_RETRY_MS,
+  REBROADCAST_INTERVAL_MS,
+} from '../constants'
 import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
@@ -16,22 +22,6 @@ import {QueryStatus} from '../types/QueryStatus'
 import {ScanCursorGate} from '../utils/scanCursorGate'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 
-// Cap on the per-child output we retain. The tail is attached to broadcast
-// errors and logged on exit so a worker crash carries its own cause instead
-// of just "code=1".
-const CHILD_OUTPUT_TAIL_LIMIT = 8192
-
-// How often we re-push still-unconfirmed local txs to keep them alive in
-// peer mempools. Absence of confirmation is never proof of failure (Dash has
-// no reject message), so we keep rebroadcasting until a block / lock settles
-// the tx rather than timing it out.
-const REBROADCAST_INTERVAL_MS = 60_000
-
-// applyBlock retry ladder. A failure here is almost always transient lock
-// contention on storage.db, which the busy_timeout pragma already absorbs;
-// what survives the ladder is treated as a persistence gap.
-const PERSIST_ATTEMPTS = 3
-const PERSIST_RETRY_MS = 1_000
 
 // Main-process facade for wallet sync. Forks the p2p utility process,
 // translates wallet-domain calls into the internal P2P protocol, and

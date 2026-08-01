@@ -1,46 +1,46 @@
 import {describe, it, expect, vi} from 'vitest'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {PrivateKeyWASM} from 'dash-platform-sdk/types.js'
-import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {AssetLockService} from '../../src/main/src/services/AssetLockService'
 import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
-import {IdentityRegistrationService, IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/services/IdentityRegistrationService'
-
+import {IdentityRegistrationService} from '../../src/main/src/services/IdentityRegistrationService'
+import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+const SEED = new KeyPairController().mnemonicToSeed(MNEMONIC)
 
-function serviceWith(sdkProvider: SdkProvider): IdentityRegistrationService {
+function serviceWith(request = vi.fn()): IdentityRegistrationService {
   return new IdentityRegistrationService(
-    sdkProvider,
     {} as WalletDAO,
     {} as IdentityDAO,
     {} as AssetLockService,
-    {} as PlatformWorkerService,
+    {request} as unknown as PlatformWorkerService,
   )
 }
 
 describe('IdentityRegistrationService', () => {
-  const service = serviceWith(new SdkProvider())
+  const service = serviceWith()
 
   describe('key derivation', () => {
     it('derives distinct registration keys per identity index', async () => {
-      const key0 = await service.deriveRegistrationKey(MNEMONIC, 0, 'testnet')
-      const key1 = await service.deriveRegistrationKey(MNEMONIC, 1, 'testnet')
+      const key0 = await service.deriveRegistrationKey(SEED, 0, 'testnet')
+      const key1 = await service.deriveRegistrationKey(SEED, 1, 'testnet')
 
       expect(key0.hex()).not.toBe(key1.hex())
       // Deterministic: same index → same key.
-      const key0Again = await service.deriveRegistrationKey(MNEMONIC, 0, 'testnet')
+      const key0Again = await service.deriveRegistrationKey(SEED, 0, 'testnet')
       expect(key0Again.hex()).toBe(key0.hex())
     })
 
     it('derives top-up keys distinct from registration keys at the same index', async () => {
-      const topUpKey0 = await service.deriveTopUpKey(MNEMONIC, 0, 'testnet')
-      const topUpKey1 = await service.deriveTopUpKey(MNEMONIC, 1, 'testnet')
-      const registrationKey0 = await service.deriveRegistrationKey(MNEMONIC, 0, 'testnet')
+      const topUpKey0 = await service.deriveTopUpKey(SEED, 0, 'testnet')
+      const topUpKey1 = await service.deriveTopUpKey(SEED, 1, 'testnet')
+      const registrationKey0 = await service.deriveRegistrationKey(SEED, 0, 'testnet')
 
       expect(topUpKey0.hex()).not.toBe(topUpKey1.hex())
       expect(topUpKey0.hex()).not.toBe(registrationKey0.hex())
-      const topUpKey0Again = await service.deriveTopUpKey(MNEMONIC, 0, 'testnet')
+      const topUpKey0Again = await service.deriveTopUpKey(SEED, 0, 'testnet')
       expect(topUpKey0Again.hex()).toBe(topUpKey0.hex())
     })
   })
@@ -50,7 +50,7 @@ describe('IdentityRegistrationService', () => {
   // with the same secret.
   describe('identity key definitions', () => {
     it('derive to six distinct keys at one identity index', () => {
-      const {keyPair} = new SdkProvider().getPlatformSDK('testnet')
+      const keyPair = new KeyPairController()
       const hdKey = keyPair.seedToHdKey(keyPair.mnemonicToSeed(MNEMONIC), 'testnet')
 
       const hexes = IDENTITY_KEY_DEFINITIONS.map(({id}) => {
@@ -76,29 +76,19 @@ describe('IdentityRegistrationService', () => {
     })
   })
 
+  // The walk itself is the identityScan operation's, and is tested there.
   describe('findNextIdentityIndex', () => {
-    it('returns the start index when no identity is registered', async () => {
-      const sdkProvider = new SdkProvider()
-      const sdk = sdkProvider.getPlatformSDK('testnet')
-      vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline'))
-      vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline'))
+    it('asks the worker to stop at the first free index', async () => {
+      const request = vi.fn().mockResolvedValue({identities: [], nextFreeIndex: 4})
 
-      const index = await serviceWith(sdkProvider).findNextIdentityIndex(MNEMONIC, 0, 'testnet')
+      const index = await serviceWith(request).findNextIdentityIndex(SEED, 2, 'testnet')
 
-      expect(index).toBe(0)
-    })
-
-    it('skips an index whose auth key is already registered', async () => {
-      const sdkProvider = new SdkProvider()
-      const sdk = sdkProvider.getPlatformSDK('testnet')
-      vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash')
-        .mockResolvedValueOnce({} as never)
-        .mockResolvedValue(null as never)
-      vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockResolvedValue(null as never)
-
-      const index = await serviceWith(sdkProvider).findNextIdentityIndex(MNEMONIC, 0, 'testnet')
-
-      expect(index).toBe(1)
+      expect(index).toBe(4)
+      expect(request).toHaveBeenCalledWith('identityScan', 'testnet', expect.objectContaining({
+        seed: SEED,
+        startIndex: 2,
+        gapLimit: 1,
+      }))
     })
   })
 })

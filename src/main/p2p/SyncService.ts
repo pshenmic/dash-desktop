@@ -1,5 +1,5 @@
 import {BroadcastService} from './BroadcastService'
-import {ChainStore, ChainTipState, PersistedHeader} from './ChainStore'
+import {ChainStore} from './ChainStore'
 import {GENESIS, LOCK_POOL_MAX_CONNECTIONS, LOCK_POOL_MIN_PEERS, LOCK_POOL_READY_PEERS} from './constants'
 import {PoolService} from './PoolService'
 import {
@@ -15,6 +15,8 @@ import {Network} from '../src/types'
 import {BroadcastResult} from './types/broadcast'
 import {AppliedBlock, WalletSyncStatus} from './types/walletSync'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
+import {ChainTipState, PersistedHeader} from './types/chainStore'
+import {SyncServiceEvents} from './types/sync'
 
 // Top-level controller for the p2p utility process: owns ChainStore and the
 // pools, spawns workers per session, aggregates their status.
@@ -23,21 +25,6 @@ import {Inventory, Message, Peer} from 'dash-core-p2p'
 // it — seedUtxos + cfilterCursor arrive in the start command from SQL, and
 // per-block effects flow back as blockApplied / cursorAdvanced for main to
 // persist.
-export interface SyncServiceEvents {
-  status: (status: WalletSyncStatus) => void
-  blockApplied: (block: AppliedBlock) => void
-  cursorAdvanced: (walletId: string, height: number) => void
-  error: (message: string) => void
-  broadcastResult: (
-    requestId: string,
-    ok: boolean,
-    result: BroadcastResult,
-    errorMessage: string | null,
-  ) => void
-  txInstantLocked: (txid: string, islockHex: string) => void
-  chainLocked: (network: Network, height: number) => void
-}
-
 export class SyncService {
   private chainStore: ChainStore | null = null
   // relay:true, always up: lock watching + broadcast.

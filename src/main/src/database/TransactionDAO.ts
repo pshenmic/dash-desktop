@@ -8,15 +8,7 @@ import type {Network} from '../types'
 // from the p2p IPC types if/when the protocol drifts.
 export type {AppliedBlock, AppliedTx, WalletSyncUtxo}
 
-// A locally-broadcast tx still awaiting confirmation. raw is replayed for
-// rebroadcast; firstSeenAt drives the rebroadcast/stale-release cadence.
-export interface PendingTx {
-  txid: string
-  raw: Uint8Array
-  firstSeenAt: number
-  instantLocked: boolean
-}
-
+import {PendingTx} from '../types/PendingTx'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 

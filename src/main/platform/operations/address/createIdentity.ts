@@ -1,19 +1,13 @@
 import {IdentityCreateFromAddressesTransitionWASM, IdentityPublicKeyInCreationWASM, PrivateKeyWASM} from 'dash-platform-sdk/types.js'
-import {IDENTITY_CREATE_KEY_COUNT} from '../../../src/utils/platformTransfer'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {DEDUCT_FROM_FIRST, signInputs, toInputAddresses} from './signInputs'
+import {IDENTITY_CREATE_KEY_COUNT} from '../../../src/constants'
+import {KEY_SPECS} from '../../constants'
 
 type Payload = PlatformOperations['identityCreateFromAddresses']['payload']
 type Result = PlatformOperations['identityCreateFromAddresses']['result']
-
-const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
-  {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
-  {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
-  {purpose: 'AUTHENTICATION', securityLevel: 'CRITICAL'},
-  {purpose: 'TRANSFER', securityLevel: 'CRITICAL'},
-]
 
 if (KEY_SPECS.length !== IDENTITY_CREATE_KEY_COUNT) {
   throw new Error('identityCreate key specs and the fee constant disagree')

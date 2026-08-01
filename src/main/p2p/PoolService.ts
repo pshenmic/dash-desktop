@@ -7,43 +7,8 @@ import {POOL_CONNECT_HEADROOM, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL
 // parallel pools fight for the same peer addresses and make peer-state
 // coordination (who serves filters, who leads a race) impossible.
 
-export interface PoolServiceOptions {
-  // false drops the tx inv stream — and with it ISLOCK/ISDLOCK inv, so only a
-  // pool that never needs lock detection may set it.
-  relay?: boolean
-  dnsSeed?: boolean
-  // Prefixes this pool's logs. Two pools log the same lines otherwise.
-  label?: string
-  readyPeers?: number
-  minPeers?: number
-  maxConnections?: number
-}
-
-export interface PoolServiceEventMap {
-  peerconnect: (peer: Peer) => void
-  peerready: (peer: Peer) => void
-  peerdisconnect: (peer: Peer) => void
-  peerversion: (peer: Peer, message: Message & { services?: bigint }) => void
-  peerheaders: (peer: Peer, message: Message & { headers?: Uint8Array[] }) => void
-  peerinv: (peer: Peer, message: Message & { inventory?: Array<{ type: number; hash: Uint8Array }> }) => void
-  peeraddr: (peer: Peer, message: Message & { addresses?: unknown[] }) => void
-  peerblock: (peer: Peer, message: Message & { block?: unknown }) => void
-  peercfcheckpt: (peer: Peer, message: Message) => void
-  peercfheaders: (peer: Peer, message: Message) => void
-  peercfilter: (peer: Peer, message: Message) => void
-  peerislock: (peer: Peer, message: Message & { txid?: string }) => void
-  peerisdlock: (peer: Peer, message: Message & { txid?: string }) => void
-  peerclsig: (peer: Peer, message: Message & { height?: number; blockHash?: string }) => void
-  seederror: (err: Error) => void
-}
-
-const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
-  'peerconnect', 'peerready', 'peerdisconnect', 'peerversion',
-  'peerheaders', 'peerinv', 'peerblock', 'peeraddr',
-  'peercfcheckpt', 'peercfheaders', 'peercfilter',
-  'peerislock', 'peerisdlock', 'peerclsig',
-  'seederror',
-]
+import {PoolServiceEventMap, PoolServiceOptions} from './types/pool'
+import {FORWARDED_EVENTS} from './constants'
 
 export class PoolService extends EventEmitter {
   readonly network: Network

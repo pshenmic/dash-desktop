@@ -1,52 +1,24 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {SdkProvider} from '../../src/main/src/services/SdkProvider'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {WalletService} from '../../src/main/src/services/WalletService'
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
-import {ApplicationService} from '../../src/main/src/services/ApplicationService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
-import {Preferences} from '../../src/main/src/preferences'
-import {getKnex, migrateKnex} from '../../src/main/src/utils'
-
-const VALID_SEEDPHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
-const PASSWORD = 'password123'
-// Low iteration count keeps PBKDF2 fast for tests; production calibrates this per machine.
-const TEST_PBKDF2_ITERATIONS = 1_000
+import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('CreateWalletHandler', () => {
   let handler: CreateWalletHandler
   let walletDAO: WalletDAO
   let addressDAO: AddressDAO
+  let identityDAO: IdentityDAO
+  let request: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
-    const knex = getKnex()
-    await migrateKnex(knex)
-
-    walletDAO = new WalletDAO(knex)
-    addressDAO = new AddressDAO(knex)
-    const identityDAO = new IdentityDAO(knex)
-    const transactionDAO = new TransactionDAO(knex)
-
-    const sdkProvider = new SdkProvider()
-    const sdk = sdkProvider.getPlatformSDK('testnet')
-    // Short-circuit identity discovery so wallet creation stays offline.
-    // WalletService.createWallet catches these errors and proceeds.
-    vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
-    vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
-
-    const preferences = Preferences.default()
-    const applicationService = new ApplicationService(preferences)
-    const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
-
-    const walletService = new WalletService(
-      walletDAO, addressDAO, identityDAO, transactionDAO,
-      applicationService, walletSyncService, sdkProvider, TEST_PBKDF2_ITERATIONS,
-    )
-
-    handler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)
+    const wired = await harness()
+    handler = wired.createWalletHandler
+    walletDAO = wired.walletDAO
+    addressDAO = wired.addressDAO
+    identityDAO = new IdentityDAO(wired.knex)
+    request = wired.request
   })
 
   it('returns an 8-char hex walletId', async () => {
@@ -103,6 +75,40 @@ describe('CreateWalletHandler', () => {
     const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
 
     expect(receiving[0].derivationPath).toMatch(/^m\/44'\/5'\//)
+  })
+
+  it('persists the platform account xpub for the new wallet', async () => {
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    const wallet = await walletDAO.getWalletById(walletId)
+
+    expect(wallet!.platformXpub).not.toBeNull()
+  })
+
+  it('records the identities the seed already owns on Platform', async () => {
+    request.mockResolvedValue({
+      identities: [{index: 0, identifier: 'identifierABC'}, {index: 2, identifier: 'identifierXYZ'}],
+      nextFreeIndex: 1,
+    })
+
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    const identities = await identityDAO.getIdentitiesByWalletId(walletId)
+    expect(identities.map(i => [i.identityIndex, i.identifier])).toEqual([[0, 'identifierABC'], [2, 'identifierXYZ']])
+  })
+
+  // The wallet row and its addresses are written before the scan runs, so
+  // aborting here would leave them behind and a retry would mint a second
+  // wallet for the same seed.
+  it('still creates the wallet when the identity scan cannot reach the worker', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    request.mockRejectedValue(new Error('platform worker exited'))
+
+    const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+
+    expect(walletId).toMatch(/^[0-9a-f]{8}$/)
+    const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
+    expect(receiving).toHaveLength(20)
   })
 
   it('rejects a seedphrase with wrong word count', async () => {

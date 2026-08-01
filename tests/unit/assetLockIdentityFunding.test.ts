@@ -1,14 +1,13 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {AssetLockFundingRow} from '../../src/main/src/database/AssetLockDAO'
 import {AssetLockService} from '../../src/main/src/services/AssetLockService'
 import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
 import {IdentityRegistrationService} from '../../src/main/src/services/IdentityRegistrationService'
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
+import {AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
 
 const WALLET_ID = 'wallet-1'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
@@ -33,6 +32,7 @@ const row = (overrides: Partial<AssetLockFundingRow> = {}): AssetLockFundingRow 
   error: null,
   identityIndex: 0,
   txHex: null,
+  assetLockProof: null,
   createdAt: 0,
   ...overrides,
 })
@@ -90,15 +90,12 @@ describe('identity funding from an asset lock', () => {
       insertIdentity,
     } as unknown as IdentityDAO
 
-    request = vi.fn().mockResolvedValue({stHash: 'sthash', identifier: 'identifierABC'})
-
-    const sdkProvider = new SdkProvider()
-    const sdk = sdkProvider.getPlatformSDK('testnet')
-    vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline'))
-    vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline'))
+    request = vi.fn().mockImplementation(async (kind: string) =>
+      kind === 'identityScan'
+        ? {identities: [], nextFreeIndex: 0}
+        : {stHash: 'sthash', identifier: 'identifierABC'})
 
     service = new IdentityRegistrationService(
-      sdkProvider,
       {getWalletById: vi.fn().mockResolvedValue(wallet)} as unknown as WalletDAO,
       identityDAO,
       assetLock,
@@ -117,6 +114,8 @@ describe('identity funding from an asset lock', () => {
       identityIndex: 0,
       credit: expect.objectContaining({derivationPath: REGISTRATION_PATH}),
     }))
+    // The password stopped at startIdentityCreate; the job carries the seed.
+    expect(acquire.mock.calls[0][1]).not.toHaveProperty('password')
     expect(request).toHaveBeenCalledWith('identityCreateFromAssetLock', 'testnet', expect.objectContaining({
       txid: 'assetlock-txid',
       assetLockProof: PROOF,
@@ -131,6 +130,32 @@ describe('identity funding from an asset lock', () => {
     expect(done).toHaveBeenCalledWith(state, 'assetlock-txid', 'sthash')
   })
 
+  // The seed is live for as long as the lock takes to confirm, so nothing may
+  // still be able to read it once the job is over.
+  it('zeroes the seed once the funding settles', async () => {
+    await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
+    const {seed} = acquire.mock.calls[0][1] as {seed: Uint8Array}
+    expect(seed.some(byte => byte !== 0)).toBe(true)
+
+    await vi.waitFor(() => {
+      if (seed.some(byte => byte !== 0)) throw new Error('seed not zeroed yet')
+    })
+  })
+
+  it('zeroes the seed when the funding fails', async () => {
+    request.mockImplementation(async (kind: string) => {
+      if (kind === 'identityScan') return {identities: [], nextFreeIndex: 0}
+      throw new Error('network down')
+    })
+
+    await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
+    const {seed} = acquire.mock.calls[0][1] as {seed: Uint8Array}
+
+    await vi.waitFor(() => {
+      if (seed.some(byte => byte !== 0)) throw new Error('seed not zeroed yet')
+    })
+  })
+
   it('throws a user-facing error for an invalid password', async () => {
     await expect(
       service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, 'wrong-password'),
@@ -140,7 +165,12 @@ describe('identity funding from an asset lock', () => {
   })
 
   it('hands a failed settlement to the funding state', async () => {
-    request.mockRejectedValue(new Error('network down'))
+    // The index scan still has to succeed — it runs before the job exists, so
+    // its failures throw to the caller rather than landing in the state.
+    request.mockImplementation(async (kind: string) => {
+      if (kind === 'identityScan') return {identities: [], nextFreeIndex: 0}
+      throw new Error('network down')
+    })
 
     await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
     await settled(fail)

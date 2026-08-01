@@ -2,10 +2,11 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {IdentityPublicKeyWASM, PrivateKeyWASM} from 'dash-platform-sdk/types.js'
 import {StateTransitionWASM} from 'pshenmic-dpp'
 import {Network} from '../../../src/types'
-import {DerivedKeyHash, matchIdentityKey} from '../../../src/utils/identityKeys'
+import {matchIdentityKey} from '../../../src/utils/identityKeys'
 import {OperationError} from '../types'
+import {DerivedKeyHash} from '../../../src/types/IdentityKeys'
+import {IDENTITY_KEY_LOOKAHEAD} from '../../constants'
 
-const IDENTITY_KEY_LOOKAHEAD = 20
 
 // Needs both the derived private keys and the live key list from the chain, so
 // it cannot be split across the process boundary — main sends the identifier

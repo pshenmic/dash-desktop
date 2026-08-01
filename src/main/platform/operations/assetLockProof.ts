@@ -5,8 +5,6 @@ import {AssetLockProofParams} from '../types/messages'
 
 const hexToBytes = (hex: string): Uint8Array => Uint8Array.from(Buffer.from(hex, 'hex'))
 
-// The identities controller takes the plain params object; platformAddresses
-// and shielded take the WASM proof. Same wire proof, two representations.
 export function buildAssetLockProof(proof: AssetLockProofParams, txid: string, outputIndex: number): AssetLockProofWASM {
   return proof.type === 'instantLock'
     ? AssetLockProofWASM.createInstantAssetLockProof(

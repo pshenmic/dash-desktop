@@ -20,9 +20,10 @@ import {Block, OutPoint, Script, utils as sdkUtils} from 'dash-core-sdk'
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
 import {Network} from '../../src/types'
-import {ChainStore, PersistedHeader} from '../ChainStore'
+import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
-import {GENESIS} from '../constants'
+import {GENESIS, HASH_LEN, MB} from '../constants'
+import {BlockRequest, CFilterBatch, PendingCFHeaders} from '../types/cfilterSync'
 import type {
   AppliedBlock,
   AppliedSpend,
@@ -51,30 +52,9 @@ import {
   SCAN_TIP_DEPTH,
 } from '../constants'
 import {Worker} from './Worker'
+import {PersistedHeader} from '../types/chainStore'
 
 const {doubleSHA256, hexToBytes, bytesToHex, addressToPublicKeyHash} = sdkUtils
-
-interface CFilterBatch {
-  startHeight: number
-  stopHeight: number
-  stopHashWire: Uint8Array
-  remaining: Set<number>
-  timer: ReturnType<typeof setTimeout> | null
-}
-
-interface BlockRequest {
-  hashWire: Uint8Array
-  height: number
-  triedPeers: Set<Peer>
-  timer: ReturnType<typeof setTimeout> | null
-}
-
-interface PendingCFHeaders {
-  startHeight: number
-  stopHeight: number
-  triedPeers: Set<Peer>
-  raceTimer: ReturnType<typeof setTimeout> | null
-}
 
 function displayHexToWire(hex: string): Uint8Array {
   return hexToBytes(hex).reverse()
@@ -108,12 +88,10 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
-const HASH_LEN = 32
 
 // `external`+`arrayBuffers` are reported because they cover the off-heap
 // typed-array backing stores that `ps rss` under-counts.
 function logMem(label: string): void {
-  const MB = 1024 * 1024
   const m = process.memoryUsage()
   console.log(
     `[p2p-mem] ${label}: rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +

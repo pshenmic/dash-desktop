@@ -1,25 +1,8 @@
 import {ClassicLevel} from 'classic-level'
 import {Network} from '../src/types'
 
-export interface PersistedHeader {
-  height: number
-  hash: string
-  prevHash: string
-  time: number
-  nBits: number
-  raw: Uint8Array
-}
-
-export interface ChainTipState {
-  tipHeight: number
-  tipHash: string | null
-}
-
-interface StoredState extends ChainTipState {
-  updatedAt: number
-}
-
-const HEIGHT_KEY_WIDTH = 12
+import {ChainTipState, PersistedHeader, StoredState} from './types/chainStore'
+import {HEIGHT_KEY_WIDTH} from './constants'
 
 function headerKey(height: number): string {
   return `h:${height.toString().padStart(HEIGHT_KEY_WIDTH, '0')}`

@@ -1,9 +1,29 @@
 import {Network} from '../src/types'
+import type {ChainAnchor} from './types/chain'
+import type {PoolServiceEventMap} from './types/pool'
 
-export interface ChainAnchor {
-  height: number
-  hash: string
+// Key width of the height-indexed header records in ChainStore.
+export const HEIGHT_KEY_WIDTH = 12
+
+export const HASH_LEN = 32
+
+export const MB = 1024 * 1024
+
+export const POW_LIMIT_BITS = 0x1e0fffff
+export const MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60
+
+export const INV_TYPE_NAMES: Record<number, string> = {
+  0: 'ERROR', 1: 'TX', 2: 'BLOCK', 3: 'FILTERED_BLOCK',
+  16: 'DSTX', 29: 'CLSIG', 30: 'ISLOCK', 31: 'ISDLOCK',
 }
+
+export const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
+  'peerconnect', 'peerready', 'peerdisconnect', 'peerversion',
+  'peerheaders', 'peerinv', 'peerblock', 'peeraddr',
+  'peercfcheckpt', 'peercfheaders', 'peercfilter',
+  'peerislock', 'peerisdlock', 'peerclsig',
+  'seederror',
+]
 
 export const GENESIS: Record<Network, ChainAnchor> = {
   mainnet: {

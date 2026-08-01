@@ -2,35 +2,19 @@ import {Block, Script} from 'dash-core-sdk'
 import { net } from 'electron'
 import {UTXO} from '../types/UTXO'
 import {WalletProvider} from './WalletProvider'
-import {Network} from '../types'
 import {Transaction} from '../types/Transaction'
 import {AddressDAO} from '../database/AddressDAO'
 import {processProviderTransactions} from '../utils'
-import {TransactionWalletProviderJSON} from './types'
+import {InsightUTXO, TransactionWalletProviderJSON} from './types'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {Address} from "../types/Address";
-
-const BASE_URLS: Record<Network, string> = {
-  mainnet: 'https://insight.dash.org/insight-api',
-  testnet: 'https://insight.testnet.networks.dash.org/insight-api'
-}
-
-const ADDRESS_CHUNK = 25
-
-// Per-attempt deadline and backoff. Chromium's own timeout runs into the tens
-// of seconds, long enough that a stalled read looks like a hung wallet.
-const REQUEST_TIMEOUT_MS = 15_000
-const RETRY_DELAYS_MS = [300, 1_200]
-
-export interface InsightUTXO {
-  txid: string
-  vout: number
-  address: string
-  scriptPubKey: string
-  satoshis: number
-  height: number
-  confirmations: number
-}
+import {Network} from '../types'
+import {
+  INSIGHT_ADDRESS_CHUNK,
+  INSIGHT_BASE_URLS,
+  INSIGHT_REQUEST_TIMEOUT_MS,
+  INSIGHT_RETRY_DELAYS_MS,
+} from '../constants'
 
 export class InsightWalletProvider implements WalletProvider {
   private baseUrl: string
@@ -40,7 +24,7 @@ export class InsightWalletProvider implements WalletProvider {
     private readonly walletId: string,
     private readonly addressDAO: AddressDAO,
   ) {
-    this.baseUrl = BASE_URLS[network]
+    this.baseUrl = INSIGHT_BASE_URLS[network]
   }
 
   // Every call through here is a read now that broadcast runs over the p2p
@@ -50,12 +34,12 @@ export class InsightWalletProvider implements WalletProvider {
   async sendRequest(url: string, params?: RequestInit): Promise<Response> {
     let lastError: unknown
 
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS_MS[attempt - 1]))
+    for (let attempt = 0; attempt <= INSIGHT_RETRY_DELAYS_MS.length; attempt++) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, INSIGHT_RETRY_DELAYS_MS[attempt - 1]))
 
       let response: Response
       try {
-        response = await net.fetch(url, {...params, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)} as RequestInit)
+        response = await net.fetch(url, {...params, signal: AbortSignal.timeout(INSIGHT_REQUEST_TIMEOUT_MS)} as RequestInit)
       } catch (err) {
         lastError = err
         continue
@@ -97,8 +81,8 @@ export class InsightWalletProvider implements WalletProvider {
     if (address.length === 0) return 0n
 
     const chunks: string[][] = []
-    for (let i = 0; i < address.length; i += ADDRESS_CHUNK) {
-      chunks.push(address.slice(i, i + ADDRESS_CHUNK))
+    for (let i = 0; i < address.length; i += INSIGHT_ADDRESS_CHUNK) {
+      chunks.push(address.slice(i, i + INSIGHT_ADDRESS_CHUNK))
     }
 
     const balances = await Promise.all(chunks.map(async (chunk) => {
@@ -136,8 +120,8 @@ export class InsightWalletProvider implements WalletProvider {
     if (addresses.length === 0) return []
 
     const chunks: string[][] = []
-    for (let i = 0; i < addresses.length; i += ADDRESS_CHUNK) {
-      chunks.push(addresses.slice(i, i + ADDRESS_CHUNK))
+    for (let i = 0; i < addresses.length; i += INSIGHT_ADDRESS_CHUNK) {
+      chunks.push(addresses.slice(i, i + INSIGHT_ADDRESS_CHUNK))
     }
 
     const results = await Promise.all(chunks.map(async (chunk) => {

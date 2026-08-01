@@ -2,8 +2,7 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {IdentityPublicKeyInCreation} from 'dash-platform-sdk/types.js'
 import {PrivateKeyWASM} from 'pshenmic-dpp'
 import {Network} from '../../../../src/types'
-import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/utils/identityKeys'
-
+import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/constants'
 // createStateTransition destructures plain {id, purpose, ...} objects and
 // builds the WASM keys itself — passing IdentityPublicKeyInCreationWASM here
 // breaks (its field is keyId).

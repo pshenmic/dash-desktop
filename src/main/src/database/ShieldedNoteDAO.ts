@@ -1,12 +1,6 @@
 import type {Knex} from 'knex'
 
-export interface PersistNote {
-  index: number
-  amount: string
-  address: string
-  spent: boolean
-}
-
+import {PersistNote} from '../types/ShieldedNote'
 // Notes trial-decryption proved belong to this wallet. The ciphertext they were
 // decoded from is network state and lives in ShieldedPoolDAO.
 export class ShieldedNoteDAO {

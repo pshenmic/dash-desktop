@@ -7,70 +7,34 @@ import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
 import { ShieldedPoolDAO } from '../database/ShieldedPoolDAO'
 import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
-import { AssetLockFundingRow } from '../database/AssetLockDAO'
 import { AssetLockFundingState } from '../types/AssetLockFunding'
-import { AcquiredAssetLock, AssetLockService } from './AssetLockService'
-import { decryptMnemonic } from '../utils'
-import { PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
+import {AssetLockService} from './AssetLockService'
+import { unlockWallet, zeroSeed } from '../utils/walletSeed'
+import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
 import { identityPath } from '../utils/identityKeys'
 import { shieldAmountFromLockedDuffs } from '../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
+import {
+  ShieldedNoteInfo,
+  ShieldedPoolInfo,
+  ShieldedNotesInfo,
+  ShieldedSpendPhase,
+  ShieldedSpendState,
+  ShieldedStatus,
+  ShieldedSyncPhase,
+  ShieldedSyncState,
+} from '../types/Shielded'
 import {
   AssetLockProofParams,
   EncryptedNotePayload,
   PlatformPayload,
   PlatformPhase,
-  ProverState,
   ShieldSource,
   SpendKind,
 } from '../../platform/types/messages'
-
-export type ShieldedProverState = ProverState
-export type ShieldedSyncPhase = 'idle' | 'syncing' | 'recovering' | 'done' | 'error'
-export type ShieldedSpendPhase = 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'
+import {AssetLockFundingRow, AcquiredAssetLock} from '../types/AssetLock'
 
 export type { AssetLockProofParams, ShieldSource }
-
-export interface ShieldedStatus {
-  prover: ShieldedProverState
-  ready: boolean
-  error: string | null
-}
-
-export interface ShieldedPoolInfo {
-  poolState: string | null
-  notesCount: string | null
-}
-
-export interface ShieldedNotesInfo {
-  undecodedCount: number
-}
-
-export interface ShieldedNoteInfo {
-  index: number
-  amount: string
-  spent: boolean
-  address: string
-}
-
-export interface ShieldedSyncState {
-  phase: ShieldedSyncPhase
-  fetched: number
-  total: number
-  balance: string | null
-  notes: ShieldedNoteInfo[]
-  error: string | null
-  syncedAt: number | null
-}
-
-export interface ShieldedSpendState {
-  phase: ShieldedSpendPhase
-  fetched: number
-  total: number
-  stHash: string | null
-  identityId: string | null
-  error: string | null
-}
 
 type SpendPayload = PlatformPayload<'spend'>
 
@@ -87,9 +51,6 @@ function spendPhase(phase: PlatformPhase): ShieldedSpendPhase | null {
   }
 }
 
-// Bound on how far addAddress derives forward while skipping used
-// (already-received-on) diversified addresses.
-const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
 
 // Wallet-domain layer over the shielded operations of the platform worker.
 // Owns unlocking, address derivation for display, per-wallet sync/spend state
@@ -161,7 +122,7 @@ export class ShieldedService {
 
     if (password == null || password.length === 0) return null
 
-    const {seed, network} = await this.unlock(walletId, password)
+    const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
     return this.cacheAddresses(walletId, seed, network)
   }
 
@@ -169,7 +130,7 @@ export class ShieldedService {
   // addresses share one viewing key, so a synced wallet can hold notes on
   // indexes never shown yet — those are skipped (but become visible).
   async addAddress(walletId: string, password: string): Promise<string[]> {
-    const {seed, network} = await this.unlock(walletId, password)
+    const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
     const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
     let count = await this.walletDAO.getShieldedAddressCount(walletId)
     const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
@@ -194,26 +155,6 @@ export class ShieldedService {
     this.addresses.set(walletId, list)
     await this.shieldedAddressDAO.saveAddresses(walletId, list)
     return list
-  }
-
-  private async unlock(walletId: string, password: string): Promise<{seed: Uint8Array; network: Network; mnemonic: string}> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) throw new Error('Wallet not found')
-
-    let mnemonic: string
-    try {
-      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
-    }
-    const seed = this.keyPair.mnemonicToSeed(mnemonic)
-
-    if (wallet.platformXpub == null) {
-      const xpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
-      await this.walletDAO.setPlatformXpub(walletId, xpub)
-    }
-
-    return {seed, network: wallet.network, mnemonic}
   }
 
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
@@ -301,7 +242,7 @@ export class ShieldedService {
     this.syncStates.set(walletId, state)
 
     try {
-      const {seed, network} = await this.unlock(walletId, password)
+      const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
       await this.cacheAddresses(walletId, seed, network)
       await this.checkForNewNotes(network, (fetched, total) => {
         state.fetched = fetched
@@ -400,7 +341,7 @@ export class ShieldedService {
     try {
       if (amountCredits <= 0n) throw new Error('Amount must be greater than zero')
 
-      const {seed, network} = await this.unlock(walletId, password)
+      const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
       await this.cacheAddresses(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
@@ -453,13 +394,13 @@ export class ShieldedService {
     try {
       if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
 
-      const {seed, network, mnemonic} = await this.unlock(walletId, password)
+      const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
       await this.cacheAddresses(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
       const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
       const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
-      const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(mnemonic, startIndex, network)
+      const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(seed, startIndex, network)
 
       const failureAddress = (await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
 
@@ -484,42 +425,51 @@ export class ShieldedService {
   // this wallet's own address.
   async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
     shieldAmountFromLockedDuffs(amountDuffs)
-    const {seed, network} = await this.unlock(walletId, password)
-
-    let destination = recipient
-    if (destination.length > 0) {
-      try {
-        OrchardAddressWASM.fromBech32m(destination)
-      } catch {
-        throw new Error('Invalid shielded recipient address')
+    const unlocked = await unlockWallet(this.walletDAO, walletId, password)
+    const {wallet: {network}, seed} = unlocked
+    try {
+      let destination = recipient
+      if (destination.length > 0) {
+        try {
+          OrchardAddressWASM.fromBech32m(destination)
+        } catch {
+          throw new Error('Invalid shielded recipient address')
+        }
+      } else {
+        destination = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT).toBech32m(network)
       }
-    } else {
-      destination = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT).toBech32m(network)
-    }
 
-    const state = await this.assetLock.begin(walletId, 'shielded', destination, amountDuffs)
-    void this.runFunding(state, async () => {
-      const acquired = await this.assetLock.acquire(state, {
-        walletId, kind: 'shielded', destination, amountDuffs, password,
+      const state = await this.assetLock.begin(walletId, 'shielded', destination, amountDuffs)
+      return this.runFunding(state, unlocked, async () => {
+        const acquired = await this.assetLock.acquire(state, {
+          walletId, kind: 'shielded', destination, amountDuffs, seed,
+        })
+        await this.settleShield(seed, network, state, acquired)
       })
-      await this.settleShield(seed, network, state, acquired)
-    })
-    return state
+    } catch (error) {
+      zeroSeed(unlocked)
+      throw error
+    }
   }
 
   async resumeShieldFromL1(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
-    const {seed, network} = await this.unlock(walletId, password)
+    const unlocked = await unlockWallet(this.walletDAO, walletId, password)
+    const {wallet: {network}, seed} = unlocked
 
     const state = this.assetLock.resume(walletId, row)
-    void this.runFunding(state, async () => {
+    return this.runFunding(state, unlocked, async () => {
       const acquired = await this.assetLock.reacquire(state, row)
       await this.settleShield(seed, network, state, acquired)
     })
-    return state
   }
 
-  private runFunding(state: AssetLockFundingState, work: () => Promise<void>): Promise<void> {
-    return work().catch(error => this.assetLock.fail(state, error))
+  // The job runs on past the method that started it, so it holds the seed and
+  // zeroes it however it settles.
+  private runFunding(state: AssetLockFundingState, unlocked: {seed: Uint8Array}, work: () => Promise<void>): AssetLockFundingState {
+    void work()
+      .catch(error => this.assetLock.fail(state, error))
+      .finally(() => zeroSeed(unlocked))
+    return state
   }
 
   private async settleShield(

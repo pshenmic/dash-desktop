@@ -1,16 +1,10 @@
 import {Message, Peer} from 'dash-core-p2p'
 import {utils as coreUtils} from 'dash-core-sdk'
-import {ChainStore, PersistedHeader, ChainTipState} from '../ChainStore'
+import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
-import {
-  bitsToTarget,
-  hashHeaderRaw,
-  MAX_FUTURE_BLOCK_TIME,
-  POW_LIMIT_TARGET,
-  rawPrevHash,
-} from '../pow'
+import {bitsToTarget, hashHeaderRaw, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
 import {Worker} from './Worker'
-import {HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS} from '../constants'
+import {HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS, MAX_FUTURE_BLOCK_TIME} from '../constants'
 import type {
   HeaderSyncPhase,
   HeaderSyncWorkerOptions,
@@ -19,20 +13,12 @@ import type {
 
 export type {HeaderSyncPhase, HeaderSyncWorkerOptions, HeaderSyncWorkerStatus}
 
-const INV_TYPE_NAMES: Record<number, string> = {
-  0: 'ERROR', 1: 'TX', 2: 'BLOCK', 3: 'FILTERED_BLOCK',
-  16: 'DSTX', 29: 'CLSIG', 30: 'ISLOCK', 31: 'ISDLOCK',
-}
+import {INV_TYPE_NAMES} from '../constants'
+import {HeaderRace} from '../types/headerSync'
+import {PersistedHeader, ChainTipState} from '../types/chainStore'
 
 function typeName(t: number): string {
   return INV_TYPE_NAMES[t] ?? `UNKNOWN(${t})`
-}
-
-interface HeaderRace {
-  locator: string
-  racers: Set<Peer>
-  zeroResponses: number
-  timer: ReturnType<typeof setTimeout> | null
 }
 
 // Races `getheaders` against ready peers, validates PoW only (DGWv3 difficulty

@@ -1,9 +1,8 @@
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../database/WalletDAO'
-import {AcquiredAssetLock, AssetLockService} from './AssetLockService'
+import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {IdentityDAO} from '../database/IdentityDAO'
-import {AssetLockFundingRow} from '../database/AssetLockDAO'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
 import {Wallet} from '../types/Wallet'
@@ -12,28 +11,23 @@ import {PlatformAddressEntry} from '../types/PlatformAddress'
 import {PlatformSendResult} from '../types/PlatformSendResult'
 import {IdentityCreateResult} from '../types/IdentityCreateResult'
 import {ShieldResult} from '../types/ShieldResult'
-import {decryptMnemonic} from '../utils'
-import {PLATFORM_ACCOUNT} from '../constants'
-import {identityPath} from '../utils/identityKeys'
-import {AddressInput} from '../../platform/types/messages'
+import {unlockWallet, zeroSeed} from '../utils/walletSeed'
 import {
-  PlatformSourceCandidate,
-  selectPlatformSource,
-  selectPlatformInputsWithFee,
-  topUpFeeCredits,
-  TRANSFER_FEE_CREDITS,
-  WITHDRAWAL_FEE_CREDITS,
+  IDENTITY_CREATE_KEY_COUNT,
+  IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
+  MAX_DISCOVERY_BATCHES,
   MAX_RECIPIENTS,
   MIN_OUTPUT_CREDITS,
-  IDENTITY_CREATE_KEY_COUNT,
-  identityTransferFeeCredits,
-  identityCreateFeeCredits,
-  IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
-} from '../utils/platformTransfer'
-
-const PLATFORM_ADDRESS_LOOKAHEAD = 20
-const MAX_DISCOVERY_BATCHES = 50
-
+  PLATFORM_ACCOUNT,
+  PLATFORM_ADDRESS_LOOKAHEAD,
+  TRANSFER_FEE_CREDITS,
+  WITHDRAWAL_FEE_CREDITS,
+} from '../constants'
+import {identityPath} from '../utils/identityKeys'
+import {AddressInput} from '../../platform/types/messages'
+import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits} from '../utils/platformTransfer'
+import {AcquiredAssetLock, AssetLockFundingRow} from '../types/AssetLock'
+import {PlatformSourceCandidate} from '../types/PlatformTransfer'
 const toInput = (candidate: PlatformSourceCandidate, credits: bigint): AddressInput => ({
   platformAddress: candidate.platformAddress,
   index: candidate.index,
@@ -407,31 +401,41 @@ export class PlatformAddressService {
 
   // Locks L1 coins and credits them to one of this wallet's platform addresses.
   async startFundingFromL1(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
-    const {wallet, seed} = await this.unlock(walletId, password)
+    const unlocked = await this.unlock(walletId, password)
+    const {wallet, seed} = unlocked
 
-    const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, amountDuffs)
-    void this.runFunding(state, async () => {
-      const acquired = await this.assetLock.acquire(state, {
-        walletId, kind: 'address', destination: toPlatformAddress, amountDuffs, password,
+    try {
+      const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, amountDuffs)
+      return this.runFunding(state, unlocked, async () => {
+        const acquired = await this.assetLock.acquire(state, {
+          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs, seed,
+        })
+        await this.settleFunding(seed, wallet.network, state, acquired)
       })
-      await this.settleFunding(seed, wallet.network, state, acquired)
-    })
-    return state
+    } catch (error) {
+      zeroSeed(unlocked)
+      throw error
+    }
   }
 
   async resumeFundingFromL1(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
-    const {wallet, seed} = await this.unlock(walletId, password)
+    const unlocked = await this.unlock(walletId, password)
+    const {wallet, seed} = unlocked
 
     const state = this.assetLock.resume(walletId, row)
-    void this.runFunding(state, async () => {
+    return this.runFunding(state, unlocked, async () => {
       const acquired = await this.assetLock.reacquire(state, row)
       await this.settleFunding(seed, wallet.network, state, acquired)
     })
-    return state
   }
 
-  private runFunding(state: AssetLockFundingState, work: () => Promise<void>): Promise<void> {
-    return work().catch(error => this.assetLock.fail(state, error))
+  // The job runs on past the method that started it, so it holds the seed and
+  // zeroes it however it settles.
+  private runFunding(state: AssetLockFundingState, unlocked: {seed: Uint8Array}, work: () => Promise<void>): AssetLockFundingState {
+    void work()
+      .catch(error => this.assetLock.fail(state, error))
+      .finally(() => zeroSeed(unlocked))
+    return state
   }
 
   private async settleFunding(
@@ -481,16 +485,7 @@ export class PlatformAddressService {
   // Decrypts the mnemonic, derives the seed, and backfills the persisted
   // DIP-17 account xpub for wallets created before the column existed.
   private async unlock(walletId: string, password: string): Promise<{wallet: Wallet; seed: Uint8Array; xpub: string}> {
-    const wallet = await this.requireWallet(walletId)
-
-    let mnemonic: string
-    try {
-      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
-    }
-
-    const seed = this.keyPair.mnemonicToSeed(mnemonic)
+    const {wallet, seed} = await unlockWallet(this.walletDAO, walletId, password)
 
     let xpub = wallet.platformXpub
     if (xpub == null) {
@@ -499,10 +494,6 @@ export class PlatformAddressService {
     }
 
     return {wallet, seed, xpub}
-  }
-
-  private deriveAddress(xpub: string, network: Network, index: number): string {
-    return this.keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network)
   }
 
   private async extendPlatformWindow(walletId: string, xpub: string, network: Network): Promise<void> {
@@ -514,7 +505,7 @@ export class PlatformAddressService {
     for (let batch = 0; batch < MAX_DISCOVERY_BATCHES; batch++) {
       const addresses: string[] = []
       for (let index = probeStart; index < probeStart + PLATFORM_ADDRESS_LOOKAHEAD; index++) {
-        addresses.push(this.deriveAddress(xpub, network, index))
+        addresses.push(this.keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network))
       }
       const {infos} = await this.platform.request('addressInfos', network, {addresses})
       const byAddress = new Map(infos.map(info => [info.address, info]))
@@ -540,7 +531,7 @@ export class PlatformAddressService {
   private async loadPlatformCandidates(walletId: string, xpub: string, network: Network): Promise<PlatformSourceCandidate[]> {
     const count = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, await this.walletDAO.getPlatformAddressCount(walletId))
     const owned = Array.from({length: count}, (_, index) => ({
-      platformAddress: this.deriveAddress(xpub, network, index),
+      platformAddress: this.keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network),
       index,
     }))
 

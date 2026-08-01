@@ -1,53 +1,16 @@
-import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {SdkProvider} from '../../src/main/src/services/SdkProvider'
+import {describe, it, expect, beforeEach} from 'vitest'
 import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {WalletService} from '../../src/main/src/services/WalletService'
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
-import {ApplicationService} from '../../src/main/src/services/ApplicationService'
-import {WalletDAO} from '../../src/main/src/database/WalletDAO'
-import {AddressDAO} from '../../src/main/src/database/AddressDAO'
-import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
-import {Preferences} from '../../src/main/src/preferences'
-import {getKnex, migrateKnex} from '../../src/main/src/utils'
-
-const VALID_SEEDPHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
-const PASSWORD = 'password123'
-const TEST_PBKDF2_ITERATIONS = 1_000
+import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('GetWalletAddressesHandler', () => {
   let handler: GetWalletAddressesHandler
   let createWalletHandler: CreateWalletHandler
 
   beforeEach(async () => {
-    const knex = getKnex()
-    await migrateKnex(knex)
-
-    const walletDAO = new WalletDAO(knex)
-    const addressDAO = new AddressDAO(knex)
-    const identityDAO = new IdentityDAO(knex)
-    const transactionDAO = new TransactionDAO(knex)
-
-    const sdkProvider = new SdkProvider()
-    const sdk = sdkProvider.getPlatformSDK('testnet')
-    vi.spyOn(sdk.identities, 'getIdentityByPublicKeyHash').mockRejectedValue(new Error('offline test'))
-    vi.spyOn(sdk.identities, 'getIdentityByNonUniquePublicKeyHash').mockRejectedValue(new Error('offline test'))
-
-    // p2p mode → getBalance reads from local SQL (empty here, always 0n) so
-    // the handler does not need network access during the test.
-    const preferences = Preferences.default()
-    preferences.general.connectionType = 'p2p'
-    const applicationService = new ApplicationService(preferences)
-    const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
-
-    const walletService = new WalletService(
-      walletDAO, addressDAO, identityDAO, transactionDAO,
-      applicationService, walletSyncService, sdkProvider, TEST_PBKDF2_ITERATIONS,
-    )
-
-    createWalletHandler = new CreateWalletHandler(walletService, addressDAO, walletSyncService)
-    handler = new GetWalletAddressesHandler(walletService)
+    const wired = await harness()
+    createWalletHandler = wired.createWalletHandler
+    handler = new GetWalletAddressesHandler(wired.walletService)
   })
 
   it('returns 20 receiving and 20 change addresses for a fresh wallet', async () => {

@@ -2,6 +2,8 @@ import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import {randomUUID} from 'crypto'
 import {logChildOutput} from '../logger'
+import {PendingRequest, PlatformRequestOptions} from '../types/PlatformWorker'
+import {CHILD_OUTPUT_TAIL_LIMIT} from '../constants'
 import {Network} from '../types'
 import {
   emptyPlatformStatus,
@@ -11,25 +13,10 @@ import {
   PlatformKind,
   PlatformOperationResult,
   PlatformPayload,
-  PlatformPhase,
   PlatformRequestMessage,
   PlatformWorkerStatus,
 } from '../../platform/types/messages'
 
-// Cap on the per-child output we retain. The tail is attached to request
-// failures and logged on exit so a worker crash carries its own cause instead
-// of just "code=1".
-const CHILD_OUTPUT_TAIL_LIMIT = 8192
-
-interface PendingRequest {
-  kind: PlatformKind
-  settle: (outcome: {ok: true; result: unknown} | {ok: false; error: PlatformError}) => void
-}
-
-export interface PlatformRequestOptions {
-  onProgress?: (phase: PlatformPhase, fetched: number, total: number) => void
-  onNotesSpent?: (indexes: number[]) => void
-}
 
 export class PlatformWorkerError extends Error {
   readonly code: PlatformError['code']

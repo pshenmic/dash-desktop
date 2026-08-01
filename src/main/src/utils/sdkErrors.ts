@@ -1,4 +1,4 @@
-const ALREADY_IN_CHAIN = 'state transition already in chain'
+import {ALREADY_IN_CHAIN} from '../constants'
 
 export function isAlreadyInChain(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '')

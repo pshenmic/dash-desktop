@@ -1,15 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { AssetLockTx } from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
-import {
-  buildAssetLockOutputs,
-  shieldAmountFromLockedDuffs,
-  ASSET_LOCK_PAYLOAD_VERSION,
-  ASSET_LOCK_CREDIT_OUTPUT_INDEX,
-  CREDITS_PER_DUFF,
-  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
-} from '../../src/main/src/utils/assetLockTx'
-
+import {buildAssetLockOutputs, shieldAmountFromLockedDuffs} from '../../src/main/src/utils/assetLockTx'
+import {ASSET_LOCK_PAYLOAD_VERSION, ASSET_LOCK_CREDIT_OUTPUT_INDEX, CREDITS_PER_DUFF, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../src/main/src/constants'
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')
 const AMOUNT = 100_000n
