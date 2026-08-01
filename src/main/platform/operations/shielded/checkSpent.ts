@@ -3,8 +3,6 @@ import {RecoveredNoteWASM} from 'pshenmic-dpp'
 
 import {CheckedNote} from '../../types/service'
 
-export type {CheckedNote}
-
 const hex = (bytes: Uint8Array): string => Buffer.from(bytes).toString('hex')
 
 // The chain is the only authority on whether a note is spent — local

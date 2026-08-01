@@ -25,16 +25,12 @@ import {
   ShieldedSyncState,
 } from '../types/Shielded'
 import {
-  AssetLockProofParams,
   EncryptedNotePayload,
   PlatformPayload,
   PlatformPhase,
-  ShieldSource,
   SpendKind,
 } from '../../platform/types/messages'
 import {AssetLockFundingRow, AcquiredAssetLock} from '../types/AssetLock'
-
-export type { AssetLockProofParams, ShieldSource }
 
 type SpendPayload = PlatformPayload<'spend'>
 

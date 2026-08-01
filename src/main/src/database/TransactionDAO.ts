@@ -4,10 +4,6 @@ import type {Transaction, TransactionInput, TransactionOutput} from '../types/Tr
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {Network} from '../types'
 
-// Re-exported so callers (services, future API handlers) can stay decoupled
-// from the p2p IPC types if/when the protocol drifts.
-export type {AppliedBlock, AppliedTx, WalletSyncUtxo}
-
 import {PendingTx} from '../types/PendingTx'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}

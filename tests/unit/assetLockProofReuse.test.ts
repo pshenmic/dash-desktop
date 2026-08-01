@@ -6,6 +6,7 @@ import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerS
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {AssetLockProofParams} from '../../src/main/platform/types/messages'
 import {AssetLockFundingRow, AssetLockFunder} from '../../src/main/src/types/AssetLock'
+import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
 
 const INSTANT_PROOF: AssetLockProofParams = {type: 'instantLock', instantLock: 'aa', transaction: 'bb'}
 const CHAIN_PROOF: AssetLockProofParams = {type: 'chainLock', coreChainLockedHeight: 4200}
@@ -19,7 +20,7 @@ const row = (assetLockProof: AssetLockProofParams | null): AssetLockFundingRow =
   amountDuffs: '200000',
   toPlatformAddress: '',
   kind: 'identity',
-  status: 'l1_broadcast' as AssetLockFundingRow['status'],
+  status: AssetLockFundingStatus.L1Broadcast,
   stHash: null,
   error: null,
   identityIndex: 0,

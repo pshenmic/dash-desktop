@@ -5,9 +5,6 @@ import {Network} from '../src/types'
 import {NETWORKS} from './constants'
 import {SdkSource} from './types/sdk'
 
-export {NETWORKS}
-export type {SdkSource}
-
 // One SDK per network, constructed once and never mutated. `setNetwork` is not
 // called anywhere in this directory: it rebuilds the gRPC pool and replaces
 // every controller, so anything already in flight is left holding objects that

@@ -28,12 +28,22 @@ There is no single "is it good" command. A change is verified only when ALL of:
 
 1. `npx tsc --noEmit -p tsconfig.node.json` (main + preload) passes
 2. `npx tsc --noEmit -p tsconfig.web.json` (renderer) passes
-3. `npx vitest run` passes
-4. `npx electron-vite build` succeeds
+3. `npx tsc --noEmit -p tests/tsconfig.json` (`tests/`) passes
+4. `npx vitest run` passes
+5. `npx electron-vite build` succeeds
 
 > `electron-vite build` emits many `@fontsource/manrope ... didn't resolve at
 > build time` warnings — these are pre-existing and harmless. Only non-font
 > errors matter.
+
+**Step 3 exists because `tests/` is in neither of the two app projects.** A
+test that passes at runtime can still be type-broken — a string literal where a
+string enum is required, an object literal missing a field the interface gained
+— and vitest will not notice, because it strips types rather than checking
+them. `tests/tsconfig.json` covers `tests/` plus both `src` trees. Being a
+`tsconfig.json` (not a differently-named config) also means editors resolve it
+for test files, so the IDE stops falling back to an ES5 target and reporting
+phantom "BigInt literals are not available" errors.
 
 
 ## Architecture

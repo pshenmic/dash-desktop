@@ -12,8 +12,6 @@ import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants'
 import {AssetLockFundingRow, AcquiredAssetLock} from '../types/AssetLock'
 import {UnlockedWallet} from '../types/UnlockedWallet'
 
-export {IDENTITY_KEY_DEFINITIONS} from '../constants'
-
 
 // Owns identity registration and top-up funded from L1: derives the funding
 // keys, drives an asset lock through AssetLockService, and settles the proof

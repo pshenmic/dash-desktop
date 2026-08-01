@@ -23,7 +23,6 @@ import {Network} from '../../src/types'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
 import {GENESIS, HASH_LEN, MB} from '../constants'
-import {BlockRequest, CFilterBatch, PendingCFHeaders} from '../types/cfilterSync'
 import type {
   AppliedBlock,
   AppliedSpend,
@@ -33,12 +32,13 @@ import type {
   WalletSyncUtxo,
 } from '../types/walletSync'
 import type {
+  BlockRequest,
+  CFilterBatch,
   CFilterPhase,
   CFilterSyncWorkerOptions,
   CFilterSyncWorkerStatus,
+  PendingCFHeaders,
 } from '../types/cfilterSync'
-
-export type {CFilterPhase, CFilterSyncWorkerOptions, CFilterSyncWorkerStatus}
 import {
   BLOCK_REQUEST_TIMEOUT_MS,
   CFCHECKPT_RACE_PEERS,

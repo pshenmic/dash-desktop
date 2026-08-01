@@ -5,8 +5,6 @@ import {WorkerErrorEvent} from '../types/worker'
 // ChainStore + PeerPool arrive via the constructor and are the whole dependency
 // surface. start() and stop() must both be safe to call twice.
 
-export type {WorkerErrorEvent}
-
 export abstract class Worker extends EventEmitter {
   abstract readonly name: string
   abstract start(): Promise<void> | void

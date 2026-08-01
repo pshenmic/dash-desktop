@@ -4,17 +4,18 @@ import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
 import {bitsToTarget, hashHeaderRaw, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
 import {Worker} from './Worker'
-import {HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS, MAX_FUTURE_BLOCK_TIME} from '../constants'
+import {
+  HEADER_RACE_PEERS,
+  HEADER_SYNC_TIMEOUT_MS,
+  INV_TYPE_NAMES,
+  MAX_FUTURE_BLOCK_TIME,
+} from '../constants'
 import type {
+  HeaderRace,
   HeaderSyncPhase,
   HeaderSyncWorkerOptions,
   HeaderSyncWorkerStatus,
 } from '../types/headerSync'
-
-export type {HeaderSyncPhase, HeaderSyncWorkerOptions, HeaderSyncWorkerStatus}
-
-import {INV_TYPE_NAMES} from '../constants'
-import {HeaderRace} from '../types/headerSync'
 import {PersistedHeader, ChainTipState} from '../types/chainStore'
 
 function typeName(t: number): string {

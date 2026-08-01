@@ -1,6 +1,6 @@
 import {describe, it, expect, vi} from 'vitest'
 import {PlatformService} from '../../src/main/platform/PlatformService'
-import {SdkSource} from '../../src/main/platform/SdkRegistry'
+import {SdkSource} from '../../src/main/platform/types/sdk'
 import {PlatformEvent, PlatformRequestMessage} from '../../src/main/platform/types/messages'
 import {Network} from '../../src/main/src/types'
 
@@ -20,7 +20,7 @@ class StubSdk {
         this.release = resolve
       })
       // Answering with the network proves which SDK served the call.
-      return BigInt(this.network === 'mainnet' ? 1 : 2)
+      return this.network === 'mainnet' ? 1n : 2n
     },
     getIdentityNonce: async (): Promise<bigint> => 0n,
   }

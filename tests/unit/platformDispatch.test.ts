@@ -4,11 +4,13 @@ vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
 vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
 
 import {PlatformService} from '../../src/main/platform/PlatformService'
-import {SdkSource} from '../../src/main/platform/SdkRegistry'
+import {SdkSource} from '../../src/main/platform/types/sdk'
 import {PlatformEvent, PlatformRequestMessage} from '../../src/main/platform/types/messages'
 import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
 
-const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(0)
+const flush = async (): Promise<void> => {
+  await vi.advanceTimersByTimeAsync(0)
+}
 
 const hangingRegistry = (): SdkSource => ({
   get: () => ({

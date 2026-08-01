@@ -8,6 +8,7 @@ import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
 import {AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
+import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
 
 const WALLET_ID = 'wallet-1'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
@@ -27,7 +28,7 @@ const row = (overrides: Partial<AssetLockFundingRow> = {}): AssetLockFundingRow 
   amountDuffs: LOCK_AMOUNT.toString(),
   toPlatformAddress: '',
   kind: 'identity',
-  status: 'l1_broadcast',
+  status: AssetLockFundingStatus.L1Broadcast,
   stHash: null,
   error: null,
   identityIndex: 0,
@@ -54,6 +55,8 @@ describe('identity funding from an asset lock', () => {
     label: null,
     encryptedMnemonic: encryptMnemonic(MNEMONIC, PASSWORD, 1_000),
     selected: true,
+    platformXpub: null,
+    coreXpub: null,
   }
 
   const settled = (mock: ReturnType<typeof vi.fn>): Promise<void> =>

@@ -2,14 +2,10 @@ import {BroadcastService} from './BroadcastService'
 import {ChainStore} from './ChainStore'
 import {GENESIS, LOCK_POOL_MAX_CONNECTIONS, LOCK_POOL_MIN_PEERS, LOCK_POOL_READY_PEERS} from './constants'
 import {PoolService} from './PoolService'
-import {
-  HeaderSyncWorker,
-  HeaderSyncWorkerStatus,
-} from './workers/HeaderSyncWorker'
-import {
-  CFilterSyncWorker,
-  CFilterSyncWorkerStatus,
-} from './workers/CFilterSyncWorker'
+import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
+import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
+import type {HeaderSyncWorkerStatus} from './types/headerSync'
+import type {CFilterSyncWorkerStatus} from './types/cfilterSync'
 import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
 import {Network} from '../src/types'
 import {BroadcastResult} from './types/broadcast'
