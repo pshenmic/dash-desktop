@@ -2,8 +2,15 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 
 vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
 vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+// resetSync removes the on-disk chain store; the real call would delete the
+// developer's actual ~/.dash-desktop chain database.
+vi.mock('fs', () => {
+  const mocked = {mkdirSync: vi.fn(), promises: {rm: vi.fn().mockResolvedValue(undefined)}}
+  return {...mocked, default: mocked}
+})
 
 import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {GENESIS} from '../../src/main/p2p/constants'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
 
 const WALLET = 'wallet-1'
@@ -34,7 +41,14 @@ const settle = async (): Promise<void> => {
 }
 
 describe('WalletSyncService block persistence', () => {
-  let transactionDAO: {applyBlock: ReturnType<typeof vi.fn>; advanceCursor: ReturnType<typeof vi.fn>}
+  let transactionDAO: {
+    applyBlock: ReturnType<typeof vi.fn>
+    advanceCursor: ReturnType<typeof vi.fn>
+    resetCursor: ReturnType<typeof vi.fn>
+    resetSyncDataByNetwork: ReturnType<typeof vi.fn>
+    getInitialScanComplete: ReturnType<typeof vi.fn>
+  }
+  let walletDAO: {getWalletById: ReturnType<typeof vi.fn>}
   let service: WalletSyncService
 
   beforeEach(() => {
@@ -43,8 +57,12 @@ describe('WalletSyncService block persistence', () => {
     transactionDAO = {
       applyBlock: vi.fn().mockResolvedValue(undefined),
       advanceCursor: vi.fn().mockResolvedValue(undefined),
+      resetCursor: vi.fn().mockResolvedValue(undefined),
+      resetSyncDataByNetwork: vi.fn().mockResolvedValue(undefined),
+      getInitialScanComplete: vi.fn().mockResolvedValue(false),
     }
-    service = new WalletSyncService({} as never, {} as never, transactionDAO as never)
+    walletDAO = {getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet'})}
+    service = new WalletSyncService(walletDAO as never, {} as never, transactionDAO as never)
   })
 
   afterEach(() => {
@@ -109,6 +127,62 @@ describe('WalletSyncService block persistence', () => {
 
     expect(transactionDAO.advanceCursor).toHaveBeenLastCalledWith(WALLET, 1000)
     expect(service.getStatus().lastError).toBeNull()
+  })
+
+  it('applies a discovery rewind after a stale advance already on the queue', async () => {
+    let releaseBlock!: () => void
+    transactionDAO.applyBlock.mockImplementationOnce(
+      () => new Promise<void>(resolve => { releaseBlock = resolve })
+    )
+
+    emit(service, {type: 'blockApplied', block: block(500)})
+    emit(service, {type: 'cursorAdvanced', walletId: WALLET, height: 900_000})
+    const rewound = service.addWatchAddresses(WALLET, ['yNewAddr'])
+    await vi.advanceTimersByTimeAsync(0)
+    releaseBlock()
+    await settle()
+    await rewound
+
+    expect(transactionDAO.advanceCursor).toHaveBeenCalledWith(WALLET, 900_000)
+    expect(transactionDAO.resetCursor).toHaveBeenCalledWith(WALLET, GENESIS.testnet.height)
+    expect(transactionDAO.resetCursor.mock.invocationCallOrder[0])
+      .toBeGreaterThan(transactionDAO.advanceCursor.mock.invocationCallOrder[0])
+  })
+
+  it('applies the worker rewind echo through the persist queue', async () => {
+    let releaseBlock!: () => void
+    transactionDAO.applyBlock.mockImplementationOnce(
+      () => new Promise<void>(resolve => { releaseBlock = resolve })
+    )
+
+    emit(service, {type: 'blockApplied', block: block(500)})
+    emit(service, {type: 'cursorAdvanced', walletId: WALLET, height: 900_000})
+    emit(service, {type: 'cursorReset', walletId: WALLET, height: 100})
+    await vi.advanceTimersByTimeAsync(0)
+    releaseBlock()
+    await settle()
+
+    expect(transactionDAO.resetCursor).toHaveBeenLastCalledWith(WALLET, 100)
+    expect(transactionDAO.resetCursor.mock.invocationCallOrder[0])
+      .toBeGreaterThan(transactionDAO.advanceCursor.mock.invocationCallOrder[0])
+  })
+
+  it('drains queued writes before resetSync wipes the sync data', async () => {
+    let releaseBlock!: () => void
+    transactionDAO.applyBlock.mockImplementationOnce(
+      () => new Promise<void>(resolve => { releaseBlock = resolve })
+    )
+
+    emit(service, {type: 'blockApplied', block: block(500)})
+    const reset = service.resetSync('testnet')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(transactionDAO.resetSyncDataByNetwork).not.toHaveBeenCalled()
+
+    releaseBlock()
+    await settle()
+    await reset
+
+    expect(transactionDAO.resetSyncDataByNetwork).toHaveBeenCalledWith('testnet')
   })
 
   it('keeps the persistence error visible across status pushes from the worker', async () => {

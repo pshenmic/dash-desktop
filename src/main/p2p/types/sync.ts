@@ -6,6 +6,7 @@ export interface SyncServiceEvents {
   status: (status: WalletSyncStatus) => void
   blockApplied: (block: AppliedBlock) => void
   cursorAdvanced: (walletId: string, height: number) => void
+  cursorReset: (walletId: string, height: number) => void
   error: (message: string) => void
   broadcastResult: (
     requestId: string,

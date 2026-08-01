@@ -78,7 +78,8 @@ export class WalletSyncService {
   // Sticky: status snapshots arrive wholesale from the utility process and
   // would otherwise overwrite lastError on the next push.
   private persistenceError: string | null = null
-  // Serialises block writes and cursor advances so they land in emit order.
+  // Serialises block writes, cursor advances and cursor rewinds so they land
+  // in emit order.
   private persistQueue: Promise<void> = Promise.resolve()
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
@@ -163,6 +164,8 @@ export class WalletSyncService {
       this.persistAppliedBlock(data.block)
     } else if (data.type === 'cursorAdvanced') {
       this.enqueuePersist(() => this.advanceCursorGated(data.walletId, data.height))
+    } else if (data.type === 'cursorReset') {
+      this.enqueuePersist(() => this.transactionDAO.resetCursor(data.walletId, data.height))
     } else if (data.type === 'broadcastResult') {
       const resolve = this.pendingBroadcasts.get(data.requestId)
       if (resolve) {
@@ -279,7 +282,10 @@ export class WalletSyncService {
     const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
 
     if (rewindToHeight != null) {
-      await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+      // Through the persist queue: applied directly, a cursorAdvanced enqueued
+      // before this rewind would run after it, and advanceCursor's MAX would
+      // swallow the reset.
+      await this.enqueuePersist(() => this.transactionDAO.resetCursor(walletId, rewindToHeight))
     }
     if (!this.child) return
     this.send({type: 'addWatchAddresses', walletId, addresses, rewindToHeight})
@@ -361,14 +367,15 @@ export class WalletSyncService {
     return this.status.phase === 'synced' && this.status.walletId === walletId
   }
 
-  // One queue for both: cursorAdvanced lands right after the scan's last
-  // blockApplied, and overtaking an in-flight or retrying write would move the
-  // resume marker past data that never landed.
-  private enqueuePersist(task: () => Promise<void>): void {
-    this.persistQueue = this.persistQueue
-      .catch(() => undefined)
-      .then(task)
-      .catch(err => console.error('[walletSync] persist task failed:', err))
+  // One queue for all cursor and block writes: cursorAdvanced lands right
+  // after the scan's last blockApplied, and overtaking an in-flight or
+  // retrying write would move the resume marker past data that never landed.
+  // Returns the task's own settlement so a caller can order on it; the queue
+  // tail swallows the rejection either way.
+  private enqueuePersist(task: () => Promise<void>): Promise<void> {
+    const run = this.persistQueue.catch(() => undefined).then(task)
+    this.persistQueue = run.catch(err => console.error('[walletSync] persist task failed:', err))
+    return run
   }
 
   private persistAppliedBlock = (block: AppliedBlock): void => {
@@ -566,6 +573,10 @@ export class WalletSyncService {
 
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {
     await this.shutdown()
+    // Queued writes outlive the child: one still retrying here would land after
+    // the wipe, re-creating the cursor at its block's height so the next scan
+    // skips everything below it.
+    await this.persistQueue
     const chainDbPath = path.join(os.homedir(), HomeFolderName, ChainStorageFilename, network)
     await rmWithRetry(chainDbPath)
     await this.transactionDAO.resetSyncDataByNetwork(network)

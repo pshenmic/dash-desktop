@@ -92,6 +92,17 @@ export interface P2PCursorAdvancedMessage {
   height: number
 }
 
+// The worker's echo of an addWatchAddresses rewind. Main resets the cursor
+// before sending the command, but a cursorAdvanced already emitted by the
+// worker can land after that reset and MAX the cursor back up; this echo
+// shares the worker's ordered event channel, so it arrives after every
+// pre-rewind advance and re-applies the rewind on top of them.
+export interface P2PCursorResetMessage {
+  type: 'cursorReset'
+  walletId: string
+  height: number
+}
+
 export interface P2PErrorMessage {
   type: 'error'
   message: string
@@ -127,6 +138,7 @@ export type P2PEvent =
   | P2PStatusMessage
   | P2PBlockAppliedMessage
   | P2PCursorAdvancedMessage
+  | P2PCursorResetMessage
   | P2PErrorMessage
   | P2PBroadcastResultMessage
   | P2PTxInstantLockedMessage

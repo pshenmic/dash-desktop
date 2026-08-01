@@ -472,6 +472,9 @@ export class SyncService {
     this.cfilterSyncWorker.on('cursorAdvanced', (msg: {walletId: string; height: number}) =>
       this.events.cursorAdvanced(msg.walletId, msg.height)
     )
+    this.cfilterSyncWorker.on('cursorReset', (msg: {walletId: string; height: number}) =>
+      this.events.cursorReset(msg.walletId, msg.height)
+    )
     this.cfilterSyncWorker.on('error', err =>
       this.handleWorkerError('CFilterSyncWorker', err.message)
     )

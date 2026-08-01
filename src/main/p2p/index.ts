@@ -38,6 +38,8 @@ const sync = new SyncService({
   blockApplied: block => process.parentPort.postMessage({type: 'blockApplied', block}),
   cursorAdvanced: (walletId, height) =>
     process.parentPort.postMessage({type: 'cursorAdvanced', walletId, height}),
+  cursorReset: (walletId, height) =>
+    process.parentPort.postMessage({type: 'cursorReset', walletId, height}),
   error: message => process.parentPort.postMessage({type: 'error', message}),
   broadcastResult: (requestId, ok, result, errorMessage) =>
     process.parentPort.postMessage({type: 'broadcastResult', requestId, ok, result, errorMessage}),

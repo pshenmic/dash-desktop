@@ -385,6 +385,7 @@ export class CFilterSyncWorker extends Worker {
       this.cfilterInflightHeights.clear()
       this.blockFetch.matched.clear()
       this.cfilter.cursor = target
+      this.emit('cursorReset', {walletId: this.walletId, height: target})
     } else {
       console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); forward-only (no rewind)`)
     }
