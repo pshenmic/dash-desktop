@@ -8,6 +8,7 @@ import DropdownSelect from './ui/DropdownSelect'
 import ConnectionSelect from './ui/ConnectionSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
+import RefreshButton from './ui/RefreshButton'
 import WalletUnlockModal from './modal/WalletUnlockModal'
 import { API } from '@renderer/api'
 import { useResolvedTheme, setThemePreference } from '@renderer/hooks/useThemeController'
@@ -93,6 +94,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
 
         <div className={"flex items-center gap-[.625rem]"}>
           {showSyncUI && <SyncControlButton />}
+          {desired === 'rpc' && <RefreshButton />}
           <ConnectionSelect
             options={connectionOptions}
             value={desired}

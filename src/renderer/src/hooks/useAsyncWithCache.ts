@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 const cache = new Map<string, unknown>()
 const inflight = new Map<string, Promise<unknown>>()
+const fetchers = new Map<string, () => Promise<unknown>>()
 const listeners = new Map<string, Set<() => void>>()
 const refreshTimers = new Map<string, { timer: ReturnType<typeof setInterval>; count: number }>()
 
@@ -21,6 +22,7 @@ function notify(cacheKey: string): void {
 }
 
 function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
+  fetchers.set(cacheKey, fetcher)
   const existing = inflight.get(cacheKey)
   if (existing !== undefined) return existing as Promise<T>
 
@@ -155,6 +157,17 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   const cacheKey = `${namespace}:${key}`
   cache.delete(cacheKey)
   notify(cacheKey)
+}
+
+export function refreshActiveAsyncCaches(): Promise<void> {
+  const jobs: Promise<unknown>[] = []
+  for (const cacheKey of listeners.keys()) {
+    const fetcher = fetchers.get(cacheKey)
+    if (fetcher === undefined) continue
+    cache.delete(cacheKey)
+    jobs.push(runFetch(cacheKey, fetcher).catch(() => {}))
+  }
+  return Promise.all(jobs).then(() => {})
 }
 
 export function prefetchAsyncCache<T>(
