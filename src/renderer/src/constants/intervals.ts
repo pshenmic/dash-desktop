@@ -3,3 +3,4 @@ export const BALANCE_REFRESH_MS = 30_000
 export const IDENTITIES_REFRESH_MS = 30_000
 export const ASSET_LOCK_FUNDING_POLL_MS = 1_500
 export const WALLET_CREATE_SLOW_NOTICE_MS = 5_000
+export const LOCK_FADE_MS = 300
