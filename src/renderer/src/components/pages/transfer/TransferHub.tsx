@@ -42,7 +42,7 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import { sendPageData, MAX_SPEND_NOTES, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
+import { sendPageData, MAX_SPEND_NOTES, WITHDRAWAL_SUCCESS_NOTE, SHIELDED_BALANCE_UNKNOWN_ERROR } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
@@ -281,7 +281,7 @@ export default function TransferHub(): React.JSX.Element {
   const amountReady = isDashUnit
     ? amountDuffs > 0n && amountDuffs <= balanceDuffs
     : amountCredits >= minCredits && amountCredits > 0n
-      && (availableCredits === null || amountCredits + feeCredits <= availableCredits)
+      && availableCredits !== null && amountCredits + feeCredits <= availableCredits
       && (shieldedMaxPerTx === null || amountCredits <= shieldedMaxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
 
@@ -331,11 +331,13 @@ export default function TransferHub(): React.JSX.Element {
       ? 'Pick one of the fixed denominations above.'
       : amountCredits < minCredits
         ? `Minimum is ${minCredits.toLocaleString('en-US')} credits.`
-        : availableCredits !== null && amountCredits + feeCredits > availableCredits
-          ? `Amount plus the ${feeCredits.toLocaleString('en-US')} credit fee exceeds this balance.`
-          : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
-            ? `Max per transaction right now is ${shieldedMaxPerTx.toLocaleString('en-US')} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
-            : null
+        : availableCredits === null
+          ? SHIELDED_BALANCE_UNKNOWN_ERROR
+          : amountCredits + feeCredits > availableCredits
+            ? `Amount plus the ${feeCredits.toLocaleString('en-US')} credit fee exceeds this balance.`
+            : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
+              ? `Max per transaction right now is ${shieldedMaxPerTx.toLocaleString('en-US')} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
+              : null
 
   const resetForm = (): void => {
     setToValue('')
