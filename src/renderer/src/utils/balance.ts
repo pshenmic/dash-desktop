@@ -54,6 +54,12 @@ export function davToDashCompact(duffs: bigint, maxFractionDigits = 3): string {
   return fracStr === '' ? `${sign}${whole}` : `${sign}${whole}.${fracStr}`
 }
 
+export function creditsFromInput(value: string): bigint {
+  const trimmed = value.trim()
+  if (!/^\d+$/.test(trimmed)) return 0n
+  return BigInt(trimmed)
+}
+
 export function dashToDuffs(value: string): bigint {
   const trimmed = value.trim()
   if (trimmed === '' || trimmed === '.') return 0n

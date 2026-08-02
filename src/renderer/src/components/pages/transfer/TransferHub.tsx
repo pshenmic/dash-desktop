@@ -16,7 +16,7 @@ import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
-import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
+import { creditsFromInput, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
@@ -196,8 +196,13 @@ export default function TransferHub(): React.JSX.Element {
     : null
 
   const isDashUnit = info?.unit === 'dash'
+
+  useEffect(() => {
+    setAmount('')
+  }, [isDashUnit])
+
   const amountDuffs = useMemo(() => (isDashUnit ? dashToDuffs(amount) : 0n), [isDashUnit, amount])
-  const amountCredits = !isDashUnit && amount.length > 0 ? BigInt(amount) : 0n
+  const amountCredits = isDashUnit ? 0n : creditsFromInput(amount)
   const minCredits = info?.minCredits ?? 0n
 
   const shieldedFeeForCount = shieldedFeeForOperation(operation)
