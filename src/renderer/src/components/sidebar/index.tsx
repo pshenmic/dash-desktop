@@ -5,6 +5,8 @@ import { IconProps } from "../dash-ui-kit-enxtended/icons";
 import SidebarHeader from "./SidebarHeader";
 import SidebarNavGroup from "../ui/NavGroup";
 import { useDebugMode } from "@renderer/hooks/useDebugMode";
+import { useIdentities } from "@renderer/hooks/useIdentities";
+import { useAuth } from "@renderer/contexts/AuthContext";
 
 const iconMap: Record<string, React.FC<IconProps>> = {
   'dashboard': DashboardIcon,
@@ -38,6 +40,8 @@ const asideStyles = cva(
 
 export default function Sidebar(): React.JSX.Element {
   const debugMode = useDebugMode()
+  const { status } = useAuth()
+  const { identities } = useIdentities(status?.selectedWalletId ?? undefined)
 
   return (
     <aside className={asideStyles()}>
@@ -50,6 +54,7 @@ export default function Sidebar(): React.JSX.Element {
               label={group.label}
               items={group.items
                 .filter((item) => !item.debugOnly || debugMode)
+                .filter((item) => !item.requiresIdentities || identities.length > 0)
                 .map((item) => ({
                   items: item,
                   icon: iconMap[item.id]
