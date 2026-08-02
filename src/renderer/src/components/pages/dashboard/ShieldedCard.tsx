@@ -9,7 +9,6 @@ import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@r
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
-import { formatCompactCredits } from '@renderer/utils/balance'
 
 export default function ShieldedCard(): React.JSX.Element {
   const navigate = useNavigate()
@@ -33,7 +32,7 @@ export default function ShieldedCard(): React.JSX.Element {
   if (shieldedReady) {
     meta.push(`${spendableNotes.toLocaleString('en-US')} ${labels.spendableNotes}`)
     if (poolInfo.poolState !== null) {
-      meta.push(`${labels.pool} ${formatCompactCredits(BigInt(poolInfo.poolState))} ${labels.credits}`)
+      meta.push(<span key={"pool"}>{labels.pool} <CreditsAmount credits={BigInt(poolInfo.poolState)} compact showFiat={false} unit={labels.credits} /></span>)
     }
   }
   if (poolInfo.notesCount !== null) {

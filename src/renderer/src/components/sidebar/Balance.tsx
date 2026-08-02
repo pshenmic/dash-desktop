@@ -48,7 +48,7 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
         }
       </div>
       <div className={"flex flex-col gap-[.125rem]"}>
-        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Credits:'}</Text>
+        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Balance:'}</Text>
         <Text size={16} weight="extrabold" color="brand" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>
           {(variant === 'credits' || variant === 'shielded') && credits != null ? (
             <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />

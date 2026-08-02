@@ -6,7 +6,6 @@ import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { formatCompactCredits } from '@renderer/utils/balance'
 
 function shortIdentifier(identifier: string): string {
   return identifier.length <= 12 ? identifier : `${identifier.slice(0, 6)}…${identifier.slice(-4)}`
@@ -79,7 +78,7 @@ export default function IdentitiesCard(): React.JSX.Element {
             <>
               {' · '}
               {labels.top} {topIdentity.alias ?? shortIdentifier(topIdentity.identifier)}{' '}
-              ({formatCompactCredits(topIdentity.balance.amount)} {labels.credits})
+              (<CreditsAmount credits={topIdentity.balance.amount} compact showFiat={false} unit={labels.credits} />)
             </>
           )}
         </Text>
