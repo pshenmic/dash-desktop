@@ -22,6 +22,14 @@ export function addressUrl(address: string, network: Network): string {
   return `${EXPLORER_HOST[network]}/address/${address}`
 }
 
+export function platformAddressUrl(address: string, network: Network): string {
+  return `${PLATFORM_EXPLORER_HOST[network]}/platformAddress/${address}`
+}
+
+export function identityUrl(id: string, network: Network): string {
+  return `${PLATFORM_EXPLORER_HOST[network]}/identity/${id}`
+}
+
 export function openExternal(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
