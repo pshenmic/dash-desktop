@@ -96,6 +96,7 @@ export default function TransferHub(): React.JSX.Element {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
+  const [fundingRefresh, setFundingRefresh] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
 
@@ -110,7 +111,7 @@ export default function TransferHub(): React.JSX.Element {
       })
       .catch(() => {})
     return () => { dead = true }
-  }, [walletId, wizardKey])
+  }, [walletId, wizardKey, fundingRefresh])
 
   const { fallbackActive: syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
@@ -768,7 +769,7 @@ export default function TransferHub(): React.JSX.Element {
       {(operation === TransferOperation.AssetLockFunding || operation === TransferOperation.AssetLockShield || operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityTopUpL1) && (
         <AssetLockFundingModal
           isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
+          onClose={() => { setConfirmOpen(false); setFundingRefresh(n => n + 1) }}
           walletId={walletId}
           toPlatformAddress={operation === TransferOperation.IdentityRegister ? '' : trimmedTo}
           amountDuffs={amountDuffs.toString()}
