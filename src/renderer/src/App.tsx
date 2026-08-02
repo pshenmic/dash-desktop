@@ -46,7 +46,7 @@ function App(): React.JSX.Element {
   return (
     <ConnectionModeProvider>
       <div
-        className={`flex transition-opacity ease-out ${isLockingOut ? 'opacity-0' : 'opacity-100'}`}
+        className={`flex transition-opacity ease-out ${isLockingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{ transitionDuration: `${LOCK_FADE_MS}ms` }}
       >
         <Sidebar />

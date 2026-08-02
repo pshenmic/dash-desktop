@@ -1,6 +1,6 @@
 import { BigNumber } from 'dash-ui-kit/react'
 import { useFiat } from '@renderer/hooks/useFiat'
-import { creditsToDuffs, davToDash, davToDashCompact, formatCompactCredits } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDash, davToDashCompact, formatCompactCredits, formatCredits } from '@renderer/utils/balance'
 
 interface CreditsAmountProps {
   credits: bigint
@@ -42,7 +42,7 @@ export default function CreditsAmount({
           aria-hidden
           className={`${face} opacity-0 translate-y-0.5 group-hover/credits:opacity-100 group-hover/credits:translate-y-0`}
         >
-          <span className={amountClassName}>{compact ? formatCompactCredits(credits) : credits.toString()}</span>
+          <span className={amountClassName}>{compact ? formatCompactCredits(credits) : formatCredits(credits)}</span>
           {unit && <span className={unitClassName}>{` ${unit}`}</span>}
         </span>
       </span>

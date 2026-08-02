@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { refreshActiveAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
-import { REFRESH_DATA_LABEL } from '@renderer/constants/connection'
+import { toast } from '@renderer/components/ui/Toast'
+import { REFRESH_DATA_LABEL, REFRESH_FAILED_MESSAGE } from '@renderer/constants/connection'
 
 export default function RefreshButton(): React.JSX.Element {
   const [refreshing, setRefreshing] = useState(false)
@@ -12,7 +13,8 @@ export default function RefreshButton(): React.JSX.Element {
     if (refreshing) return
     setRefreshing(true)
     try {
-      await refreshActiveAsyncCaches()
+      const failedCount = await refreshActiveAsyncCaches()
+      if (failedCount > 0) toast.error(REFRESH_FAILED_MESSAGE)
     } finally {
       setRefreshing(false)
     }

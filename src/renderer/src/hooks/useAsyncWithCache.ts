@@ -159,15 +159,15 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   notify(cacheKey)
 }
 
-export function refreshActiveAsyncCaches(): Promise<void> {
-  const jobs: Promise<unknown>[] = []
+export function refreshActiveAsyncCaches(): Promise<number> {
+  const jobs: Promise<boolean>[] = []
   for (const cacheKey of listeners.keys()) {
     const fetcher = fetchers.get(cacheKey)
     if (fetcher === undefined) continue
     cache.delete(cacheKey)
-    jobs.push(runFetch(cacheKey, fetcher).catch(() => {}))
+    jobs.push(runFetch(cacheKey, fetcher).then(() => false, () => true))
   }
-  return Promise.all(jobs).then(() => {})
+  return Promise.all(jobs).then((failures) => failures.filter(Boolean).length)
 }
 
 export function prefetchAsyncCache<T>(

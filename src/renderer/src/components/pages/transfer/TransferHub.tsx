@@ -16,7 +16,7 @@ import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
-import { creditsFromInput, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
+import { creditsFromInput, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, formatCredits } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
@@ -105,9 +105,9 @@ export default function TransferHub(): React.JSX.Element {
     let dead = false
     API.getAssetLockFundingState(walletId)
       .then(state => {
-        if (!dead && state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error) {
-          setResumableFunding(state)
-        }
+        if (dead) return
+        const resumable = state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error
+        setResumableFunding(resumable ? state : null)
       })
       .catch(() => {})
     return () => { dead = true }
@@ -336,13 +336,13 @@ export default function TransferHub(): React.JSX.Element {
     : operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)
       ? 'Pick one of the fixed denominations above.'
       : amountCredits < minCredits
-        ? `Minimum is ${minCredits.toLocaleString('en-US')} credits.`
+        ? `Minimum is ${formatCredits(minCredits)} credits.`
         : availableCredits === null
           ? SHIELDED_BALANCE_UNKNOWN_ERROR
           : amountCredits + feeCredits > availableCredits
-            ? `Amount plus the ${feeCredits.toLocaleString('en-US')} credit fee exceeds this balance.`
+            ? `Amount plus the ${formatCredits(feeCredits)} credit fee exceeds this balance.`
             : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
-              ? `Max per transaction right now is ${shieldedMaxPerTx.toLocaleString('en-US')} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
+              ? `Max per transaction right now is ${formatCredits(shieldedMaxPerTx)} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
               : null
 
   const resetForm = (): void => {

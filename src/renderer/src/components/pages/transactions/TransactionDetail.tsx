@@ -291,7 +291,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         </div>
       </div>
 
-      {qrAddress && <AddressQrModal address={qrAddress} onClose={() => setQrAddress(null)} />}
+      {qrAddress && <AddressQrModal address={qrAddress} title={detail.qrTitle} onClose={() => setQrAddress(null)} />}
     </div>
   )
 }

@@ -55,6 +55,7 @@ interface TransactionsPage {
     outputs: string
     receivingBadge: string
     changeBadge: string
+    qrTitle: string
   }
 }
 
@@ -119,5 +120,6 @@ export const transactionsPage: TransactionsPage = {
     outputs: 'Outputs',
     receivingBadge: 'Receiving',
     changeBadge: 'Change',
+    qrTitle: 'Address',
   }
 }
