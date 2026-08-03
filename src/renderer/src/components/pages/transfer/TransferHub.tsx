@@ -12,7 +12,7 @@ import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeConte
 import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance, refreshBalance } from "@renderer/hooks/useWalletBalance";
 import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
-import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
+import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
@@ -343,7 +343,7 @@ export default function TransferHub(): React.JSX.Element {
     setAcked(false)
     setWizardKey(k => k + 1)
     if (walletId) {
-      prefetchPlatformAddresses(walletId)
+      refreshPlatformAddresses(walletId)
       prefetchIdentities(walletId)
     }
   }
