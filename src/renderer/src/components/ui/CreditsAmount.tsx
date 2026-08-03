@@ -1,6 +1,6 @@
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { useFiat } from '@renderer/hooks/useFiat'
-import { creditsToDuffs, formatCompactCredits, formatCredits, splitDashBalance } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDash, formatCompactCredits, formatCredits } from '@renderer/utils/balance'
 
 interface CreditsAmountProps {
   credits: bigint
@@ -25,7 +25,6 @@ export default function CreditsAmount({
 }: CreditsAmountProps): React.JSX.Element {
   const { format: formatFiat, rateReady } = useFiat()
   const duffs = creditsToDuffs(credits)
-  const dash = splitDashBalance(duffs)
   const fiat = showFiat && rateReady ? formatFiat(duffs) : null
 
   const face = 'col-start-1 row-start-1 whitespace-nowrap transition-[opacity,transform] duration-200 motion-reduce:transition-none'
@@ -36,8 +35,7 @@ export default function CreditsAmount({
     >
       <span className={`relative inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'}`}>
         <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
-          <DashBigNumber className={amountClassName}>{dash.main}</DashBigNumber>
-          {dash.rest !== '' && <span className={`text-[.75em] ${amountClassName ?? ''}`}>{dash.rest}</span>}
+          <DashBigNumber className={amountClassName}>{davToDash(duffs)}</DashBigNumber>
           <span className={unitClassName}>{' Dash'}</span>
         </span>
         <span

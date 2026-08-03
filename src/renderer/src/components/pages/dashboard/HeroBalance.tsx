@@ -8,7 +8,7 @@ import { usePlatformCredits } from '@renderer/hooks/usePlatformCredits'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useRates } from '@renderer/hooks/useRates'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { creditsToDuffs, splitDashBalance } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDash } from '@renderer/utils/balance'
 import { formatFiat as formatFiatValue } from '@renderer/utils/fiat'
 import { formatChange24h } from '@renderer/utils/networkStatus'
 import coreArt from '@renderer/assets/images/pageAuthorization/auth-bg-flower.png'
@@ -28,8 +28,6 @@ export default function HeroBalance(): React.JSX.Element {
   const platformCredits = usePlatformCredits(walletId)
   const platformDuffs = creditsToDuffs(platformCredits)
   const totalDuffs = balance.dash.amount + platformDuffs
-  const totalParts = splitDashBalance(totalDuffs)
-  const coreParts = splitDashBalance(balance.dash.amount)
 
   const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
   const priceRate = rates[currency] ?? 0
@@ -53,8 +51,7 @@ export default function HeroBalance(): React.JSX.Element {
           ) : (
             <div className={"flex items-center gap-3.5 flex-wrap"}>
               <Text size={40} weight={"extrabold"} color={"blue-mint"} className={`leading-[110%] ${blur}`}>
-                <DashBigNumber className={"gap-[.1875rem]!"}>{totalParts.main}</DashBigNumber>
-                {totalParts.rest !== '' && <span className={"text-[1.5rem]"}>{totalParts.rest}</span>}
+                <DashBigNumber className={"gap-[.1875rem]!"}>{davToDash(totalDuffs)}</DashBigNumber>
                 {' Dash'}
               </Text>
               {rateReady && (
@@ -91,8 +88,7 @@ export default function HeroBalance(): React.JSX.Element {
           balanceLabel={core.balance}
           amount={
             <>
-              <DashBigNumber className={"gap-[.1875rem]!"}>{coreParts.main}</DashBigNumber>
-              {coreParts.rest !== '' && <span className={"text-[.875rem]"}>{coreParts.rest}</span>}
+              <DashBigNumber className={"gap-[.1875rem]!"}>{davToDash(balance.dash.amount)}</DashBigNumber>
               {' Dash'}
             </>
           }

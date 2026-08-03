@@ -1,11 +1,5 @@
 const DUFFS_PER_DASH = 100_000_000n
 const CREDITS_PER_DUFF = 1_000n
-const DASH_MAIN_DECIMALS = 2
-
-export interface DashBalanceParts {
-  main: string
-  rest: string
-}
 
 export function creditsToDuffs(credits: bigint): bigint {
   const sign = credits < 0n ? -1n : 1n
@@ -58,17 +52,6 @@ export function davToDashCompact(duffs: bigint, maxFractionDigits = 3): string {
     return `${sign}<0.${'0'.repeat(maxFractionDigits - 1)}1`
   }
   return fracStr === '' ? `${sign}${whole}` : `${sign}${whole}.${fracStr}`
-}
-
-export function splitDashBalance(duffs: bigint): DashBalanceParts {
-  const sign = duffs < 0n ? '-' : ''
-  const abs = duffs < 0n ? -duffs : duffs
-  const whole = abs / DUFFS_PER_DASH
-  const frac = (abs % DUFFS_PER_DASH).toString().padStart(8, '0').replace(/0+$/, '')
-  return {
-    main: frac === '' ? `${sign}${whole}` : `${sign}${whole}.${frac.slice(0, DASH_MAIN_DECIMALS)}`,
-    rest: frac.slice(DASH_MAIN_DECIMALS),
-  }
 }
 
 export function creditsFromInput(value: string): bigint {
