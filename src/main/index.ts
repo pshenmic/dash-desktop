@@ -1,10 +1,15 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog, screen } from 'electron'
 import { writeFile } from 'fs/promises'
+import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import os from 'os'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
 import { initLogger } from './src/logger'
+import { HomeFolderName, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants'
+import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
+import { WindowState } from './src/types/WindowState'
 import packageJSON from '../../package.json'
 
 initLogger()
@@ -13,12 +18,35 @@ const backend = new WalletBackend()
 
 let mainWindow: BrowserWindow | null = null;
 
+const windowStatePath = join(os.homedir(), HomeFolderName, WindowStateFilename)
+
+const readWindowState = (): WindowState | null => {
+  try {
+    const raw = JSON.parse(readFileSync(windowStatePath, 'utf-8'))
+    return restoreWindowState(raw, screen.getAllDisplays().map((display) => display.workArea))
+  } catch {
+    return null
+  }
+}
+
+const saveWindowState = (window: BrowserWindow): void => {
+  try {
+    const state: WindowState = { ...window.getNormalBounds(), maximized: window.isMaximized() }
+    writeFileSync(windowStatePath, JSON.stringify(state))
+  } catch (err) {
+    console.error('[window-state] save failed:', err)
+  }
+}
+
 const createWindow = (): void => {
+  const saved = readWindowState()
+  const defaultSize = computeDefaultWindowSize(screen.getPrimaryDisplay().workAreaSize)
   mainWindow = new BrowserWindow({
-    width: 1366,
-    height: 768,
-    minWidth: 1024,
-    minHeight: 576,
+    width: saved?.width ?? defaultSize.width,
+    height: saved?.height ?? defaultSize.height,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    minWidth: WINDOW_MIN_WIDTH,
+    minHeight: WINDOW_MIN_HEIGHT,
     show: false,
     autoHideMenuBar: true,
     icon: icon,
@@ -30,7 +58,16 @@ const createWindow = (): void => {
   })
 
   mainWindow.on('ready-to-show', () => {
+    if (saved?.maximized) {
+      mainWindow?.maximize()
+    }
     mainWindow?.show()
+  })
+
+  mainWindow.on('close', () => {
+    if (mainWindow) {
+      saveWindowState(mainWindow)
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

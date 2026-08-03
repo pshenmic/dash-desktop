@@ -9,6 +9,17 @@ export const LOG_FILE_MAX_SIZE = 5 * 1024 * 1024
 export const LOG_RETENTION_DAYS = 14
 
 export const PreferencesFilename = 'preferences.json'
+export const WindowStateFilename = 'window-state.json'
+
+// Default window size is a share of the primary display's work area, capped so
+// the window doesn't grow uselessly wide on large monitors. A saved state is
+// restored only if at least WINDOW_MIN_VISIBLE_PX of it lands on some display.
+export const WINDOW_WORKAREA_RATIO = 0.85
+export const WINDOW_MAX_DEFAULT_WIDTH = 1600
+export const WINDOW_MAX_DEFAULT_HEIGHT = 1000
+export const WINDOW_MIN_WIDTH = 1200
+export const WINDOW_MIN_HEIGHT = 700
+export const WINDOW_MIN_VISIBLE_PX = 100
 
 export const PBKDF2_KEY_LENGTH = 32
 export const PBKDF2_DIGEST = 'sha512'
