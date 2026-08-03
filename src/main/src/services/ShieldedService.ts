@@ -373,6 +373,8 @@ export class ShieldedService {
       state.stHash = result.stHash
       state.identityId = result.identityId
       state.phase = 'done'
+      this.checkForNewNotes(network).catch(e =>
+        console.error('Failed to refresh the shielded pool after a spend', e))
       if (identityCreate != null && result.identityId != null) {
         this.persistCreatedIdentity({walletId, network, ...identityCreate}, result.identityId).catch(e =>
           console.error('Failed to persist identity created from the shielded pool', e))
@@ -486,6 +488,8 @@ export class ShieldedService {
     })
 
     await this.assetLock.done(state, row.txid, stHash)
+    this.checkForNewNotes(network).catch(e =>
+      console.error('Failed to refresh the shielded pool after a shield', e))
   }
 
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {

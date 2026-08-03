@@ -2,6 +2,7 @@ import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../database/WalletDAO'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
+import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
@@ -48,6 +49,7 @@ export class PlatformAddressService {
   private identityDAO: IdentityDAO
   private assetLock: AssetLockService
   private platform: PlatformWorkerService
+  private shielded: ShieldedService
   private keyPair = new KeyPairController()
 
   constructor(
@@ -55,11 +57,13 @@ export class PlatformAddressService {
     identityDAO: IdentityDAO,
     assetLock: AssetLockService,
     platform: PlatformWorkerService,
+    shielded: ShieldedService,
   ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.assetLock = assetLock
     this.platform = platform
+    this.shielded = shielded
   }
 
   async getPlatformAddresses(walletId: string): Promise<PlatformAddressEntry[]> {
@@ -391,6 +395,9 @@ export class PlatformAddressService {
       recipient: toShieldedAddress,
       amountCredits,
     })
+
+    this.shielded.checkForNewNotes(network).catch(e =>
+      console.error('Failed to refresh the shielded pool after a shield', e))
 
     return {
       stHash,
