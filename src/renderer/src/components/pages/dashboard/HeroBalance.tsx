@@ -5,6 +5,7 @@ import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { usePlatformCredits } from '@renderer/hooks/usePlatformCredits'
+import { useShieldedCredits } from '@renderer/hooks/useShielded'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useRates } from '@renderer/hooks/useRates'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
@@ -26,8 +27,9 @@ export default function HeroBalance(): React.JSX.Element {
   const { totalBalance, price, core, platform } = dashboardPage.hero
 
   const platformCredits = usePlatformCredits(walletId)
+  const shieldedCredits = useShieldedCredits(walletId)
   const platformDuffs = creditsToDuffs(platformCredits)
-  const totalDuffs = balance.dash.amount + platformDuffs
+  const totalDuffs = balance.dash.amount + creditsToDuffs(platformCredits + shieldedCredits)
 
   const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
   const priceRate = rates[currency] ?? 0

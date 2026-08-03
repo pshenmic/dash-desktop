@@ -115,3 +115,8 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
 
   return state
 }
+
+export function useShieldedCredits(walletId: string | null | undefined): bigint {
+  const { phase, balance } = useShieldedSyncState(walletId)
+  return phase === ShieldedSyncPhase.Done && balance !== null ? BigInt(balance) : 0n
+}
