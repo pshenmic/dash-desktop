@@ -9,12 +9,14 @@ import ConnectionSelect from './ui/ConnectionSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
 import RefreshButton from './ui/RefreshButton'
+import ScrollIndicator from './ui/ScrollIndicator'
 import WalletUnlockModal from './modal/WalletUnlockModal'
 import { API } from '@renderer/api'
 import { useResolvedTheme, setThemePreference } from '@renderer/hooks/useThemeController'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import type { ConnectionType } from '@renderer/api/types'
 import { CONNECTION_LABELS } from '@renderer/constants/connection'
+import { SCROLL_CONTAINER_ID } from '@renderer/constants/scrollIndicator'
 
 interface LayoutProps {
   children: ReactNode
@@ -78,7 +80,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
   }
 
   return (
-    <div id={"layout-root"} className={"relative w-full h-screen flex flex-col overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
+    <div id={SCROLL_CONTAINER_ID} className={"relative w-full h-screen flex flex-col overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
       {showSyncUI && <SyncProgressBar />}
 
       <header className={"flex items-center justify-between mt-12 px-12"}>
@@ -117,6 +119,8 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       <main className={"flex-1 mt-12"}>
         {children}
       </main>
+
+      <ScrollIndicator />
 
       <WalletUnlockModal
         isOpen={pendingWalletId !== null}
