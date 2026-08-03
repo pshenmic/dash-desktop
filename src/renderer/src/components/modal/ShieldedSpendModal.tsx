@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
+import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -280,9 +281,12 @@ export default function ShieldedSpendModal({
                   : 'Broadcast to Platform. Re-sync notes to update your balance.'}
               </Text>
               {successNote && (
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 leading-[130%]"}>
-                  {successNote}
-                </Text>
+                <div className={"mt-3 flex items-start gap-2 w-full p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10 text-left"}>
+                  <ExclamationIcon size={16} className={"text-dash-orange shrink-0"} />
+                  <Text size={12} weight={"medium"} className={"leading-[130%] text-dash-orange!"}>
+                    {successNote}
+                  </Text>
+                </div>
               )}
             </div>
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
