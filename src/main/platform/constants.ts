@@ -15,6 +15,13 @@ export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
+// A fee quote prices the shape of a transition, not its contents, but an
+// identityCreate still needs a key that parses. The secp256k1 generator is the
+// safest stand-in — real point, no derivation, and it never leaves the quote.
+export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
+  Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex'),
+)
+
 export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
   {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
   {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
@@ -58,6 +65,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityWithdrawal':
       return `${request.network}:identity:${request.payload.identifier}`
 
+    case 'transitionFee':
     case 'addressInfos':
     case 'identityExists':
     case 'identityBalance':

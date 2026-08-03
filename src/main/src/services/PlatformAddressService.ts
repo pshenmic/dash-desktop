@@ -25,7 +25,8 @@ import {
   WITHDRAWAL_FEE_CREDITS,
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
-import {AddressInput} from '../../platform/types/messages'
+import {AddressInput, FeeQuery} from '../../platform/types/messages'
+import {TransitionFeeEstimate} from '../types/TransitionFee'
 import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits} from '../utils/platformTransfer'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../types/AssetLock'
 import {PlatformSourceCandidate} from '../types/PlatformTransfer'
@@ -90,6 +91,17 @@ export class PlatformAddressService {
     await this.walletDAO.setPlatformAddressCount(walletId, count + 1)
 
     return this.getPlatformAddresses(walletId)
+  }
+
+  async estimateTransitionFee(network: Network, query: FeeQuery): Promise<TransitionFeeEstimate> {
+    const quote = await this.platform.request('transitionFee', network, {query})
+
+    return {
+      minFeeCredits: quote.minFeeCredits.toString(),
+      storageFeeCredits: quote.storageFeeCredits.toString(),
+      totalFeeCredits: quote.totalFeeCredits.toString(),
+      newAddresses: quote.newAddresses,
+    }
   }
 
   async sendPlatformTransfer(

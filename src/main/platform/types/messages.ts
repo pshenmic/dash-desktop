@@ -78,6 +78,42 @@ export interface Recipient {
   amountCredits: bigint
 }
 
+// What a transition costs before it exists. The first four kinds have a static
+// estimator in dpp and are pure arithmetic; the last three have none, so the
+// quote builds the transition and asks it — which is why they carry the same
+// fields their operation does. Everything here is public: a quote never takes
+// the seed, because the fee does not depend on the signature.
+export type FeeQuery =
+  | {kind: 'addressTransfer'; inputCount: number; recipients: string[]}
+  | {kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean}
+  | {kind: 'shieldedSpend'; spendKind: SpendKind; noteCount: number; recipients: string[]}
+  // Only the asset-lock shield has a transparent destination besides the pool:
+  // its surplusOutput. The shield from platform addresses has none — leftover
+  // input credits go to the fee strategy, not to a new address.
+  | {kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null}
+  | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
+  | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
+  | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string}
+  | {kind: 'identityCreateFromAddresses'; inputs: AddressInput[]}
+  | {kind: 'identityTopUpFromAddresses'; identityId: string; inputs: AddressInput[]}
+  | {
+      kind: 'addressFundingFromAssetLock'
+      assetLockProof: AssetLockProofParams
+      txid: string
+      outputIndex: number
+      recipient: string
+    }
+
+// A recipient that is not in state yet has its balance entry created by this
+// transition, and GroveDB charges that storage on top of the minimum — which
+// is why the first payment to an address costs more than every later one.
+export interface FeeQuote {
+  minFeeCredits: bigint
+  storageFeeCredits: bigint
+  totalFeeCredits: bigint
+  newAddresses: string[]
+}
+
 export type AssetLockProofParams =
   | {type: 'chainLock'; coreChainLockedHeight: number}
   | {type: 'instantLock'; instantLock: string; transaction: string}
@@ -145,6 +181,10 @@ export interface PlatformOperations {
   identityTopUpFromAssetLock: {
     payload: AssetLockFunded & {identifier: string}
     result: {stHash: string}
+  }
+  transitionFee: {
+    payload: {query: FeeQuery}
+    result: FeeQuote
   }
   addressInfos: {
     payload: {addresses: string[]}
