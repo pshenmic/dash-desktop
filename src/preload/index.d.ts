@@ -53,6 +53,7 @@ declare global {
       resetWalletSync: (network: 'mainnet' | 'testnet') => Promise<unknown>
       getUtxos: () => Promise<unknown>
       getUtxosDetailed: (walletId: string) => Promise<unknown>
+      setUtxoLabel: (walletId: string, txid: string, vout: number, label: string | null) => Promise<{ success: boolean; errorMessage: string | null }>
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
       saveTextFile: (defaultFileName: string, content: string) => Promise<{ success: boolean; errorMessage: string | null }>

@@ -22,6 +22,9 @@ export interface UtxosPage {
   unit: string
   pendingBadge: string
   noLabel: string
+  labelPlaceholder: string
+  labelEditTitle: string
+  labelSaveFailed: string
   explorerTitle: string
   errorMessage: string
   emptyMessage: string
@@ -53,6 +56,9 @@ export const utxosPage: UtxosPage = {
   unit: 'Dash',
   pendingBadge: 'Pending',
   noLabel: '—',
+  labelPlaceholder: 'Add label',
+  labelEditTitle: 'Click to edit label',
+  labelSaveFailed: 'Failed to save label',
   explorerTitle: 'Open in explorer',
   errorMessage: 'Failed to load UTXOs',
   emptyMessage: 'No UTXOs found',

@@ -17,7 +17,7 @@ export default function UtxoList({ coreGated = false }: { coreGated?: boolean })
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? undefined
   const network = status?.network ?? null
-  const { utxos, loading, err } = useUtxos(walletId)
+  const { utxos, loading, err, setLabel } = useUtxos(walletId)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [dustFiltered, setDustFiltered] = useState(false)
 
@@ -62,7 +62,14 @@ export default function UtxoList({ coreGated = false }: { coreGated?: boolean })
         {visibleUtxos.map((utxo) => {
           const key = utxoKey(utxo.txid, utxo.vout)
           return (
-            <UtxoRow key={key} utxo={utxo} checked={selected.has(key)} onToggle={toggle} network={network} />
+            <UtxoRow
+              key={key}
+              utxo={utxo}
+              checked={selected.has(key)}
+              onToggle={toggle}
+              onSaveLabel={setLabel}
+              network={network}
+            />
           )
         })}
       </div>

@@ -93,6 +93,10 @@ export class API {
     return this.api.getUtxosDetailed(walletId)
   }
 
+  static async setUtxoLabel(walletId: string, txid: string, vout: number, label: string | null): Promise<QueryStatus> {
+    return this.api.setUtxoLabel(walletId, txid, vout, label) as Promise<QueryStatus>
+  }
+
   static async verifyWalletPassword(walletId: string, password: string) {
     return this.api.verifyWalletPassword(walletId, password)
   }

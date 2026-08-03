@@ -502,6 +502,10 @@ export class WalletSyncService {
     return this.transactionDAO.getUtxosDetailed(walletId)
   }
 
+  setUtxoLabel = async (walletId: string, txid: string, vout: number, label: string | null): Promise<QueryStatus> => {
+    return this.transactionDAO.setUtxoLabel(walletId, txid, vout, label)
+  }
+
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {
     await this.shutdown()
     const chainDbPath = path.join(os.homedir(), HomeFolderName, ChainStorageFilename, network)

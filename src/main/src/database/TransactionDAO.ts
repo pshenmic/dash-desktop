@@ -1,6 +1,7 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
+import type {QueryStatus} from '../types/QueryStatus'
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {WalletUtxoDetailed} from '../types/WalletUtxoDetailed'
 
@@ -338,10 +339,7 @@ export class TransactionDAO {
 
   getUtxosDetailed = async (walletId: string): Promise<WalletUtxoDetailed[]> => {
     const rows = await this.unspentOutputs(walletId)
-      .leftJoin('addresses as a', function() {
-        this.on('a.wallet_id', '=', 'o.wallet_id').andOn('a.address', '=', 'o.address')
-      })
-      .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height', 't.block_time as block_time', 'a.label')
+      .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 'o.label', 't.block_height as height', 't.block_time as block_time')
       .orderBy([
         {column: 't.block_time', order: 'desc'},
         {column: 'o.txid', order: 'asc'},
@@ -357,6 +355,24 @@ export class TransactionDAO {
       height: row.height,
       blockTime: row.block_time,
     }))
+  }
+
+  setUtxoLabel = async (walletId: string, txid: string, vout: number, label: string | null): Promise<QueryStatus> => {
+    const result = await this.knex('transaction_outputs')
+      .where({wallet_id: walletId, txid, vout})
+      .update({label})
+
+    if (result > 0) {
+      return {
+        success: true,
+        errorMessage: null,
+      }
+    } else {
+      return {
+        success: false,
+        errorMessage: 'output not found',
+      }
+    }
   }
 
   resetSyncDataByNetwork = async (network: 'mainnet' | 'testnet'): Promise<void> => {

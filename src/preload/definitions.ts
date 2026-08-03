@@ -48,6 +48,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   resetWalletSync: (network: 'mainnet' | 'testnet') => ipcRenderer.invoke('resetWalletSync', network),
   getUtxos: () => ipcRenderer.invoke('getUtxos'),
   getUtxosDetailed: (walletId: string) => ipcRenderer.invoke('getUtxosDetailed', walletId),
+  setUtxoLabel: (walletId: string, txid: string, vout: number, label: string | null) => ipcRenderer.invoke('setUtxoLabel', walletId, txid, vout, label),
   hasSyncProgress: (walletId: string) => ipcRenderer.invoke('hasSyncProgress', walletId),
   broadcastTransaction: (txHex: string) => ipcRenderer.invoke('broadcastTransaction', txHex),
 

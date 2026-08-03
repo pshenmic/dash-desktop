@@ -157,6 +157,14 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   notify(cacheKey)
 }
 
+export function updateAsyncCache<T>(namespace: string, key: string, updater: (prev: T) => T): void {
+  const cacheKey = `${namespace}:${key}`
+  const cached = cache.get(cacheKey) as T | undefined
+  if (cached === undefined) return
+  cache.set(cacheKey, updater(cached))
+  notify(cacheKey)
+}
+
 export function prefetchAsyncCache<T>(
   namespace: string,
   key: string,

@@ -4,6 +4,7 @@ import Checkbox from '@renderer/components/ui/Checkbox'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import DashAmount from './DashAmount'
+import UtxoLabelCell from './UtxoLabelCell'
 import { WalletUtxoDto, Network } from '@renderer/api/types'
 import { utxosPage, UTXO_GRID_TEMPLATE, UTXO_ID_EDGE_CHARS } from '@renderer/constants'
 import { formatCreationDate, timePart } from '@renderer/utils/date'
@@ -15,11 +16,12 @@ type UtxoRowProps = {
   utxo: WalletUtxoDto
   checked: boolean
   onToggle: (key: string) => void
+  onSaveLabel: (txid: string, vout: number, label: string | null) => void
   network: Network | null
 }
 
-function UtxoRow({ utxo, checked, onToggle, network }: UtxoRowProps): React.JSX.Element {
-  const { pendingBadge, noLabel, explorerTitle } = utxosPage
+function UtxoRow({ utxo, checked, onToggle, onSaveLabel, network }: UtxoRowProps): React.JSX.Element {
+  const { pendingBadge, explorerTitle } = utxosPage
   const date = new Date(utxo.blockTime * 1000)
   const toggle = (): void => onToggle(utxoKey(utxo.txid, utxo.vout))
 
@@ -69,9 +71,7 @@ function UtxoRow({ utxo, checked, onToggle, network }: UtxoRowProps): React.JSX.
         </Text>
       </div>
 
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"truncate"}>
-        {utxo.label ?? noLabel}
-      </Text>
+      <UtxoLabelCell label={utxo.label} onSave={(label) => onSaveLabel(utxo.txid, utxo.vout, label)} />
 
       <DashAmount duffs={BigInt(utxo.satoshis)} className={"text-right"} />
     </div>

@@ -86,6 +86,7 @@ import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
 import {GetUtxosDetailedHandler} from './api/walletSync/getUtxosDetailed'
+import {SetUtxoLabelHandler} from './api/walletSync/setUtxoLabel'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
 
@@ -159,6 +160,7 @@ export class WalletBackend {
     ipcMain.handle('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletSyncService).handle)
     ipcMain.handle('getUtxosDetailed', new GetUtxosDetailedHandler(this.walletSyncService).handle)
+    ipcMain.handle('setUtxoLabel', new SetUtxoLabelHandler(this.walletSyncService).handle)
     ipcMain.handle('hasSyncProgress', new HasSyncProgressHandler(this.walletSyncService).handle)
     ipcMain.handle('broadcastTransaction', new BroadcastTransactionHandler(this.walletSyncService).handle)
     ipcMain.handle('getExchangeRates', new GetExchangeRatesHandler(this.ratesService).handle)
