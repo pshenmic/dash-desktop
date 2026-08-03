@@ -150,22 +150,27 @@ export class ChainStore {
   // For chain.db state predating the n: keyspace, the result will be empty
   // or short and the caller should fall back to iterateHeadersInRange + x11
   // (and backfill via writeBackfillHashes).
-  iterateHashesInRange = async (from: number, to: number): Promise<Array<{ height: number; wire: Uint8Array }>> => {
-    if (to < from) return []
-    const out: Array<{ height: number; wire: Uint8Array }> = []
-    const iter = this.db.iterator({
-      gte: hashKey(from),
-      lte: hashKey(to),
-    })
+  // Streaming variant: invoke `cb` per entry without materializing the whole
+  // range into an array. The array form spikes ~350-700MB of transient JS
+  // objects for a full-chain (2.5M) load — and V8 keeps that RSS resident
+  // afterward — so the index builders stream instead. Returns the count seen.
+  forEachHashInRange = async (
+    from: number,
+    to: number,
+    cb: (height: number, wire: Uint8Array) => void,
+  ): Promise<number> => {
+    if (to < from) return 0
+    let n = 0
+    const iter = this.db.iterator({gte: hashKey(from), lte: hashKey(to)})
     try {
       for await (const [key, value] of iter) {
-        const height = parseInt(key.slice(2), 10)
-        out.push({height, wire: value})
+        cb(parseInt(key.slice(2), 10), value)
+        n++
       }
     } finally {
       await iter.close()
     }
-    return out
+    return n
   }
 
   // Backfill helper for migrating chain.db that has headers but no hashes.
@@ -180,23 +185,24 @@ export class ChainStore {
 
   // Filter headers (32-byte BIP 158 values). Network-scoped, reused across
   // wallets — every wallet on the same chain derives the same filter-header
-  // chain regardless of watch set.
-  iterateFilterHeadersInRange = async (from: number, to: number): Promise<Array<{ height: number; header: Uint8Array }>> => {
-    if (to < from) return []
-    const out: Array<{ height: number; header: Uint8Array }> = []
-    const iter = this.db.iterator({
-      gte: filterHeaderKey(from),
-      lte: filterHeaderKey(to),
-    })
+  // chain regardless of watch set. Streaming-only (see forEachHashInRange).
+  forEachFilterHeaderInRange = async (
+    from: number,
+    to: number,
+    cb: (height: number, header: Uint8Array) => void,
+  ): Promise<number> => {
+    if (to < from) return 0
+    let n = 0
+    const iter = this.db.iterator({gte: filterHeaderKey(from), lte: filterHeaderKey(to)})
     try {
       for await (const [key, value] of iter) {
-        const height = parseInt(key.slice(2), 10)
-        out.push({height, header: value})
+        cb(parseInt(key.slice(2), 10), value)
+        n++
       }
     } finally {
       await iter.close()
     }
-    return out
+    return n
   }
 
   writeFilterHeaders = async (entries: Array<{ height: number; header: Uint8Array }>): Promise<void> => {
