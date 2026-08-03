@@ -1,11 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import {
-  selectPlatformInputs,
-  PlatformSourceCandidate,
-  MIN_INPUT_CREDITS,
-  MAX_ADDRESS_INPUTS,
-} from '../../src/main/src/utils/platformTransfer'
-
+import {selectPlatformInputs} from '../../src/main/src/utils/platformTransfer'
+import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
+import {MIN_INPUT_CREDITS, MAX_ADDRESS_INPUTS} from '../../src/main/src/constants'
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
   return {
     platformAddress,

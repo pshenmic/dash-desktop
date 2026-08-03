@@ -1,27 +1,6 @@
 import { net } from 'electron'
-import {SUPPORTED_CURRENCIES} from "../constants";
-
-export type ExchangeRates = Record<string, number>
-
-export interface ProviderRates {
-  rates: ExchangeRates
-  changes24h: ExchangeRates
-}
-
-export interface ExchangeRatesResult {
-  rates: ExchangeRates
-  changes24h: ExchangeRates
-  updatedAt: number | null
-  stale: boolean
-}
-
-export interface RateProvider {
-  readonly name: string
-  fetchRates(): Promise<ProviderRates>
-}
-
-const TTL_MS = 60_000
-const REQUEST_TIMEOUT_MS = 8_000
+import {RATES_REQUEST_TIMEOUT_MS, RATES_TTL_MS, SUPPORTED_CURRENCIES} from '../constants'
+import {ExchangeRates, ExchangeRatesResult, ProviderRates, RateProvider} from '../types/Rates'
 
 function zeroRates(): ExchangeRates {
   return Object.fromEntries(SUPPORTED_CURRENCIES.map((c) => [c, 0]))
@@ -29,7 +8,7 @@ function zeroRates(): ExchangeRates {
 
 async function fetchJson(url: string): Promise<unknown> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), RATES_REQUEST_TIMEOUT_MS)
 
   try {
     const response = await net.fetch(url, { signal: controller.signal })
@@ -109,7 +88,7 @@ export class RatesService {
   private readonly providers: RateProvider[]
   private readonly ttlMs: number
 
-  constructor(providers?: RateProvider[], ttlMs: number = TTL_MS) {
+  constructor(providers?: RateProvider[], ttlMs: number = RATES_TTL_MS) {
     this.providers =
       providers != null && providers.length > 0
         ? providers

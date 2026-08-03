@@ -1,15 +1,8 @@
 import {HDKey} from '@scure/bip32'
 import {Network} from '../types'
 
-const HD_VERSIONS: Record<Network, {private: number; public: number}> = {
-  mainnet: {private: 0x0488ade4, public: 0x0488b21e},
-  testnet: {private: 0x04358394, public: 0x043587cf},
-}
-
-export interface GapEntry {
-  index: number
-  isUsed: boolean
-}
+import {GapEntry} from '../types/AddressDiscovery'
+import {HD_VERSIONS} from '../constants'
 
 export function planGapExtension(entries: GapEntry[], gapLimit: number): number[] {
   let lastUsed = -1

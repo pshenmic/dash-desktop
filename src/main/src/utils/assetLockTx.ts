@@ -1,10 +1,11 @@
 import {Output, Script} from 'dash-core-sdk'
 import {AssetLockTx} from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
 
-export const ASSET_LOCK_PAYLOAD_VERSION = 1
-export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
-export const CREDITS_PER_DUFF = 1_000n
-export const SHIELD_FUNDING_FEE_RESERVE_CREDITS = 300_000_000n
+import {
+  ASSET_LOCK_PAYLOAD_VERSION,
+  CREDITS_PER_DUFF,
+  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
+} from '../constants'
 
 export function shieldAmountFromLockedDuffs(amountDuffs: bigint): bigint {
   const totalCredits = amountDuffs * CREDITS_PER_DUFF

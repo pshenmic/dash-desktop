@@ -16,6 +16,7 @@ function isSameSync(a: WalletSyncStatus, b: WalletSyncStatus): boolean {
     && a.matchedBlocksPending === b.matchedBlocksPending
     && a.peerCount === b.peerCount
     && a.filterCapablePeerCount === b.filterCapablePeerCount
+    && a.lockPeerCount === b.lockPeerCount
     && a.phaseEtaMs === b.phaseEtaMs
     && a.lastError === b.lastError
 }

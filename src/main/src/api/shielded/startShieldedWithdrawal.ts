@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { ShieldedService, ShieldedSpendState } from '../../services/ShieldedService'
-
+import {ShieldedService} from '../../services/ShieldedService'
+import {ShieldedSpendState} from '../../types/Shielded'
 export class StartShieldedWithdrawalHandler {
   private shieldedService: ShieldedService
 

@@ -1,11 +1,9 @@
 import {describe, it, expect} from 'vitest'
 import {Output, Script, TransactionType, utils as sdkUtils} from 'dash-core-sdk'
-import {CoreTransactionService, TransferInput} from '../../src/main/src/services/CoreTransactionService'
-import {SdkProvider} from '../../src/main/src/providers/SdkProvider'
-
-// classifyRecipientAddress only touches the SDK's pure address utils, so the
-// service can be built with a stub SDK for this suite.
-const service = new CoreTransactionService({} as never)
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
+import {CoreTransactionService} from '../../src/main/src/services/CoreTransactionService'
+import {TransferInput} from '../../src/main/src/types/CoreTransaction'
+const service = new CoreTransactionService()
 
 const publicKeyHash = new Uint8Array(20).fill(1)
 const testnetAddress = sdkUtils.publicKeyHashToAddress(publicKeyHash, 'testnet')
@@ -28,7 +26,7 @@ describe('CoreTransactionService.classifyRecipientAddress', () => {
 })
 
 describe('CoreTransactionService.buildSignedAssetLock', () => {
-  const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+  const SEED = new KeyPairController().mnemonicToSeed('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about')
   // Valid testnet P2PKH base58 vectors (version byte 140).
   const CREDIT_ADDRESS = 'yLQkj9a5TNjotA96dLkkEuc67JzLvi9DbJ'
   const CHANGE_ADDRESS = 'yLW4c6QpWVbxGdm4pwssbG736zudM2Mxrw'
@@ -45,13 +43,13 @@ describe('CoreTransactionService.buildSignedAssetLock', () => {
     const lockAmount = 100_000n
     const inputTotal = 200_000n
 
-    const tx = await new CoreTransactionService(new SdkProvider()).buildSignedAssetLock({
+    const tx = await service.buildSignedAssetLock({
       inputs: [input],
       amountDuffs: lockAmount,
       creditAddress: CREDIT_ADDRESS,
       changeAddress: CHANGE_ADDRESS,
       inputTotal,
-      mnemonic: MNEMONIC,
+      seed: SEED,
       network: 'testnet',
     })
 

@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { RatesService, ExchangeRatesResult } from '../services/RatesService'
-
+import {RatesService} from '../services/RatesService'
+import {ExchangeRatesResult} from '../types/Rates'
 export class GetExchangeRatesHandler {
   private ratesService: RatesService
 

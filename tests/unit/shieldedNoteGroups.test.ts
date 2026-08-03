@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { groupShieldedNotesByAddress } from '../../src/renderer/src/utils/shieldedBalances'
-import type { ShieldedNoteInfo } from '../../src/renderer/src/api/types'
-
+import {ShieldedNoteInfo} from '../../src/main/src/types/Shielded'
 const note = (address: string, amount: string, spent: boolean, index = 0): ShieldedNoteInfo =>
   ({ index, amount, spent, address })
 

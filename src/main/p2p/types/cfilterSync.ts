@@ -1,7 +1,31 @@
 import type {Network} from '../../src/types'
 import type {ChainStore} from '../ChainStore'
 import type {PoolService} from '../PoolService'
-import type {WalletSyncUtxo} from '../types/walletSync'
+import type {WalletSyncUtxo} from './walletSync'
+
+import type {Peer} from 'dash-core-p2p'
+
+export interface CFilterBatch {
+  startHeight: number
+  stopHeight: number
+  stopHashWire: Uint8Array
+  remaining: Set<number>
+  timer: ReturnType<typeof setTimeout> | null
+}
+
+export interface BlockRequest {
+  hashWire: Uint8Array
+  height: number
+  triedPeers: Set<Peer>
+  timer: ReturnType<typeof setTimeout> | null
+}
+
+export interface PendingCFHeaders {
+  startHeight: number
+  stopHeight: number
+  triedPeers: Set<Peer>
+  raceTimer: ReturnType<typeof setTimeout> | null
+}
 
 export type CFilterPhase =
   | 'connecting'

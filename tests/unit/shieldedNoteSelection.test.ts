@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  selectSpendNotes,
-  maxSpendableCredits,
-  SelectableNote,
-} from '../../src/main/src/utils/shieldedNoteSelection'
-
+import {selectSpendNotes, maxSpendableCredits} from '../../src/main/src/utils/shieldedNoteSelection'
+import {SelectableNote} from '../../src/main/src/types/ShieldedNoteSelection'
 function note(index: number, value: bigint): SelectableNote {
   return { index, value }
 }

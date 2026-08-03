@@ -1,29 +1,32 @@
-import {
-  InstantLock,
-  Transaction as SDKTransaction,
-  utils as coreUtils,
-} from 'dash-core-sdk'
-import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
-import {KeyType, PrivateKeyWASM, StateTransitionWASM} from 'dash-platform-sdk/types.js'
-import {SdkProvider} from '../providers/SdkProvider'
+import {PrivateKeyWASM} from 'dash-platform-sdk/types.js'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
+import {WalletDAO} from '../database/WalletDAO'
+import {IdentityDAO} from '../database/IdentityDAO'
+import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
-import {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
-import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../constants'
+import {AssetLockService} from './AssetLockService'
+import {PlatformWorkerService} from './PlatformWorkerService'
+import {unlockWallet, zeroSeed} from '../utils/walletSeed'
+import {identityPath} from '../utils/identityKeys'
+import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants'
+import {AssetLockFundingRow, AcquiredAssetLock} from '../types/AssetLock'
+import {UnlockedWallet} from '../types/UnlockedWallet'
 
-export {IDENTITY_KEY_DEFINITIONS} from '../utils/identityKeys'
 
-export type AssetLockProof = InstantAssetLockProofParams | ChainAssetLockProofParams
-
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-
-// Upper bound on the on-chain free-index scan — guards against an infinite
-// loop if Platform keeps reporting an identity for every derived auth key.
-const IDENTITY_INDEX_SCAN_LIMIT = 100
-
-// Domain primitives for L1 asset-lock + Platform identity-create. Orchestration
-// (decrypt, UTXO selection, broadcast, persistence) lives in the controller.
+// Owns identity registration and top-up funded from L1: derives the funding
+// keys, drives an asset lock through AssetLockService, and settles the proof
+// into the matching platform worker operation.
 export class IdentityRegistrationService {
-  constructor(private readonly sdkProvider: SdkProvider) {}
+  // Derivation only — a DashPlatformSDK would build a gRPC pool and fetch the
+  // evonode list to do local maths.
+  private readonly keyPair = new KeyPairController()
+
+  constructor(
+    private readonly walletDAO: WalletDAO,
+    private readonly identityDAO: IdentityDAO,
+    private readonly assetLock: AssetLockService,
+    private readonly platform: PlatformWorkerService,
+  ) {}
 
   registrationKeyPath(identityIndex: number, network: Network): string {
     return this.fundingKeyPath(1, identityIndex, network)
@@ -42,216 +45,186 @@ export class IdentityRegistrationService {
   // Registration key (DIP-0013 m/9'/coin'/5'/1'/index): owns the asset-lock
   // credit output and signs the IdentityCreateTransition. Derived from seed, so
   // recoverable without local storage.
-  async deriveRegistrationKey(mnemonic: string, identityIndex: number, network: Network): Promise<PrivateKeyWASM> {
-    return this.deriveFundingKey(mnemonic, this.registrationKeyPath(identityIndex, network), network)
+  async deriveRegistrationKey(seed: Uint8Array, identityIndex: number, network: Network): Promise<PrivateKeyWASM> {
+    return this.deriveFundingKey(seed, this.registrationKeyPath(identityIndex, network), network)
   }
 
-  async deriveTopUpKey(mnemonic: string, index: number, network: Network): Promise<PrivateKeyWASM> {
-    return this.deriveFundingKey(mnemonic, this.topUpKeyPath(index, network), network)
+  async deriveTopUpKey(seed: Uint8Array, index: number, network: Network): Promise<PrivateKeyWASM> {
+    return this.deriveFundingKey(seed, this.topUpKeyPath(index, network), network)
   }
 
-  private async deriveFundingKey(mnemonic: string, path: string, network: Network): Promise<PrivateKeyWASM> {
-    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
-    const hdKey = keyPair.seedToHdKey(keyPair.mnemonicToSeed(mnemonic), network)
-    const {privateKey} = await keyPair.derivePath(hdKey, path)
+  private async deriveFundingKey(seed: Uint8Array, path: string, network: Network): Promise<PrivateKeyWASM> {
+    const hdKey = this.keyPair.seedToHdKey(seed, network)
+    const {privateKey} = await this.keyPair.derivePath(hdKey, path)
     if (privateKey == null) {
       throw new Error(`Could not derive identity funding key at ${path} from wallet hd key`)
     }
     return PrivateKeyWASM.fromBytes(privateKey, network)
   }
 
-  // The 6 identity public keys (DIP-0013), each later used for proof-of-possession.
-  async deriveIdentityKeys(mnemonic: string, identityIndex: number, network: Network): Promise<PrivateKeyWASM[]> {
-    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
-    const hdKey = keyPair.seedToHdKey(keyPair.mnemonicToSeed(mnemonic), network)
-
-    return IDENTITY_KEY_DEFINITIONS.map(({id}) => {
-      const derived = keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, id, network)
-      if (derived.privateKey == null) {
-        throw new Error(`Could not derive identity key ${id}`)
-      }
-      return PrivateKeyWASM.fromBytes(derived.privateKey, network)
-    })
-  }
-
   // First index at/after startIndex whose auth key #0 is not already registered
   // on Platform — skips indices taken by the same seed used elsewhere.
-  async findNextIdentityIndex(mnemonic: string, startIndex: number, network: Network): Promise<number> {
-    const sdk = this.sdkProvider.getPlatformSDK(network)
-    const hdKey = sdk.keyPair.seedToHdKey(sdk.keyPair.mnemonicToSeed(mnemonic), network)
-
-    let index = startIndex
-    for (let scanned = 0; scanned < IDENTITY_INDEX_SCAN_LIMIT; scanned++) {
-      const derived = sdk.keyPair.deriveIdentityPrivateKey(hdKey, index, 0, network)
-      if (derived.privateKey == null) {
-        throw new Error(`Could not derive identity key at index ${index}`)
-      }
-      const pkh = PrivateKeyWASM.fromBytes(derived.privateKey, network).getPublicKeyHash()
-
-      const existing =
-        await sdk.identities.getIdentityByPublicKeyHash(pkh).catch(() => null) ??
-        await sdk.identities.getIdentityByNonUniquePublicKeyHash(pkh).catch(() => null)
-
-      if (existing == null) {
-        return index
-      }
-      index++
-    }
-    throw new Error(`Could not find a free identity index within ${IDENTITY_INDEX_SCAN_LIMIT} attempts`)
+  async findNextIdentityIndex(seed: Uint8Array, startIndex: number, network: Network): Promise<number> {
+    const {nextFreeIndex} = await this.platform.request('identityScan', network, {
+      seed,
+      startIndex,
+      gapLimit: 1,
+      scanLimit: IDENTITY_SCAN_LIMIT,
+    })
+    return nextFreeIndex
   }
 
-  // Waits for the asset-lock tx to receive an instant lock (fast) or chain lock
-  // (fallback) and returns the matching proof. RPC polling backs the chain-lock
-  // race because chain-lock events can be missed; the instant-lock race reads
-  // the islock subscription. First to resolve wins.
-  async waitForAssetLockProof(
-    assetLockTx: SDKTransaction,
-    txid: string,
-    watchAddresses: string[],
-    network: Network,
-    pollIntervalMs: number = IDENTITY_LOCK_POLL_INTERVAL_MS,
-    timeoutMs: number = IDENTITY_LOCK_TIMEOUT_MS,
-    instantLockHexProvider?: (txid: string, timeoutMs: number) => Promise<string | null>,
-  ): Promise<AssetLockProof> {
-    const coreSDK = this.sdkProvider.getCoreSDK(network)
-    const platformSDK = this.sdkProvider.getPlatformSDK(network)
-    // We broadcast L1 txs over our own p2p pool, so the isdlock arrives there —
-    // DAPI's subscribeToTransactions does not deliver it. Prefer the p2p islock
-    // provider; only open the DAPI subscription when no provider is supplied.
-    const subscription = instantLockHexProvider
-      ? null
-      : coreSDK.subscribeToTransactions(watchAddresses, [coreUtils.hexToBytes(txid)])
-
-    let settled = false
-
-    const instantLockRace = async (): Promise<AssetLockProof> => {
-      if (instantLockHexProvider) {
-        const hex = await instantLockHexProvider(txid, timeoutMs)
-        if (settled) throw new Error('cancelled')
-        if (!hex) {
-          // No p2p islock within the window — let chainLockRace settle the race.
-          return await new Promise<AssetLockProof>(() => {})
-        }
-        const instantLock = InstantLock.fromHex(hex)
-        console.log(`[assetlock] building instant proof from p2p islock for ${txid} (lockTxId=${instantLock.txId})`)
-        return coreUtils.createAssetLockProof({transaction: assetLockTx, instantLock, outputIndex: 0}) as InstantAssetLockProofParams
-      }
-
-      for await (const event of subscription!) {
-        if (settled) throw new Error('cancelled')
-        if (event.event !== 'instantSendLockMessage') continue
-
-        let instantLock: InstantLock
-        try {
-          instantLock = InstantLock.fromHex(event.data)
-        } catch {
-          continue
-        }
-        if (instantLock.txId !== txid) continue
-
-        return coreUtils.createAssetLockProof({transaction: assetLockTx, instantLock, outputIndex: 0}) as InstantAssetLockProofParams
-      }
-      throw new Error('Instant lock subscription ended without result')
-    }
-
-    const chainLockRace = async (): Promise<AssetLockProof> => {
-      const deadline = Date.now() + timeoutMs
-
-      while (Date.now() < deadline) {
-        if (settled) throw new Error('cancelled')
-
-        try {
-          const dapiTx = await coreSDK.getTransaction(txid)
-
-          if (dapiTx.isChainLocked) {
-            const requiredHeight = dapiTx.height
-
-            while (Date.now() < deadline) {
-              if (settled) throw new Error('cancelled')
-
-              try {
-                const nodeStatus = await platformSDK.node.status()
-                const latestHeight = nodeStatus.chain?.coreChainLockedHeight ?? 0
-
-                if (Number.isSafeInteger(latestHeight) && latestHeight >= requiredHeight) {
-                  return coreUtils.createAssetLockProof({transaction: assetLockTx, coreChainLockedHeight: dapiTx.height, outputIndex: 0}) as ChainAssetLockProofParams
-                }
-              } catch {
-                // Platform node status unavailable — keep polling until deadline.
-              }
-
-              await coreUtils.wait(pollIntervalMs)
-            }
-          }
-        } catch {
-          // Asset lock tx not yet visible on DAPI — keep polling until deadline.
-        }
-
-        await coreUtils.wait(pollIntervalMs)
-      }
-
-      throw new Error(`Timed out waiting for asset lock proof on transaction ${txid} after ${Math.round(timeoutMs / 1000)}s`)
-    }
-
+  async startIdentityCreate(walletId: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+    const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
-      return await Promise.race([instantLockRace(), chainLockRace()])
-    } finally {
-      settled = true
+      const {identityIndex, credit} = await this.prepareRegistration(walletId, unlocked)
+
+      const state = await this.assetLock.begin(walletId, 'identity', '', amountDuffs)
+      return this.run(state, unlocked, async () => {
+        const acquired = await this.assetLock.acquire(state, {
+          walletId, kind: 'identity', destination: '', amountDuffs, seed: unlocked.seed, credit, identityIndex,
+        })
+        await this.settleCreate(walletId, unlocked, state, acquired, identityIndex)
+      })
+    } catch (error) {
+      zeroSeed(unlocked)
+      throw error
     }
   }
 
-  // Builds and signs the IdentityCreateTransition. Two-pass signing: each
-  // identity key signs for proof-of-possession (each signByPrivateKey overwrites
-  // the same WASM signature slot, so it is copied out immediately), then the ST
-  // is rebuilt with the signed keys and signed by the registration key.
-  buildIdentityCreateTransition(
-    identityPrivateKeys: PrivateKeyWASM[],
-    registrationKey: PrivateKeyWASM,
-    assetLockProof: AssetLockProof,
-    network: Network,
-  ): StateTransitionWASM {
-    const sdk = this.sdkProvider.getPlatformSDK(network)
+  async startIdentityTopUp(walletId: string, identityId: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+    if (identityId.trim().length === 0) {
+      throw new Error('Identity identifier is required')
+    }
+    const unlocked = await unlockWallet(this.walletDAO, walletId, password)
+    try {
+      const {topUpIndex, credit} = await this.prepareTopUp(walletId, unlocked)
 
-    const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}, i) => ({
-      id,
-      purpose,
-      securityLevel,
-      keyType,
-      readOnly: false,
-      data: Uint8Array.from(identityPrivateKeys[i].getPublicKey().bytes()),
-      signature: undefined as Uint8Array | undefined,
-    }))
+      const state = await this.assetLock.begin(walletId, 'identityTopUp', identityId, amountDuffs)
+      return this.run(state, unlocked, async () => {
+        const acquired = await this.assetLock.acquire(state, {
+          walletId, kind: 'identityTopUp', destination: identityId, amountDuffs, seed: unlocked.seed,
+          credit, identityIndex: topUpIndex,
+        })
+        await this.settleTopUp(unlocked, state, acquired)
+      })
+    } catch (error) {
+      zeroSeed(unlocked)
+      throw error
+    }
+  }
 
-    let stateTransition = sdk.identities.createStateTransition('create', {publicKeys, assetLockProof})
-
-    for (let i = 0; i < identityPrivateKeys.length; i++) {
-      stateTransition.signByPrivateKey(identityPrivateKeys[i], undefined, IDENTITY_KEY_DEFINITIONS[i].keyType)
-      if (stateTransition.signature == null) {
-        throw new Error(`signByPrivateKey did not produce a signature for identity key ${i}`)
+  // Resumes a funding whose L1 lock already landed. Both identity kinds route
+  // here; the row says which.
+  async resume(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
+    const unlocked = await unlockWallet(this.walletDAO, walletId, password)
+    try {
+      if (row.identityIndex == null) {
+        throw new Error('Funding record is missing the identity index')
       }
-      publicKeys[i].signature = Uint8Array.from(stateTransition.signature)
+      const identityIndex = row.identityIndex
+
+      const state = this.assetLock.resume(walletId, row)
+      return this.run(state, unlocked, async () => {
+        const acquired = await this.assetLock.reacquire(state, row)
+        if (row.kind === 'identityTopUp') {
+          await this.settleTopUp(unlocked, state, acquired)
+        } else {
+          await this.settleCreate(walletId, unlocked, state, acquired, identityIndex)
+        }
+      })
+    } catch (error) {
+      zeroSeed(unlocked)
+      throw error
+    }
+  }
+
+  // The job runs on past the method that started it, so it holds the seed and
+  // zeroes it however it settles.
+  private run(state: AssetLockFundingState, unlocked: UnlockedWallet, work: () => Promise<void>): AssetLockFundingState {
+    void work()
+      .catch(error => this.assetLock.fail(state, error))
+      .finally(() => zeroSeed(unlocked))
+    return state
+  }
+
+  private async settleCreate(
+    walletId: string,
+    unlocked: UnlockedWallet,
+    state: AssetLockFundingState,
+    {row, proof}: AcquiredAssetLock,
+    identityIndex: number,
+  ): Promise<void> {
+    await this.assetLock.markBroadcastingSt(state, row.txid)
+
+    const {stHash, identifier} = await this.platform.request('identityCreateFromAssetLock', unlocked.wallet.network, {
+      seed: unlocked.seed,
+      txid: row.txid,
+      outputIndex: row.outputIndex,
+      assetLockProof: proof,
+      creditDerivationPath: row.creditDerivationPath,
+      identityIndex,
+    })
+
+    const existing = await this.identityDAO.getByIdentifier(walletId, identifier)
+    if (existing == null) {
+      await this.identityDAO.insertIdentity({
+        walletId,
+        identityIndex,
+        identifier,
+        derivationPath: identityPath(unlocked.wallet.network, identityIndex),
+      }, row.txid)
     }
 
-    stateTransition = sdk.identities.createStateTransition('create', {publicKeys, assetLockProof})
-    stateTransition.signByPrivateKey(registrationKey, undefined, KeyType.ECDSA_SECP256K1)
-
-    return stateTransition
+    state.identityIdentifier = identifier
+    await this.assetLock.done(state, row.txid, stHash)
   }
 
-  // Builds and signs the IdentityTopUpTransition. Signed only by the top-up
-  // funding key that owns the asset-lock credit output — no identity keys or
-  // proof-of-possession, so any identity can be topped up by its identifier.
-  buildIdentityTopUpTransition(
-    identityId: string,
-    fundingKey: PrivateKeyWASM,
-    assetLockProof: AssetLockProof,
-    network: Network,
-  ): StateTransitionWASM {
-    const sdk = this.sdkProvider.getPlatformSDK(network)
+  private async settleTopUp(unlocked: UnlockedWallet, state: AssetLockFundingState, {row, proof}: AcquiredAssetLock): Promise<void> {
+    await this.assetLock.markBroadcastingSt(state, row.txid)
 
-    const stateTransition = sdk.identities.createStateTransition('topUp', {identityId, assetLockProof})
-    stateTransition.signByPrivateKey(fundingKey, undefined, KeyType.ECDSA_SECP256K1)
+    const {stHash} = await this.platform.request('identityTopUpFromAssetLock', unlocked.wallet.network, {
+      seed: unlocked.seed,
+      txid: row.txid,
+      outputIndex: row.outputIndex,
+      assetLockProof: proof,
+      creditDerivationPath: row.creditDerivationPath,
+      identifier: row.toPlatformAddress,
+    })
 
-    return stateTransition
+    state.identityIdentifier = row.toPlatformAddress
+    await this.assetLock.done(state, row.txid, stHash)
   }
+
+  private async prepareRegistration(walletId: string, unlocked: UnlockedWallet): Promise<{identityIndex: number; credit: {address: string; derivationPath: string}}> {
+    const {wallet: {network}, seed} = unlocked
+    const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
+    const identityIndex = await this.findNextIdentityIndex(seed, startIndex, network)
+
+    const registrationKey = await this.deriveRegistrationKey(seed, identityIndex, network)
+
+    return {
+      identityIndex,
+      credit: {
+        address: this.keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network),
+        derivationPath: this.registrationKeyPath(identityIndex, network),
+      },
+    }
+  }
+
+  private async prepareTopUp(walletId: string, unlocked: UnlockedWallet): Promise<{topUpIndex: number; credit: {address: string; derivationPath: string}}> {
+    const {wallet: {network}, seed} = unlocked
+    const topUpIndex = await this.assetLock.countFundings(walletId, 'identityTopUp')
+    const fundingKey = await this.deriveTopUpKey(seed, topUpIndex, network)
+
+    return {
+      topUpIndex,
+      credit: {
+        address: this.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network),
+        derivationPath: this.topUpKeyPath(topUpIndex, network),
+      },
+    }
+  }
+
 }

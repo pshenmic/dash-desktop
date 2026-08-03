@@ -1,8 +1,7 @@
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
 
-export const POW_LIMIT_BITS = 0x1e0fffff
-export const MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60
+import {POW_LIMIT_BITS} from './constants'
 
 export function bitsToTarget(bits: number): bigint {
   const exponent = bits >>> 24

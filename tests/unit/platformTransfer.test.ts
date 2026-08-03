@@ -1,14 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import {
-  selectPlatformSource,
-  PlatformSourceCandidate,
-  MIN_OUTPUT_CREDITS,
-  TRANSFER_FEE_CREDITS,
-  identityTransferFeeCredits,
-  identityCreateFeeCredits,
-  topUpFeeCredits,
-} from '../../src/main/src/utils/platformTransfer'
-
+import {selectPlatformSource, identityTransferFeeCredits, identityCreateFeeCredits, topUpFeeCredits} from '../../src/main/src/utils/platformTransfer'
+import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
+import {MIN_OUTPUT_CREDITS, TRANSFER_FEE_CREDITS} from '../../src/main/src/constants'
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
   return {
     platformAddress,

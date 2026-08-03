@@ -1,34 +1,5 @@
-export interface SelectableUtxo {
-  txid: string
-  vout: number
-  satoshis: bigint
-  address: string
-}
-
-export interface CoinSelectionResult {
-  inputs: SelectableUtxo[]
-  inputTotal: bigint
-  fee: bigint
-  change: bigint
-}
-
-export interface CoinSelectionParams {
-  feePerByte: bigint
-  signedInputSize: bigint
-  changeOutputSize: bigint
-  baseTxSize: bigint
-  recipientOutputSize: bigint
-  minFee: bigint
-}
-
-export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
-  feePerByte: 1n,
-  signedInputSize: 32n + 4n + 8n + 108n + 4n,
-  changeOutputSize: 20n + 4n + 34n + 4n,
-  baseTxSize: 10n,
-  recipientOutputSize: 34n,
-  minFee: 1000n,
-}
+import {CoinSelectionParams, CoinSelectionResult, SelectableUtxo} from '../types/CoinSelection'
+import {DEFAULT_SELECTION_PARAMS} from '../constants'
 
 function estimateFee(
   inputCount: number,

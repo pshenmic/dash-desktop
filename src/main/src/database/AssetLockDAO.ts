@@ -1,23 +1,17 @@
 import {Knex} from 'knex'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
+import {AssetLockProofParams} from '../../platform/types/messages'
 
-export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
-
-export interface AssetLockFundingRow {
-  id: number
-  walletId: string
-  txid: string
-  outputIndex: number
-  creditDerivationPath: string
-  amountDuffs: string
-  toPlatformAddress: string
-  kind: AssetLockFundingKind
-  status: AssetLockFundingStatus
-  stHash: string | null
-  error: string | null
-  identityIndex: number | null
-  txHex: string | null
-  createdAt: number
+import {AssetLockFundingKind, AssetLockFundingRow} from '../types/AssetLock'
+// Written by us as JSON, but a hand-edited or truncated row must not wedge every
+// later resume — an unreadable proof just means waiting for the lock again.
+function parseProof(value: unknown): AssetLockProofParams | null {
+  if (typeof value !== 'string' || value.length === 0) return null
+  try {
+    return JSON.parse(value) as AssetLockProofParams
+  } catch {
+    return null
+  }
 }
 
 function fromRow(row: Record<string, unknown>): AssetLockFundingRow {
@@ -35,6 +29,7 @@ function fromRow(row: Record<string, unknown>): AssetLockFundingRow {
     error: (row.error as string | null) ?? null,
     identityIndex: (row.identity_index as number | null) ?? null,
     txHex: (row.tx_hex as string | null) ?? null,
+    assetLockProof: parseProof(row.asset_lock_proof),
     createdAt: row.created_at as number,
   }
 }
@@ -46,7 +41,7 @@ export class AssetLockDAO {
     this.knex = knex
   }
 
-  insertFunding = async (funding: Omit<AssetLockFundingRow, 'id' | 'stHash' | 'error'>): Promise<void> => {
+  insertFunding = async (funding: Omit<AssetLockFundingRow, 'id' | 'stHash' | 'error' | 'assetLockProof'>): Promise<void> => {
     await this.knex('asset_lock_fundings').insert({
       wallet_id: funding.walletId,
       txid: funding.txid,
@@ -68,6 +63,10 @@ export class AssetLockDAO {
       ...(fields?.stHash != null ? {st_hash: fields.stHash} : {}),
       ...(fields?.error != null ? {error: fields.error} : {}),
     })
+  }
+
+  saveProof = async (txid: string, proof: AssetLockProofParams): Promise<void> => {
+    await this.knex('asset_lock_fundings').where({txid}).update({asset_lock_proof: JSON.stringify(proof)})
   }
 
   countFundingsByKind = async (walletId: string, kind: AssetLockFundingKind): Promise<number> => {
