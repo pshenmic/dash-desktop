@@ -4,6 +4,14 @@ export const StorageFilename = 'storage.db'
 export const ChainStorageFilename = 'ChainStorage'
 export const LogsFolderName = 'logs'
 export const PreferencesFilename = 'preferences.json'
+export const WindowStateFilename = 'window-state.json'
+
+export const WINDOW_WORKAREA_RATIO = 0.85
+export const WINDOW_MAX_DEFAULT_WIDTH = 1600
+export const WINDOW_MAX_DEFAULT_HEIGHT = 1000
+export const WINDOW_MIN_WIDTH = 1200
+export const WINDOW_MIN_HEIGHT = 700
+export const WINDOW_MIN_VISIBLE_PX = 100
 
 // Rotate the current day's log file once it grows past this, and delete daily
 // log files older than this many days on startup.
