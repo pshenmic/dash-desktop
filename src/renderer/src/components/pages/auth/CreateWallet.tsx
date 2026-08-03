@@ -6,6 +6,8 @@ import { CreateWalletTexts, messages } from '@renderer/constants';
 import { getPasswordValidationError } from '@renderer/utils/passwordValidation';
 import { toast } from '@renderer/components/ui/Toast';
 import Spinner from '@renderer/components/ui/Spinner';
+import { useDelayedVisible } from '@renderer/hooks/useDelayedVisible';
+import { WALLET_CREATE_SLOW_NOTICE_MS } from '@renderer/constants';
 
 type CreateWalletData = Pick<
   CreateWalletTexts,
@@ -13,7 +15,8 @@ type CreateWalletData = Pick<
   'placeholderConfirmPassword' |
   'buttonNext' |
   'labelPassword' |
-  'placeholderPassword'
+  'placeholderPassword' |
+  'slowCreationNotice'
 >
 
 type CreateWalletProps = Pick<TypeUseCreateWallet, 'password' | 'setPassword'> & {
@@ -23,13 +26,14 @@ type CreateWalletProps = Pick<TypeUseCreateWallet, 'password' | 'setPassword'> &
 }
 
 const { createWallet: { passwordValidation: { passwordsDoNotMatch },
-  seedPhrase: { warning, errorMessage, errorTitle }
+  seedPhrase: { errorMessage, errorTitle }
 }} = messages
 
 export default function  CreateWallet({ password, setPassword, generateSeedPhrase, createImportedWallet, data } : CreateWalletProps): React.JSX.Element {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const showSlowNotice = useDelayedVisible(loading, WALLET_CREATE_SLOW_NOTICE_MS)
   const { theme } = useTheme()
   const iconColor = theme === 'dark' ? '#ffffff' : ''
 
@@ -57,7 +61,6 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
           await generateSeedPhrase()
         }
       }
-      toast.error(warning)
     } catch (err) {
       const message =
         err instanceof Error
@@ -129,6 +132,11 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
       >
         {loading ? <Spinner size={20} className={"mx-auto"} /> : data.buttonNext}
       </Button>
+      {showSlowNotice &&
+        <Text as={"p"} size={14} weight={"medium"} color={"brand"} opacity={50} className={"text-center"}>
+          {data.slowCreationNotice}
+        </Text>
+      }
     </form>
   )
 }

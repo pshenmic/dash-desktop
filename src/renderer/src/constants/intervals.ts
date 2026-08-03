@@ -1,3 +1,4 @@
 export const APP_STATUS_POLL_MS = 1_000
 export const BALANCE_REFRESH_MS = 30_000
 export const ASSET_LOCK_FUNDING_POLL_MS = 1_500
+export const WALLET_CREATE_SLOW_NOTICE_MS = 5_000

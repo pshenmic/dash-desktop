@@ -5,7 +5,7 @@ import AmountSummary from "@renderer/components/ui/AmountSummary";
 import CopyButton from "@renderer/components/ui/CopyButton";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { useAuth } from "@renderer/contexts/AuthContext";
-import { transactionUrl, openExternal } from "@renderer/utils/explorer";
+import { transactionUrl, identityUrl, openExternal } from "@renderer/utils/explorer";
 
 export default function IdentityCard({identity}: {identity: Identity}): React.JSX.Element {
   const { status } = useAuth()
@@ -22,6 +22,15 @@ export default function IdentityCard({identity}: {identity: Identity}): React.JS
             {identity.walletAddress}
           </Identifier>
           <CopyButton text={identity.walletAddress} />
+          {network && (
+            <button
+              onClick={() => openExternal(identityUrl(identity.walletAddress, network))}
+              title={"Open in explorer"}
+              className={"cursor-pointer hover:opacity-60"}
+            >
+              <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-70"} />
+            </button>
+          )}
         </div>
         {identity.name && <Text size={10} weight={"medium"} color={"default"} opacity={50}>Username: <span className={"font-bold"}>{identity.name}</span></Text>}
         {identity.assetLockTxid && (

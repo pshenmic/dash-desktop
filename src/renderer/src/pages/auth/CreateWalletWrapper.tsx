@@ -157,7 +157,8 @@ export default function CreateWalletWrapper(): React.JSX.Element {
               placeholderConfirmPassword: createWallet.placeholderConfirmPassword,
               buttonNext: createWallet.buttonNext,
               labelPassword: createWallet.labelPassword,
-              placeholderPassword: createWallet.placeholderPassword
+              placeholderPassword: createWallet.placeholderPassword,
+              slowCreationNotice: createWallet.slowCreationNotice
             }}
           />
         }
@@ -172,7 +173,8 @@ export default function CreateWalletWrapper(): React.JSX.Element {
               placeholderConfirmPassword: createWallet.placeholderConfirmPassword,
               buttonNext: createWallet.buttonNext,
               labelPassword: createWallet.labelPassword,
-              placeholderPassword: createWallet.placeholderPassword
+              placeholderPassword: createWallet.placeholderPassword,
+              slowCreationNotice: createWallet.slowCreationNotice
             }}
           />
         }
@@ -194,7 +196,8 @@ export default function CreateWalletWrapper(): React.JSX.Element {
             verifyMissingWords={verifyMissingWords}
             data={{
               buttonContinue: fillInYourSeedPhrase.buttonContinue,
-              seedPhraseWarning: seedPhraseWarning
+              seedPhraseWarning: seedPhraseWarning,
+              slowCreationNotice: createWallet.slowCreationNotice
             }}
         />}
 

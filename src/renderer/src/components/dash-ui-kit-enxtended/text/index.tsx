@@ -12,7 +12,7 @@ const textStyles = cva(
         default: 'text-gray-900 dark:text-gray-100',
         'blue-mint': 'text-dash-brand dark:text-dash-mint',
         'blue-dark': 'text-dash-brand-dark dark:text-dash-brand-dim',
-        red: 'text-red-700',
+        red: 'text-red-700 dark:text-red-400',
         brand: 'text-dash-primary-dark-blue dark:text-white',
         blue: 'text-dash-brand',
         white: 'text-white',

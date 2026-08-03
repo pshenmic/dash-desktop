@@ -9,7 +9,6 @@ export interface Messages {
       passwordsDoNotMatch: string
     }
     seedPhrase: {
-      warning: string
       errorMessage: string
       errorTitle: string
     }
@@ -36,7 +35,6 @@ export const messages: Messages = {
     },
 
     seedPhrase: {
-      warning: '**DO NOT share your recovery phrase with ANYONE.** Anyone with your recovery phrase can have full control over your assets. Please stay vigilant against phishing attacks at all times.',
       errorMessage: 'Unexpected error while generating seed phrase.',
       errorTitle: '**Something went wrong**',
     },

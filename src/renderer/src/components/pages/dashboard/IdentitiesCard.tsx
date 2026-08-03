@@ -71,13 +71,6 @@ export default function IdentitiesCard(): React.JSX.Element {
       {identities.length === 0 ? (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[150%]"}>
           {labels.empty}
-          {' · '}
-          <button
-            onClick={() => navigate('/send?from=core&to=newIdentity')}
-            className={"cursor-pointer hover:opacity-80 transition-opacity duration-200 text-dash-brand dark:text-dash-mint"}
-          >
-            {labels.register}
-          </button>
         </Text>
       ) : (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={`leading-[150%] ${blur}`}>
