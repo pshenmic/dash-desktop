@@ -1,6 +1,7 @@
-import { BigNumber, DashLogo, useTheme } from "dash-ui-kit/react";
+import { DashLogo, useTheme } from "dash-ui-kit/react";
 import { CreditsIcon, ShieldSmallIcon, Text } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
+import DashBigNumber from "../ui/DashBigNumber";
 import { splitDashBalance } from "@renderer/utils/balance";
 import { cva } from "class-variance-authority";
 
@@ -56,7 +57,7 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
             <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
           ) : (
             <>
-              <BigNumber className={"gap-[.125rem]!"}>{parts.main}</BigNumber>
+              <DashBigNumber className={"gap-[.125rem]!"}>{parts.main}</DashBigNumber>
               {parts.rest !== '' && <span className={"text-[.75rem]"}>{parts.rest}</span>}
               {variant === 'dash' ? ' Dash' : ' Credits'}
             </>

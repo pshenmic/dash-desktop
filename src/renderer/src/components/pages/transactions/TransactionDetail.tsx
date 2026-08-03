@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Identifier, BigNumber, useTheme, TimeDelta, ChevronIcon, DashLogo } from 'dash-ui-kit/react'
+import { Identifier, useTheme, TimeDelta, ChevronIcon, DashLogo } from 'dash-ui-kit/react'
 import { cva } from 'class-variance-authority'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import {
@@ -11,6 +11,7 @@ import {
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
+import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { transactionsPage } from '@renderer/constants'
 import { WalletTxItem } from '@renderer/hooks/useWalletTransactions'
@@ -193,7 +194,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                 <Text size={14} weight={"medium"} color={"brand"}>
                   <span className={`font-extrabold ${isIncoming ? 'dash-text-primary' : ''}`}>
                     {isIncoming ? '+ ' : '- '}
-                    <BigNumber className={"text-inherit"}>{davToDash(transaction.amount).toString()}</BigNumber>
+                    <DashBigNumber>{davToDash(transaction.amount).toString()}</DashBigNumber>
                   </span>
                   {' Dash'}
                 </Text>
@@ -207,7 +208,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               label={`${detail.fields.confirmations}:`}
               value={
                 <Text size={14} weight={"medium"} color={"brand"}>
-                  <BigNumber className={"gap-0!"}>{transaction.confirmations}</BigNumber>
+                  <DashBigNumber className={"gap-0!"}>{transaction.confirmations}</DashBigNumber>
                 </Text>
               }
             />
@@ -217,7 +218,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                 label={`${detail.fields.lockTime}:`}
                 value={
                   <Text size={14} weight={"medium"} color={"brand"}>
-                    <BigNumber className={"gap-0!"}>{transaction.blockHeight}</BigNumber>
+                    <DashBigNumber className={"gap-0!"}>{transaction.blockHeight}</DashBigNumber>
                   </Text>
                 }
                 subValue={detail.fields.height}
@@ -247,7 +248,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               </div>
               <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
                 <span className={"font-extrabold"}>
-                  <BigNumber>{input.value}</BigNumber>
+                  <DashBigNumber>{input.value}</DashBigNumber>
                 </span>
                 {' Dash'}
               </Text>
@@ -282,7 +283,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               </div>
               <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
                 <span className={"font-extrabold"}>
-                  <BigNumber>{trimTrailingZeros(output.value)}</BigNumber>
+                  <DashBigNumber>{trimTrailingZeros(output.value)}</DashBigNumber>
                 </span>
                 {' Dash'}
               </Text>

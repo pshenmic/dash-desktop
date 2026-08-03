@@ -1,6 +1,6 @@
-import { BigNumber } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
@@ -52,8 +52,8 @@ export default function HeroBalance(): React.JSX.Element {
             <div className={"h-11 w-64 rounded-xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
           ) : (
             <div className={"flex items-center gap-3.5 flex-wrap"}>
-              <Text size={40} weight={"extrabold"} className={`text-dash-brand dark:text-dash-mint leading-[110%] ${blur}`}>
-                <BigNumber className={"gap-[.1875rem]! text-dash-brand! dark:text-dash-mint!"}>{totalParts.main}</BigNumber>
+              <Text size={40} weight={"extrabold"} color={"blue-mint"} className={`leading-[110%] ${blur}`}>
+                <DashBigNumber className={"gap-[.1875rem]!"}>{totalParts.main}</DashBigNumber>
                 {totalParts.rest !== '' && <span className={"text-[1.5rem]"}>{totalParts.rest}</span>}
                 {' Dash'}
               </Text>
@@ -91,7 +91,7 @@ export default function HeroBalance(): React.JSX.Element {
           balanceLabel={core.balance}
           amount={
             <>
-              <BigNumber className={"gap-[.1875rem]! text-white!"}>{coreParts.main}</BigNumber>
+              <DashBigNumber className={"gap-[.1875rem]!"}>{coreParts.main}</DashBigNumber>
               {coreParts.rest !== '' && <span className={"text-[.875rem]"}>{coreParts.rest}</span>}
               {' Dash'}
             </>
@@ -109,7 +109,6 @@ export default function HeroBalance(): React.JSX.Element {
             <CreditsAmount
               credits={platformCredits}
               showFiat={false}
-              amountClassName={"text-white!"}
               unitClassName={"text-[.875rem] font-medium text-white/60"}
             />
           }

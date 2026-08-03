@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { BigNumber } from 'dash-ui-kit/react'
 import { Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { WalletAddressDto } from '@renderer/api/types'
@@ -10,6 +9,7 @@ import { addressUrl, openExternal } from '@renderer/utils/explorer'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
+import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 
 export default function AddressCard({
@@ -55,7 +55,7 @@ export default function AddressCard({
         <div className={"flex items-center gap-2"}>
           <Text size={14} weight={"medium"} color={"brand"}>
             <span className={"font-bold"}>
-              <BigNumber>{davToDashCompact(balance).toString()}</BigNumber>
+              <DashBigNumber>{davToDashCompact(balance).toString()}</DashBigNumber>
             </span>
             {' Dash'}
           </Text>
