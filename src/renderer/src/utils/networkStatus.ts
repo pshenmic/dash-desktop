@@ -1,5 +1,6 @@
 import { ConnectionType, WalletSyncStatus } from '@renderer/api/types'
 import { WalletSyncPhase } from '../enums/WalletSyncPhase'
+import { connectionGate } from './connectionGate'
 
 export type NetworkStatusTone = 'ok' | 'busy' | 'warn'
 
@@ -22,7 +23,7 @@ export function describeNetworkStatus(sync: WalletSyncStatus | undefined): Netwo
 }
 
 export function describeDataSource(desired: ConnectionType, phase: WalletSyncPhase | undefined): string {
-  return desired === 'p2p' && phase === WalletSyncPhase.Synced ? 'Local P2P' : 'Insight API'
+  return connectionGate(desired, phase).dataSourceLabel
 }
 
 export function formatChange24h(change: number): string {

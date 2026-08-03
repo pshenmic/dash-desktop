@@ -43,22 +43,22 @@ const descriptions: Record<string, React.JSX.Element> = {
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
   const [activeTab, setActiveTab] = useState('dash')
   const { status } = useAuth()
-  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
+  const { actionsGated } = useConnectionModeContext()
   const walletId = status?.selectedWalletId ?? undefined
   const { data: address } = useAsyncWithCache<string | null>(
     'receiveAddress',
-    syncIncomplete ? undefined : walletId,
+    actionsGated ? undefined : walletId,
     () => API.getReceiveAddress(walletId!),
     null,
     { errorMessage: 'Failed to load receive address' }
   )
-  const { receiving } = useAdresses(syncIncomplete ? undefined : walletId)
+  const { receiving } = useAdresses(actionsGated ? undefined : walletId)
 
   const tabItems = [
     {
       value: 'dash',
       label: pageData.tabs.dash,
-      content: syncIncomplete
+      content: actionsGated
         ? <SyncGateNotice />
         : address
           ? <ReceiveAddressCard addresses={receiving} defaultAddress={address} data={pageData.receiveAddressCard} />

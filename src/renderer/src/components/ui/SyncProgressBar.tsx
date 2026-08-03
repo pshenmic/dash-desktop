@@ -174,10 +174,10 @@ export default function SyncProgressBar(): React.JSX.Element {
 
         <Text size={10} weight="normal" color="brand" opacity={50}>
           Local node downloads block headers and compact filters to scan your wallet without
-          trusting a third party. While syncing, balances and transactions are served by the
-          Dash Insight API as a fallback. When sync completes, the wallet switches to local
-          P2P data automatically. Use the Start / Stop / Restart button in the header to
-          control sync manually.
+          trusting a third party. While syncing, balances and transactions come from the
+          partially scanned local data and may be incomplete, and sending is unavailable —
+          wait for sync to finish, or switch the connection mode to Dash Insight API (RPC).
+          Use the Start / Stop / Restart button in the header to control sync manually.
         </Text>
       </div>
     </div>

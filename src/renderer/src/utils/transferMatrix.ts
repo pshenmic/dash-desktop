@@ -40,6 +40,12 @@ export function resolveOperation(from: SourceKind, to: DestinationKind): Transfe
   return MATRIX[from][to] ?? null
 }
 
+const CORE_L1_OPERATIONS: ReadonlySet<TransferOperation> = new Set(Object.values(MATRIX[SourceKind.Core]))
+
+export function spendsCoreL1(operation: TransferOperation | null): boolean {
+  return operation != null && CORE_L1_OPERATIONS.has(operation)
+}
+
 export function unsupportedReason(from: SourceKind, to: DestinationKind): string | null {
   if (MATRIX[from][to] != null) {
     return null

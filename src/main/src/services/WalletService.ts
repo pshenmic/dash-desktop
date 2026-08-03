@@ -453,6 +453,7 @@ export class WalletService {
     if (wallet == null) throw new Error('Wallet not found')
 
     const provider = this.getProvider(wallet.walletId, wallet.network)
+    await provider.ensureReady()
     return provider.nextUnusedAddress()
   }
 

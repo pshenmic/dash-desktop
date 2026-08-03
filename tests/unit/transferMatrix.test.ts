@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolveOperation,
+  spendsCoreL1,
   unsupportedReason,
   operationInfo,
   isLikelyIdentityId,
@@ -78,6 +79,27 @@ describe('unsupportedReason', () => {
   it('supports every operation defined in the matrix', () => {
     expect(unsupportedReason(SourceKind.Core, DestinationKind.PlatformAddress)).toBeNull()
     expect(unsupportedReason(SourceKind.PlatformAddress, DestinationKind.NewIdentity)).toBeNull()
+  })
+})
+
+describe('spendsCoreL1', () => {
+  it('is true for exactly the operations sourced from Dash Core', () => {
+    for (const {kind: to} of DESTINATION_KINDS) {
+      expect(spendsCoreL1(resolveOperation(SourceKind.Core, to))).toBe(true)
+    }
+  })
+
+  it('is false for operations sourced elsewhere', () => {
+    for (const {kind: from} of SOURCE_KINDS) {
+      if (from === SourceKind.Core) continue
+      for (const {kind: to} of DESTINATION_KINDS) {
+        expect(spendsCoreL1(resolveOperation(from, to))).toBe(false)
+      }
+    }
+  })
+
+  it('is false without an operation', () => {
+    expect(spendsCoreL1(null)).toBe(false)
   })
 })
 

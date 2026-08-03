@@ -6,7 +6,7 @@ import { renderBoldText } from '@renderer/utils/renderBoldText'
 
 export default function AddressesPage(): React.JSX.Element {
   const { description, title } = addressesPage
-  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
+  const { actionsGated } = useConnectionModeContext()
 
   return (
     <div className={"flex flex-col"}>
@@ -16,7 +16,7 @@ export default function AddressesPage(): React.JSX.Element {
       <Text size={14} weight={"medium"} color={"brand"} opacity={50} className={"px-12 mb-8"}>
         {renderBoldText(description)}
       </Text>
-      <AddressList coreGated={syncIncomplete} />
+      <AddressList coreGated={actionsGated} />
     </div>
   )
 }

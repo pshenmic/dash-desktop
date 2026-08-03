@@ -27,6 +27,7 @@ import {
   SOURCE_KINDS,
   DESTINATION_KINDS,
   resolveOperation,
+  spendsCoreL1,
   unsupportedReason,
   operationInfo,
   isLikelyIdentityId,
@@ -112,7 +113,7 @@ export default function TransferHub(): React.JSX.Element {
     return () => { dead = true }
   }, [walletId, wizardKey])
 
-  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
+  const { actionsGated } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
   const { balance } = useWalletBalance(walletId ?? undefined)
   const { receiving, change } = useAdresses(walletId ?? undefined)
@@ -275,8 +276,8 @@ export default function TransferHub(): React.JSX.Element {
 
   const needsAck = operation === TransferOperation.ShieldedWithdrawal
   const destinationReady = destinationValid && !selfSend && (!needsAck || acked)
-  const coreSourceGated = fromKind === SourceKind.Core && syncIncomplete
-  const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
+  const l1ActionGated = actionsGated && spendsCoreL1(operation)
+  const routeReady = operation != null && sourceReady && destinationReady && !l1ActionGated
 
   const amountReady = isDashUnit
     ? amountDuffs > 0n && amountDuffs <= balanceDuffs
@@ -417,7 +418,7 @@ export default function TransferHub(): React.JSX.Element {
         />
       )}
 
-      {coreSourceGated && <P2pSyncAlert />}
+      {l1ActionGated && <P2pSyncAlert />}
 
       {optionalShieldRecipient && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
@@ -616,7 +617,7 @@ export default function TransferHub(): React.JSX.Element {
           </div>
         )}
       </div>
-      {coreSourceGated && <P2pSyncAlert />}
+      {l1ActionGated && <P2pSyncAlert />}
     </div>
   )
 

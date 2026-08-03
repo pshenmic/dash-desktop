@@ -31,7 +31,7 @@ describe('describeNetworkStatus', () => {
     expect(describeNetworkStatus(sync({ phase: 'synced' }))).toEqual({ label: 'Operational', tone: 'ok' })
   })
 
-  it('is operational when sync is stopped or idle (rpc fallback serves data)', () => {
+  it('is operational when sync is stopped or idle', () => {
     expect(describeNetworkStatus(sync({ phase: 'stopped' })).tone).toBe('ok')
     expect(describeNetworkStatus(sync({ phase: 'idle' })).tone).toBe('ok')
   })
@@ -60,9 +60,12 @@ describe('describeDataSource', () => {
     expect(describeDataSource('p2p', 'synced')).toBe('Local P2P')
   })
 
-  it('reports insight otherwise', () => {
-    expect(describeDataSource('p2p', 'syncing-headers')).toBe('Insight API')
-    expect(describeDataSource('p2p', undefined)).toBe('Insight API')
+  it('reports local p2p as syncing while p2p is not synced', () => {
+    expect(describeDataSource('p2p', 'syncing-headers')).toBe('Local P2P (syncing)')
+    expect(describeDataSource('p2p', undefined)).toBe('Local P2P (syncing)')
+  })
+
+  it('reports insight in rpc mode', () => {
     expect(describeDataSource('rpc', 'synced')).toBe('Insight API')
   })
 })
