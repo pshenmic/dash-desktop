@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits, creditsToDuffs, creditsFromInput } from '../../src/renderer/src/utils/balance'
+import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits, creditsToDuffs, creditsFromInput, splitDashBalance } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
 
@@ -97,6 +97,29 @@ describe('davToDashCompact', () => {
   it('keeps the sign for negative amounts', () => {
     expect(davToDashCompact(-150_000_000n)).toBe('-1.5')
     expect(davToDashCompact(-1n)).toBe('-<0.001')
+  })
+})
+
+describe('splitDashBalance', () => {
+  it('splits at two decimals with the remainder in rest', () => {
+    expect(splitDashBalance(123_456_789n)).toEqual({ main: '1.23', rest: '456789' })
+    expect(splitDashBalance(512_300_000n)).toEqual({ main: '5.12', rest: '3' })
+    expect(splitDashBalance(56_789n)).toEqual({ main: '0.00', rest: '056789' })
+  })
+
+  it('trims trailing zeros and drops empty parts', () => {
+    expect(splitDashBalance(500_000_000n)).toEqual({ main: '5', rest: '' })
+    expect(splitDashBalance(550_000_000n)).toEqual({ main: '5.5', rest: '' })
+    expect(splitDashBalance(510_000_000n)).toEqual({ main: '5.1', rest: '' })
+    expect(splitDashBalance(512_000_000n)).toEqual({ main: '5.12', rest: '' })
+    expect(splitDashBalance(510_500_000n)).toEqual({ main: '5.10', rest: '5' })
+  })
+
+  it('handles zero, dust and negatives', () => {
+    expect(splitDashBalance(0n)).toEqual({ main: '0', rest: '' })
+    expect(splitDashBalance(1n)).toEqual({ main: '0.00', rest: '000001' })
+    expect(splitDashBalance(-123_456_789n)).toEqual({ main: '-1.23', rest: '456789' })
+    expect(splitDashBalance(-500_000_000n)).toEqual({ main: '-5', rest: '' })
   })
 })
 

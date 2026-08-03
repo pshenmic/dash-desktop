@@ -2,7 +2,6 @@ import { DashLogo } from "dash-ui-kit/react"
 import Balance from "./Balance";
 import { EyeClosedIcon, EyeOpenIcon, LockIcon } from "../dash-ui-kit-enxtended";
 import { useAuth } from "@renderer/contexts/AuthContext";
-import { davToDashCompact } from "@renderer/utils/balance";
 import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance } from "@renderer/hooks/useWalletBalance";
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility";
@@ -67,7 +66,7 @@ export default function SidebarHeader(): React.JSX.Element {
         </div>
       </div>
       <div className={"flex flex-col dash-block rounded-[.875rem] dash-black-border divide-y divide-dash-primary-dark-blue/8 dark:divide-white/12"}>
-        <Balance variant="dash" balance={davToDashCompact(balance.dash.amount)} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
+        <Balance variant="dash" balance={balance.dash.amount} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
         <Balance variant="credits" credits={balance.credits.amount} isVisible={isBalanceVisible}/>
         <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
       </div>

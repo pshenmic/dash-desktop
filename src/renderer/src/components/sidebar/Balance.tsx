@@ -1,6 +1,7 @@
 import { BigNumber, DashLogo, useTheme } from "dash-ui-kit/react";
 import { CreditsIcon, ShieldSmallIcon, Text } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
+import { splitDashBalance } from "@renderer/utils/balance";
 import { cva } from "class-variance-authority";
 
 const logoStyles = cva(
@@ -23,8 +24,9 @@ const logoStyles = cva(
   }
 )
 
-export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: string, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
+export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: bigint, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
   const { theme } = useTheme()
+  const parts = splitDashBalance(balance ?? 0n)
 
   return (
     <div
@@ -54,7 +56,8 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
             <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
           ) : (
             <>
-              <BigNumber className={"gap-[.125rem]!"}>{balance ?? ''}</BigNumber>
+              <BigNumber className={"gap-[.125rem]!"}>{parts.main}</BigNumber>
+              {parts.rest !== '' && <span className={"text-[.75rem]"}>{parts.rest}</span>}
               {variant === 'dash' ? ' Dash' : ' Credits'}
             </>
           )}

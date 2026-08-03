@@ -528,7 +528,7 @@ export default function TransferHub(): React.JSX.Element {
               className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${amountCredits === denomination ? 'dash-bg-inverse' : 'dash-block-3'}`}
             >
               <Text size={12} weight={"extrabold"} color={amountCredits === denomination ? "blue-mint" : "brand"}>
-                {(Number(denomination) / 1e11).toLocaleString('en-US')} Dash in credits
+                {formatCredits(Number(denomination) / 1e11)} Dash in credits
               </Text>
             </button>
           ))}
