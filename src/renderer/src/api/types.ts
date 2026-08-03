@@ -27,6 +27,16 @@ export type GetAddressesResponse = {
   change: WalletAddressDto[]
 }
 
+export interface WalletUtxoDto {
+  txid: string
+  vout: number
+  address: string
+  label: string | null
+  satoshis: string
+  height: number
+  blockTime: number
+}
+
 // getPlatformAddresses
 export interface PlatformAddressDto {
   platformAddress: string

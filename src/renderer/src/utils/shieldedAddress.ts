@@ -1,3 +1,5 @@
+import { truncateMiddle } from './truncate'
+
 // Loose shape check for an Orchard (shielded) bech32m address. The exact HRP
 // lives in the WASM binary, so this only gates obviously-invalid input; the
 // main process validates authoritatively via OrchardAddressWASM.fromBech32m.
@@ -8,6 +10,5 @@ export function isLikelyShieldedAddress(address: string): boolean {
 }
 
 export function truncateShieldedAddress(address: string, head = 12, tail = 6): string {
-  if (address.length <= head + tail + 1) return address
-  return `${address.slice(0, head)}…${address.slice(-tail)}`
+  return truncateMiddle(address, head, tail)
 }

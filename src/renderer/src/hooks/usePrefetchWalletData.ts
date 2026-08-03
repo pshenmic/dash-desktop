@@ -5,6 +5,7 @@ import { prefetchAddresses } from './useAdresses'
 import { prefetchPlatformAddresses } from './usePlatformAddresses'
 import { prefetchTransactions } from './useWalletTransactions'
 import { prefetchBalance } from './useWalletBalance'
+import { prefetchUtxos } from './useUtxos'
 
 export function usePrefetchWalletData(): void {
   const { isAuthenticated, status } = useAuth()
@@ -17,5 +18,6 @@ export function usePrefetchWalletData(): void {
     prefetchAddresses(walletId)
     prefetchPlatformAddresses(walletId)
     prefetchIdentities(walletId)
+    prefetchUtxos(walletId)
   }, [isAuthenticated, walletId])
 }

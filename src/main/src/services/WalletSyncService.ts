@@ -13,6 +13,7 @@ import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
+import {WalletUtxoDetailed} from '../types/WalletUtxoDetailed'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 
 // Cap on the per-child output we retain. The tail is attached to broadcast
@@ -495,6 +496,10 @@ export class WalletSyncService {
   getUtxos = async (): Promise<WalletSyncUtxo[]> => {
     if (!this.activeWalletId) return []
     return this.transactionDAO.getUtxos(this.activeWalletId)
+  }
+
+  getUtxosDetailed = async (walletId: string): Promise<WalletUtxoDetailed[]> => {
+    return this.transactionDAO.getUtxosDetailed(walletId)
   }
 
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {

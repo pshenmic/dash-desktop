@@ -2,6 +2,7 @@ import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
+import type {WalletUtxoDetailed} from '../types/WalletUtxoDetailed'
 
 // Re-exported so callers (services, future API handlers) can stay decoupled
 // from the p2p IPC types if/when the protocol drifts.
@@ -310,18 +311,21 @@ export class TransactionDAO {
     await this.knex.transaction(trx => abandonWithinTrx(trx, walletId, txid))
   }
 
+  private unspentOutputs = (walletId: string) =>
+    this.knex('transaction_outputs as o')
+      .innerJoin('transactions as t', function() {
+        this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
+      })
+      .where('o.wallet_id', walletId)
+      .andWhere('o.is_mine', true)
+      .whereNull('o.spent_in_txid')
+
   // Unspent outputs that pay the wallet. Same shape as WalletSyncUtxo so
   // both the renderer (via getUtxos IPC) and the cfilter worker (as
   // spend-detection seed in the start command) consume it directly.
   getUtxos = async (walletId: string): Promise<WalletSyncUtxo[]> => {
-    const rows = await this.knex('transaction_outputs as o')
-      .innerJoin('transactions as t', function() {
-        this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
-      })
+    const rows = await this.unspentOutputs(walletId)
       .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height')
-      .where('o.wallet_id', walletId)
-      .andWhere('o.is_mine', true)
-      .whereNull('o.spent_in_txid')
 
     return rows.map(row => ({
       txid: row.txid,
@@ -329,6 +333,29 @@ export class TransactionDAO {
       address: row.address as string,
       satoshis: row.satoshis,
       height: row.height,
+    }))
+  }
+
+  getUtxosDetailed = async (walletId: string): Promise<WalletUtxoDetailed[]> => {
+    const rows = await this.unspentOutputs(walletId)
+      .leftJoin('addresses as a', function() {
+        this.on('a.wallet_id', '=', 'o.wallet_id').andOn('a.address', '=', 'o.address')
+      })
+      .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height', 't.block_time as block_time', 'a.label')
+      .orderBy([
+        {column: 't.block_time', order: 'desc'},
+        {column: 'o.txid', order: 'asc'},
+        {column: 'o.vout', order: 'asc'},
+      ])
+
+    return rows.map(row => ({
+      txid: row.txid,
+      vout: row.vout,
+      address: row.address as string,
+      label: row.label ?? null,
+      satoshis: row.satoshis,
+      height: row.height,
+      blockTime: row.block_time,
     }))
   }
 

@@ -89,6 +89,10 @@ export class API {
     return this.api.getWalletBalance(walletId)
   }
 
+  static async getUtxosDetailed(walletId: string) {
+    return this.api.getUtxosDetailed(walletId)
+  }
+
   static async verifyWalletPassword(walletId: string, password: string) {
     return this.api.verifyWalletPassword(walletId, password)
   }

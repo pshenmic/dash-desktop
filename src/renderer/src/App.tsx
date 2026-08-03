@@ -11,6 +11,7 @@ import ReceivePage from "./pages/Receive"
 import ShieldedPage from "./pages/Shielded"
 import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
+import UtxosPage from "./pages/Utxos"
 import SettingsPage from "./pages/Settings"
 import { useAuth } from "./contexts/AuthContext"
 import { usePrefetchWalletData } from "./hooks/usePrefetchWalletData"
@@ -58,6 +59,7 @@ function App(): React.JSX.Element {
             <Route path={"/unshield"} element={<Navigate to={"/send?from=shielded&to=platformAddress"} replace />} />
             <Route path={"/withdraw-l1"} element={<Navigate to={"/send?from=shielded&to=coreAddress"} replace />} />
             <Route path={"/addresses"} element={<AddressesPage />} />
+            <Route path={"/utxos"} element={<UtxosPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />
           </Routes>

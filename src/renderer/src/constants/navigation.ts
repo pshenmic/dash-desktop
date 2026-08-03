@@ -46,6 +46,11 @@ export const navGroups: NavGroup[] = [
         to: '/addresses'
       },
       {
+        id: 'utxos',
+        label: 'UTXOs',
+        to: '/utxos'
+      },
+      {
         id: 'identities',
         label: 'Identities',
         to: '/identities'
