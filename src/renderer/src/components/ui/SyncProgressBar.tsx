@@ -151,6 +151,10 @@ export default function SyncProgressBar(): React.JSX.Element {
             )}
           />
           <Row
+            label="Lock peers"
+            value={`${sync?.lockPeerCount ?? 0}`}
+          />
+          <Row
             label="Chain tip"
             value={`${(sync?.tipHeight ?? 0).toLocaleString()} / ${(sync?.estimatedChainHeight ?? 0).toLocaleString()}`}
           />

@@ -8,38 +8,17 @@ import {
   utils as sdkUtils,
 } from 'dash-core-sdk'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
-import {SdkProvider} from '../providers/SdkProvider'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {Network} from '../types'
-import {ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
+import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
+import {BuildSignedTransferParams, RecipientType, TransferInput} from '../types/CoreTransaction' 
 import {buildAssetLockOutputs} from '../utils/assetLockTx'
 
-export type RecipientType = 'p2pkh' | 'p2sh'
-
-const ADDRESS_DECODED_LENGTH = 21
-
-export interface TransferInput {
-  txId: string
-  vOut: number
-  script: Script
-  derivationPath: string
-  address: string
-}
-
-export interface BuildSignedTransferParams {
-  inputs: TransferInput[]
-  toAddress: string
-  recipientType: RecipientType
-  amount: bigint
-  changeAddress: string
-  inputTotal: bigint
-  mnemonic: string
-  network: Network
-}
 
 export class CoreTransactionService {
-  constructor(
-    private readonly sdkProvider: SdkProvider,
-  ) {}
+  // Derivation only — a DashPlatformSDK would build a gRPC pool and fetch the
+  // evonode list to do local maths.
+  private keyPair = new KeyPairController()
 
   classifyRecipientAddress(address: string, network: Network): RecipientType {
     let decoded: Uint8Array
@@ -58,16 +37,14 @@ export class CoreTransactionService {
     throw new Error(`Recipient address is not a valid ${network} address`)
   }
 
-  private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], mnemonic: string, network: Network): Promise<PrivateKey[]> {
-    const keyPair = this.sdkProvider.getPlatformSDK(network).keyPair
-    const seed = keyPair.mnemonicToSeed(mnemonic)
-    const hdKey = keyPair.seedToHdKey(seed, network)
+  private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], seed: Uint8Array, network: Network): Promise<PrivateKey[]> {
+    const hdKey = this.keyPair.seedToHdKey(seed, network)
 
     const privateKeys: PrivateKey[] = []
     for (const input of inputs) {
       transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
 
-      const derived = await keyPair.derivePath(hdKey, input.derivationPath)
+      const derived = await this.keyPair.derivePath(hdKey, input.derivationPath)
       if (!derived.privateKey) {
         throw new Error(`Failed to derive private key for ${input.address}`)
       }
@@ -82,15 +59,15 @@ export class CoreTransactionService {
     creditAddress: string
     changeAddress: string
     inputTotal: bigint
-    mnemonic: string
+    seed: Uint8Array
     network: Network
   }): Promise<SDKTransaction> {
-    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, mnemonic, network} = params
+    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, seed, network} = params
 
     const {burnOutput, extraPayload} = buildAssetLockOutputs(amountDuffs, creditAddress)
     const transaction = new SDKTransaction(undefined, undefined, undefined, 3, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
 
-    const privateKeys = await this.addSignableInputs(transaction, inputs, mnemonic, network)
+    const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
 
     transaction.addOutput(burnOutput)
     transaction.generateChange(changeAddress, inputTotal)
@@ -100,10 +77,10 @@ export class CoreTransactionService {
   }
 
   async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
-    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, mnemonic, network} = params
+    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, seed, network} = params
 
     const transaction = new SDKTransaction()
-    const privateKeys = await this.addSignableInputs(transaction, inputs, mnemonic, network)
+    const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
 
     const recipientOutput = new Output(amount)
     if (recipientType === 'p2sh') {

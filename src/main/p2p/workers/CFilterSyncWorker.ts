@@ -1,19 +1,11 @@
-// Compact-filter (BIP 157/158) UTXO scan worker. Phases:
-//   1. cfcheckpt   anchor filter-header chain at every 1000-block boundary
-//   2. cfheaders   walk birthday→tip, derive filter headers locally, verify
-//                  against checkpoints; persist to chain.db (network-shared)
-//   3. cfilters    pull GCS payloads, match watched scripts/outpoints, fetch
-//                  matched blocks, emit blockApplied events with full tx data
+// Compact-filter (BIP 157/158) UTXO scan worker, in three phases: cfcheckpt
+// anchors the filter-header chain every 1000 blocks, cfheaders walks
+// birthday→tip deriving headers locally and verifying them against those
+// anchors, cfilters pulls GCS payloads and fetches the blocks that match.
 //
-// Persists to chain.db:
-//   - f:<height>           filter headers (network-scoped, reusable)
-//   - n:<height>           wire-byte block hashes (network-scoped)
-//
-// Wallet-scoped state (UTXOs, cfilter cursor, transactions) lives in SQL
-// in the main process. The worker emits 'blockApplied' / 'cursorAdvanced'
-// events and main writes them through TransactionDAO. The worker keeps an
-// in-memory UTXO map for spend detection in subsequent blocks; it's seeded
-// from main at start time via the start command.
+// Only network-scoped data reaches chain.db (f: filter headers, n: wire-byte
+// block hashes). Wallet state stays in SQL: the worker emits blockApplied /
+// cursorAdvanced and main persists them.
 
 import {
   type CFCheckptArgs,
@@ -28,9 +20,9 @@ import {Block, OutPoint, Script, utils as sdkUtils} from 'dash-core-sdk'
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
 import {Network} from '../../src/types'
-import {ChainStore, PersistedHeader} from '../ChainStore'
+import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
-import {GENESIS} from '../constants'
+import {GENESIS, HASH_LEN, MB} from '../constants'
 import type {
   AppliedBlock,
   AppliedSpend,
@@ -40,12 +32,13 @@ import type {
   WalletSyncUtxo,
 } from '../types/walletSync'
 import type {
+  BlockRequest,
+  CFilterBatch,
   CFilterPhase,
   CFilterSyncWorkerOptions,
   CFilterSyncWorkerStatus,
+  PendingCFHeaders,
 } from '../types/cfilterSync'
-
-export type {CFilterPhase, CFilterSyncWorkerOptions, CFilterSyncWorkerStatus}
 import {
   BLOCK_REQUEST_TIMEOUT_MS,
   CFCHECKPT_RACE_PEERS,
@@ -59,30 +52,9 @@ import {
   SCAN_TIP_DEPTH,
 } from '../constants'
 import {Worker} from './Worker'
+import {PersistedHeader} from '../types/chainStore'
 
 const {doubleSHA256, hexToBytes, bytesToHex, addressToPublicKeyHash} = sdkUtils
-
-interface CFilterBatch {
-  startHeight: number
-  stopHeight: number
-  stopHashWire: Uint8Array
-  remaining: Set<number>
-  timer: ReturnType<typeof setTimeout> | null
-}
-
-interface BlockRequest {
-  hashWire: Uint8Array
-  height: number
-  triedPeers: Set<Peer>
-  timer: ReturnType<typeof setTimeout> | null
-}
-
-interface PendingCFHeaders {
-  startHeight: number
-  stopHeight: number
-  triedPeers: Set<Peer>
-  raceTimer: ReturnType<typeof setTimeout> | null
-}
 
 function displayHexToWire(hex: string): Uint8Array {
   return hexToBytes(hex).reverse()
@@ -116,6 +88,118 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
+
+// `external`+`arrayBuffers` are reported because they cover the off-heap
+// typed-array backing stores that `ps rss` under-counts.
+function logMem(label: string): void {
+  const m = process.memoryUsage()
+  console.log(
+    `[p2p-mem] ${label}: rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +
+    `external=${(m.external / MB).toFixed(0)}MB arrayBuffers=${(m.arrayBuffers / MB).toFixed(0)}MB`,
+  )
+}
+
+// One contiguous buffer rather than a Map<number,Uint8Array>: at ~2.5M blocks
+// the Map costs ~600MB (~245B/entry in V8 headers and per-array backing
+// stores), this ~80MB. get() returns a copy so callers can hold it across the
+// reallocation tip-follow growth triggers.
+class BlockHashIndex {
+  private data: Uint8Array
+  private present: Uint8Array
+  private capacity: number
+
+  constructor(initialHeights: number) {
+    this.capacity = Math.max(initialHeights + 1, 1024)
+    this.data = new Uint8Array(this.capacity * HASH_LEN)
+    this.present = new Uint8Array((this.capacity + 7) >> 3)
+  }
+
+  private grow(minHeight: number): void {
+    const next = Math.max(minHeight + 1, Math.ceil(this.capacity * 1.5))
+    const data = new Uint8Array(next * HASH_LEN)
+    data.set(this.data)
+    const present = new Uint8Array((next + 7) >> 3)
+    present.set(this.present)
+    this.data = data
+    this.present = present
+    this.capacity = next
+  }
+
+  set(height: number, wire: Uint8Array): void {
+    if (height < 0) return
+    if (height >= this.capacity) this.grow(height)
+    this.data.set(wire, height * HASH_LEN)
+    this.present[height >> 3]! |= 1 << (height & 7)
+  }
+
+  has(height: number): boolean {
+    return height >= 0 && height < this.capacity && (this.present[height >> 3]! & (1 << (height & 7))) !== 0
+  }
+
+  get(height: number): Uint8Array | undefined {
+    if (!this.has(height)) return undefined
+    return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
+  }
+}
+
+// Same layout as BlockHashIndex, for the same reason: as a Map this cache was
+// the p2p process' dominant resident cost (~400MB → ~70MB).
+class FilterHeaderIndex {
+  private data: Uint8Array
+  private present: Uint8Array
+  private capacity: number
+  private count = 0
+
+  constructor(initialHeights: number) {
+    this.capacity = Math.max(initialHeights + 1, 1024)
+    this.data = new Uint8Array(this.capacity * HASH_LEN)
+    this.present = new Uint8Array((this.capacity + 7) >> 3)
+  }
+
+  get size(): number {
+    return this.count
+  }
+
+  private grow(minHeight: number): void {
+    const next = Math.max(minHeight + 1, Math.ceil(this.capacity * 1.5))
+    const data = new Uint8Array(next * HASH_LEN)
+    data.set(this.data)
+    const present = new Uint8Array((next + 7) >> 3)
+    present.set(this.present)
+    this.data = data
+    this.present = present
+    this.capacity = next
+  }
+
+  has(height: number): boolean {
+    return height >= 0 && height < this.capacity && (this.present[height >> 3]! & (1 << (height & 7))) !== 0
+  }
+
+  set(height: number, header: Uint8Array): void {
+    if (height < 0) return
+    if (height >= this.capacity) this.grow(height)
+    if (!this.has(height)) this.count++
+    this.data.set(header, height * HASH_LEN)
+    this.present[height >> 3]! |= 1 << (height & 7)
+  }
+
+  get(height: number): Uint8Array | undefined {
+    if (!this.has(height)) return undefined
+    return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
+  }
+
+  // Checkpoint-divergence recovery: drop everything at or above `fromHeight`.
+  deleteFrom(fromHeight: number): void {
+    const start = Math.max(0, fromHeight)
+    for (let h = start; h < this.capacity; h++) {
+      if (this.has(h)) {
+        this.present[h >> 3]! &= ~(1 << (h & 7))
+        this.count--
+      }
+    }
+  }
+}
+
 export class CFilterSyncWorker extends Worker {
   readonly name = 'CFilterSyncWorker'
 
@@ -139,12 +223,15 @@ export class CFilterSyncWorker extends Worker {
   private stopped = false
   private leader: Peer | null = null
 
-  // ── chain index (height ↔ wire-byte hash) ────────────────────────────────
-  private heightToBlockHash = new Map<number, Uint8Array>()
-  private wireHexToHeight = new Map<string, number>()
+  // ── chain index (height → wire-byte hash) ────────────────────────────────
+  // Forward only. The reverse lookup comes from bounded inflight state — block
+  // fetches carry their height, cfilter batches register their hashes, cfheaders
+  // match the few pending stop-hashes — dropping a ~250MB full-chain map.
+  private readonly blockHashIndex: BlockHashIndex
+  private cfilterInflightHeights = new Map<string, number>()
 
   // ── filter-header chain ──────────────────────────────────────────────────
-  private heightToFilterHeader = new Map<number, Uint8Array>()
+  private readonly heightToFilterHeader: FilterHeaderIndex
   private checkpointHeaders = new Map<number, Uint8Array>()
   private anchorHeight = -1
 
@@ -174,21 +261,11 @@ export class CFilterSyncWorker extends Worker {
     matched: new Map<number, Block>(),
   }
 
-  // In-memory UTXO map. Source of truth lives in SQL (main process); this
-  // is a session cache seeded at start time and mutated as blocks apply.
-  // Discarded on stop and re-derived from SQL on next start.
-  //
-  // Why the worker holds this at all (we can't be fully stateless):
-  //
-  //   1. BIP 158 outpoint watching — STRUCTURAL, can't move.
-  //      The cfilter match (cf.matchAny(this.watchedItems)) runs in this
-  //      worker because that's where peer messages arrive. The match set
-  //      must include both our scriptPubKeys AND our outpoints, otherwise
-  //      we'd miss any tx that spends one of our UTXOs without paying any
-  //      of our addresses (i.e. pure outgoing txs). Adding a received
-  //      output's outpoint to watchedItems requires knowing it's ours;
-  //      removing a spent outpoint requires knowing which one matched.
-  //
+  // Session cache seeded from SQL at start, discarded on stop. The worker
+  // cannot be stateless here: matchAny runs where peer messages arrive, and its
+  // set needs our outpoints as well as our scripts or a purely outgoing tx —
+  // one spending our UTXOs without paying any of our addresses — is missed.
+  // Maintaining those outpoints requires knowing which outputs are ours.
   private utxos = new Map<string, WalletSyncUtxo>()
 
   // Bound peer-event listeners. Stable references kept for stop()'s off().
@@ -210,6 +287,8 @@ export class CFilterSyncWorker extends Worker {
     this.peerPool = opts.peerPool
     this.chainTipHeight = opts.chainTipHeight
     this.chainTipWire = displayHexToWire(opts.chainTipHashDisplayHex)
+    this.blockHashIndex = new BlockHashIndex(opts.chainTipHeight)
+    this.heightToFilterHeader = new FilterHeaderIndex(opts.chainTipHeight)
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
     this.seedUtxos = opts.seedUtxos
     this.initialCfilterCursor = opts.cfilterCursor
@@ -235,20 +314,21 @@ export class CFilterSyncWorker extends Worker {
       : this.birthdayHeight
 
     await this.buildChainIndex()
+    logMem('after buildChainIndex')
 
-    // Seed genesis (height 1) into the index — HeaderSync starts WITH this
-    // header as its tip and only persists subsequent ones, so it's not in
-    // chain.db.
+    // HeaderSync starts WITH genesis as its tip and persists only what follows,
+    // so height 1 is never in chain.db.
     this.setHashIndex(1, displayHexToWire(GENESIS[this.network].hash))
 
-    // Network-shared filter-header cache.
-    const cachedFilterHeaders = await this.chainStore.iterateFilterHeadersInRange(1, this.chainTipHeight)
-    for (const {height, header} of cachedFilterHeaders) {
-      this.heightToFilterHeader.set(height, header)
+    // Streamed for the same reason as forEachHashInRange.
+    const loadedFilterHeaders = await this.chainStore.forEachFilterHeaderInRange(
+      1, this.chainTipHeight,
+      (height, header) => this.heightToFilterHeader.set(height, header),
+    )
+    if (loadedFilterHeaders > 0) {
+      console.log(`[cfilter] loaded ${loadedFilterHeaders} filter headers from cache`)
     }
-    if (cachedFilterHeaders.length > 0) {
-      console.log(`[cfilter] loaded ${cachedFilterHeaders.length} filter headers from cache`)
-    }
+    logMem(`after filter-header load (index size=${this.heightToFilterHeader.size})`)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const [evt, handler] of this.peerListeners) (this.peerPool as any).on(evt, handler)
@@ -283,12 +363,9 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
-  // Hot-add of newly created wallet addresses. When rewindToHeight is set,
-  // the cursor is rewound (clamped to birthday) so historical filters are
-  // re-matched against the new addresses. When it is omitted the addresses
-  // are known to be fresh (frontier-derived / added while synced), so we
-  // only extend the match set and keep scanning forward from the current
-  // cursor — no rewind, no re-scan.
+  // rewindToHeight set means the addresses may carry past on-chain activity, so
+  // historical filters get re-matched. Omitted means main proved them fresh
+  // (frontier-derived, or added while synced) and the match set just widens.
   addWatchAddresses = (addresses: string[], rewindToHeight?: number): void => {
     if (this.stopped) return
     let added = 0
@@ -305,8 +382,10 @@ export class CFilterSyncWorker extends Worker {
       console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); rewinding cursor to h=${target}`)
       for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
       this.cfilter.inflightBatches.clear()
+      this.cfilterInflightHeights.clear()
       this.blockFetch.matched.clear()
       this.cfilter.cursor = target
+      this.emit('cursorReset', {walletId: this.walletId, height: target})
     } else {
       console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); forward-only (no rewind)`)
     }
@@ -335,8 +414,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private setHashIndex(height: number, wire: Uint8Array): void {
-    this.heightToBlockHash.set(height, wire)
-    this.wireHexToHeight.set(bytesToHex(wire), height)
+    this.blockHashIndex.set(height, wire)
   }
 
   private clearTimers(): void {
@@ -347,6 +425,7 @@ export class CFilterSyncWorker extends Worker {
     for (const r of this.blockFetch.inflight.values()) if (r.timer) clearTimeout(r.timer)
     this.cfHeaders.pending.clear()
     this.cfilter.inflightBatches.clear()
+    this.cfilterInflightHeights.clear()
     this.blockFetch.inflight.clear()
   }
 
@@ -357,32 +436,32 @@ export class CFilterSyncWorker extends Worker {
   // ── chain index ───────────────────────────────────────────────────────────
 
   private async buildChainIndex(): Promise<void> {
-    // Always cover the full chain (1..chainTip). Optimizing to a narrow
-    // resume window breaks cfcheckpt's stop-hash lookup and addWatchAddresses
-    // re-scan from birthday. The n: cache makes this a fast range scan.
+    // Full chain, not a narrow resume window: that would break cfcheckpt's
+    // stop-hash lookup and addWatchAddresses' re-scan from birthday.
     const from = 1
     const to = this.chainTipHeight
     const expected = to - from + 1
     console.log(`[cfilter] building chain index ${from}..${to}`)
 
-    const cached = await this.chainStore.iterateHashesInRange(from, to)
-    if (cached.length === expected) {
-      for (const {height, wire} of cached) this.setHashIndex(height, wire)
-      console.log(`[cfilter] chain index loaded from cache (${cached.length} entries)`)
+    // Streamed, because the array form spikes hundreds of MB of transient
+    // objects that V8 keeps resident afterward.
+    const cachedCount = await this.chainStore.forEachHashInRange(
+      from, to, (height, wire) => this.setHashIndex(height, wire),
+    )
+    if (cachedCount === expected) {
+      console.log(`[cfilter] chain index loaded from cache (${cachedCount} entries)`)
     } else {
-      // Fallback: x11 + backfill. One-time cost on chain.db that predates the
-      // n: keyspace.
-      console.log(`[cfilter] no hash cache (${cached.length}/${expected}); hashing + backfilling`)
-      const cachedByHeight = new Map<number, Uint8Array>()
-      for (const {height, wire} of cached) cachedByHeight.set(height, wire)
-
+      // One-time cost on chain.db predating the n: keyspace.
+      console.log(`[cfilter] no hash cache (${cachedCount}/${expected}); hashing + backfilling`)
       const headers = await this.chainStore.iterateHeadersInRange(from, to)
       let processed = 0
       let backfill: Array<{height: number; wire: Uint8Array}> = []
       for (const {height, raw} of headers) {
-        const wire = cachedByHeight.get(height) ?? x11Wire(raw)
-        this.setHashIndex(height, wire)
-        if (!cachedByHeight.has(height)) backfill.push({height, wire})
+        if (!this.blockHashIndex.has(height)) {
+          const wire = x11Wire(raw)
+          this.setHashIndex(height, wire)
+          backfill.push({height, wire})
+        }
         processed++
         if (processed % 50_000 === 0) {
           console.log(`[cfilter] chain index ${processed}/${headers.length}`)
@@ -398,7 +477,7 @@ export class CFilterSyncWorker extends Worker {
     }
 
     // Tip not in chain.db (HeaderSync starts WITH it, persists only after).
-    if (!this.heightToBlockHash.has(this.chainTipHeight)) {
+    if (!this.blockHashIndex.has(this.chainTipHeight)) {
       this.setHashIndex(this.chainTipHeight, this.chainTipWire)
     }
   }
@@ -431,8 +510,10 @@ export class CFilterSyncWorker extends Worker {
     const blockHashHex = block.hash()
     const blockHashWire = displayHexToWire(blockHashHex)
     const key = bytesToHex(blockHashWire)
-    const height = this.wireHexToHeight.get(key) ?? -1
+    // Blocks arrive only because we asked, so the inflight request carries the
+    // height and no hash→height map is needed.
     const pending = this.blockFetch.inflight.get(key)
+    const height = pending ? pending.height : -1
     if (pending) {
       if (pending.timer) clearTimeout(pending.timer)
       this.blockFetch.inflight.delete(key)
@@ -464,7 +545,7 @@ export class CFilterSyncWorker extends Worker {
     // Highest checkpoint (real height that is a multiple of 1000) at or below
     // the scan tip, expressed in our internal numbering.
     const stopHeight = Math.floor(this.effectiveScanTipHeight() / 1000) * 1000
-    const stopHashWire = this.heightToBlockHash.get(stopHeight)
+    const stopHashWire = this.blockHashIndex.get(stopHeight)
     if (!stopHashWire) {
       console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
       return
@@ -521,9 +602,7 @@ export class CFilterSyncWorker extends Worker {
     }
     if (firstBadCheckpoint !== Infinity) {
       console.warn(`[cfilter] cached filter headers diverge from checkpoint at h=${firstBadCheckpoint} — dropping cache from there`)
-      for (const h of [...this.heightToFilterHeader.keys()]) {
-        if (h >= firstBadCheckpoint) this.heightToFilterHeader.delete(h)
-      }
+      this.heightToFilterHeader.deleteFrom(firstBadCheckpoint)
       this.chainStore.deleteFilterHeadersFrom(firstBadCheckpoint).catch(err => {
         console.error('[cfilter] failed to drop stale filter headers:', err)
         this.reportError(formatChainDbError(err), false)
@@ -570,7 +649,7 @@ export class CFilterSyncWorker extends Worker {
     const startHeight = this.cfHeaders.walkStart
     const nextCkpt = (Math.floor(startHeight / 1000) + 1) * 1000
     const stopHeight = Math.min(nextCkpt, effectiveTip)
-    if (!this.heightToBlockHash.has(stopHeight)) {
+    if (!this.blockHashIndex.has(stopHeight)) {
       console.warn(`[cfilter] cfheaders: no hash for h=${stopHeight}; stopping`)
       return
     }
@@ -586,7 +665,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private dispatchCFHeaders(entry: PendingCFHeaders): void {
-    const stopHashWire = this.heightToBlockHash.get(entry.stopHeight)
+    const stopHashWire = this.blockHashIndex.get(entry.stopHeight)
     if (!stopHashWire) return
     let candidates = [...this.peerPool.filterCapablePeers].filter(p => !entry.triedPeers.has(p))
     if (candidates.length === 0) {
@@ -614,8 +693,13 @@ export class CFilterSyncWorker extends Worker {
   private onCFHeaders(msg: CFHeadersArgs, fromPeer: Peer): void {
     if (this.stopped) return
     const stopHashWire = msg.stopHash ?? new Uint8Array(32)
-    const stopHeight = this.wireHexToHeight.get(bytesToHex(stopHashWire)) ?? -1
-    const pending = stopHeight >= 0 ? this.cfHeaders.pending.get(stopHeight) : undefined
+    // Matched against the few pending requests instead of a whole-chain
+    // hash→height map.
+    let pending: PendingCFHeaders | undefined
+    for (const entry of this.cfHeaders.pending.values()) {
+      const wire = this.blockHashIndex.get(entry.stopHeight)
+      if (wire && equalBytes(wire, stopHashWire)) { pending = entry; break }
+    }
     if (!pending) return
 
     const filterHashes = msg.filterHashes ?? []
@@ -706,10 +790,14 @@ export class CFilterSyncWorker extends Worker {
     while (this.cfilter.cursor <= effectiveTip && this.cfilter.inflightBatches.size < MAX_INFLIGHT_BATCHES) {
       const startHeight = this.cfilter.cursor
       const stopHeight = Math.min(startHeight + CFILTER_BATCH - 1, effectiveTip)
-      const stopHashWire = this.heightToBlockHash.get(stopHeight)
+      const stopHashWire = this.blockHashIndex.get(stopHeight)
       if (!stopHashWire) break
       const remaining = new Set<number>()
-      for (let h = startHeight; h <= stopHeight; h++) remaining.add(h)
+      for (let h = startHeight; h <= stopHeight; h++) {
+        remaining.add(h)
+        const wire = this.blockHashIndex.get(h)
+        if (wire) this.cfilterInflightHeights.set(bytesToHex(wire), h)
+      }
       const batch: CFilterBatch = {startHeight, stopHeight, stopHashWire, remaining, timer: null}
       this.cfilter.inflightBatches.set(startHeight, batch)
       this.dispatchCFilterBatch(batch)
@@ -738,8 +826,8 @@ export class CFilterSyncWorker extends Worker {
       await this.applyBlock(this.blockFetch.matched.get(h)!, h)
     }
     this.blockFetch.matched.clear()
-    // Advance the persisted cursor to the effective scan tip — covers the
-    // run of unmatched blocks that produced no blockApplied events.
+    // Covers the run of unmatched blocks, which produced no blockApplied event
+    // to carry the cursor forward.
     this.emit('cursorAdvanced', {walletId: this.walletId, height: this.effectiveScanTipHeight()})
     this.emitStatus('synced')
     const balance = [...this.utxos.values()].reduce((s, u) => s + BigInt(u.satoshis), 0n)
@@ -749,7 +837,8 @@ export class CFilterSyncWorker extends Worker {
   private onCFilter(msg: CFilterArgs): void {
     if (this.stopped) return
     const blockHashWire = msg.blockHash ?? new Uint8Array(32)
-    const height = this.wireHexToHeight.get(bytesToHex(blockHashWire)) ?? -1
+    const hashKey = bytesToHex(blockHashWire)
+    const height = this.cfilterInflightHeights.get(hashKey) ?? -1
     if (height < 0) return
     let owner: CFilterBatch | undefined
     for (const b of this.cfilter.inflightBatches.values()) {
@@ -757,6 +846,7 @@ export class CFilterSyncWorker extends Worker {
     }
     if (!owner) return
     owner.remaining.delete(height)
+    this.cfilterInflightHeights.delete(hashKey)
 
     const cf = new CompactFilter(msg.filter ?? new Uint8Array(0), blockHashWire)
     if (cf.matchAny(this.watchedItems)) {
@@ -875,8 +965,8 @@ export class CFilterSyncWorker extends Worker {
   }
 }
 
-// Include the LevelDB error code (LEVEL_IO_ERROR, LEVEL_CORRUPTION, …) in
-// the message so SyncService.isFatalChainDbError picks it up and tears down.
+// The LevelDB code has to reach the message text — that string is what
+// SyncService.isFatalChainDbError matches on to decide to tear down.
 function formatChainDbError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
   const code = (err as { code?: string }).code

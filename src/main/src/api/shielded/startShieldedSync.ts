@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { ShieldedService, ShieldedSyncState } from '../../services/ShieldedService'
-
+import {ShieldedService} from '../../services/ShieldedService'
+import {ShieldedSyncState} from '../../types/Shielded'
 export class StartShieldedSyncHandler {
   private shieldedService: ShieldedService
 

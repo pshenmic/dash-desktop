@@ -1,48 +1,31 @@
 import {Message, Peer} from 'dash-core-p2p'
 import {utils as coreUtils} from 'dash-core-sdk'
-import {ChainStore, PersistedHeader, ChainTipState} from '../ChainStore'
+import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
-import {
-  bitsToTarget,
-  hashHeaderRaw,
-  MAX_FUTURE_BLOCK_TIME,
-  POW_LIMIT_TARGET,
-  rawPrevHash,
-} from '../pow'
+import {bitsToTarget, hashHeaderRaw, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
 import {Worker} from './Worker'
-import {HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS} from '../constants'
+import {
+  HEADER_RACE_PEERS,
+  HEADER_SYNC_TIMEOUT_MS,
+  INV_TYPE_NAMES,
+  MAX_FUTURE_BLOCK_TIME,
+} from '../constants'
 import type {
+  HeaderRace,
   HeaderSyncPhase,
   HeaderSyncWorkerOptions,
   HeaderSyncWorkerStatus,
 } from '../types/headerSync'
-
-export type {HeaderSyncPhase, HeaderSyncWorkerOptions, HeaderSyncWorkerStatus}
-
-const INV_TYPE_NAMES: Record<number, string> = {
-  0: 'ERROR', 1: 'TX', 2: 'BLOCK', 3: 'FILTERED_BLOCK',
-  16: 'DSTX', 29: 'CLSIG', 30: 'ISLOCK', 31: 'ISDLOCK',
-}
+import {PersistedHeader, ChainTipState} from '../types/chainStore'
 
 function typeName(t: number): string {
   return INV_TYPE_NAMES[t] ?? `UNKNOWN(${t})`
 }
 
-interface HeaderRace {
-  locator: string
-  racers: Set<Peer>
-  zeroResponses: number
-  timer: ReturnType<typeof setTimeout> | null
-}
-
-// Header chain extension worker. Drives a `getheaders` race against ready
-// peers from the shared PoolService, validates returned headers (PoW only;
-// DGWv3 difficulty is deliberately disabled — see comment in processHeaders),
-// persists them via ChainStore, and exposes:
-//   - 'status' event       — HeaderSyncWorkerStatus, fires on every progress
-//   - 'chainExtended' event — PersistedHeader[], fires after each successful
-//                             append; CFilterSyncWorker uses it to extend its
-//                             in-memory chain index for live tip following.
+// Races `getheaders` against ready peers, validates PoW only (DGWv3 difficulty
+// is deliberately off — see processHeaders), and persists via ChainStore.
+// 'chainExtended' is what CFilterSyncWorker follows to keep its in-memory chain
+// index current for live tip following.
 export class HeaderSyncWorker extends Worker {
   readonly name = 'HeaderSyncWorker'
 
@@ -135,14 +118,13 @@ export class HeaderSyncWorker extends Worker {
   private handlePeerInv(peer: Peer, inventory: Array<{ type: number; hash?: Uint8Array }>): void {
     const counts: Record<number, number> = {}
     for (const item of inventory) counts[item.type] = (counts[item.type] ?? 0) + 1
-    // With relay enabled peers stream mempool tx inv (TX / DSTX) continuously.
-    // Those carry no signal here — lock inv is handled in SyncService — so we
-    // only log batches that contain something else (blocks, clsig, islock).
+    // With relay on, peers stream mempool tx inv continuously and none of it
+    // matters here (SyncService owns lock inv), so only log batches carrying
+    // something else.
     const interesting = Object.keys(counts).some(t => Number(t) !== 1 && Number(t) !== 16)
     if (!interesting) return
     const summary = Object.entries(counts).map(([t, n]) => `${typeName(Number(t))}=${n}`).join(' ')
-    // Log the display-order hash of each non-mempool item (block hash, clsig /
-    // islock / isdlock inventory hash) to correlate with the lock watcher.
+    // Display order, so the line correlates with the lock watcher's logs.
     const hashes = inventory
       .filter(i => i.type !== 1 && i.type !== 16 && i.hash)
       .map(i => `${typeName(i.type)}:${Buffer.from(i.hash!).reverse().toString('hex')}`)
@@ -269,9 +251,9 @@ export class HeaderSyncWorker extends Worker {
     this.emitStatus('synced')
   }
 
-  // Validate + persist a batch of raw 80-byte headers. See the original
-  // headerSync.ts for the rationale; preserved verbatim here. DGWv3
-  // difficulty validation stays disabled until a checkpoint anchors it.
+  // DGWv3 difficulty validation is intentionally off: replicating Dash
+  // testnet's early-chain edge cases (min-difficulty rule, encoded POW_LIMIT
+  // round-tripping) is out of scope until a recent checkpoint anchors trust.
   private async processHeaders(rawHeaders: Uint8Array[]): Promise<boolean> {
     console.log(`[p2p] processHeaders: ${rawHeaders.length}`)
     if (rawHeaders.length === 0) return false
@@ -313,23 +295,23 @@ export class HeaderSyncWorker extends Worker {
       prevHash = hashHex
     }
 
-    // Tip update first, append second (concurrency safety — see comment in
-    // the original processHeaders for the 12× write-amplification bug this
-    // fixes).
+    // Advance the in-memory tip BEFORE awaiting the write: racing peers
+    // re-enter processHeaders during the await, and against the old tip they
+    // all pass validation and queue duplicate batches (12x write
+    // amplification). Updating first makes the prev-hash check reject them
+    // synchronously.
     this.chainTipHeight = h
     this.chainTipHash = prevHash
 
     const nextState: ChainTipState = {tipHeight: h, tipHash: prevHash}
     await this.chainStore.appendHeaders(accepted, nextState)
 
-    // Don't reset the phase to 'syncing-headers' if a tip-follow batch
-    // arrives after we've already announced 'synced' — that flips the phase
-    // backward and confuses downstream consumers. We just emit progress.
+    // A tip-follow batch arriving after 'synced' must not flip the phase
+    // backward, so past that point we re-emit the current phase to push
+    // tipHeight and nothing else.
     if (this.phase === 'syncing-headers' || this.phase === 'connecting') {
       this.emitStatus('syncing-headers')
     } else {
-      // 'synced' or 'stopped' — re-emit current phase to push the new
-      // tipHeight without changing phase.
       this.emitStatus(this.phase)
     }
 
@@ -338,8 +320,8 @@ export class HeaderSyncWorker extends Worker {
   }
 }
 
-// Include the LevelDB error code (LEVEL_IO_ERROR, LEVEL_CORRUPTION, …) in
-// the message so SyncService.isFatalChainDbError picks it up and tears down.
+// The LevelDB code has to reach the message text — that string is what
+// SyncService.isFatalChainDbError matches on to decide to tear down.
 function formatChainDbError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
   const code = (err as { code?: string }).code

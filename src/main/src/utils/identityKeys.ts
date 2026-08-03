@@ -1,26 +1,10 @@
-import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import {COIN_TYPE} from '../constants'
+import {DerivedKeyHash, IdentityKeyDescriptor} from '../types/IdentityKeys'
 
-// Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
-// dropped (added later via IdentityUpdateTransition if needed); MASTER /
-// CRITICAL / HIGH plus ENCRYPTION / DECRYPTION / TRANSFER cover the common path.
-export const IDENTITY_KEY_DEFINITIONS = [
-  {id: 0, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.MASTER, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 1, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 2, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.HIGH, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 3, purpose: Purpose.ENCRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
-] as const
-
-export interface IdentityKeyDescriptor {
-  keyId: number
-  purpose: string
-  publicKeyHashHex: string
-}
-
-export interface DerivedKeyHash {
-  keyIndex: number
-  publicKeyHashHex: string
+// The path recorded on every identity row. Four services wrote this literal;
+// they must agree or the same identity gets two different recorded paths.
+export function identityPath(network: 'mainnet' | 'testnet', identityIndex: number): string {
+  return `m/9'/${COIN_TYPE[network]}'/0'/0/${identityIndex}`
 }
 
 export function matchIdentityKey(

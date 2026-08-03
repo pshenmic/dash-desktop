@@ -1,49 +1,58 @@
 import {
-  AssetLockProofWASM,
-  AddressFundingFromAssetLockTransitionWASM,
-  AddressFundsFeeStrategyStepWASM,
-  OutputAddressNullableCreditsWASM,
-  PrivateKeyWASM,
-} from 'dash-platform-sdk/types.js'
-import {OrchardAddressWASM, OutPointWASM} from 'pshenmic-dpp'
-import {Transaction as SDKTransaction, utils as coreUtils} from 'dash-core-sdk'
+  DashCoreSDK,
+  InstantLock,
+  Transaction as SDKTransaction,
+  utils as coreUtils,
+} from 'dash-core-sdk'
+import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
 import {WalletDAO} from '../database/WalletDAO'
-import {IdentityDAO} from '../database/IdentityDAO'
-import {AssetLockDAO, AssetLockFundingKind, AssetLockFundingRow} from '../database/AssetLockDAO'
+import {AssetLockDAO} from '../database/AssetLockDAO'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
-import {Wallet} from '../types/Wallet'
-import {WalletService} from './WalletService'
-import {ShieldedService} from './ShieldedService'
-import {SdkProvider} from '../providers/SdkProvider'
-import {AssetLockProof, IdentityRegistrationService} from './IdentityRegistrationService'
-import {decryptMnemonic} from '../utils'
-import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, shieldAmountFromLockedDuffs} from '../utils/assetLockTx'
+import {PlatformWorkerService} from './PlatformWorkerService'
+import {AssetLockProofParams} from '../../platform/types/messages'
+import {
+  AcquireParams,
+  AcquiredAssetLock,
+  AssetLockFunder,
+} from '../types/AssetLock'
+import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../constants'
+import {AssetLockFundingKind, AssetLockFundingRow} from '../types/AssetLock'
+const coreSDKs = new Map<Network, DashCoreSDK>()
 
-const SHIELDED_ACCOUNT = 0
-const PLATFORM_ACCOUNT = 0
-const COIN_TYPE: Record<Network, number> = {mainnet: 5, testnet: 1}
-const ALREADY_IN_CHAIN_MESSAGE = 'state transition already in chain'
+// The constructor starts evonode discovery in the background, so one is kept per
+// network — a fresh instance answers its first request against an empty DAPI
+// url list.
+function coreSDK(network: Network): DashCoreSDK {
+  let sdk = coreSDKs.get(network)
+  if (sdk == null) {
+    sdk = new DashCoreSDK({network})
+    coreSDKs.set(network, sdk)
+  }
+  return sdk
+}
 
+// Locks L1 coins and produces the proof that funds a platform state transition.
+// Deliberately knows nothing about what the proof is spent on — identities,
+// shielded notes and platform addresses each own their settlement.
 export class AssetLockService {
   private walletDAO: WalletDAO
-  private identityDAO: IdentityDAO
   private assetLockDAO: AssetLockDAO
-  private walletService: WalletService
-  private shieldedService: ShieldedService
-  private sdkProvider: SdkProvider
-  private identityRegistrationService: IdentityRegistrationService
+  private funder: AssetLockFunder
+  private platform: PlatformWorkerService
   private states = new Map<string, AssetLockFundingState>()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, assetLockDAO: AssetLockDAO, walletService: WalletService, shieldedService: ShieldedService, sdkProvider: SdkProvider, identityRegistrationService: IdentityRegistrationService) {
+  constructor(
+    walletDAO: WalletDAO,
+    assetLockDAO: AssetLockDAO,
+    funder: AssetLockFunder,
+    platform: PlatformWorkerService,
+  ) {
     this.walletDAO = walletDAO
-    this.identityDAO = identityDAO
     this.assetLockDAO = assetLockDAO
-    this.walletService = walletService
-    this.shieldedService = shieldedService
-    this.sdkProvider = sdkProvider
-    this.identityRegistrationService = identityRegistrationService
+    this.funder = funder
+    this.platform = platform
   }
 
   private idleState(): AssetLockFundingState {
@@ -73,56 +82,25 @@ export class AssetLockService {
     return current ?? this.idleState()
   }
 
-  async startFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind: AssetLockFundingKind = 'address'): Promise<AssetLockFundingState> {
+  getActive(walletId: string): AssetLockFundingState | null {
     const current = this.states.get(walletId)
-    if (this.isActive(current)) {
-      return current!
-    }
+    return this.isActive(current) ? current! : null
+  }
+
+  getResumable(walletId: string): Promise<AssetLockFundingRow | null> {
+    return this.assetLockDAO.getActiveFunding(walletId)
+  }
+
+  countFundings(walletId: string, kind: AssetLockFundingKind): Promise<number> {
+    return this.assetLockDAO.countFundingsByKind(walletId, kind)
+  }
+
+  // Installs the job state for a new funding. Throws when one is already
+  // running or a previous one is still resumable.
+  async begin(walletId: string, kind: AssetLockFundingKind, destination: string, amountDuffs: bigint): Promise<AssetLockFundingState> {
     const pending = await this.assetLockDAO.getActiveFunding(walletId)
     if (pending != null) {
       throw new Error('A previous funding is still in progress — resume it first')
-    }
-
-    let destination = toPlatformAddress
-    if (kind === 'identity' || kind === 'identityTopUp') {
-      if (kind === 'identity') {
-        destination = ''
-      } else if (destination.trim().length === 0) {
-        throw new Error('Identity identifier is required')
-      }
-      const wallet = await this.walletDAO.getWalletById(walletId)
-      if (wallet == null) {
-        throw new Error('Wallet not found')
-      }
-      try {
-        decryptMnemonic(wallet.encryptedMnemonic, password)
-      } catch {
-        throw new Error('Invalid wallet password')
-      }
-    }
-    if (kind === 'shielded') {
-      shieldAmountFromLockedDuffs(amountDuffs)
-      const wallet = await this.walletDAO.getWalletById(walletId)
-      if (wallet == null) {
-        throw new Error('Wallet not found')
-      }
-      if (toPlatformAddress.length > 0) {
-        try {
-          OrchardAddressWASM.fromBech32m(toPlatformAddress)
-        } catch {
-          throw new Error('Invalid shielded recipient address')
-        }
-      } else {
-        let mnemonic: string
-        try {
-          mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-        } catch {
-          throw new Error('Invalid wallet password')
-        }
-        const keyPair = this.sdkProvider.getPlatformSDK(wallet.network).keyPair
-        const seed = keyPair.mnemonicToSeed(mnemonic)
-        destination = keyPair.deriveShieldedAddress(seed, wallet.network, SHIELDED_ACCOUNT).toBech32m(wallet.network)
-      }
     }
 
     const state: AssetLockFundingState = {
@@ -133,31 +111,12 @@ export class AssetLockService {
       amountDuffs: amountDuffs.toString(),
     }
     this.states.set(walletId, state)
-    void this.runNewFunding(walletId, destination, amountDuffs, password, state, kind)
     return state
   }
 
-  async resumeFunding(walletId: string, password: string): Promise<AssetLockFundingState> {
-    const current = this.states.get(walletId)
-    if (this.isActive(current)) {
-      return current!
-    }
-
-    const row = await this.assetLockDAO.getActiveFunding(walletId)
-    if (row == null) {
-      throw new Error('No funding to resume')
-    }
-
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    try {
-      decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
-    }
-
+  // Re-installs the job state for a stored funding so a resumed flow reports
+  // progress the same way a fresh one does.
+  resume(walletId: string, row: AssetLockFundingRow): AssetLockFundingState {
     const state: AssetLockFundingState = {
       ...this.idleState(),
       phase: 'waitingChainLock',
@@ -167,335 +126,188 @@ export class AssetLockService {
       amountDuffs: row.amountDuffs,
     }
     this.states.set(walletId, state)
-    void this.completeFunding(walletId, row, password, state).catch(error => this.failState(state, row.txid, error))
     return state
   }
 
-  private async failState(state: AssetLockFundingState, txid: string | null, error: unknown): Promise<void> {
+  // A funding that reached L1 is resumable; one that never did is a dead end.
+  fail(state: AssetLockFundingState, error: unknown): void {
     state.error = error instanceof Error ? error.message : String(error)
-    state.phase = txid != null ? 'resumable' : 'error'
+    state.phase = state.txid != null ? 'resumable' : 'error'
   }
 
-  private async runNewFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, state: AssetLockFundingState, kind: AssetLockFundingKind): Promise<void> {
-    let txid: string | null = null
-    try {
-      let credit: {address: string; derivationPath: string} | undefined
-      let identityIndex: number | null = null
-      if (kind === 'identity') {
-        const prepared = await this.prepareIdentityRegistration(walletId, password)
-        credit = prepared.credit
-        identityIndex = prepared.identityIndex
-      }
-      if (kind === 'identityTopUp') {
-        const prepared = await this.prepareIdentityTopUp(walletId, password)
-        credit = prepared.credit
-        identityIndex = prepared.topUpIndex
-      }
+  async markBroadcastingSt(state: AssetLockFundingState, txid: string): Promise<void> {
+    state.phase = 'broadcastingST'
+    await this.assetLockDAO.updateStatus(txid, AssetLockFundingStatus.StBroadcast)
+  }
 
-      state.phase = 'broadcastingL1'
-      const broadcasted = await this.walletService.buildAndBroadcastAssetLock(walletId, amountDuffs, password, credit)
-      txid = broadcasted.txid
-      state.txid = txid
+  async done(state: AssetLockFundingState, txid: string, stHash: string): Promise<void> {
+    state.stHash = stHash
+    state.phase = 'done'
+    await this.assetLockDAO.updateStatus(txid, AssetLockFundingStatus.Done, {stHash})
+  }
 
-      await this.assetLockDAO.insertFunding({
-        walletId,
-        txid,
+  // Builds and broadcasts the L1 lock, records it, then waits for the proof.
+  async acquire(state: AssetLockFundingState, params: AcquireParams): Promise<AcquiredAssetLock> {
+    const {walletId, amountDuffs, seed} = params
+
+    state.phase = 'broadcastingL1'
+    const broadcasted = await this.funder.buildAndBroadcastAssetLock(walletId, amountDuffs, seed, params.credit)
+    state.txid = broadcasted.txid
+
+    await this.assetLockDAO.insertFunding({
+      walletId,
+      txid: broadcasted.txid,
+      outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
+      creditDerivationPath: broadcasted.creditDerivationPath,
+      amountDuffs: amountDuffs.toString(),
+      toPlatformAddress: params.destination,
+      kind: params.kind,
+      status: AssetLockFundingStatus.L1Broadcast,
+      identityIndex: params.identityIndex ?? null,
+      txHex: broadcasted.tx.hex(),
+      createdAt: Math.floor(Date.now() / 1000),
+    })
+
+    const row = await this.assetLockDAO.getActiveFunding(walletId)
+    if (row == null) {
+      throw new Error('Funding record not found after broadcast')
+    }
+
+    const proof = await this.awaitProof(state, row, {tx: broadcasted.tx})
+    return {row, proof}
+  }
+
+  // Waits for the proof of a funding that was already broadcast, rebuilding the
+  // transaction from the stored row.
+  async reacquire(state: AssetLockFundingState, row: AssetLockFundingRow): Promise<AcquiredAssetLock> {
+    return {row, proof: await this.awaitProof(state, row)}
+  }
+
+  private async awaitProof(
+    state: AssetLockFundingState,
+    row: AssetLockFundingRow,
+    live?: {tx: SDKTransaction},
+  ): Promise<AssetLockProofParams> {
+    if (row.assetLockProof != null) {
+      this.applyLockKind(state, row.assetLockProof)
+      return row.assetLockProof
+    }
+
+    const wallet = await this.walletDAO.getWalletById(row.walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    const network = wallet.network
+
+    state.phase = 'waitingChainLock'
+
+    const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
+    if (tx == null) {
+      throw new Error('Funding record is missing the asset lock transaction')
+    }
+
+    const resolved = await this.waitForAssetLockProof(tx, row.txid, network)
+
+    let proof: AssetLockProofParams
+    if (resolved.type === 'instantLock') {
+      proof = {type: 'instantLock', instantLock: resolved.instantLock, transaction: resolved.transaction}
+    } else {
+      // The worker rebuilds the outpoint from the row, the proof carries the
+      // txid the SDK read off the transaction. Equal in display order — a
+      // mismatch means one side holds wire order, which would silently prove
+      // against the wrong outpoint.
+      if (resolved.txid !== row.txid) {
+        throw new Error(`Asset lock proof txid ${resolved.txid} does not match the funding record ${row.txid}`)
+      }
+      proof = {type: 'chainLock', coreChainLockedHeight: resolved.coreChainLockedHeight}
+    }
+
+    this.applyLockKind(state, proof)
+    await this.assetLockDAO.saveProof(row.txid, proof)
+    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
+
+    return proof
+  }
+
+  private applyLockKind(state: AssetLockFundingState, proof: AssetLockProofParams): void {
+    state.lockKind = proof.type === 'instantLock' ? 'instant' : 'chain'
+    if (proof.type === 'chainLock') {
+      state.chainLockedHeight = proof.coreChainLockedHeight
+    }
+  }
+
+  // Races the instant lock (our own p2p pool) against the chain lock (DAPI
+  // polling, because chain-lock events can be missed). First to resolve wins.
+  private async waitForAssetLockProof(
+    assetLockTx: SDKTransaction,
+    txid: string,
+    network: Network,
+  ): Promise<InstantAssetLockProofParams | ChainAssetLockProofParams> {
+    let settled = false
+
+    const instantLockRace = async (): Promise<InstantAssetLockProofParams> => {
+      const hex = await this.funder.waitForInstantLock(txid, IDENTITY_LOCK_TIMEOUT_MS)
+      if (settled) throw new Error('cancelled')
+      if (!hex) {
+        // No p2p islock within the window — let chainLockRace settle it.
+        return await new Promise<InstantAssetLockProofParams>(() => {})
+      }
+      const instantLock = InstantLock.fromHex(hex)
+      return coreUtils.createAssetLockProof({
+        transaction: assetLockTx,
+        instantLock,
         outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
-        creditDerivationPath: broadcasted.creditDerivationPath,
-        amountDuffs: amountDuffs.toString(),
-        toPlatformAddress,
-        kind,
-        status: AssetLockFundingStatus.L1Broadcast,
-        identityIndex,
-        txHex: broadcasted.tx.hex(),
-        createdAt: Math.floor(Date.now() / 1000),
-      })
-
-      const row = await this.assetLockDAO.getActiveFunding(walletId)
-      if (row == null) {
-        throw new Error('Funding record not found after broadcast')
-      }
-
-      await this.completeFunding(walletId, row, password, state, {tx: broadcasted.tx, inputAddresses: broadcasted.inputAddresses})
-    } catch (error) {
-      await this.failState(state, txid, error)
-    }
-  }
-
-  private async prepareIdentityRegistration(walletId: string, password: string): Promise<{identityIndex: number; credit: {address: string; derivationPath: string}}> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    const network = wallet.network
-    let mnemonic: string
-    try {
-      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
+      }) as InstantAssetLockProofParams
     }
 
-    const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
-    const identityIndex = await this.identityRegistrationService.findNextIdentityIndex(mnemonic, startIndex, network)
+    const chainLockRace = async (): Promise<ChainAssetLockProofParams> => {
+      const sdk = coreSDK(network)
+      const deadline = Date.now() + IDENTITY_LOCK_TIMEOUT_MS
 
-    const registrationKey = await this.identityRegistrationService.deriveRegistrationKey(mnemonic, identityIndex, network)
-    const address = this.sdkProvider.getPlatformSDK(network).keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network)
+      while (Date.now() < deadline) {
+        if (settled) throw new Error('cancelled')
 
-    return {
-      identityIndex,
-      credit: {address, derivationPath: this.identityRegistrationService.registrationKeyPath(identityIndex, network)},
-    }
-  }
+        try {
+          const dapiTx = await sdk.getTransaction(txid)
 
-  private async prepareIdentityTopUp(walletId: string, password: string): Promise<{topUpIndex: number; credit: {address: string; derivationPath: string}}> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    const network = wallet.network
-    let mnemonic: string
-    try {
-      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
-    }
+          if (dapiTx.isChainLocked) {
+            const requiredHeight = dapiTx.height
 
-    const topUpIndex = await this.assetLockDAO.countFundingsByKind(walletId, 'identityTopUp')
-    const fundingKey = await this.identityRegistrationService.deriveTopUpKey(mnemonic, topUpIndex, network)
-    const address = this.sdkProvider.getPlatformSDK(network).keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)
+            while (Date.now() < deadline) {
+              if (settled) throw new Error('cancelled')
 
-    return {
-      topUpIndex,
-      credit: {address, derivationPath: this.identityRegistrationService.topUpKeyPath(topUpIndex, network)},
-    }
-  }
+              try {
+                const {chain} = await this.platform.request('nodeStatus', network, {})
+                const latestHeight = chain?.coreChainLockedHeight
 
-  private async completeFunding(walletId: string, row: AssetLockFundingRow, password: string, state: AssetLockFundingState, live?: {tx: SDKTransaction; inputAddresses: string[]}): Promise<void> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    const network = wallet.network
-    const sdk = this.sdkProvider.getPlatformSDK(network)
+                if (latestHeight != null && latestHeight >= requiredHeight) {
+                  return coreUtils.createAssetLockProof({
+                    transaction: assetLockTx,
+                    coreChainLockedHeight: dapiTx.height,
+                    outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
+                  }) as ChainAssetLockProofParams
+                }
+              } catch {
+                // Platform node status unavailable — keep polling until deadline.
+              }
 
-    if (row.kind === 'identity' || row.kind === 'identityTopUp') {
-      return this.completeIdentityFunding(wallet, row, password, state, live)
-    }
-
-    state.phase = 'waitingChainLock'
-
-    const decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    const seed = sdk.keyPair.mnemonicToSeed(decryptedMnemonic)
-
-    const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
-    if (tx == null) {
-      throw new Error('Funding record is missing the asset lock transaction')
-    }
-
-    let watchAddresses = live?.inputAddresses
-    if (watchAddresses == null) {
-      const hdKey = sdk.keyPair.seedToHdKey(seed, network)
-      const derived = await sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
-      if (!derived.privateKey) {
-        throw new Error('Failed to derive the asset lock credit key')
-      }
-      const creditKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
-      watchAddresses = [sdk.keyPair.p2pkhAddress(creditKey.getPublicKey().bytes(), network)]
-    }
-
-    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(
-      tx, row.txid, watchAddresses, network, undefined, undefined,
-      (txid, timeoutMs) => this.walletService.waitForInstantLock(txid, timeoutMs),
-    )
-    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
-    if (assetLockProof.type === 'chainLock') {
-      state.chainLockedHeight = assetLockProof.coreChainLockedHeight
-    }
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
-
-    state.phase = 'broadcastingST'
-
-    const stHash = row.kind === 'shielded'
-      ? await this.broadcastShieldSt(row, seed, network, assetLockProof)
-      : await this.broadcastAddressFundingSt(row, seed, network, assetLockProof)
-
-    state.stHash = stHash
-    state.phase = 'done'
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
-  }
-
-  private async broadcastAddressFundingSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, assetLockProof: AssetLockProof): Promise<string> {
-    const sdk = this.sdkProvider.getPlatformSDK(network)
-    const hdKey = sdk.keyPair.seedToHdKey(seed, network)
-    const derived = await sdk.keyPair.derivePath(hdKey, row.creditDerivationPath)
-    if (!derived.privateKey) {
-      throw new Error('Failed to derive the asset lock credit key')
-    }
-    const creditKey = PrivateKeyWASM.fromBytes(derived.privateKey as Uint8Array, network)
-
-    const proof = assetLockProof.type === 'instantLock'
-      ? AssetLockProofWASM.createInstantAssetLockProof(coreUtils.hexToBytes(assetLockProof.instantLock), coreUtils.hexToBytes(assetLockProof.transaction), assetLockProof.outputIndex)
-      : AssetLockProofWASM.createChainAssetLockProof(assetLockProof.coreChainLockedHeight, new OutPointWASM(row.txid, row.outputIndex))
-
-    const unsignedSt = sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
-      assetLockProof: proof,
-      inputs: [],
-      feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
-      inputWitness: [],
-      outputs: [new OutputAddressNullableCreditsWASM(row.toPlatformAddress)],
-      userFeeIncrease: 0,
-    })
-
-    const transition = AddressFundingFromAssetLockTransitionWASM.fromStateTransition(unsignedSt)
-    transition.signature = creditKey.sign(unsignedSt.getSignableBytes())
-    const signedSt = transition.toStateTransition()
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
-
-    await sdk.stateTransitions.broadcast(signedSt)
-    await sdk.stateTransitions.waitForStateTransitionResult(signedSt)
-
-    return signedSt.hash(false)
-  }
-
-  private async broadcastShieldSt(row: AssetLockFundingRow, seed: Uint8Array, network: Network, assetLockProof: AssetLockProof): Promise<string> {
-    const surplus = await this.sdkProvider.getPlatformSDK(network).keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
-
-    return this.shieldedService.shieldFromAssetLock(network, seed, {
-      txid: row.txid,
-      outputIndex: row.outputIndex,
-      assetLockProof: assetLockProof.type === 'instantLock'
-        ? {type: 'instantLock', instantLock: assetLockProof.instantLock, transaction: assetLockProof.transaction}
-        : {type: 'chainLock', coreChainLockedHeight: assetLockProof.coreChainLockedHeight},
-      creditDerivationPath: row.creditDerivationPath,
-      recipient: row.toPlatformAddress,
-      shieldAmountCredits: shieldAmountFromLockedDuffs(BigInt(row.amountDuffs)),
-      surplusAddress: surplus.toBech32m(network),
-    })
-  }
-
-  private async completeIdentityFunding(wallet: Wallet, row: AssetLockFundingRow, password: string, state: AssetLockFundingState, live?: {tx: SDKTransaction; inputAddresses: string[]}): Promise<void> {
-    const network = wallet.network
-    const sdk = this.sdkProvider.getPlatformSDK(network)
-    if (row.identityIndex == null) {
-      throw new Error('Funding record is missing the identity index')
-    }
-
-    let mnemonic: string
-    try {
-      mnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      throw new Error('Invalid wallet password')
-    }
-    const fundingKey = row.kind === 'identityTopUp'
-      ? await this.identityRegistrationService.deriveTopUpKey(mnemonic, row.identityIndex, network)
-      : await this.identityRegistrationService.deriveRegistrationKey(mnemonic, row.identityIndex, network)
-
-    state.phase = 'waitingChainLock'
-
-    const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
-    if (tx == null) {
-      throw new Error('Funding record is missing the asset lock transaction')
-    }
-    const watchAddresses = live?.inputAddresses ?? [sdk.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network)]
-    const assetLockProof = await this.identityRegistrationService.waitForAssetLockProof(
-      tx, row.txid, watchAddresses, network, undefined, undefined,
-      (txid, timeoutMs) => this.walletService.waitForInstantLock(txid, timeoutMs),
-    )
-    state.lockKind = assetLockProof.type === 'instantLock' ? 'instant' : 'chain'
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
-
-    state.phase = 'broadcastingST'
-
-    if (row.kind === 'identityTopUp') {
-      const stateTransition = this.identityRegistrationService.buildIdentityTopUpTransition(row.toPlatformAddress, fundingKey, assetLockProof, network)
-      const stHash = stateTransition.hash(false)
-
-      await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
-
-      let alreadyOnPlatform = false
-      try {
-        await sdk.stateTransitions.broadcast(stateTransition)
-      } catch (e) {
-        if (this.isAlreadyInChain(e)) {
-          alreadyOnPlatform = true
-        } else {
-          throw e
+              await coreUtils.wait(IDENTITY_LOCK_POLL_INTERVAL_MS)
+            }
+          }
+        } catch {
+          // Asset lock tx not yet visible on DAPI — keep polling until deadline.
         }
+
+        await coreUtils.wait(IDENTITY_LOCK_POLL_INTERVAL_MS)
       }
-      if (!alreadyOnPlatform) {
-        await sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
-      }
 
-      state.identityIdentifier = row.toPlatformAddress
-      state.stHash = stHash
-      state.phase = 'done'
-
-      await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
-      return
+      throw new Error(`Timed out waiting for asset lock proof on transaction ${txid} after ${Math.round(IDENTITY_LOCK_TIMEOUT_MS / 1000)}s`)
     }
 
-    const identityKeys = await this.identityRegistrationService.deriveIdentityKeys(mnemonic, row.identityIndex, network)
-    const stateTransition = this.identityRegistrationService.buildIdentityCreateTransition(identityKeys, fundingKey, assetLockProof, network)
-
-    const identifier = stateTransition.getOwnerId()?.base58()
-    if (identifier == null || identifier === '') {
-      throw new Error('Could not derive identity identifier from state transition')
-    }
-    const stHash = stateTransition.hash(false)
-
-    // Persist before broadcasting so a crash leaves a recoverable record. Roll
-    // back on a non-idempotent broadcast failure so local state never holds a
-    // phantom identity. A pre-existing record (a previous attempt) is treated
-    // as recovery.
-    const coinType = COIN_TYPE[network]
-    const existing = await this.identityDAO.getByIdentifier(wallet.walletId, identifier)
-    let wasJustCreated = false
-    if (existing == null) {
-      await this.identityDAO.insertIdentity({
-        walletId: wallet.walletId,
-        identityIndex: row.identityIndex,
-        identifier,
-        derivationPath: `m/9'/${coinType}'/0'/0/${row.identityIndex}`,
-      }, row.txid)
-      wasJustCreated = true
-    }
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.StBroadcast)
-
-    let alreadyOnPlatform = false
     try {
-      await sdk.stateTransitions.broadcast(stateTransition)
-    } catch (e) {
-      if (this.isAlreadyInChain(e)) {
-        alreadyOnPlatform = true
-      } else {
-        if (wasJustCreated) {
-          await this.identityDAO.removeIdentity(wallet.walletId, identifier)
-        }
-        throw e
-      }
+      return await Promise.race([instantLockRace(), chainLockRace()])
+    } finally {
+      settled = true
     }
-
-    if (!alreadyOnPlatform) {
-      await sdk.stateTransitions.waitForStateTransitionResult(stateTransition)
-    }
-
-    state.identityIdentifier = identifier
-    state.stHash = stHash
-    state.phase = 'done'
-
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Done, {stHash})
-  }
-
-  private isAlreadyInChain(e: unknown): boolean {
-    const message = e instanceof Error ? e.message : String(e ?? '')
-    return message.includes(ALREADY_IN_CHAIN_MESSAGE)
   }
 }

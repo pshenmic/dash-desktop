@@ -1,11 +1,12 @@
 import {SyncService} from './SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
+import {MB} from './constants'
 
-// Diagnostic: surface anything that would otherwise silently kill the
-// utility process. Without these the parent only sees `exit code=1`
-// with no clue about the cause. We log (captured by the parent's stderr
-// tail) AND forward to the parent as an `error` event so the cause is
-// recorded centrally even when no one is watching the terminal.
+process.title = 'dash-p2p'
+
+// Without these the parent sees only `exit code=1` with no cause. Logged (for
+// the parent's stderr tail) *and* forwarded as an `error` event, so the cause
+// is recorded even when no one is watching the terminal.
 function reportFatal(label: string, value: unknown): void {
   const detail = value instanceof Error ? (value.stack ?? value.message) : String(value)
   console.error(`[p2p] ${label}:`, value)
@@ -22,10 +23,8 @@ process.on('unhandledRejection', (reason) => {
   reportFatal('unhandledRejection', reason)
 })
 
-// Utility-process entry. Pure IPC adapter — every concern (chain.db,
-// peer pool, header/cfilter workers, status aggregation) lives in
-// SyncService and below. This file exists only to bridge parentPort
-// messages to/from SyncService method calls.
+// Pure IPC adapter — every concern lives in SyncService and below. Keep logic
+// out of this file.
 
 declare const process: NodeJS.Process & {
   parentPort: {
@@ -39,13 +38,15 @@ const sync = new SyncService({
   blockApplied: block => process.parentPort.postMessage({type: 'blockApplied', block}),
   cursorAdvanced: (walletId, height) =>
     process.parentPort.postMessage({type: 'cursorAdvanced', walletId, height}),
+  cursorReset: (walletId, height) =>
+    process.parentPort.postMessage({type: 'cursorReset', walletId, height}),
   error: message => process.parentPort.postMessage({type: 'error', message}),
   broadcastResult: (requestId, ok, result, errorMessage) =>
     process.parentPort.postMessage({type: 'broadcastResult', requestId, ok, result, errorMessage}),
-  txInstantLocked: (walletId, txid, islockHex) =>
-    process.parentPort.postMessage({type: 'txInstantLocked', walletId, txid, islockHex}),
-  chainLocked: (walletId, height) =>
-    process.parentPort.postMessage({type: 'chainLocked', walletId, height}),
+  txInstantLocked: (txid, islockHex) =>
+    process.parentPort.postMessage({type: 'txInstantLocked', txid, islockHex}),
+  chainLocked: (network, height) =>
+    process.parentPort.postMessage({type: 'chainLocked', network, height}),
 })
 
 process.parentPort.on('message', ({data}) => {
@@ -53,6 +54,12 @@ process.parentPort.on('message', ({data}) => {
     case 'start':
       console.log(data)
       sync.start(data).catch(err => {
+        const message = err instanceof Error ? err.message : String(err)
+        process.parentPort.postMessage({type: 'error', message})
+      })
+      return
+    case 'listen':
+      sync.listen(data).catch(err => {
         const message = err instanceof Error ? err.message : String(err)
         process.parentPort.postMessage({type: 'error', message})
       })
@@ -78,3 +85,12 @@ process.parentPort.on('message', ({data}) => {
 
 // Push the initial 'idle' state to the parent.
 process.parentPort.postMessage({type: 'status', status: sync.getStatus()})
+
+setInterval(() => {
+  const m = process.memoryUsage()
+  console.log(
+    `[p2p-mem] rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +
+    `heapTotal=${(m.heapTotal / MB).toFixed(0)}MB external=${(m.external / MB).toFixed(0)}MB ` +
+    `arrayBuffers=${(m.arrayBuffers / MB).toFixed(0)}MB`,
+  )
+}, 60_000).unref()

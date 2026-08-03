@@ -1,3 +1,13 @@
+export interface InsightUTXO {
+  txid: string
+  vout: number
+  address: string
+  scriptPubKey: string
+  satoshis: number
+  height: number
+  confirmations: number
+}
+
 export interface InputWalletProviderJSON {
   txid: string,
   vout: number,

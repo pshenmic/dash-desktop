@@ -2,45 +2,38 @@ import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import {ChainStorageFilename, HomeFolderName} from '../constants'
+import {ChainStorageFilename, HomeFolderName, LOCK_WATCH_TTL_MS} from '../constants'
 import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
+import {
+  CHILD_OUTPUT_TAIL_LIMIT,
+  PERSIST_ATTEMPTS,
+  PERSIST_RETRY_MS,
+  REBROADCAST_INTERVAL_MS,
+} from '../constants'
 import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
-import {BroadcastResult} from '../../p2p/types/broadcast'
+import {BroadcastPolicyOverrides, BroadcastResult} from '../../p2p/types/broadcast'
 import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
+import {ScanCursorGate} from '../utils/scanCursorGate'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 
-// Cap on the per-child output we retain. The tail is attached to broadcast
-// errors and logged on exit so a worker crash carries its own cause instead
-// of just "code=1".
-const CHILD_OUTPUT_TAIL_LIMIT = 8192
 
-// How often we re-push still-unconfirmed local txs to keep them alive in
-// peer mempools. Absence of confirmation is never proof of failure (Dash has
-// no reject message), so we keep rebroadcasting until a block / lock settles
-// the tx rather than timing it out.
-const REBROADCAST_INTERVAL_MS = 60_000
-
-// Main-process facade for wallet sync. Forks the p2p utility process,
-// translates wallet-domain calls into the internal P2P protocol, and
-// persists per-block effects (transactions, outputs, inputs, cfilter
-// cursor) through TransactionDAO. The utility process is now strictly
-// stateless w.r.t. wallet data — it gets seedUtxos + cfilterCursor in
-// the start command and emits blockApplied / cursorAdvanced events back
-// for SQL persistence here.
+// Main-process facade for wallet sync: forks the p2p utility process and
+// persists the per-block effects it emits through TransactionDAO. The utility
+// process holds no wallet state — it receives seedUtxos + cfilterCursor in the
+// start command and sends blockApplied / cursorAdvanced back for SQL here.
 export class WalletSyncService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private transactionDAO: TransactionDAO
   private child: UtilityProcess | null = null
-  // Always populated. Before the utility process is forked (and after it
-  // exits) we hold a 'stopped' snapshot — same shape the orchestrator emits
-  // on teardown — so the renderer never sees null.
+  // Holds a 'stopped' snapshot before the fork and after exit, so the renderer
+  // never sees null.
   private status: WalletSyncStatus = {
     phase: 'stopped',
     network: null,
@@ -53,6 +46,7 @@ export class WalletSyncService {
     matchedBlocksPending: 0,
     peerCount: 0,
     filterCapablePeerCount: 0,
+    lockPeerCount: 0,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: Date.now(),
@@ -61,21 +55,32 @@ export class WalletSyncService {
   private activeNetwork: 'mainnet' | 'testnet' | null = null
   // Re-pushes unconfirmed local txs on an interval while a wallet is synced.
   private rebroadcastTimer: ReturnType<typeof setInterval> | null = null
-  // Rolling tail of the utility process' stdout+stderr. Captured so a crash
-  // surfaces its actual cause (uncaughtException stack, V8 fatal, etc.) to the
-  // caller and the main-process log, not just the bare exit code.
+  // Rolling stdout+stderr tail, so a crash carries its own cause instead of a
+  // bare exit code.
   private childOutputTail = ''
-  // Outstanding broadcastTransaction calls keyed by requestId. The utility
-  // process echoes the requestId back in P2PBroadcastResultMessage so we
-  // can resolve the right promise when multiple broadcasts overlap.
+  // Keyed by requestId, which the utility process echoes back, so overlapping
+  // broadcasts resolve the right promise.
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
-  // txid -> serialized isdlock (hex) received over the p2p pool, plus waiters
-  // blocked in waitForInstantLock. Feeds InstantAssetLockProof construction for
-  // shield / asset-lock funding (see IdentityRegistrationService).
+  // txid -> serialized isdlock (hex), feeding InstantAssetLockProof
+  // construction for shield / asset-lock funding.
   private instantLocks = new Map<string, string>()
   private instantLockWaiters = new Map<string, Array<(hex: string) => void>>()
+  // Txids armed for lock capture that SQL does not know are pending yet, held
+  // here so the periodic replace-mode refresh cannot drop them.
+  private armedLockTxids = new Map<string, number>()
+  private lockListenNetwork: 'mainnet' | 'testnet' | null = null
+  // The worker emits cursorAdvanced at the end of every scan regardless of what
+  // landed, so without this the resume marker steps over a block that failed to
+  // reach SQL and its coins are gone until a full resetSync.
+  private cursorGate = new ScanCursorGate()
+  // Sticky: status snapshots arrive wholesale from the utility process and
+  // would otherwise overwrite lastError on the next push.
+  private persistenceError: string | null = null
+  // Serialises block writes, cursor advances and cursor rewinds so they land
+  // in emit order.
+  private persistQueue: Promise<void> = Promise.resolve()
 
   constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
     this.walletDAO = walletDAO
@@ -103,51 +108,24 @@ export class WalletSyncService {
       logChildOutput('p2p', text, true)
     })
 
-    child.on('message', (data: P2PEvent) => {
-      if (data.type === 'status') {
-        this.status = data.status
-      } else if (data.type === 'blockApplied') {
-        this.persistAppliedBlock(data.block)
-      } else if (data.type === 'cursorAdvanced') {
-        this.transactionDAO.advanceCursor(data.walletId, data.height).catch(err =>
-          console.error('[walletSync] advanceCursor failed:', err)
-        )
-      } else if (data.type === 'broadcastResult') {
-        const resolve = this.pendingBroadcasts.get(data.requestId)
-        if (resolve) {
-          this.pendingBroadcasts.delete(data.requestId)
-          resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
-        }
-      } else if (data.type === 'txInstantLocked') {
-        this.recordInstantLock(data.txid, data.islockHex)
-        this.transactionDAO.markInstantLocked(data.walletId, data.txid).catch(err =>
-          console.error('[walletSync] markInstantLocked failed:', err)
-        )
-      } else if (data.type === 'chainLocked') {
-        this.transactionDAO.markChainlockedUpTo(data.walletId, data.height).catch(err =>
-          console.error('[walletSync] markChainlockedUpTo failed:', err)
-        )
-      } else if (data.type === 'error') {
-        console.error('[p2p] utility process error:', data.message)
-      }
-    })
+    child.on('message', (data: P2PEvent) => this.handleP2PEvent(data))
 
     child.on('exit', code => {
       const tail = this.childOutputTail.trim()
       console.log(`[p2p] utility process exited code=${code}`)
       if (tail) console.error(`[p2p] last output before exit:\n${tail}`)
       this.child = null
-      // Fail any in-flight broadcasts — the utility process can no longer
-      // answer them. The pendingBroadcasts entries would otherwise leak
-      // and the caller's promise would hang forever. The captured output tail
-      // is appended so the crash cause travels with the rejection.
+      // The utility process can no longer answer these, and the caller's
+      // promise would hang forever. The output tail rides along so the crash
+      // cause travels with the rejection.
       const crashDetail = tail ? `\n--- p2p output (tail) ---\n${tail}` : ''
       for (const [requestId, resolve] of this.pendingBroadcasts) {
         resolve({
           ok: false,
           result: {
-            txid: '', peersInvited: 0, peersAcked: [], peersPropagated: [],
-            instantLocked: false, rejections: [], durationMs: 0,
+            txid: '', peersInvited: 0, peersAcked: [], peersDelivered: [], peersPropagated: [],
+            instantLocked: false, islockHex: null, lockLatencyMs: null,
+            waitedForLock: false, rejections: [], durationMs: 0,
           },
           errorMessage: `p2p utility process exited (code=${code}) before broadcast ${requestId} completed${crashDetail}`,
         })
@@ -165,6 +143,7 @@ export class WalletSyncService {
         matchedBlocksPending: 0,
         peerCount: 0,
         filterCapablePeerCount: 0,
+        lockPeerCount: 0,
         phaseEtaMs: null,
         lastError: null,
         updatedAt: Date.now(),
@@ -178,12 +157,40 @@ export class WalletSyncService {
     return child
   }
 
+  private handleP2PEvent(data: P2PEvent): void {
+    if (data.type === 'status') {
+      this.status = data.status
+    } else if (data.type === 'blockApplied') {
+      this.persistAppliedBlock(data.block)
+    } else if (data.type === 'cursorAdvanced') {
+      this.enqueuePersist(() => this.advanceCursorGated(data.walletId, data.height))
+    } else if (data.type === 'cursorReset') {
+      this.enqueuePersist(() => this.transactionDAO.resetCursor(data.walletId, data.height))
+    } else if (data.type === 'broadcastResult') {
+      const resolve = this.pendingBroadcasts.get(data.requestId)
+      if (resolve) {
+        this.pendingBroadcasts.delete(data.requestId)
+        resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
+      }
+    } else if (data.type === 'txInstantLocked') {
+      this.transactionDAO.markInstantLocked(data.txid).catch(err =>
+        console.error('[walletSync] markInstantLocked failed:', err)
+      )
+      this.recordInstantLock(data.txid, data.islockHex)
+    } else if (data.type === 'chainLocked') {
+      this.transactionDAO.markChainlockedUpTo(data.network, data.height).catch(err =>
+        console.error('[walletSync] markChainlockedUpTo failed:', err)
+      )
+    } else if (data.type === 'error') {
+      console.error('[p2p] utility process error:', data.message)
+    }
+  }
+
   private send(command: P2PCommand): void {
     this.ensureChild().postMessage(command)
   }
 
-  // Poll the locally-cached status until the utility process reports the given
-  // phase, or the timeout elapses. Used by shutdown to confirm chain.db closed.
+  // Used by shutdown to confirm chain.db closed before the process is killed.
   private async waitForPhase(phase: WalletSyncStatus['phase'], timeoutMs: number): Promise<void> {
     const start = Date.now()
     while (this.status.phase !== phase && Date.now() - start < timeoutMs) {
@@ -191,10 +198,9 @@ export class WalletSyncService {
     }
   }
 
-  // Returns ack only — phase progression streams via getStatus, not the
-  // return value. Returning a status snapshot here gave the renderer the
-  // stale 'stopped' state because the utility process hadn't yet emitted
-  // its 'connecting' update.
+  // Ack only: returning a status snapshot here handed the renderer a stale
+  // 'stopped', because the utility process had not yet emitted 'connecting'.
+  // Phase progression streams via getStatus instead.
   startSync = async (walletId: string): Promise<QueryStatus> => {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) {
@@ -206,14 +212,16 @@ export class WalletSyncService {
       this.send({ type: 'stop' })
     }
 
-    // Per-wallet sync: only this wallet's addresses go into the watch set.
-    // SQL holds wallet-scoped state; chain.db holds only network-shared
-    // headers + filter chain.
+    // Only this wallet's addresses go into the watch set.
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const watchAddresses = [...grouped.receiving, ...grouped.change].map(a => a.address)
 
     this.activeWalletId = walletId
     this.activeNetwork = network
+    // The persisted cursor is already capped below any gap, so this scan
+    // re-covers it — the previous session's failures stop applying here.
+    this.cursorGate.clear(walletId)
+    if (!this.cursorGate.hasFailures()) this.persistenceError = null
     this.startRebroadcastLoop()
     // Seed the worker's in-memory spend-detection map from SQL.
     const seedUtxos = await this.transactionDAO.getUtxos(walletId)
@@ -251,27 +259,14 @@ export class WalletSyncService {
     this.activeWalletId = null
   }
 
-  // Hot-add of newly created wallet addresses. No-op when no p2p child is
-  // running OR when the active sync is for a different wallet — utility
-  // process gates on walletId match.
+  // Rewinding the cursor to genesis re-matches history against the new
+  // addresses, and is skipped only when one is provably fresh: forwardOnly
+  // (just derived at the frontier, never published) or the persisted
+  // initial-scan latch (first full scan done and gap discovery converged).
   //
-  // Rewind policy: re-matching historical filters against the new addresses
-  // (rewind cursor to genesis) is only needed when a re-derived address may
-  // carry past on-chain activity — i.e. while restoring/catching up. Two
-  // cases skip the rewind because the address is provably fresh:
-  //   - forwardOnly: the caller just derived the address at the frontier
-  //     (next-address / runtime gap fill), so it has never been published.
-  //   - initial scan complete: the wallet has finished its first full scan AND
-  //     gap-limit discovery has converged (see WalletService.runCoreDiscovery),
-  //     so the watch set is stable and anything derived now can only be new.
-  //     This is persistent, so it also holds during the connecting/header-sync
-  //     window right after login and stops a relogin from rewinding to genesis.
-  //
-  // We deliberately do NOT skip on the live 'synced' phase alone: during a
-  // restore the scan can reach the tip and flip to 'synced' at the exact
-  // moment the final gap batch is derived — those addresses may still carry
-  // pre-tip history, so they must trigger the rewind. Only convergence (the
-  // persisted latch) is a safe signal.
+  // The live 'synced' phase is deliberately not a skip signal: during a restore
+  // the scan can hit the tip and flip to 'synced' exactly as the final gap batch
+  // is derived, and those addresses may still carry pre-tip history.
   addWatchAddresses = async (
     walletId: string,
     addresses: string[],
@@ -287,18 +282,23 @@ export class WalletSyncService {
     const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
 
     if (rewindToHeight != null) {
-      await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+      // Through the persist queue: applied directly, a cursorAdvanced enqueued
+      // before this rewind would run after it, and advanceCursor's MAX would
+      // swallow the reset.
+      await this.enqueuePersist(() => this.transactionDAO.resetCursor(walletId, rewindToHeight))
     }
     if (!this.child) return
     this.send({type: 'addWatchAddresses', walletId, addresses, rewindToHeight})
   }
 
   getStatus = (): WalletSyncStatus => {
-    return this.status
+    if (this.persistenceError == null) return this.status
+    return {...this.status, lastError: this.persistenceError}
   }
 
   private recordInstantLock(txid: string, islockHex: string): void {
     this.instantLocks.set(txid, islockHex)
+    this.disarmLockWatch(txid)
     const waiters = this.instantLockWaiters.get(txid)
     if (waiters) {
       this.instantLockWaiters.delete(txid)
@@ -306,10 +306,32 @@ export class WalletSyncService {
     }
   }
 
-  // Resolve with the serialized isdlock (hex) for a locally-broadcast txid,
-  // received over the p2p pool — or null if none arrives within timeoutMs.
-  // The tx must be in the worker's watch set (broadcastTransaction/watchTxs)
-  // for the lock to be captured.
+  // The worker's set only shrinks when we reinstall it, and the periodic
+  // refresh belongs to the rebroadcast loop, which rpc mode never starts.
+  private disarmLockWatch(txid: string): void {
+    if (!this.armedLockTxids.delete(txid)) return
+    this.refreshWatchedTxids().catch(err =>
+      console.error('[walletSync] refreshWatchedTxids failed:', err))
+  }
+
+  // Runs in both connection modes: an rpc-mode wallet still needs InstantSend
+  // locks for asset-lock funding, and nothing else listens for them.
+  startLockListen = (network: 'mainnet' | 'testnet'): void => {
+    if (this.lockListenNetwork === network && this.child) return
+    this.lockListenNetwork = network
+    this.send({type: 'listen', network})
+  }
+
+  // Arm lock capture for a txid. Without this the utility process never issues
+  // the getdata an ISDLOCK inv requires, so the lock is seen and dropped.
+  watchForInstantLock = (txid: string): void => {
+    if (!this.child) return
+    this.armedLockTxids.set(txid, Date.now())
+    this.send({type: 'watchTxs', mode: 'add', txids: [txid]})
+  }
+
+  // Null if no isdlock arrives within timeoutMs. The tx must have been armed
+  // (watchForInstantLock / broadcastTransaction) for the lock to be captured.
   waitForInstantLock = (txid: string, timeoutMs: number): Promise<string | null> => {
     const cached = this.instantLocks.get(txid)
     if (cached) return Promise.resolve(cached)
@@ -328,7 +350,10 @@ export class WalletSyncService {
         resolve(hex)
       }
       const onLock = (hex: string): void => finish(hex)
-      const timer = setTimeout(() => finish(null), timeoutMs)
+      const timer = setTimeout(() => {
+        this.disarmLockWatch(txid)
+        finish(null)
+      }, timeoutMs)
       timer.unref?.()
       const arr = this.instantLockWaiters.get(txid) ?? []
       arr.push(onLock)
@@ -336,20 +361,58 @@ export class WalletSyncService {
     })
   }
 
+  hasInstantLock = (txid: string): boolean => this.instantLocks.has(txid)
+
   isSyncedFor(walletId: string): boolean {
     return this.status.phase === 'synced' && this.status.walletId === walletId
   }
 
-  private persistAppliedBlock = (block: AppliedBlock, attempt = 0): void => {
-    this.transactionDAO.applyBlock(block).then(() => {
-      if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
-    }).catch(err => {
-      if (attempt < 2) {
-        setTimeout(() => this.persistAppliedBlock(block, attempt + 1), 1_000)
-      } else {
+  // One queue for all cursor and block writes: cursorAdvanced lands right
+  // after the scan's last blockApplied, and overtaking an in-flight or
+  // retrying write would move the resume marker past data that never landed.
+  // Returns the task's own settlement so a caller can order on it; the queue
+  // tail swallows the rejection either way.
+  private enqueuePersist(task: () => Promise<void>): Promise<void> {
+    const run = this.persistQueue.catch(() => undefined).then(task)
+    this.persistQueue = run.catch(err => console.error('[walletSync] persist task failed:', err))
+    return run
+  }
+
+  private persistAppliedBlock = (block: AppliedBlock): void => {
+    this.enqueuePersist(() => this.writeAppliedBlock(block))
+  }
+
+  private async writeAppliedBlock(block: AppliedBlock): Promise<void> {
+    for (let attempt = 0; attempt < PERSIST_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, PERSIST_RETRY_MS))
+      try {
+        const advanceCursor = this.cursorGate.allowsBlockCursor(block.walletId, block.height)
+        await this.transactionDAO.applyBlock(block, {advanceCursor})
+        this.cursorGate.succeed(block.walletId, block.height)
+        if (!this.cursorGate.hasFailures()) this.persistenceError = null
+        if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
+        return
+      } catch (err) {
+        if (attempt < PERSIST_ATTEMPTS - 1) continue
+        this.cursorGate.fail(block.walletId, block.height)
+        const message = err instanceof Error ? err.message : String(err)
+        const heldAt = this.cursorGate.lowestFailed(block.walletId)! - 1
+        this.persistenceError =
+          `Block ${block.height} could not be saved (${message}). Sync is held at height ${heldAt} ` +
+          'and will rescan from there on the next start.'
         console.error(`[walletSync] applyBlock failed permanently at h=${block.height}:`, err)
       }
-    })
+    }
+  }
+
+  // Never past the lowest height whose write failed: everything the cursor
+  // passes is skipped by the next scan.
+  private async advanceCursorGated(walletId: string, height: number): Promise<void> {
+    const target = this.cursorGate.allowedHeight(walletId, height)
+    if (target == null) return
+    await this.transactionDAO.advanceCursor(walletId, target).catch(err =>
+      console.error('[walletSync] advanceCursor failed:', err)
+    )
   }
 
   private notifyWalletActivity(walletId: string): void {
@@ -366,17 +429,19 @@ export class WalletSyncService {
     return cursor !== null
   }
 
-  // Broadcast a signed transaction over the active peer pool. Requires
-  // startSync to have been called (the utility process owns the pool).
-  // The retry / timeout / ack policy is hardcoded in
-  // p2p/constants.BROADCAST_POLICY — callers pass only the tx hex.
-  broadcastTransaction = async (txHex: string): Promise<BroadcastResult> => {
+  // The only way a locally-signed transaction reaches the network, in both
+  // connection modes: it goes over the lock pool, which is also the only pool
+  // that can hear the resulting isdlock. Defaults come from
+  // p2p/constants.BROADCAST_POLICY; `policy` overrides the lock knobs.
+  broadcastTransaction = async (txHex: string, policy?: BroadcastPolicyOverrides): Promise<BroadcastResult> => {
+    // Re-forks the utility process if it died since the last send.
+    if (this.lockListenNetwork) this.startLockListen(this.lockListenNetwork)
     if (!this.child) {
-      throw new Error('broadcastTransaction: p2p utility process not started — call startWalletSync first')
+      throw new Error('broadcastTransaction: p2p transport not started — no wallet selected')
     }
     const requestId = randomUUID()
-    await this.pushWatchedTxids(txidFromHex(txHex)).catch(err =>
-      console.error('[walletSync] pushWatchedTxids failed:', err))
+    const txid = txidFromHex(txHex)
+    if (txid) this.watchForInstantLock(txid)
     const result = await new Promise<BroadcastResult>((resolve, reject) => {
       this.pendingBroadcasts.set(requestId, ({ok, result, errorMessage}) => {
         if (ok) {
@@ -387,23 +452,26 @@ export class WalletSyncService {
           reject(err)
         }
       })
-      this.send({type: 'broadcast', requestId, txHex})
+      this.send({type: 'broadcast', requestId, txHex, policy})
     })
 
-    // The tx reached at least one peer — optimistically record the spend so
-    // the UTXO set reflects it immediately. The cfilter scan reconciles it on
-    // confirmation; the rebroadcast loop keeps it alive meanwhile. Best-effort:
-    // a record failure must not turn a successful broadcast into an error.
-    if (this.activeWalletId && (result.peersAcked.length > 0 || result.peersPropagated.length > 0)) {
+    // A lock observed inside the session reaches the cache here; the watcher's
+    // txInstantLocked event is the other path and either may land first.
+    if (result.islockHex) this.recordInstantLock(result.txid, result.islockHex)
+
+    // Recorded optimistically so the UTXO set reflects the spend immediately;
+    // the cfilter scan reconciles it on confirmation. Best-effort — a record
+    // failure must not turn a successful broadcast into an error.
+    if (this.activeWalletId && result.peersDelivered.length > 0) {
       await this.recordOptimisticSpend(this.activeWalletId, txHex).catch(err =>
         console.error('[walletSync] recordOptimisticSpend failed:', err))
     }
     return result
   }
 
-  // Manually abandon a stuck unconfirmed tx, freeing its inputs to be respent.
-  // The caller accepts the (small) risk the tx still confirms later — there is
-  // no way to prove a broadcast tx failed short of a confirmed conflict.
+  // Frees the inputs to be respent. The caller accepts the risk the tx still
+  // confirms later — short of a confirmed conflict there is no way to prove a
+  // broadcast failed.
   abandonTransaction = async (walletId: string, txid: string): Promise<void> => {
     await this.transactionDAO.abandonTransaction(walletId, txid)
   }
@@ -425,36 +493,42 @@ export class WalletSyncService {
     this.rebroadcastTimer = null
   }
 
-  // Re-push every still-unconfirmed local tx so poor propagation / mempool
-  // eviction doesn't silently drop it while it waits for a block. Instant-
-  // locked txs are final and skipped.
+  // Guards against poor propagation and mempool eviction silently dropping a tx
+  // while it waits for a block. Instant-locked txs are final and skipped.
   private async rebroadcastPending(): Promise<void> {
     if (!this.activeWalletId || !this.child) return
     const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
-    const watch: string[] = []
     for (const p of pending) {
       if (p.instantLocked) continue
-      watch.push(p.txid)
       const hex = Buffer.from(p.raw).toString('hex')
       this.broadcastTransaction(hex).catch(() => { /* best-effort re-push */ })
     }
-    // Refresh the worker's isdlock watch set (covers the "all confirmed →
-    // stop fetching isdlocks" case, where no broadcast fires above).
-    this.send({type: 'watchTxs', walletId: this.activeWalletId, txids: watch})
+    await this.refreshWatchedTxids()
   }
 
-  // Tell the worker which unconfirmed local txids to watch for an isdlock.
-  private async pushWatchedTxids(extraTxid?: string): Promise<void> {
-    if (!this.activeWalletId || !this.child) return
-    const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
-    const txids = pending.filter(p => !p.instantLocked).map(p => p.txid)
-    if (extraTxid && !txids.includes(extraTxid)) txids.push(extraTxid)
-    this.send({type: 'watchTxs', walletId: this.activeWalletId, txids})
+  // Reinstall the worker's isdlock watch set: unconfirmed local txs from SQL,
+  // plus txids armed directly. Also covers the "all confirmed → stop fetching
+  // isdlocks" case, where no broadcast fires above.
+  //
+  // Armed entries expire: a tx that never got a lock would otherwise keep the
+  // worker fetching isdlock objects for the life of the process.
+  private async refreshWatchedTxids(): Promise<void> {
+    if (!this.child) return
+    const cutoff = Date.now() - LOCK_WATCH_TTL_MS
+    const txids = new Set<string>()
+    for (const [txid, armedAt] of this.armedLockTxids) {
+      if (armedAt < cutoff) this.armedLockTxids.delete(txid)
+      else txids.add(txid)
+    }
+    if (this.activeWalletId) {
+      const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
+      for (const p of pending) if (!p.instantLocked) txids.add(p.txid)
+    }
+    this.send({type: 'watchTxs', mode: 'replace', txids: [...txids]})
   }
 
-  // Parse a just-broadcast tx and record it as pending: its inputs become
-  // spent (dropping out of getUtxos) and its outputs (incl. change) become
-  // spendable, all before confirmation.
+  // Records a just-broadcast tx as pending: inputs become spent (dropping out
+  // of getUtxos) and outputs including change become spendable, pre-confirmation.
   private async recordOptimisticSpend(walletId: string, txHex: string): Promise<void> {
     const network = this.activeNetwork
     if (!network) return
@@ -499,6 +573,10 @@ export class WalletSyncService {
 
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {
     await this.shutdown()
+    // Queued writes outlive the child: one still retrying here would land after
+    // the wipe, re-creating the cursor at its block's height so the next scan
+    // skips everything below it.
+    await this.persistQueue
     const chainDbPath = path.join(os.homedir(), HomeFolderName, ChainStorageFilename, network)
     await rmWithRetry(chainDbPath)
     await this.transactionDAO.resetSyncDataByNetwork(network)
@@ -510,9 +588,8 @@ export class WalletSyncService {
     const exited = new Promise<void>((resolve) => {
       child.once('exit', () => resolve())
     })
-    // Ask the utility process to close chain.db (release the LevelDB lock)
-    // before we kill it. A hard kill leaves the lock held until the OS reaps
-    // the process, which can block the next launch's open.
+    // A hard kill leaves the LevelDB lock held until the OS reaps the process,
+    // which can block the next launch's open.
     this.send({ type: 'stop' })
     await this.waitForPhase('stopped', 3000)
     child.kill()
@@ -531,6 +608,7 @@ export class WalletSyncService {
       matchedBlocksPending: 0,
       peerCount: 0,
       filterCapablePeerCount: 0,
+      lockPeerCount: 0,
       phaseEtaMs: null,
       lastError: null,
       updatedAt: Date.now(),

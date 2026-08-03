@@ -3,6 +3,7 @@ import os from 'os'
 import path from 'path'
 import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
 import knex, {Knex} from 'knex'
+import {SqliteConnection} from '../types/SqliteConnection'
 import * as migration0000 from '../../migrations/0000_init'
 import * as migration0001 from '../../migrations/0001_identities'
 import * as migration0002 from '../../migrations/0002_transactions'
@@ -16,6 +17,8 @@ import * as migration0009 from '../../migrations/0009_identity_asset_lock'
 import * as migration0010 from '../../migrations/0010_shielded_addresses'
 import * as migration0011 from '../../migrations/0011_shielded_note_ciphertext'
 import * as migration0012 from '../../migrations/0012_wallet_sync_initial_scan'
+import * as migration0013 from '../../migrations/0013_shielded_pool_split'
+import * as migration0014 from '../../migrations/0014_asset_lock_proof'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -31,6 +34,8 @@ const migrations = [
   { name: '0010_shielded_addresses.ts', migration: migration0010 },
   { name: '0011_shielded_note_ciphertext.ts', migration: migration0011 },
   { name: '0012_wallet_sync_initial_scan.ts', migration: migration0012 },
+  { name: '0013_shielded_pool_split.ts', migration: migration0013 },
+  { name: '0014_asset_lock_proof.ts', migration: migration0014 },
 ]
 
 const inlineMigrationSource = {
@@ -95,9 +100,8 @@ export function encryptMnemonic(mnemonic: string, password: string, iterations: 
   return Buffer.concat([iv, salt, iterBuf, ciphertext, tag]).toString('hex')
 }
 
-// Reverse of encryptMnemonic. Throws if the password is wrong (GCM auth
-// tag mismatch) or the blob is shorter than the fixed header — callers
-// translate to user-facing errors.
+// Throws on a wrong password (GCM auth tag mismatch) or a blob shorter than the
+// fixed header; callers translate to user-facing errors.
 export function decryptMnemonic(encryptedHex: string, password: string): string {
   const data = Buffer.from(encryptedHex, 'hex')
 
@@ -116,13 +120,29 @@ export function decryptMnemonic(encryptedHex: string, password: string): string 
   return decrypted.toString('utf8')
 }
 
+// Several writers share one file while getStatus reads it once a second, so
+// lock contention is the expected condition — and both SQLite defaults turn it
+// into a failed write: busy_timeout=0 fails a blocked writer immediately, and
+// the rollback journal lets readers block writers.
+function applyConnectionPragmas (conn: SqliteConnection, done: (err: Error | null, conn: SqliteConnection) => void): void {
+  conn.run('PRAGMA busy_timeout = 5000', err => {
+    if (err) {
+      done(err, conn)
+      return
+    }
+    conn.run('PRAGMA journal_mode = WAL', walErr => done(walErr, conn))
+  })
+}
+
+
 export function getKnex (path?: string): Knex {
   return knex({
     client: 'sqlite3',
     connection: {
       filename: path ?? ':memory:'
     },
-    useNullAsDefault: true
+    useNullAsDefault: true,
+    pool: {afterCreate: applyConnectionPragmas}
   })
 }
 

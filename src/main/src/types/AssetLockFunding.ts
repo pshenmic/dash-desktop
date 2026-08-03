@@ -1,4 +1,4 @@
-import {AssetLockFundingKind} from '../database/AssetLockDAO'
+import {AssetLockFundingKind} from './AssetLock'
 
 export type AssetLockFundingPhase =
   | 'idle'

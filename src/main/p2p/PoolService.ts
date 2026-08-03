@@ -1,41 +1,14 @@
 import {EventEmitter} from 'events'
-import {Message, Messages, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
+import {AddrInfo, Message, Messages, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../src/types'
-import {HEADER_RACE_PEERS, POOL_MAX_SIZE, POOL_REFILL_INTERVAL_MS} from './constants'
+import {POOL_CONNECT_HEADROOM, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS} from './constants'
 
-// Shared peer pool for all workers in the utility process. Tracks ready
-// peers and the +CF subset; re-emits the dash-core-p2p Pool events through
-// a typed EventEmitter so multiple workers can subscribe independently.
-//
-// Workers MUST NOT instantiate their own Pool — having parallel pools
-// fights for the same peer addresses, doubles socket usage, and makes
-// peer-state coordination (which peers serve filters, who's the leader)
-// impossible. One pool, many subscribers.
+// One pool, many subscribers. Workers must not instantiate their own Pool —
+// parallel pools fight for the same peer addresses and make peer-state
+// coordination (who serves filters, who leads a race) impossible.
 
-export interface PoolServiceEventMap {
-  peerconnect: (peer: Peer) => void
-  peerready: (peer: Peer) => void
-  peerdisconnect: (peer: Peer) => void
-  peerversion: (peer: Peer, message: Message & { services?: bigint }) => void
-  peerheaders: (peer: Peer, message: Message & { headers?: Uint8Array[] }) => void
-  peerinv: (peer: Peer, message: Message & { inventory?: Array<{ type: number; hash: Uint8Array }> }) => void
-  peerblock: (peer: Peer, message: Message & { block?: unknown }) => void
-  peercfcheckpt: (peer: Peer, message: Message) => void
-  peercfheaders: (peer: Peer, message: Message) => void
-  peercfilter: (peer: Peer, message: Message) => void
-  peerislock: (peer: Peer, message: Message & { txid?: string }) => void
-  peerisdlock: (peer: Peer, message: Message & { txid?: string }) => void
-  peerclsig: (peer: Peer, message: Message & { height?: number; blockHash?: string }) => void
-  seederror: (err: Error) => void
-}
-
-const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
-  'peerconnect', 'peerready', 'peerdisconnect', 'peerversion',
-  'peerheaders', 'peerinv', 'peerblock',
-  'peercfcheckpt', 'peercfheaders', 'peercfilter',
-  'peerislock', 'peerisdlock', 'peerclsig',
-  'seederror',
-]
+import {PoolServiceEventMap, PoolServiceOptions} from './types/pool'
+import {FORWARDED_EVENTS} from './constants'
 
 export class PoolService extends EventEmitter {
   readonly network: Network
@@ -45,25 +18,44 @@ export class PoolService extends EventEmitter {
   readonly filterCapablePeers = new Set<Peer>()
   readonly peerServices = new WeakMap<Peer, bigint>()
 
+  // Moves rather than copies: Dash Core caps connections per source IP, so two
+  // pools dialling the same nodes means one starves. Half, because only ~1% of
+  // gossiped addresses are live and this pool needs candidates of its own.
+  takeAddresses(): AddrInfo[] {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pool = this.pool as any
+    const addrs = pool._addrs as AddrInfo[]
+    const spare = addrs.filter(addr =>
+      !(addr.hash! in pool._connectedPeers) && addr.retryTime == null)
+    const taken = spare.filter((_, i) => i % 2 === 1)
+    const gone = new Set(taken.map(addr => addr.hash))
+    pool._addrs = addrs.filter((addr: AddrInfo) => !gone.has(addr.hash))
+    return taken
+  }
+
+  private readonly label: string
+  private readonly readyTarget: number
+  private readonly minPeers: number
+  private readonly maxConnections: number
+  private lastReady = -1
+  private stalledFills = 0
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
-  constructor(network: Network) {
+  constructor(network: Network, options: PoolServiceOptions = {}) {
     super()
     this.network = network
     this.messages = new Messages({network} as never)
-    // dnsSeed: true lets us self-bootstrap. relay: true is required for
-    // InstantSend: Dash Core gates ISLOCK/ISDLOCK inv behind the peer's tx-relay
-    // preference (fRelayTxes), so relay: false means we never receive lock inv
-    // and instant-send confirmation can never fire. We do NOT fetch tx bodies
-    // for the mempool inv this lets in — getdata is issued only for CLSIG/
-    // ISDLOCK (SyncService.onPeerInvForLocks) — so the cost is just inv traffic.
+    this.label = options.label ?? 'pool'
+    this.readyTarget = options.readyPeers ?? POOL_READY_PEERS
+    this.minPeers = options.minPeers ?? POOL_MIN_PEERS
+    this.maxConnections = options.maxConnections ?? POOL_MAX_CONNECTIONS
     this.pool = new Pool({
       network,
-      maxSize: POOL_MAX_SIZE,
-      relay: true,
+      maxSize: this.readyTarget,
+      relay: options.relay ?? true,
       messages: this.messages,
-      dnsSeed: true,
+      dnsSeed: options.dnsSeed ?? true,
     } as never)
 
     this.bindForwarders()
@@ -73,17 +65,53 @@ export class PoolService extends EventEmitter {
     this.pool.connect()
     this.refillTimer = setInterval(() => {
       if (this.stopped) return
-      if (this.readyPeers.size < HEADER_RACE_PEERS) {
+      // maxSize caps connections, not ready peers, and dead gossip addresses
+      // hold half-open slots until they time out — so capacity opens wide while
+      // short and clamps back once filled, or dead sockets crowd out live ones.
+      const ready = this.readyPeers.size
+      // A run of ticks with no movement means we have found the network's
+      // ceiling; widening past it just re-dials the same dead addresses.
+      if (ready !== this.lastReady) this.stalledFills = 0
+      this.lastReady = ready
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pool = this.pool as any
+      if (ready < this.minPeers && this.stalledFills < POOL_FILL_STALL_LIMIT) {
+        this.stalledFills++
+        pool.maxSize = this.maxConnections
         const before = this.pool.numberConnected()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(this.pool as any)._fillConnections()
+        pool._fillConnections()
         const after = this.pool.numberConnected()
         if (after > before) {
-          console.log(`[pool] refill connected=${before}->${after} ready=${this.readyPeers.size}`)
+          console.log(`[${this.label}] refill connected=${before}->${after} ready=${ready} known=${pool._addrs.length}`)
         }
+        return
+      }
+
+      // Wide capacity leaves a backlog still shaking hands, so closing the tap
+      // is not enough — the surplus is dropped newest-first to keep the
+      // longest-lived connections.
+      pool.maxSize = this.readyTarget + POOL_CONNECT_HEADROOM
+      if (ready > this.readyTarget) {
+        const surplus = [...this.readyPeers].slice(this.readyTarget)
+        for (const peer of surplus) {
+          this.readyPeers.delete(peer)
+          try { peer.disconnect() } catch { /* already gone */ }
+        }
+        console.log(`[${this.label}] trimmed ${surplus.length} peers ready=${ready}->${this.readyPeers.size}`)
       }
     }, POOL_REFILL_INTERVAL_MS)
     this.refillTimer.unref?.()
+  }
+
+  // Receiving end of takeAddresses — lets the bulk pool skip DNS entirely and
+  // live off what the lock pool found.
+  addAddresses = (addrs: AddrInfo[]): void => {
+    if (addrs.length === 0 || this.stopped) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pool = this.pool as any
+    for (const addr of addrs) pool._addAddr({...addr, hash: undefined})
+    pool._fillConnections()
   }
 
   stop = (): void => {
@@ -99,8 +127,7 @@ export class PoolService extends EventEmitter {
   }
 
   private bindForwarders(): void {
-    // Track ready/+CF state ourselves so workers don't have to duplicate
-    // the bookkeeping. They just read this.readyPeers / filterCapablePeers.
+    // Tracked here so workers just read readyPeers / filterCapablePeers.
     this.pool.on('peerversion', (peer: Peer, message: Message & { services?: bigint }) => {
       const services = message.services ?? 0n
       this.peerServices.set(peer, services)
@@ -110,13 +137,14 @@ export class PoolService extends EventEmitter {
     })
     this.pool.on('peerready', (peer: Peer) => {
       this.readyPeers.add(peer)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      peer.sendMessage((this.messages as any).GetAddr())
     })
     this.pool.on('peerdisconnect', (peer: Peer) => {
       this.readyPeers.delete(peer)
       this.filterCapablePeers.delete(peer)
     })
 
-    // Re-emit every event the Pool emits so workers can subscribe.
     for (const evt of FORWARDED_EVENTS) {
       this.pool.on(evt as string, (...args: unknown[]) => {
         super.emit(evt as string, ...args)
@@ -124,7 +152,6 @@ export class PoolService extends EventEmitter {
     }
   }
 
-  // Typed wrappers — fall back to EventEmitter under the hood.
   override on<K extends keyof PoolServiceEventMap>(event: K, listener: PoolServiceEventMap[K]): this {
     return super.on(event, listener as (...args: unknown[]) => void)
   }

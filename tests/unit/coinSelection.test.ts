@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import {
-  selectCoins,
-  SelectableUtxo,
-  DEFAULT_SELECTION_PARAMS,
-} from '../../src/main/src/utils/coinSelection'
-
+import {selectCoins} from '../../src/main/src/utils/coinSelection'
+import {SelectableUtxo} from '../../src/main/src/types/CoinSelection'
+import {DEFAULT_SELECTION_PARAMS} from '../../src/main/src/constants'
 const ONE_DASH = 100_000_000n
 
 function utxo(satoshis: bigint, n = 0): SelectableUtxo {

@@ -1,14 +1,16 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { AssetLockService } from '../../services/AssetLockService'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
-import { AssetLockFundingKind } from '../../database/AssetLockDAO'
+import { IdentityRegistrationService } from '../../services/IdentityRegistrationService'
+import { PlatformAddressService } from '../../services/PlatformAddressService'
+import { ShieldedService } from '../../services/ShieldedService'
+import {AssetLockFundingKind} from '../../types/AssetLock'
 
 export class StartAssetLockFundingHandler {
-  private assetLockService: AssetLockService
-
-  constructor(assetLockService: AssetLockService) {
-    this.assetLockService = assetLockService
-  }
+  constructor(
+    private readonly platformAddressService: PlatformAddressService,
+    private readonly shieldedService: ShieldedService,
+    private readonly identityRegistrationService: IdentityRegistrationService,
+  ) {}
 
   handle = async (
     _event: IpcMainInvokeEvent,
@@ -18,6 +20,17 @@ export class StartAssetLockFundingHandler {
     password: string,
     kind?: AssetLockFundingKind,
   ): Promise<AssetLockFundingState> => {
-    return this.assetLockService.startFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind ?? 'address')
+    const amount = BigInt(amountDuffs)
+
+    switch (kind ?? 'address') {
+      case 'shielded':
+        return this.shieldedService.startShieldFromL1(walletId, toPlatformAddress, amount, password)
+      case 'identity':
+        return this.identityRegistrationService.startIdentityCreate(walletId, amount, password)
+      case 'identityTopUp':
+        return this.identityRegistrationService.startIdentityTopUp(walletId, toPlatformAddress, amount, password)
+      case 'address':
+        return this.platformAddressService.startFundingFromL1(walletId, toPlatformAddress, amount, password)
+    }
   }
 }

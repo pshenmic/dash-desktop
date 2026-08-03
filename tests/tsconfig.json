@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.node.json",
+  // src/preload/index.d.ts only, not index.ts: tsc skips a .d.ts that shadows a
+  // same-named .ts, and the renderer needs that file's Window augmentation.
+  "include": ["**/*", "../src/main/**/*", "../src/preload/*.d.ts", "../src/renderer/src/**/*"],
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["electron-vite/node", "node"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "baseUrl": "..",
+    "paths": {
+      "@renderer/*": ["src/renderer/src/*"]
+    }
+  }
+}

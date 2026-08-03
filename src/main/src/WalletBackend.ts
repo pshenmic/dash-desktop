@@ -2,7 +2,6 @@ import {calibratePBKDF2Iterations, ensureHomeFolder, getKnex, migrateKnex} from 
 import path from 'path'
 import os from 'os'
 import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
-import { SdkProvider } from './providers/SdkProvider'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
@@ -60,7 +59,9 @@ import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/WalletSyncService'
 import {ShieldedService} from './services/ShieldedService'
+import {PlatformWorkerService} from './services/PlatformWorkerService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
+import {ShieldedPoolDAO} from './database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
@@ -85,10 +86,10 @@ import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
+import {DISCOVERY_INTERVAL_MS} from './constants'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
 
-const DISCOVERY_INTERVAL_MS = 120_000
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -98,8 +99,8 @@ export class WalletBackend {
   private ratesService?: RatesService
   private contactService?: ContactService
   private identityRegistrationService?: IdentityRegistrationService
-  private sdkProvider?: SdkProvider
   private shieldedService?: ShieldedService
+  private readonly platformWorkerService = new PlatformWorkerService()
   private assetLockService?: AssetLockService
 
   private walletDAO?: WalletDAO
@@ -107,11 +108,11 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.sdkProvider || !this.identityRegistrationService) {
+    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
-    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.addressDAO, this.walletSyncService).handle)
+    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.addressDAO, this.walletSyncService, this.shieldedService).handle)
     ipcMain.handle('deleteWallet', new DeleteWalletHandler(this.walletService).handle)
     ipcMain.handle('getAllWallets', new GetAllWalletsHandler(this.walletService).handle)
     ipcMain.handle('selectWallet', new SelectWallet(this.walletService).handle)
@@ -140,9 +141,9 @@ export class WalletBackend {
     ipcMain.handle('transferIdentityCredits', new TransferIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('withdrawIdentityCredits', new WithdrawIdentityCreditsHandler(this.platformAddressService).handle)
     ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformAddressService).handle)
-    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
-    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService).handle)
+    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletService).handle)
@@ -195,20 +196,22 @@ export class WalletBackend {
     const identityDAO = new IdentityDAO(knex)
     const transactionDAO = new TransactionDAO(knex)
     const contactDAO = new ContactDAO(knex)
-    const sdkProvider = new SdkProvider()
-
 
     this.applicationService = new ApplicationService(preferences)
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
-    this.identityRegistrationService = new IdentityRegistrationService(sdkProvider)
-    this.shieldedService = new ShieldedService(sdkProvider, walletDAO, identityDAO, new ShieldedNoteDAO(knex), shieldedAddressDAO, this.identityRegistrationService)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, sdkProvider, calibratedIterations, this.shieldedService)
-    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, sdkProvider, this.shieldedService)
-    this.assetLockService = new AssetLockService(walletDAO, identityDAO, new AssetLockDAO(knex), this.walletService, this.shieldedService, sdkProvider, this.identityRegistrationService)
-    this.sdkProvider = sdkProvider
+    this.platformWorkerService.start()
+
+    // Consumers depend on the asset lock primitive, never the other way round:
+    // WalletService funds the L1 lock, AssetLockService turns it into a proof,
+    // and each consumer settles that proof into its own transition.
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, this.platformWorkerService, calibratedIterations)
+    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, this.platformWorkerService)
+    this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService, this.assetLockService)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService)
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
@@ -216,11 +219,19 @@ export class WalletBackend {
     this.initHandlers()
 
     const walletService = this.walletService
+    const walletSyncService = this.walletSyncService
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
-      if (selected != null) {
-        await walletService.discoverCoreAddresses(selected.walletId)
+      if (selected == null) return
+      // Locks are needed in both connection modes, and this is the only place
+      // that starts listening for them. Re-run on the periodic tick so a lost
+      // utility process is picked back up.
+      try {
+        walletSyncService.startLockListen(selected.network)
+      } catch (err) {
+        console.error('[locks] failed to start lock listener:', err)
       }
+      await walletService.discoverCoreAddresses(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
       walletService.discoverCoreAddresses(walletId).catch(err =>
@@ -235,7 +246,7 @@ export class WalletBackend {
     const fetchShieldedNotes = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
       if (selected != null) {
-        await shieldedService.checkForNewNotes(selected.walletId, selected.network)
+        await shieldedService.prefetchNotes(selected.walletId, selected.network)
       }
     }
     fetchShieldedNotes().catch(err => console.error('[shielded] startup note fetch failed:', err))
@@ -248,6 +259,6 @@ export class WalletBackend {
 
   async shutdown(): Promise<void> {
     await this.walletSyncService?.shutdown()
-    await this.shieldedService?.shutdown()
+    await this.platformWorkerService.shutdown()
   }
 }

@@ -28,17 +28,23 @@ There is no single "is it good" command. A change is verified only when ALL of:
 
 1. `npx tsc --noEmit -p tsconfig.node.json` (main + preload) passes
 2. `npx tsc --noEmit -p tsconfig.web.json` (renderer) passes
-3. `npx vitest run tests/unit` passes
-4. `npx electron-vite build` succeeds
+3. `npx tsc --noEmit -p tests/tsconfig.json` (`tests/`) passes
+4. `npx vitest run` passes
+5. `npx electron-vite build` succeeds
 
 > `electron-vite build` emits many `@fontsource/manrope ... didn't resolve at
 > build time` warnings — these are pre-existing and harmless. Only non-font
 > errors matter.
 
-> **Stale `tests/api/`:** the committed `tests/api/*.test.ts` files are
-> outdated and do NOT compile/pass (they reference deleted modules and an old
-> `WalletService` constructor). Run `vitest run tests/unit`, not the whole
-> suite, until they are fixed or removed. New tests go in `tests/unit/`.
+**Step 3 exists because `tests/` is in neither of the two app projects.** A
+test that passes at runtime can still be type-broken — a string literal where a
+string enum is required, an object literal missing a field the interface gained
+— and vitest will not notice, because it strips types rather than checking
+them. `tests/tsconfig.json` covers `tests/` plus both `src` trees. Being a
+`tsconfig.json` (not a differently-named config) also means editors resolve it
+for test files, so the IDE stops falling back to an ES5 target and reporting
+phantom "BigInt literals are not available" errors.
+
 
 ## Architecture
 
@@ -56,9 +62,11 @@ and TypeScript. Three processes:
   **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied). The
   `src/main/src/api/WalletAPI.ts` file is dead/unused — do not add to it.
 - `src/main/p2p/` — the SPV P2P subsystem runs in a separate **Electron
-  utility process** (forked from `WalletSyncService`). It owns the peer pool,
-  header/cfilter sync, and transaction broadcast. Communicates with the main
-  process by message passing (`p2p/types/messages.ts`).
+  utility process** (forked from `WalletSyncService`). It owns two peer pools —
+  a lock pool that is up in **both** connection modes and a bulk pool that is
+  not, see "Connection modes" below — plus header/cfilter sync and transaction
+  broadcast. Communicates with the main process by message passing
+  (`p2p/types/messages.ts`).
 - `src/main/shielded/` — the shielded (Orchard) subsystem runs in its own
   **Electron utility process** (forked from `ShieldedService`): Halo2 prover,
   note trial-decryption, proof building, ST broadcast. The main-process
@@ -125,11 +133,6 @@ UI: `dash-ui-kit` + Tailwind v4. Extended kit wrappers/icons live in
 5. Renderer wrapper in `src/renderer/src/api/index.ts` (`API` class) + any
    DTO in `src/renderer/src/api/types.ts`.
 
-**IPC value boundary:** `bigint` does not round-trip reliably across the
-structured-clone boundary in every path. Amounts crossing IPC are passed as
-**strings** and converted with `BigInt(...)` inside the handler (see
-`sendTransaction`). Mirror that for new money-carrying channels.
-
 ## Database & migrations
 
 SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,
@@ -162,13 +165,42 @@ implementations based on the `connectionType` preference:
   Implements `getUTXOs` + `broadcastTx` (POST `/tx/send`).
 - **`p2p`** → `P2PWalletProvider`: reads the local SPV SQLite store; broadcast
   routes through the p2p utility process (`WalletSyncService.broadcastTransaction`).
-  **Requires `startWalletSync` to be running** (broadcast needs an open peer
-  pool) and throws `Unimplemented` for `getBlockByHash`.
+  Throws `Unimplemented` for `getBlockByHash`.
 
 Write wallet features against the `WalletProvider` interface so they work in
 both modes. Note `getTransactions` fetches per-address and is de-duped by txid
 in `WalletService` (one tx touches several owned addresses: spent inputs +
 change) — see `dedupeTransactions`.
+
+### The lock pool runs in BOTH modes — `connectionType` does not gate it
+
+The p2p utility process owns **two pools**, and only one of them is a mode:
+
+| Pool | Peers | Carries | Lifetime |
+|---|---|---|---|
+| `lockPool` | relay=**true**, network-scoped | broadcast, InstantSend (`isdlock`) and ChainLock (`clsig`) watching | **always up**, both modes |
+| `bulkPool` | relay=false, dnsSeed=false | headers, cfilters, blocks | `p2p` mode only, via `startWalletSync` |
+
+`startLockListen(network)` is called from `WalletBackend` at boot and
+`WalletService` on wallet select, with **no `connectionType` check**. So the
+child process exists and hears locks even in the default `rpc` mode.
+
+Two consequences that are easy to get wrong:
+
+- **Locally-signed transactions never go out over Insight.** `getProvider()`
+  covers *reads* and third-party broadcast; asset locks bypass it —
+  `WalletService.buildAndBroadcastAssetLock` calls
+  `walletSyncService.broadcastTransaction` directly, in both modes, because the
+  lock pool is the only pool that can hear the resulting `isdlock`.
+- **A tx must be armed before its lock can arrive.** An ISDLOCK inv requires an
+  explicit `getdata`, so `broadcastTransaction` calls `watchForInstantLock(txid)`
+  before sending. A tx nobody armed gets its lock seen and dropped.
+
+Corollary: **never reach for `coreSDK.subscribeToTransactions` for a transaction
+this wallet broadcast.** DAPI is a different network path and does not deliver
+that lock in either mode. Use `WalletService.waitForInstantLock(txid, timeoutMs)`.
+Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have no
+waiter yet — they only feed `markChainlockedUpTo`.
 
 ## Renderer conventions worth knowing
 
@@ -196,3 +228,82 @@ change) — see `dedupeTransactions`.
 - Pure, branch-free logic (coin selection, formatting, validation, dedup, CSV)
   is extracted into `utils/` helpers and unit-tested in `tests/unit/`. Prefer
   that over inlining testable logic into components or services.
+- **No private method that only forwards.** A one-line `private foo(x) { return
+  this.bar.foo(x) }` renames a call for no gain and hides where the work
+  happens — inline it at the two or three call sites instead. Same for a
+  private wrapper that only reshapes what it forwards (`{wallet, seed}` →
+  `{network, seed}`): pass the original type through and read the field where
+  it is used. A method earns its place by adding a branch, a default, a
+  validation, or a name the call site cannot spell itself. This does **not**
+  apply to the `api/` → `services/` → `database/` layering: a service method
+  that forwards to a DAO is the boundary that keeps handlers off the DAOs, and
+  a method implementing a declared interface stays even when its body is one
+  line.
+- **Constants and types never live in the file that uses them.** Every
+  module-level `const` goes in its bundle's `constants.ts`; every `interface` /
+  `type` goes in its bundle's `types/` directory, one file per domain. Do not
+  declare either next to the code that consumes it, however local it looks.
+- **Edit files directly; do not script bulk rewrites.** Reach for a script only
+  when the same mechanical change has to land in more than ~15 files, and then
+  think twice about what it will actually touch before running it — see below.
+
+## Scripted edits
+
+A `perl -pi` / python pass over the tree is a last resort, not a shortcut. It
+edits files nobody read, so its mistakes are invisible until the typechecker
+happens to catch them — and it will not catch a wrong string that still
+compiles. Real failures from one such pass in this repo:
+
+- A regex that moved imports rewrote **`src/renderer`** too, repointing the
+  renderer's own `ShieldedSyncPhase` / `ShieldedProverState` at the
+  main-process copies. `tsconfig.web.json` rejected it, but only because those
+  bundles are separate projects — a same-bundle version of that mistake would
+  have compiled silently.
+- A script that both wrote new files and stripped old ones was re-run after a
+  partial failure, **overwriting hand-corrected files with the original
+  guesses**.
+- Blanket `s/OLD/NEW/g` renames double-prefixed the lines a previous pass had
+  already fixed (`INSIGHT_INSIGHT_BASE_URLS`).
+
+If you do script one:
+
+1. **Scope it to a path** you have actually inspected. Never `src/` when you
+   mean `src/main/src/`.
+2. **Match exact multi-line strings copied out of the file**, not regexes over
+   guessed content, and make a non-match a hard failure that reports the file.
+3. **Make it idempotent, or do not re-run it.** A partial failure means fixing
+   the remainder by hand.
+4. **Diff before believing it.** A green typecheck is not evidence the edit was
+   correct, only that it parses.
+
+## Where constants and types live
+
+Three bundles, each self-contained — **never import constants or types across
+these boundaries** except the existing `platform/` → `src/constants` fee
+constants, which are shared protocol numbers:
+
+| Bundle | Constants | Types |
+|---|---|---|
+| `src/main/src/**` | `src/main/src/constants.ts` | `src/main/src/types/*.ts` |
+| `src/main/p2p/**` | `src/main/p2p/constants.ts` | `src/main/p2p/types/*.ts` |
+| `src/main/platform/**` | `src/main/platform/constants.ts` | `src/main/platform/types/*.ts` |
+
+Type files are named for the domain, not the type (`AssetLock.ts` holds
+`AssetLockFundingRow`, `AssetLockFunder`, `AcquireParams`…). A DAO's row type,
+a service's params, a worker's event map — all of them go here, not beside the
+class.
+
+Four kinds of declaration legitimately stay put, because moving them would
+break something rather than tidy it:
+
+1. **Local aliases into a central type** — `type Payload =
+   PlatformOperations['spend']['payload']` in each operation file. The type is
+   already central; the alias is just shorthand.
+2. **Types inferred from a value in the same file** — `z.infer<typeof Schema>`
+   in `preferences/`, `ReturnType<...>` aliases.
+3. **A type that is the file's whole purpose** — `providers/WalletProvider.ts`.
+4. **Values computed at module load, not literals** — `POW_LIMIT_TARGET =
+   bitsToTarget(POW_LIMIT_BITS)` in `p2p/pow.ts` (moving it makes
+   `constants.ts` ↔ `pow.ts` circular) and `DEDUCT_FROM_FIRST` in
+   `platform/operations/address/signInputs.ts` (constructs a WASM object at
+   import time; relocating it changes WASM init order in that bundle).

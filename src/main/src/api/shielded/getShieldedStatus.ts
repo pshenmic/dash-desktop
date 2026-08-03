@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { ShieldedService, ShieldedStatus } from '../../services/ShieldedService'
-
+import {ShieldedService} from '../../services/ShieldedService'
+import {ShieldedStatus} from '../../types/Shielded'
 export class GetShieldedStatusHandler {
   private shieldedService: ShieldedService
 

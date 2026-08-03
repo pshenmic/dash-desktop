@@ -1,13 +1,12 @@
 import type {Knex} from 'knex'
 
-// Wallet-scoped transaction storage. Replaces the LevelDB u:<walletId> UTXO
-// keyspace and cfcursor:<walletId> resume marker — all four tables are
-// SQLCipher-eligible (sensitive: identifies wallet and reveals balances).
+// Wallet-scoped transaction storage; all four tables are SQLCipher-eligible,
+// since they identify the wallet and reveal balances.
 //
-// A row exists in `transactions` for every on-chain tx that touches the
-// wallet on either side. Outputs and inputs are mirrored verbatim so a
-// future SQL-backed tx-info API can serve the full tx without going back
-// to peers. UTXOs are derived: outputs WHERE is_mine AND spent_in_txid IS NULL.
+// `transactions` holds every on-chain tx touching the wallet on either side,
+// with outputs and inputs mirrored verbatim so a future tx-info API can serve
+// one without going back to peers. UTXOs are derived, not stored: outputs
+// WHERE is_mine AND spent_in_txid IS NULL.
 
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('transactions', table => {
@@ -49,9 +48,8 @@ export async function up(knex: Knex): Promise<void> {
     table.index(['wallet_id', 'prev_txid', 'prev_vout'], 'txin_prev_idx')
   })
 
-  // 1:1 with wallet but kept separate so the cursor's per-block update
-  // traffic doesn't churn the otherwise-stable wallet row, and so future
-  // per-wallet sync metadata has somewhere to land without polluting `wallet`.
+  // 1:1 with wallet, kept separate so the cursor's per-block writes don't churn
+  // the otherwise-stable wallet row.
   await knex.schema.createTable('wallet_sync_state', table => {
     table.text('wallet_id').notNullable().primary().references('wallet_id').inTable('wallet')
     table.integer('cfilter_cursor_height').notNullable().defaultTo(0)

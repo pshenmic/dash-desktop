@@ -1,6 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { ShieldedService, ShieldedPoolInfo } from '../../services/ShieldedService'
+import {ShieldedService} from '../../services/ShieldedService'
 import { Network } from '../../types'
+import {ShieldedPoolInfo} from '../../types/Shielded'
 
 export class GetShieldedPoolInfoHandler {
   private shieldedService: ShieldedService

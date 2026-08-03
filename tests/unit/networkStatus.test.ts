@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { describeDataSource, describeNetworkStatus, formatChange24h } from '../../src/renderer/src/utils/networkStatus'
+import { describeDataSource, describeNetworkStatus, formatChange24h } from '@renderer/utils/networkStatus'
 import { WalletSyncPhase, WalletSyncStatus } from '../../src/renderer/src/api/types'
 
 function sync(overrides: Partial<WalletSyncStatus>): WalletSyncStatus {
   return {
-    phase: 'synced',
+    phase: WalletSyncPhase.Synced,
     network: 'mainnet',
     walletId: 'w1',
     tipHeight: 100,
@@ -15,6 +15,7 @@ function sync(overrides: Partial<WalletSyncStatus>): WalletSyncStatus {
     matchedBlocksPending: 0,
     peerCount: 4,
     filterCapablePeerCount: 4,
+    lockPeerCount: 4,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: 0,
@@ -28,22 +29,22 @@ describe('describeNetworkStatus', () => {
   })
 
   it('is operational when synced', () => {
-    expect(describeNetworkStatus(sync({ phase: 'synced' }))).toEqual({ label: 'Operational', tone: 'ok' })
+    expect(describeNetworkStatus(sync({ phase: WalletSyncPhase.Synced }))).toEqual({ label: 'Operational', tone: 'ok' })
   })
 
   it('is operational when sync is stopped or idle (rpc fallback serves data)', () => {
-    expect(describeNetworkStatus(sync({ phase: 'stopped' })).tone).toBe('ok')
-    expect(describeNetworkStatus(sync({ phase: 'idle' })).tone).toBe('ok')
+    expect(describeNetworkStatus(sync({ phase: WalletSyncPhase.Stopped })).tone).toBe('ok')
+    expect(describeNetworkStatus(sync({ phase: WalletSyncPhase.Idle })).tone).toBe('ok')
   })
 
   it('is syncing during any active phase', () => {
     const active: WalletSyncPhase[] = [
-      'connecting',
-      'syncing-headers',
-      'synced-headers',
-      'syncing-cfcheckpt',
-      'syncing-cfheaders',
-      'syncing-cfilters'
+      WalletSyncPhase.Connecting,
+      WalletSyncPhase.SyncingHeaders,
+      WalletSyncPhase.SyncedHeaders,
+      WalletSyncPhase.SyncingCfcheckpt,
+      WalletSyncPhase.SyncingCfheaders,
+      WalletSyncPhase.SyncingCfilters
     ]
     for (const phase of active) {
       expect(describeNetworkStatus(sync({ phase }))).toEqual({ label: 'Syncing', tone: 'busy' })
@@ -57,13 +58,13 @@ describe('describeNetworkStatus', () => {
 
 describe('describeDataSource', () => {
   it('reports local p2p only when desired and synced', () => {
-    expect(describeDataSource('p2p', 'synced')).toBe('Local P2P')
+    expect(describeDataSource('p2p', WalletSyncPhase.Synced)).toBe('Local P2P')
   })
 
   it('reports insight otherwise', () => {
-    expect(describeDataSource('p2p', 'syncing-headers')).toBe('Insight API')
+    expect(describeDataSource('p2p', WalletSyncPhase.SyncingHeaders)).toBe('Insight API')
     expect(describeDataSource('p2p', undefined)).toBe('Insight API')
-    expect(describeDataSource('rpc', 'synced')).toBe('Insight API')
+    expect(describeDataSource('rpc', WalletSyncPhase.Synced)).toBe('Insight API')
   })
 })
 

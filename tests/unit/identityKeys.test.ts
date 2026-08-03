@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { matchIdentityKey, IdentityKeyDescriptor, DerivedKeyHash } from '../../src/main/src/utils/identityKeys'
-
+import {matchIdentityKey} from '../../src/main/src/utils/identityKeys'
+import {IdentityKeyDescriptor, DerivedKeyHash} from '../../src/main/src/types/IdentityKeys'
 function key(keyId: number, purpose: string, publicKeyHashHex: string): IdentityKeyDescriptor {
   return { keyId, purpose, publicKeyHashHex }
 }

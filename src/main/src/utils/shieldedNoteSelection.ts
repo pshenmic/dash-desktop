@@ -1,15 +1,4 @@
-export interface SelectableNote {
-  index: number
-  value: bigint
-}
-
-export interface NoteSelectionResult {
-  selected: SelectableNote[]
-  total: bigint
-  feeCredits: bigint
-}
-
-export type SpendFeeForCount = (numSpends: number) => bigint
+import {NoteSelectionResult, SelectableNote, SpendFeeForCount} from '../types/ShieldedNoteSelection'
 
 function byValueDesc(a: SelectableNote, b: SelectableNote): number {
   if (a.value !== b.value) return a.value > b.value ? -1 : 1
