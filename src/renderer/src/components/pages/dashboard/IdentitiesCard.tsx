@@ -47,15 +47,17 @@ export default function IdentitiesCard(): React.JSX.Element {
             {labels.title}
           </Text>
         </div>
-        <button
-          onClick={() => navigate('/identities')}
-          className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
-        >
-          <Text size={12} weight={"medium"} color={"blue-mint"}>
-            {labels.viewAll}
-          </Text>
-          <ArrowIcon size={9} className={"dash-text-primary rotate-180 transition-transform duration-200 group-hover:translate-x-0.5"} color={"currentColor"} />
-        </button>
+        {identities.length > 0 && (
+          <button
+            onClick={() => navigate('/identities')}
+            className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
+          >
+            <Text size={12} weight={"medium"} color={"blue-mint"}>
+              {labels.viewAll}
+            </Text>
+            <ArrowIcon size={9} className={"dash-text-primary rotate-180 transition-transform duration-200 group-hover:translate-x-0.5"} color={"currentColor"} />
+          </button>
+        )}
       </div>
 
       <div className={"flex flex-col gap-1"}>
