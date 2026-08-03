@@ -112,7 +112,7 @@ export default function WalletUnlockModal({
             onClick={onClose}
             variant={"solid"}
             colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-            size={"md"}
+            size={"sm"}
             className={"flex-1 rounded-[.9375rem]"}
             disabled={loading}
           >
@@ -124,7 +124,7 @@ export default function WalletUnlockModal({
             disabled={password.length === 0 || loading}
             variant={"solid"}
             colorScheme={"primary"}
-            size={"md"}
+            size={"sm"}
             className={"flex-1 rounded-[.9375rem]"}
           >
             {loading ? 'Opening…' : 'Open wallet'}

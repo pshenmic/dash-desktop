@@ -146,7 +146,7 @@ export default function TransferConfirmModal({
                 onClick={requestClose}
                 variant={"solid"}
                 colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
                 disabled={sending}
               >
@@ -158,7 +158,7 @@ export default function TransferConfirmModal({
                 disabled={password.length === 0 || sending}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem] gap-2"}
               >
                 {sending && <Spinner size={16} />}
@@ -210,7 +210,7 @@ export default function TransferConfirmModal({
                   onClick={() => openExternal(platformTransactionUrl(result.stHash, network))}
                   variant={"outline"}
                   colorScheme={"primary-light"}
-                  size={"md"}
+                  size={"sm"}
                   className={"flex-1 rounded-[.9375rem] gap-2"}
                 >
                   <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
@@ -222,7 +222,7 @@ export default function TransferConfirmModal({
                 onClick={onClose}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 Done

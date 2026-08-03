@@ -110,7 +110,7 @@ export default function ShieldedUnlockModal({
             onClick={onClose}
             variant={"solid"}
             colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-            size={"md"}
+            size={"sm"}
             className={"flex-1 rounded-[.9375rem]"}
             disabled={loading}
           >
@@ -122,7 +122,7 @@ export default function ShieldedUnlockModal({
             disabled={password.length === 0 || loading}
             variant={"solid"}
             colorScheme={"primary"}
-            size={"md"}
+            size={"sm"}
             className={"flex-1 rounded-[.9375rem]"}
           >
             {loading ? 'Syncing…' : 'Sync my balances'}

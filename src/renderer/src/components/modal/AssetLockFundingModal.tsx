@@ -261,10 +261,10 @@ export default function AssetLockFundingModal({
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"md"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
+              <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
                 {busy ? 'Starting…' : resume ? 'Resume' : texts.confirm}
               </Button>
@@ -319,7 +319,7 @@ export default function AssetLockFundingModal({
               </Text>
             )}
             <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
+              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
                 Close
               </Button>
             </div>
@@ -367,18 +367,18 @@ export default function AssetLockFundingModal({
             </div>
             <div className={"mt-4.5 flex gap-2"}>
               {doneTxid && network && (
-                <Button type={"button"} onClick={() => openExternal(transactionUrl(doneTxid, network))} variant={"outline"} colorScheme={"primary-light"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+                <Button type={"button"} onClick={() => openExternal(transactionUrl(doneTxid, network))} variant={"outline"} colorScheme={"primary-light"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2 px-3 whitespace-nowrap"}>
                   <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
                   L1 explorer
                 </Button>
               )}
               {doneStHash && network && (
-                <Button type={"button"} onClick={() => openExternal(platformTransactionUrl(doneStHash, network))} variant={"outline"} colorScheme={"primary-light"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+                <Button type={"button"} onClick={() => openExternal(platformTransactionUrl(doneStHash, network))} variant={"outline"} colorScheme={"primary-light"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2 px-3 whitespace-nowrap"}>
                   <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
                   Platform explorer
                 </Button>
               )}
-              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
+              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
                 Done
               </Button>
             </div>

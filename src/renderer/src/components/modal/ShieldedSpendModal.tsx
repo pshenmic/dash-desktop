@@ -203,10 +203,10 @@ export default function ShieldedSpendModal({
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"md"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
+              <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
                 {confirmLabel}
               </Button>
@@ -257,10 +257,10 @@ export default function ShieldedSpendModal({
               <CopyableError message={spend?.error ?? 'Spend failed.'} />
             </div>
             <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
+              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
                 Close
               </Button>
-              <Button type={"button"} onClick={retry} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
+              <Button type={"button"} onClick={retry} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
                 Try again
               </Button>
             </div>
@@ -291,12 +291,12 @@ export default function ShieldedSpendModal({
             </div>
             <div className={"mt-4.5 flex gap-2"}>
               {doneStHash && network && (
-                <Button type={"button"} onClick={() => openExternal(platformTransactionUrl(doneStHash, network))} variant={"outline"} colorScheme={"primary-light"} size={"md"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+                <Button type={"button"} onClick={() => openExternal(platformTransactionUrl(doneStHash, network))} variant={"outline"} colorScheme={"primary-light"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                   <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
                   View on explorer
                 </Button>
               )}
-              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"md"} className={"flex-1 rounded-[.9375rem]"}>
+              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
                 Done
               </Button>
             </div>
