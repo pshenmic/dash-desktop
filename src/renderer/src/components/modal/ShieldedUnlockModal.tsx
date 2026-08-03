@@ -8,12 +8,14 @@ interface ShieldedUnlockModalProps {
   isOpen: boolean
   onClose: () => void
   walletId: string | null
+  onStarted?: () => void
 }
 
 export default function ShieldedUnlockModal({
   isOpen,
   onClose,
   walletId,
+  onStarted,
 }: ShieldedUnlockModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
   const [password, setPassword] = useState('')
@@ -42,6 +44,7 @@ export default function ShieldedUnlockModal({
         return
       }
       await API.startShieldedSync(walletId, password)
+      onStarted?.()
       onClose()
     } catch (e) {
       console.error('startShieldedSync failed', e)
@@ -52,6 +55,7 @@ export default function ShieldedUnlockModal({
 
   return createPortal(
     <div
+      onClick={(e) => e.stopPropagation()}
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
     >
       <div

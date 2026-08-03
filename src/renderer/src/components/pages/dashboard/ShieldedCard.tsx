@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Text, ArrowIcon, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ArrowIcon, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import Spinner from '@renderer/components/ui/Spinner'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { useShieldedNotesInfo, useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
@@ -18,15 +19,22 @@ export default function ShieldedCard(): React.JSX.Element {
 
   const sync = useShieldedSyncState(walletId)
   const { poolInfo } = useShieldedPoolInfo(network)
+  const { info: notesInfo, loading: notesLoading } = useShieldedNotesInfo(walletId ?? undefined)
   const prover = useShieldedStatus()
   const { isBalanceVisible } = useBalanceVisibility()
   const labels = dashboardPage.shielded
 
   const [syncOpen, setSyncOpen] = useState(false)
+  const [syncStarting, setSyncStarting] = useState(false)
   const spendableNotes = useMemo(() => sync.notes.filter((n) => !n.spent).length, [sync.notes])
   const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
   const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
+  const syncBusy = syncStarting || syncRunning
   const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
+
+  useEffect(() => {
+    setSyncStarting(false)
+  }, [sync.phase, sync.syncedAt])
 
   const meta: React.ReactNode[] = []
   if (shieldedReady) {
@@ -73,26 +81,48 @@ export default function ShieldedCard(): React.JSX.Element {
         </button>
       </div>
 
-      <div className={"flex flex-col gap-1"}>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-          {labels.balance}
-        </Text>
-        {shieldedReady ? (
-          <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
-            <CreditsAmount credits={BigInt(sync.balance as string)} compact />
+      <div className={"flex items-end justify-between gap-3"}>
+        <div className={"flex flex-col gap-1"}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
+            {labels.balance}
           </Text>
-        ) : syncRunning ? (
-          <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>Syncing…</Text>
-        ) : (
-          <button
+          {shieldedReady ? (
+            <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
+              <CreditsAmount credits={BigInt(sync.balance as string)} compact />
+            </Text>
+          ) : syncBusy ? (
+            <div className={"flex items-center gap-2"}>
+              <Spinner size={16} className={"text-dash-brand dark:text-dash-mint"} />
+              <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>{labels.syncing}</Text>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setSyncOpen(true)
+              }}
+              className={"self-start cursor-pointer hover:opacity-80 transition-opacity duration-200"}
+            >
+              <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>{labels.syncBalances}</Text>
+            </button>
+          )}
+        </div>
+        {shieldedReady && (syncBusy || (notesInfo.undecodedCount > 0 && !notesLoading)) && (
+          <Button
+            type={"button"}
             onClick={(e) => {
               e.stopPropagation()
               setSyncOpen(true)
             }}
-            className={"self-start cursor-pointer hover:opacity-80 transition-opacity duration-200"}
+            disabled={syncBusy}
+            variant={"solid"}
+            colorScheme={"primary"}
+            size={"sm"}
+            className={"min-h-0! py-2! rounded-[.75rem] shrink-0 gap-2"}
           >
-            <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>Sync balances</Text>
-          </button>
+            {syncBusy && <Spinner size={14} />}
+            {syncBusy ? labels.syncing : labels.syncBalances}
+          </Button>
         )}
       </div>
 
@@ -110,6 +140,7 @@ export default function ShieldedCard(): React.JSX.Element {
       <ShieldedUnlockModal
         isOpen={syncOpen}
         onClose={() => setSyncOpen(false)}
+        onStarted={() => setSyncStarting(true)}
         walletId={walletId}
       />
     </div>

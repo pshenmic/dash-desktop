@@ -27,7 +27,9 @@ export const dashboardPage = {
     credits: 'credits',
     notesInTree: 'notes in tree',
     proverPreparing: 'prover preparing…',
-    proverError: 'prover error'
+    proverError: 'prover error',
+    syncBalances: 'Sync balances',
+    syncing: 'Syncing…'
   },
   identities: {
     title: 'Identities',

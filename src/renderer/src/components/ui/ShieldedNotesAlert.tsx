@@ -6,9 +6,10 @@ export default function ShieldedNotesAlert({ walletId, onSync, syncing = false }
   onSync: () => void
   syncing?: boolean
 }): React.JSX.Element | null {
-  const { undecodedCount } = useShieldedNotesInfo(walletId ?? undefined)
+  const { info, loading } = useShieldedNotesInfo(walletId ?? undefined)
+  const { undecodedCount } = info
 
-  if (undecodedCount === 0) return null
+  if (undecodedCount === 0 || loading) return null
 
   return (
     <div className={"flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] border border-dash-brand/35 bg-dash-brand/8 dark:border-dash-mint/40 dark:bg-dash-mint/10"}>
