@@ -1,11 +1,10 @@
-import { useMemo } from 'react'
 import { BigNumber } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
-import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
+import { usePlatformCredits } from '@renderer/hooks/usePlatformCredits'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useRates } from '@renderer/hooks/useRates'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
@@ -21,16 +20,12 @@ export default function HeroBalance(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? undefined
 
   const { balance, loading: balanceLoading } = useWalletBalance(walletId)
-  const { platformAddresses } = usePlatformAddresses(walletId)
   const { format: formatFiat, rateReady, currency } = useFiat()
   const { rates, changes24h } = useRates()
   const { isBalanceVisible } = useBalanceVisibility()
   const { totalBalance, price, core, platform } = dashboardPage.hero
 
-  const platformCredits = useMemo(
-    () => platformAddresses.reduce((sum, a) => sum + BigInt(a.balanceCredits), balance.credits.amount),
-    [platformAddresses, balance.credits.amount]
-  )
+  const platformCredits = usePlatformCredits(walletId)
   const platformDuffs = creditsToDuffs(platformCredits)
   const totalDuffs = balance.dash.amount + platformDuffs
   const totalParts = splitDashBalance(totalDuffs)
