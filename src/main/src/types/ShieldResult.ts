@@ -1,5 +1,5 @@
 export interface ShieldResult {
   stHash: string
-  amountCredits: string
+  amountCredits: bigint
   fromAddress: string
 }

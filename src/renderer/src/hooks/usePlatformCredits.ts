@@ -7,7 +7,7 @@ export function usePlatformCredits(walletId: string | undefined): bigint {
   const { platformAddresses } = usePlatformAddresses(walletId)
 
   return useMemo(
-    () => platformAddresses.reduce((sum, a) => sum + BigInt(a.balanceCredits), balance.credits.amount),
+    () => platformAddresses.reduce((sum, a) => sum + a.balanceCredits, balance.credits.amount),
     [platformAddresses, balance.credits.amount]
   )
 }

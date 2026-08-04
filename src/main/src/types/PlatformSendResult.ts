@@ -1,7 +1,7 @@
 export interface PlatformSendResult {
   stHash: string
-  amountCredits: string
-  feeCredits: string
+  amountCredits: bigint
+  feeCredits: bigint
   fromAddress: string
   toAddress: string
 }

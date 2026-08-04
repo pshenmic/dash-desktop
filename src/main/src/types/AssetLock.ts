@@ -10,7 +10,7 @@ export interface AssetLockFundingRow {
   txid: string
   outputIndex: number
   creditDerivationPath: string
-  amountDuffs: string
+  amountDuffs: bigint
   toPlatformAddress: string
   kind: AssetLockFundingKind
   status: AssetLockFundingStatus

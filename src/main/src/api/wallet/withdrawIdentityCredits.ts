@@ -14,14 +14,14 @@ export class WithdrawIdentityCreditsHandler {
     walletId: string,
     identityId: string,
     toCoreAddress: string,
-    amountCredits: string,
+    amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
     return this.platformAddressService.withdrawIdentityToCore(
       walletId,
       identityId,
       toCoreAddress,
-      BigInt(amountCredits),
+      amountCredits,
       password,
     )
   }

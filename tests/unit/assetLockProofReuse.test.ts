@@ -17,7 +17,7 @@ const row = (assetLockProof: AssetLockProofParams | null): AssetLockFundingRow =
   txid: 'assetlock-txid',
   outputIndex: 0,
   creditDerivationPath: "m/9'/1'/5'/1'/0",
-  amountDuffs: '200000',
+  amountDuffs: 200_000n,
   toPlatformAddress: '',
   kind: 'identity',
   status: AssetLockFundingStatus.L1Broadcast,

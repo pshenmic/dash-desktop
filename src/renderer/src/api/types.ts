@@ -32,7 +32,7 @@ export type GetAddressesResponse = {
 // getPlatformAddresses
 export interface PlatformAddressDto {
   platformAddress: string
-  balanceCredits: string
+  balanceCredits: bigint
   nonce: number
 }
 
@@ -178,8 +178,8 @@ export interface Contact {
 // sendTransaction
 export interface SendResult {
   txid: string
-  amount: string
-  fee: string
+  amount: bigint
+  fee: bigint
   toAddress: string
   changeAddress: string | null
   peersAcked: number
@@ -193,8 +193,8 @@ export interface TxLockStatus {
 
 export interface PlatformSendResult {
   stHash: string
-  amountCredits: string
-  feeCredits: string
+  amountCredits: bigint
+  feeCredits: bigint
   fromAddress: string
   toAddress: string
 }
@@ -209,7 +209,7 @@ export interface AssetLockFundingState {
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null
-  amountDuffs: string | null
+  amountDuffs: bigint | null
   error: string | null
 }
 
@@ -217,14 +217,14 @@ export interface IdentityCreateResult {
   identifier: string
   identityIndex: number
   stHash: string
-  amountCredits: string
-  feeCredits: string
+  amountCredits: bigint
+  feeCredits: bigint
   fromAddress: string
 }
 
 export interface ShieldResult {
   stHash: string
-  amountCredits: string
+  amountCredits: bigint
   fromAddress: string
 }
 
@@ -237,8 +237,8 @@ export interface ShieldedStatus {
 }
 
 export interface ShieldedPoolInfo {
-  poolState: string | null
-  notesCount: string | null
+  poolState: bigint | null
+  notesCount: bigint | null
 }
 
 export interface ShieldedNotesInfo {
@@ -247,7 +247,7 @@ export interface ShieldedNotesInfo {
 
 export interface ShieldedNoteInfo {
   index: number
-  amount: string
+  amount: bigint
   spent: boolean
   address: string
 }
@@ -258,7 +258,7 @@ export interface ShieldedSyncState {
   phase: ShieldedSyncPhase
   fetched: number
   total: number
-  balance: string | null
+  balance: bigint | null
   notes: ShieldedNoteInfo[]
   error: string | null
   syncedAt: number | null

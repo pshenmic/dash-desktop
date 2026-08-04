@@ -40,11 +40,11 @@ export default function ShieldedCard(): React.JSX.Element {
   if (shieldedReady) {
     meta.push(`${spendableNotes.toLocaleString('en-US')} ${labels.spendableNotes}`)
     if (poolInfo.poolState !== null) {
-      meta.push(<span key={"pool"}>{labels.pool} <CreditsAmount credits={BigInt(poolInfo.poolState)} compact showFiat={false} unit={labels.credits} /></span>)
+      meta.push(<span key={"pool"}>{labels.pool} <CreditsAmount credits={poolInfo.poolState} compact showFiat={false} unit={labels.credits} /></span>)
     }
   }
   if (poolInfo.notesCount !== null) {
-    meta.push(`${BigInt(poolInfo.notesCount).toLocaleString('en-US')} ${labels.notesInTree}`)
+    meta.push(`${poolInfo.notesCount.toLocaleString('en-US')} ${labels.notesInTree}`)
   }
   if (prover.prover === ShieldedProverState.Error) {
     meta.push(<span key={"prover"} className={"text-dash-red"}>{labels.proverError}</span>)
@@ -88,7 +88,7 @@ export default function ShieldedCard(): React.JSX.Element {
           </Text>
           {shieldedReady ? (
             <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
-              <CreditsAmount credits={BigInt(sync.balance as string)} compact />
+              <CreditsAmount credits={sync.balance ?? 0n} compact />
             </Text>
           ) : syncBusy ? (
             <div className={"flex items-center gap-2"}>

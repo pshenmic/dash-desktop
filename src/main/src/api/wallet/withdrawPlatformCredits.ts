@@ -14,9 +14,9 @@ export class WithdrawPlatformCreditsHandler {
     walletId: string,
     fromAddress: string | null,
     toCoreAddress: string,
-    amountCredits: string,
+    amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
-    return this.platformAddressService.withdrawPlatformToCore(walletId, fromAddress, toCoreAddress, BigInt(amountCredits), password)
+    return this.platformAddressService.withdrawPlatformToCore(walletId, fromAddress, toCoreAddress, amountCredits, password)
   }
 }

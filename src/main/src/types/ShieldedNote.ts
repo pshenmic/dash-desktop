@@ -1,6 +1,6 @@
 export interface PersistNote {
   index: number
-  amount: string
+  amount: bigint
   address: string
   spent: boolean
 }

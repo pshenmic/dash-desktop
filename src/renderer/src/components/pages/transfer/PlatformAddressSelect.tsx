@@ -32,7 +32,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
             <div className={"flex flex-col items-start min-w-0"}>
               <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{selected.platformAddress}</Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                <CreditsAmount credits={BigInt(selected.balanceCredits)} />
+                <CreditsAmount credits={selected.balanceCredits} />
               </Text>
             </div>
           </div>
@@ -59,7 +59,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
               <div className={"flex flex-col min-w-0"}>
                 <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{a.platformAddress}</Text>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                  <CreditsAmount credits={BigInt(a.balanceCredits)} />
+                  <CreditsAmount credits={a.balanceCredits} />
                 </Text>
               </div>
             </button>

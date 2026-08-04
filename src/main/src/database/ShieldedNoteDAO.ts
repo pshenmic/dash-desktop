@@ -24,7 +24,7 @@ export class ShieldedNoteDAO {
       .orderBy('note_index', 'desc')
     return rows.map((row) => ({
       index: row.note_index,
-      amount: row.amount,
+      amount: BigInt(row.amount),
       address: row.address,
       spent: Boolean(row.spent),
     }))
@@ -36,7 +36,7 @@ export class ShieldedNoteDAO {
       .insert(notes.map((n) => ({
         wallet_id: walletId,
         note_index: n.index,
-        amount: n.amount,
+        amount: n.amount.toString(),
         address: n.address,
         spent: n.spent,
       })))

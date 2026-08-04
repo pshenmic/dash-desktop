@@ -14,9 +14,9 @@ export class TopUpIdentityFromAddressesHandler {
     walletId: string,
     identityId: string,
     fromAddress: string | null,
-    amountCredits: string,
+    amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
-    return this.platformAddressService.topUpIdentityFromAddresses(walletId, identityId, fromAddress, BigInt(amountCredits), password)
+    return this.platformAddressService.topUpIdentityFromAddresses(walletId, identityId, fromAddress, amountCredits, password)
   }
 }

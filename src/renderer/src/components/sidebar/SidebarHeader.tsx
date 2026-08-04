@@ -17,7 +17,7 @@ export default function SidebarHeader(): React.JSX.Element {
   const { format: formatFiat, rateReady } = useFiat()
   const shieldedSync = useShieldedSyncState(status?.selectedWalletId ?? null)
   const shieldedCredits = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
-    ? BigInt(shieldedSync.balance)
+    ? shieldedSync.balance
     : 0n
 
   return (

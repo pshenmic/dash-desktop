@@ -8,7 +8,7 @@ export class StartShieldedTransferHandler {
     this.shieldedService = shieldedService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string, recipient: string, amountCredits: string, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> => {
-    return this.shieldedService.startTransfer(walletId, password, recipient, BigInt(amountCredits), noteIndexes)
+  handle = async (_event: IpcMainInvokeEvent, walletId: string, recipient: string, amountCredits: bigint, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> => {
+    return this.shieldedService.startTransfer(walletId, password, recipient, amountCredits, noteIndexes)
   }
 }

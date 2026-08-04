@@ -5,7 +5,7 @@ import { PlatformAddressDto, TransitionFeeParams } from '../../src/renderer/src/
 
 const SOURCE: PlatformAddressDto = {
   platformAddress: 'tdash1qsource',
-  balanceCredits: '900000000',
+  balanceCredits: 900_000_000n,
   nonce: 7,
 }
 

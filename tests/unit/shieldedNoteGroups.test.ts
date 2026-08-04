@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { groupShieldedNotesByAddress } from '../../src/renderer/src/utils/shieldedBalances'
 import {ShieldedNoteInfo} from '../../src/main/src/types/Shielded'
-const note = (address: string, amount: string, spent: boolean, index = 0): ShieldedNoteInfo =>
+const note = (address: string, amount: bigint, spent: boolean, index = 0): ShieldedNoteInfo =>
   ({ index, amount, spent, address })
 
 describe('groupShieldedNotesByAddress', () => {
   it('groups unspent notes by address with per-address totals', () => {
     const groups = groupShieldedNotesByAddress([
-      note('a', '100', false, 1),
-      note('a', '50', false, 2),
-      note('b', '7', false, 3),
+      note('a', 100n, false, 1),
+      note('a', 50n, false, 2),
+      note('b', 7n, false, 3),
     ])
     expect(groups).toHaveLength(2)
     const a = groups.find((g) => g.address === 'a')!
@@ -20,9 +20,9 @@ describe('groupShieldedNotesByAddress', () => {
 
   it('excludes spent notes and drops all-spent addresses', () => {
     const groups = groupShieldedNotesByAddress([
-      note('a', '100', true, 1),
-      note('a', '50', false, 2),
-      note('b', '7', true, 3),
+      note('a', 100n, true, 1),
+      note('a', 50n, false, 2),
+      note('b', 7n, true, 3),
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0].address).toBe('a')
@@ -32,9 +32,9 @@ describe('groupShieldedNotesByAddress', () => {
 
   it('orders groups by descending total, tie-broken by address', () => {
     const groups = groupShieldedNotesByAddress([
-      note('b', '10', false, 1),
-      note('a', '100', false, 2),
-      note('c', '10', false, 3),
+      note('b', 10n, false, 1),
+      note('a', 100n, false, 2),
+      note('c', 10n, false, 3),
     ])
     expect(groups.map((g) => g.address)).toEqual(['a', 'b', 'c'])
   })

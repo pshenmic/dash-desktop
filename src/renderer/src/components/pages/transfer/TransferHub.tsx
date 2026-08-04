@@ -620,32 +620,32 @@ export default function TransferHub(): React.JSX.Element {
       return Promise.resolve<ShieldedSpendState>({ phase: ShieldedSpendPhase.Error, fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
     const noteIndexes = shieldedSpecificNotes?.map(n => n.index)
-    if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
-    if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
-    if (operation === TransferOperation.IdentityCreateFromPool) return API.startShieldedIdentityCreate(walletId, amountCredits.toString(), password)
-    return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits.toString(), password, noteIndexes)
+    if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits, password, noteIndexes)
+    if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits, password, noteIndexes)
+    if (operation === TransferOperation.IdentityCreateFromPool) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
+    return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits, password, noteIndexes)
   }
 
   const runPlatformOperation = (password: string) => {
     if (!walletId) return Promise.reject(new Error('No wallet selected'))
     const sourceAddress = selectedSource?.platformAddress ?? null
     if (operation === TransferOperation.AddressFundsTransfer) {
-      return API.sendPlatformTransfer(walletId, sourceAddress ?? '', trimmedTo, amountCredits.toString(), password)
+      return API.sendPlatformTransfer(walletId, sourceAddress ?? '', trimmedTo, amountCredits, password)
     }
     if (operation === TransferOperation.IdentityTopUp) {
-      return API.topUpIdentityFromAddresses(walletId, trimmedTo, sourceAddress, amountCredits.toString(), password)
+      return API.topUpIdentityFromAddresses(walletId, trimmedTo, sourceAddress, amountCredits, password)
     }
     if (operation === TransferOperation.AddressWithdrawal) {
-      return API.withdrawPlatformCredits(walletId, sourceAddress, trimmedTo, amountCredits.toString(), password)
+      return API.withdrawPlatformCredits(walletId, sourceAddress, trimmedTo, amountCredits, password)
     }
     if (operation === TransferOperation.IdentityToIdentity) {
-      return API.transferIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
+      return API.transferIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits, password)
     }
     if (operation === TransferOperation.IdentityWithdrawal) {
-      return API.withdrawIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
+      return API.withdrawIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits, password)
     }
     if (operation === TransferOperation.IdentityCreate) {
-      return API.createIdentityFromAddresses(walletId, sourceAddress, amountCredits.toString(), password)
+      return API.createIdentityFromAddresses(walletId, sourceAddress, amountCredits, password)
         .then(result => ({
           stHash: result.stHash,
           amountCredits: result.amountCredits,
@@ -654,7 +654,7 @@ export default function TransferHub(): React.JSX.Element {
           toAddress: result.identifier,
         }))
     }
-    return API.sendIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits.toString(), password)
+    return API.sendIdentityCredits(walletId, selectedIdentity?.identifier ?? '', trimmedTo, amountCredits, password)
   }
 
   const isPlatformModalOperation = operation === TransferOperation.AddressFundsTransfer || operation === TransferOperation.IdentityTopUp

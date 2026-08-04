@@ -596,8 +596,8 @@ export class WalletService {
 
     return {
       txid: broadcast.txid,
-      amount: amountDuffs.toString(),
-      fee: actualFee.toString(),
+      amount: amountDuffs,
+      fee: actualFee,
       toAddress,
       changeAddress: hasChange ? changeAddress : null,
       peersAcked: broadcast.peersDelivered.length,
