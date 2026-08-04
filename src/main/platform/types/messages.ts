@@ -85,7 +85,13 @@ export type FeeQuery =
   | {kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean}
   | {kind: 'shieldedSpend'; spendKind: SpendKind; noteCount: number; recipients: string[]}
   // Only the asset-lock shield has a transparent destination besides the pool.
-  | {kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null}
+  | {
+      kind: 'shield'
+      noteCount: number
+      inputCount: number
+      fromAssetLock: boolean
+      surplusAddress: string | null
+    }
   | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
   | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
   | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string}

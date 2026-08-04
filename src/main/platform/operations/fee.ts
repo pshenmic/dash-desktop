@@ -13,7 +13,11 @@ import {
   StateTransitionWASM,
 } from 'dash-platform-sdk/types.js'
 import {coreAddressToScript} from '../../src/utils/coreScript'
-import {CORE_FEE_PER_BYTE} from '../../src/constants'
+import {
+  CORE_FEE_PER_BYTE,
+  SHIELDED_STORAGE_BYTES_PER_ACTION,
+  SHIELDED_STORAGE_CREDIT_PER_BYTE,
+} from '../../src/constants'
 import {FEE_QUOTE_PUBLIC_KEY, KEY_SPECS} from '../constants'
 import {FeeQuery, PlatformOperations} from '../types/messages'
 import {OperationContext} from './types'
@@ -64,9 +68,10 @@ async function minimumFeeCredits(query: FeeQuery, ctx: OperationContext): Promis
       return minimumFee(query.spendKind, query.noteCount)
     case 'shield': {
       const actions = Math.max(query.noteCount, MIN_BUNDLE_ACTIONS)
-      return query.fromAssetLock
-        ? ShieldFromAssetLockTransitionWASM.computeMinimumFee(actions)
-        : ShieldTransitionWASM.computeMinimumFee(actions)
+      if (query.fromAssetLock) return ShieldFromAssetLockTransitionWASM.computeMinimumFee(actions)
+      return ShieldTransitionWASM.computeMinimumFee(actions)
+        + BigInt(actions) * SHIELDED_STORAGE_BYTES_PER_ACTION * SHIELDED_STORAGE_CREDIT_PER_BYTE
+        + inputProcessingFee(query.inputCount)
     }
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
@@ -146,6 +151,13 @@ function addressFundedTransition(query: AddressFundedQuery, ctx: OperationContex
         userFeeIncrease: 0,
       })
   }
+}
+
+// What consensus charges to spend N platform addresses, isolated from the
+// address transfer minimum, which is 6_000_000 per output plus this per input.
+function inputProcessingFee(inputCount: number): bigint {
+  return AddressFundsTransferTransitionWASM.estimateMinFee(inputCount, 0)
+    - AddressFundsTransferTransitionWASM.estimateMinFee(0, 0)
 }
 
 // A payout to a Core address, the pool or an identity balance creates no entry.

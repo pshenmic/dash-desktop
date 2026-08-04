@@ -48,7 +48,7 @@ export type TransitionFeeQuery =
   | { kind: 'addressTransfer'; inputCount: number; recipients: string[] }
   | { kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean }
   | { kind: 'shieldedSpend'; spendKind: ShieldedSpendKind; noteCount: number; recipients: string[] }
-  | { kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null }
+  | { kind: 'shield'; noteCount: number; inputCount: number; fromAssetLock: boolean; surplusAddress: string | null }
   | { kind: 'identityCreditsToAddresses'; identityId: string; recipients: { address: string; amountCredits: bigint }[] }
   | { kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint }
   | { kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string }

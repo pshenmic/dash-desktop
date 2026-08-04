@@ -27,7 +27,8 @@ export function feeQueryFor(
       return { kind: 'addressWithdrawal', inputCount: FEE_QUOTE_INPUT_COUNT, hasChange: true }
 
     case TransferOperation.Shield:
-      return { kind: 'shield', noteCount: FEE_QUOTE_SHIELD_NOTE_COUNT, fromAssetLock: false, surplusAddress: null }
+      return { kind: 'shield', noteCount: FEE_QUOTE_SHIELD_NOTE_COUNT, inputCount: FEE_QUOTE_INPUT_COUNT,
+               fromAssetLock: false, surplusAddress: null }
 
     case TransferOperation.IdentityTopUp:
       return source == null || !hasAmount

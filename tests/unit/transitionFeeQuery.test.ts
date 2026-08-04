@@ -61,6 +61,7 @@ describe('feeQueryFor', () => {
     expect(feeQueryFor(TransferOperation.Shield, params())).toEqual({
       kind: 'shield',
       noteCount: 1,
+      inputCount: 1,
       fromAssetLock: false,
       surplusAddress: null,
     })
