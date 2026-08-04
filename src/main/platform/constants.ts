@@ -15,8 +15,7 @@ export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
-// A quote has no seed, and the fee depends on the key count, not the key. The
-// secp256k1 generator stands in because it parses wherever a real key would.
+// Dummy public key for fee calculation
 export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
   Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex'),
 )
