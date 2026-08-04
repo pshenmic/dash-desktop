@@ -1,10 +1,6 @@
 import { TransferOperation } from '../enums/TransferOperation'
 import { PlatformAddressDto, TransitionFeeInput, TransitionFeeParams, TransitionFeeQuery } from '../api/types'
-import {
-  FEE_QUOTE_DERIVATION_INDEX,
-  FEE_QUOTE_INPUT_COUNT,
-  FEE_QUOTE_SHIELD_NOTE_COUNT,
-} from '../constants/transitionFee'
+import { FEE_QUOTE_DERIVATION_INDEX } from '../constants/transitionFee'
 
 export function feeQueryKey(query: TransitionFeeQuery): string {
   return JSON.stringify(query, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
@@ -21,13 +17,13 @@ export function feeQueryFor(
 
   switch (operation) {
     case TransferOperation.AddressFundsTransfer:
-      return { kind: 'addressTransfer', inputCount: FEE_QUOTE_INPUT_COUNT, recipients: [recipient] }
+      return { kind: 'addressTransfer', inputCount: 1, recipients: [recipient] }
 
     case TransferOperation.AddressWithdrawal:
-      return { kind: 'addressWithdrawal', inputCount: FEE_QUOTE_INPUT_COUNT, hasChange: true }
+      return { kind: 'addressWithdrawal', inputCount: 1, hasChange: false }
 
     case TransferOperation.Shield:
-      return { kind: 'shield', noteCount: FEE_QUOTE_SHIELD_NOTE_COUNT, fromAssetLock: false, surplusAddress: null }
+      return { kind: 'shield', noteCount: 1, fromAssetLock: false, surplusAddress: null }
 
     case TransferOperation.IdentityTopUp:
       return source == null || !hasAmount

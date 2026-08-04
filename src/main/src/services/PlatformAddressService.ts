@@ -14,22 +14,18 @@ import {IdentityCreateResult} from '../types/IdentityCreateResult'
 import {ShieldResult} from '../types/ShieldResult'
 import {unlockWallet, zeroSeed} from '../utils/walletSeed'
 import {
-  IDENTITY_CREATE_KEY_COUNT,
-  IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
   MAX_DISCOVERY_BATCHES,
   MAX_RECIPIENTS,
   MIN_OUTPUT_CREDITS,
   PLATFORM_ACCOUNT,
   PLATFORM_ADDRESS_LOOKAHEAD,
-  TRANSFER_FEE_CREDITS,
-  WITHDRAWAL_FEE_CREDITS,
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
 import {AddressInput, FeeQuery, FeeQuote} from '../../platform/types/messages'
-import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits} from '../utils/platformTransfer'
+import {selectPlatformSource, selectPlatformInputsWithFee} from '../utils/platformTransfer'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../types/AssetLock'
-import {PlatformSourceCandidate} from '../types/PlatformTransfer'
-const toInput = (candidate: PlatformSourceCandidate, credits: bigint): AddressInput => ({
+import {PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
+const toInput = ({candidate, credits}: PlatformInputSelection): AddressInput => ({
   platformAddress: candidate.platformAddress,
   index: candidate.index,
   nonce: candidate.nonce,
@@ -110,12 +106,19 @@ export class PlatformAddressService {
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
+    const [candidates, {totalFeeCredits}] = await Promise.all([
+      this.loadPlatformCandidates(walletId, xpub, network),
+      this.estimateTransitionFee(network, {
+        kind: 'addressTransfer',
+        inputCount: 1,
+        recipients: [toPlatformAddress],
+      }),
+    ])
+    const source = selectPlatformSource(candidates, amountCredits, totalFeeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
       seed,
-      input: toInput(source, amountCredits),
+      input: toInput({candidate: source, credits: amountCredits}),
       recipient: toPlatformAddress,
       amountCredits,
     })
@@ -123,7 +126,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits: amountCredits.toString(),
-      feeCredits: TRANSFER_FEE_CREDITS.toString(),
+      feeCredits: totalFeeCredits.toString(),
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
     }
@@ -149,8 +152,15 @@ export class PlatformAddressService {
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
     const totalCredits = recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
-    const feeCredits = identityTransferFeeCredits(recipients.length)
-    await this.requireIdentityBalance(network, identityIdentifier, totalCredits + feeCredits, 'transfer')
+    const [{totalFeeCredits}, {credits}] = await Promise.all([
+      this.estimateTransitionFee(network, {
+        kind: 'identityCreditsToAddresses',
+        identityId: identityIdentifier,
+        recipients,
+      }),
+      this.platform.request('identityBalance', network, {identifier: identityIdentifier}),
+    ])
+    this.requireIdentityCredits(credits, totalCredits + totalFeeCredits, 'transfer')
 
     const {stHash} = await this.platform.request('identityCreditsToAddresses', network, {
       seed,
@@ -162,7 +172,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits: totalCredits.toString(),
-      feeCredits: feeCredits.toString(),
+      feeCredits: totalFeeCredits.toString(),
       fromAddress: identityIdentifier,
       toAddress: recipients[0].address,
     }
@@ -186,12 +196,16 @@ export class PlatformAddressService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, fromIdentityIdentifier)
 
-    await this.requireIdentityBalance(
-      network,
-      fromIdentityIdentifier,
-      amountCredits + IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
-      'transfer',
-    )
+    const [{totalFeeCredits}, {credits}] = await Promise.all([
+      this.estimateTransitionFee(network, {
+        kind: 'identityCreditTransfer',
+        identityId: fromIdentityIdentifier,
+        recipientId: toIdentityIdentifier,
+        amountCredits,
+      }),
+      this.platform.request('identityBalance', network, {identifier: fromIdentityIdentifier}),
+    ])
+    this.requireIdentityCredits(credits, amountCredits + totalFeeCredits, 'transfer')
 
     const {stHash} = await this.platform.request('identityCreditTransfer', network, {
       seed,
@@ -204,7 +218,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits: amountCredits.toString(),
-      feeCredits: IDENTITY_CREDIT_TRANSFER_FEE_CREDITS.toString(),
+      feeCredits: totalFeeCredits.toString(),
       fromAddress: fromIdentityIdentifier,
       toAddress: toIdentityIdentifier,
     }
@@ -227,17 +241,23 @@ export class PlatformAddressService {
     const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const plan = selectPlatformInputsWithFee(
+    const plan = await selectPlatformInputsWithFee(
       candidates,
       amountCredits,
-      () => identityCreateFeeCredits(IDENTITY_CREATE_KEY_COUNT),
+      async inputs => {
+        const {totalFeeCredits} = await this.estimateTransitionFee(network, {
+          kind: 'identityCreateFromAddresses',
+          inputs: inputs.map(toInput),
+        })
+        return totalFeeCredits
+      },
       fromPlatformAddress ?? undefined,
     )
 
     const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
       seed,
       identityIndex,
-      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      inputs: plan.inputs.map(toInput),
     })
 
     await this.identityDAO.insertIdentities([{
@@ -275,12 +295,24 @@ export class PlatformAddressService {
     if (!exists) throw new Error('Identity not found on Platform')
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const plan = selectPlatformInputsWithFee(candidates, amountCredits, topUpFeeCredits, fromPlatformAddress ?? undefined)
+    const plan = await selectPlatformInputsWithFee(
+      candidates,
+      amountCredits,
+      async inputs => {
+        const {totalFeeCredits} = await this.estimateTransitionFee(network, {
+          kind: 'identityTopUpFromAddresses',
+          identityId,
+          inputs: inputs.map(toInput),
+        })
+        return totalFeeCredits
+      },
+      fromPlatformAddress ?? undefined,
+    )
 
     const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
       seed,
       identifier: identityId,
-      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      inputs: plan.inputs.map(toInput),
     })
 
     return {
@@ -307,16 +339,23 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const plan = selectPlatformInputsWithFee(
+    const plan = await selectPlatformInputsWithFee(
       candidates,
       amountCredits,
-      () => WITHDRAWAL_FEE_CREDITS,
+      async inputs => {
+        const {totalFeeCredits} = await this.estimateTransitionFee(network, {
+          kind: 'addressWithdrawal',
+          inputCount: inputs.length,
+          hasChange: false,
+        })
+        return totalFeeCredits
+      },
       fromPlatformAddress ?? undefined,
     )
 
     const {stHash} = await this.platform.request('addressWithdrawal', network, {
       seed,
-      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      inputs: plan.inputs.map(toInput),
       coreAddress: toCoreAddress,
     })
 
@@ -344,12 +383,16 @@ export class PlatformAddressService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
-    await this.requireIdentityBalance(
-      network,
-      identityIdentifier,
-      amountCredits + WITHDRAWAL_FEE_CREDITS,
-      'withdrawal',
-    )
+    const [{totalFeeCredits}, {credits}] = await Promise.all([
+      this.estimateTransitionFee(network, {
+        kind: 'identityWithdrawal',
+        identityId: identityIdentifier,
+        amountCredits,
+        coreAddress: toCoreAddress,
+      }),
+      this.platform.request('identityBalance', network, {identifier: identityIdentifier}),
+    ])
+    this.requireIdentityCredits(credits, amountCredits + totalFeeCredits, 'withdrawal')
 
     const {stHash} = await this.platform.request('identityWithdrawal', network, {
       seed,
@@ -362,7 +405,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits: amountCredits.toString(),
-      feeCredits: WITHDRAWAL_FEE_CREDITS.toString(),
+      feeCredits: totalFeeCredits.toString(),
       fromAddress: identityIdentifier,
       toAddress: toCoreAddress,
     }
@@ -385,8 +428,16 @@ export class PlatformAddressService {
     const {wallet, seed, xpub} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
+    const [candidates, {totalFeeCredits}] = await Promise.all([
+      this.loadPlatformCandidates(walletId, xpub, network),
+      this.estimateTransitionFee(network, {
+        kind: 'shield',
+        noteCount: 1,
+        fromAssetLock: false,
+        surplusAddress: null,
+      }),
+    ])
+    const source = selectPlatformSource(candidates, amountCredits, totalFeeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('shield', network, {
       seed,
@@ -485,8 +536,7 @@ export class PlatformAddressService {
     return identity
   }
 
-  private async requireIdentityBalance(network: Network, identifier: string, needed: bigint, action: string): Promise<void> {
-    const {credits} = await this.platform.request('identityBalance', network, {identifier})
+  private requireIdentityCredits(credits: bigint, needed: bigint, action: string): void {
     if (credits < needed) {
       throw new Error(`Identity has insufficient credits for this ${action} plus fee`)
     }

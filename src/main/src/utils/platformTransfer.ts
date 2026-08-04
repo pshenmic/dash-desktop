@@ -1,17 +1,5 @@
-import {PlatformInputPlan, PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
-import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS, TRANSFER_FEE_CREDITS} from '../constants'
-
-export function identityTransferFeeCredits(recipientCount: number): bigint {
-  return 500_000n + 6_000_000n * BigInt(recipientCount)
-}
-
-export function identityCreateFeeCredits(publicKeyCount: number): bigint {
-  return 2_000_000n + 6_500_000n * BigInt(publicKeyCount)
-}
-
-export function topUpFeeCredits(inputCount: number): bigint {
-  return 500_000n + 500_000n * BigInt(inputCount)
-}
+import {PlatformFeeForInputs, PlatformInputPlan, PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
+import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../constants'
 
 export function selectPlatformInputs(
   candidates: PlatformSourceCandidate[],
@@ -66,32 +54,33 @@ export function selectPlatformInputs(
   return {inputs, feeCredits}
 }
 
-export function selectPlatformInputsWithFee(
+export async function selectPlatformInputsWithFee(
   candidates: PlatformSourceCandidate[],
   amountCredits: bigint,
-  feeForInputCount: (inputCount: number) => bigint,
+  feeForInputs: PlatformFeeForInputs,
   preferredAddress?: string,
-): PlatformInputPlan {
-  let inputCount = 1
+): Promise<PlatformInputPlan> {
+  let quoted = selectPlatformInputs(candidates, amountCredits, 0n, preferredAddress).inputs
   for (;;) {
-    const plan = selectPlatformInputs(candidates, amountCredits, feeForInputCount(inputCount), preferredAddress)
-    if (plan.inputs.length <= inputCount) {
+    const plan = selectPlatformInputs(candidates, amountCredits, await feeForInputs(quoted), preferredAddress)
+    if (plan.inputs.length <= quoted.length) {
       return plan
     }
-    inputCount = plan.inputs.length
+    quoted = plan.inputs
   }
 }
 
 export function selectPlatformSource(
   candidates: PlatformSourceCandidate[],
   amountCredits: bigint,
+  feeCredits: bigint,
   fromAddress?: string,
 ): PlatformSourceCandidate {
   if (amountCredits < MIN_OUTPUT_CREDITS) {
     throw new Error(`Minimum Platform transfer is ${MIN_OUTPUT_CREDITS.toString()} credits`)
   }
 
-  const required = amountCredits + TRANSFER_FEE_CREDITS
+  const required = amountCredits + feeCredits
 
   if (fromAddress != null) {
     const chosen = candidates.find(candidate => candidate.platformAddress === fromAddress)

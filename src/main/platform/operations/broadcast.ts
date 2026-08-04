@@ -24,6 +24,7 @@ export async function broadcast(
     await sdk.stateTransitions.broadcast(st)
   } catch (e) {
     const message = consensusMessage(e)
+    console.error(`[platform] broadcast failed ${stHash}: ${message}\n[platform] transition hex: ${st.hex()}`)
     const alreadyInChain = isAlreadyInChain(message)
     if (alreadyInChain && options.idempotent === true) return stHash
     throw new OperationError(
@@ -37,7 +38,9 @@ export async function broadcast(
   try {
     await sdk.stateTransitions.waitForStateTransitionResult(st)
   } catch (e) {
-    throw new OperationError(consensusMessage(e), 'network', stHash)
+    const message = consensusMessage(e)
+    console.error(`[platform] result failed ${stHash}: ${message}\n[platform] transition hex: ${st.hex()}`)
+    throw new OperationError(message, 'network', stHash)
   }
 
   return stHash

@@ -49,11 +49,11 @@ describe('feeQueryFor', () => {
     })
   })
 
-  it('prices an address withdrawal with change and no recipient', () => {
+  it('prices an address withdrawal with no change and no recipient', () => {
     expect(feeQueryFor(TransferOperation.AddressWithdrawal, params())).toEqual({
       kind: 'addressWithdrawal',
       inputCount: 1,
-      hasChange: true,
+      hasChange: false,
     })
   })
 
