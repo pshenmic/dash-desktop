@@ -223,65 +223,96 @@ export class ShieldedService {
     return this.syncStates.get(walletId) ?? this.idleSyncState()
   }
 
-  async startSync(walletId: string, password: string): Promise<ShieldedSyncState> {
+  // Returns the in-flight state when a sync is already running for this wallet,
+  // otherwise installs a fresh one.
+  private beginSync(walletId: string): {state: ShieldedSyncState; running: boolean} {
     const current = this.syncStates.get(walletId)
     if (current != null && (current.phase === 'syncing' || current.phase === 'recovering')) {
-      return current
+      return {state: current, running: true}
     }
-
     const state: ShieldedSyncState = {
       phase: 'syncing', fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null
     }
     this.syncStates.set(walletId, state)
+    return {state, running: false}
+  }
+
+  async startSync(walletId: string, password: string): Promise<ShieldedSyncState> {
+    const {state, running} = this.beginSync(walletId)
+    if (running) return state
 
     try {
       const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
       await this.cacheAddresses(walletId, seed, network)
-      await this.checkForNewNotes(network, (fetched, total) => {
-        state.fetched = fetched
-        state.total = total
-      })
-
-      const priorNotes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
-      const decodedFrom = await this.walletDAO.getShieldedDecodedCount(walletId)
-      const fresh = await this.shieldedPoolDAO.getEncryptedNotesFrom(network, decodedFrom)
-      
-      const owned = await this.shieldedPoolDAO.getEncryptedNotes(network, priorNotes.map(note => note.index))
-      const notes = [...owned, ...fresh]
-
-      if (notes.length === 0) {
-        state.balance = '0'
-        state.phase = 'done'
-        state.syncedAt = Date.now()
-        return state
-      }
-
-      const decodedUpTo = fresh.length > 0 ? fresh[fresh.length - 1].index + 1 : decodedFrom
-      this.platform.request('sync', network, {seed, notes}, {
-        onProgress: phase => { state.phase = syncPhase(phase) ?? state.phase },
-      }).then(async result => {
-        const all: ShieldedNoteInfo[] = result.notes.map(note => ({
-          index: note.index,
-          amount: note.amount.toString(),
-          spent: note.spent,
-          address: note.address,
-        })).sort((a, b) => b.index - a.index)
-        let balance = 0n
-        for (const note of all) {
-          if (!note.spent) balance += BigInt(note.amount)
-        }
-        state.balance = balance.toString()
-        state.notes = all
-        state.phase = 'done'
-        state.syncedAt = Date.now()
-        await this.shieldedNoteDAO.upsertNotes(walletId, all)
-        await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
-      }).catch(e => this.failed(state, e))
+      this.syncNotes(walletId, network, seed, state).catch(e => this.failed(state, e))
     } catch (e) {
-      state.phase = 'error'
-      state.error = e instanceof Error ? e.message : String(e)
+      this.failed(state, e)
     }
     return state
+  }
+
+  // A spend's change note and a shield's new note are indistinguishable from
+  // anyone else's until they are trial-decrypted, so a refresh that holds no
+  // seed leaves the balance stale and the note list short. Never rejects: the
+  // outcome belongs to the sync state, and callers run inside jobs that would
+  // otherwise report their own success as a failure.
+  async refreshNotes(walletId: string, network: Network, seed: Uint8Array): Promise<void> {
+    const {state, running} = this.beginSync(walletId)
+    if (running) return
+
+    try {
+      await this.syncNotes(walletId, network, seed, state)
+    } catch (e) {
+      this.failed(state, e)
+    }
+  }
+
+  private async syncNotes(
+    walletId: string,
+    network: Network,
+    seed: Uint8Array,
+    state: ShieldedSyncState,
+  ): Promise<void> {
+    await this.checkForNewNotes(network, (fetched, total) => {
+      state.fetched = fetched
+      state.total = total
+    })
+
+    const priorNotes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
+    const decodedFrom = await this.walletDAO.getShieldedDecodedCount(walletId)
+    const fresh = await this.shieldedPoolDAO.getEncryptedNotesFrom(network, decodedFrom)
+
+    const owned = await this.shieldedPoolDAO.getEncryptedNotes(network, priorNotes.map(note => note.index))
+    const notes = [...owned, ...fresh]
+
+    if (notes.length === 0) {
+      state.balance = '0'
+      state.phase = 'done'
+      state.syncedAt = Date.now()
+      return
+    }
+
+    const decodedUpTo = fresh.length > 0 ? fresh[fresh.length - 1].index + 1 : decodedFrom
+    const result = await this.platform.request('sync', network, {seed, notes}, {
+      onProgress: phase => { state.phase = syncPhase(phase) ?? state.phase },
+    })
+
+    const all: ShieldedNoteInfo[] = result.notes.map(note => ({
+      index: note.index,
+      amount: note.amount.toString(),
+      spent: note.spent,
+      address: note.address,
+    })).sort((a, b) => b.index - a.index)
+    let balance = 0n
+    for (const note of all) {
+      if (!note.spent) balance += BigInt(note.amount)
+    }
+    state.balance = balance.toString()
+    state.notes = all
+    state.phase = 'done'
+    state.syncedAt = Date.now()
+    await this.shieldedNoteDAO.upsertNotes(walletId, all)
+    await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
   }
 
   private idleSpendState(): ShieldedSpendState {
@@ -373,8 +404,7 @@ export class ShieldedService {
       state.stHash = result.stHash
       state.identityId = result.identityId
       state.phase = 'done'
-      this.checkForNewNotes(network).catch(e =>
-        console.error('Failed to refresh the shielded pool after a spend', e))
+      void this.refreshNotes(walletId, network, payload.seed)
       if (identityCreate != null && result.identityId != null) {
         this.persistCreatedIdentity({walletId, network, ...identityCreate}, result.identityId).catch(e =>
           console.error('Failed to persist identity created from the shielded pool', e))
@@ -439,7 +469,7 @@ export class ShieldedService {
         const acquired = await this.assetLock.acquire(state, {
           walletId, kind: 'shielded', destination, amountDuffs, seed,
         })
-        await this.settleShield(seed, network, state, acquired)
+        await this.settleShield(walletId, seed, network, state, acquired)
       })
     } catch (error) {
       zeroSeed(unlocked)
@@ -454,7 +484,7 @@ export class ShieldedService {
     const state = this.assetLock.resume(walletId, row)
     return this.runFunding(state, unlocked, async () => {
       const acquired = await this.assetLock.reacquire(state, row)
-      await this.settleShield(seed, network, state, acquired)
+      await this.settleShield(walletId, seed, network, state, acquired)
     })
   }
 
@@ -468,6 +498,7 @@ export class ShieldedService {
   }
 
   private async settleShield(
+    walletId: string,
     seed: Uint8Array,
     network: Network,
     state: AssetLockFundingState,
@@ -488,8 +519,8 @@ export class ShieldedService {
     })
 
     await this.assetLock.done(state, row.txid, stHash)
-    this.checkForNewNotes(network).catch(e =>
-      console.error('Failed to refresh the shielded pool after a shield', e))
+    // Awaited: runFunding zeroes the seed the moment this settles.
+    await this.refreshNotes(walletId, network, seed)
   }
 
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {

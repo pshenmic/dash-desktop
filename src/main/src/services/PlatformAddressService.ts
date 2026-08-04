@@ -408,8 +408,7 @@ export class PlatformAddressService {
       amountCredits,
     })
 
-    this.shielded.checkForNewNotes(network).catch(e =>
-      console.error('Failed to refresh the shielded pool after a shield', e))
+    void this.shielded.refreshNotes(walletId, network, seed)
 
     return {
       stHash,
