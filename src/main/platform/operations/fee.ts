@@ -43,7 +43,8 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   // Deduped for storage only: two outputs to one address create one entry.
   const recipients = [...new Set(paidAddresses(query))]
   const newAddresses = await addressesNotInState(recipients, ctx)
-  const storageFeeCredits = PlatformAddressWASM.estimateStorageFeeForNewAddresses(newAddresses.length)
+  // multiply by 3 because most time fee is more than min storage fee
+  const storageFeeCredits = PlatformAddressWASM.estimateStorageFeeForNewAddresses(newAddresses.length) * 3n
 
   return {
     minFeeCredits,
