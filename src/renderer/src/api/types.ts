@@ -34,6 +34,39 @@ export interface PlatformAddressDto {
   nonce: number
 }
 
+// estimateTransitionFee
+export interface TransitionFeeInput {
+  platformAddress: string
+  index: number
+  nonce: number
+  credits: bigint
+}
+
+export type TransitionFeeQuery =
+  | { kind: 'addressTransfer'; inputCount: number; recipients: string[] }
+  | { kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean }
+  | { kind: 'shieldedSpend'; spendKind: 'transfer' | 'unshield' | 'withdrawal' | 'identityCreate'; noteCount: number; recipients: string[] }
+  | { kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null }
+  | { kind: 'identityCreditsToAddresses'; identityId: string; recipients: { address: string; amountCredits: bigint }[] }
+  | { kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint }
+  | { kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string }
+  | { kind: 'identityCreateFromAddresses'; inputs: TransitionFeeInput[] }
+  | { kind: 'identityTopUpFromAddresses'; identityId: string; inputs: TransitionFeeInput[] }
+  | {
+      kind: 'addressFundingFromAssetLock'
+      assetLockProof: { type: 'chainLock'; coreChainLockedHeight: number } | { type: 'instantLock'; instantLock: string; transaction: string }
+      txid: string
+      outputIndex: number
+      recipient: string
+    }
+
+export interface TransitionFeeDto {
+  minFeeCredits: string
+  storageFeeCredits: string
+  totalFeeCredits: string
+  newAddresses: string[]
+}
+
 // getStatus
 export type Network = 'mainnet' | 'testnet'
 

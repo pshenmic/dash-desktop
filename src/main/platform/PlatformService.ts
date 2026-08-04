@@ -5,6 +5,7 @@ import {SdkSource} from './types/sdk'
 import {Network} from '../src/types'
 import {OperationContext} from './operations/types'
 import {nodeStatus} from './operations/nodeStatus'
+import {transitionFee} from './operations/fee'
 import {addressInfos} from './operations/address/infos'
 import {addressTransfer} from './operations/address/transfer'
 import {addressWithdrawal} from './operations/address/withdrawal'
@@ -197,6 +198,7 @@ export class PlatformService {
       case 'addressFundingFromAssetLock': return addressFundingFromAssetLock(request.payload, ctx)
       case 'identityCreateFromAssetLock': return identityCreateFromAssetLock(request.payload, ctx)
       case 'identityTopUpFromAssetLock': return identityTopUpFromAssetLock(request.payload, ctx)
+      case 'transitionFee': return transitionFee(request.payload, ctx)
       case 'addressInfos': return addressInfos(request.payload, ctx)
       case 'addressTransfer': return addressTransfer(request.payload, ctx)
       case 'addressWithdrawal': return addressWithdrawal(request.payload, ctx)

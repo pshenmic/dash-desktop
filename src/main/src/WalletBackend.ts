@@ -34,6 +34,7 @@ import {SetAddressLabel} from "./api/wallet/setAddressLabel";
 import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
 import {GetTxLockStatusHandler} from "./api/wallet/getTxLockStatus";
+import {EstimateTransitionFeeHandler} from "./api/wallet/estimateTransitionFee";
 import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
 import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromAddresses";
 import {WithdrawPlatformCreditsHandler} from "./api/wallet/withdrawPlatformCredits";
@@ -134,6 +135,7 @@ export class WalletBackend {
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
     ipcMain.handle('getTxLockStatus', new GetTxLockStatusHandler(this.walletService).handle)
+    ipcMain.handle('estimateTransitionFee', new EstimateTransitionFeeHandler(this.platformAddressService).handle)
     ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformAddressService).handle)
     ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformAddressService).handle)
