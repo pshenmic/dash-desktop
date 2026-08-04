@@ -50,6 +50,15 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   // multiply by 3 because most time fee is more than min storage fee
   const storageFeeCredits = PlatformAddressWASM.estimateStorageFeeForNewAddresses(newAddresses.length) * 3n
 
+  console.log(
+    {
+      minFeeCredits,
+      storageFeeCredits,
+      totalFeeCredits: minFeeCredits + storageFeeCredits,
+      newAddresses,
+    }
+  )
+
   return {
     minFeeCredits,
     storageFeeCredits,
@@ -76,7 +85,8 @@ async function minimumFeeCredits(query: FeeQuery, ctx: OperationContext): Promis
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
-      return (await identityTransition(query, ctx)).calculateMinRequiredFee()
+      // multiply by 4 for transition because in most scenarios this types of transition require a lot more fee
+      return (await identityTransition(query, ctx)).calculateMinRequiredFee() * 4n
     case 'identityCreateFromAddresses':
     case 'identityTopUpFromAddresses':
     case 'addressFundingFromAssetLock':
