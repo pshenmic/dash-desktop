@@ -1,8 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { PlatformAddressService } from '../../services/PlatformAddressService'
 import { Network } from '../../types'
-import { TransitionFeeEstimate } from '../../types/TransitionFee'
-import { FeeQuery } from '../../../platform/types/messages'
+import { FeeQuery, FeeQuote } from '../../../platform/types/messages'
 
 export class EstimateTransitionFeeHandler {
   private platformAddressService: PlatformAddressService
@@ -15,7 +14,7 @@ export class EstimateTransitionFeeHandler {
     _event: IpcMainInvokeEvent,
     network: Network,
     query: FeeQuery,
-  ): Promise<TransitionFeeEstimate> => {
+  ): Promise<FeeQuote> => {
     return this.platformAddressService.estimateTransitionFee(network, query)
   }
 }

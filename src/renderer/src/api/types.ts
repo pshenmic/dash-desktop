@@ -61,9 +61,9 @@ export type TransitionFeeQuery =
     }
 
 export interface TransitionFeeDto {
-  minFeeCredits: string
-  storageFeeCredits: string
-  totalFeeCredits: string
+  minFeeCredits: bigint
+  storageFeeCredits: bigint
+  totalFeeCredits: bigint
   newAddresses: string[]
 }
 
