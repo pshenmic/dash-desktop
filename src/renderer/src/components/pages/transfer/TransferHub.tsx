@@ -543,7 +543,7 @@ export default function TransferHub(): React.JSX.Element {
       </div>
       {!isDashUnit && (
         <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
           {feeErr === null && feeCredits !== null ? (
             <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
           ) : feeErr === null && feeLoading ? (
@@ -594,7 +594,7 @@ export default function TransferHub(): React.JSX.Element {
         {!isDashUnit && feeCredits !== null && (
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
               <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
@@ -801,7 +801,7 @@ export default function TransferHub(): React.JSX.Element {
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
           rows={[
             {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
-            ...(feeCredits !== null ? [{label: 'Network fee', value: <CreditsAmount credits={feeCredits} align={"end"} />}] : []),
+            ...(feeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} align={"end"} />}] : []),
             {label: 'From', value: fromDisplay, mono: true},
             {label: 'To', value: toDisplay, mono: true},
           ]}

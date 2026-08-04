@@ -200,7 +200,7 @@ export default function TransferConfirmModal({
               </div>
               {result?.feeCredits && (
                 <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
                   <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={BigInt(result.feeCredits)} align={"end"} /></Text>
                 </div>
               )}

@@ -109,7 +109,7 @@ export default function ShieldConfirmModal({
               </div>
               {feeCredits !== null && (
                 <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
                   <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
                 </div>
               )}
