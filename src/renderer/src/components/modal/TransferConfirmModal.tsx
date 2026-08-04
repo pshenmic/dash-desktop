@@ -174,7 +174,7 @@ export default function TransferConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? <CreditsAmount credits={result.amountCredits} /> : ''}
+                {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Broadcast to Platform. It will confirm shortly.

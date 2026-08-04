@@ -7,7 +7,7 @@ interface CreditsAmountProps {
   compact?: boolean
   unit?: string | null
   showFiat?: boolean
-  align?: 'start' | 'end'
+  align?: 'start' | 'end' | 'center'
   amountClassName?: string
   unitClassName?: string
   className?: string
@@ -28,12 +28,14 @@ export default function CreditsAmount({
   const fiat = showFiat && rateReady ? formatFiat(duffs) : null
 
   const face = 'col-start-1 row-start-1 whitespace-nowrap transition-[opacity,transform] duration-200 motion-reduce:transition-none'
+  const items = align === 'end' ? 'items-end' : align === 'center' ? 'items-center' : 'items-start'
+  const justifyItems = align === 'end' ? 'justify-items-end' : align === 'center' ? 'justify-items-center' : 'justify-items-start'
 
   return (
     <span
-      className={`group/credits inline-flex flex-col ${align === 'end' ? 'items-end' : 'items-start'} ${className ?? ''}`}
+      className={`group/credits inline-flex flex-col ${items} ${className ?? ''}`}
     >
-      <span className={`relative inline-grid align-baseline ${align === 'end' ? 'justify-items-end' : 'justify-items-start'}`}>
+      <span className={`relative inline-grid align-baseline ${justifyItems}`}>
         <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
           <DashBigNumber className={amountClassName}>{davToDash(duffs)}</DashBigNumber>
           <span className={unitClassName}>{' Dash'}</span>

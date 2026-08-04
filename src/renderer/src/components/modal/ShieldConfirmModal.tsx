@@ -198,7 +198,7 @@ export default function ShieldConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result && <CreditsAmount credits={result.amountCredits} />} shielded
+                {result && <CreditsAmount credits={result.amountCredits} align={"center"} />}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Moved into the shielded pool. If it went to your own address, re-sync notes to see it.

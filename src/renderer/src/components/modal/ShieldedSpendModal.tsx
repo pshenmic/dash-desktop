@@ -281,7 +281,7 @@ export default function ShieldedSpendModal({
             <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
               <div className={"success-pop"}><SuccessIcon size={56} /></div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {spend?.identityId ? 'Identity created' : <><CreditsAmount credits={BigInt(sentAmount || amountCredits || '0')} /> sent</>}
+                {spend?.identityId ? 'Identity created' : <CreditsAmount credits={BigInt(sentAmount || amountCredits || '0')} align={"center"} />}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 {spend?.identityId
