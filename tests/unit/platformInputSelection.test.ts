@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {selectPlatformInputs, selectPlatformInputsWithFee} from '../../src/main/src/utils/platformTransfer'
+import {selectPlatformInputs} from '../../src/main/src/utils/platformTransfer'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {MIN_INPUT_CREDITS, MAX_ADDRESS_INPUTS} from '../../src/main/src/constants'
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
@@ -12,7 +12,6 @@ function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): 
 }
 
 const FEE = 1_000_000n
-const FEE_PER_INPUT = 500_000n
 
 describe('selectPlatformInputs', () => {
   it('uses a single input when the largest balance covers amount + fee', () => {
@@ -74,35 +73,5 @@ describe('selectPlatformInputs', () => {
 
   it('throws when the total balance cannot cover the amount', () => {
     expect(() => selectPlatformInputs([candidate('a', 1_000_000n)], 5_000_000n, FEE)).toThrow(/enough credits/)
-  })
-})
-
-describe('selectPlatformInputsWithFee', () => {
-  it('quotes once when the priced plan does not outgrow the quoted one', async () => {
-    let quotes = 0
-    const plan = await selectPlatformInputsWithFee([candidate('a', 10_000_000n)], 5_000_000n, async () => {
-      quotes++
-      return FEE
-    })
-
-    expect(quotes).toBe(1)
-    expect(plan.inputs).toHaveLength(1)
-    expect(plan.feeCredits).toBe(FEE)
-  })
-
-  it('returns a plan the quote for its own inputs pays for', async () => {
-    const candidates = [candidate('a', 5_000_000n), candidate('b', 3_000_000n)]
-    const amount = 4_800_000n
-    const plan = await selectPlatformInputsWithFee(candidates, amount, async inputs => FEE_PER_INPUT * BigInt(inputs.length))
-
-    expect(plan.inputs).toHaveLength(2)
-    expect(plan.feeCredits).toBe(FEE_PER_INPUT * BigInt(plan.inputs.length))
-    expect(plan.inputs.reduce((sum, input) => sum + input.credits, 0n)).toBe(amount)
-  })
-
-  it('propagates a failed quote', async () => {
-    await expect(selectPlatformInputsWithFee([candidate('a', 10_000_000n)], 5_000_000n, async () => {
-      throw new Error('fee quote failed')
-    })).rejects.toThrow(/fee quote failed/)
   })
 })

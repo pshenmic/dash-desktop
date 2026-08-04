@@ -40,7 +40,7 @@ export function useOperationFee(
         spendKind: spendKind!,
         noteCount: i + FEE_QUOTE_MIN_NOTE_COUNT,
         recipients: [],
-      }).then(quote => quote.minFeeCredits))),
+      }).then(quote => BigInt(quote.minFeeCredits)))),
     null,
     { errorMessage: TRANSITION_FEE_ERROR },
   )
@@ -67,7 +67,7 @@ export function useOperationFee(
   const quote = useAsyncWithCache<bigint | null>(
     'transition-fee-quote',
     settled?.key,
-    () => API.estimateTransitionFee(network!, settled!.query).then(q => q.totalFeeCredits),
+    () => API.estimateTransitionFee(network!, settled!.query).then(q => BigInt(q.totalFeeCredits)),
     null,
     { errorMessage: TRANSITION_FEE_ERROR },
   )

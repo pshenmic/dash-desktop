@@ -14,5 +14,3 @@ export interface PlatformInputPlan {
   inputs: PlatformInputSelection[]
   feeCredits: bigint
 }
-
-export type PlatformFeeForInputs = (inputs: PlatformInputSelection[]) => Promise<bigint>

@@ -127,11 +127,17 @@ export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
 }
 
 export const MIN_OUTPUT_CREDITS = 500_000n
+export const TRANSFER_FEE_CREDITS = 6_500_000n
 export const MIN_INPUT_CREDITS = 100_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
+export const WITHDRAWAL_FEE_CREDITS = 400_000_000n
 export const CORE_FEE_PER_BYTE = 1
+export const IDENTITY_CREDIT_TRANSFER_FEE_CREDITS = 1_000_000n
 
+// The key set identityCreateFromAddresses builds; the fee scales with it, so
+// the worker that creates the keys and main that reserves the fee read the
+// same number.
 export const IDENTITY_CREATE_KEY_COUNT = 4
 
 // Mirrors compute_minimum_shielded_fee in rs-dpp (pshenmic/platform@1ba1ca5):

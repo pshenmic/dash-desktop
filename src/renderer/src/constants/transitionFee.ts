@@ -1,2 +1,4 @@
 export const FEE_QUOTE_DERIVATION_INDEX = 0
+export const FEE_QUOTE_INPUT_COUNT = 1
 export const FEE_QUOTE_MIN_NOTE_COUNT = 1
+export const FEE_QUOTE_SHIELD_NOTE_COUNT = 1
