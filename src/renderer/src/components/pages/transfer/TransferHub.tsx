@@ -7,6 +7,7 @@ import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
+import Spinner from "@renderer/components/ui/Spinner";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
 import { useFiat } from "@renderer/hooks/useFiat";
@@ -16,13 +17,12 @@ import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
+import { useOperationFee } from "@renderer/hooks/useOperationFee";
 import { creditsFromInput, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, formatCredits } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
-import { minimumShieldedFeeCredits, shieldedWithdrawalFeeCredits, unshieldFeeCredits } from "@renderer/utils/shieldedFee";
-import { maxSpendableCredits, selectSpendNotes, SpendFeeForCount } from "@renderer/utils/shieldedNoteSelection";
 import {
   SOURCE_KINDS,
   DESTINATION_KINDS,
@@ -56,18 +56,6 @@ import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
-
-const ZERO_SPEND_FEE: SpendFeeForCount = () => 0n
-
-function shieldedFeeForOperation(operation: TransferOperation | null): SpendFeeForCount | null {
-  switch (operation) {
-    case TransferOperation.ShieldedTransfer: return minimumShieldedFeeCredits
-    case TransferOperation.Unshield: return unshieldFeeCredits
-    case TransferOperation.ShieldedWithdrawal: return shieldedWithdrawalFeeCredits
-    case TransferOperation.IdentityCreateFromPool: return ZERO_SPEND_FEE
-    default: return null
-  }
-}
 
 function initialSourceKind(value: string | null): SourceKind {
   return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : SourceKind.Core
@@ -205,35 +193,31 @@ export default function TransferHub(): React.JSX.Element {
   const amountCredits = isDashUnit ? 0n : creditsFromInput(amount)
   const minCredits = info?.minCredits ?? 0n
 
-  const shieldedFeeForCount = shieldedFeeForOperation(operation)
-  const shieldedCandidates = useMemo(
-    () => (shieldedFeeForCount != null && shieldedSync.phase === ShieldedSyncPhase.Done
-      ? (shieldedSpecificNotes ?? spendableNotes).map(n => ({ index: n.index, value: BigInt(n.amount) }))
-      : null),
-    [shieldedFeeForCount, shieldedSync.phase, shieldedSpecificNotes, spendableNotes],
-  )
-  const shieldedSelection = useMemo(
-    () => (shieldedCandidates != null && shieldedFeeForCount != null && amountCredits > 0n
-      ? selectSpendNotes(shieldedCandidates, amountCredits, MAX_SPEND_NOTES, shieldedFeeForCount)
-      : null),
-    [shieldedCandidates, shieldedFeeForCount, amountCredits],
-  )
-  const feeCredits = shieldedFeeForCount != null
-    ? (shieldedSelection?.feeCredits ?? shieldedFeeForCount(1))
-    : (info?.feeCredits ?? 0n)
+  const trimmedTo = toValue.trim()
 
-  const shieldedMaxPerTx = useMemo(() => {
-    if (shieldedCandidates == null || shieldedFeeForCount == null) return null
-    return maxSpendableCredits(shieldedCandidates, MAX_SPEND_NOTES, shieldedFeeForCount)
-  }, [shieldedCandidates, shieldedFeeForCount])
+  const destinationValid =
+    toKind === DestinationKind.CoreAddress ? isValidDashAddress(trimmedTo, network ?? undefined)
+    : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
+    : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
+    : toKind === DestinationKind.NewIdentity ? true
+    : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
+
+  const { feeCredits, maxPerTx, loading: feeLoading, err: feeErr } = useOperationFee(network, operation, {
+    destinationValid,
+    recipient: trimmedTo,
+    amountCredits,
+    source: selectedSource ?? null,
+    identityId: selectedIdentity?.identifier ?? null,
+    notes: shieldedSync.phase === ShieldedSyncPhase.Done ? (shieldedSpecificNotes ?? spendableNotes) : null,
+  })
 
   const sliderMaxAmount = useMemo((): bigint | null => {
     if (isDashUnit) return balanceDuffs
-    if (shieldedMaxPerTx !== null) return shieldedMaxPerTx > 0n ? shieldedMaxPerTx : 0n
-    if (availableCredits === null) return null
+    if (maxPerTx !== null) return maxPerTx > 0n ? maxPerTx : 0n
+    if (availableCredits === null || feeCredits === null) return null
     const spendable = availableCredits - feeCredits
     return spendable > 0n ? spendable : 0n
-  }, [isDashUnit, balanceDuffs, shieldedMaxPerTx, availableCredits, feeCredits])
+  }, [isDashUnit, balanceDuffs, maxPerTx, availableCredits, feeCredits])
 
   const sliderPercent = useMemo(() => {
     if (sliderMaxAmount === null || sliderMaxAmount === 0n) return 0
@@ -249,20 +233,11 @@ export default function TransferHub(): React.JSX.Element {
     setAmount(isDashUnit ? davToDash(value) : value.toString())
   }
 
-  const trimmedTo = toValue.trim()
-
   const sourceReady =
     fromKind === SourceKind.Core ? true
     : fromKind === SourceKind.PlatformAddress ? selectedSource != null
     : fromKind === SourceKind.Identity ? selectedIdentity != null
     : true
-
-  const destinationValid =
-    toKind === DestinationKind.CoreAddress ? isValidDashAddress(trimmedTo, network ?? undefined)
-    : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
-    : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
-    : toKind === DestinationKind.NewIdentity ? true
-    : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
 
   const selfSend =
     (operation === TransferOperation.AddressFundsTransfer && destinationValid && selectedSource != null && trimmedTo === selectedSource.platformAddress)
@@ -287,8 +262,9 @@ export default function TransferHub(): React.JSX.Element {
   const amountReady = isDashUnit
     ? amountDuffs > 0n && amountDuffs <= balanceDuffs
     : amountCredits >= minCredits && amountCredits > 0n
+      && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
-      && (shieldedMaxPerTx === null || amountCredits <= shieldedMaxPerTx)
+      && (maxPerTx === null || amountCredits <= maxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
 
   const canSubmit = routeReady && amountReady
@@ -316,11 +292,11 @@ export default function TransferHub(): React.JSX.Element {
       setAmount(davToDash(balanceDuffs))
       return
     }
-    if (shieldedMaxPerTx !== null) {
-      setAmount(shieldedMaxPerTx > 0n ? shieldedMaxPerTx.toString() : '0')
+    if (maxPerTx !== null) {
+      setAmount(maxPerTx > 0n ? maxPerTx.toString() : '0')
       return
     }
-    if (availableCredits === null) return
+    if (availableCredits === null || feeCredits === null) return
     const spendable = availableCredits - feeCredits
     setAmount(spendable > 0n ? spendable.toString() : '0')
   }
@@ -339,11 +315,13 @@ export default function TransferHub(): React.JSX.Element {
         ? `Minimum is ${formatCredits(minCredits)} credits.`
         : availableCredits === null
           ? SHIELDED_BALANCE_UNKNOWN_ERROR
-          : amountCredits + feeCredits > availableCredits
-            ? `Amount plus the ${formatCredits(feeCredits)} credit fee exceeds this balance.`
-            : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
-              ? `Max per transaction right now is ${formatCredits(shieldedMaxPerTx)} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
-              : null
+          : feeCredits === null
+            ? null
+            : amountCredits + feeCredits > availableCredits
+              ? `Amount plus the ${formatCredits(feeCredits)} credit fee exceeds this balance.`
+              : maxPerTx !== null && amountCredits > maxPerTx
+                ? `Max per transaction right now is ${formatCredits(maxPerTx)} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
+                : null
 
   const resetForm = (): void => {
     setToValue('')
@@ -485,7 +463,7 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Cross-chain withdrawal</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Withdrawing to Core costs a 400,000,000 credit network fee and the Dash payout arrives asynchronously after the withdrawal is processed.
+            The Dash payout arrives asynchronously after the withdrawal is processed.
           </Text>
         </div>
       )}
@@ -566,6 +544,25 @@ export default function TransferHub(): React.JSX.Element {
         )}
         {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
       </div>
+      {!isDashUnit && (
+        <>
+          <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+            {feeErr === null && feeCredits !== null ? (
+              <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+            ) : feeErr === null && feeLoading ? (
+              <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
+            ) : (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
+            )}
+          </div>
+          {feeErr && (
+            <div className={"mt-2 px-1"}>
+              <Text size={12} weight={"medium"} color={"red"}>{feeErr}</Text>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 
@@ -604,10 +601,10 @@ export default function TransferHub(): React.JSX.Element {
             {isDashUnit ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits} align={"end"} />}
           </Text>
         </div>
-        {!isDashUnit && (
+        {!isDashUnit && feeCredits !== null && (
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee{operation === TransferOperation.ShieldedTransfer || operation === TransferOperation.Unshield || operation === TransferOperation.ShieldedWithdrawal ? ' (est.)' : ''}</Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
               <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
@@ -673,7 +670,7 @@ export default function TransferHub(): React.JSX.Element {
   const isPlatformModalOperation = operation === TransferOperation.AddressFundsTransfer || operation === TransferOperation.IdentityTopUp
     || operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal
     || operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity || operation === TransferOperation.IdentityCreate
-  const isShieldedSpendOperation = operation === TransferOperation.ShieldedTransfer || operation === TransferOperation.Unshield || operation === TransferOperation.ShieldedWithdrawal || operation === TransferOperation.IdentityCreateFromPool
+  const isShieldedSpendOperation = info?.spendKind != null
 
   return (
     <div className={"relative flex flex-col h-full pb-4"}>
@@ -750,6 +747,7 @@ export default function TransferHub(): React.JSX.Element {
           fromAddress={selectedSource?.platformAddress ?? ''}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
+          feeCredits={feeCredits}
           proverReady={prover.ready}
           onSuccess={resetForm}
         />
@@ -764,6 +762,7 @@ export default function TransferHub(): React.JSX.Element {
           toLabel={operation === TransferOperation.ShieldedTransfer ? 'To (shielded)' : operation === TransferOperation.Unshield ? 'To (Platform)' : operation === TransferOperation.IdentityCreateFromPool ? 'Creates' : 'To (Core L1)'}
           toValue={operation === TransferOperation.IdentityCreateFromPool ? 'New Platform identity with 6 keys' : trimmedTo}
           amountCredits={amountCredits.toString()}
+          feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
           onSuccess={resetForm}
@@ -812,7 +811,7 @@ export default function TransferHub(): React.JSX.Element {
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
           rows={[
             {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
-            {label: 'Network fee', value: <CreditsAmount credits={feeCredits} align={"end"} />},
+            ...(feeCredits !== null ? [{label: 'Network fee', value: <CreditsAmount credits={feeCredits} align={"end"} />}] : []),
             {label: 'From', value: fromDisplay, mono: true},
             {label: 'To', value: toDisplay, mono: true},
           ]}

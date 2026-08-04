@@ -22,6 +22,7 @@ interface ShieldedSpendModalProps {
   toLabel: string
   toValue: string
   amountCredits: string
+  feeCredits: bigint | null
   proverReady: boolean
   start: (password: string) => Promise<ShieldedSpendState>
   onSuccess: () => void
@@ -47,6 +48,7 @@ export default function ShieldedSpendModal({
   toLabel,
   toValue,
   amountCredits,
+  feeCredits,
   proverReady,
   start,
   onSuccess,
@@ -175,6 +177,12 @@ export default function ShieldedSpendModal({
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
                 <Text size={14} weight={"extrabold"} color={"brand"}><CreditsAmount credits={BigInt(amountCredits)} align={"end"} /></Text>
               </div>
+              {feeCredits !== null && (
+                <div className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+                  <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+                </div>
+              )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{toLabel}</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toValue}</Text>

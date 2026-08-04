@@ -5,8 +5,9 @@ import { WalletSyncPhase } from '../enums/WalletSyncPhase'
 import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
+import { ShieldedSpendKind } from '../enums/ShieldedSpendKind'
 
-export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
+export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind, ShieldedSpendKind }
 
 // getAddresses
 export type WalletAddressDto = {
@@ -45,7 +46,7 @@ export interface TransitionFeeInput {
 export type TransitionFeeQuery =
   | { kind: 'addressTransfer'; inputCount: number; recipients: string[] }
   | { kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean }
-  | { kind: 'shieldedSpend'; spendKind: 'transfer' | 'unshield' | 'withdrawal' | 'identityCreate'; noteCount: number; recipients: string[] }
+  | { kind: 'shieldedSpend'; spendKind: ShieldedSpendKind; noteCount: number; recipients: string[] }
   | { kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null }
   | { kind: 'identityCreditsToAddresses'; identityId: string; recipients: { address: string; amountCredits: bigint }[] }
   | { kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint }
@@ -65,6 +66,18 @@ export interface TransitionFeeDto {
   storageFeeCredits: bigint
   totalFeeCredits: bigint
   newAddresses: string[]
+}
+
+export interface TransitionFeeParams {
+  destinationValid: boolean
+  recipient: string
+  amountCredits: bigint
+  source: PlatformAddressDto | null
+  identityId: string | null
+}
+
+export interface OperationFeeParams extends TransitionFeeParams {
+  notes: ShieldedNoteInfo[] | null
 }
 
 // getStatus
