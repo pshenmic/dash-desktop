@@ -267,6 +267,17 @@ export class ShieldedService {
     }
   }
 
+  private settleSync(state: ShieldedSyncState, notes: ShieldedNoteInfo[]): void {
+    let balance = 0n
+    for (const note of notes) {
+      if (!note.spent) balance += BigInt(note.amount)
+    }
+    state.balance = balance.toString()
+    state.notes = notes
+    state.phase = 'done'
+    state.syncedAt = Date.now()
+  }
+
   private async syncNotes(
     walletId: string,
     network: Network,
@@ -282,18 +293,14 @@ export class ShieldedService {
     const decodedFrom = await this.walletDAO.getShieldedDecodedCount(walletId)
     const fresh = await this.shieldedPoolDAO.getEncryptedNotesFrom(network, decodedFrom)
 
-    const owned = await this.shieldedPoolDAO.getEncryptedNotes(network, priorNotes.map(note => note.index))
-    const notes = [...owned, ...fresh]
-
-    if (notes.length === 0) {
-      state.balance = '0'
-      state.phase = 'done'
-      state.syncedAt = Date.now()
+    if (fresh.length === 0) {
+      this.settleSync(state, priorNotes)
       return
     }
 
-    const decodedUpTo = fresh.length > 0 ? fresh[fresh.length - 1].index + 1 : decodedFrom
-    const result = await this.platform.request('sync', network, {seed, notes}, {
+    const owned = await this.shieldedPoolDAO.getEncryptedNotes(network, priorNotes.map(note => note.index))
+    const decodedUpTo = fresh[fresh.length - 1].index + 1
+    const result = await this.platform.request('sync', network, {seed, notes: [...owned, ...fresh]}, {
       onProgress: phase => { state.phase = syncPhase(phase) ?? state.phase },
     })
 
@@ -303,14 +310,7 @@ export class ShieldedService {
       spent: note.spent,
       address: note.address,
     })).sort((a, b) => b.index - a.index)
-    let balance = 0n
-    for (const note of all) {
-      if (!note.spent) balance += BigInt(note.amount)
-    }
-    state.balance = balance.toString()
-    state.notes = all
-    state.phase = 'done'
-    state.syncedAt = Date.now()
+    this.settleSync(state, all)
     await this.shieldedNoteDAO.upsertNotes(walletId, all)
     await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
   }
