@@ -6,8 +6,9 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { ShieldedSpendKind } from '../enums/ShieldedSpendKind'
+import { TransferOperation } from '../enums/TransferOperation'
 
-export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind, ShieldedSpendKind }
+export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
 // getAddresses
 export type WalletAddressDto = {
@@ -78,6 +79,17 @@ export interface TransitionFeeParams {
 
 export interface OperationFeeParams extends TransitionFeeParams {
   notes: ShieldedNoteInfo[] | null
+}
+
+export interface AmountValidationParams {
+  isDashUnit: boolean
+  amount: string
+  operation: TransferOperation | null
+  amountCredits: bigint
+  minCredits: bigint
+  availableCredits: bigint | null
+  feeCredits: bigint | null
+  maxPerTx: bigint | null
 }
 
 // getStatus

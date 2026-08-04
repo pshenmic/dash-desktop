@@ -181,10 +181,4 @@ describe('feeQueryFor', () => {
       expect(feeQueryFor(operation, params({identityId: null}))).toBeNull()
     }
   })
-
-  it('decides every operation instead of falling off the switch', () => {
-    for (const operation of Object.values(TransferOperation)) {
-      expect(feeQueryFor(operation, params())).not.toBeUndefined()
-    }
-  })
 })

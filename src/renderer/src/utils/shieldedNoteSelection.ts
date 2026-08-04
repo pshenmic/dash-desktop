@@ -3,7 +3,7 @@ export interface SelectableNote {
   value: bigint
 }
 
-export interface NoteSelectionResult {
+interface NoteSelectionResult {
   selected: SelectableNote[]
   total: bigint
   feeCredits: bigint

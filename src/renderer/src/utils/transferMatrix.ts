@@ -48,7 +48,7 @@ export function unsupportedReason(from: SourceKind, to: DestinationKind): string
   return COMBO_REASONS[`${from}->${to}`] ?? 'This combination is not supported.'
 }
 
-export interface OperationInfo {
+interface OperationInfo {
   title: string
   submitLabel: string
   unit: 'credits' | 'dash'

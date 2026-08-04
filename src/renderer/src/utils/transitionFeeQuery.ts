@@ -2,7 +2,6 @@ import { TransferOperation } from '../enums/TransferOperation'
 import { PlatformAddressDto, TransitionFeeInput, TransitionFeeParams, TransitionFeeQuery } from '../api/types'
 import {
   FEE_QUOTE_DERIVATION_INDEX,
-  FEE_QUOTE_HAS_CHANGE,
   FEE_QUOTE_INPUT_COUNT,
   FEE_QUOTE_SHIELD_NOTE_COUNT,
 } from '../constants/transitionFee'
@@ -25,7 +24,7 @@ export function feeQueryFor(
       return { kind: 'addressTransfer', inputCount: FEE_QUOTE_INPUT_COUNT, recipients: [recipient] }
 
     case TransferOperation.AddressWithdrawal:
-      return { kind: 'addressWithdrawal', inputCount: FEE_QUOTE_INPUT_COUNT, hasChange: FEE_QUOTE_HAS_CHANGE }
+      return { kind: 'addressWithdrawal', inputCount: FEE_QUOTE_INPUT_COUNT, hasChange: true }
 
     case TransferOperation.Shield:
       return { kind: 'shield', noteCount: FEE_QUOTE_SHIELD_NOTE_COUNT, fromAssetLock: false, surplusAddress: null }

@@ -23,6 +23,7 @@ import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
+import { amountErrorFor } from "@renderer/utils/amountValidation";
 import {
   SOURCE_KINDS,
   DESTINATION_KINDS,
@@ -42,7 +43,7 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import { sendPageData, MAX_SPEND_NOTES, WITHDRAWAL_SUCCESS_NOTE, SHIELDED_BALANCE_UNKNOWN_ERROR } from "@renderer/constants";
+import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
@@ -307,21 +308,17 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === DestinationKind.Identity ? 'Identity identifier'
     : 'shielded address'
 
-  const amountError = isDashUnit || amount.length === 0
-    ? null
-    : operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)
-      ? 'Pick one of the fixed denominations above.'
-      : amountCredits < minCredits
-        ? `Minimum is ${formatCredits(minCredits)} credits.`
-        : availableCredits === null
-          ? SHIELDED_BALANCE_UNKNOWN_ERROR
-          : feeCredits === null
-            ? null
-            : amountCredits + feeCredits > availableCredits
-              ? `Amount plus the ${formatCredits(feeCredits)} credit fee exceeds this balance.`
-              : maxPerTx !== null && amountCredits > maxPerTx
-                ? `Max per transaction right now is ${formatCredits(maxPerTx)} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
-                : null
+  const amountError = amountErrorFor({
+    isDashUnit,
+    amount,
+    operation,
+    amountCredits,
+    minCredits,
+    availableCredits,
+    feeCredits,
+    maxPerTx,
+  })
+  const fieldError = amountError ?? feeErr
 
   const resetForm = (): void => {
     setToValue('')
@@ -525,9 +522,9 @@ export default function TransferHub(): React.JSX.Element {
           disabled={sliderMaxAmount === 0n}
         />
       )}
-      {amountError && (
+      {fieldError && (
         <div className={"mt-2 px-1"}>
-          <Text size={12} weight={"medium"} color={"red"}>{amountError}</Text>
+          <Text size={12} weight={"medium"} color={"red"}>{fieldError}</Text>
         </div>
       )}
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
@@ -545,23 +542,16 @@ export default function TransferHub(): React.JSX.Element {
         {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
       </div>
       {!isDashUnit && (
-        <>
-          <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-            {feeErr === null && feeCredits !== null ? (
-              <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
-            ) : feeErr === null && feeLoading ? (
-              <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-            ) : (
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
-            )}
-          </div>
-          {feeErr && (
-            <div className={"mt-2 px-1"}>
-              <Text size={12} weight={"medium"} color={"red"}>{feeErr}</Text>
-            </div>
+        <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+          {feeErr === null && feeCredits !== null ? (
+            <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+          ) : feeErr === null && feeLoading ? (
+            <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
+          ) : (
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
           )}
-        </>
+        </div>
       )}
     </div>
   )

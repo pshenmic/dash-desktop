@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { API } from '@renderer/api'
-import { Network, OperationFeeParams, TransitionFeeQuery } from '@renderer/api/types'
+import { Network, OperationFeeParams } from '@renderer/api/types'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import {
   SelectableNote,
@@ -10,7 +10,12 @@ import {
 } from '@renderer/utils/shieldedNoteSelection'
 import { feeQueryFor, feeQueryKey } from '@renderer/utils/transitionFeeQuery'
 import { operationInfo } from '@renderer/utils/transferMatrix'
-import { FEE_QUOTE_STORAGE_PROBE_NOTE_COUNT, MAX_SPEND_NOTES, TRANSITION_FEE_DEBOUNCE_MS } from '@renderer/constants'
+import {
+  FEE_QUOTE_MIN_NOTE_COUNT,
+  MAX_SPEND_NOTES,
+  TRANSITION_FEE_DEBOUNCE_MS,
+  TRANSITION_FEE_ERROR,
+} from '@renderer/constants'
 import { useAsyncWithCache } from './useAsyncWithCache'
 
 export function useOperationFee(
@@ -25,77 +30,62 @@ export function useOperationFee(
 } {
   const { notes, amountCredits, destinationValid, recipient, source, identityId } = params
   const spendKind = operation === null ? null : operationInfo(operation).spendKind
-  const unshieldRecipient = operation === TransferOperation.Unshield && destinationValid ? recipient : null
 
   const minimums = useAsyncWithCache<bigint[] | null>(
     'transition-fee-minimums',
     network !== null && spendKind !== null ? `${network}:${spendKind}` : undefined,
     () => Promise.all(Array.from({ length: MAX_SPEND_NOTES }, (_, i) =>
-      API.estimateTransitionFee(network!, { kind: 'shieldedSpend', spendKind: spendKind!, noteCount: i + 1, recipients: [] })
-        .then(quote => BigInt(quote.minFeeCredits)))),
+      API.estimateTransitionFee(network!, {
+        kind: 'shieldedSpend',
+        spendKind: spendKind!,
+        noteCount: i + FEE_QUOTE_MIN_NOTE_COUNT,
+        recipients: [],
+      }).then(quote => BigInt(quote.minFeeCredits)))),
     null,
+    { errorMessage: TRANSITION_FEE_ERROR },
   )
 
-  const storage = useAsyncWithCache<bigint | null>(
-    'transition-fee-storage',
-    network !== null && spendKind !== null && unshieldRecipient !== null ? `${network}:${spendKind}:${unshieldRecipient}` : undefined,
-    () => API.estimateTransitionFee(network!, {
-      kind: 'shieldedSpend',
-      spendKind: spendKind!,
-      noteCount: FEE_QUOTE_STORAGE_PROBE_NOTE_COUNT,
-      recipients: [unshieldRecipient!],
-    }).then(quote => BigInt(quote.storageFeeCredits)),
-    null,
+  const pending = useMemo(
+    () => {
+      const query = feeQueryFor(operation, { destinationValid, recipient, amountCredits, source, identityId })
+      return network === null || query === null ? null : { query, key: `${network}:${feeQueryKey(query)}` }
+    },
+    [network, operation, destinationValid, recipient, amountCredits, source?.platformAddress, source?.nonce, identityId],
   )
 
-  const query = useMemo(
-    () => feeQueryFor(operation, { destinationValid, recipient, amountCredits, source, identityId }),
-    [operation, destinationValid, recipient, amountCredits, source?.platformAddress, source?.nonce, identityId],
-  )
-  const queryKey = useMemo(
-    () => (network !== null && query !== null ? `${network}:${feeQueryKey(query)}` : undefined),
-    [network, query],
-  )
-  const queryRef = useRef(query)
-  queryRef.current = query
-
-  const [settledQuery, setSettledQuery] = useState<TransitionFeeQuery | null>(null)
+  const [settled, setSettled] = useState<typeof pending>(null)
 
   useEffect(() => {
-    if (queryKey === undefined) {
-      setSettledQuery(null)
+    if (pending === null) {
+      setSettled(null)
       return
     }
-    const timer = setTimeout(() => setSettledQuery(queryRef.current), TRANSITION_FEE_DEBOUNCE_MS)
+    const timer = setTimeout(() => setSettled(pending), TRANSITION_FEE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [queryKey])
-
-  const settledKey = useMemo(
-    () => (network !== null && settledQuery !== null ? `${network}:${feeQueryKey(settledQuery)}` : undefined),
-    [network, settledQuery],
-  )
+  }, [pending])
 
   const quote = useAsyncWithCache<bigint | null>(
     'transition-fee-quote',
-    settledKey,
-    () => API.estimateTransitionFee(network!, settledQuery!).then(q => BigInt(q.totalFeeCredits)),
+    settled?.key,
+    () => API.estimateTransitionFee(network!, settled!.query).then(q => BigInt(q.totalFeeCredits)),
     null,
+    { errorMessage: TRANSITION_FEE_ERROR },
   )
 
-  const minByCount = minimums.data
-  const storageFeeCredits = storage.data
-  const storageLoading = storage.loading
-
   const feeForCount = useMemo<SpendFeeForCount | null>(
-    () => (minByCount === null || storageLoading
-      ? null
-      : numSpends => minByCount[Math.min(Math.max(numSpends, 1), minByCount.length) - 1] + (storageFeeCredits ?? 0n)),
-    [minByCount, storageFeeCredits, storageLoading],
+    () => {
+      const minByCount = minimums.data
+      if (minByCount === null) return null
+      return numSpends => minByCount[Math.max(numSpends, FEE_QUOTE_MIN_NOTE_COUNT) - FEE_QUOTE_MIN_NOTE_COUNT]
+    },
+    [minimums.data],
   )
 
   const candidates = useMemo<SelectableNote[] | null>(
-    () => (notes === null ? null : notes.map(note => ({ index: note.index, value: BigInt(note.amount) }))),
-    [notes],
+    () => (spendKind === null || notes === null
+      ? null
+      : notes.map(note => ({ index: note.index, value: BigInt(note.amount) }))),
+    [spendKind, notes],
   )
 
   const selection = useMemo(
@@ -110,14 +100,14 @@ export function useOperationFee(
     [candidates, feeForCount],
   )
 
-  const feeCredits = spendKind === null
-    ? quote.data
-    : feeForCount === null ? null : (selection?.feeCredits ?? feeForCount(1))
+  const spendFee = feeForCount === null ? null : (selection?.feeCredits ?? feeForCount(FEE_QUOTE_MIN_NOTE_COUNT))
+  const feeCredits = spendKind === null ? quote.data : spendFee
+  const debouncing = pending !== null && pending.key !== settled?.key
 
   return {
     feeCredits,
     maxPerTx,
-    loading: minimums.loading || storageLoading || quote.loading || (queryKey !== undefined && queryKey !== settledKey),
-    err: minimums.err ?? storage.err ?? quote.err,
+    loading: minimums.loading || quote.loading || debouncing,
+    err: minimums.err ?? quote.err,
   }
 }
