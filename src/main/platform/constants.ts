@@ -15,9 +15,8 @@ export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
-// A fee quote prices the shape of a transition, not its contents, but an
-// identityCreate still needs a key that parses. The secp256k1 generator is the
-// safest stand-in — real point, no derivation, and it never leaves the quote.
+// A quote has no seed, and the fee depends on the key count, not the key. The
+// secp256k1 generator stands in because it parses wherever a real key would.
 export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
   Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex'),
 )

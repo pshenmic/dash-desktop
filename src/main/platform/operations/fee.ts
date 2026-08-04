@@ -40,8 +40,7 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   const {query} = payload
 
   const minFeeCredits = await minimumFeeCredits(query, ctx)
-  // Deduped for storage only: the minimum prices one output per recipient, but
-  // two outputs to the same address create one balance entry between them.
+  // Deduped for storage only: two outputs to one address create one entry.
   const recipients = [...new Set(paidAddresses(query))]
   const newAddresses = await addressesNotInState(recipients, ctx)
   const storageFeeCredits = PlatformAddressWASM.estimateStorageFeeForNewAddresses(newAddresses.length)
@@ -54,9 +53,6 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   }
 }
 
-// What consensus will charge, from the protocol implementation itself — the
-// same reason ../shielded/spend/fee.ts exists: these numbers are versioned and
-// scale with the transition's shape, so a constant cannot track them.
 async function minimumFeeCredits(query: FeeQuery, ctx: OperationContext): Promise<bigint> {
   switch (query.kind) {
     case 'addressTransfer':
@@ -82,9 +78,7 @@ async function minimumFeeCredits(query: FeeQuery, ctx: OperationContext): Promis
   }
 }
 
-// Builds exactly what the matching operation builds, minus the signature, and
-// reads the fee off it. The nonce is fetched rather than guessed because it is
-// what the operation will sign over.
+// Unsigned: the fee does not depend on the signature, so a quote needs no seed.
 async function identityTransition(query: IdentityQuery, ctx: OperationContext): Promise<StateTransitionWASM> {
   const {sdk, network} = ctx
   const identityNonce = await sdk.identities.getIdentityNonce(query.identityId) + 1n
@@ -118,11 +112,7 @@ async function identityTransition(query: IdentityQuery, ctx: OperationContext): 
   }
 }
 
-// The address-funded three, priced the same way and off the network entirely —
-// their inputs carry the address nonces, so nothing has to be read first.
-// identityCreate is the one query that cannot name its own keys: they come from
-// the seed, which a quote never sees, so it prices the key set this wallet
-// always builds.
+// The inputs carry their own nonces, so none of these read the network.
 function addressFundedTransition(query: AddressFundedQuery, ctx: OperationContext): StateTransitionWASM {
   const {sdk} = ctx
 
@@ -157,11 +147,8 @@ function addressFundedTransition(query: AddressFundedQuery, ctx: OperationContex
   }
 }
 
-// The platform addresses a transition pays. A payout to a Core address, into
-// the pool or onto an identity balance creates no balance entry, so those kinds
-// are charged no storage. The asset-lock shield's surplusOutput is counted as a
-// payout: dpp states no amount for it, so this assumes the leftover credits
-// land there.
+// A payout to a Core address, the pool or an identity balance creates no entry.
+// surplusOutput is counted as a payout — dpp states no amount for it.
 function paidAddresses(query: FeeQuery): string[] {
   switch (query.kind) {
     case 'addressTransfer':
@@ -183,9 +170,7 @@ function paidAddresses(query: FeeQuery): string[] {
 }
 
 // dash-platform-sdk reports an address missing from state as a zero balance
-// with a zero nonce, so "never funded and never signed" is the only signal a
-// client has for one — the test PlatformAddressService uses to find used
-// addresses, read the other way round.
+// with a zero nonce, so that pair is the only signal a client gets.
 async function addressesNotInState(addresses: string[], ctx: OperationContext): Promise<string[]> {
   if (addresses.length === 0) return []
 

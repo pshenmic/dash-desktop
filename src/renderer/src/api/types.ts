@@ -60,8 +60,6 @@ export type TransitionFeeQuery =
       recipient: string
     }
 
-// newAddresses are the recipients storageFeeCredits was charged for — the ones
-// this transition would create in state.
 export interface TransitionFeeDto {
   minFeeCredits: string
   storageFeeCredits: string

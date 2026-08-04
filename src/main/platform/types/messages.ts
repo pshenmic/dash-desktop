@@ -78,18 +78,13 @@ export interface Recipient {
   amountCredits: bigint
 }
 
-// What a transition costs before it exists. The first four kinds have a static
-// estimator in dpp and are pure arithmetic; the last three have none, so the
-// quote builds the transition and asks it — which is why they carry the same
-// fields their operation does. Everything here is public: a quote never takes
-// the seed, because the fee does not depend on the signature.
+// Kinds without a static estimator in dpp carry what their operation builds
+// with, because the quote has to build the transition to price it.
 export type FeeQuery =
   | {kind: 'addressTransfer'; inputCount: number; recipients: string[]}
   | {kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean}
   | {kind: 'shieldedSpend'; spendKind: SpendKind; noteCount: number; recipients: string[]}
-  // Only the asset-lock shield has a transparent destination besides the pool:
-  // its surplusOutput. The shield from platform addresses has none — leftover
-  // input credits go to the fee strategy, not to a new address.
+  // Only the asset-lock shield has a transparent destination besides the pool.
   | {kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null}
   | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
   | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
@@ -104,9 +99,8 @@ export type FeeQuery =
       recipient: string
     }
 
-// A recipient that is not in state yet has its balance entry created by this
-// transition, and GroveDB charges that storage on top of the minimum — which
-// is why the first payment to an address costs more than every later one.
+// storageFeeCredits is what creating newAddresses' balance entries costs, which
+// is why a first payment to an address is dearer than every later one.
 export interface FeeQuote {
   minFeeCredits: bigint
   storageFeeCredits: bigint
