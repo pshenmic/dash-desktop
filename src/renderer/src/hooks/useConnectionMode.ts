@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { API } from '@renderer/api'
 import { ConnectionType, WalletSyncPhase } from '@renderer/api/types'
 import { toast } from '@renderer/components/ui/Toast'
@@ -76,7 +76,7 @@ export function useConnectionMode(): UseConnectionMode {
       })
   }, [walletId, connectionType])
 
-  const gate = useMemo(() => connectionGate(connectionType, phase), [connectionType, phase])
+  const gate = connectionGate(connectionType, phase)
 
   return {
     connectionType,
