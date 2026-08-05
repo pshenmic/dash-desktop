@@ -14,13 +14,57 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
     availableCredits: 900_000_000n,
     feeCredits: 100_000n,
     maxPerTx: null,
+    amountDuffs: 0n,
+    balanceDuffs: 0n,
+    feeDuffs: null,
+    maxSendableDuffs: null,
     ...overrides,
   }
 }
 
 describe('amountErrorFor', () => {
-  it('is silent for Dash-denominated operations', () => {
-    expect(amountErrorFor(params({isDashUnit: true, amountCredits: 0n, minCredits: 500_000n}))).toBeNull()
+  it('is silent for a Dash amount within the sendable maximum', () => {
+    const error = amountErrorFor(params({
+      isDashUnit: true,
+      amount: '0.01',
+      amountDuffs: 1_000_000n,
+      balanceDuffs: 3_000_000n,
+      maxSendableDuffs: 1_500_000n,
+    }))
+    expect(error).toBeNull()
+  })
+
+  it('reports the sendable maximum for Dash amounts', () => {
+    const error = amountErrorFor(params({
+      isDashUnit: true,
+      amount: '0.02',
+      amountDuffs: 2_000_000n,
+      balanceDuffs: 3_000_000n,
+      maxSendableDuffs: 1_500_000n,
+    }))
+    expect(error).toBe('Max sendable is 0.015 Dash (network fee + change floor).')
+  })
+
+  it('defers to the balance message when the Dash amount exceeds the balance', () => {
+    const error = amountErrorFor(params({
+      isDashUnit: true,
+      amount: '0.04',
+      amountDuffs: 4_000_000n,
+      balanceDuffs: 3_000_000n,
+      maxSendableDuffs: 1_500_000n,
+    }))
+    expect(error).toBeNull()
+  })
+
+  it('is silent for Dash while the maximum is unknown', () => {
+    const error = amountErrorFor(params({
+      isDashUnit: true,
+      amount: '0.02',
+      amountDuffs: 2_000_000n,
+      balanceDuffs: 3_000_000n,
+      maxSendableDuffs: null,
+    }))
+    expect(error).toBeNull()
   })
 
   it('is silent while nothing has been typed', () => {

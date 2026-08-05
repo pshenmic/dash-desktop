@@ -7,6 +7,8 @@ import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { ShieldedSpendKind } from '../enums/ShieldedSpendKind'
 import { TransferOperation } from '../enums/TransferOperation'
+import { CoreFeeShape } from '../enums/CoreFeeShape'
+import { FeeEndpoint } from '../enums/FeeEndpoint'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -69,10 +71,26 @@ export interface TransitionFeeDto {
   newAddresses: string[]
 }
 
+// estimateCoreFee
+export type CoreFeeQuery =
+  | { shape: CoreFeeShape.Send; amountDuffs: bigint; toAddress: string | null; fromAddress: string | null }
+  | { shape: CoreFeeShape.AssetLock; amountDuffs: bigint }
+
+export interface CoreFeeQuote {
+  feeDuffs: bigint | null
+  maxSendableDuffs: bigint
+}
+
+export type OperationFeeQuery =
+  | { endpoint: FeeEndpoint.Transition; query: TransitionFeeQuery }
+  | { endpoint: FeeEndpoint.Core; query: CoreFeeQuery }
+
 export interface TransitionFeeParams {
   destinationValid: boolean
   recipient: string
   amountCredits: bigint
+  amountDuffs: bigint
+  fromAddress: string | null
   source: PlatformAddressDto | null
   identityId: string | null
 }
@@ -90,6 +108,10 @@ export interface AmountValidationParams {
   availableCredits: bigint | null
   feeCredits: bigint | null
   maxPerTx: bigint | null
+  amountDuffs: bigint
+  balanceDuffs: bigint
+  feeDuffs: bigint | null
+  maxSendableDuffs: bigint | null
 }
 
 // getStatus

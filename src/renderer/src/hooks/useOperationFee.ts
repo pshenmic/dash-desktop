@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API } from '@renderer/api'
-import { Network, OperationFeeParams } from '@renderer/api/types'
+import { CoreFeeQuote, Network, OperationFeeParams } from '@renderer/api/types'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
+import { CoreFeeShape } from '@renderer/enums/CoreFeeShape'
+import { FeeEndpoint } from '@renderer/enums/FeeEndpoint'
 import {
   SelectableNote,
   SpendFeeForCount,
   maxSpendableCredits,
   selectSpendNotes,
 } from '@renderer/utils/shieldedNoteSelection'
-import { feeQueryFor, feeQueryKey } from '@renderer/utils/transitionFeeQuery'
+import { coreFeeShapeFor, feeQueryFor, feeQueryKey } from '@renderer/utils/transitionFeeQuery'
 import { operationInfo } from '@renderer/utils/transferMatrix'
 import {
+  CORE_FEE_ERROR,
   FEE_QUOTE_MIN_NOTE_COUNT,
   MAX_SPEND_NOTES,
   TRANSITION_FEE_DEBOUNCE_MS,
@@ -20,16 +23,20 @@ import { useAsyncWithCache } from './useAsyncWithCache'
 
 export function useOperationFee(
   network: Network | null,
+  walletId: string | null,
   operation: TransferOperation | null,
   params: OperationFeeParams,
 ): {
   feeCredits: bigint | null
   maxPerTx: bigint | null
+  feeDuffs: bigint | null
+  maxSendableDuffs: bigint | null
   loading: boolean
   err: string | null
 } {
-  const { notes, amountCredits, destinationValid, recipient, source, identityId } = params
+  const { notes, amountCredits, amountDuffs, destinationValid, recipient, fromAddress, source, identityId } = params
   const spendKind = operation === null ? null : operationInfo(operation).spendKind
+  const coreShape = coreFeeShapeFor(operation)
 
   const minimums = useAsyncWithCache<bigint[] | null>(
     'transition-fee-minimums',
@@ -45,12 +52,31 @@ export function useOperationFee(
     { errorMessage: TRANSITION_FEE_ERROR },
   )
 
+  const maxQuote = useAsyncWithCache<CoreFeeQuote | null>(
+    'core-fee-max',
+    network !== null && walletId !== null && coreShape !== null
+      ? `${network}:${walletId}:${coreShape}:${fromAddress ?? ''}`
+      : undefined,
+    () => API.estimateCoreFee(
+      walletId!,
+      coreShape === CoreFeeShape.Send
+        ? { shape: CoreFeeShape.Send, amountDuffs: 0n, toAddress: null, fromAddress }
+        : { shape: CoreFeeShape.AssetLock, amountDuffs: 0n },
+    ),
+    null,
+    { errorMessage: CORE_FEE_ERROR },
+  )
+
   const pending = useMemo(
     () => {
-      const query = feeQueryFor(operation, { destinationValid, recipient, amountCredits, source, identityId })
-      return network === null || query === null ? null : { query, key: `${network}:${feeQueryKey(query)}` }
+      const tagged = feeQueryFor(operation, { destinationValid, recipient, amountCredits, amountDuffs, fromAddress, source, identityId })
+      if (network === null || tagged === null) return null
+      if (tagged.endpoint === FeeEndpoint.Core) {
+        return walletId === null ? null : { tagged, key: `${network}:${walletId}:${feeQueryKey(tagged.query)}` }
+      }
+      return { tagged, key: `${network}:${feeQueryKey(tagged.query)}` }
     },
-    [network, operation, destinationValid, recipient, amountCredits, source?.platformAddress, source?.nonce, identityId],
+    [network, walletId, operation, destinationValid, recipient, amountCredits, amountDuffs, fromAddress, source?.platformAddress, source?.nonce, identityId],
   )
 
   const [settled, setSettled] = useState<typeof pending>(null)
@@ -67,9 +93,14 @@ export function useOperationFee(
   const quote = useAsyncWithCache<bigint | null>(
     'transition-fee-quote',
     settled?.key,
-    () => API.estimateTransitionFee(network!, settled!.query).then(q => BigInt(q.totalFeeCredits)),
+    () => {
+      const tagged = settled!.tagged
+      return tagged.endpoint === FeeEndpoint.Core
+        ? API.estimateCoreFee(walletId!, tagged.query).then(q => q.feeDuffs)
+        : API.estimateTransitionFee(network!, tagged.query).then(q => BigInt(q.totalFeeCredits))
+    },
     null,
-    { errorMessage: TRANSITION_FEE_ERROR },
+    { errorMessage: settled?.tagged.endpoint === FeeEndpoint.Core ? CORE_FEE_ERROR : TRANSITION_FEE_ERROR },
   )
 
   const feeForCount = useMemo<SpendFeeForCount | null>(
@@ -101,13 +132,17 @@ export function useOperationFee(
   )
 
   const spendFee = feeForCount === null ? null : (selection?.feeCredits ?? feeForCount(FEE_QUOTE_MIN_NOTE_COUNT))
-  const feeCredits = spendKind === null ? quote.data : spendFee
+  const feeCredits = coreShape !== null ? null : (spendKind === null ? quote.data : spendFee)
+  const feeDuffs = coreShape !== null ? quote.data : null
+  const maxSendableDuffs = coreShape !== null ? (maxQuote.data?.maxSendableDuffs ?? null) : null
   const debouncing = pending !== null && pending.key !== settled?.key
 
   return {
     feeCredits,
     maxPerTx,
-    loading: minimums.loading || quote.loading || debouncing,
-    err: minimums.err ?? quote.err,
+    feeDuffs,
+    maxSendableDuffs,
+    loading: minimums.loading || quote.loading || maxQuote.loading || debouncing,
+    err: minimums.err ?? quote.err ?? maxQuote.err,
   }
 }

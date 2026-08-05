@@ -1,4 +1,4 @@
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreFeeQuery, CoreFeeQuote, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -79,6 +79,10 @@ export class API {
 
   static async estimateTransitionFee(network: Network, query: TransitionFeeQuery): Promise<TransitionFeeDto> {
     return this.api.estimateTransitionFee(network, query) as Promise<TransitionFeeDto>
+  }
+
+  static async estimateCoreFee(walletId: string, query: CoreFeeQuery): Promise<CoreFeeQuote> {
+    return this.api.estimateCoreFee(walletId, query) as Promise<CoreFeeQuote>
   }
 
   static async deleteWallet(walletId: string) {

@@ -203,22 +203,24 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === DestinationKind.NewIdentity ? true
     : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
 
-  const { feeCredits, maxPerTx, loading: feeLoading, err: feeErr } = useOperationFee(network, operation, {
+  const { feeCredits, maxPerTx, feeDuffs, maxSendableDuffs, loading: feeLoading, err: feeErr } = useOperationFee(network, walletId, operation, {
     destinationValid,
     recipient: trimmedTo,
     amountCredits,
+    amountDuffs,
+    fromAddress: coreSpecificAddress?.address ?? null,
     source: selectedSource ?? null,
     identityId: selectedIdentity?.identifier ?? null,
     notes: shieldedSync.phase === ShieldedSyncPhase.Done ? (shieldedSpecificNotes ?? spendableNotes) : null,
   })
 
   const sliderMaxAmount = useMemo((): bigint | null => {
-    if (isDashUnit) return balanceDuffs
+    if (isDashUnit) return maxSendableDuffs ?? balanceDuffs
     if (maxPerTx !== null) return maxPerTx > 0n ? maxPerTx : 0n
     if (availableCredits === null || feeCredits === null) return null
     const spendable = availableCredits - feeCredits
     return spendable > 0n ? spendable : 0n
-  }, [isDashUnit, balanceDuffs, maxPerTx, availableCredits, feeCredits])
+  }, [isDashUnit, maxSendableDuffs, balanceDuffs, maxPerTx, availableCredits, feeCredits])
 
   const sliderPercent = useMemo(() => {
     if (sliderMaxAmount === null || sliderMaxAmount === 0n) return 0
@@ -262,6 +264,7 @@ export default function TransferHub(): React.JSX.Element {
 
   const amountReady = isDashUnit
     ? amountDuffs > 0n && amountDuffs <= balanceDuffs
+      && maxSendableDuffs !== null && amountDuffs <= maxSendableDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
@@ -290,7 +293,7 @@ export default function TransferHub(): React.JSX.Element {
 
   const handleMax = (): void => {
     if (isDashUnit) {
-      setAmount(davToDash(balanceDuffs))
+      if (maxSendableDuffs !== null) setAmount(davToDash(maxSendableDuffs))
       return
     }
     if (maxPerTx !== null) {
@@ -317,6 +320,10 @@ export default function TransferHub(): React.JSX.Element {
     availableCredits,
     feeCredits,
     maxPerTx,
+    amountDuffs,
+    balanceDuffs,
+    feeDuffs,
+    maxSendableDuffs,
   })
   const fieldError = amountError ?? feeErr
 
@@ -541,18 +548,18 @@ export default function TransferHub(): React.JSX.Element {
         )}
         {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
       </div>
-      {!isDashUnit && (
-        <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
-          {feeErr === null && feeCredits !== null ? (
-            <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
-          ) : feeErr === null && feeLoading ? (
-            <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-          ) : (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
-          )}
-        </div>
-      )}
+      <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{isDashUnit ? 'Network fee' : 'Reserved for fee'}</Text>
+        {feeErr === null && isDashUnit && feeDuffs !== null ? (
+          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(feeDuffs)} Dash</Text>
+        ) : feeErr === null && !isDashUnit && feeCredits !== null ? (
+          <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+        ) : feeErr === null && feeLoading ? (
+          <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
+        ) : (
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
+        )}
+      </div>
     </div>
   )
 
@@ -601,6 +608,19 @@ export default function TransferHub(): React.JSX.Element {
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
               <Text size={16} weight={"extrabold"} color={"brand"}><CreditsAmount credits={amountCredits + feeCredits} align={"end"} /></Text>
+            </div>
+          </>
+        )}
+        {isDashUnit && feeDuffs !== null && (
+          <>
+            <div className={"flex justify-between items-baseline gap-3"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(feeDuffs)} Dash</Text>
+            </div>
+            <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
+            <div className={"flex justify-between items-baseline gap-3"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + feeDuffs)} Dash</Text>
             </div>
           </>
         )}

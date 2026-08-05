@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { feeQueryFor, feeQueryKey } from '../../src/renderer/src/utils/transitionFeeQuery'
+import { coreFeeShapeFor, feeQueryFor, feeQueryKey } from '../../src/renderer/src/utils/transitionFeeQuery'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
+import { CoreFeeShape } from '../../src/renderer/src/enums/CoreFeeShape'
+import { FeeEndpoint } from '../../src/renderer/src/enums/FeeEndpoint'
 import { PlatformAddressDto, TransitionFeeParams } from '../../src/renderer/src/api/types'
 
 const SOURCE: PlatformAddressDto = {
@@ -11,11 +13,21 @@ const SOURCE: PlatformAddressDto = {
 
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
 
+const DASH_OPERATIONS = [
+  TransferOperation.CoreSend,
+  TransferOperation.AssetLockFunding,
+  TransferOperation.AssetLockShield,
+  TransferOperation.IdentityRegister,
+  TransferOperation.IdentityTopUpL1,
+]
+
 function params(overrides: Partial<TransitionFeeParams> = {}): TransitionFeeParams {
   return {
     destinationValid: true,
     recipient: 'tdash1qrecipient',
     amountCredits: 1_000_000n,
+    amountDuffs: 0n,
+    fromAddress: null,
     source: SOURCE,
     identityId: IDENTITY,
     ...overrides,
@@ -25,92 +37,166 @@ function params(overrides: Partial<TransitionFeeParams> = {}): TransitionFeePara
 describe('feeQueryKey', () => {
   it('serialises a bigint amount instead of throwing on it', () => {
     const query = feeQueryFor(TransferOperation.IdentityToIdentity, params({recipient: IDENTITY}))!
-    expect(feeQueryKey(query)).toContain('"amountCredits":"1000000"')
+    expect(feeQueryKey(query.query)).toContain('"amountCredits":"1000000"')
   })
 
   it('separates queries that differ only in amount', () => {
     const one = feeQueryFor(TransferOperation.IdentityWithdrawal, params({amountCredits: 1n}))!
     const two = feeQueryFor(TransferOperation.IdentityWithdrawal, params({amountCredits: 2n}))!
-    expect(feeQueryKey(one)).not.toBe(feeQueryKey(two))
+    expect(feeQueryKey(one.query)).not.toBe(feeQueryKey(two.query))
   })
 
   it('is stable across equal queries', () => {
-    expect(feeQueryKey(feeQueryFor(TransferOperation.AddressFundsTransfer, params())!))
-      .toBe(feeQueryKey(feeQueryFor(TransferOperation.AddressFundsTransfer, params())!))
+    expect(feeQueryKey(feeQueryFor(TransferOperation.AddressFundsTransfer, params())!.query))
+      .toBe(feeQueryKey(feeQueryFor(TransferOperation.AddressFundsTransfer, params())!.query))
+  })
+
+  it('separates core queries that differ only in amount', () => {
+    const one = feeQueryFor(TransferOperation.CoreSend, params({amountDuffs: 1n}))!
+    const two = feeQueryFor(TransferOperation.CoreSend, params({amountDuffs: 2n}))!
+    expect(feeQueryKey(one.query)).not.toBe(feeQueryKey(two.query))
+  })
+})
+
+describe('coreFeeShapeFor', () => {
+  it('maps a core send to the send shape', () => {
+    expect(coreFeeShapeFor(TransferOperation.CoreSend)).toBe(CoreFeeShape.Send)
+  })
+
+  it('maps the four asset-lock operations to one shape', () => {
+    for (const operation of [
+      TransferOperation.AssetLockFunding,
+      TransferOperation.AssetLockShield,
+      TransferOperation.IdentityRegister,
+      TransferOperation.IdentityTopUpL1,
+    ]) {
+      expect(coreFeeShapeFor(operation)).toBe(CoreFeeShape.AssetLock)
+    }
+  })
+
+  it('has no shape for credits operations', () => {
+    expect(coreFeeShapeFor(TransferOperation.AddressFundsTransfer)).toBeNull()
+    expect(coreFeeShapeFor(TransferOperation.ShieldedTransfer)).toBeNull()
+    expect(coreFeeShapeFor(null)).toBeNull()
   })
 })
 
 describe('feeQueryFor', () => {
   it('prices an address transfer from one input to the recipient', () => {
     expect(feeQueryFor(TransferOperation.AddressFundsTransfer, params())).toEqual({
-      kind: 'addressTransfer',
-      inputCount: 1,
-      recipients: ['tdash1qrecipient'],
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'addressTransfer',
+        inputCount: 1,
+        recipients: ['tdash1qrecipient'],
+      },
     })
   })
 
   it('prices an address withdrawal with change and no recipient', () => {
     expect(feeQueryFor(TransferOperation.AddressWithdrawal, params())).toEqual({
-      kind: 'addressWithdrawal',
-      inputCount: 1,
-      hasChange: true,
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'addressWithdrawal',
+        inputCount: 1,
+        hasChange: true,
+      },
     })
   })
 
   it('prices a shield with no transparent destination', () => {
     expect(feeQueryFor(TransferOperation.Shield, params())).toEqual({
-      kind: 'shield',
-      noteCount: 1,
-      inputCount: 1,
-      fromAssetLock: false,
-      surplusAddress: null,
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'shield',
+        noteCount: 1,
+        inputCount: 1,
+        fromAssetLock: false,
+        surplusAddress: null,
+      },
     })
   })
 
   it('prices an identity top-up from the source address', () => {
     expect(feeQueryFor(TransferOperation.IdentityTopUp, params({recipient: IDENTITY}))).toEqual({
-      kind: 'identityTopUpFromAddresses',
-      identityId: IDENTITY,
-      inputs: [{platformAddress: SOURCE.platformAddress, index: 0, nonce: 7, credits: 1_000_000n}],
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'identityTopUpFromAddresses',
+        identityId: IDENTITY,
+        inputs: [{platformAddress: SOURCE.platformAddress, index: 0, nonce: 7, credits: 1_000_000n}],
+      },
     })
   })
 
   it('prices an identity creation from the source address', () => {
     expect(feeQueryFor(TransferOperation.IdentityCreate, params())).toEqual({
-      kind: 'identityCreateFromAddresses',
-      inputs: [{platformAddress: SOURCE.platformAddress, index: 0, nonce: 7, credits: 1_000_000n}],
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'identityCreateFromAddresses',
+        inputs: [{platformAddress: SOURCE.platformAddress, index: 0, nonce: 7, credits: 1_000_000n}],
+      },
     })
   })
 
   it('passes the nonce through untouched', () => {
     const query = feeQueryFor(TransferOperation.IdentityCreate, params({source: {...SOURCE, nonce: 0}}))
-    expect(query).toMatchObject({inputs: [{nonce: 0}]})
+    expect(query).toMatchObject({query: {inputs: [{nonce: 0}]}})
   })
 
   it('prices identity credits to a platform address', () => {
     expect(feeQueryFor(TransferOperation.IdentityToAddress, params())).toEqual({
-      kind: 'identityCreditsToAddresses',
-      identityId: IDENTITY,
-      recipients: [{address: 'tdash1qrecipient', amountCredits: 1_000_000n}],
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'identityCreditsToAddresses',
+        identityId: IDENTITY,
+        recipients: [{address: 'tdash1qrecipient', amountCredits: 1_000_000n}],
+      },
     })
   })
 
   it('prices an identity-to-identity transfer', () => {
     expect(feeQueryFor(TransferOperation.IdentityToIdentity, params({recipient: IDENTITY}))).toEqual({
-      kind: 'identityCreditTransfer',
-      identityId: IDENTITY,
-      recipientId: IDENTITY,
-      amountCredits: 1_000_000n,
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'identityCreditTransfer',
+        identityId: IDENTITY,
+        recipientId: IDENTITY,
+        amountCredits: 1_000_000n,
+      },
     })
   })
 
   it('prices an identity withdrawal to a core address', () => {
     expect(feeQueryFor(TransferOperation.IdentityWithdrawal, params({recipient: 'yTestCoreAddress'}))).toEqual({
-      kind: 'identityWithdrawal',
-      identityId: IDENTITY,
-      amountCredits: 1_000_000n,
-      coreAddress: 'yTestCoreAddress',
+      endpoint: FeeEndpoint.Transition,
+      query: {
+        kind: 'identityWithdrawal',
+        identityId: IDENTITY,
+        amountCredits: 1_000_000n,
+        coreAddress: 'yTestCoreAddress',
+      },
     })
+  })
+
+  it('prices a core send in duffs against the core endpoint', () => {
+    expect(feeQueryFor(TransferOperation.CoreSend, params({amountDuffs: 100_000n, recipient: 'yCoreRecipient', fromAddress: 'yCoreSource'}))).toEqual({
+      endpoint: FeeEndpoint.Core,
+      query: {shape: CoreFeeShape.Send, amountDuffs: 100_000n, toAddress: 'yCoreRecipient', fromAddress: 'yCoreSource'},
+    })
+  })
+
+  it('prices the four asset-lock operations with one L1 shape', () => {
+    for (const operation of [
+      TransferOperation.AssetLockFunding,
+      TransferOperation.AssetLockShield,
+      TransferOperation.IdentityRegister,
+      TransferOperation.IdentityTopUpL1,
+    ]) {
+      expect(feeQueryFor(operation, params({amountDuffs: 100_000n}))).toEqual({
+        endpoint: FeeEndpoint.Core,
+        query: {shape: CoreFeeShape.AssetLock, amountDuffs: 100_000n},
+      })
+    }
   })
 
   it('is null for pool-paid operations, which are priced per note count', () => {
@@ -124,15 +210,15 @@ describe('feeQueryFor', () => {
     }
   })
 
-  it('is null for operations measured in Dash, which carry no credit fee', () => {
-    for (const operation of [
-      TransferOperation.CoreSend,
-      TransferOperation.AssetLockFunding,
-      TransferOperation.AssetLockShield,
-      TransferOperation.IdentityRegister,
-      TransferOperation.IdentityTopUpL1,
-    ]) {
-      expect(feeQueryFor(operation, params())).toBeNull()
+  it('is null for Dash operations until an amount is entered', () => {
+    for (const operation of DASH_OPERATIONS) {
+      expect(feeQueryFor(operation, params({amountDuffs: 0n}))).toBeNull()
+    }
+  })
+
+  it('is null for Dash operations while the destination is invalid', () => {
+    for (const operation of DASH_OPERATIONS) {
+      expect(feeQueryFor(operation, params({amountDuffs: 100_000n, destinationValid: false}))).toBeNull()
     }
   })
 

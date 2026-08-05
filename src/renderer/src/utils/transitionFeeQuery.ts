@@ -1,21 +1,65 @@
 import { TransferOperation } from '../enums/TransferOperation'
-import { PlatformAddressDto, TransitionFeeInput, TransitionFeeParams, TransitionFeeQuery } from '../api/types'
+import { CoreFeeShape } from '../enums/CoreFeeShape'
+import { FeeEndpoint } from '../enums/FeeEndpoint'
+import {
+  CoreFeeQuery,
+  OperationFeeQuery,
+  PlatformAddressDto,
+  TransitionFeeInput,
+  TransitionFeeParams,
+  TransitionFeeQuery,
+} from '../api/types'
 import {
   FEE_QUOTE_DERIVATION_INDEX,
   FEE_QUOTE_INPUT_COUNT,
   FEE_QUOTE_SHIELD_NOTE_COUNT,
 } from '../constants/transitionFee'
 
-export function feeQueryKey(query: TransitionFeeQuery): string {
+export function feeQueryKey(query: TransitionFeeQuery | CoreFeeQuery): string {
   return JSON.stringify(query, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
+}
+
+export function coreFeeShapeFor(operation: TransferOperation | null): CoreFeeShape | null {
+  switch (operation) {
+    case TransferOperation.CoreSend:
+      return CoreFeeShape.Send
+
+    case TransferOperation.AssetLockFunding:
+    case TransferOperation.AssetLockShield:
+    case TransferOperation.IdentityRegister:
+    case TransferOperation.IdentityTopUpL1:
+      return CoreFeeShape.AssetLock
+
+    default:
+      return null
+  }
 }
 
 export function feeQueryFor(
   operation: TransferOperation | null,
   params: TransitionFeeParams,
-): TransitionFeeQuery | null {
-  const { destinationValid, recipient, amountCredits, source, identityId } = params
+): OperationFeeQuery | null {
+  const { destinationValid, recipient, amountDuffs, fromAddress } = params
   if (operation == null || !destinationValid) return null
+
+  const shape = coreFeeShapeFor(operation)
+  if (shape !== null) {
+    if (amountDuffs <= 0n) return null
+    const query: CoreFeeQuery = shape === CoreFeeShape.Send
+      ? { shape, amountDuffs, toAddress: recipient, fromAddress }
+      : { shape, amountDuffs }
+    return { endpoint: FeeEndpoint.Core, query }
+  }
+
+  const query = transitionQueryFor(operation, params)
+  return query === null ? null : { endpoint: FeeEndpoint.Transition, query }
+}
+
+function transitionQueryFor(
+  operation: TransferOperation,
+  params: TransitionFeeParams,
+): TransitionFeeQuery | null {
+  const { recipient, amountCredits, source, identityId } = params
 
   const hasAmount = amountCredits > 0n
 
