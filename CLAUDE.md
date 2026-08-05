@@ -239,8 +239,15 @@ waiter yet — they only feed `markChainlockedUpTo`.
 
 ## House style
 
-- **No code comments unless they explain non-obvious *why*.** This codebase
-  keeps comments sparse; do not add narrating comments.
+- **Default to no comment.** Write one only when the code cannot show the
+  *why* — a protocol constraint, a third-party quirk, a review finding — and
+  keep it to one or two lines. Never restate the signature, the types, or the
+  control flow.
+- **A comment is not where you explain your reasoning.** Alternatives you
+  weighed, why this approach won, what the old code got wrong: response or
+  commit message, never the source. No comment may reference the session that
+  wrote it ("as discussed", "we decided", "per the review") or invent an
+  example scenario to justify itself.
 - Pure, branch-free logic (coin selection, formatting, validation, dedup, CSV)
   is extracted into `utils/` helpers and unit-tested in `tests/unit/`. Prefer
   that over inlining testable logic into components or services.
