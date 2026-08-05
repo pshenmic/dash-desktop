@@ -62,7 +62,7 @@ export const authTexts: AuthTexts = {
     placeholderConfirmPassword: 'Repeat your Password',
     buttonNext: 'Next',
     importWallet: 'Import wallet instead',
-    slowCreationNotice: 'Securing your wallet can take a while on some machines. Everything is fine, just wait a little bit longer.'
+    slowCreationNotice: 'Securing your wallet is in the progress. Don\'t worry, it will take a few more seconds.'
   },
   saveYourSeedPhrase: {
     title: 'Save your Seed Phrase',
