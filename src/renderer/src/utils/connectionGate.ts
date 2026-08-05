@@ -8,8 +8,12 @@ export interface ConnectionGate {
   dataSourceLabel: string
 }
 
-export function connectionGate(desired: ConnectionType, phase: WalletSyncPhase | undefined): ConnectionGate {
-  if (desired !== 'p2p') {
+export function connectionGate(connectionType: ConnectionType | null, phase: WalletSyncPhase | undefined): ConnectionGate {
+  if (connectionType === null) {
+    return { actionsGated: false, dataIncomplete: false, dataSourceLabel: DATA_SOURCE_LABELS.unknown }
+  }
+
+  if (connectionType !== 'p2p') {
     return { actionsGated: false, dataIncomplete: false, dataSourceLabel: DATA_SOURCE_LABELS.rpc }
   }
 

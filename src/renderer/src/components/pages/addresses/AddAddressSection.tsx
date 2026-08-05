@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
+import { ProviderCacheNamespace } from '@renderer/enums/ProviderCacheNamespace'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshBalance } from '@renderer/hooks/useWalletBalance'
 
@@ -36,7 +37,7 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
         return
       }
       await API.addWalletAddress(walletId, password, kind === 'change')
-      invalidateAsyncCache('addresses', walletId)
+      invalidateAsyncCache(ProviderCacheNamespace.Addresses, walletId)
       refreshBalance(walletId)
       setPassword('')
       setShowForm(false)

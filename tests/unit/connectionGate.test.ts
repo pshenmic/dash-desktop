@@ -40,4 +40,14 @@ describe('connectionGate', () => {
       dataSourceLabel: 'Local P2P (syncing)',
     })
   })
+
+  it('does not gate while the connection mode is unknown, whatever the sync phase', () => {
+    for (const phase of [...NOT_SYNCED, WalletSyncPhase.Synced, undefined]) {
+      expect(connectionGate(null, phase)).toEqual({
+        actionsGated: false,
+        dataIncomplete: false,
+        dataSourceLabel: '—',
+      })
+    }
+  })
 })

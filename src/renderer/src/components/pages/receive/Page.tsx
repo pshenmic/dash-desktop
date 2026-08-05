@@ -10,6 +10,7 @@ import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeConte
 import { API } from "@renderer/api";
 import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
 import { useAdresses } from "@renderer/hooks/useAdresses";
+import { ProviderCacheNamespace } from "@renderer/enums/ProviderCacheNamespace";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
 const dashDescription = (
@@ -46,7 +47,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
   const { actionsGated } = useConnectionModeContext()
   const walletId = status?.selectedWalletId ?? undefined
   const { data: address } = useAsyncWithCache<string | null>(
-    'receiveAddress',
+    ProviderCacheNamespace.ReceiveAddress,
     actionsGated ? undefined : walletId,
     () => API.getReceiveAddress(walletId!),
     null,

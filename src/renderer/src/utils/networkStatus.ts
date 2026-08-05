@@ -22,8 +22,8 @@ export function describeNetworkStatus(sync: WalletSyncStatus | undefined): Netwo
   }
 }
 
-export function describeDataSource(desired: ConnectionType, phase: WalletSyncPhase | undefined): string {
-  return connectionGate(desired, phase).dataSourceLabel
+export function describeDataSource(connectionType: ConnectionType | null, phase: WalletSyncPhase | undefined): string {
+  return connectionGate(connectionType, phase).dataSourceLabel
 }
 
 export function formatChange24h(change: number): string {

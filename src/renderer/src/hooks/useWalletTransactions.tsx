@@ -1,4 +1,5 @@
 import { API } from '@renderer/api'
+import { ProviderCacheNamespace } from '@renderer/enums/ProviderCacheNamespace'
 import { formatCreationDate } from '@renderer/utils/date'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
@@ -90,7 +91,7 @@ const fetchTransactionGroups = (walletId: string): Promise<TransactionGroup[]> =
 
 export function useWalletTransactions(walletId: string | undefined) {
   const { data: groups, loading, err } = useAsyncWithCache<TransactionGroup[]>(
-    'transactions',
+    ProviderCacheNamespace.Transactions,
     walletId,
     () => fetchTransactionGroups(walletId!),
     [],
@@ -100,10 +101,10 @@ export function useWalletTransactions(walletId: string | undefined) {
 }
 
 export function prefetchTransactions(walletId: string): Promise<void> {
-  return prefetchAsyncCache('transactions', walletId, () => fetchTransactionGroups(walletId))
+  return prefetchAsyncCache(ProviderCacheNamespace.Transactions, walletId, () => fetchTransactionGroups(walletId))
 }
 
 export function refreshTransactions(walletId: string): Promise<void> {
-  invalidateAsyncCache('transactions', walletId)
+  invalidateAsyncCache(ProviderCacheNamespace.Transactions, walletId)
   return prefetchTransactions(walletId)
 }

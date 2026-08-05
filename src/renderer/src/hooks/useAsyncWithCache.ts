@@ -26,12 +26,14 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
 
   const p = fetcher()
     .then((result) => {
-      cache.set(cacheKey, result)
-      notify(cacheKey)
+      if (inflight.get(cacheKey) === p) {
+        cache.set(cacheKey, result)
+        notify(cacheKey)
+      }
       return result
     })
     .finally(() => {
-      inflight.delete(cacheKey)
+      if (inflight.get(cacheKey) === p) inflight.delete(cacheKey)
     })
 
   inflight.set(cacheKey, p)
@@ -155,6 +157,17 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   const cacheKey = `${namespace}:${key}`
   cache.delete(cacheKey)
   notify(cacheKey)
+}
+
+export function invalidateNamespaces(namespaces: readonly string[]): void {
+  const prefixes = namespaces.map((namespace) => `${namespace}:`)
+  const cacheKeys = new Set([...cache.keys(), ...inflight.keys()])
+  for (const cacheKey of cacheKeys) {
+    if (!prefixes.some((prefix) => cacheKey.startsWith(prefix))) continue
+    cache.delete(cacheKey)
+    inflight.delete(cacheKey)
+    notify(cacheKey)
+  }
 }
 
 export function prefetchAsyncCache<T>(

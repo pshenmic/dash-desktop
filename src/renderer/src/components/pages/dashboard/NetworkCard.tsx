@@ -2,7 +2,7 @@ import { Text, WebIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { describeDataSource, describeNetworkStatus, NetworkStatusTone } from '@renderer/utils/networkStatus'
-import { readDesired } from '@renderer/hooks/useConnectionMode'
+import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { WalletSyncPhase } from '@renderer/enums/WalletSyncPhase'
 
 const STATUS_TONES: Record<NetworkStatusTone, { pill: string; dot: string; text: string }> = {
@@ -26,6 +26,7 @@ function MiniStat({ label, value }: { label: string; value: React.ReactNode }): 
 
 export default function NetworkCard(): React.JSX.Element {
   const { status } = useAuth()
+  const { connectionType } = useConnectionModeContext()
   const sync = status?.walletSync
   const labels = dashboardPage.network
 
@@ -59,7 +60,7 @@ export default function NetworkCard(): React.JSX.Element {
 
       <MiniStat label={labels.chainTip} value={tipHeight > 0 ? tipHeight.toLocaleString('en-US') : '—'} />
       <MiniStat label={labels.peers} value={syncActive ? peerCount.toLocaleString('en-US') : '—'} />
-      <MiniStat label={labels.dataSource} value={describeDataSource(readDesired(), sync?.phase)} />
+      <MiniStat label={labels.dataSource} value={describeDataSource(connectionType, sync?.phase)} />
     </div>
   )
 }

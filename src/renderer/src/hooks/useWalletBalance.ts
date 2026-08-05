@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { API } from '@renderer/api'
 import { BALANCE_REFRESH_MS } from '@renderer/constants'
+import { ProviderCacheNamespace } from '@renderer/enums/ProviderCacheNamespace'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type WalletBalanceData = {
@@ -23,7 +24,7 @@ export function useWalletBalance(walletId: string | undefined) {
     []
   )
   const { data, loading, err } = useAsyncWithCache<WalletBalanceData>(
-    'balance',
+    ProviderCacheNamespace.Balance,
     walletId,
     () => fetchBalance(walletId!),
     initial,
@@ -33,10 +34,10 @@ export function useWalletBalance(walletId: string | undefined) {
 }
 
 export function prefetchBalance(walletId: string): Promise<void> {
-  return prefetchAsyncCache('balance', walletId, () => fetchBalance(walletId))
+  return prefetchAsyncCache(ProviderCacheNamespace.Balance, walletId, () => fetchBalance(walletId))
 }
 
 export function refreshBalance(walletId: string): Promise<void> {
-  invalidateAsyncCache('balance', walletId)
+  invalidateAsyncCache(ProviderCacheNamespace.Balance, walletId)
   return prefetchBalance(walletId)
 }

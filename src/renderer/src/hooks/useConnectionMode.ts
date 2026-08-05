@@ -1,27 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { API } from '@renderer/api'
 import { ConnectionType, WalletSyncPhase } from '@renderer/api/types'
+import { toast } from '@renderer/components/ui/Toast'
+import { CONNECTION_SWITCH_FAILED } from '@renderer/constants/connection'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { ProviderCacheNamespace } from '@renderer/enums/ProviderCacheNamespace'
 import { connectionGate } from '@renderer/utils/connectionGate'
-
-const LS_DESIRED_KEY = 'wallet.connection.desired'
-const CONNECTION_TYPES: readonly ConnectionType[] = ['rpc', 'p2p']
-
-export function readDesired(): ConnectionType {
-  const raw = localStorage.getItem(LS_DESIRED_KEY)
-  return CONNECTION_TYPES.includes(raw as ConnectionType) ? (raw as ConnectionType) : 'rpc'
-}
+import { invalidateNamespaces } from './useAsyncWithCache'
 
 function isP2pInactive(phase: WalletSyncPhase | undefined): boolean {
   return phase === undefined || phase === WalletSyncPhase.Stopped || phase === WalletSyncPhase.Idle
 }
 
 export interface UseConnectionMode {
-  desired: ConnectionType
+  connectionType: ConnectionType | null
   showSyncUI: boolean
   actionsGated: boolean
   dataIncomplete: boolean
-  setDesired: (next: ConnectionType) => void
+  setConnectionType: (next: ConnectionType) => void
 }
 
 export function useConnectionMode(): UseConnectionMode {
@@ -29,21 +25,15 @@ export function useConnectionMode(): UseConnectionMode {
   const phase = status?.walletSync.phase
   const walletId = status?.selectedWalletId ?? null
   const activeSyncWalletId = status?.walletSync.walletId ?? null
-  const [desired, setDesiredState] = useState<ConnectionType>(readDesired)
+  const [connectionType, setConnectionTypeState] = useState<ConnectionType | null>(null)
 
   const phaseRef = useRef<WalletSyncPhase | undefined>(phase)
   useEffect(() => { phaseRef.current = phase }, [phase])
 
   useEffect(() => {
-    let cancelled = false
-    const target = readDesired()
     API.getPreferences()
-      .then(preferences => {
-        if (cancelled || preferences.general.connectionType === target) return
-        return API.setConnectionType(target)
-      })
-      .catch(err => console.error('connection preference reconcile failed', err))
-    return () => { cancelled = true }
+      .then(preferences => setConnectionTypeState(preferences.general.connectionType))
+      .catch(err => console.error('getPreferences failed', err))
   }, [])
 
   const autoStartedFor = useRef<string | null>(null)
@@ -60,31 +50,39 @@ export function useConnectionMode(): UseConnectionMode {
       return
     }
 
-    if (desired !== 'p2p') return
+    if (connectionType !== 'p2p') return
     if (autoStartedFor.current === walletId) return
     autoStartedFor.current = walletId
     if (!isP2pInactive(phaseRef.current)) return
     API.startWalletSync(walletId).catch(err => console.error('auto startWalletSync failed', err))
-  }, [walletId, desired, phase, activeSyncWalletId])
+  }, [walletId, connectionType, phase, activeSyncWalletId])
 
-  const setDesired = useCallback((next: ConnectionType) => {
-    localStorage.setItem(LS_DESIRED_KEY, next)
-    setDesiredState(next)
-    API.setConnectionType(next).catch(err => console.error('setConnectionType failed', err))
-    if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
-      API.startWalletSync(walletId).catch(err => console.error('startWalletSync failed', err))
-    } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
-      API.stopWalletSync().catch(err => console.error('stopWalletSync failed', err))
-    }
-  }, [walletId])
+  const setConnectionType = useCallback((next: ConnectionType) => {
+    if (next === connectionType) return
+    API.setConnectionType(next)
+      .then(result => {
+        if (!result.success) throw new Error(result.errorMessage ?? CONNECTION_SWITCH_FAILED)
+        setConnectionTypeState(next)
+        invalidateNamespaces(Object.values(ProviderCacheNamespace))
+        if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
+          API.startWalletSync(walletId).catch(err => console.error('startWalletSync failed', err))
+        } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
+          API.stopWalletSync().catch(err => console.error('stopWalletSync failed', err))
+        }
+      })
+      .catch(err => {
+        console.error('setConnectionType failed', err)
+        toast.error(CONNECTION_SWITCH_FAILED)
+      })
+  }, [walletId, connectionType])
 
-  const gate = useMemo(() => connectionGate(desired, phase), [desired, phase])
+  const gate = useMemo(() => connectionGate(connectionType, phase), [connectionType, phase])
 
   return {
-    desired,
-    showSyncUI: desired === 'p2p',
+    connectionType,
+    showSyncUI: connectionType === 'p2p',
     actionsGated: gate.actionsGated,
     dataIncomplete: gate.dataIncomplete,
-    setDesired,
+    setConnectionType,
   }
 }
