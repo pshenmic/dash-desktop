@@ -279,6 +279,17 @@ export default function TransferHub(): React.JSX.Element {
       ? amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
       : amountCredits > 0n ? formatFiat(creditsToDuffs(amountCredits)) : undefined
 
+  const feeLabel = isDashUnit ? 'Network fee' : 'Reserved for fee'
+  const feeSummary = isDashUnit
+    ? (feeDuffs === null ? null : {
+        fee: <>{davToDash(feeDuffs)} Dash</>,
+        total: <>{davToDash(amountDuffs + feeDuffs)} Dash</>,
+      })
+    : (feeCredits === null ? null : {
+        fee: <CreditsAmount credits={feeCredits} align={"end"} />,
+        total: <CreditsAmount credits={amountCredits + feeCredits} align={"end"} />,
+      })
+
   const handleAmount = (e: React.ChangeEvent<HTMLInputElement>): void => {
     if (isDashUnit) {
       const val = e.target.value.replace(/[^0-9.]/g, '')
@@ -322,7 +333,6 @@ export default function TransferHub(): React.JSX.Element {
     maxPerTx,
     amountDuffs,
     balanceDuffs,
-    feeDuffs,
     maxSendableDuffs,
   })
   const fieldError = amountError ?? feeErr
@@ -549,11 +559,9 @@ export default function TransferHub(): React.JSX.Element {
         {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
       </div>
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{isDashUnit ? 'Network fee' : 'Reserved for fee'}</Text>
-        {feeErr === null && isDashUnit && feeDuffs !== null ? (
-          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(feeDuffs)} Dash</Text>
-        ) : feeErr === null && !isDashUnit && feeCredits !== null ? (
-          <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{feeLabel}</Text>
+        {feeErr === null && feeSummary !== null ? (
+          <Text size={12} weight={"medium"} color={"brand"}>{feeSummary.fee}</Text>
         ) : feeErr === null && feeLoading ? (
           <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
         ) : (
@@ -598,29 +606,16 @@ export default function TransferHub(): React.JSX.Element {
             {isDashUnit ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits} align={"end"} />}
           </Text>
         </div>
-        {!isDashUnit && feeCredits !== null && (
+        {feeSummary !== null && (
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
-              <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{feeLabel}</Text>
+              <Text size={14} weight={"medium"} color={"brand"}>{feeSummary.fee}</Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}><CreditsAmount credits={amountCredits + feeCredits} align={"end"} /></Text>
-            </div>
-          </>
-        )}
-        {isDashUnit && feeDuffs !== null && (
-          <>
-            <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(feeDuffs)} Dash</Text>
-            </div>
-            <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
-            <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + feeDuffs)} Dash</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}>{feeSummary.total}</Text>
             </div>
           </>
         )}

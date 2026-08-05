@@ -85,6 +85,12 @@ export type OperationFeeQuery =
   | { endpoint: FeeEndpoint.Transition; query: TransitionFeeQuery }
   | { endpoint: FeeEndpoint.Core; query: CoreFeeQuery }
 
+export interface OperationFeeQuote {
+  feeCredits: bigint | null
+  feeDuffs: bigint | null
+  maxSendableDuffs: bigint | null
+}
+
 export interface TransitionFeeParams {
   destinationValid: boolean
   recipient: string
@@ -110,7 +116,6 @@ export interface AmountValidationParams {
   maxPerTx: bigint | null
   amountDuffs: bigint
   balanceDuffs: bigint
-  feeDuffs: bigint | null
   maxSendableDuffs: bigint | null
 }
 

@@ -5,39 +5,21 @@ import {CoreFeeShape} from '../enums/CoreFeeShape'
 import {CoreFeeQuery, CoreFeeQuote, CoreFeeRecipient} from '../types/CoreFee'
 import {DraftInput} from '../types/CoreTransaction'
 import {UTXO} from '../types/UTXO'
-import {selectCoins} from './coinSelection'
+import {resolveSelectedUtxos, selectCoins, toSelectableUtxos} from './coinSelection'
 import {buildAssetLockTx, buildTransferTx} from './coreTxBuild'
 
-function outputsTotal(tx: SDKTransaction): bigint {
+export function outputsTotal(tx: SDKTransaction): bigint {
   return tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
 }
 
-function dryRun(
-  shape: CoreFeeShape,
-  inputs: DraftInput[],
-  amountDuffs: bigint,
-  recipient: CoreFeeRecipient,
-  changeAddress: string,
-  creditAddress: string,
-  inputTotal: bigint,
-): SDKTransaction {
-  if (shape === CoreFeeShape.AssetLock) {
-    return buildAssetLockTx({inputs, amountDuffs, creditAddress, changeAddress, inputTotal})
-  }
-  return buildTransferTx({
-    inputs,
-    toAddress: recipient.address,
-    recipientType: recipient.type,
-    amountDuffs,
-    changeAddress,
-    inputTotal,
-  })
+function toDraftInputs(utxos: UTXO[]): DraftInput[] {
+  return utxos.map(utxo => ({txId: utxo.txId, vOut: utxo.vOut, script: utxo.script}))
 }
 
 export function estimateCoreFee(
   utxos: UTXO[],
   query: CoreFeeQuery,
-  recipient: CoreFeeRecipient,
+  recipient: CoreFeeRecipient | null,
   changeAddress: string,
   creditAddress: string,
 ): CoreFeeQuote {
@@ -45,12 +27,24 @@ export function estimateCoreFee(
     return {feeDuffs: null, maxSendableDuffs: 0n}
   }
 
+  const target: CoreFeeRecipient = recipient ?? {address: changeAddress, type: 'p2pkh'}
+  const dryRun = (inputs: DraftInput[], amountDuffs: bigint, inputTotal: bigint): SDKTransaction =>
+    query.shape === CoreFeeShape.AssetLock
+      ? buildAssetLockTx({inputs, amountDuffs, creditAddress, changeAddress, inputTotal})
+      : buildTransferTx({
+          inputs,
+          toAddress: target.address,
+          recipientType: target.type,
+          amountDuffs,
+          changeAddress,
+          inputTotal,
+        })
+
   const inputTotalAll = utxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
-  const draftInputsAll: DraftInput[] = utxos.map(utxo => ({txId: utxo.txId, vOut: utxo.vOut, script: utxo.script}))
 
   let maxSendableDuffs = 0n
   try {
-    const probe = dryRun(query.shape, draftInputsAll, CORE_FEE_PROBE_AMOUNT_DUFFS, recipient, changeAddress, creditAddress, inputTotalAll)
+    const probe = dryRun(toDraftInputs(utxos), CORE_FEE_PROBE_AMOUNT_DUFFS, inputTotalAll)
     if (probe.outputs.length > 1) {
       const feeAll = inputTotalAll - outputsTotal(probe)
       const max = inputTotalAll - feeAll - BigInt(MIN_FEE_RELAY)
@@ -65,19 +59,9 @@ export function estimateCoreFee(
   }
 
   try {
-    const selection = selectCoins(
-      utxos.map(utxo => ({txid: utxo.txId, vout: utxo.vOut, satoshis: utxo.satoshis, address: utxo.address})),
-      query.amountDuffs,
-    )
-    const utxoByKey = new Map(utxos.map(utxo => [`${utxo.txId}:${utxo.vOut}`, utxo]))
-    const draftInputs: DraftInput[] = selection.inputs.map(input => {
-      const owned = utxoByKey.get(`${input.txid}:${input.vout}`)
-      if (owned == null) {
-        throw new Error('Selected UTXO no longer available')
-      }
-      return {txId: owned.txId, vOut: owned.vOut, script: owned.script}
-    })
-    const tx = dryRun(query.shape, draftInputs, query.amountDuffs, recipient, changeAddress, creditAddress, selection.inputTotal)
+    const selection = selectCoins(toSelectableUtxos(utxos), query.amountDuffs)
+    const inputs = toDraftInputs(resolveSelectedUtxos(selection.inputs, utxos))
+    const tx = dryRun(inputs, query.amountDuffs, selection.inputTotal)
     const feeDuffs = selection.inputTotal - outputsTotal(tx)
     return {feeDuffs: feeDuffs > 0n ? feeDuffs : null, maxSendableDuffs}
   } catch {

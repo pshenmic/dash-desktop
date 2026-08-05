@@ -16,7 +16,6 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
     maxPerTx: null,
     amountDuffs: 0n,
     balanceDuffs: 0n,
-    feeDuffs: null,
     maxSendableDuffs: null,
     ...overrides,
   }

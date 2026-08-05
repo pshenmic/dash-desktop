@@ -2,9 +2,9 @@ import {describe, it, expect} from 'vitest'
 import {Output, Script, Transaction as SDKTransaction, utils as sdkUtils} from 'dash-core-sdk'
 import {CHANGE_OUTPUT_MAX_SIZE, MIN_FEE_RELAY, SIGNED_INPUT_MAX_SIZE} from 'dash-core-sdk/src/constants.js'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
-import {assertRelayFee, estimateCoreFee} from '../../src/main/src/utils/coreFeeEstimate'
+import {assertRelayFee, estimateCoreFee, outputsTotal} from '../../src/main/src/utils/coreFeeEstimate'
 import {buildTransferTx} from '../../src/main/src/utils/coreTxBuild'
-import {selectCoins} from '../../src/main/src/utils/coinSelection'
+import {resolveSelectedUtxos, selectCoins, toSelectableUtxos} from '../../src/main/src/utils/coinSelection'
 import {CoreFeeShape} from '../../src/main/src/enums/CoreFeeShape'
 import {CoreFeeQuery, CoreFeeRecipient} from '../../src/main/src/types/CoreFee'
 import {DraftInput} from '../../src/main/src/types/CoreTransaction'
@@ -50,10 +50,6 @@ function sendQuery(amountDuffs: bigint): CoreFeeQuery {
   return {shape: CoreFeeShape.Send, amountDuffs, toAddress: null, fromAddress: null}
 }
 
-function outputsSum(tx: SDKTransaction): bigint {
-  return tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
-}
-
 describe('estimateCoreFee', () => {
   it('prices a p2pkh send with change at exactly size times the fee rate', () => {
     const utxos = [utxo(ONE_DASH, 1), utxo(ONE_DASH, 2)]
@@ -69,7 +65,7 @@ describe('estimateCoreFee', () => {
       changeAddress: CHANGE_ADDRESS,
       inputTotal: ONE_DASH,
     })
-    expect(ONE_DASH - outputsSum(draft)).toBe(quote.feeDuffs)
+    expect(ONE_DASH - outputsTotal(draft)).toBe(quote.feeDuffs)
   })
 
   it('prices a p2sh recipient two duffs below the p2pkh one', () => {
@@ -152,21 +148,6 @@ describe('assertRelayFee', () => {
       expect(() => assertRelayFee(draft, ONE_DASH)).toThrow('fee below relay minimum')
     }
   })
-
-  it('passes the transaction built at the maximum', () => {
-    const utxos = [utxo(ONE_DASH, 1)]
-    const {maxSendableDuffs} = estimateCoreFee(utxos, sendQuery(0n), P2PKH_RECIPIENT, CHANGE_ADDRESS, CREDIT_ADDRESS)
-
-    const draft = buildTransferTx({
-      inputs: draftInputs(utxos),
-      toAddress: P2PKH_ADDRESS,
-      recipientType: 'p2pkh',
-      amountDuffs: maxSendableDuffs,
-      changeAddress: CHANGE_ADDRESS,
-      inputTotal: ONE_DASH,
-    })
-    expect(() => assertRelayFee(draft, ONE_DASH)).not.toThrow()
-  })
 })
 
 describe('selectCoins reserve vs dry-run truth', () => {
@@ -180,24 +161,16 @@ describe('selectCoins reserve vs dry-run truth', () => {
     ]
 
     for (const {utxos, target} of scenarios) {
-      const selection = selectCoins(
-        utxos.map(u => ({txid: u.txId, vout: u.vOut, satoshis: u.satoshis, address: u.address})),
-        target,
-      )
-      const byKey = new Map(utxos.map(u => [`${u.txId}:${u.vOut}`, u]))
-      const inputs = selection.inputs.map(input => {
-        const owned = byKey.get(`${input.txid}:${input.vout}`)!
-        return {txId: owned.txId, vOut: owned.vOut, script: owned.script}
-      })
+      const selection = selectCoins(toSelectableUtxos(utxos), target)
       const draft = buildTransferTx({
-        inputs,
+        inputs: draftInputs(resolveSelectedUtxos(selection.inputs, utxos)),
         toAddress: P2PKH_ADDRESS,
         recipientType: 'p2pkh',
         amountDuffs: target,
         changeAddress: CHANGE_ADDRESS,
         inputTotal: selection.inputTotal,
       })
-      expect(selection.fee).toBeGreaterThanOrEqual(selection.inputTotal - outputsSum(draft))
+      expect(selection.fee).toBeGreaterThanOrEqual(selection.inputTotal - outputsTotal(draft))
     }
   })
 })

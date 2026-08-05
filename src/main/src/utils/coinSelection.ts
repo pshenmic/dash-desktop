@@ -1,5 +1,26 @@
 import {CoinSelectionParams, CoinSelectionResult, SelectableUtxo} from '../types/CoinSelection'
+import {UTXO} from '../types/UTXO'
 import {DEFAULT_SELECTION_PARAMS} from '../constants'
+
+export function toSelectableUtxos(utxos: UTXO[]): SelectableUtxo[] {
+  return utxos.map(utxo => ({
+    txid: utxo.txId,
+    vout: utxo.vOut,
+    satoshis: utxo.satoshis,
+    address: utxo.address,
+  }))
+}
+
+export function resolveSelectedUtxos(selected: SelectableUtxo[], utxos: UTXO[]): UTXO[] {
+  const byKey = new Map(utxos.map(utxo => [`${utxo.txId}:${utxo.vOut}`, utxo]))
+  return selected.map(input => {
+    const owned = byKey.get(`${input.txid}:${input.vout}`)
+    if (owned == null) {
+      throw new Error('Selected UTXO no longer available')
+    }
+    return owned
+  })
+}
 
 function estimateFee(
   inputCount: number,

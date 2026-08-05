@@ -13,6 +13,7 @@ import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
 import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
 import { ShieldedSpendKind } from '../../src/renderer/src/enums/ShieldedSpendKind'
+import { CoreFeeShape } from '../../src/renderer/src/enums/CoreFeeShape'
 
 const SPEND_KINDS: Array<ShieldedSpendKind | null> = [...Object.values(ShieldedSpendKind), null]
 
@@ -118,6 +119,18 @@ describe('operationInfo', () => {
       expect(info).toBeDefined()
       expect(SPEND_KINDS).toContain(info.spendKind)
     }
+  })
+
+  it('gives a core fee shape to exactly the dash-denominated operations', () => {
+    for (const operation of Object.values(TransferOperation)) {
+      const info = operationInfo(operation)
+      expect(info.coreFeeShape !== null).toBe(info.unit === 'dash')
+    }
+    expect(operationInfo(TransferOperation.CoreSend).coreFeeShape).toBe(CoreFeeShape.Send)
+    expect(operationInfo(TransferOperation.AssetLockFunding).coreFeeShape).toBe(CoreFeeShape.AssetLock)
+    expect(operationInfo(TransferOperation.AssetLockShield).coreFeeShape).toBe(CoreFeeShape.AssetLock)
+    expect(operationInfo(TransferOperation.IdentityRegister).coreFeeShape).toBe(CoreFeeShape.AssetLock)
+    expect(operationInfo(TransferOperation.IdentityTopUpL1).coreFeeShape).toBe(CoreFeeShape.AssetLock)
   })
 })
 

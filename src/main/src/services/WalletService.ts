@@ -22,8 +22,8 @@ import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
 import {TxLockStatus} from "../types/TxLockStatus";
-import {selectCoins} from '../utils/coinSelection'
-import {assertRelayFee, estimateCoreFee} from '../utils/coreFeeEstimate'
+import {resolveSelectedUtxos, selectCoins, toSelectableUtxos} from '../utils/coinSelection'
+import {assertRelayFee, estimateCoreFee, outputsTotal} from '../utils/coreFeeEstimate'
 import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService} from './CoreTransactionService'
 import {decryptMnemonic, encryptMnemonic} from "../utils";
@@ -38,10 +38,10 @@ import {
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
 import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
-import {SelectableUtxo} from '../types/CoinSelection'
-import {CoreFeeQuery, CoreFeeQuote, CoreFeeRecipient} from '../types/CoreFee'
+import {CoreFeeQuery, CoreFeeQuote} from '../types/CoreFee'
 import {CoreFeeShape} from '../enums/CoreFeeShape'
 import {TransferInput} from '../types/CoreTransaction'
+import {UTXO} from '../types/UTXO'
 
 
 export class WalletService {
@@ -591,8 +591,7 @@ export class WalletService {
       return {tx, inputTotal, changeAddress}
     })
 
-    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
-    const actualFee = inputTotal - outputTotal
+    const actualFee = inputTotal - outputsTotal(tx)
     const hasChange = tx.outputs.length > 1
     assertRelayFee(tx, inputTotal)
 
@@ -614,22 +613,15 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
 
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const allAddresses = [...grouped.receiving, ...grouped.change]
     const fromAddress = query.shape === CoreFeeShape.Send ? query.fromAddress : null
-    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
+    const {grouped, utxos, changeAddress} = await this.collectSpendableUtxos(walletId, wallet.network, fromAddress)
 
-    const provider = this.getProvider(walletId, wallet.network)
-    await provider.ensureReady()
-    const utxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
-
-    const changeAddress = this.pickChangeAddress(grouped)
     const creditAddress = query.shape === CoreFeeShape.AssetLock
       ? this.pickCreditChangeAddress(grouped, changeAddress).address
       : changeAddress
-    const recipient: CoreFeeRecipient = query.shape === CoreFeeShape.Send && query.toAddress != null
+    const recipient = query.shape === CoreFeeShape.Send && query.toAddress != null
       ? {address: query.toAddress, type: this.coreTransactionService.classifyRecipientAddress(query.toAddress, wallet.network)}
-      : {address: changeAddress, type: 'p2pkh'}
+      : null
 
     return estimateCoreFee(utxos, query, recipient, changeAddress, creditAddress)
   }
@@ -653,53 +645,47 @@ export class WalletService {
     return this.walletSyncService.waitForInstantLock(txid, timeoutMs)
   }
 
+  private async collectSpendableUtxos(walletId: string, network: Network, fromAddress?: string | null): Promise<{
+    grouped: GroupedAddresses
+    utxos: UTXO[]
+    changeAddress: string
+  }> {
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+    const allAddresses = [...grouped.receiving, ...grouped.change]
+    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
+
+    const provider = this.getProvider(walletId, network)
+    await provider.ensureReady()
+    const utxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
+
+    return {grouped, utxos, changeAddress: this.pickChangeAddress(grouped)}
+  }
+
   private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint, fromAddress?: string): Promise<{
     transferInputs: TransferInput[]
     inputTotal: bigint
     changeAddress: string
     grouped: GroupedAddresses
   }> {
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const allAddresses = [...grouped.receiving, ...grouped.change]
-    const pathByAddress = new Map(allAddresses.map(a => [a.address, a.derivationPath]))
+    const {grouped, utxos, changeAddress} = await this.collectSpendableUtxos(walletId, network, fromAddress)
 
-    const provider = this.getProvider(walletId, network)
-    await provider.ensureReady()
-
-    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
-
-    const ownedUtxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
-
-    if (ownedUtxos.length === 0) {
+    if (utxos.length === 0) {
       throw new Error('No spendable funds in this wallet')
     }
 
-    const selectable: SelectableUtxo[] = ownedUtxos.map(utxo => ({
-      txid: utxo.txId,
-      vout: utxo.vOut,
-      satoshis: utxo.satoshis,
-      address: utxo.address,
-    }))
+    const pathByAddress = new Map([...grouped.receiving, ...grouped.change].map(a => [a.address, a.derivationPath]))
+    const selection = selectCoins(toSelectableUtxos(utxos), amountDuffs)
 
-    const selection = selectCoins(selectable, amountDuffs)
-
-    const utxoByKey = new Map(ownedUtxos.map(u => [`${u.txId}:${u.vOut}`, u]))
-
-    const changeAddress = this.pickChangeAddress(grouped)
-
-    const transferInputs: TransferInput[] = selection.inputs.map(input => {
-      const owned = utxoByKey.get(`${input.txid}:${input.vout}`)
-      if (!owned) throw new Error('Selected UTXO no longer available')
-
-      const derivationPath = pathByAddress.get(input.address)
-      if (derivationPath == null) throw new Error(`No derivation path for address ${input.address}`)
+    const transferInputs: TransferInput[] = resolveSelectedUtxos(selection.inputs, utxos).map(owned => {
+      const derivationPath = pathByAddress.get(owned.address)
+      if (derivationPath == null) throw new Error(`No derivation path for address ${owned.address}`)
 
       return {
         txId: owned.txId,
         vOut: owned.vOut,
         script: owned.script,
         derivationPath,
-        address: input.address,
+        address: owned.address,
       }
     })
 

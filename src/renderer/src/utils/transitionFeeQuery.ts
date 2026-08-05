@@ -14,25 +14,21 @@ import {
   FEE_QUOTE_INPUT_COUNT,
   FEE_QUOTE_SHIELD_NOTE_COUNT,
 } from '../constants/transitionFee'
+import { operationInfo } from './transferMatrix'
 
 export function feeQueryKey(query: TransitionFeeQuery | CoreFeeQuery): string {
   return JSON.stringify(query, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
 }
 
-export function coreFeeShapeFor(operation: TransferOperation | null): CoreFeeShape | null {
-  switch (operation) {
-    case TransferOperation.CoreSend:
-      return CoreFeeShape.Send
-
-    case TransferOperation.AssetLockFunding:
-    case TransferOperation.AssetLockShield:
-    case TransferOperation.IdentityRegister:
-    case TransferOperation.IdentityTopUpL1:
-      return CoreFeeShape.AssetLock
-
-    default:
-      return null
-  }
+export function coreFeeQueryFor(
+  shape: CoreFeeShape,
+  amountDuffs: bigint,
+  toAddress: string | null,
+  fromAddress: string | null,
+): CoreFeeQuery {
+  return shape === CoreFeeShape.Send
+    ? { shape, amountDuffs, toAddress, fromAddress }
+    : { shape, amountDuffs }
 }
 
 export function feeQueryFor(
@@ -42,13 +38,10 @@ export function feeQueryFor(
   const { destinationValid, recipient, amountDuffs, fromAddress } = params
   if (operation == null || !destinationValid) return null
 
-  const shape = coreFeeShapeFor(operation)
+  const shape = operationInfo(operation).coreFeeShape
   if (shape !== null) {
     if (amountDuffs <= 0n) return null
-    const query: CoreFeeQuery = shape === CoreFeeShape.Send
-      ? { shape, amountDuffs, toAddress: recipient, fromAddress }
-      : { shape, amountDuffs }
-    return { endpoint: FeeEndpoint.Core, query }
+    return { endpoint: FeeEndpoint.Core, query: coreFeeQueryFor(shape, amountDuffs, recipient, fromAddress) }
   }
 
   const query = transitionQueryFor(operation, params)

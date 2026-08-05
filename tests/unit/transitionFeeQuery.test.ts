@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { coreFeeShapeFor, feeQueryFor, feeQueryKey } from '../../src/renderer/src/utils/transitionFeeQuery'
+import { feeQueryFor, feeQueryKey } from '../../src/renderer/src/utils/transitionFeeQuery'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
 import { CoreFeeShape } from '../../src/renderer/src/enums/CoreFeeShape'
 import { FeeEndpoint } from '../../src/renderer/src/enums/FeeEndpoint'
@@ -13,13 +13,14 @@ const SOURCE: PlatformAddressDto = {
 
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
 
-const DASH_OPERATIONS = [
-  TransferOperation.CoreSend,
+const ASSET_LOCK_OPERATIONS = [
   TransferOperation.AssetLockFunding,
   TransferOperation.AssetLockShield,
   TransferOperation.IdentityRegister,
   TransferOperation.IdentityTopUpL1,
 ]
+
+const DASH_OPERATIONS = [TransferOperation.CoreSend, ...ASSET_LOCK_OPERATIONS]
 
 function params(overrides: Partial<TransitionFeeParams> = {}): TransitionFeeParams {
   return {
@@ -55,29 +56,6 @@ describe('feeQueryKey', () => {
     const one = feeQueryFor(TransferOperation.CoreSend, params({amountDuffs: 1n}))!
     const two = feeQueryFor(TransferOperation.CoreSend, params({amountDuffs: 2n}))!
     expect(feeQueryKey(one.query)).not.toBe(feeQueryKey(two.query))
-  })
-})
-
-describe('coreFeeShapeFor', () => {
-  it('maps a core send to the send shape', () => {
-    expect(coreFeeShapeFor(TransferOperation.CoreSend)).toBe(CoreFeeShape.Send)
-  })
-
-  it('maps the four asset-lock operations to one shape', () => {
-    for (const operation of [
-      TransferOperation.AssetLockFunding,
-      TransferOperation.AssetLockShield,
-      TransferOperation.IdentityRegister,
-      TransferOperation.IdentityTopUpL1,
-    ]) {
-      expect(coreFeeShapeFor(operation)).toBe(CoreFeeShape.AssetLock)
-    }
-  })
-
-  it('has no shape for credits operations', () => {
-    expect(coreFeeShapeFor(TransferOperation.AddressFundsTransfer)).toBeNull()
-    expect(coreFeeShapeFor(TransferOperation.ShieldedTransfer)).toBeNull()
-    expect(coreFeeShapeFor(null)).toBeNull()
   })
 })
 
@@ -186,12 +164,7 @@ describe('feeQueryFor', () => {
   })
 
   it('prices the four asset-lock operations with one L1 shape', () => {
-    for (const operation of [
-      TransferOperation.AssetLockFunding,
-      TransferOperation.AssetLockShield,
-      TransferOperation.IdentityRegister,
-      TransferOperation.IdentityTopUpL1,
-    ]) {
+    for (const operation of ASSET_LOCK_OPERATIONS) {
       expect(feeQueryFor(operation, params({amountDuffs: 100_000n}))).toEqual({
         endpoint: FeeEndpoint.Core,
         query: {shape: CoreFeeShape.AssetLock, amountDuffs: 100_000n},
