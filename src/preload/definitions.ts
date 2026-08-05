@@ -26,6 +26,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password, fromAddress),
   getTxLockStatus: (walletId: string, txid: string) => ipcRenderer.invoke('getTxLockStatus', walletId, txid),
   estimateTransitionFee: (network: 'mainnet' | 'testnet', query: unknown) => ipcRenderer.invoke('estimateTransitionFee', network, query),
+  estimateCoreFee: (walletId: string, query: unknown) => ipcRenderer.invoke('estimateCoreFee', walletId, query),
   sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, fromAddress, toAddress, amountCredits, password),
   topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, fromAddress, amountCredits, password),
   withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, fromAddress, toCoreAddress, amountCredits, password),

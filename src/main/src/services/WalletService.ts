@@ -23,6 +23,7 @@ import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
 import {TxLockStatus} from "../types/TxLockStatus";
 import {selectCoins} from '../utils/coinSelection'
+import {assertRelayFee, estimateCoreFee} from '../utils/coreFeeEstimate'
 import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService} from './CoreTransactionService'
 import {decryptMnemonic, encryptMnemonic} from "../utils";
@@ -38,6 +39,8 @@ import {
 import {identityPath} from '../utils/identityKeys'
 import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
 import {SelectableUtxo} from '../types/CoinSelection'
+import {CoreFeeQuery, CoreFeeQuote, CoreFeeRecipient} from '../types/CoreFee'
+import {CoreFeeShape} from '../enums/CoreFeeShape'
 import {TransferInput} from '../types/CoreTransaction'
 
 
@@ -588,11 +591,12 @@ export class WalletService {
       return {tx, inputTotal, changeAddress}
     })
 
-    const broadcast = await this.walletSyncService.broadcastTransaction(tx.hex())
-
     const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
     const actualFee = inputTotal - outputTotal
     const hasChange = tx.outputs.length > 1
+    assertRelayFee(tx, inputTotal)
+
+    const broadcast = await this.walletSyncService.broadcastTransaction(tx.hex())
 
     return {
       txid: broadcast.txid,
@@ -602,6 +606,32 @@ export class WalletService {
       changeAddress: hasChange ? changeAddress : null,
       peersAcked: broadcast.peersDelivered.length,
     }
+  }
+
+  async estimateCoreFee(walletId: string, query: CoreFeeQuery): Promise<CoreFeeQuote> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+    const allAddresses = [...grouped.receiving, ...grouped.change]
+    const fromAddress = query.shape === CoreFeeShape.Send ? query.fromAddress : null
+    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
+
+    const provider = this.getProvider(walletId, wallet.network)
+    await provider.ensureReady()
+    const utxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
+
+    const changeAddress = this.pickChangeAddress(grouped)
+    const creditAddress = query.shape === CoreFeeShape.AssetLock
+      ? this.pickCreditChangeAddress(grouped, changeAddress).address
+      : changeAddress
+    const recipient: CoreFeeRecipient = query.shape === CoreFeeShape.Send && query.toAddress != null
+      ? {address: query.toAddress, type: this.coreTransactionService.classifyRecipientAddress(query.toAddress, wallet.network)}
+      : {address: changeAddress, type: 'p2pkh'}
+
+    return estimateCoreFee(utxos, query, recipient, changeAddress, creditAddress)
   }
 
   async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {
@@ -706,6 +736,8 @@ export class WalletService {
       seed,
       network,
     })
+
+    assertRelayFee(tx, inputTotal)
 
     let txid: string
     try {

@@ -1,4 +1,5 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import {CHANGE_OUTPUT_MAX_SIZE, FEE_PER_BYTE, SIGNED_INPUT_MAX_SIZE} from 'dash-core-sdk/src/constants.js'
 import type {CoinSelectionParams} from './types/CoinSelection'
 
 export const HomeFolderName = '.dash-desktop'
@@ -118,13 +119,15 @@ export const HD_VERSIONS: Record<'mainnet' | 'testnet', {private: number; public
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
 
 export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
-  feePerByte: 1n,
-  signedInputSize: 32n + 4n + 8n + 108n + 4n,
-  changeOutputSize: 20n + 4n + 34n + 4n,
+  feePerByte: BigInt(FEE_PER_BYTE),
+  signedInputSize: BigInt(SIGNED_INPUT_MAX_SIZE),
+  changeOutputSize: BigInt(CHANGE_OUTPUT_MAX_SIZE),
   baseTxSize: 10n,
   recipientOutputSize: 34n,
   minFee: 1000n,
 }
+
+export const CORE_FEE_PROBE_AMOUNT_DUFFS = 546n
 
 export const MIN_OUTPUT_CREDITS = 500_000n
 export const TRANSFER_FEE_CREDITS = 6_500_000n

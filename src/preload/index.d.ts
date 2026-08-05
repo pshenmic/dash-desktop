@@ -32,6 +32,7 @@ declare global {
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateTransitionFee: (network: 'mainnet' | 'testnet', query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
+      estimateCoreFee: (walletId: string, query: unknown) => Promise<{ feeDuffs: bigint | null; maxSendableDuffs: bigint }>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>

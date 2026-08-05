@@ -1,18 +1,10 @@
-import {
-  Input,
-  Output,
-  PrivateKey,
-  Script,
-  Transaction as SDKTransaction,
-  TransactionType,
-  utils as sdkUtils,
-} from 'dash-core-sdk'
+import {PrivateKey, Transaction as SDKTransaction} from 'dash-core-sdk'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {Network} from '../types'
-import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
-import {BuildSignedTransferParams, RecipientType, TransferInput} from '../types/CoreTransaction' 
-import {buildAssetLockOutputs} from '../utils/assetLockTx'
+import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX} from '../constants'
+import {BuildSignedTransferParams, RecipientType, TransferInput} from '../types/CoreTransaction'
+import {buildAssetLockTx, buildTransferTx} from '../utils/coreTxBuild'
 
 
 export class CoreTransactionService {
@@ -37,13 +29,11 @@ export class CoreTransactionService {
     throw new Error(`Recipient address is not a valid ${network} address`)
   }
 
-  private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], seed: Uint8Array, network: Network): Promise<PrivateKey[]> {
+  private async deriveKeys(inputs: TransferInput[], seed: Uint8Array, network: Network): Promise<PrivateKey[]> {
     const hdKey = this.keyPair.seedToHdKey(seed, network)
 
     const privateKeys: PrivateKey[] = []
     for (const input of inputs) {
-      transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
-
       const derived = await this.keyPair.derivePath(hdKey, input.derivationPath)
       if (!derived.privateKey) {
         throw new Error(`Failed to derive private key for ${input.address}`)
@@ -64,13 +54,8 @@ export class CoreTransactionService {
   }): Promise<SDKTransaction> {
     const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, seed, network} = params
 
-    const {burnOutput, extraPayload} = buildAssetLockOutputs(amountDuffs, creditAddress)
-    const transaction = new SDKTransaction(undefined, undefined, undefined, 3, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
-
-    const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
-
-    transaction.addOutput(burnOutput)
-    transaction.generateChange(changeAddress, inputTotal)
+    const transaction = buildAssetLockTx({inputs, amountDuffs, creditAddress, changeAddress, inputTotal})
+    const privateKeys = await this.deriveKeys(inputs, seed, network)
     transaction.sign(privateKeys)
 
     return transaction
@@ -79,27 +64,10 @@ export class CoreTransactionService {
   async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
     const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, seed, network} = params
 
-    const transaction = new SDKTransaction()
-    const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
-
-    const recipientOutput = new Output(amount)
-    if (recipientType === 'p2sh') {
-      recipientOutput.script = this.p2shScript(toAddress)
-    } else {
-      recipientOutput.generateP2PKH(toAddress)
-    }
-    transaction.addOutput(recipientOutput)
-    transaction.generateChange(changeAddress, inputTotal)
+    const transaction = buildTransferTx({inputs, toAddress, recipientType, amountDuffs: amount, changeAddress, inputTotal})
+    const privateKeys = await this.deriveKeys(inputs, seed, network)
     transaction.sign(privateKeys)
 
     return transaction
-  }
-
-  private p2shScript(address: string): Script {
-    const script = new Script()
-    script.pushOpCode('OP_HASH160')
-    script.pushOpCode('OP_PUSHBYTES_20', sdkUtils.addressToPublicKeyHash(address))
-    script.pushOpCode('OP_EQUAL')
-    return script
   }
 }
