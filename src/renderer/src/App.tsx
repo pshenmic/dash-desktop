@@ -16,9 +16,10 @@ import { useAuth } from "./contexts/AuthContext"
 import { usePrefetchWalletData } from "./hooks/usePrefetchWalletData"
 import { useDebugMode } from "./hooks/useDebugMode"
 import { ConnectionModeProvider } from "./contexts/ConnectionModeContext"
+import { LOCK_FADE_MS } from "./constants"
 
 function App(): React.JSX.Element {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLockingOut } = useAuth()
   const location = useLocation()
   const debugMode = useDebugMode()
 
@@ -44,7 +45,10 @@ function App(): React.JSX.Element {
 
   return (
     <ConnectionModeProvider>
-      <div className={"flex"}>
+      <div
+        className={`flex transition-opacity ease-out ${isLockingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        style={{ transitionDuration: `${LOCK_FADE_MS}ms` }}
+      >
         <Sidebar />
         <Layout>
           <Routes>

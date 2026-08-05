@@ -7,11 +7,13 @@ import CopyButton from "@renderer/components/ui/CopyButton"
 type AddressQrModalProps = {
   address: string
   onClose: () => void
+  title?: string
 }
 
 export default function AddressQrModal({
   address,
   onClose,
+  title = 'Receive address',
 }: AddressQrModalProps): React.JSX.Element {
   const { theme } = useTheme()
 
@@ -26,7 +28,7 @@ export default function AddressQrModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={20} weight={"extrabold"} color={"brand"}>
-            Receive address
+            {title}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer"}

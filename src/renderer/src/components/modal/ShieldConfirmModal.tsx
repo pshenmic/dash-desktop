@@ -163,7 +163,7 @@ export default function ShieldConfirmModal({
                 onClick={requestClose}
                 variant={"solid"}
                 colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
                 disabled={shielding}
               >
@@ -175,7 +175,7 @@ export default function ShieldConfirmModal({
                 disabled={password.length === 0 || shielding || !proverReady}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem] gap-2"}
               >
                 {shielding && <Spinner size={16} />}
@@ -212,7 +212,7 @@ export default function ShieldConfirmModal({
                   onClick={() => openExternal(platformTransactionUrl(result.stHash, network))}
                   variant={"outline"}
                   colorScheme={"primary-light"}
-                  size={"md"}
+                  size={"sm"}
                   className={"flex-1 rounded-[.9375rem] gap-2"}
                 >
                   <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
@@ -224,7 +224,7 @@ export default function ShieldConfirmModal({
                 onClick={onClose}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 Done

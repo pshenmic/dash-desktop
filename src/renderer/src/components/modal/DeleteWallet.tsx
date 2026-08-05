@@ -86,7 +86,7 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
                 onClick={closeDeleteModal}
                 variant={"solid"}
                 colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 Cancel
@@ -97,7 +97,7 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
                 disabled={!hasInput}
                 variant={"solid"}
                 colorScheme={"red-strong"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 Delete

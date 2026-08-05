@@ -1,6 +1,8 @@
-import { BigNumber, DashLogo, useTheme } from "dash-ui-kit/react";
+import { DashLogo, useTheme } from "dash-ui-kit/react";
 import { CreditsIcon, ShieldSmallIcon, Text } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
+import DashBigNumber from "../ui/DashBigNumber";
+import { davToDash } from "@renderer/utils/balance";
 import { cva } from "class-variance-authority";
 
 const logoStyles = cva(
@@ -23,7 +25,7 @@ const logoStyles = cva(
   }
 )
 
-export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: string, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
+export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: bigint, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
   const { theme } = useTheme()
 
   return (
@@ -48,13 +50,13 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
         }
       </div>
       <div className={"flex flex-col gap-[.125rem]"}>
-        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Credits:'}</Text>
+        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Balance:'}</Text>
         <Text size={16} weight="extrabold" color="brand" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>
           {(variant === 'credits' || variant === 'shielded') && credits != null ? (
             <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
           ) : (
             <>
-              <BigNumber className={"gap-[.125rem]!"}>{balance ?? ''}</BigNumber>
+              <DashBigNumber className={"gap-[.125rem]!"}>{davToDash(balance ?? 0n)}</DashBigNumber>
               {variant === 'dash' ? ' Dash' : ' Credits'}
             </>
           )}

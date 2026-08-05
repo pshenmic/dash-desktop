@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog, Menu } from 'electron'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -36,6 +36,22 @@ const createWindow = (): void => {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (params.isEditable) {
+      Menu.buildFromTemplate([
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll }
+      ]).popup()
+    } else if (params.selectionText.trim().length > 0) {
+      Menu.buildFromTemplate([
+        { role: 'copy', enabled: params.editFlags.canCopy }
+      ]).popup()
+    }
   })
 
   if (is.dev) {

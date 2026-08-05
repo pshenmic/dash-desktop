@@ -1,4 +1,5 @@
 import { API } from '@renderer/api'
+import { IDENTITIES_REFRESH_MS } from '@renderer/constants'
 import { prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type IdentityApiDto = {
@@ -22,7 +23,7 @@ export function useIdentities(walletId?: string) {
     walletId,
     () => fetchIdentities(walletId!),
     [],
-    { errorMessage: 'Failed to load identities' }
+    { errorMessage: 'Failed to load identities', refreshIntervalMs: IDENTITIES_REFRESH_MS }
   )
   return { identities, loading, err }
 }

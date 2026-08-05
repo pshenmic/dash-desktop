@@ -2,7 +2,8 @@ import AmountSummary from "@renderer/components/ui/AmountSummary"
 import TransactionCardIcons from "./TransactionCardIcons"
 import CustomBadge from "@renderer/components/ui/CustomBadge"
 import { formatCreationDate, timePart } from "@renderer/utils/date"
-import { BigNumber, TimeDelta } from "dash-ui-kit/react"
+import DashBigNumber from "@renderer/components/ui/DashBigNumber"
+import { TimeDelta } from "dash-ui-kit/react"
 import { cva } from "class-variance-authority"
 import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtended"
 import { WalletTxItem } from "@renderer/hooks/useWalletTransactions"
@@ -70,7 +71,7 @@ export default function TransactionCard({
       <AmountSummary
         total={
           <span className={isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
-            {isIncoming ? '+' : '-'}<BigNumber className={"text-inherit"}>{davToDash(amount).toString()}</BigNumber>
+            {isIncoming ? '+' : '-'}<DashBigNumber>{davToDash(amount).toString()}</DashBigNumber>
           </span>
         }
         textBadge={rateReady ? `~ ${formatFiat(amount)}` : ''}

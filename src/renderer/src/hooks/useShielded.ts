@@ -4,6 +4,7 @@ import { Network, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedStatus, ShieldedS
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import {
+  SHIELDED_NOTES_INFO_CACHE_NS,
   SHIELDED_NOTES_INFO_POLL_MS,
   SHIELDED_POOL_REFRESH_MS,
   SHIELDED_STATUS_POLL_MS,
@@ -11,7 +12,7 @@ import {
   SHIELDED_SYNC_ACTIVE_POLL_MS,
   SHIELDED_SYNC_IDLE_POLL_MS
 } from '@renderer/constants'
-import { useAsyncWithCache } from './useAsyncWithCache'
+import { invalidateAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 const INITIAL_STATUS: ShieldedStatus = { prover: ShieldedProverState.Idle, ready: false, error: null }
 
@@ -65,15 +66,15 @@ export function useShieldedPoolInfo(network: Network | undefined): {
 
 const INITIAL_NOTES_INFO: ShieldedNotesInfo = { undecodedCount: 0 }
 
-export function useShieldedNotesInfo(walletId: string | undefined): ShieldedNotesInfo {
-  const { data } = useAsyncWithCache<ShieldedNotesInfo>(
-    'shielded-notes-info',
+export function useShieldedNotesInfo(walletId: string | undefined): { info: ShieldedNotesInfo, loading: boolean } {
+  const { data, loading } = useAsyncWithCache<ShieldedNotesInfo>(
+    SHIELDED_NOTES_INFO_CACHE_NS,
     walletId,
     () => API.getShieldedNotesInfo(walletId!),
     INITIAL_NOTES_INFO,
     { errorMessage: 'Failed to load shielded notes info', refreshIntervalMs: SHIELDED_NOTES_INFO_POLL_MS }
   )
-  return data
+  return { info: data, loading }
 }
 
 const INITIAL_SYNC_STATE: ShieldedSyncState = {
@@ -91,6 +92,7 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
 
     let dead = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    let wasRunning = false
 
     const poll = async (): Promise<void> => {
       let running = false
@@ -99,6 +101,8 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
         if (dead) return
         setState(next)
         running = next.phase === ShieldedSyncPhase.Syncing || next.phase === ShieldedSyncPhase.Recovering
+        if (wasRunning && !running) invalidateAsyncCache(SHIELDED_NOTES_INFO_CACHE_NS, walletId)
+        wasRunning = running
       } catch {
         /* keep last state, retry */
       }
@@ -114,4 +118,9 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
   }, [walletId])
 
   return state
+}
+
+export function useShieldedCredits(walletId: string | null | undefined): bigint {
+  const { phase, balance } = useShieldedSyncState(walletId)
+  return phase === ShieldedSyncPhase.Done && balance !== null ? BigInt(balance) : 0n
 }

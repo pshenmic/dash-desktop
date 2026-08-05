@@ -78,6 +78,36 @@ export interface Recipient {
   amountCredits: bigint
 }
 
+// Kinds without a static estimator in dpp carry what their operation builds
+// with, because the quote has to build the transition to price it.
+export type FeeQuery =
+  | {kind: 'addressTransfer'; inputCount: number; recipients: string[]}
+  | {kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean}
+  | {kind: 'shieldedSpend'; spendKind: SpendKind; noteCount: number; recipients: string[]}
+  // Only the asset-lock shield has a transparent destination besides the pool.
+  | {kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null}
+  | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
+  | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
+  | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string}
+  | {kind: 'identityCreateFromAddresses'; inputs: AddressInput[]}
+  | {kind: 'identityTopUpFromAddresses'; identityId: string; inputs: AddressInput[]}
+  | {
+      kind: 'addressFundingFromAssetLock'
+      assetLockProof: AssetLockProofParams
+      txid: string
+      outputIndex: number
+      recipient: string
+    }
+
+// storageFeeCredits is what creating newAddresses' balance entries costs, which
+// is why a first payment to an address is dearer than every later one.
+export interface FeeQuote {
+  minFeeCredits: bigint
+  storageFeeCredits: bigint
+  totalFeeCredits: bigint
+  newAddresses: string[]
+}
+
 export type AssetLockProofParams =
   | {type: 'chainLock'; coreChainLockedHeight: number}
   | {type: 'instantLock'; instantLock: string; transaction: string}
@@ -145,6 +175,10 @@ export interface PlatformOperations {
   identityTopUpFromAssetLock: {
     payload: AssetLockFunded & {identifier: string}
     result: {stHash: string}
+  }
+  transitionFee: {
+    payload: {query: FeeQuery}
+    result: FeeQuote
   }
   addressInfos: {
     payload: {addresses: string[]}

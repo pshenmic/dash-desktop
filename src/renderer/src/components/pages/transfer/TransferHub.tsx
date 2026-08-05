@@ -12,11 +12,11 @@ import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeConte
 import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance, refreshBalance } from "@renderer/hooks/useWalletBalance";
 import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
-import { usePlatformAddresses, prefetchPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
+import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
-import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs } from "@renderer/utils/balance";
+import { creditsFromInput, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, formatCredits } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
@@ -42,7 +42,7 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import { sendPageData, MAX_SPEND_NOTES, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
+import { sendPageData, MAX_SPEND_NOTES, WITHDRAWAL_SUCCESS_NOTE, SHIELDED_BALANCE_UNKNOWN_ERROR } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
@@ -96,6 +96,7 @@ export default function TransferHub(): React.JSX.Element {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
+  const [fundingRefresh, setFundingRefresh] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
 
@@ -104,13 +105,13 @@ export default function TransferHub(): React.JSX.Element {
     let dead = false
     API.getAssetLockFundingState(walletId)
       .then(state => {
-        if (!dead && state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error) {
-          setResumableFunding(state)
-        }
+        if (dead) return
+        const resumable = state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error
+        setResumableFunding(resumable ? state : null)
       })
       .catch(() => {})
     return () => { dead = true }
-  }, [walletId, wizardKey])
+  }, [walletId, wizardKey, fundingRefresh])
 
   const { fallbackActive: syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
@@ -195,8 +196,13 @@ export default function TransferHub(): React.JSX.Element {
     : null
 
   const isDashUnit = info?.unit === 'dash'
+
+  useEffect(() => {
+    setAmount('')
+  }, [isDashUnit])
+
   const amountDuffs = useMemo(() => (isDashUnit ? dashToDuffs(amount) : 0n), [isDashUnit, amount])
-  const amountCredits = !isDashUnit && amount.length > 0 ? BigInt(amount) : 0n
+  const amountCredits = isDashUnit ? 0n : creditsFromInput(amount)
   const minCredits = info?.minCredits ?? 0n
 
   const shieldedFeeForCount = shieldedFeeForOperation(operation)
@@ -281,7 +287,7 @@ export default function TransferHub(): React.JSX.Element {
   const amountReady = isDashUnit
     ? amountDuffs > 0n && amountDuffs <= balanceDuffs
     : amountCredits >= minCredits && amountCredits > 0n
-      && (availableCredits === null || amountCredits + feeCredits <= availableCredits)
+      && availableCredits !== null && amountCredits + feeCredits <= availableCredits
       && (shieldedMaxPerTx === null || amountCredits <= shieldedMaxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
 
@@ -330,12 +336,14 @@ export default function TransferHub(): React.JSX.Element {
     : operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)
       ? 'Pick one of the fixed denominations above.'
       : amountCredits < minCredits
-        ? `Minimum is ${minCredits.toLocaleString('en-US')} credits.`
-        : availableCredits !== null && amountCredits + feeCredits > availableCredits
-          ? `Amount plus the ${feeCredits.toLocaleString('en-US')} credit fee exceeds this balance.`
-          : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
-            ? `Max per transaction right now is ${shieldedMaxPerTx.toLocaleString('en-US')} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
-            : null
+        ? `Minimum is ${formatCredits(minCredits)} credits.`
+        : availableCredits === null
+          ? SHIELDED_BALANCE_UNKNOWN_ERROR
+          : amountCredits + feeCredits > availableCredits
+            ? `Amount plus the ${formatCredits(feeCredits)} credit fee exceeds this balance.`
+            : shieldedMaxPerTx !== null && amountCredits > shieldedMaxPerTx
+              ? `Max per transaction right now is ${formatCredits(shieldedMaxPerTx)} credits (network fee + ${MAX_SPEND_NOTES}-note limit).`
+              : null
 
   const resetForm = (): void => {
     setToValue('')
@@ -343,7 +351,7 @@ export default function TransferHub(): React.JSX.Element {
     setAcked(false)
     setWizardKey(k => k + 1)
     if (walletId) {
-      prefetchPlatformAddresses(walletId)
+      refreshPlatformAddresses(walletId)
       prefetchIdentities(walletId)
     }
   }
@@ -520,7 +528,7 @@ export default function TransferHub(): React.JSX.Element {
               className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${amountCredits === denomination ? 'dash-bg-inverse' : 'dash-block-3'}`}
             >
               <Text size={12} weight={"extrabold"} color={amountCredits === denomination ? "blue-mint" : "brand"}>
-                {(Number(denomination) / 1e11).toLocaleString('en-US')} Dash in credits
+                {formatCredits(Number(denomination) / 1e11)} Dash in credits
               </Text>
             </button>
           ))}
@@ -766,7 +774,7 @@ export default function TransferHub(): React.JSX.Element {
       {(operation === TransferOperation.AssetLockFunding || operation === TransferOperation.AssetLockShield || operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityTopUpL1) && (
         <AssetLockFundingModal
           isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
+          onClose={() => { setConfirmOpen(false); setFundingRefresh(n => n + 1) }}
           walletId={walletId}
           toPlatformAddress={operation === TransferOperation.IdentityRegister ? '' : trimmedTo}
           amountDuffs={amountDuffs.toString()}

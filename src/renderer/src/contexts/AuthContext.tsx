@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { API } from '@renderer/api'
 import { useNavigate } from 'react-router-dom'
 import { AppStatus, WalletSyncStatus } from '@renderer/api/types'
-import { APP_STATUS_POLL_MS } from '@renderer/constants'
+import { APP_STATUS_POLL_MS, LOCK_FADE_MS } from '@renderer/constants'
 
 function isSameSync(a: WalletSyncStatus, b: WalletSyncStatus): boolean {
   return a.phase === b.phase
@@ -33,6 +33,7 @@ interface AuthContextValue {
   bootstrapped: boolean
   status: AppStatus | null
   isAuthenticated: boolean
+  isLockingOut: boolean
   preselectedWalletId: string | null
   refreshStatus: () => Promise<void>
   loginSuccess: () => Promise<void>
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [bootstrapped, setBootstrapped] = useState(false)
   const [status, setStatus] = useState<AppStatus | null>(null)
   const [unlocked, setUnlocked] = useState(false)
+  const [lockingOut, setLockingOut] = useState(false)
   const [preselectedWalletId, setPreselectedWalletId] = useState<string | null>(null)
   const navigate = useNavigate()
 
@@ -95,9 +97,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   }, [navigate])
 
   const lock = useCallback(() => {
-    setUnlocked(false)
-    navigate('/')
-  }, [navigate])
+    if (lockingOut) return
+    setLockingOut(true)
+    setTimeout(() => {
+      setUnlocked(false)
+      setLockingOut(false)
+      navigate('/')
+    }, LOCK_FADE_MS)
+  }, [lockingOut, navigate])
 
   const isAuthenticated = Boolean(status?.ready && status?.selectedWalletId && unlocked)
 
@@ -105,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     bootstrapped,
     status,
     isAuthenticated,
+    isLockingOut: lockingOut,
     preselectedWalletId,
     refreshStatus,
     loginSuccess,
@@ -112,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     switchWallet,
     goToCreateWallet,
     lock
-  }), [bootstrapped, status, isAuthenticated, unlocked, preselectedWalletId, refreshStatus, loginSuccess, switchWallet, goToCreateWallet, lock])
+  }), [bootstrapped, status, isAuthenticated, unlocked, lockingOut, preselectedWalletId, refreshStatus, loginSuccess, switchWallet, goToCreateWallet, lock])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -1476,3 +1476,36 @@ export const DashboardIcon: React.FC<IconProps> = ({
     <rect x="9.25" y="9.25" width="6" height="6" rx="3" fill="currentColor" />
   </svg>
 )
+
+export const RefreshIcon: React.FC<IconProps> = ({
+  color = 'var(--color-text)',
+  size = 16,
+  className = '',
+  onClick
+}) => (
+  <svg
+    className={className}
+    onClick={onClick}
+    color={color}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M23 4v6h-6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)

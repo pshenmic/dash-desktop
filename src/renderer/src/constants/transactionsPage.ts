@@ -17,6 +17,25 @@ interface TransactionsPage {
       send: TransactionType
       documentsBatch: TransactionType
     }
+    filters: {
+      direction: {
+        label: string
+        all: string
+        received: string
+        sent: string
+      }
+      type: {
+        label: string
+        all: string
+        transfer: string
+        assetLock: string
+      }
+      totals: {
+        received: string
+        sent: string
+      }
+      noMatch: string
+    }
   }
   detail: {
     backButton: string
@@ -36,6 +55,7 @@ interface TransactionsPage {
     outputs: string
     receivingBadge: string
     changeBadge: string
+    qrTitle: string
   }
 }
 
@@ -61,6 +81,25 @@ export const transactionsPage: TransactionsPage = {
         title: 'Documents Batch',
         detailLabel: 'Hash:',
       }
+    },
+    filters: {
+      direction: {
+        label: 'Direction',
+        all: 'All',
+        received: 'Received',
+        sent: 'Sent',
+      },
+      type: {
+        label: 'Type',
+        all: 'All',
+        transfer: 'Transfers',
+        assetLock: 'Asset locks',
+      },
+      totals: {
+        received: 'Received',
+        sent: 'Sent',
+      },
+      noMatch: 'No transactions match the selected filter'
     }
   },
   detail: {
@@ -81,5 +120,6 @@ export const transactionsPage: TransactionsPage = {
     outputs: 'Outputs',
     receivingBadge: 'Receiving',
     changeBadge: 'Change',
+    qrTitle: 'Address',
   }
 }

@@ -1,15 +1,15 @@
-import { useMemo } from 'react'
-import { BigNumber } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
-import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
+import { usePlatformCredits } from '@renderer/hooks/usePlatformCredits'
+import { useShieldedCredits } from '@renderer/hooks/useShielded'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useRates } from '@renderer/hooks/useRates'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { creditsToDuffs, davToDashCompact } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDash } from '@renderer/utils/balance'
 import { formatFiat as formatFiatValue } from '@renderer/utils/fiat'
 import { formatChange24h } from '@renderer/utils/networkStatus'
 import coreArt from '@renderer/assets/images/pageAuthorization/auth-bg-flower.png'
@@ -21,18 +21,15 @@ export default function HeroBalance(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? undefined
 
   const { balance, loading: balanceLoading } = useWalletBalance(walletId)
-  const { platformAddresses } = usePlatformAddresses(walletId)
   const { format: formatFiat, rateReady, currency } = useFiat()
   const { rates, changes24h } = useRates()
   const { isBalanceVisible } = useBalanceVisibility()
   const { totalBalance, price, core, platform } = dashboardPage.hero
 
-  const platformCredits = useMemo(
-    () => platformAddresses.reduce((sum, a) => sum + BigInt(a.balanceCredits), balance.credits.amount),
-    [platformAddresses, balance.credits.amount]
-  )
+  const platformCredits = usePlatformCredits(walletId)
+  const shieldedCredits = useShieldedCredits(walletId)
   const platformDuffs = creditsToDuffs(platformCredits)
-  const totalDuffs = balance.dash.amount + platformDuffs
+  const totalDuffs = balance.dash.amount + creditsToDuffs(platformCredits + shieldedCredits)
 
   const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
   const priceRate = rates[currency] ?? 0
@@ -55,8 +52,8 @@ export default function HeroBalance(): React.JSX.Element {
             <div className={"h-11 w-64 rounded-xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
           ) : (
             <div className={"flex items-center gap-3.5 flex-wrap"}>
-              <Text size={40} weight={"extrabold"} className={`text-dash-brand dark:text-dash-mint leading-[110%] ${blur}`}>
-                <BigNumber className={"gap-[.1875rem]! text-dash-brand! dark:text-dash-mint!"}>{davToDashCompact(totalDuffs)}</BigNumber>
+              <Text size={40} weight={"extrabold"} color={"blue-mint"} className={`leading-[110%] ${blur}`}>
+                <DashBigNumber className={"gap-[.1875rem]!"}>{davToDash(totalDuffs)}</DashBigNumber>
                 {' Dash'}
               </Text>
               {rateReady && (
@@ -93,7 +90,7 @@ export default function HeroBalance(): React.JSX.Element {
           balanceLabel={core.balance}
           amount={
             <>
-              <BigNumber className={"gap-[.1875rem]! text-white!"}>{davToDashCompact(balance.dash.amount)}</BigNumber>
+              <DashBigNumber className={"gap-[.1875rem]!"}>{davToDash(balance.dash.amount)}</DashBigNumber>
               {' Dash'}
             </>
           }
@@ -110,7 +107,6 @@ export default function HeroBalance(): React.JSX.Element {
             <CreditsAmount
               credits={platformCredits}
               showFiat={false}
-              amountClassName={"text-white!"}
               unitClassName={"text-[.875rem] font-medium text-white/60"}
             />
           }

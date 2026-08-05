@@ -1,4 +1,5 @@
-import { Identifier, BigNumber, useTheme, TimeDelta, ChevronIcon, DashLogo } from 'dash-ui-kit/react'
+import { useState } from 'react'
+import { Identifier, useTheme, TimeDelta, ChevronIcon, DashLogo } from 'dash-ui-kit/react'
 import { cva } from 'class-variance-authority'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import {
@@ -9,15 +10,19 @@ import {
 } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import QrButton from '@renderer/components/ui/QrButton'
+import DashBigNumber from '@renderer/components/ui/DashBigNumber'
+import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { transactionsPage } from '@renderer/constants'
 import { WalletTxItem } from '@renderer/hooks/useWalletTransactions'
 import { formatCreationDate, timePart } from '@renderer/utils/date'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { davToDash } from '@renderer/utils/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
-import { transactionUrl, openExternal } from '@renderer/utils/explorer'
+import { transactionUrl, addressUrl, openExternal } from '@renderer/utils/explorer'
 import { ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { Network } from '@renderer/api/types'
 
 const cardStyles = cva(
   'flex flex-col gap-5 p-[.9375rem] rounded-[.9375rem] dash-card-base shadow-[0_0_50px_0_rgba(0,0,0,0.1)]'
@@ -69,11 +74,38 @@ function DetailToken({
   )
 }
 
+function AddressActions({
+  address,
+  network,
+  onShowQr,
+}: {
+  address: string
+  network: Network | null
+  onShowQr: (address: string) => void
+}): React.JSX.Element {
+  return (
+    <>
+      <CopyButton text={address} />
+      <QrButton onClick={() => onShowQr(address)} />
+      {network && (
+        <button
+          onClick={() => openExternal(addressUrl(address, network))}
+          title={"Open in explorer"}
+          className={"size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
+        >
+          <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-50"} />
+        </button>
+      )}
+    </>
+  )
+}
+
 export default function TransactionDetail({ transaction, onBack }: TransactionDetailProps): React.JSX.Element {
   const { detail } = transactionsPage
   const { theme } = useTheme()
   const { status: appStatus } = useAuth()
   const network = appStatus?.network ?? null
+  const [qrAddress, setQrAddress] = useState<string | null>(null)
   const isIncoming = transaction.direction === 'in'
   const hoverNotification = useRipple()
   const { format: formatFiat, rateReady } = useFiat()
@@ -162,7 +194,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                 <Text size={14} weight={"medium"} color={"brand"}>
                   <span className={`font-extrabold ${isIncoming ? 'dash-text-primary' : ''}`}>
                     {isIncoming ? '+ ' : '- '}
-                    <BigNumber className={"text-inherit"}>{davToDash(transaction.amount).toString()}</BigNumber>
+                    <DashBigNumber>{davToDash(transaction.amount).toString()}</DashBigNumber>
                   </span>
                   {' Dash'}
                 </Text>
@@ -176,7 +208,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               label={`${detail.fields.confirmations}:`}
               value={
                 <Text size={14} weight={"medium"} color={"brand"}>
-                  <BigNumber className={"gap-0!"}>{transaction.confirmations}</BigNumber>
+                  <DashBigNumber className={"gap-0!"}>{transaction.confirmations}</DashBigNumber>
                 </Text>
               }
             />
@@ -186,7 +218,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                 label={`${detail.fields.lockTime}:`}
                 value={
                   <Text size={14} weight={"medium"} color={"brand"}>
-                    <BigNumber className={"gap-0!"}>{transaction.blockHeight}</BigNumber>
+                    <DashBigNumber className={"gap-0!"}>{transaction.blockHeight}</DashBigNumber>
                   </Text>
                 }
                 subValue={detail.fields.height}
@@ -206,12 +238,17 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         <div className={"flex flex-col gap-3"}>
            {transaction.vin.map((input, i) => (
             <div key={`input-${i}`} className={"flex items-center gap-2 justify-between"}>
-              <Identifier className={"font-mono opacity-40 dark:opacity-100"}>
-                {input.addr}
-              </Identifier>
+              <div className={"flex items-center gap-[.3125rem] flex-1 min-w-0"}>
+                <Identifier className={"font-mono opacity-40 dark:opacity-100"}>
+                  {input.addr}
+                </Identifier>
+                {input.addr && (
+                  <AddressActions address={input.addr} network={network} onShowQr={setQrAddress} />
+                )}
+              </div>
               <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
                 <span className={"font-extrabold"}>
-                  <BigNumber>{input.value}</BigNumber>
+                  <DashBigNumber>{input.value}</DashBigNumber>
                 </span>
                 {' Dash'}
               </Text>
@@ -233,7 +270,10 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               <div className={"flex items-center gap-2 flex-1 min-w-0"}>
                 {
                   output.address ? (
-                    <Identifier>{output.address}</Identifier>
+                    <>
+                      <Identifier>{output.address}</Identifier>
+                      <AddressActions address={output.address} network={network} onShowQr={setQrAddress} />
+                    </>
                   ) : (
                     <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"shrink-0"}>
                       OP_RETURN
@@ -243,7 +283,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               </div>
               <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
                 <span className={"font-extrabold"}>
-                  <BigNumber>{trimTrailingZeros(output.value)}</BigNumber>
+                  <DashBigNumber>{trimTrailingZeros(output.value)}</DashBigNumber>
                 </span>
                 {' Dash'}
               </Text>
@@ -251,6 +291,8 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
           ))}
         </div>
       </div>
+
+      {qrAddress && <AddressQrModal address={qrAddress} title={detail.qrTitle} onClose={() => setQrAddress(null)} />}
     </div>
   )
 }

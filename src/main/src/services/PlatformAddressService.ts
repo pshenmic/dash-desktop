@@ -2,6 +2,7 @@ import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../database/WalletDAO'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
+import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../database/IdentityDAO'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
 import {Network} from '../types'
@@ -24,7 +25,7 @@ import {
   WITHDRAWAL_FEE_CREDITS,
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
-import {AddressInput} from '../../platform/types/messages'
+import {AddressInput, FeeQuery, FeeQuote} from '../../platform/types/messages'
 import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits} from '../utils/platformTransfer'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../types/AssetLock'
 import {PlatformSourceCandidate} from '../types/PlatformTransfer'
@@ -48,6 +49,7 @@ export class PlatformAddressService {
   private identityDAO: IdentityDAO
   private assetLock: AssetLockService
   private platform: PlatformWorkerService
+  private shielded: ShieldedService
   private keyPair = new KeyPairController()
 
   constructor(
@@ -55,11 +57,13 @@ export class PlatformAddressService {
     identityDAO: IdentityDAO,
     assetLock: AssetLockService,
     platform: PlatformWorkerService,
+    shielded: ShieldedService,
   ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.assetLock = assetLock
     this.platform = platform
+    this.shielded = shielded
   }
 
   async getPlatformAddresses(walletId: string): Promise<PlatformAddressEntry[]> {
@@ -86,6 +90,10 @@ export class PlatformAddressService {
     await this.walletDAO.setPlatformAddressCount(walletId, count + 1)
 
     return this.getPlatformAddresses(walletId)
+  }
+
+  async estimateTransitionFee(network: Network, query: FeeQuery): Promise<FeeQuote> {
+    return this.platform.request('transitionFee', network, {query})
   }
 
   async sendPlatformTransfer(
@@ -391,6 +399,8 @@ export class PlatformAddressService {
       recipient: toShieldedAddress,
       amountCredits,
     })
+
+    void this.shielded.refreshNotes(walletId, network, seed)
 
     return {
       stHash,

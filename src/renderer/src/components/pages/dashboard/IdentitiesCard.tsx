@@ -6,7 +6,6 @@ import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { formatCompactCredits } from '@renderer/utils/balance'
 
 function shortIdentifier(identifier: string): string {
   return identifier.length <= 12 ? identifier : `${identifier.slice(0, 6)}…${identifier.slice(-4)}`
@@ -48,15 +47,17 @@ export default function IdentitiesCard(): React.JSX.Element {
             {labels.title}
           </Text>
         </div>
-        <button
-          onClick={() => navigate('/identities')}
-          className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
-        >
-          <Text size={12} weight={"medium"} color={"blue-mint"}>
-            {labels.viewAll}
-          </Text>
-          <ArrowIcon size={9} className={"dash-text-primary rotate-180 transition-transform duration-200 group-hover:translate-x-0.5"} color={"currentColor"} />
-        </button>
+        {identities.length > 0 && (
+          <button
+            onClick={() => navigate('/identities')}
+            className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
+          >
+            <Text size={12} weight={"medium"} color={"blue-mint"}>
+              {labels.viewAll}
+            </Text>
+            <ArrowIcon size={9} className={"dash-text-primary rotate-180 transition-transform duration-200 group-hover:translate-x-0.5"} color={"currentColor"} />
+          </button>
+        )}
       </div>
 
       <div className={"flex flex-col gap-1"}>
@@ -79,7 +80,7 @@ export default function IdentitiesCard(): React.JSX.Element {
             <>
               {' · '}
               {labels.top} {topIdentity.alias ?? shortIdentifier(topIdentity.identifier)}{' '}
-              ({formatCompactCredits(topIdentity.balance.amount)} {labels.credits})
+              (<CreditsAmount credits={topIdentity.balance.amount} compact showFiat={false} unit={labels.credits} />)
             </>
           )}
         </Text>

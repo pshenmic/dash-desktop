@@ -6,6 +6,7 @@ import { ThemeProvider } from 'dash-ui-kit/react'
 import { ToastContainer } from './components/ui/Toast'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeController } from './hooks/useThemeController'
+import { ZoomController } from './hooks/useZoomController'
 import { initialResolvedTheme } from './utils/theme'
 import App from './App'
 
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider initialTheme={initialResolvedTheme()}>
       <ThemeController />
+      <ZoomController />
       <HashRouter>
         <AuthProvider>
           <App />

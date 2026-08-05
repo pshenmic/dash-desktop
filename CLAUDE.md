@@ -133,6 +133,22 @@ UI: `dash-ui-kit` + Tailwind v4. Extended kit wrappers/icons live in
 5. Renderer wrapper in `src/renderer/src/api/index.ts` (`API` class) + any
    DTO in `src/renderer/src/api/types.ts`.
 
+### `bigint` and `Uint8Array` cross as themselves
+
+Both transports are **structured clone**: `ipcRenderer.invoke`/`ipcMain.handle`
+and the utility-process ports (`postMessage` to `p2p`/`platform`). Structured
+clone carries `bigint` and `Uint8Array` natively.
+
+So do NOT stringify credits/duffs or hex-encode bytes on the way out and parse
+them back on the way in. Pass the value as is, and type it `bigint` /
+`Uint8Array` all the way through — handler, `definitions.ts`, `index.d.ts`, and
+the renderer DTO. A `.toString()` on a credits field is a bug to remove, not a
+convention.
+
+Older DTOs still carry `string` credits (`PlatformAddressEntry.balanceCredits`,
+`ShieldedPoolInfo`, `PlatformSendResult`). That is history, not a pattern to
+copy — new endpoints use the real types.
+
 ## Database & migrations
 
 SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,

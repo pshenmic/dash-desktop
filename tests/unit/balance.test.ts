@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits, creditsToDuffs } from '../../src/renderer/src/utils/balance'
+import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits, creditsToDuffs, creditsFromInput } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
 
@@ -14,6 +14,23 @@ describe('creditsToDuffs', () => {
     expect(creditsToDuffs(999n)).toBe(0n)
     expect(creditsToDuffs(1_999n)).toBe(1n)
     expect(creditsToDuffs(-1_999n)).toBe(-1n)
+  })
+})
+
+describe('creditsFromInput', () => {
+  it('parses whole credit amounts', () => {
+    expect(creditsFromInput('500000')).toBe(500_000n)
+    expect(creditsFromInput('100000000000')).toBe(100_000_000_000n)
+    expect(creditsFromInput('0')).toBe(0n)
+    expect(creditsFromInput(' 42 ')).toBe(42n)
+  })
+
+  it('returns 0 for non-integer input', () => {
+    expect(creditsFromInput('')).toBe(0n)
+    expect(creditsFromInput('1.5')).toBe(0n)
+    expect(creditsFromInput('abc')).toBe(0n)
+    expect(creditsFromInput('-5')).toBe(0n)
+    expect(creditsFromInput('1e6')).toBe(0n)
   })
 })
 

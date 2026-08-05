@@ -119,7 +119,7 @@ export default function ExportMnemonic({
                 onClick={onClose}
                 variant={"solid"}
                 colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
                 disabled={loading}
               >
@@ -131,7 +131,7 @@ export default function ExportMnemonic({
                 disabled={password.length === 0 || loading}
                 variant={"solid"}
                 colorScheme={"primary"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 {loading ? 'Revealing…' : 'Reveal phrase'}
@@ -169,7 +169,7 @@ export default function ExportMnemonic({
                 onClick={handleCopy}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 {copied ? 'Copied' : 'Copy to clipboard'}
@@ -179,7 +179,7 @@ export default function ExportMnemonic({
                 onClick={onClose}
                 variant={"solid"}
                 colorScheme={"primary"}
-                size={"md"}
+                size={"sm"}
                 className={"flex-1 rounded-[.9375rem]"}
               >
                 Done

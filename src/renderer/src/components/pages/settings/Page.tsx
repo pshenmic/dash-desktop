@@ -6,8 +6,10 @@ import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import { toast } from '@renderer/components/ui/Toast'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useThemePreference, setThemePreference } from '@renderer/hooks/useThemeController'
+import { useZoomPreference, setZoomPreference } from '@renderer/hooks/useZoomController'
 import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
 import { ThemePreference } from '@renderer/utils/theme'
+import { ZoomPreference, ZOOM_PRESETS } from '@renderer/utils/zoom'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { WalletTxDto } from '@renderer/hooks/useWalletTransactions'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
@@ -82,6 +84,11 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'System' },
 ]
 
+const ZOOM_OPTIONS: { value: ZoomPreference; label: string }[] = ZOOM_PRESETS.map((value) => ({
+  value,
+  label: `${value}%`,
+}))
+
 const CURRENCY_OPTIONS = [
   { value: 'usd', label: 'USD' },
   { value: 'eur', label: 'EUR' },
@@ -100,6 +107,7 @@ export default function Settings(): React.JSX.Element {
   const network = status?.network ?? null
 
   const themePreference = useThemePreference()
+  const zoomPreference = useZoomPreference()
   const { currency, setCurrency } = useFiat()
   const debugMode = useDebugMode()
 
@@ -274,6 +282,17 @@ export default function Settings(): React.JSX.Element {
                 options={THEME_OPTIONS}
                 value={themePreference}
                 onChange={setThemePreference}
+              />
+            }
+          />
+          <SettingsRow
+            title="Interface scale"
+            description="Scale the whole interface, including fonts."
+            control={
+              <SegmentedControl
+                options={ZOOM_OPTIONS}
+                value={zoomPreference}
+                onChange={setZoomPreference}
               />
             }
           />

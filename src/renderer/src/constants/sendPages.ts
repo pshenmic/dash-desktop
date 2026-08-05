@@ -19,7 +19,9 @@ export interface TransferPageType {
   }
 }
 
-export const WITHDRAWAL_SUCCESS_NOTE = 'Withdrawals are processed by Core with a delay — the Dash payout usually takes several minutes to appear in your transaction list.'
+export const WITHDRAWAL_SUCCESS_NOTE = 'Withdrawals are processed by Core with a delay — the Dash payout usually takes several minutes, sometimes longer, to appear in your transaction list.'
+
+export const SHIELDED_BALANCE_UNKNOWN_ERROR = 'Shielded balance is unknown — sync notes on the Shielded page before sending.'
 
 export const sendPageData: TransferPageType = {
   header: {
