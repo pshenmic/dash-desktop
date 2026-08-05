@@ -6,7 +6,7 @@ import {
   TransactionType,
   utils as sdkUtils,
 } from 'dash-core-sdk'
-import {SEQUENCE_FINAL} from '../constants'
+import {ASSET_LOCK_TX_VERSION, SEQUENCE_FINAL} from '../constants'
 import {BuildAssetLockTxParams, BuildTransferTxParams, DraftInput} from '../types/CoreTransaction'
 import {buildAssetLockOutputs} from './assetLockTx'
 
@@ -46,7 +46,7 @@ export function buildAssetLockTx(params: BuildAssetLockTxParams): SDKTransaction
   const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal} = params
 
   const {burnOutput, extraPayload} = buildAssetLockOutputs(amountDuffs, creditAddress)
-  const transaction = new SDKTransaction(undefined, undefined, undefined, 3, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
+  const transaction = new SDKTransaction(undefined, undefined, undefined, ASSET_LOCK_TX_VERSION, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
   addInputs(transaction, inputs)
 
   transaction.addOutput(burnOutput)
