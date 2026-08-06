@@ -1,4 +1,3 @@
-import {Block} from 'dash-core-sdk'
 import {UTXO} from '../types/UTXO'
 import {Transaction} from '../types/Transaction'
 import {TxLockStatus} from '../types/TxLockStatus'
@@ -11,7 +10,6 @@ export interface WalletProvider {
   getTransactionCount(address: string): Promise<number>
   getBalance(address: string | string[]): Promise<bigint>
   getTransactionByHash(txId: string): Promise<Transaction>
-  getBlockByHash(hash: string): Promise<Block>
   getUTXOs(address: string | string[]): Promise<UTXO[]>
   getTxLockStatus(txid: string): Promise<TxLockStatus>
   ensureReady(): Promise<void>

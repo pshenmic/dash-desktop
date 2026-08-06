@@ -61,10 +61,10 @@ describe('describeDataSource', () => {
     expect(describeDataSource('p2p', WalletSyncPhase.Synced)).toBe('Local P2P')
   })
 
-  it('reports insight otherwise', () => {
-    expect(describeDataSource('p2p', WalletSyncPhase.SyncingHeaders)).toBe('Insight API')
-    expect(describeDataSource('p2p', undefined)).toBe('Insight API')
-    expect(describeDataSource('rpc', WalletSyncPhase.Synced)).toBe('Insight API')
+  it('reports dashscan otherwise', () => {
+    expect(describeDataSource('p2p', WalletSyncPhase.SyncingHeaders)).toBe('Dashscan API')
+    expect(describeDataSource('p2p', undefined)).toBe('Dashscan API')
+    expect(describeDataSource('rpc', WalletSyncPhase.Synced)).toBe('Dashscan API')
   })
 })
 

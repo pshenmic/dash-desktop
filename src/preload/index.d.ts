@@ -17,7 +17,6 @@ declare global {
       getAllWallets: () => Promise<unknown>
       getTransactions: (walletId: string) => Promise<unknown>
       getTransactionByHash: (hash: string, network: string) => Promise<unknown>
-      getBlockByHash: (hash: string, network: string) => Promise<unknown>
       getBalance: (address: string | string[], network: string) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>

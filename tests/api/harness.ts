@@ -23,6 +23,7 @@ export interface Harness {
   knex: Knex
   walletDAO: WalletDAO
   addressDAO: AddressDAO
+  transactionDAO: TransactionDAO
   walletService: WalletService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -41,7 +42,7 @@ export async function harness(): Promise<Harness> {
   const transactionDAO = new TransactionDAO(knex)
 
   // p2p mode keeps address discovery on the local SQL store, so nothing in a
-  // test reaches for the Insight API.
+  // test reaches for the Dashscan API.
   const preferences = Preferences.default()
   preferences.general.connectionType = 'p2p'
   const applicationService = new ApplicationService(preferences)
@@ -60,6 +61,7 @@ export async function harness(): Promise<Harness> {
     knex,
     walletDAO,
     addressDAO,
+    transactionDAO,
     walletService,
     createWalletHandler: new CreateWalletHandler(walletService, addressDAO, walletSyncService, shieldedService),
     request,

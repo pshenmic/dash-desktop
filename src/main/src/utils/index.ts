@@ -43,10 +43,6 @@ const inlineMigrationSource = {
   getMigrationName: (m: typeof migrations[number]) => m.name,
   getMigration: (m: typeof migrations[number]) => Promise.resolve(m.migration),
 }
-import {TransactionWalletProviderJSON} from "../providers/types";
-import {Address} from "../types/Address";
-import {TransactionStatus} from "../enums/TransactionStatus";
-import {Transaction} from "../types/Transaction";
 import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
 import {DashPlatformSDK} from "dash-platform-sdk";
 import {Network} from "../types";
@@ -194,105 +190,4 @@ export const fetchIdentitiesBySeed = async (seed: Uint8Array, sdk: DashPlatformS
   } while (identity != null)
 
   return identities
-}
-
-export const processProviderTransactions = (txs: TransactionWalletProviderJSON[], walletId: string, addresses: Address[]): Transaction[] => {
-  const addressesBase58Check = addresses.map(({address}) => address)
-
-  return  txs.map(tx => {
-    const walletVins = tx.vin.filter(input =>
-      addressesBase58Check.includes(input.addr)
-    );
-
-    const walletVouts = tx.vout
-      .filter(output => {
-        if (output.scriptPubKey.addresses != null) {
-          return output.scriptPubKey.addresses.some(address =>
-            addressesBase58Check.includes(address)
-          );
-        }
-        return false;
-      })
-      .map(vout => {
-        const addresses = vout.scriptPubKey.addresses ?? [];
-
-        const address = addresses.find(addr =>
-          addressesBase58Check.includes(addr)
-        );
-
-        return {
-          value: vout.value,
-          addresses,
-          address: address ?? null,
-        };
-      });
-
-    const inAmount = walletVins.reduce((acc, curr) => acc + BigInt(curr.valueSat), BigInt(0))
-    const outAmount = walletVouts.reduce((acc, curr) => acc + BigInt(Math.round(Number(curr.value) * 100_000_000)), BigInt(0))
-
-    // outgoing = -1, incoming = 1
-    const direction = inAmount > outAmount ? -1 : 1
-    // reverse direction because in outgoing txs direction == -1
-    const transferAmount = (inAmount - outAmount) * BigInt(direction * -1)
-
-    let address: string
-
-    if (direction===-1) {
-      address = walletVins[0].addr
-    } else {
-      const [voutWithAddress] = walletVouts.filter(({address}) => address!=null)
-      // TODO: There can't be undefined in production (????)
-      address = voutWithAddress.address ?? ''
-    }
-
-    let status: keyof typeof TransactionStatus = 'Pending'
-
-    if (tx.txlock == true) {
-      status = 'Locked'
-    }
-
-    const txVout = tx.vout.map(vout => {
-      const addresses = vout.scriptPubKey.addresses ?? [];
-
-      const [address] = addresses;
-
-      return {
-        value: vout.value,
-        n: vout.n,
-        spentTxId: vout.spentTxId,
-        spentIndex: vout.spentIndex,
-        spentHeight: vout.spentHeight,
-        address: address ?? '',
-      };
-    })
-
-    const txVin = tx.vin.map(vin => ({
-      value: (vin.value ?? 0).toString(),
-      n: vin.n,
-      addr: vin.addr ?? '',
-      prevTxId: vin.txid,
-      prevVout: vin.vout,
-      sequence: vin.sequence,
-    }))
-
-    // TODO: Implement usd amount
-    return {
-      address,
-      direction,
-      inAmount,
-      outAmount,
-      transferAmount,
-      walletId,
-      status,
-      size: tx.size,
-      usdAmount: '0.0',
-      blockHeight: tx.blockheight,
-      // time in seconds
-      date: new Date(tx.time * 1000),
-      confirmations: tx.confirmations,
-      txid: tx.txid,
-      vin: txVin,
-      vout: txVout
-    }
-  })
 }
