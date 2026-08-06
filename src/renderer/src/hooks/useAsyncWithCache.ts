@@ -1,11 +1,38 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 const cache = new Map<string, unknown>()
 const inflight = new Map<string, Promise<unknown>>()
 const fetchers = new Map<string, () => Promise<unknown>>()
 const listeners = new Map<string, Set<() => void>>()
 const refreshTimers = new Map<string, { timer: ReturnType<typeof setInterval>; count: number }>()
+const refreshFailures = new Set<string>()
+const refreshFailureListeners = new Set<() => void>()
 let cacheGeneration = 0
+
+function subscribeRefreshFailures(listener: () => void): () => void {
+  refreshFailureListeners.add(listener)
+  return () => refreshFailureListeners.delete(listener)
+}
+
+function getRefreshFailureCount(): number {
+  return refreshFailures.size
+}
+
+function setRefreshFailure(cacheKey: string, failed: boolean): void {
+  const changed = failed ? !refreshFailures.has(cacheKey) : refreshFailures.has(cacheKey)
+  if (!changed) return
+
+  if (failed) refreshFailures.add(cacheKey)
+  else refreshFailures.delete(cacheKey)
+
+  for (const listener of [...refreshFailureListeners]) listener()
+}
+
+function clearRefreshFailures(): void {
+  if (refreshFailures.size === 0) return
+  refreshFailures.clear()
+  for (const listener of [...refreshFailureListeners]) listener()
+}
 
 function subscribe(cacheKey: string, listener: () => void): () => void {
   const set = listeners.get(cacheKey) ?? new Set()
@@ -32,9 +59,16 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
     .then((result) => {
       if (generation === cacheGeneration) {
         cache.set(cacheKey, result)
+        setRefreshFailure(cacheKey, false)
         notify(cacheKey)
       }
       return result
+    })
+    .catch((error) => {
+      if (generation === cacheGeneration && refreshTimers.has(cacheKey)) {
+        setRefreshFailure(cacheKey, true)
+      }
+      throw error
     })
     .finally(() => {
       if (inflight.get(cacheKey) === p) inflight.delete(cacheKey)
@@ -63,6 +97,7 @@ function retainRefreshTimer(cacheKey: string, intervalMs: number, fetcher: () =>
     if (current.count <= 0) {
       clearInterval(current.timer)
       refreshTimers.delete(cacheKey)
+      setRefreshFailure(cacheKey, false)
     }
   }
 }
@@ -168,7 +203,29 @@ export function invalidateAllAsyncCaches(): void {
   cacheGeneration++
   cache.clear()
   inflight.clear()
+  clearRefreshFailures()
   for (const cacheKey of listeners.keys()) notify(cacheKey)
+}
+
+async function retryFailedAsyncRefreshes(): Promise<void> {
+  const jobs: Promise<unknown>[] = []
+  for (const cacheKey of [...refreshFailures]) {
+    const fetcher = fetchers.get(cacheKey)
+    if (fetcher !== undefined) jobs.push(runFetch(cacheKey, fetcher))
+  }
+  await Promise.allSettled(jobs)
+}
+
+export function useAsyncRefreshFailures(): {
+  failedCount: number
+  retryFailed: () => Promise<void>
+} {
+  const failedCount = useSyncExternalStore(
+    subscribeRefreshFailures,
+    getRefreshFailureCount,
+    getRefreshFailureCount
+  )
+  return { failedCount, retryFailed: retryFailedAsyncRefreshes }
 }
 
 export function refreshActiveAsyncCaches(): Promise<number> {

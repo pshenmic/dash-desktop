@@ -9,6 +9,7 @@ import ConnectionSelect from './ui/ConnectionSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
 import RefreshButton from './ui/RefreshButton'
+import DataRefreshNotice from './ui/DataRefreshNotice'
 import ScrollIndicator from './ui/ScrollIndicator'
 import WalletUnlockModal from './modal/WalletUnlockModal'
 import { API } from '@renderer/api'
@@ -117,6 +118,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       </header>
 
       <main className={"flex-1 mt-12"}>
+        <DataRefreshNotice />
         {children}
       </main>
 
