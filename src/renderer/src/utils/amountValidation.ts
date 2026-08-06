@@ -1,14 +1,20 @@
 import { AmountValidationParams } from '../api/types'
 import { TransferOperation } from '../enums/TransferOperation'
 import { MAX_SPEND_NOTES } from '../constants/shielded'
-import { SHIELDED_BALANCE_UNKNOWN_ERROR } from '../constants/sendPages'
-import { formatCredits } from './balance'
+import { CORE_FEE_DUFFS, SHIELDED_BALANCE_UNKNOWN_ERROR } from '../constants/sendPages'
+import { davToDash, formatCredits } from './balance'
 import { isPoolIdentityDenomination } from './transferMatrix'
 
 export function amountErrorFor(params: AmountValidationParams): string | null {
-  const { isDashUnit, amount, operation, amountCredits, minCredits, availableCredits, feeCredits, maxPerTx } = params
+  const { isDashUnit, amount, operation, amountDuffs, balanceDuffs, amountCredits, minCredits, availableCredits, feeCredits, maxPerTx } = params
 
-  if (isDashUnit || amount.length === 0) return null
+  if (amount.length === 0) return null
+
+  if (isDashUnit) {
+    if (amountDuffs <= 0n || amountDuffs + CORE_FEE_DUFFS <= balanceDuffs) return null
+    const maxSendableDuffs = balanceDuffs > CORE_FEE_DUFFS ? balanceDuffs - CORE_FEE_DUFFS : 0n
+    return `Max sendable is ${davToDash(maxSendableDuffs)} Dash after the network fee.`
+  }
 
   if (operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)) {
     return 'Pick one of the fixed denominations above.'

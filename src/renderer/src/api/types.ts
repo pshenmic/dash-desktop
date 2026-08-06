@@ -85,6 +85,8 @@ export interface AmountValidationParams {
   isDashUnit: boolean
   amount: string
   operation: TransferOperation | null
+  amountDuffs: bigint
+  balanceDuffs: bigint
   amountCredits: bigint
   minCredits: bigint
   availableCredits: bigint | null
