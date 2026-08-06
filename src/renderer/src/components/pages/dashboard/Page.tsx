@@ -12,6 +12,7 @@ import {
   TransactionsIcon
 } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import NoResults from '@renderer/components/ui/NoResults'
+import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import { dashboardPage, RECENT_TX_LIMIT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletTransactions, WalletTxItem } from '@renderer/hooks/useWalletTransactions'
@@ -102,6 +103,7 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
 
   return (
     <div className={"px-12 pb-8 flex flex-col gap-4 phase-fade-in"}>
+      <PartialDataNotice />
       <HeroBalance />
 
       <SectionHeader title={dashboardPage.sections.services} />
