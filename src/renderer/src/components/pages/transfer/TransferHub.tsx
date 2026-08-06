@@ -102,7 +102,7 @@ export default function TransferHub(): React.JSX.Element {
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
 
-  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
+  const { syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
   const { balance } = useWalletBalance(walletId ?? undefined)
   const { receiving, change } = useAdresses(walletId ?? undefined)

@@ -5,6 +5,7 @@ const inflight = new Map<string, Promise<unknown>>()
 const fetchers = new Map<string, () => Promise<unknown>>()
 const listeners = new Map<string, Set<() => void>>()
 const refreshTimers = new Map<string, { timer: ReturnType<typeof setInterval>; count: number }>()
+let cacheGeneration = 0
 
 function subscribe(cacheKey: string, listener: () => void): () => void {
   const set = listeners.get(cacheKey) ?? new Set()
@@ -26,14 +27,17 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
   const existing = inflight.get(cacheKey)
   if (existing !== undefined) return existing as Promise<T>
 
+  const generation = cacheGeneration
   const p = fetcher()
     .then((result) => {
-      cache.set(cacheKey, result)
-      notify(cacheKey)
+      if (generation === cacheGeneration) {
+        cache.set(cacheKey, result)
+        notify(cacheKey)
+      }
       return result
     })
     .finally(() => {
-      inflight.delete(cacheKey)
+      if (inflight.get(cacheKey) === p) inflight.delete(cacheKey)
     })
 
   inflight.set(cacheKey, p)
@@ -129,9 +133,10 @@ export function useAsyncWithCache<T>(
       setLoading(true)
     }
 
+    const generation = cacheGeneration
     runFetch(cacheKey, fetcherRef.current)
       .then((result) => {
-        if (dead) return
+        if (dead || generation !== cacheGeneration) return
         setData(result)
       })
       .catch((e) => {
@@ -157,6 +162,13 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   const cacheKey = `${namespace}:${key}`
   cache.delete(cacheKey)
   notify(cacheKey)
+}
+
+export function invalidateAllAsyncCaches(): void {
+  cacheGeneration++
+  cache.clear()
+  inflight.clear()
+  for (const cacheKey of listeners.keys()) notify(cacheKey)
 }
 
 export function refreshActiveAsyncCaches(): Promise<number> {

@@ -59,7 +59,7 @@ export default function NetworkCard(): React.JSX.Element {
 
       <MiniStat label={labels.chainTip} value={tipHeight > 0 ? tipHeight.toLocaleString('en-US') : '—'} />
       <MiniStat label={labels.peers} value={syncActive ? peerCount.toLocaleString('en-US') : '—'} />
-      <MiniStat label={labels.dataSource} value={describeDataSource(readDesired(), sync?.phase)} />
+      <MiniStat label={labels.dataSource} value={describeDataSource(readDesired())} />
     </div>
   )
 }

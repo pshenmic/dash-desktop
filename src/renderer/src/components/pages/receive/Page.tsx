@@ -43,7 +43,7 @@ const descriptions: Record<string, React.JSX.Element> = {
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
   const [activeTab, setActiveTab] = useState('dash')
   const { status } = useAuth()
-  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
+  const { syncIncomplete } = useConnectionModeContext()
   const walletId = status?.selectedWalletId ?? undefined
   const { data: address } = useAsyncWithCache<string | null>(
     'receiveAddress',

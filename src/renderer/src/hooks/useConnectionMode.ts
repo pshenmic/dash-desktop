@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { API } from '@renderer/api'
 import { ConnectionType, WalletSyncPhase } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { invalidateAllAsyncCaches } from './useAsyncWithCache'
 
 const LS_DESIRED_KEY = 'wallet.connection.desired'
 const CONNECTION_TYPES: readonly ConnectionType[] = ['rpc', 'p2p']
@@ -17,8 +18,9 @@ function isP2pInactive(phase: WalletSyncPhase | undefined): boolean {
 
 export interface UseConnectionMode {
   desired: ConnectionType
+  ready: boolean
   showSyncUI: boolean
-  fallbackActive: boolean
+  syncIncomplete: boolean
   setDesired: (next: ConnectionType) => void
 }
 
@@ -28,27 +30,32 @@ export function useConnectionMode(): UseConnectionMode {
   const walletId = status?.selectedWalletId ?? null
   const activeSyncWalletId = status?.walletSync.walletId ?? null
   const [desired, setDesiredState] = useState<ConnectionType>(readDesired)
+  const [ready, setReady] = useState(false)
 
   const phaseRef = useRef<WalletSyncPhase | undefined>(phase)
   useEffect(() => { phaseRef.current = phase }, [phase])
 
-  const lastApplied = useRef<ConnectionType | null>(null)
   useEffect(() => {
     let cancelled = false
     API.getPreferences()
-      .then(p => { if (!cancelled) lastApplied.current = p.general.connectionType })
-      .catch(() => {})
+      .then(async (preferences) => {
+        const applied = preferences.general.connectionType
+        if (applied !== desired) {
+          const result = await API.setConnectionType(desired)
+          if (!result.success) {
+            localStorage.setItem(LS_DESIRED_KEY, applied)
+            if (!cancelled) setDesiredState(applied)
+          } else {
+            invalidateAllAsyncCaches()
+          }
+        }
+        if (!cancelled) setReady(true)
+      })
+      .catch((err) => {
+        console.error('initialize connection mode failed', err)
+      })
     return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    if (lastApplied.current === null) return
-    const target: ConnectionType = desired === 'p2p' && phase === WalletSyncPhase.Synced ? 'p2p' : 'rpc'
-    if (target === lastApplied.current) return
-    const previous = lastApplied.current
-    lastApplied.current = target
-    API.setConnectionType(target).catch(() => { lastApplied.current = previous })
-  }, [desired, phase])
+  }, [desired])
 
   const autoStartedFor = useRef<string | null>(null)
   useEffect(() => {
@@ -84,25 +91,33 @@ export function useConnectionMode(): UseConnectionMode {
     return () => { cancelled = true }
   }, [walletId, desired, phase, activeSyncWalletId])
 
+  const pendingMode = useRef<ConnectionType | null>(null)
   const setDesired = useCallback((next: ConnectionType) => {
-    localStorage.setItem(LS_DESIRED_KEY, next)
-    setDesiredState(next)
-    if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
-      API.startWalletSync(walletId).catch(err => console.error('startWalletSync failed', err))
-    } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
-      API.stopWalletSync().catch(err => console.error('stopWalletSync failed', err))
-    }
-  }, [walletId])
+    if (next === desired || pendingMode.current !== null) return
+    pendingMode.current = next
+    API.setConnectionType(next)
+      .then((result) => {
+        if (!result.success) throw new Error(result.errorMessage ?? 'Failed to set connection mode')
+        invalidateAllAsyncCaches()
+        localStorage.setItem(LS_DESIRED_KEY, next)
+        setDesiredState(next)
+        if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
+          API.startWalletSync(walletId).catch(err => console.error('startWalletSync failed', err))
+        } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
+          API.stopWalletSync().catch(err => console.error('stopWalletSync failed', err))
+        }
+      })
+      .catch(err => console.error('setConnectionType failed', err))
+      .finally(() => { pendingMode.current = null })
+  }, [desired, walletId])
 
-  const fallbackActive = useMemo(
-    () => desired === 'p2p' && phase !== WalletSyncPhase.Synced,
-    [desired, phase],
-  )
+  const syncIncomplete = desired === 'p2p' && phase !== WalletSyncPhase.Synced
 
   return {
     desired,
+    ready,
     showSyncUI: desired === 'p2p',
-    fallbackActive,
+    syncIncomplete,
     setDesired,
   }
 }

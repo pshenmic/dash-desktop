@@ -6,7 +6,7 @@ import { renderBoldText } from '@renderer/utils/renderBoldText'
 
 export default function AddressesPage(): React.JSX.Element {
   const { description, title } = addressesPage
-  const { fallbackActive: syncIncomplete } = useConnectionModeContext()
+  const { syncIncomplete } = useConnectionModeContext()
 
   return (
     <div className={"flex flex-col"}>

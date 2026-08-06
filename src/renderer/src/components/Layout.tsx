@@ -66,7 +66,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     [wallets]
   )
 
-  const { desired, showSyncUI, fallbackActive, setDesired } = useConnectionModeContext()
+  const { desired, showSyncUI, syncIncomplete, setDesired } = useConnectionModeContext()
 
   const handleWalletChange = (walletId: string): void => {
     if (!walletId || walletId === selectedWallet) return
@@ -101,7 +101,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
             options={connectionOptions}
             value={desired}
             onChange={(value) => setDesired(value as ConnectionType)}
-            syncing={fallbackActive}
+            syncing={syncIncomplete}
           />
           <button
             onMouseEnter={hoverNotification.onMouseEnter}

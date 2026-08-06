@@ -178,10 +178,9 @@ export default function SyncProgressBar(): React.JSX.Element {
 
         <Text size={10} weight="normal" color="brand" opacity={50}>
           Local node downloads block headers and compact filters to scan your wallet without
-          trusting a third party. While syncing, balances and transactions are served by the
-          Dashscan API as a fallback. When sync completes, the wallet switches to local
-          P2P data automatically. Use the Start / Stop / Restart button in the header to
-          control sync manually.
+          trusting a third party. Balances and transactions remain local while syncing and
+          may be incomplete until the scan finishes. Use the Start / Stop / Restart button
+          in the header to control sync manually.
         </Text>
       </div>
     </div>
