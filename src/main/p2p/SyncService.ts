@@ -9,7 +9,7 @@ import type {CFilterSyncWorkerStatus} from './types/cfilterSync'
 import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
 import {Network} from '../src/types'
 import {BroadcastResult} from './types/broadcast'
-import {AppliedBlock, WalletSyncStatus} from './types/walletSync'
+import {AppliedBlock, GapExhausted, WalletSyncStatus, WatchAddress} from './types/walletSync'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {ChainTipState, PersistedHeader} from './types/chainStore'
 import {SyncServiceEvents} from './types/sync'
@@ -32,7 +32,8 @@ export class SyncService {
   private cfilterSyncWorker: CFilterSyncWorker | null = null
 
   private activeWalletId: string | null = null
-  private activeWatchAddresses: string[] = []
+  private activeWatchAddresses: WatchAddress[] = []
+  private activeGapLimit = 0
   private activeBirthdayHeight = 1
   private activeSeedUtxos: P2PStartMessage['seedUtxos'] = []
   private activeCFilterCursor: number | null = null
@@ -140,6 +141,7 @@ export class SyncService {
 
     this.activeWalletId = cmd.walletId
     this.activeWatchAddresses = cmd.watchAddresses ?? []
+    this.activeGapLimit = cmd.gapLimit
     this.activeBirthdayHeight = cmd.birthdayHeight && cmd.birthdayHeight > 0 ? cmd.birthdayHeight : 1
     this.activeSeedUtxos = cmd.seedUtxos ?? []
     this.activeCFilterCursor = cmd.cfilterCursor ?? null
@@ -217,6 +219,7 @@ export class SyncService {
     await this.teardownBulk()
     this.activeWalletId = null
     this.activeWatchAddresses = []
+    this.activeGapLimit = 0
     this.activeBirthdayHeight = 1
     this.activeSeedUtxos = []
     this.activeCFilterCursor = null
@@ -292,9 +295,9 @@ export class SyncService {
 
   addWatchAddresses = (cmd: P2PAddWatchAddressesMessage): void => {
     if (!this.activeWalletId || cmd.walletId !== this.activeWalletId) return
-    const merged = new Set(this.activeWatchAddresses)
-    for (const a of cmd.addresses) merged.add(a)
-    this.activeWatchAddresses = [...merged]
+    const merged = new Map(this.activeWatchAddresses.map(a => [a.address, a]))
+    for (const a of cmd.addresses) merged.set(a.address, a)
+    this.activeWatchAddresses = [...merged.values()]
     this.cfilterSyncWorker?.addWatchAddresses(cmd.addresses, cmd.rewindToHeight)
   }
 
@@ -463,6 +466,7 @@ export class SyncService {
       chainTipHeight: tipHeight,
       chainTipHashDisplayHex: tipHashDisplayHex,
       watchAddresses: this.activeWatchAddresses,
+      gapLimit: this.activeGapLimit,
       birthdayHeight: this.activeBirthdayHeight,
       seedUtxos: this.activeSeedUtxos,
       cfilterCursor: this.activeCFilterCursor,
@@ -475,6 +479,7 @@ export class SyncService {
     this.cfilterSyncWorker.on('cursorReset', (msg: {walletId: string; height: number}) =>
       this.events.cursorReset(msg.walletId, msg.height)
     )
+    this.cfilterSyncWorker.on('gapExhausted', (gap: GapExhausted) => this.events.gapExhausted(gap))
     this.cfilterSyncWorker.on('error', err =>
       this.handleWorkerError('CFilterSyncWorker', err.message)
     )

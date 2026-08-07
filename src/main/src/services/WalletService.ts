@@ -329,7 +329,7 @@ export class WalletService {
     if (!key.publicKey) throw new Error(`Failed to derive public key at index ${index}`)
     const address = this.keyPair.p2pkhAddress(key.publicKey, wallet.network)
 
-    await this.addressDAO.insertAddresses([{
+    const row: Address = {
       walletId,
       accountId,
       address,
@@ -338,9 +338,10 @@ export class WalletService {
       isChange,
       isUsed: false,
       label: null
-    }])
+    }
+    await this.addressDAO.insertAddresses([row])
 
-    await this.walletSyncService.addWatchAddresses(walletId, [address], {forwardOnly: true})
+    await this.walletSyncService.addWatchAddresses(walletId, [row], {forwardOnly: true})
 
     return address
   }
@@ -353,6 +354,15 @@ export class WalletService {
     return run
   }
 
+  // A run in flight picked its provider when it started, so it is still asking
+  // the old connection mode which addresses are used. Queue a fresh pass behind
+  // it instead of joining it.
+  rediscoverCoreAddresses(walletId: string): Promise<void> {
+    const existing = this.discoveryInflight.get(walletId)
+    if (existing == null) return this.discoverCoreAddresses(walletId)
+    return existing.catch(() => {}).then(() => this.discoverCoreAddresses(walletId))
+  }
+
   private async runCoreDiscovery(walletId: string): Promise<void> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null || wallet.coreXpub == null) return
@@ -361,7 +371,7 @@ export class WalletService {
     const network = wallet.network
     const provider = this.getProvider(walletId, network)
     const coinType = COIN_TYPE[network]
-    const added: string[] = []
+    const added: Address[] = []
 
     for (const isChange of [false, true]) {
       for (let round = 0; round < MAX_DISCOVERY_ROUNDS; round++) {
@@ -392,7 +402,11 @@ export class WalletService {
           }
         })
         await this.addressDAO.insertAddresses(rows)
-        added.push(...rows.map(r => r.address))
+        added.push(...rows)
+        console.log(
+          `[discovery] ${isChange ? 'change' : 'receiving'} gap exhausted — derived ` +
+          `${rows.length} address(es) at index ${indexes[0]}..${indexes[indexes.length - 1]}`,
+        )
       }
     }
 

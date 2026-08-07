@@ -1,5 +1,5 @@
 import type {Network} from '../../src/types'
-import type {AppliedBlock, WalletSyncStatus} from './walletSync'
+import type {AppliedBlock, GapExhausted, WalletSyncStatus} from './walletSync'
 import type {BroadcastResult} from './broadcast'
 
 export interface SyncServiceEvents {
@@ -7,6 +7,7 @@ export interface SyncServiceEvents {
   blockApplied: (block: AppliedBlock) => void
   cursorAdvanced: (walletId: string, height: number) => void
   cursorReset: (walletId: string, height: number) => void
+  gapExhausted: (gap: GapExhausted) => void
   error: (message: string) => void
   broadcastResult: (
     requestId: string,

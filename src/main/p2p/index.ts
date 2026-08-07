@@ -40,6 +40,7 @@ const sync = new SyncService({
     process.parentPort.postMessage({type: 'cursorAdvanced', walletId, height}),
   cursorReset: (walletId, height) =>
     process.parentPort.postMessage({type: 'cursorReset', walletId, height}),
+  gapExhausted: gap => process.parentPort.postMessage({type: 'gapExhausted', gap}),
   error: message => process.parentPort.postMessage({type: 'error', message}),
   broadcastResult: (requestId, ok, result, errorMessage) =>
     process.parentPort.postMessage({type: 'broadcastResult', requestId, ok, result, errorMessage}),

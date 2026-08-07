@@ -90,7 +90,7 @@ export const FILTER_TYPE = 0
 // response.
 export const CFILTER_BATCH = 900
 
-export const MAX_INFLIGHT_BATCHES = 6
+export const MAX_INFLIGHT_BATCHES = 10
 
 export const CFCHECKPT_RACE_PEERS = 15
 

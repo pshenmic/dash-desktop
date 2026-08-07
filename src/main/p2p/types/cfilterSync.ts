@@ -1,7 +1,7 @@
 import type {Network} from '../../src/types'
 import type {ChainStore} from '../ChainStore'
 import type {PoolService} from '../PoolService'
-import type {WalletSyncUtxo} from './walletSync'
+import type {WalletSyncUtxo, WatchAddress} from './walletSync'
 
 import type {Peer} from 'dash-core-p2p'
 
@@ -25,6 +25,12 @@ export interface PendingCFHeaders {
   stopHeight: number
   triedPeers: Set<Peer>
   raceTimer: ReturnType<typeof setTimeout> | null
+}
+
+// Per-chain view of the derived address range, maintained from the watch set.
+export interface ChainGapState {
+  maxIndex: number
+  lastUsed: number
 }
 
 export type CFilterPhase =
@@ -51,7 +57,8 @@ export interface CFilterSyncWorkerOptions {
   peerPool: PoolService
   chainTipHeight: number
   chainTipHashDisplayHex: string
-  watchAddresses: string[]
+  watchAddresses: WatchAddress[]
+  gapLimit: number
   birthdayHeight: number
   // UTXO seed for the in-memory spend-detection map. Sourced from SQL by
   // main process before sending the start command — the worker never

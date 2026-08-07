@@ -12,8 +12,20 @@ vi.mock('fs', () => {
 import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
 import {GENESIS} from '../../src/main/p2p/constants'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
+import type {Address} from '../../src/main/src/types/Address'
 
 const WALLET = 'wallet-1'
+
+const newAddress = (address: string, index: number): Address => ({
+  walletId: WALLET,
+  accountId: 0,
+  address,
+  derivationPath: `m/44'/1'/0'/0/${index}`,
+  index,
+  isChange: false,
+  isUsed: false,
+  label: null,
+})
 
 const block = (height: number): AppliedBlock => ({
   walletId: WALLET,
@@ -137,7 +149,7 @@ describe('WalletSyncService block persistence', () => {
 
     emit(service, {type: 'blockApplied', block: block(500)})
     emit(service, {type: 'cursorAdvanced', walletId: WALLET, height: 900_000})
-    const rewound = service.addWatchAddresses(WALLET, ['yNewAddr'])
+    const rewound = service.addWatchAddresses(WALLET, [newAddress('yNewAddr', 20)])
     await vi.advanceTimersByTimeAsync(0)
     releaseBlock()
     await settle()
@@ -165,6 +177,41 @@ describe('WalletSyncService block persistence', () => {
     expect(transactionDAO.resetCursor).toHaveBeenLastCalledWith(WALLET, 100)
     expect(transactionDAO.resetCursor.mock.invocationCallOrder[0])
       .toBeGreaterThan(transactionDAO.advanceCursor.mock.invocationCallOrder[0])
+  })
+
+  // The worker stopped at the block that exhausted the gap and resumes from
+  // there. Rewinding on top of that is what used to restart the whole scan.
+  describe('gap-exhausted hold', () => {
+    const gap = {walletId: WALLET, height: 500_000, isChange: false, lastUsedIndex: 51, maxIndex: 100}
+
+    it('does not rewind the cursor for the addresses answering the hold', async () => {
+      emit(service, {type: 'gapExhausted', gap})
+      await settle()
+
+      await service.addWatchAddresses(WALLET, [newAddress('yNewAddr', 101)])
+
+      expect(transactionDAO.resetCursor).not.toHaveBeenCalled()
+    })
+
+    it('notifies main so discovery can run', async () => {
+      const onGapExhausted = vi.fn()
+      service.onGapExhausted = onGapExhausted
+
+      emit(service, {type: 'gapExhausted', gap})
+      await settle()
+
+      expect(onGapExhausted).toHaveBeenCalledWith(gap)
+    })
+
+    it('rewinds again on the next add, once the hold is answered', async () => {
+      emit(service, {type: 'gapExhausted', gap})
+      await settle()
+      await service.addWatchAddresses(WALLET, [newAddress('yNewAddr', 101)])
+
+      await service.addWatchAddresses(WALLET, [newAddress('yLaterAddr', 102)])
+
+      expect(transactionDAO.resetCursor).toHaveBeenCalledExactlyOnceWith(WALLET, GENESIS.testnet.height)
+    })
   })
 
   it('drains queued writes before resetSync wipes the sync data', async () => {
