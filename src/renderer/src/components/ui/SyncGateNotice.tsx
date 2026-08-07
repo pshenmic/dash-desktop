@@ -8,7 +8,7 @@ export default function SyncGateNotice({ className = '' }: { className?: string 
       </Text>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
         This action is unavailable while the wallet is syncing over P2P. Wait until synchronization
-        completes, or switch the connection mode to Dash Insight API (RPC).
+        completes, or switch the connection mode to Dashscan API (RPC).
       </Text>
     </div>
   )

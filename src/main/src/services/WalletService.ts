@@ -8,7 +8,7 @@ import {TransactionDAO} from '../database/TransactionDAO'
 import {ApplicationService} from './ApplicationService'
 import {WalletSyncService} from './WalletSyncService'
 import {WalletProvider} from '../providers/WalletProvider'
-import {InsightWalletProvider} from '../providers/InsightWalletProvider'
+import {DashscanWalletProvider} from '../providers/DashscanWalletProvider'
 import {P2PWalletProvider} from '../providers/P2PWalletProvider'
 import {Network} from '../types'
 import {Address} from '../types/Address'
@@ -16,7 +16,6 @@ import {GroupedAddresses} from '../types/GroupedAddresses'
 import {IdentityInfo} from '../types/Identity'
 import {Wallet} from '../types/Wallet'
 import {Transaction as SDKTransaction} from "dash-core-sdk";
-import {BlockJSON} from "dash-core-sdk/src/types";
 import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
@@ -87,7 +86,7 @@ export class WalletService {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
       return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
     }
-    return new InsightWalletProvider(network, walletId, this.addressDAO)
+    return new DashscanWalletProvider(network, walletId, this.addressDAO)
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
@@ -493,23 +492,6 @@ export class WalletService {
     const provider = this.getProvider(wallet.walletId, network)
 
     return provider.getTransactionByHash(hash)
-  }
-
-  async getBlockByHash(hash: string, network: Network): Promise<BlockJSON> {
-    if (network !== 'mainnet' && network !== 'testnet') {
-      throw new Error('Invalid network ("mainnet", "testnet")')
-    }
-
-    // Routed via factory — throws Error('Unimplemented') in p2p mode.
-    const wallet = await this.walletDAO.getSelectedWallet()
-    if (wallet == null) {
-      throw new Error('No selected wallet found')
-    }
-    const provider = this.getProvider(wallet.walletId, network)
-
-    const block = await provider.getBlockByHash(hash)
-
-    return block.toJSON()
   }
 
   async getWalletBalance(walletId: string): Promise<WalletBalance> {

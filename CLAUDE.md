@@ -177,11 +177,18 @@ Forgetting this means the table is never created and DAO calls fail at runtime
 `WalletService.getProvider()` returns one of two `WalletProvider`
 implementations based on the `connectionType` preference:
 
-- **`rpc`** (default) → `InsightWalletProvider`: hits the Insight REST API.
-  Implements `getUTXOs` + `broadcastTx` (POST `/tx/send`).
+- **`rpc`** (default) → `DashscanWalletProvider`: hits the Dashscan REST API
+  (`DASHSCAN_BASE_URLS`). Batch endpoints (`/addresses/info`,
+  `/addresses/utxo`) take 100 addresses per call; `/address/:a/transactions` is
+  paginated and the provider walks every page. Wire shapes live in
+  `types/Dashscan.ts`, the mapping to our `Transaction` in
+  `utils/dashscanTransactions.ts`.
 - **`p2p`** → `P2PWalletProvider`: reads the local SPV SQLite store; broadcast
   routes through the p2p utility process (`WalletSyncService.broadcastTransaction`).
-  Throws `Unimplemented` for `getBlockByHash`.
+
+Neither provider broadcasts — both modes send over the p2p lock pool, see below.
+`vin[].value` / `vout[].value` are **DASH decimal strings** in both providers;
+duffs live in `inAmount` / `outAmount` / `transferAmount` as `bigint`.
 
 Write wallet features against the `WalletProvider` interface so they work in
 both modes. Note `getTransactions` fetches per-address and is de-duped by txid
@@ -203,7 +210,7 @@ child process exists and hears locks even in the default `rpc` mode.
 
 Two consequences that are easy to get wrong:
 
-- **Locally-signed transactions never go out over Insight.** `getProvider()`
+- **Locally-signed transactions never go out over Dashscan.** `getProvider()`
   covers *reads* and third-party broadcast; asset locks bypass it —
   `WalletService.buildAndBroadcastAssetLock` calls
   `walletSyncService.broadcastTransaction` directly, in both modes, because the
@@ -239,8 +246,15 @@ waiter yet — they only feed `markChainlockedUpTo`.
 
 ## House style
 
-- **No code comments unless they explain non-obvious *why*.** This codebase
-  keeps comments sparse; do not add narrating comments.
+- **Default to no comment.** Write one only when the code cannot show the
+  *why* — a protocol constraint, a third-party quirk, a review finding — and
+  keep it to one or two lines. Never restate the signature, the types, or the
+  control flow.
+- **A comment is not where you explain your reasoning.** Alternatives you
+  weighed, why this approach won, what the old code got wrong: response or
+  commit message, never the source. No comment may reference the session that
+  wrote it ("as discussed", "we decided", "per the review") or invent an
+  example scenario to justify itself.
 - Pure, branch-free logic (coin selection, formatting, validation, dedup, CSV)
   is extracted into `utils/` helpers and unit-tested in `tests/unit/`. Prefer
   that over inlining testable logic into components or services.

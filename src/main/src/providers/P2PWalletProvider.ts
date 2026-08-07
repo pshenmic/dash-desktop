@@ -1,4 +1,4 @@
-import {Block, Script, utils as sdkUtils} from 'dash-core-sdk'
+import {Script, utils as sdkUtils} from 'dash-core-sdk'
 import {UTXO} from '../types/UTXO'
 import {Transaction} from '../types/Transaction'
 import {TransactionDAO} from '../database/TransactionDAO'
@@ -11,8 +11,6 @@ const {addressToPublicKeyHash} = sdkUtils
 
 // Reads wallet info from the local SQL database populated by SPV cfilter
 // sync. Only knows about txs that touched our addresses.
-// Unsupported (throw):
-//   - getBlockByHash
 export class P2PWalletProvider implements WalletProvider {
   constructor(
     private readonly transactionDAO: TransactionDAO,
@@ -64,10 +62,6 @@ export class P2PWalletProvider implements WalletProvider {
     }
   }
 
-  async getBlockByHash(): Promise<Block> {
-    throw new Error('Unimplemented: getBlockByHash is not available in p2p mode')
-  }
-
   async nextUnusedAddress(): Promise<string> {
     const {receiving} = await this.addressDAO.getAddressesByWalletId(this.walletId)
     if (receiving.length === 0) throw new Error('Wallet has no receiving addresses')
@@ -80,8 +74,8 @@ export class P2PWalletProvider implements WalletProvider {
     return receiving[receiving.length - 1].address
   }
 
-  async getUsedAddresses(): Promise<string[]> {
-    return []
+  async getUsedAddresses(addresses: string[]): Promise<string[]> {
+    return this.transactionDAO.getUsedAddresses(this.walletId, addresses)
   }
 
   private p2pkhScript(address: string): Script {
