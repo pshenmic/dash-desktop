@@ -29,6 +29,7 @@ export const dashboardPage = {
     proverPreparing: 'prover preparing…',
     proverError: 'prover error',
     syncBalances: 'Sync balances',
+    checkNotes: 'Check notes',
     syncing: 'Syncing…'
   },
   identities: {

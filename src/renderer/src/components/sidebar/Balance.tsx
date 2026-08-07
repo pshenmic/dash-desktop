@@ -1,8 +1,9 @@
 import { DashLogo, useTheme } from "dash-ui-kit/react";
-import { CreditsIcon, ShieldSmallIcon, Text } from "../dash-ui-kit-enxtended";
+import { CreditsIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
 import DashBigNumber from "../ui/DashBigNumber";
 import { davToDash } from "@renderer/utils/balance";
+import { SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from "@renderer/constants";
 import { cva } from "class-variance-authority";
 
 const logoStyles = cva(
@@ -52,7 +53,11 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
       <div className={"flex flex-col gap-[.125rem]"}>
         <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Balance:'}</Text>
         <Text size={16} weight="extrabold" color="brand" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>
-          {(variant === 'credits' || variant === 'shielded') && credits != null ? (
+          {variant === 'shielded' && credits == null ? (
+            <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
+              <span className={"text-dash-orange"}>— Credits</span>
+            </Tooltip>
+          ) : (variant === 'credits' || variant === 'shielded') && credits != null ? (
             <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
           ) : (
             <>

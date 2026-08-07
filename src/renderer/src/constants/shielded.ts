@@ -6,5 +6,7 @@ export const SHIELDED_SYNC_ACTIVE_POLL_MS = 600
 export const SHIELDED_SYNC_IDLE_POLL_MS = 2_500
 export const SHIELDED_NOTES_INFO_CACHE_NS = 'shielded-notes-info'
 export const SHIELDED_SPEND_POLL_MS = 700
+
+export const SHIELDED_BALANCE_UNKNOWN_TOOLTIP = 'Sync shielded notes to load this balance.'
 export const SHIELDED_SPEND_RETRY_MS = 1_000
 export const MAX_SPEND_NOTES = 6
