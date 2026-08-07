@@ -1,5 +1,5 @@
 import {PlatformInputPlan, PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
-import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS, TRANSFER_FEE_CREDITS} from '../constants'
+import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../constants'
 
 export function identityTransferFeeCredits(recipientCount: number): bigint {
   return 500_000n + 6_000_000n * BigInt(recipientCount)
@@ -85,13 +85,14 @@ export function selectPlatformInputsWithFee(
 export function selectPlatformSource(
   candidates: PlatformSourceCandidate[],
   amountCredits: bigint,
+  feeCredits: bigint,
   fromAddress?: string,
 ): PlatformSourceCandidate {
   if (amountCredits < MIN_OUTPUT_CREDITS) {
     throw new Error(`Minimum Platform transfer is ${MIN_OUTPUT_CREDITS.toString()} credits`)
   }
 
-  const required = amountCredits + TRANSFER_FEE_CREDITS
+  const required = amountCredits + feeCredits
 
   if (fromAddress != null) {
     const chosen = candidates.find(candidate => candidate.platformAddress === fromAddress)

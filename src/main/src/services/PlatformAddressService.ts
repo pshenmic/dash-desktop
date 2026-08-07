@@ -111,7 +111,12 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
+    const {totalFeeCredits} = await this.estimateTransitionFee(network, {
+      kind: 'addressTransfer',
+      inputCount: 1,
+      recipients: [toPlatformAddress],
+    })
+    const source = selectPlatformSource(candidates, amountCredits, totalFeeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
       seed,
@@ -123,7 +128,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits,
-      feeCredits: TRANSFER_FEE_CREDITS,
+      feeCredits: totalFeeCredits,
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
     }
@@ -386,7 +391,7 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const source = selectPlatformSource(candidates, amountCredits, fromPlatformAddress || undefined)
+    const source = selectPlatformSource(candidates, amountCredits, TRANSFER_FEE_CREDITS, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('shield', network, {
       seed,
