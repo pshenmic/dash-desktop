@@ -122,12 +122,7 @@ export const HD_VERSIONS: Record<'mainnet' | 'testnet', {private: number; public
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
 
 export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
-  feePerByte: 1n,
-  signedInputSize: 32n + 4n + 8n + 108n + 4n,
-  changeOutputSize: 20n + 4n + 34n + 4n,
-  baseTxSize: 10n,
-  recipientOutputSize: 34n,
-  minFee: 1000n,
+  fee: 10_000n,
 }
 
 export const MIN_OUTPUT_CREDITS = 500_000n

@@ -13,7 +13,7 @@ describe('selectCoins', () => {
     const res = selectCoins([utxo(ONE_DASH)], ONE_DASH / 2n)
     expect(res.inputs).toHaveLength(1)
     expect(res.inputTotal).toBe(ONE_DASH)
-    expect(res.fee).toBeGreaterThanOrEqual(DEFAULT_SELECTION_PARAMS.minFee)
+    expect(res.fee).toBe(DEFAULT_SELECTION_PARAMS.fee)
     expect(res.inputTotal).toBe(ONE_DASH / 2n + res.fee + res.change)
   })
 
@@ -53,20 +53,29 @@ describe('selectCoins', () => {
     expect(() => selectCoins([], ONE_DASH)).toThrow('Insufficient funds')
   })
 
-  it('produces a fee at least the minimum relay fee', () => {
+  it('uses the fixed Core network fee', () => {
     const res = selectCoins([utxo(ONE_DASH)], 1000n)
-    expect(res.fee).toBeGreaterThanOrEqual(1000n)
+    expect(res.fee).toBe(DEFAULT_SELECTION_PARAMS.fee)
   })
 
-  it('folds a sub-minFee remainder into the fee instead of making dust change', () => {
-    // total leaves room for the amount + no-change fee, but the leftover after a
-    // with-change fee would be below minFee — so no change output is created and
-    // the remainder is absorbed into the fee.
-    const target = 50_000n
-    const total = target + 1_500n
-    const res = selectCoins([utxo(total)], target)
+  it('sends the maximum balance minus the fixed fee with many inputs', () => {
+    const utxos = Array.from({length: 100}, (_, index) => utxo(20_000n, index))
+    const balance = utxos.reduce((sum, input) => sum + input.satoshis, 0n)
+
+    const res = selectCoins(utxos, balance - DEFAULT_SELECTION_PARAMS.fee)
+
+    expect(res.inputs).toHaveLength(100)
+    expect(res.inputTotal).toBe(balance)
+    expect(res.fee).toBe(DEFAULT_SELECTION_PARAMS.fee)
     expect(res.change).toBe(0n)
-    expect(res.fee).toBe(1_500n)
-    expect(res.inputTotal).toBe(target + res.fee)
+  })
+
+  it('returns change smaller than the fixed fee', () => {
+    const target = 50_000n
+    const total = target + DEFAULT_SELECTION_PARAMS.fee + 1_500n
+    const res = selectCoins([utxo(total)], target)
+    expect(res.change).toBe(1_500n)
+    expect(res.fee).toBe(DEFAULT_SELECTION_PARAMS.fee)
+    expect(res.inputTotal).toBe(target + res.fee + res.change)
   })
 })
