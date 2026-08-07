@@ -174,7 +174,7 @@ export default function TransferConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? <CreditsAmount credits={BigInt(result.amountCredits)} /> : ''}
+                {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Broadcast to Platform. It will confirm shortly.
@@ -200,8 +200,8 @@ export default function TransferConfirmModal({
               </div>
               {result?.feeCredits && (
                 <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-                  <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={BigInt(result.feeCredits)} align={"end"} /></Text>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
+                  <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
                 </div>
               )}
               {result?.stHash && <HashField hash={result.stHash} />}

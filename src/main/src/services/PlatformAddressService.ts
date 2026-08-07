@@ -75,7 +75,7 @@ export class PlatformAddressService {
     const candidates = await this.loadPlatformCandidates(walletId, wallet.platformXpub, wallet.network)
     return candidates.map(candidate => ({
       platformAddress: candidate.platformAddress,
-      balanceCredits: candidate.balanceCredits.toString(),
+      balanceCredits: candidate.balanceCredits,
       nonce: candidate.nonce,
     }))
   }
@@ -122,8 +122,8 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: amountCredits.toString(),
-      feeCredits: TRANSFER_FEE_CREDITS.toString(),
+      amountCredits,
+      feeCredits: TRANSFER_FEE_CREDITS,
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
     }
@@ -161,8 +161,8 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: totalCredits.toString(),
-      feeCredits: feeCredits.toString(),
+      amountCredits: totalCredits,
+      feeCredits,
       fromAddress: identityIdentifier,
       toAddress: recipients[0].address,
     }
@@ -203,8 +203,8 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: amountCredits.toString(),
-      feeCredits: IDENTITY_CREDIT_TRANSFER_FEE_CREDITS.toString(),
+      amountCredits,
+      feeCredits: IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
       fromAddress: fromIdentityIdentifier,
       toAddress: toIdentityIdentifier,
     }
@@ -251,8 +251,8 @@ export class PlatformAddressService {
       identifier,
       identityIndex,
       stHash,
-      amountCredits: amountCredits.toString(),
-      feeCredits: plan.feeCredits.toString(),
+      amountCredits: amountCredits,
+      feeCredits: plan.feeCredits,
       fromAddress: plan.inputs[0].candidate.platformAddress,
     }
   }
@@ -285,8 +285,8 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: amountCredits.toString(),
-      feeCredits: plan.feeCredits.toString(),
+      amountCredits: amountCredits,
+      feeCredits: plan.feeCredits,
       fromAddress: plan.inputs[0].candidate.platformAddress,
       toAddress: identityId,
     }
@@ -322,8 +322,8 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: amountCredits.toString(),
-      feeCredits: plan.feeCredits.toString(),
+      amountCredits: amountCredits,
+      feeCredits: plan.feeCredits,
       fromAddress: plan.inputs[0].candidate.platformAddress,
       toAddress: toCoreAddress,
     }
@@ -361,8 +361,8 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: amountCredits.toString(),
-      feeCredits: WITHDRAWAL_FEE_CREDITS.toString(),
+      amountCredits,
+      feeCredits: WITHDRAWAL_FEE_CREDITS,
       fromAddress: identityIdentifier,
       toAddress: toCoreAddress,
     }
@@ -404,7 +404,7 @@ export class PlatformAddressService {
 
     return {
       stHash,
-      amountCredits: amountCredits.toString(),
+      amountCredits: amountCredits,
       fromAddress: source.platformAddress,
     }
   }

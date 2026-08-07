@@ -154,8 +154,8 @@ export class ShieldedService {
   async getPoolInfo(network: Network): Promise<ShieldedPoolInfo> {
     const {poolState, notesCount} = await this.platform.request('poolInfo', network, {})
     return {
-      poolState: poolState != null ? poolState.toString() : null,
-      notesCount: notesCount != null ? notesCount.toString() : null
+      poolState,
+      notesCount,
     }
   }
 
@@ -270,9 +270,9 @@ export class ShieldedService {
   private settleSync(state: ShieldedSyncState, notes: ShieldedNoteInfo[]): void {
     let balance = 0n
     for (const note of notes) {
-      if (!note.spent) balance += BigInt(note.amount)
+      if (!note.spent) balance += note.amount
     }
-    state.balance = balance.toString()
+    state.balance = balance
     state.notes = notes
     state.phase = 'done'
     state.syncedAt = Date.now()
@@ -306,7 +306,7 @@ export class ShieldedService {
 
     const all: ShieldedNoteInfo[] = result.notes.map(note => ({
       index: note.index,
-      amount: note.amount.toString(),
+      amount: note.amount,
       spent: note.spent,
       address: note.address,
     })).sort((a, b) => b.index - a.index)
@@ -514,7 +514,7 @@ export class ShieldedService {
       assetLockProof: proof,
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
-      shieldAmountCredits: shieldAmountFromLockedDuffs(BigInt(row.amountDuffs)),
+      shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs),
       surplusAddress: surplus.toBech32m(network),
     })
 
@@ -528,14 +528,14 @@ export class ShieldedService {
     const sync = this.syncStates.get(walletId)
     if (sync == null || sync.phase !== 'done') return
     const spent = new Set(indexes)
-    let balance = sync.balance !== null ? BigInt(sync.balance) : 0n
+    let balance = sync.balance ?? 0n
     for (const note of sync.notes) {
       if (!note.spent && spent.has(note.index)) {
         note.spent = true
-        balance -= BigInt(note.amount)
+        balance -= note.amount
       }
     }
-    sync.balance = (balance > 0n ? balance : 0n).toString()
+    sync.balance = balance > 0n ? balance : 0n
   }
 
 }

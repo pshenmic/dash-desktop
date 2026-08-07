@@ -26,7 +26,6 @@ import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
 import {AddPlatformAddressHandler} from "./api/wallet/addPlatformAddress";
 import {AddWalletAddressHandler} from "./api/wallet/addWalletAddress";
 import {GetTransactionByHashHandler} from "./api/wallet/getTransactionByHash";
-import {GetBlockByHash} from "./api/wallet/getBlockByHash";
 import {GetBalance} from "./api/wallet/getBalance";
 import {DeleteWalletHandler} from "./api/wallet/deleteWallet";
 import {GetWalletBalance} from "./api/wallet/getWalletBalance";
@@ -130,7 +129,6 @@ export class WalletBackend {
     ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.walletService).handle)
     ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('addPlatformAddress', new AddPlatformAddressHandler(this.platformAddressService).handle)
-    ipcMain.handle('getBlockByHash', new GetBlockByHash(this.walletService).handle)
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)

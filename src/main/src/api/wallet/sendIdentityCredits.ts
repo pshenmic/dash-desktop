@@ -14,13 +14,13 @@ export class SendIdentityCreditsHandler {
     walletId: string,
     identityId: string,
     toAddress: string,
-    amountCredits: string,
+    amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
     return this.platformAddressService.sendIdentityCreditsToAddresses(
       walletId,
       identityId,
-      [{address: toAddress, amountCredits: BigInt(amountCredits)}],
+      [{address: toAddress, amountCredits: amountCredits}],
       password,
     )
   }

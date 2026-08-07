@@ -13,10 +13,10 @@ export class SendTransactionHandler {
     _event: IpcMainInvokeEvent,
     walletId: string,
     toAddress: string,
-    amountDuffs: string,
+    amountDuffs: bigint,
     password: string,
     fromAddress?: string,
   ): Promise<SendResult> => {
-    return this.walletService.sendTransaction(walletId, toAddress, BigInt(amountDuffs), password, fromAddress)
+    return this.walletService.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress)
   }
 }

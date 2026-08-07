@@ -183,7 +183,7 @@ export default function AssetLockFundingModal({
       }
       const initial = resume
         ? await API.resumeAssetLockFunding(walletId, password)
-        : await API.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password, kind)
+        : await API.startAssetLockFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind)
       setState(initial)
       setStarted(true)
       setBusy(false)

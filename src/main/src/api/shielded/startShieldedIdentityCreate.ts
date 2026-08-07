@@ -8,7 +8,7 @@ export class StartShieldedIdentityCreateHandler {
     this.shieldedService = shieldedService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string, denominationCredits: string, password: string): Promise<ShieldedSpendState> => {
-    return this.shieldedService.startIdentityCreate(walletId, password, BigInt(denominationCredits))
+  handle = async (_event: IpcMainInvokeEvent, walletId: string, denominationCredits: bigint, password: string): Promise<ShieldedSpendState> => {
+    return this.shieldedService.startIdentityCreate(walletId, password, denominationCredits)
   }
 }

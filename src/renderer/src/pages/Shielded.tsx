@@ -117,7 +117,7 @@ export default function ShieldedPage(): React.JSX.Element {
   const [unlockOpen, setUnlockOpen] = useState(false)
 
   const transparentCredits = useMemo(
-    () => platformAddresses.reduce((sum, a) => sum + BigInt(a.balanceCredits), 0n),
+    () => platformAddresses.reduce((sum, a) => sum + a.balanceCredits, 0n),
     [platformAddresses],
   )
 
@@ -125,7 +125,7 @@ export default function ShieldedPage(): React.JSX.Element {
 
   const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
 
-  const notesCount = poolInfo.notesCount !== null ? BigInt(poolInfo.notesCount).toLocaleString('en-US') : null
+  const notesCount = poolInfo.notesCount !== null ? poolInfo.notesCount.toLocaleString('en-US') : null
 
   return (
     <div className={"flex flex-col gap-8 px-12 pb-10"}>
@@ -158,7 +158,7 @@ export default function ShieldedPage(): React.JSX.Element {
             </div>
             {shieldedReady ? (
               <Text size={20} weight={"bold"} color={"blue-mint"}>
-                <CreditsAmount credits={BigInt(sync.balance as string)} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
+                <CreditsAmount credits={sync.balance ?? 0n} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
               </Text>
             ) : (
               <div className={"flex items-baseline gap-1.5"}>

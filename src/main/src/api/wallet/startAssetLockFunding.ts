@@ -16,21 +16,19 @@ export class StartAssetLockFundingHandler {
     _event: IpcMainInvokeEvent,
     walletId: string,
     toPlatformAddress: string,
-    amountDuffs: string,
+    amountDuffs: bigint,
     password: string,
     kind?: AssetLockFundingKind,
   ): Promise<AssetLockFundingState> => {
-    const amount = BigInt(amountDuffs)
-
     switch (kind ?? 'address') {
       case 'shielded':
-        return this.shieldedService.startShieldFromL1(walletId, toPlatformAddress, amount, password)
+        return this.shieldedService.startShieldFromL1(walletId, toPlatformAddress, amountDuffs, password)
       case 'identity':
-        return this.identityRegistrationService.startIdentityCreate(walletId, amount, password)
+        return this.identityRegistrationService.startIdentityCreate(walletId, amountDuffs, password)
       case 'identityTopUp':
-        return this.identityRegistrationService.startIdentityTopUp(walletId, toPlatformAddress, amount, password)
+        return this.identityRegistrationService.startIdentityTopUp(walletId, toPlatformAddress, amountDuffs, password)
       case 'address':
-        return this.platformAddressService.startFundingFromL1(walletId, toPlatformAddress, amount, password)
+        return this.platformAddressService.startFundingFromL1(walletId, toPlatformAddress, amountDuffs, password)
     }
   }
 }

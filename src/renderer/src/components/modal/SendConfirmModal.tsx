@@ -175,7 +175,7 @@ export default function SendConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
-      const res = await API.sendTransaction(walletId, toAddress, amountDuffs.toString(), password, fromAddress)
+      const res = await API.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
@@ -292,7 +292,7 @@ export default function SendConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? davToDash(BigInt(result.amount)) : ''} Dash sent
+                {result ? davToDash(result.amount) : ''} Dash sent
               </Text>
               <div className={"mt-2 flex items-center justify-center gap-2"}>
                 {lockFinal
@@ -316,7 +316,7 @@ export default function SendConfirmModal({
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-                <Text size={12} weight={"medium"} color={"brand"}>{result ? davToDash(BigInt(result.fee)) : ''} Dash</Text>
+                <Text size={12} weight={"medium"} color={"brand"}>{result ? davToDash(result.fee) : ''} Dash</Text>
               </div>
               {result?.txid && <TxidField txid={result.txid} network={network} />}
             </div>

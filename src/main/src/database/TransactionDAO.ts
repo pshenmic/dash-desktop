@@ -5,6 +5,7 @@ import type {TxLockStatus} from '../types/TxLockStatus'
 import type {Network} from '../types'
 
 import {PendingTx} from '../types/PendingTx'
+import {SELECT_CHUNK_SIZE} from '../constants'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 
@@ -355,6 +356,18 @@ export class TransactionDAO {
       .whereNull('spent_in_txid')
 
     return rows.reduce((sum: bigint, row: {satoshis: string}) => sum + BigInt(row.satoshis), 0n)
+  }
+
+  getUsedAddresses = async (walletId: string, addresses: string[]): Promise<string[]> => {
+    const used = new Set<string>()
+    for (let offset = 0; offset < addresses.length; offset += SELECT_CHUNK_SIZE) {
+      const rows = await this.knex('transaction_outputs')
+        .distinct('address')
+        .where('wallet_id', walletId)
+        .whereIn('address', addresses.slice(offset, offset + SELECT_CHUNK_SIZE))
+      for (const row of rows) used.add(row.address as string)
+    }
+    return addresses.filter(address => used.has(address))
   }
 
   // One query returning the (tx × output × input × prev-output) product, pivoted

@@ -19,6 +19,7 @@ interface ShieldConfirmModalProps {
   fromAddress: string
   toAddress: string
   amountCredits: string
+  feeCredits: bigint | null
   proverReady: boolean
   onSuccess: () => void
 }
@@ -32,6 +33,7 @@ export default function ShieldConfirmModal({
   fromAddress,
   toAddress,
   amountCredits,
+  feeCredits,
   proverReady,
   onSuccess,
 }: ShieldConfirmModalProps): React.JSX.Element | null {
@@ -61,7 +63,7 @@ export default function ShieldConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
-      const res = await API.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password)
+      const res = await API.shieldToPool(walletId, fromAddress, toAddress, BigInt(amountCredits), password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
@@ -105,6 +107,12 @@ export default function ShieldConfirmModal({
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
                 <Text size={14} weight={"extrabold"} color={"brand"}><CreditsAmount credits={BigInt(amountCredits)} align={"end"} /></Text>
               </div>
+              {feeCredits !== null && (
+                <div className={"flex justify-between items-center gap-4"}>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
+                  <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
+                </div>
+              )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromAddress}</Text>
@@ -190,7 +198,7 @@ export default function ShieldConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result && <CreditsAmount credits={BigInt(result.amountCredits)} />} shielded
+                {result && <CreditsAmount credits={result.amountCredits} align={"center"} />}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Moved into the shielded pool. If it went to your own address, re-sync notes to see it.

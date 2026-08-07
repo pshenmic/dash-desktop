@@ -23,6 +23,8 @@ export const WITHDRAWAL_SUCCESS_NOTE = 'Withdrawals to Core chain are processed 
 
 export const SHIELDED_BALANCE_UNKNOWN_ERROR = 'Shielded balance is unknown — sync notes on the Shielded page before sending.'
 
+export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
+
 export const sendPageData: TransferPageType = {
   header: {
     title: 'Send',

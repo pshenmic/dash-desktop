@@ -96,16 +96,20 @@ export const SELECT_CHUNK_SIZE = 500
 export const RATES_TTL_MS = 60_000
 export const RATES_REQUEST_TIMEOUT_MS = 8_000
 
-export const INSIGHT_BASE_URLS: Record<'mainnet' | 'testnet', string> = {
-  mainnet: 'https://insight.dash.org/insight-api',
-  testnet: 'https://insight.testnet.networks.dash.org/insight-api'
+export const DASHSCAN_BASE_URLS: Record<'mainnet' | 'testnet', string> = {
+  mainnet: 'https://dashscan.pshenmic.dev',
+  testnet: 'https://testnet.dashscan.pshenmic.dev'
 }
-export const INSIGHT_ADDRESS_CHUNK = 25
+// The batch endpoints reject more than 100 addresses per call.
+export const DASHSCAN_ADDRESS_CHUNK = 100
+export const DASHSCAN_PAGE_LIMIT = 100
 
 // Chromium's own timeout runs into the tens of seconds — long enough that a
 // stalled read reads as a hung wallet.
-export const INSIGHT_REQUEST_TIMEOUT_MS = 15_000
-export const INSIGHT_RETRY_DELAYS_MS = [300, 1_200]
+export const DASHSCAN_REQUEST_TIMEOUT_MS = 15_000
+export const DASHSCAN_RETRY_DELAYS_MS = [300, 1_200]
+
+export const DUFFS_PER_DASH = 100_000_000n
 
 // base58check payload: 1 version byte + 20 hash bytes.
 export const ADDRESS_DECODED_LENGTH = 21

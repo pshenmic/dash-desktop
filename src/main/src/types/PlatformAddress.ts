@@ -1,5 +1,5 @@
 export interface PlatformAddressEntry {
   platformAddress: string
-  balanceCredits: string
+  balanceCredits: bigint
   nonce: number
 }

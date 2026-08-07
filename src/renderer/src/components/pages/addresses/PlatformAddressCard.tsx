@@ -38,7 +38,7 @@ export default function PlatformAddressCard({
 
       <div className={"flex items-center gap-2 shrink-0"}>
         <Text size={14} weight={"medium"} color={"brand"}>
-          <CreditsAmount credits={BigInt(balanceCredits)} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
+          <CreditsAmount credits={balanceCredits} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
         </Text>
       </div>
     </div>

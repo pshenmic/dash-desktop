@@ -11,8 +11,8 @@ export interface ShieldedStatus {
 }
 
 export interface ShieldedPoolInfo {
-  poolState: string | null
-  notesCount: string | null
+  poolState: bigint | null
+  notesCount: bigint | null
 }
 
 export interface ShieldedNotesInfo {
@@ -21,7 +21,7 @@ export interface ShieldedNotesInfo {
 
 export interface ShieldedNoteInfo {
   index: number
-  amount: string
+  amount: bigint
   spent: boolean
   address: string
 }
@@ -30,7 +30,7 @@ export interface ShieldedSyncState {
   phase: ShieldedSyncPhase
   fetched: number
   total: number
-  balance: string | null
+  balance: bigint | null
   notes: ShieldedNoteInfo[]
   error: string | null
   syncedAt: number | null

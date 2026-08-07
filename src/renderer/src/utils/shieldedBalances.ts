@@ -4,7 +4,7 @@ export function shieldedBalancesByAddress(notes: ShieldedNoteInfo[]): Map<string
   const map = new Map<string, bigint>()
   for (const note of notes) {
     if (note.spent) continue
-    map.set(note.address, (map.get(note.address) ?? 0n) + BigInt(note.amount))
+    map.set(note.address, (map.get(note.address) ?? 0n) + note.amount)
   }
   return map
 }
@@ -26,6 +26,6 @@ export function groupShieldedNotesByAddress(notes: ShieldedNoteInfo[]): Shielded
   return Array.from(groups, ([address, groupNotes]) => ({
     address,
     notes: groupNotes,
-    total: groupNotes.reduce((sum, n) => sum + BigInt(n.amount), 0n),
+    total: groupNotes.reduce((sum, n) => sum + n.amount, 0n),
   })).sort((a, b) => (a.total > b.total ? -1 : a.total < b.total ? 1 : a.address < b.address ? -1 : 1))
 }

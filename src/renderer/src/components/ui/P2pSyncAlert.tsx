@@ -10,7 +10,7 @@ export default function P2pSyncAlert(): React.JSX.Element {
           <Text size={14} weight={"extrabold"} className={"text-dash-orange!"}>Waiting for P2P sync</Text>
         </div>
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-          Sending from Dash Core (L1) is unavailable while the wallet is syncing over P2P. Wait until synchronization completes, or switch the connection mode to Dash Insight API (RPC).
+          Sending from Dash Core (L1) is unavailable while the wallet is syncing over P2P. Wait until synchronization completes, or switch the connection mode to Dashscan API (RPC).
         </Text>
       </div>
     </div>

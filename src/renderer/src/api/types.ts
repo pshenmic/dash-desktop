@@ -5,6 +5,8 @@ import { WalletSyncPhase } from '../enums/WalletSyncPhase'
 import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
+import { ShieldedSpendKind } from '../enums/ShieldedSpendKind'
+import { TransferOperation } from '../enums/TransferOperation'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -30,7 +32,7 @@ export type GetAddressesResponse = {
 // getPlatformAddresses
 export interface PlatformAddressDto {
   platformAddress: string
-  balanceCredits: string
+  balanceCredits: bigint
   nonce: number
 }
 
@@ -45,8 +47,8 @@ export interface TransitionFeeInput {
 export type TransitionFeeQuery =
   | { kind: 'addressTransfer'; inputCount: number; recipients: string[] }
   | { kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean }
-  | { kind: 'shieldedSpend'; spendKind: 'transfer' | 'unshield' | 'withdrawal' | 'identityCreate'; noteCount: number; recipients: string[] }
-  | { kind: 'shield'; noteCount: number; fromAssetLock: boolean; surplusAddress: string | null }
+  | { kind: 'shieldedSpend'; spendKind: ShieldedSpendKind; noteCount: number; recipients: string[] }
+  | { kind: 'shield'; noteCount: number; inputCount: number; fromAssetLock: boolean; surplusAddress: string | null }
   | { kind: 'identityCreditsToAddresses'; identityId: string; recipients: { address: string; amountCredits: bigint }[] }
   | { kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint }
   | { kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string }
@@ -65,6 +67,29 @@ export interface TransitionFeeDto {
   storageFeeCredits: bigint
   totalFeeCredits: bigint
   newAddresses: string[]
+}
+
+export interface TransitionFeeParams {
+  destinationValid: boolean
+  recipient: string
+  amountCredits: bigint
+  source: PlatformAddressDto | null
+  identityId: string | null
+}
+
+export interface OperationFeeParams extends TransitionFeeParams {
+  notes: ShieldedNoteInfo[] | null
+}
+
+export interface AmountValidationParams {
+  isDashUnit: boolean
+  amount: string
+  operation: TransferOperation | null
+  amountCredits: bigint
+  minCredits: bigint
+  availableCredits: bigint | null
+  feeCredits: bigint | null
+  maxPerTx: bigint | null
 }
 
 // getStatus
@@ -153,8 +178,8 @@ export interface Contact {
 // sendTransaction
 export interface SendResult {
   txid: string
-  amount: string
-  fee: string
+  amount: bigint
+  fee: bigint
   toAddress: string
   changeAddress: string | null
   peersAcked: number
@@ -168,8 +193,8 @@ export interface TxLockStatus {
 
 export interface PlatformSendResult {
   stHash: string
-  amountCredits: string
-  feeCredits: string
+  amountCredits: bigint
+  feeCredits: bigint
   fromAddress: string
   toAddress: string
 }
@@ -184,7 +209,7 @@ export interface AssetLockFundingState {
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null
-  amountDuffs: string | null
+  amountDuffs: bigint | null
   error: string | null
 }
 
@@ -192,14 +217,14 @@ export interface IdentityCreateResult {
   identifier: string
   identityIndex: number
   stHash: string
-  amountCredits: string
-  feeCredits: string
+  amountCredits: bigint
+  feeCredits: bigint
   fromAddress: string
 }
 
 export interface ShieldResult {
   stHash: string
-  amountCredits: string
+  amountCredits: bigint
   fromAddress: string
 }
 
@@ -212,8 +237,8 @@ export interface ShieldedStatus {
 }
 
 export interface ShieldedPoolInfo {
-  poolState: string | null
-  notesCount: string | null
+  poolState: bigint | null
+  notesCount: bigint | null
 }
 
 export interface ShieldedNotesInfo {
@@ -222,7 +247,7 @@ export interface ShieldedNotesInfo {
 
 export interface ShieldedNoteInfo {
   index: number
-  amount: string
+  amount: bigint
   spent: boolean
   address: string
 }
@@ -233,7 +258,7 @@ export interface ShieldedSyncState {
   phase: ShieldedSyncPhase
   fetched: number
   total: number
-  balance: string | null
+  balance: bigint | null
   notes: ShieldedNoteInfo[]
   error: string | null
   syncedAt: number | null

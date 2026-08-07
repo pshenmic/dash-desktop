@@ -12,6 +12,9 @@ import {
 import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
 import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
+import { ShieldedSpendKind } from '../../src/renderer/src/enums/ShieldedSpendKind'
+
+const SPEND_KINDS: Array<ShieldedSpendKind | null> = [...Object.values(ShieldedSpendKind), null]
 
 const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, TransferOperation | null>>> = {
   [SourceKind.Core]: {
@@ -82,24 +85,39 @@ describe('unsupportedReason', () => {
 })
 
 describe('operationInfo', () => {
-  it('exposes credits fee and minimum for platform operations', () => {
-    expect(operationInfo(TransferOperation.AddressFundsTransfer)).toMatchObject({unit: 'credits', feeCredits: 6_500_000n, minCredits: 500_000n})
-    expect(operationInfo(TransferOperation.AddressWithdrawal).feeCredits).toBe(400_000_000n)
-    expect(operationInfo(TransferOperation.IdentityWithdrawal).feeCredits).toBe(400_000_000n)
+  it('exposes the credits unit and minimum for platform operations', () => {
+    expect(operationInfo(TransferOperation.AddressFundsTransfer)).toMatchObject({unit: 'credits', minCredits: 500_000n})
+    expect(operationInfo(TransferOperation.AddressWithdrawal).minCredits).toBe(100_000n)
+    expect(operationInfo(TransferOperation.IdentityWithdrawal).minCredits).toBe(100_000n)
     expect(operationInfo(TransferOperation.IdentityTopUp).minCredits).toBe(100_000n)
-    expect(operationInfo(TransferOperation.IdentityToIdentity)).toMatchObject({unit: 'credits', feeCredits: 1_000_000n, minCredits: 100_000n})
+    expect(operationInfo(TransferOperation.IdentityToIdentity)).toMatchObject({unit: 'credits', minCredits: 100_000n})
   })
 
-  it('leaves the fee null for pool-paid shielded spends (computed from note count)', () => {
-    expect(operationInfo(TransferOperation.ShieldedTransfer).feeCredits).toBeNull()
-    expect(operationInfo(TransferOperation.Unshield).feeCredits).toBeNull()
-    expect(operationInfo(TransferOperation.ShieldedWithdrawal).feeCredits).toBeNull()
+  it('uses dash units for L1-sourced operations', () => {
+    expect(operationInfo(TransferOperation.CoreSend)).toMatchObject({unit: 'dash', minCredits: null})
+    expect(operationInfo(TransferOperation.AssetLockShield)).toMatchObject({unit: 'dash', minCredits: null})
+    expect(operationInfo(TransferOperation.IdentityTopUpL1)).toMatchObject({unit: 'dash', minCredits: null, submitLabel: 'Top up'})
   })
 
-  it('uses dash units without a credits fee for L1-sourced operations', () => {
-    expect(operationInfo(TransferOperation.CoreSend)).toMatchObject({unit: 'dash', feeCredits: null})
-    expect(operationInfo(TransferOperation.AssetLockShield)).toMatchObject({unit: 'dash', feeCredits: null})
-    expect(operationInfo(TransferOperation.IdentityTopUpL1)).toMatchObject({unit: 'dash', feeCredits: null, submitLabel: 'Top up'})
+  it('maps every pool-paid operation to its spend kind', () => {
+    expect(operationInfo(TransferOperation.ShieldedTransfer).spendKind).toBe(ShieldedSpendKind.Transfer)
+    expect(operationInfo(TransferOperation.Unshield).spendKind).toBe(ShieldedSpendKind.Unshield)
+    expect(operationInfo(TransferOperation.ShieldedWithdrawal).spendKind).toBe(ShieldedSpendKind.Withdrawal)
+    expect(operationInfo(TransferOperation.IdentityCreateFromPool).spendKind).toBe(ShieldedSpendKind.IdentityCreate)
+  })
+
+  it('has no spend kind for operations the pool does not pay for', () => {
+    expect(operationInfo(TransferOperation.AddressFundsTransfer).spendKind).toBeNull()
+    expect(operationInfo(TransferOperation.CoreSend).spendKind).toBeNull()
+    expect(operationInfo(TransferOperation.Shield).spendKind).toBeNull()
+  })
+
+  it('classifies every operation', () => {
+    for (const operation of Object.values(TransferOperation)) {
+      const info = operationInfo(operation)
+      expect(info).toBeDefined()
+      expect(SPEND_KINDS).toContain(info.spendKind)
+    }
   })
 })
 

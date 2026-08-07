@@ -25,7 +25,7 @@ const row = (overrides: Partial<AssetLockFundingRow> = {}): AssetLockFundingRow 
   txid: 'assetlock-txid',
   outputIndex: 0,
   creditDerivationPath: REGISTRATION_PATH,
-  amountDuffs: LOCK_AMOUNT.toString(),
+  amountDuffs: LOCK_AMOUNT,
   toPlatformAddress: '',
   kind: 'identity',
   status: AssetLockFundingStatus.L1Broadcast,

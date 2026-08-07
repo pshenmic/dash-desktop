@@ -1,12 +1,12 @@
 import type { PlatformAddressDto, WalletAddressDto } from '../api/types'
 
 export function isUnusedPlatformAddress(address: PlatformAddressDto): boolean {
-  return address.nonce === 0 && BigInt(address.balanceCredits) === 0n
+  return address.nonce === 0 && address.balanceCredits === 0n
 }
 
 export function defaultReceivePlatformAddress(addresses: PlatformAddressDto[]): PlatformAddressDto | undefined {
   return addresses.find(isUnusedPlatformAddress)
-    ?? addresses.find((a) => BigInt(a.balanceCredits) === 0n)
+    ?? addresses.find((a) => a.balanceCredits === 0n)
     ?? addresses[0]
 }
 

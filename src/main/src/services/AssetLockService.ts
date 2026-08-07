@@ -108,7 +108,7 @@ export class AssetLockService {
       phase: 'building',
       kind,
       toPlatformAddress: destination,
-      amountDuffs: amountDuffs.toString(),
+      amountDuffs,
     }
     this.states.set(walletId, state)
     return state
@@ -159,7 +159,7 @@ export class AssetLockService {
       txid: broadcasted.txid,
       outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
       creditDerivationPath: broadcasted.creditDerivationPath,
-      amountDuffs: amountDuffs.toString(),
+      amountDuffs,
       toPlatformAddress: params.destination,
       kind: params.kind,
       status: AssetLockFundingStatus.L1Broadcast,

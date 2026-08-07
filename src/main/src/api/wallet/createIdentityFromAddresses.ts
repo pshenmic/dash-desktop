@@ -13,9 +13,9 @@ export class CreateIdentityFromAddressesHandler {
     _event: IpcMainInvokeEvent,
     walletId: string,
     fromAddress: string | null,
-    amountCredits: string,
+    amountCredits: bigint,
     password: string,
   ): Promise<IdentityCreateResult> => {
-    return this.platformAddressService.createIdentityFromAddresses(walletId, fromAddress, BigInt(amountCredits), password)
+    return this.platformAddressService.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password)
   }
 }

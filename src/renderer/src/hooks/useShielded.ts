@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
-import { Network, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { Network, ShieldedNoteInfo, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import {
@@ -81,6 +81,23 @@ const INITIAL_SYNC_STATE: ShieldedSyncState = {
   phase: ShieldedSyncPhase.Idle, fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null
 }
 
+function isSameNotes(a: ShieldedNoteInfo[], b: ShieldedNoteInfo[]): boolean {
+  return a.length === b.length && a.every((note, i) => note.index === b[i].index
+    && note.amount === b[i].amount
+    && note.spent === b[i].spent
+    && note.address === b[i].address)
+}
+
+function isSameSyncState(a: ShieldedSyncState, b: ShieldedSyncState): boolean {
+  return a.phase === b.phase
+    && a.fetched === b.fetched
+    && a.total === b.total
+    && a.balance === b.balance
+    && a.error === b.error
+    && a.syncedAt === b.syncedAt
+    && isSameNotes(a.notes, b.notes)
+}
+
 export function useShieldedSyncState(walletId: string | null | undefined): ShieldedSyncState {
   const [state, setState] = useState<ShieldedSyncState>(INITIAL_SYNC_STATE)
 
@@ -99,7 +116,7 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
       try {
         const next = await API.getShieldedSyncState(walletId)
         if (dead) return
-        setState(next)
+        setState(prev => isSameSyncState(prev, next) ? prev : next)
         running = next.phase === ShieldedSyncPhase.Syncing || next.phase === ShieldedSyncPhase.Recovering
         if (wasRunning && !running) invalidateAsyncCache(SHIELDED_NOTES_INFO_CACHE_NS, walletId)
         wasRunning = running
@@ -122,5 +139,5 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
 
 export function useShieldedCredits(walletId: string | null | undefined): bigint {
   const { phase, balance } = useShieldedSyncState(walletId)
-  return phase === ShieldedSyncPhase.Done && balance !== null ? BigInt(balance) : 0n
+  return phase === ShieldedSyncPhase.Done ? balance ?? 0n : 0n
 }

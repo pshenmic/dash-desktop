@@ -20,6 +20,6 @@ export interface AssetLockFundingState {
   stHash: string | null
   toPlatformAddress: string | null
   identityIdentifier: string | null
-  amountDuffs: string | null
+  amountDuffs: bigint | null
   error: string | null
 }

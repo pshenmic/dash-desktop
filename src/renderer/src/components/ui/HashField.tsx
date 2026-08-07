@@ -25,7 +25,7 @@ export default function HashField({ hash, label = 'State transition hash', explo
           hover:dash-block-accent-10 transition-colors duration-200
         `}
       >
-        <Text size={12} weight={"medium"} color={"brand"} className={"font-mono break-all select-all leading-[140%]"}>
+        <Text size={12} weight={"medium"} color={"brand"} className={"font-mono text-[0.6875rem]! break-all select-all leading-[140%]"}>
           {hash}
         </Text>
       </button>

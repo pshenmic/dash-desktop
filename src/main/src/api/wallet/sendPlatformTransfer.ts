@@ -14,9 +14,9 @@ export class SendPlatformTransferHandler {
     walletId: string,
     fromAddress: string,
     toAddress: string,
-    amountCredits: string,
+    amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
-    return this.platformAddressService.sendPlatformTransfer(walletId, fromAddress, toAddress, BigInt(amountCredits), password)
+    return this.platformAddressService.sendPlatformTransfer(walletId, fromAddress, toAddress, amountCredits, password)
   }
 }
