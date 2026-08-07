@@ -13,6 +13,7 @@ import { ZoomPreference, ZOOM_PRESETS } from '@renderer/utils/zoom'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { WalletTxDto } from '@renderer/hooks/useWalletTransactions'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
+import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
 import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
 
@@ -180,6 +181,7 @@ export default function Settings(): React.JSX.Element {
     setClearPending(true)
     try {
       await API.resetWalletSync(network)
+      invalidateAllAsyncCaches()
     } catch (err) {
       console.error('reset sync failed', err)
     } finally {
