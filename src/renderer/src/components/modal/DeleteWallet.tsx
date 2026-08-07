@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { Button, CrossIcon, Input, Text } from "../dash-ui-kit-enxtended"
 import { renderBoldText } from "@renderer/utils/renderBoldText"
 import { useTheme } from "dash-ui-kit/react"
+import { useAuth } from "@renderer/contexts/AuthContext"
 
 const DELETE_CONFIRM_TEXT = 'Delete'
 
@@ -12,6 +13,7 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
   const [confirmText, setConfirmText] = useState('')
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const {theme} = useTheme()
+  const {lock} = useAuth()
 
   const hasInput = confirmText.trim().length > 0
   const isExactMatch = confirmText.toLowerCase().trim() === DELETE_CONFIRM_TEXT.toLowerCase()
@@ -25,9 +27,13 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
     if (!walletToDelete) return
 
     try {
-      await API.deleteWallet(walletToDelete)
+      const result = await API.deleteWallet(walletToDelete)
+      if (!result.success) {
+        throw new Error(result.errorMessage ?? 'Failed to delete wallet')
+      }
       refreshWallets()
       closeDeleteModal()
+      lock()
       toast.error('Wallet deleted')
     } catch (e) {
       console.error(e)

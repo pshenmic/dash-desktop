@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {selectPlatformSource, identityTransferFeeCredits, identityCreateFeeCredits, topUpFeeCredits} from '../../src/main/src/utils/platformTransfer'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
-import {MIN_OUTPUT_CREDITS, TRANSFER_FEE_CREDITS} from '../../src/main/src/constants'
+import {MIN_OUTPUT_CREDITS} from '../../src/main/src/constants'
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
   return {
     platformAddress,
@@ -12,7 +12,8 @@ function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): 
 }
 
 const AMOUNT = 1_000_000n
-const REQUIRED = AMOUNT + TRANSFER_FEE_CREDITS
+const FEE = 6_500_000n
+const REQUIRED = AMOUNT + FEE
 
 describe('selectPlatformSource', () => {
   it('picks the largest balance that covers amount + fee', () => {
@@ -21,34 +22,34 @@ describe('selectPlatformSource', () => {
       candidate('b', REQUIRED + 9_000_000n),
       candidate('c', REQUIRED + 1n),
     ]
-    expect(selectPlatformSource(candidates, AMOUNT).platformAddress).toBe('b')
+    expect(selectPlatformSource(candidates, AMOUNT, FEE).platformAddress).toBe('b')
   })
 
   it('accepts a balance exactly equal to amount + fee', () => {
-    expect(selectPlatformSource([candidate('a', REQUIRED)], AMOUNT).platformAddress).toBe('a')
+    expect(selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, FEE).platformAddress).toBe('a')
   })
 
   it('throws when no address covers amount + fee', () => {
     const candidates = [candidate('a', AMOUNT), candidate('b', REQUIRED - 1n)]
-    expect(() => selectPlatformSource(candidates, AMOUNT)).toThrow(/enough credits/)
+    expect(() => selectPlatformSource(candidates, AMOUNT, FEE)).toThrow(/enough credits/)
   })
 
   it('throws when the amount is below the minimum output', () => {
-    expect(() => selectPlatformSource([candidate('a', REQUIRED)], MIN_OUTPUT_CREDITS - 1n)).toThrow(/Minimum/)
+    expect(() => selectPlatformSource([candidate('a', REQUIRED)], MIN_OUTPUT_CREDITS - 1n, FEE)).toThrow(/Minimum/)
   })
 
   it('uses the explicit source address when given', () => {
     const candidates = [candidate('a', REQUIRED + 9_000_000n), candidate('b', REQUIRED)]
-    expect(selectPlatformSource(candidates, AMOUNT, 'b').platformAddress).toBe('b')
+    expect(selectPlatformSource(candidates, AMOUNT, FEE, 'b').platformAddress).toBe('b')
   })
 
   it('throws when the explicit source address is unknown', () => {
-    expect(() => selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, 'zzz')).toThrow(/not found/)
+    expect(() => selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, FEE, 'zzz')).toThrow(/not found/)
   })
 
   it('throws when the explicit source address cannot cover amount + fee', () => {
     const candidates = [candidate('a', REQUIRED + 9_000_000n), candidate('b', REQUIRED - 1n)]
-    expect(() => selectPlatformSource(candidates, AMOUNT, 'b')).toThrow(/insufficient/)
+    expect(() => selectPlatformSource(candidates, AMOUNT, FEE, 'b')).toThrow(/insufficient/)
   })
 })
 

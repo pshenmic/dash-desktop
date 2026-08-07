@@ -70,7 +70,7 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
 async function minimumFeeCredits(query: FeeQuery, ctx: OperationContext): Promise<bigint> {
   switch (query.kind) {
     case 'addressTransfer':
-      return AddressFundsTransferTransitionWASM.estimateMinFee(query.inputCount, query.recipients.length)
+      return AddressFundsTransferTransitionWASM.estimateMinFee(query.inputCount, query.recipients.length) * 4n
     case 'addressWithdrawal':
       return AddressCreditWithdrawalTransitionWASM.estimateMinFee(query.inputCount, query.hasChange)
     case 'shieldedSpend':

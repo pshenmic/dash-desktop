@@ -13,10 +13,5 @@ export interface CoinSelectionResult {
 }
 
 export interface CoinSelectionParams {
-  feePerByte: bigint
-  signedInputSize: bigint
-  changeOutputSize: bigint
-  baseTxSize: bigint
-  recipientOutputSize: bigint
-  minFee: bigint
+  fee: bigint
 }
