@@ -13,6 +13,7 @@ import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
 import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
 import { ShieldedSpendKind } from '../../src/renderer/src/enums/ShieldedSpendKind'
+import { creditsToDuffs, duffsToCredits } from '../../src/renderer/src/utils/balance'
 
 const SPEND_KINDS: Array<ShieldedSpendKind | null> = [...Object.values(ShieldedSpendKind), null]
 
@@ -85,18 +86,18 @@ describe('unsupportedReason', () => {
 })
 
 describe('operationInfo', () => {
-  it('exposes the credits unit and minimum for platform operations', () => {
-    expect(operationInfo(TransferOperation.AddressFundsTransfer)).toMatchObject({unit: 'credits', minCredits: 500_000n})
+  it('exposes the credit minimum for platform operations', () => {
+    expect(operationInfo(TransferOperation.AddressFundsTransfer)).toMatchObject({minCredits: 500_000n})
     expect(operationInfo(TransferOperation.AddressWithdrawal).minCredits).toBe(100_000n)
     expect(operationInfo(TransferOperation.IdentityWithdrawal).minCredits).toBe(100_000n)
     expect(operationInfo(TransferOperation.IdentityTopUp).minCredits).toBe(100_000n)
-    expect(operationInfo(TransferOperation.IdentityToIdentity)).toMatchObject({unit: 'credits', minCredits: 100_000n})
+    expect(operationInfo(TransferOperation.IdentityToIdentity)).toMatchObject({minCredits: 100_000n})
   })
 
-  it('uses dash units for L1-sourced operations', () => {
-    expect(operationInfo(TransferOperation.CoreSend)).toMatchObject({unit: 'dash', minCredits: null})
-    expect(operationInfo(TransferOperation.AssetLockShield)).toMatchObject({unit: 'dash', minCredits: null})
-    expect(operationInfo(TransferOperation.IdentityTopUpL1)).toMatchObject({unit: 'dash', minCredits: null, submitLabel: 'Top up'})
+  it('does not require credit minimums for L1-sourced operations', () => {
+    expect(operationInfo(TransferOperation.CoreSend)).toMatchObject({minCredits: null})
+    expect(operationInfo(TransferOperation.AssetLockShield)).toMatchObject({minCredits: null})
+    expect(operationInfo(TransferOperation.IdentityTopUpL1)).toMatchObject({minCredits: null, submitLabel: 'Top up'})
   })
 
   it('maps every pool-paid operation to its spend kind', () => {
@@ -132,7 +133,13 @@ describe('isPoolIdentityDenomination', () => {
   })
 
   it('matches the pool minimum in operationInfo', () => {
-    expect(operationInfo(TransferOperation.IdentityCreateFromPool)).toMatchObject({unit: 'credits', minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
+    expect(operationInfo(TransferOperation.IdentityCreateFromPool)).toMatchObject({minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
+  })
+
+  it('represents every denomination exactly as a DASH input', () => {
+    for (const denomination of POOL_IDENTITY_DENOMINATIONS) {
+      expect(duffsToCredits(creditsToDuffs(denomination))).toBe(denomination)
+    }
   })
 })
 

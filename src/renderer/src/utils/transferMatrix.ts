@@ -51,29 +51,28 @@ export function unsupportedReason(from: SourceKind, to: DestinationKind): string
 interface OperationInfo {
   title: string
   submitLabel: string
-  unit: 'credits' | 'dash'
   minCredits: bigint | null
   spendKind: ShieldedSpendKind | null
 }
 
 const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
-  [TransferOperation.CoreSend]: {title: 'Send Dash', submitLabel: 'Send', unit: 'dash', minCredits: null, spendKind: null},
-  [TransferOperation.AssetLockFunding]: {title: 'Fund Platform address', submitLabel: 'Fund', unit: 'dash', minCredits: null, spendKind: null},
-  [TransferOperation.AssetLockShield]: {title: 'Shield from L1', submitLabel: 'Shield', unit: 'dash', minCredits: null, spendKind: null},
-  [TransferOperation.IdentityRegister]: {title: 'Register identity', submitLabel: 'Register', unit: 'dash', minCredits: null, spendKind: null},
-  [TransferOperation.IdentityTopUpL1]: {title: 'Top up identity from L1', submitLabel: 'Top up', unit: 'dash', minCredits: null, spendKind: null},
-  [TransferOperation.AddressFundsTransfer]: {title: 'Transfer credits', submitLabel: 'Send', unit: 'credits', minCredits: 500_000n, spendKind: null},
-  [TransferOperation.IdentityTopUp]: {title: 'Top up identity', submitLabel: 'Top up', unit: 'credits', minCredits: 100_000n, spendKind: null},
-  [TransferOperation.IdentityCreate]: {title: 'Create identity', submitLabel: 'Create', unit: 'credits', minCredits: 500_000n, spendKind: null},
-  [TransferOperation.AddressWithdrawal]: {title: 'Withdraw to Core', submitLabel: 'Withdraw', unit: 'credits', minCredits: 100_000n, spendKind: null},
-  [TransferOperation.Shield]: {title: 'Shield credits', submitLabel: 'Shield', unit: 'credits', minCredits: 500_000n, spendKind: null},
-  [TransferOperation.IdentityToAddress]: {title: 'Send from identity', submitLabel: 'Send', unit: 'credits', minCredits: 500_000n, spendKind: null},
-  [TransferOperation.IdentityToIdentity]: {title: 'Send to identity', submitLabel: 'Send', unit: 'credits', minCredits: 100_000n, spendKind: null},
-  [TransferOperation.IdentityWithdrawal]: {title: 'Withdraw from identity', submitLabel: 'Withdraw', unit: 'credits', minCredits: 100_000n, spendKind: null},
-  [TransferOperation.ShieldedTransfer]: {title: 'Shielded send', submitLabel: 'Send', unit: 'credits', minCredits: 500_000n, spendKind: ShieldedSpendKind.Transfer},
-  [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', unit: 'credits', minCredits: 500_000n, spendKind: ShieldedSpendKind.Unshield},
-  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', unit: 'credits', minCredits: 500_000n, spendKind: ShieldedSpendKind.Withdrawal},
-  [TransferOperation.IdentityCreateFromPool]: {title: 'Create identity from pool', submitLabel: 'Create', unit: 'credits', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
+  [TransferOperation.CoreSend]: {title: 'Send Dash', submitLabel: 'Send', minCredits: null, spendKind: null},
+  [TransferOperation.AssetLockFunding]: {title: 'Fund Platform address', submitLabel: 'Fund', minCredits: null, spendKind: null},
+  [TransferOperation.AssetLockShield]: {title: 'Shield from L1', submitLabel: 'Shield', minCredits: null, spendKind: null},
+  [TransferOperation.IdentityRegister]: {title: 'Register identity', submitLabel: 'Register', minCredits: null, spendKind: null},
+  [TransferOperation.IdentityTopUpL1]: {title: 'Top up identity from L1', submitLabel: 'Top up', minCredits: null, spendKind: null},
+  [TransferOperation.AddressFundsTransfer]: {title: 'Transfer credits', submitLabel: 'Send', minCredits: 500_000n, spendKind: null},
+  [TransferOperation.IdentityTopUp]: {title: 'Top up identity', submitLabel: 'Top up', minCredits: 100_000n, spendKind: null},
+  [TransferOperation.IdentityCreate]: {title: 'Create identity', submitLabel: 'Create', minCredits: 500_000n, spendKind: null},
+  [TransferOperation.AddressWithdrawal]: {title: 'Withdraw to Core', submitLabel: 'Withdraw', minCredits: 100_000n, spendKind: null},
+  [TransferOperation.Shield]: {title: 'Shield credits', submitLabel: 'Shield', minCredits: 500_000n, spendKind: null},
+  [TransferOperation.IdentityToAddress]: {title: 'Send from identity', submitLabel: 'Send', minCredits: 500_000n, spendKind: null},
+  [TransferOperation.IdentityToIdentity]: {title: 'Send to identity', submitLabel: 'Send', minCredits: 100_000n, spendKind: null},
+  [TransferOperation.IdentityWithdrawal]: {title: 'Withdraw from identity', submitLabel: 'Withdraw', minCredits: 100_000n, spendKind: null},
+  [TransferOperation.ShieldedTransfer]: {title: 'Shielded send', submitLabel: 'Send', minCredits: 500_000n, spendKind: ShieldedSpendKind.Transfer},
+  [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', minCredits: 500_000n, spendKind: ShieldedSpendKind.Unshield},
+  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', minCredits: 500_000n, spendKind: ShieldedSpendKind.Withdrawal},
+  [TransferOperation.IdentityCreateFromPool]: {title: 'Create identity from pool', submitLabel: 'Create', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {
