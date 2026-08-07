@@ -61,16 +61,16 @@ export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 
 // BIP-44 gap limits and the ceiling on each discovery walk. Without a ceiling
 // only the gap can stop the loop.
-export const ADDRESS_LOOKAHEAD = 20
+export const ADDRESS_LOOKAHEAD = 100
 export const IDENTITY_LOOKAHEAD = 10
-export const MAX_DISCOVERY_ROUNDS = 10
+export const MAX_DISCOVERY_ROUNDS = 50
 export const IDENTITY_SCAN_LIMIT = 100
 export const PLATFORM_ADDRESS_LOOKAHEAD = 20
 export const MAX_DISCOVERY_BATCHES = 50
 
 // Bounds how far addAddress derives forward while skipping already-used
 // diversified addresses.
-export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 100
+export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 1000
 
 // How often the backend re-runs address discovery for the selected wallet.
 export const DISCOVERY_INTERVAL_MS = 120_000
