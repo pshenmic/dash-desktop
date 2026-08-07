@@ -25,6 +25,8 @@ export const SHIELDED_BALANCE_UNKNOWN_ERROR = 'Shielded balance is unknown — s
 
 export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
 
+export const CORE_FEE_DUFFS = 10_000n
+
 export const sendPageData: TransferPageType = {
   header: {
     title: 'Send',
