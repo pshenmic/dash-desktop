@@ -148,6 +148,7 @@ export default function ShieldedSpendModal({
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const doneStHash = spend?.stHash ?? null
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
+  const sentCredits = BigInt(sentAmount || amountCredits || '0')
   const confirmLabel = busy ? 'Starting…' : !proverReady ? 'Preparing…' : 'Confirm & Send'
 
   return createPortal(
@@ -281,11 +282,11 @@ export default function ShieldedSpendModal({
             <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
               <div className={"success-pop"}><SuccessIcon size={56} /></div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {spend?.identityId ? 'Identity created' : <CreditsAmount credits={BigInt(sentAmount || amountCredits || '0')} align={"center"} />}
+                {spend?.identityId ? 'Identity created' : <CreditsAmount credits={sentCredits} align={"center"} />}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 {spend?.identityId
-                  ? `Funded with ${sentAmount || amountCredits} credits from the pool (minus the Platform fee). Re-sync notes to update your balance.`
+                  ? <>Funded with <CreditsAmount credits={sentCredits} showFiat={false} /> from the pool (minus the Platform fee). Re-sync notes to update your balance.</>
                   : 'Broadcast to Platform. Re-sync notes to update your balance.'}
               </Text>
               {successNote && (

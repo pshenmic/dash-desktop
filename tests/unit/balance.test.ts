@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { davToDash, davToDashCompact, dashToDuffs, formatCompactCredits, creditsToDuffs, creditsFromInput } from '../../src/renderer/src/utils/balance'
+import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, formatCompactCredits } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
 
@@ -15,22 +15,30 @@ describe('creditsToDuffs', () => {
     expect(creditsToDuffs(1_999n)).toBe(1n)
     expect(creditsToDuffs(-1_999n)).toBe(-1n)
   })
+
+  it('rounds a credit balance down to a spend-safe DASH amount', () => {
+    for (const credits of [999n, 1_000n, 1_999n, 500_999n, 100_000_000_999n]) {
+      expect(duffsToCredits(creditsToDuffs(credits))).toBeLessThanOrEqual(credits)
+    }
+  })
 })
 
-describe('creditsFromInput', () => {
-  it('parses whole credit amounts', () => {
-    expect(creditsFromInput('500000')).toBe(500_000n)
-    expect(creditsFromInput('100000000000')).toBe(100_000_000_000n)
-    expect(creditsFromInput('0')).toBe(0n)
-    expect(creditsFromInput(' 42 ')).toBe(42n)
+describe('duffsToCredits', () => {
+  it('converts each duff to 1000 credits', () => {
+    expect(duffsToCredits(1n)).toBe(1_000n)
+    expect(duffsToCredits(ONE_DASH)).toBe(100_000_000_000n)
+    expect(duffsToCredits(0n)).toBe(0n)
   })
 
-  it('returns 0 for non-integer input', () => {
-    expect(creditsFromInput('')).toBe(0n)
-    expect(creditsFromInput('1.5')).toBe(0n)
-    expect(creditsFromInput('abc')).toBe(0n)
-    expect(creditsFromInput('-5')).toBe(0n)
-    expect(creditsFromInput('1e6')).toBe(0n)
+  it('round-trips whole-duff credit amounts', () => {
+    for (const credits of [1_000n, 500_000n, 100_000_000_000n]) {
+      expect(duffsToCredits(creditsToDuffs(credits))).toBe(credits)
+    }
+  })
+
+  it('converts a DASH input into the Platform protocol amount', () => {
+    expect(duffsToCredits(dashToDuffs('1.25'))).toBe(125_000_000_000n)
+    expect(duffsToCredits(dashToDuffs('0.00000001'))).toBe(1_000n)
   })
 })
 
