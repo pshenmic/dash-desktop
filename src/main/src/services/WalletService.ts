@@ -353,6 +353,15 @@ export class WalletService {
     return run
   }
 
+  // A run in flight picked its provider when it started, so it is still asking
+  // the old connection mode which addresses are used. Queue a fresh pass behind
+  // it instead of joining it.
+  rediscoverCoreAddresses(walletId: string): Promise<void> {
+    const existing = this.discoveryInflight.get(walletId)
+    if (existing == null) return this.discoverCoreAddresses(walletId)
+    return existing.catch(() => {}).then(() => this.discoverCoreAddresses(walletId))
+  }
+
   private async runCoreDiscovery(walletId: string): Promise<void> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null || wallet.coreXpub == null) return

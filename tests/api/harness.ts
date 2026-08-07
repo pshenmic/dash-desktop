@@ -25,6 +25,7 @@ export interface Harness {
   addressDAO: AddressDAO
   transactionDAO: TransactionDAO
   walletService: WalletService
+  applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
 }
@@ -63,6 +64,7 @@ export async function harness(): Promise<Harness> {
     addressDAO,
     transactionDAO,
     walletService,
+    applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, addressDAO, walletSyncService, shieldedService),
     request,
   }

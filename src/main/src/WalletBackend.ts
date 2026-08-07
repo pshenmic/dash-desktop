@@ -152,7 +152,7 @@ export class WalletBackend {
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
-    ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService).handle)
+    ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
