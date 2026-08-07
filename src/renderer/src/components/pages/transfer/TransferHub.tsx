@@ -43,7 +43,7 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
+import { CORE_FEE_DUFFS, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
@@ -213,7 +213,7 @@ export default function TransferHub(): React.JSX.Element {
   })
 
   const sliderMaxAmount = useMemo((): bigint | null => {
-    if (isDashUnit) return balanceDuffs
+    if (isDashUnit) return balanceDuffs > CORE_FEE_DUFFS ? balanceDuffs - CORE_FEE_DUFFS : 0n
     if (maxPerTx !== null) return maxPerTx > 0n ? maxPerTx : 0n
     if (availableCredits === null || feeCredits === null) return null
     const spendable = availableCredits - feeCredits
@@ -261,7 +261,7 @@ export default function TransferHub(): React.JSX.Element {
   const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
 
   const amountReady = isDashUnit
-    ? amountDuffs > 0n && amountDuffs <= balanceDuffs
+    ? amountDuffs > 0n && amountDuffs + CORE_FEE_DUFFS <= balanceDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
@@ -290,7 +290,7 @@ export default function TransferHub(): React.JSX.Element {
 
   const handleMax = (): void => {
     if (isDashUnit) {
-      setAmount(davToDash(balanceDuffs))
+      setAmount(davToDash(balanceDuffs > CORE_FEE_DUFFS ? balanceDuffs - CORE_FEE_DUFFS : 0n))
       return
     }
     if (maxPerTx !== null) {
@@ -312,6 +312,8 @@ export default function TransferHub(): React.JSX.Element {
     isDashUnit,
     amount,
     operation,
+    amountDuffs,
+    balanceDuffs,
     amountCredits,
     minCredits,
     availableCredits,
@@ -541,7 +543,12 @@ export default function TransferHub(): React.JSX.Element {
         )}
         {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
       </div>
-      {!isDashUnit && (
+      {isDashUnit ? (
+        <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(CORE_FEE_DUFFS)} Dash</Text>
+        </div>
+      ) : (
         <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
           {feeErr === null && feeCredits !== null ? (
@@ -591,7 +598,19 @@ export default function TransferHub(): React.JSX.Element {
             {isDashUnit ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits} align={"end"} />}
           </Text>
         </div>
-        {!isDashUnit && feeCredits !== null && (
+        {isDashUnit ? (
+          <>
+            <div className={"flex justify-between items-baseline gap-3"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
+              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(CORE_FEE_DUFFS)} Dash</Text>
+            </div>
+            <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
+            <div className={"flex justify-between items-baseline gap-3"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + CORE_FEE_DUFFS)} Dash</Text>
+            </div>
+          </>
+        ) : feeCredits !== null && (
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>

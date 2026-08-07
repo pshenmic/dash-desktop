@@ -9,6 +9,8 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
     isDashUnit: false,
     amount: '1000000',
     operation: TransferOperation.AddressFundsTransfer,
+    amountDuffs: 0n,
+    balanceDuffs: 0n,
     amountCredits: 1_000_000n,
     minCredits: 500_000n,
     availableCredits: 900_000_000n,
@@ -19,8 +21,24 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
 }
 
 describe('amountErrorFor', () => {
-  it('is silent for Dash-denominated operations', () => {
-    expect(amountErrorFor(params({isDashUnit: true, amountCredits: 0n, minCredits: 500_000n}))).toBeNull()
+  it('accepts a Dash amount with room for the fixed network fee', () => {
+    expect(amountErrorFor(params({
+      isDashUnit: true,
+      amount: '0.9999',
+      amountDuffs: 99_990_000n,
+      balanceDuffs: 100_000_000n,
+      amountCredits: 0n,
+    }))).toBeNull()
+  })
+
+  it('reports the max Dash amount after the fixed network fee', () => {
+    expect(amountErrorFor(params({
+      isDashUnit: true,
+      amount: '1',
+      amountDuffs: 100_000_000n,
+      balanceDuffs: 100_000_000n,
+      amountCredits: 0n,
+    }))).toBe('Max sendable is 0.9999 Dash after the network fee.')
   })
 
   it('is silent while nothing has been typed', () => {
