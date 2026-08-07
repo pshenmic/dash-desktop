@@ -81,8 +81,8 @@ export class API {
     return this.api.estimateTransitionFee(network, query) as Promise<TransitionFeeDto>
   }
 
-  static async deleteWallet(walletId: string) {
-    return this.api.deleteWallet(walletId)
+  static async deleteWallet(walletId: string): Promise<QueryStatus> {
+    return this.api.deleteWallet(walletId) as Promise<QueryStatus>
   }
 
   static async selectWallet(walletId: string) {
