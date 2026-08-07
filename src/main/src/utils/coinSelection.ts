@@ -1,20 +1,6 @@
 import {CoinSelectionParams, CoinSelectionResult, SelectableUtxo} from '../types/CoinSelection'
 import {DEFAULT_SELECTION_PARAMS} from '../constants'
 
-function estimateFee(
-  inputCount: number,
-  withChange: boolean,
-  params: CoinSelectionParams,
-): bigint {
-  const size =
-    params.baseTxSize +
-    params.signedInputSize * BigInt(inputCount) +
-    params.recipientOutputSize +
-    (withChange ? params.changeOutputSize : 0n)
-  const fee = size * params.feePerByte
-  return fee < params.minFee ? params.minFee : fee
-}
-
 export function selectCoins(
   utxos: SelectableUtxo[],
   target: bigint,
@@ -33,19 +19,9 @@ export function selectCoins(
     selected.push(utxo)
     inputTotal += utxo.satoshis
 
-    // Enough to add a change output worth keeping: charge the with-change fee
-    // and return the remainder as change.
-    const feeWithChange = estimateFee(selected.length, true, params)
-    const change = inputTotal - target - feeWithChange
-    if (change >= params.minFee) {
-      return { inputs: selected, inputTotal, fee: feeWithChange, change }
-    }
-
-    // Not enough for a worthwhile change output, but enough to cover the amount
-    // and the (smaller) no-change fee — drop the dust remainder into the fee.
-    const feeNoChange = estimateFee(selected.length, false, params)
-    if (inputTotal >= target + feeNoChange) {
-      return { inputs: selected, inputTotal, fee: inputTotal - target, change: 0n }
+    const change = inputTotal - target - params.fee
+    if (change >= 0n) {
+      return { inputs: selected, inputTotal, fee: params.fee, change }
     }
   }
 
