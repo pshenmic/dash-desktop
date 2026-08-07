@@ -112,7 +112,7 @@ export class WalletBackend {
       throw new Error('Services not initialized. Call start() first.')
     }
 
-    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.addressDAO, this.walletSyncService, this.shieldedService).handle)
+    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.shieldedService).handle)
     ipcMain.handle('deleteWallet', new DeleteWalletHandler(this.walletService).handle)
     ipcMain.handle('getAllWallets', new GetAllWalletsHandler(this.walletService).handle)
     ipcMain.handle('selectWallet', new SelectWallet(this.walletService).handle)
@@ -236,6 +236,12 @@ export class WalletBackend {
     this.walletSyncService.onWalletActivity = (walletId) => {
       walletService.discoverCoreAddresses(walletId).catch(err =>
         console.error('[discovery] post-sync address discovery failed:', err))
+    }
+    // The scan is stopped until this answers, so it must not join a discovery
+    // run that started before the block that exhausted the gap was persisted.
+    this.walletSyncService.onGapExhausted = (gap) => {
+      walletService.rediscoverCoreAddresses(gap.walletId).catch(err =>
+        console.error('[discovery] gap-exhausted address discovery failed:', err))
     }
     discoverSelected().catch(err => console.error('[discovery] startup address discovery failed:', err))
     setInterval(() => {

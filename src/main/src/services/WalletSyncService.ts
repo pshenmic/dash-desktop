@@ -2,7 +2,8 @@ import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import {ChainStorageFilename, HomeFolderName, LOCK_WATCH_TTL_MS} from '../constants'
+import {ADDRESS_LOOKAHEAD, ChainStorageFilename, HomeFolderName, LOCK_WATCH_TTL_MS} from '../constants'
+import {Address} from '../types/Address'
 import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
 import {
@@ -15,7 +16,7 @@ import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../p2p/types/messages'
 import {BroadcastPolicyOverrides, BroadcastResult} from '../../p2p/types/broadcast'
-import {AppliedBlock, AppliedTx, WalletSyncStatus, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from '../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
@@ -63,6 +64,10 @@ export class WalletSyncService {
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
+  onGapExhausted: ((gap: GapExhausted) => void) | null = null
+  // Wallets whose scan is held waiting for addresses. The worker resumes at the
+  // held height, so the addresses answering it must not also rewind the cursor.
+  private gapHeld = new Set<string>()
   // txid -> serialized isdlock (hex), feeding InstantAssetLockProof
   // construction for shield / asset-lock funding.
   private instantLocks = new Map<string, string>()
@@ -166,6 +171,16 @@ export class WalletSyncService {
       this.enqueuePersist(() => this.advanceCursorGated(data.walletId, data.height))
     } else if (data.type === 'cursorReset') {
       this.enqueuePersist(() => this.transactionDAO.resetCursor(data.walletId, data.height))
+    } else if (data.type === 'gapExhausted') {
+      this.gapHeld.add(data.gap.walletId)
+      console.log(
+        `[discovery] scan held at h=${data.gap.height}: ${data.gap.isChange ? 'change' : 'receiving'} ` +
+        `lastUsed=${data.gap.lastUsedIndex} maxIndex=${data.gap.maxIndex} — deriving more addresses`,
+      )
+      // After the queued writes for the blocks that caused this, or discovery
+      // reads a SQL state that does not yet show the usage. Not *on* the queue:
+      // the discovery it triggers enqueues its own cursor write.
+      this.persistQueue.catch(() => undefined).then(() => this.onGapExhausted?.(data.gap))
     } else if (data.type === 'broadcastResult') {
       const resolve = this.pendingBroadcasts.get(data.requestId)
       if (resolve) {
@@ -214,8 +229,9 @@ export class WalletSyncService {
 
     // Only this wallet's addresses go into the watch set.
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const watchAddresses = [...grouped.receiving, ...grouped.change].map(a => a.address)
+    const watchAddresses = [...grouped.receiving, ...grouped.change].map(toWatchAddress)
 
+    this.gapHeld.delete(walletId)
     this.activeWalletId = walletId
     this.activeNetwork = network
     // The persisted cursor is already capped below any gap, so this scan
@@ -241,6 +257,7 @@ export class WalletSyncService {
       walletId,
       chainDbPath,
       watchAddresses,
+      gapLimit: ADDRESS_LOOKAHEAD,
       seedUtxos,
       cfilterCursor,
       // birthdayHeight is intentionally undefined — defaults to genesis in the
@@ -269,7 +286,7 @@ export class WalletSyncService {
   // is derived, and those addresses may still carry pre-tip history.
   addWatchAddresses = async (
     walletId: string,
-    addresses: string[],
+    addresses: Address[],
     opts: {forwardOnly?: boolean} = {},
   ): Promise<void> => {
     if (addresses.length === 0) return
@@ -277,9 +294,19 @@ export class WalletSyncService {
     if (!wallet) return
     const network = wallet.network as 'mainnet' | 'testnet'
 
+    // A held scan already stopped at the block that exhausted the gap and will
+    // resume from there, so there is nothing behind it left to re-match.
+    const answersHold = this.gapHeld.delete(walletId)
     const scannedOnce = await this.transactionDAO.getInitialScanComplete(walletId)
-    const skipRewind = opts.forwardOnly === true || scannedOnce
+    const skipRewind = answersHold || opts.forwardOnly === true || scannedOnce
     const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
+
+    console.log(
+      `[discovery] watching ${addresses.length} new address(es): ` +
+      (answersHold ? 'resuming held scan'
+        : rewindToHeight == null ? 'forward-only'
+        : `rescanning from h=${rewindToHeight}`),
+    )
 
     if (rewindToHeight != null) {
       // Through the persist queue: applied directly, a cursorAdvanced enqueued
@@ -288,7 +315,7 @@ export class WalletSyncService {
       await this.enqueuePersist(() => this.transactionDAO.resetCursor(walletId, rewindToHeight))
     }
     if (!this.child) return
-    this.send({type: 'addWatchAddresses', walletId, addresses, rewindToHeight})
+    this.send({type: 'addWatchAddresses', walletId, addresses: addresses.map(toWatchAddress), rewindToHeight})
   }
 
   getStatus = (): WalletSyncStatus => {
@@ -614,6 +641,10 @@ export class WalletSyncService {
       updatedAt: Date.now(),
     }
   }
+}
+
+function toWatchAddress(a: Address): WatchAddress {
+  return {address: a.address, index: a.index, isChange: a.isChange, isUsed: a.isUsed}
 }
 
 function txidFromHex(txHex: string): string | undefined {

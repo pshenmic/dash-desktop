@@ -51,6 +51,28 @@ export interface WalletSyncStatus {
   updatedAt: number
 }
 
+// ── Watch set ───────────────────────────────────────────────────────────────
+
+// The derivation index travels with the address so the worker can tell, without
+// asking main, whether a block just consumed the last unused address.
+export interface WatchAddress {
+  address: string
+  index: number
+  isChange: boolean
+  isUsed: boolean
+}
+
+// The scan stopped: fewer than gapLimit unused addresses remain above lastUsed
+// on this chain, so blocks past `height` cannot be matched correctly until main
+// derives more. The scan resumes at height + 1, never from genesis.
+export interface GapExhausted {
+  walletId: string
+  height: number
+  isChange: boolean
+  lastUsedIndex: number
+  maxIndex: number
+}
+
 // ── UTXO snapshot ───────────────────────────────────────────────────────────
 
 export interface WalletSyncUtxo {

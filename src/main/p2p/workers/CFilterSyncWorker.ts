@@ -30,6 +30,7 @@ import type {
   AppliedTxInput,
   AppliedTxOutput,
   WalletSyncUtxo,
+  WatchAddress,
 } from '../types/walletSync'
 import type {
   BlockRequest,
@@ -37,6 +38,7 @@ import type {
   CFilterPhase,
   CFilterSyncWorkerOptions,
   CFilterSyncWorkerStatus,
+  ChainGapState,
   PendingCFHeaders,
 } from '../types/cfilterSync'
 import {
@@ -238,6 +240,16 @@ export class CFilterSyncWorker extends Worker {
   // ── watch set (cfilter inputs) ──────────────────────────────────────────
   private watchedItems: Uint8Array[] = []
   private watchedAddressSet = new Set<string>()
+  private watchedAddressIndex = new Map<string, WatchAddress>()
+  private readonly gapLimit: number
+  private gap: Record<'receiving' | 'change', ChainGapState> = {
+    receiving: {maxIndex: -1, lastUsed: -1},
+    change: {maxIndex: -1, lastUsed: -1},
+  }
+  // Height of the last block applied before the gap ran out. Non-null means the
+  // scan is held and pumpCFilters is a no-op.
+  private gapPausedAt: number | null = null
+  private draining = false
 
   // ── per-phase state ─────────────────────────────────────────────────────
   private cfcheckpt = {
@@ -292,11 +304,9 @@ export class CFilterSyncWorker extends Worker {
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
     this.seedUtxos = opts.seedUtxos
     this.initialCfilterCursor = opts.cfilterCursor
+    this.gapLimit = opts.gapLimit
 
-    for (const a of opts.watchAddresses) {
-      this.watchedAddressSet.add(a)
-      this.watchedItems.push(p2pkhScript(a))
-    }
+    for (const a of opts.watchAddresses) this.registerWatchAddress(a)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.M = this.peerPool.messages as any
@@ -363,18 +373,49 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
+  private registerWatchAddress(a: WatchAddress): boolean {
+    if (this.watchedAddressSet.has(a.address)) return false
+    this.watchedAddressSet.add(a.address)
+    this.watchedAddressIndex.set(a.address, a)
+    this.watchedItems.push(p2pkhScript(a.address))
+    const chain = this.gap[a.isChange ? 'change' : 'receiving']
+    if (a.index > chain.maxIndex) chain.maxIndex = a.index
+    if (a.isUsed && a.index > chain.lastUsed) chain.lastUsed = a.index
+    return true
+  }
+
+  // Fewer than gapLimit unused addresses above the highest used index means a
+  // payment to an address we have not derived can no longer be ruled out.
+  private exhaustedChain(): 'receiving' | 'change' | null {
+    for (const name of ['receiving', 'change'] as const) {
+      const chain = this.gap[name]
+      if (chain.lastUsed + this.gapLimit > chain.maxIndex) return name
+    }
+    return null
+  }
+
   // rewindToHeight set means the addresses may carry past on-chain activity, so
   // historical filters get re-matched. Omitted means main proved them fresh
   // (frontier-derived, or added while synced) and the match set just widens.
-  addWatchAddresses = (addresses: string[], rewindToHeight?: number): void => {
+  addWatchAddresses = (addresses: WatchAddress[], rewindToHeight?: number): void => {
     if (this.stopped) return
     let added = 0
-    for (const a of addresses) {
-      if (this.watchedAddressSet.has(a)) continue
-      this.watchedAddressSet.add(a)
-      this.watchedItems.push(p2pkhScript(a))
-      added++
+    for (const a of addresses) if (this.registerWatchAddress(a)) added++
+
+    if (this.gapPausedAt != null) {
+      const still = this.exhaustedChain()
+      if (still != null) {
+        console.warn(`[cfilter] +${added} address(es) but ${still} gap still short — scan stays held at h=${this.gapPausedAt}`)
+        return
+      }
+      const resumeAt = this.gapPausedAt + 1
+      this.gapPausedAt = null
+      console.log(`[cfilter] gap extended (+${added}, total ${this.watchedAddressSet.size}) — resuming scan at h=${resumeAt}`)
+      this.emitStatus('cfilters')
+      this.pumpCFilters()
+      return
     }
+
     if (added === 0) return
 
     if (rewindToHeight != null) {
@@ -757,8 +798,15 @@ export class CFilterSyncWorker extends Worker {
 
   private startCFilterScan(): void {
     this.cfilter.cursor = Math.max(this.birthdayHeight, this.cfilter.cursor, this.anchorHeight + 1)
-    console.log(`[cfilter] scanning ${this.cfilter.cursor}..${this.effectiveScanTipHeight()}`)
     this.emitStatus('cfilters')
+    // Usage main already knew about can leave the gap short before a single
+    // filter is matched; scanning on would repeat the miss.
+    const exhausted = this.exhaustedChain()
+    if (exhausted != null) {
+      this.holdForGap(exhausted, this.cfilter.cursor - 1)
+      return
+    }
+    console.log(`[cfilter] scanning ${this.cfilter.cursor}..${this.effectiveScanTipHeight()}`)
     this.pumpCFilters()
   }
 
@@ -785,7 +833,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private pumpCFilters(): void {
-    if (this.stopped) return
+    if (this.stopped || this.gapPausedAt != null) return
     const effectiveTip = this.effectiveScanTipHeight()
     while (this.cfilter.cursor <= effectiveTip && this.cfilter.inflightBatches.size < MAX_INFLIGHT_BATCHES) {
       const startHeight = this.cfilter.cursor
@@ -812,8 +860,72 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
+  // Highest height whose matched blocks have all arrived: no request still
+  // outstanding can produce one below it.
+  private settledHeight(): number {
+    let lowest = Infinity
+    for (const b of this.cfilter.inflightBatches.values()) lowest = Math.min(lowest, b.startHeight)
+    for (const r of this.blockFetch.inflight.values()) lowest = Math.min(lowest, r.height)
+    return lowest === Infinity ? this.effectiveScanTipHeight() : lowest - 1
+  }
+
+  // Applied in height order and only up to settledHeight, because spend
+  // detection needs an output recorded before the block spending it. Draining as
+  // the scan runs is what lets gap exhaustion be caught mid-scan rather than
+  // after it — and it keeps matched blocks from piling up in memory.
+  private async drainMatched(): Promise<void> {
+    if (this.draining || this.gapPausedAt != null) return
+    this.draining = true
+    try {
+      const settled = this.settledHeight()
+      const heights = [...this.blockFetch.matched.keys()].filter(h => h <= settled).sort((a, b) => a - b)
+      for (const height of heights) {
+        const block = this.blockFetch.matched.get(height)!
+        this.blockFetch.matched.delete(height)
+        await this.applyBlock(block, height)
+        const exhausted = this.exhaustedChain()
+        if (exhausted != null) {
+          this.holdForGap(exhausted, height)
+          return
+        }
+      }
+      if (settled > 0) this.emit('cursorAdvanced', {walletId: this.walletId, height: settled})
+    } finally {
+      this.draining = false
+    }
+  }
+
+  // Everything above `height` is discarded rather than kept: those blocks were
+  // matched against a watch set now known to be short, and the range is rescanned
+  // from height + 1 once main answers.
+  private holdForGap(chainName: 'receiving' | 'change', height: number): void {
+    const chain = this.gap[chainName]
+    this.gapPausedAt = height
+    for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
+    for (const r of this.blockFetch.inflight.values()) if (r.timer) clearTimeout(r.timer)
+    this.cfilter.inflightBatches.clear()
+    this.cfilterInflightHeights.clear()
+    this.blockFetch.inflight.clear()
+    this.blockFetch.matched.clear()
+    this.cfilter.cursor = height + 1
+    console.log(
+      `[cfilter] ${chainName} gap exhausted at h=${height} ` +
+      `(lastUsed=${chain.lastUsed} maxIndex=${chain.maxIndex} gapLimit=${this.gapLimit}) — ` +
+      'scan held, awaiting new addresses',
+    )
+    this.emit('gapExhausted', {
+      walletId: this.walletId,
+      height,
+      isChange: chainName === 'change',
+      lastUsedIndex: chain.lastUsed,
+      maxIndex: chain.maxIndex,
+    })
+  }
+
   private async maybeDrainAndFinish(): Promise<void> {
     if (this.phase !== 'cfilters') return
+    await this.drainMatched()
+    if (this.gapPausedAt != null) return
     if (this.cfilter.cursor <= this.effectiveScanTipHeight()) return
     if (this.cfilter.inflightBatches.size > 0) return
     if (this.blockFetch.inflight.size > 0) {
@@ -821,13 +933,6 @@ export class CFilterSyncWorker extends Worker {
       console.log(`[cfilters] scan reached tip; waiting on ${waiting.length} block(s): ${waiting.slice(0, 10).join(',')}${waiting.length > 10 ? '…' : ''}`)
       return
     }
-    const sortedHeights = [...this.blockFetch.matched.keys()].sort((a, b) => a - b)
-    for (const h of sortedHeights) {
-      await this.applyBlock(this.blockFetch.matched.get(h)!, h)
-    }
-    this.blockFetch.matched.clear()
-    // Covers the run of unmatched blocks, which produced no blockApplied event
-    // to carry the cursor forward.
     this.emit('cursorAdvanced', {walletId: this.walletId, height: this.effectiveScanTipHeight()})
     this.emitStatus('synced')
     const balance = [...this.utxos.values()].reduce((s, u) => s + BigInt(u.satoshis), 0n)
@@ -863,6 +968,10 @@ export class CFilterSyncWorker extends Worker {
       if (this.phase === 'cfilters') {
         this.emitStatus('cfilters')
         this.pumpCFilters()
+        this.maybeDrainAndFinish().catch(err => {
+          console.error('[cfilter] drain failed:', err)
+          this.reportError(formatChainDbError(err), false)
+        })
       }
     }
   }
@@ -941,6 +1050,11 @@ export class CFilterSyncWorker extends Worker {
         const isMine = !!(address && this.watchedAddressSet.has(address))
         outputs.push({vout, address: address ?? null, satoshis: output.satoshis.toString(), isMine})
         if (!isMine) continue
+        const watched = this.watchedAddressIndex.get(address!)
+        if (watched) {
+          const chain = this.gap[watched.isChange ? 'change' : 'receiving']
+          if (watched.index > chain.lastUsed) chain.lastUsed = watched.index
+        }
         const k = `${txid}:${vout}`
         if (this.utxos.has(k)) continue
         const u: WalletSyncUtxo = {txid, vout, satoshis: output.satoshis.toString(), address: address!, height}

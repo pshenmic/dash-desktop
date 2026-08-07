@@ -65,7 +65,7 @@ export async function harness(): Promise<Harness> {
     transactionDAO,
     walletService,
     applicationService,
-    createWalletHandler: new CreateWalletHandler(walletService, addressDAO, walletSyncService, shieldedService),
+    createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,
   }
 }

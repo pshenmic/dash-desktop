@@ -1,6 +1,6 @@
 import {Network} from '../../src/types'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
-import {AppliedBlock, WalletSyncStatus, WalletSyncUtxo} from './walletSync'
+import {AppliedBlock, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
 // the envelope; the payload keeps its consumer-side name (WalletSync* /
@@ -13,7 +13,10 @@ export interface P2PStartMessage {
   network: Network
   walletId: string
   chainDbPath: string
-  watchAddresses: string[]
+  watchAddresses: WatchAddress[]
+  // BIP-44 lookahead. The worker holds the scan once fewer than this many
+  // unused addresses remain above the highest used index on either chain.
+  gapLimit: number
   birthdayHeight?: number
   // Shipped in the command rather than read by the worker, so the utility
   // process never touches wallet-scoped storage — SQL stays the source of truth.
@@ -37,7 +40,7 @@ export interface P2PStopMessage {
 export interface P2PAddWatchAddressesMessage {
   type: 'addWatchAddresses'
   walletId: string
-  addresses: string[]
+  addresses: WatchAddress[]
   // Rewinds the cfilter cursor so historical filters re-match the new
   // addresses. Main picks the height — the worker does not decide.
   rewindToHeight?: number
@@ -103,6 +106,14 @@ export interface P2PCursorResetMessage {
   height: number
 }
 
+// The scan is held until main answers with addWatchAddresses. Nothing resumes
+// it on a timer — a silent resume would scan blocks against a watch set already
+// known to be short.
+export interface P2PGapExhaustedMessage {
+  type: 'gapExhausted'
+  gap: GapExhausted
+}
+
 export interface P2PErrorMessage {
   type: 'error'
   message: string
@@ -139,6 +150,7 @@ export type P2PEvent =
   | P2PBlockAppliedMessage
   | P2PCursorAdvancedMessage
   | P2PCursorResetMessage
+  | P2PGapExhaustedMessage
   | P2PErrorMessage
   | P2PBroadcastResultMessage
   | P2PTxInstantLockedMessage
