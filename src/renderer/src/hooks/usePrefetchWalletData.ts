@@ -6,16 +6,16 @@ import { prefetchPlatformAddresses } from './usePlatformAddresses'
 import { prefetchTransactions } from './useWalletTransactions'
 import { prefetchBalance } from './useWalletBalance'
 
-export function usePrefetchWalletData(): void {
+export function usePrefetchWalletData(enabled = true): void {
   const { isAuthenticated, status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
 
   useEffect(() => {
-    if (!isAuthenticated || !walletId) return
+    if (!enabled || !isAuthenticated || !walletId) return
     prefetchTransactions(walletId)
     prefetchBalance(walletId)
     prefetchAddresses(walletId)
     prefetchPlatformAddresses(walletId)
     prefetchIdentities(walletId)
-  }, [isAuthenticated, walletId])
+  }, [enabled, isAuthenticated, walletId])
 }

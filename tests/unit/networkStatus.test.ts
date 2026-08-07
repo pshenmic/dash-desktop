@@ -32,7 +32,7 @@ describe('describeNetworkStatus', () => {
     expect(describeNetworkStatus(sync({ phase: WalletSyncPhase.Synced }))).toEqual({ label: 'Operational', tone: 'ok' })
   })
 
-  it('is operational when sync is stopped or idle (rpc fallback serves data)', () => {
+  it('is operational when sync is stopped or idle', () => {
     expect(describeNetworkStatus(sync({ phase: WalletSyncPhase.Stopped })).tone).toBe('ok')
     expect(describeNetworkStatus(sync({ phase: WalletSyncPhase.Idle })).tone).toBe('ok')
   })
@@ -57,14 +57,12 @@ describe('describeNetworkStatus', () => {
 })
 
 describe('describeDataSource', () => {
-  it('reports local p2p only when desired and synced', () => {
-    expect(describeDataSource('p2p', WalletSyncPhase.Synced)).toBe('Local P2P')
+  it('reports local p2p whenever p2p is selected', () => {
+    expect(describeDataSource('p2p')).toBe('Local P2P')
   })
 
-  it('reports dashscan otherwise', () => {
-    expect(describeDataSource('p2p', WalletSyncPhase.SyncingHeaders)).toBe('Dashscan API')
-    expect(describeDataSource('p2p', undefined)).toBe('Dashscan API')
-    expect(describeDataSource('rpc', WalletSyncPhase.Synced)).toBe('Dashscan API')
+  it('reports dashscan in rpc mode', () => {
+    expect(describeDataSource('rpc')).toBe('Dashscan API')
   })
 })
 

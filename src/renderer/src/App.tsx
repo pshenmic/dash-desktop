@@ -13,7 +13,6 @@ import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
 import { useAuth } from "./contexts/AuthContext"
-import { usePrefetchWalletData } from "./hooks/usePrefetchWalletData"
 import { useDebugMode } from "./hooks/useDebugMode"
 import { ConnectionModeProvider } from "./contexts/ConnectionModeContext"
 import { LOCK_FADE_MS } from "./constants"
@@ -22,8 +21,6 @@ function App(): React.JSX.Element {
   const { isAuthenticated, isLockingOut } = useAuth()
   const location = useLocation()
   const debugMode = useDebugMode()
-
-  usePrefetchWalletData()
 
   if (location.pathname === '/create-wallet') {
     return (

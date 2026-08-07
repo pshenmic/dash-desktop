@@ -9,6 +9,7 @@ import ConnectionSelect from './ui/ConnectionSelect'
 import SyncProgressBar from './ui/SyncProgressBar'
 import SyncControlButton from './ui/SyncControlButton'
 import RefreshButton from './ui/RefreshButton'
+import DataRefreshNotice from './ui/DataRefreshNotice'
 import ScrollIndicator from './ui/ScrollIndicator'
 import WalletUnlockModal from './modal/WalletUnlockModal'
 import { API } from '@renderer/api'
@@ -66,7 +67,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     [wallets]
   )
 
-  const { desired, showSyncUI, fallbackActive, setDesired } = useConnectionModeContext()
+  const { desired, showSyncUI, syncIncomplete, setDesired } = useConnectionModeContext()
 
   const handleWalletChange = (walletId: string): void => {
     if (!walletId || walletId === selectedWallet) return
@@ -101,7 +102,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
             options={connectionOptions}
             value={desired}
             onChange={(value) => setDesired(value as ConnectionType)}
-            syncing={fallbackActive}
+            syncing={syncIncomplete}
           />
           <button
             onMouseEnter={hoverNotification.onMouseEnter}
@@ -117,6 +118,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       </header>
 
       <main className={"flex-1 mt-12"}>
+        <DataRefreshNotice />
         {children}
       </main>
 

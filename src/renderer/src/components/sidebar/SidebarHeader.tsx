@@ -18,7 +18,7 @@ export default function SidebarHeader(): React.JSX.Element {
   const shieldedSync = useShieldedSyncState(status?.selectedWalletId ?? null)
   const shieldedCredits = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? shieldedSync.balance
-    : 0n
+    : undefined
 
   return (
     <div className={"flex flex-col gap-8 justify-between w-full"}>

@@ -8,6 +8,7 @@ import { useWalletTransactions, WalletTxItem } from '@renderer/hooks/useWalletTr
 import { useAuth } from '@renderer/contexts/AuthContext'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import NoResults from '@renderer/components/ui/NoResults'
+import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import { davToDashCompact } from '@renderer/utils/balance'
 import {
   DEFAULT_TX_FILTER,
@@ -42,6 +43,7 @@ export default function TransactionsList({ onTransactionClick }: TransactionsLis
       label: title,
       content: (
         <div className={"flex flex-col gap-5 mt-5"}>
+          <PartialDataNotice />
            {loading && (
             <ListSkeleton rows={3} rowClassName="h-[4.25rem] rounded-[.875rem]" />
           )}

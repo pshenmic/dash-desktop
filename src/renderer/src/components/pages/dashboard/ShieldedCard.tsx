@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Text, ArrowIcon, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ArrowIcon, ShieldSmallIcon, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import Spinner from '@renderer/components/ui/Spinner'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
-import { dashboardPage } from '@renderer/constants'
+import { dashboardPage, SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useShieldedNotesInfo, useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
@@ -96,15 +96,18 @@ export default function ShieldedCard(): React.JSX.Element {
               <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>{labels.syncing}</Text>
             </div>
           ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setSyncOpen(true)
-              }}
-              className={"self-start cursor-pointer hover:opacity-80 transition-opacity duration-200"}
-            >
-              <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>{labels.syncBalances}</Text>
-            </button>
+            <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSyncOpen(true)
+                }}
+                className={"flex items-baseline gap-2 self-start cursor-pointer hover:opacity-80 transition-opacity duration-200"}
+              >
+                <Text size={20} weight={"extrabold"} className={"leading-[140%] text-dash-orange!"}>— Credits</Text>
+                <Text size={12} weight={"bold"} color={"blue-mint"}>{labels.checkNotes}</Text>
+              </button>
+            </Tooltip>
           )}
         </div>
         {shieldedReady && (syncBusy || (notesInfo.undecodedCount > 0 && !notesLoading)) && (
