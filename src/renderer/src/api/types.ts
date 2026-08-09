@@ -140,9 +140,20 @@ export interface GeneralPreferencesJSON {
   connectionType: ConnectionType
 }
 
+export interface PeerOverridesJSON {
+  dnsSeeds: string[]
+  peers: string[]
+}
+
+export interface NetworkPreferencesJSON {
+  mainnet: PeerOverridesJSON
+  testnet: PeerOverridesJSON
+}
+
 export interface PreferencesJSON {
   version: number
   general: GeneralPreferencesJSON
+  network: NetworkPreferencesJSON
 }
 
 export interface QueryStatus {

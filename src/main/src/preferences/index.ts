@@ -1,20 +1,24 @@
 import fs from "fs/promises";
 import {z} from 'zod'
 import {GeneralPreferences, GeneralPreferencesJSON, GeneralPreferencesSchema} from "./general";
+import {NetworkPreferences, NetworkPreferencesSchema} from "./network";
 
 export const PreferencesSchema = z.object({
   general: GeneralPreferencesSchema,
+  network: NetworkPreferencesSchema,
 })
 
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 5
+  static readonly CURRENT_VERSION = 6
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
   // =====================================================
   general!: GeneralPreferences
+
+  network!: NetworkPreferences
 
   private path: string | null = null
 
@@ -91,6 +95,16 @@ export class Preferences {
       rawGeneral.connectionType ?? defaults.general.connectionType,
     )
 
+    // Hand-edited far more often than the rest of the file, so a malformed
+    // section falls back to discovery defaults instead of wedging startup.
+    const rawNetwork = NetworkPreferencesSchema.safeParse(raw.network)
+    if (raw.network != null && !rawNetwork.success) {
+      console.error('Invalid network preferences, ignoring:', rawNetwork.error.issues.map(i => i.message).join(', '))
+    }
+    instance.network = rawNetwork.success
+      ? NetworkPreferences.fromObject(rawNetwork.data)
+      : defaults.network
+
     return instance
   }
 
@@ -106,6 +120,7 @@ export class Preferences {
     return {
       version: this.version,
       general: this.general.toJSON(),
+      network: this.network.toJSON(),
     }
   }
 
@@ -114,9 +129,10 @@ export class Preferences {
    * @param value
    */
   async apply(value: unknown): Promise<void> {
-    const {general} = PreferencesSchema.parse(value)
+    const {general, network} = PreferencesSchema.parse(value)
 
     this.general = GeneralPreferences.fromObject(general)
+    this.network = NetworkPreferences.fromObject(network)
 
     await this.update()
   }
@@ -135,6 +151,7 @@ export class Preferences {
 
     instance.version = Preferences.CURRENT_VERSION
     instance.general = GeneralPreferences.default()
+    instance.network = NetworkPreferences.default()
 
     return instance
   }

@@ -198,7 +198,7 @@ export class WalletBackend {
     const contactDAO = new ContactDAO(knex)
 
     this.applicationService = new ApplicationService(preferences)
-    this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+    this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO, preferences)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)

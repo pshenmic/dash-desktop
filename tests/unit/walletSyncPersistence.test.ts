@@ -10,6 +10,7 @@ vi.mock('fs', () => {
 })
 
 import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {Preferences} from '../../src/main/src/preferences'
 import {GENESIS} from '../../src/main/p2p/constants'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
 import type {Address} from '../../src/main/src/types/Address'
@@ -74,7 +75,7 @@ describe('WalletSyncService block persistence', () => {
       getInitialScanComplete: vi.fn().mockResolvedValue(false),
     }
     walletDAO = {getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet'})}
-    service = new WalletSyncService(walletDAO as never, {} as never, transactionDAO as never)
+    service = new WalletSyncService(walletDAO as never, {} as never, transactionDAO as never, Preferences.default())
   })
 
   afterEach(() => {

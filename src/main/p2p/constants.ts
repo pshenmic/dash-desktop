@@ -76,6 +76,11 @@ export const POOL_CONNECT_HEADROOM = 8
 // find +CF peers.
 export const POOL_REFILL_INTERVAL_MS = 5_000
 
+// Refill ticks between reports while a pool is under its minimum. Past
+// POOL_FILL_STALL_LIMIT the refill branch goes quiet, so without this an empty
+// address book is indistinguishable from a healthy coasting pool.
+export const POOL_SHORT_REPORT_TICKS = 12
+
 // ── Header sync ─────────────────────────────────────────────────────────────
 
 export const HEADER_RACE_PEERS = 15

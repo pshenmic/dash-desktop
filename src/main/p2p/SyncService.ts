@@ -13,6 +13,7 @@ import {AppliedBlock, GapExhausted, WalletSyncStatus, WatchAddress} from './type
 import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {ChainTipState, PersistedHeader} from './types/chainStore'
 import {SyncServiceEvents} from './types/sync'
+import {PeerOverrides} from './types/pool'
 
 // Top-level controller for the p2p utility process: owns ChainStore and the
 // pools, spawns workers per session, aggregates their status.
@@ -85,13 +86,13 @@ export class SyncService {
   // `start` is a superset, so listening first and syncing later grows the
   // session rather than restarting it.
   listen = (cmd: P2PListenMessage): Promise<void> =>
-    this.runExclusive(async () => this.startLockCore(cmd.network))
+    this.runExclusive(async () => this.startLockCore(cmd.network, cmd.peerOverrides))
 
   // Everything that touches neither chain.db nor the sync workers, so it runs
   // in rpc mode and survives the bulk layer stopping — pending lock waiters
   // outlive a mode switch. Network-scoped rather than wallet-scoped so
   // switching wallets reuses a filled pool instead of re-crawling DNS.
-  private startLockCore = (network: Network): void => {
+  private startLockCore = (network: Network, overrides?: PeerOverrides): void => {
     if (this.lockPool && this.lockNetwork === network) return
 
     this.teardownLock()
@@ -105,6 +106,8 @@ export class SyncService {
       readyPeers: LOCK_POOL_READY_PEERS,
       minPeers: LOCK_POOL_MIN_PEERS,
       maxConnections: LOCK_POOL_MAX_CONNECTIONS,
+      dnsSeeds: overrides?.dnsSeeds,
+      peers: overrides?.peers,
     })
     this.lockPool.on('peerinv', this.onPeerInvForLocks)
     this.lockPool.on('peerisdlock', this.onIsdlock)
@@ -137,7 +140,7 @@ export class SyncService {
     if (this.chainStore && this.activeWalletId === cmd.walletId) return
 
     await this.teardownBulk()
-    this.startLockCore(cmd.network)
+    this.startLockCore(cmd.network, cmd.peerOverrides)
 
     this.activeWalletId = cmd.walletId
     this.activeWatchAddresses = cmd.watchAddresses ?? []
@@ -193,7 +196,12 @@ export class SyncService {
     // `relay: false` drops the tx inv stream these workers never read — and
     // Dash Core gates ISLOCK/ISDLOCK inv behind the same flag, which is why
     // lock watching stays on the other pool.
-    this.bulkPool = new PoolService(cmd.network, {label: 'bulk-pool', relay: false, dnsSeed: false})
+    this.bulkPool = new PoolService(cmd.network, {
+      label: 'bulk-pool',
+      relay: false,
+      dnsSeed: false,
+      peers: cmd.peerOverrides?.peers,
+    })
     this.feedBulkPool()
     this.bulkPool.start()
 

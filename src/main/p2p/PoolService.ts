@@ -1,7 +1,8 @@
 import {EventEmitter} from 'events'
-import {AddrInfo, Message, Messages, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
+import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../src/types'
-import {POOL_CONNECT_HEADROOM, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS} from './constants'
+import {parsePeerAddress} from './peerAddress'
+import {POOL_CONNECT_HEADROOM, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from './constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
@@ -34,11 +35,13 @@ export class PoolService extends EventEmitter {
   }
 
   private readonly label: string
+  private readonly customPeers: string[]
   private readonly readyTarget: number
   private readonly minPeers: number
   private readonly maxConnections: number
   private lastReady = -1
   private stalledFills = 0
+  private shortTicks = 0
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
@@ -50,8 +53,14 @@ export class PoolService extends EventEmitter {
     this.readyTarget = options.readyPeers ?? POOL_READY_PEERS
     this.minPeers = options.minPeers ?? POOL_MIN_PEERS
     this.maxConnections = options.maxConnections ?? POOL_MAX_CONNECTIONS
+    this.customPeers = options.peers ?? []
+
+    // Networks.get hands a network object straight back, so a copy carrying
+    // different seeds is all it takes to redirect discovery.
+    const seeds = options.dnsSeeds ?? []
+    const base = Networks.get(network)
     this.pool = new Pool({
-      network,
+      network: seeds.length > 0 && base ? {...base, dnsSeeds: seeds} : network,
       maxSize: this.readyTarget,
       relay: options.relay ?? true,
       messages: this.messages,
@@ -63,6 +72,9 @@ export class PoolService extends EventEmitter {
 
   start = (): void => {
     this.pool.connect()
+    const seeds = this.pool.dnsSeed ? this.pool.network?.dnsSeeds ?? [] : []
+    console.log(`[${this.label}] start seeds=${seeds.join(',') || '(none)'} custom=${this.customPeers.length} known=${this.pool._addrs.length}`)
+    this.addAddresses(this.parseCustomPeers())
     this.refillTimer = setInterval(() => {
       if (this.stopped) return
       // maxSize caps connections, not ready peers, and dead gossip addresses
@@ -76,6 +88,12 @@ export class PoolService extends EventEmitter {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pool = this.pool as any
+
+      if (ready < this.minPeers && ++this.shortTicks >= POOL_SHORT_REPORT_TICKS) {
+        this.shortTicks = 0
+        console.log(`[${this.label}] short ready=${ready}/${this.minPeers} connected=${this.pool.numberConnected()} known=${this.pool._addrs.length} stalled=${this.stalledFills}/${POOL_FILL_STALL_LIMIT}`)
+      }
+
       if (ready < this.minPeers && this.stalledFills < POOL_FILL_STALL_LIMIT) {
         this.stalledFills++
         pool.maxSize = this.maxConnections
@@ -111,7 +129,22 @@ export class PoolService extends EventEmitter {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     for (const addr of addrs) pool._addAddr({...addr, hash: undefined})
+    console.log(`[${this.label}] +${addrs.length} address(es) known=${this.pool._addrs.length}`)
     pool._fillConnections()
+  }
+
+  private parseCustomPeers(): AddrInfo[] {
+    const port = this.pool.network?.port ?? 0
+    const parsed: AddrInfo[] = []
+    for (const entry of this.customPeers) {
+      const addr = parsePeerAddress(entry, port)
+      if (addr == null) {
+        console.error(`[${this.label}] ignoring unparseable peer ${JSON.stringify(entry)}`)
+        continue
+      }
+      parsed.push(addr)
+    }
+    return parsed
   }
 
   stop = (): void => {
@@ -127,6 +160,15 @@ export class PoolService extends EventEmitter {
   }
 
   private bindForwarders(): void {
+    // Mainnet ships a single DNS seed and there is no peer cache behind it, so
+    // a failed lookup leaves both pools with nothing to dial, permanently.
+    this.pool.on('seed', (ips: string[]) => {
+      console.log(`[${this.label}] dns seed returned ${ips.length} address(es)`)
+    })
+    this.pool.on('seederror', (err: Error) => {
+      console.error(`[${this.label}] dns seed failed, no addresses to dial: ${err.message}`)
+    })
+
     // Tracked here so workers just read readyPeers / filterCapablePeers.
     this.pool.on('peerversion', (peer: Peer, message: Message & { services?: bigint }) => {
       const services = message.services ?? 0n
