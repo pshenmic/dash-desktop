@@ -1,5 +1,6 @@
 import {Network} from '../../src/types'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
+import {PeerOverrides} from './pool'
 import {AppliedBlock, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
@@ -23,6 +24,7 @@ export interface P2PStartMessage {
   seedUtxos: WalletSyncUtxo[]
   // null = never synced. Worker resumes from max(birthday, cfilterCursor + 1).
   cfilterCursor: number | null
+  peerOverrides?: PeerOverrides
 }
 
 // Lock pool only — no chain.db, no header/cfilter sync. What an rpc-mode wallet
@@ -31,6 +33,7 @@ export interface P2PStartMessage {
 export interface P2PListenMessage {
   type: 'listen'
   network: Network
+  peerOverrides?: PeerOverrides
 }
 
 export interface P2PStopMessage {

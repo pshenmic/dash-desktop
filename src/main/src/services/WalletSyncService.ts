@@ -21,6 +21,7 @@ import {randomUUID} from 'crypto'
 import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
 import {ScanCursorGate} from '../utils/scanCursorGate'
+import {Preferences} from '../preferences'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 
 
@@ -32,6 +33,9 @@ export class WalletSyncService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private transactionDAO: TransactionDAO
+  // Read at send time, not construction: the pools pick up an edited seed list
+  // on the next start rather than needing a relaunch.
+  private preferences: Preferences
   private child: UtilityProcess | null = null
   // Holds a 'stopped' snapshot before the fork and after exit, so the renderer
   // never sees null.
@@ -87,10 +91,11 @@ export class WalletSyncService {
   // in emit order.
   private persistQueue: Promise<void> = Promise.resolve()
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO) {
+  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, transactionDAO: TransactionDAO, preferences: Preferences) {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.transactionDAO = transactionDAO
+    this.preferences = preferences
   }
 
   private ensureChild(): UtilityProcess {
@@ -260,6 +265,7 @@ export class WalletSyncService {
       gapLimit: ADDRESS_LOOKAHEAD,
       seedUtxos,
       cfilterCursor,
+      peerOverrides: this.preferences.network[network],
       // birthdayHeight is intentionally undefined — defaults to genesis in the
       // utility process. Replace with a per-wallet birthday once the wallet
       // schema captures it.
@@ -346,7 +352,7 @@ export class WalletSyncService {
   startLockListen = (network: 'mainnet' | 'testnet'): void => {
     if (this.lockListenNetwork === network && this.child) return
     this.lockListenNetwork = network
-    this.send({type: 'listen', network})
+    this.send({type: 'listen', network, peerOverrides: this.preferences.network[network]})
   }
 
   // Arm lock capture for a txid. Without this the utility process never issues
