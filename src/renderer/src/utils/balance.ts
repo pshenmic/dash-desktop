@@ -7,6 +7,10 @@ export function creditsToDuffs(credits: bigint): bigint {
   return sign * (abs / CREDITS_PER_DUFF)
 }
 
+export function duffsToCredits(duffs: bigint): bigint {
+  return duffs * CREDITS_PER_DUFF
+}
+
 export function formatCredits(value: bigint | number): string {
   return value.toLocaleString('en-US')
 }
@@ -52,12 +56,6 @@ export function davToDashCompact(duffs: bigint, maxFractionDigits = 3): string {
     return `${sign}<0.${'0'.repeat(maxFractionDigits - 1)}1`
   }
   return fracStr === '' ? `${sign}${whole}` : `${sign}${whole}.${fracStr}`
-}
-
-export function creditsFromInput(value: string): bigint {
-  const trimmed = value.trim()
-  if (!/^\d+$/.test(trimmed)) return 0n
-  return BigInt(trimmed)
 }
 
 export function dashToDuffs(value: string): bigint {

@@ -82,7 +82,7 @@ export interface OperationFeeParams extends TransitionFeeParams {
 }
 
 export interface AmountValidationParams {
-  isDashUnit: boolean
+  isCoreOperation: boolean
   amount: string
   operation: TransferOperation | null
   amountDuffs: bigint
