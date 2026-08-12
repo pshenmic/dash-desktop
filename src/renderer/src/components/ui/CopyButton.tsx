@@ -5,15 +5,17 @@ import { TooltipBubble } from '@renderer/components/dash-ui-kit-enxtended'
 type CopyButtonProps = {
   text: string
   className?: string
+  disabled?: boolean
 }
 
-export default function CopyButton({ text, className = '' }: CopyButtonProps): React.JSX.Element {
+export default function CopyButton({ text, className = '', disabled = false }: CopyButtonProps): React.JSX.Element {
   const [copiedRect, setCopiedRect] = useState<DOMRect | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (disabled) return
     navigator.clipboard.writeText(text)
     setCopiedRect(event.currentTarget.getBoundingClientRect())
     clearTimeout(timer.current)
@@ -24,7 +26,8 @@ export default function CopyButton({ text, className = '' }: CopyButtonProps): R
     <>
       <button
         onClick={handleCopy}
-        className={`size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer ${className}`}
+        disabled={disabled}
+        className={`size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer disabled:pointer-events-none disabled:opacity-30 ${className}`}
       >
         <CopyIcon2 color={'currentColor'} className={'dash-text-default opacity-50'} />
       </button>

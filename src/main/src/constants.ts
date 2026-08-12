@@ -11,6 +11,7 @@ export const LogsFolderName = 'logs'
 // log files older than this many days on startup.
 export const LOG_FILE_MAX_SIZE = 5 * 1024 * 1024
 export const LOG_RETENTION_DAYS = 14
+export const LOG_FILE_NAME_PATTERN = /^wallet-\d{4}-\d{2}-\d{2}(?:\.old)?\.log$/
 
 export const PreferencesFilename = 'preferences.json'
 

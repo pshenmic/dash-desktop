@@ -1,0 +1,54 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import fs from 'fs/promises'
+import os from 'os'
+import path from 'path'
+import { LogService } from '../../src/main/src/services/LogService'
+
+describe('LogService', () => {
+  let directory: string
+  let service: LogService
+
+  beforeEach(async () => {
+    directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dash-log-service-'))
+    service = new LogService(directory)
+  })
+
+  afterEach(async () => {
+    await fs.rm(directory, { recursive: true, force: true })
+  })
+
+  it('lists only valid regular log files with newest first', async () => {
+    const oldName = 'wallet-2026-08-11.old.log'
+    const newName = 'wallet-2026-08-12.log'
+    await fs.writeFile(path.join(directory, oldName), 'old')
+    await fs.writeFile(path.join(directory, newName), 'new content')
+    await fs.writeFile(path.join(directory, 'notes.txt'), 'ignore')
+    await fs.mkdir(path.join(directory, 'wallet-2026-08-10.log'))
+    await fs.utimes(path.join(directory, oldName), new Date(1_000), new Date(1_000))
+    await fs.utimes(path.join(directory, newName), new Date(2_000), new Date(2_000))
+
+    await expect(service.listFiles()).resolves.toEqual([
+      { name: newName, size: 11, modifiedAt: 2_000, rotated: false },
+      { name: oldName, size: 3, modifiedAt: 1_000, rotated: true }
+    ])
+  })
+
+  it('reads content and metadata', async () => {
+    const name = 'wallet-2026-08-12.log'
+    await fs.writeFile(path.join(directory, name), 'Привет')
+    const result = await service.readFile(name)
+    expect(result.name).toBe(name)
+    expect(result.content).toBe('Привет')
+    expect(result.size).toBe(Buffer.byteLength('Привет'))
+    expect(result.rotated).toBe(false)
+  })
+
+  it.each(['../wallet-2026-08-12.log', 'C:\\wallet-2026-08-12.log', 'wallet.log', 'wallet-2026-08-12.log/other'])(
+    'rejects unsafe or invalid name %s',
+    async (name) => expect(service.readFile(name)).rejects.toThrow('Invalid log file name')
+  )
+
+  it('returns an empty list when the directory does not exist', async () => {
+    await expect(new LogService(path.join(directory, 'missing')).listFiles()).resolves.toEqual([])
+  })
+})

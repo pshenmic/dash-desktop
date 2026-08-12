@@ -68,7 +68,7 @@ const textStyles = cva(
 export default function NavLinkItem({item}: {item: NavGroupProps}): React.JSX.Element {
   const Icon = item?.icon
   const location = useLocation()
-  const isActive = location.pathname === item?.items.to
+  const isActive = location.pathname === item?.items.to || (item?.items.to !== '/' && location.pathname.startsWith(`${item?.items.to}/`))
   const navRef = useRef<HTMLAnchorElement>(null)
 
   const activeRipple = useRipple({

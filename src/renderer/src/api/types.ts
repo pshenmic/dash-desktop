@@ -10,6 +10,17 @@ import { TransferOperation } from '../enums/TransferOperation'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
+export interface LogFileInfo {
+  name: string
+  size: number
+  modifiedAt: number
+  rotated: boolean
+}
+
+export interface LogFileContent extends LogFileInfo {
+  content: string
+}
+
 // getAddresses
 export type WalletAddressDto = {
   walletId: string

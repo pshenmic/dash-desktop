@@ -1,6 +1,6 @@
 import {calibratePBKDF2Iterations, getKnex, migrateKnex} from './utils'
 import {dataPath, ensureDataFolder} from './utils/dataPath'
-import {PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
+import {LogsFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
@@ -94,6 +94,10 @@ import {CoreTransactionService} from './services/core/CoreTransactionService'
 import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
+import {LogService} from './services/LogService'
+import {GetLogFilesHandler} from './api/logs/getLogFiles'
+import {GetLogFileHandler} from './api/logs/getLogFile'
+import {SaveLogFileHandler} from './api/logs/saveLogFile'
 
 
 export class WalletBackend {
@@ -111,6 +115,7 @@ export class WalletBackend {
   private coreLockService?: CoreLockService
   private walletCredentialsService?: WalletCredentialsService
   private identityService?: IdentityService
+  private readonly logService = new LogService(dataPath(LogsFolderName))
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
@@ -186,6 +191,9 @@ export class WalletBackend {
     ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
     ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
+    ipcMain.handle('getLogFiles', new GetLogFilesHandler(this.logService).handle)
+    ipcMain.handle('getLogFile', new GetLogFileHandler(this.logService).handle)
+    ipcMain.handle('saveLogFile', new SaveLogFileHandler(this.logService).handle)
   }
 
   async start(): Promise<void> {
