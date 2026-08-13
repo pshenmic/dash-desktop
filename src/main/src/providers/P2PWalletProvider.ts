@@ -1,5 +1,6 @@
 import {Script, utils as sdkUtils} from 'dash-core-sdk'
 import {UTXO} from '../types/UTXO'
+import {AddressInfo} from '../types/AddressInfo'
 import {Transaction} from '../types/Transaction'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {AddressDAO} from '../database/AddressDAO'
@@ -23,9 +24,8 @@ export class P2PWalletProvider implements WalletProvider {
     return this.transactionDAO.getTransactionsByAddress(this.walletId, address)
   }
 
-  async getTransactionCount(address: string): Promise<number> {
-    const txs = await this.transactionDAO.getTransactionsByAddress(this.walletId, address)
-    return txs.length
+  async getAddressInfos(addresses: string[]): Promise<AddressInfo[]> {
+    return this.transactionDAO.getAddressInfos(this.walletId, addresses)
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {

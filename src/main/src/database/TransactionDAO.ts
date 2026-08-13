@@ -1,5 +1,6 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import type {AddressInfo} from '../types/AddressInfo'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {Network} from '../types'
@@ -368,6 +369,41 @@ export class TransactionDAO {
       for (const row of rows) used.add(row.address as string)
     }
     return addresses.filter(address => used.has(address))
+  }
+
+  // txCount counts the same txids getTransactionsByAddress would return: those
+  // paying the address, plus those spending what it received. satoshis is TEXT,
+  // so the sum is taken in JS rather than by SQLite.
+  getAddressInfos = async (walletId: string, addresses: string[]): Promise<AddressInfo[]> => {
+    const balances = new Map<string, bigint>()
+    const txids = new Map<string, Set<string>>()
+
+    for (let offset = 0; offset < addresses.length; offset += SELECT_CHUNK_SIZE) {
+      const chunk = addresses.slice(offset, offset + SELECT_CHUNK_SIZE)
+
+      const rows = await this.knex('transaction_outputs')
+        .select('address', 'txid', 'satoshis', 'spent_in_txid')
+        .where('wallet_id', walletId)
+        .whereIn('address', chunk)
+
+      for (const row of rows) {
+        const address = row.address as string
+        if (row.spent_in_txid == null) {
+          balances.set(address, (balances.get(address) ?? 0n) + BigInt(row.satoshis))
+        }
+
+        const seen = txids.get(address) ?? new Set<string>()
+        seen.add(row.txid as string)
+        if (row.spent_in_txid != null) seen.add(row.spent_in_txid as string)
+        txids.set(address, seen)
+      }
+    }
+
+    return addresses.map(address => ({
+      address,
+      balance: balances.get(address) ?? 0n,
+      txCount: txids.get(address)?.size ?? 0,
+    }))
   }
 
   // One query returning the (tx × output × input × prev-output) product, pivoted
