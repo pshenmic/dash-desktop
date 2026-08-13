@@ -1,6 +1,7 @@
 import {Script} from 'dash-core-sdk'
 import {net} from 'electron'
 import {UTXO} from '../types/UTXO'
+import {AddressInfo} from '../types/AddressInfo'
 import {WalletProvider} from './WalletProvider'
 import {Transaction} from '../types/Transaction'
 import {AddressDAO} from '../database/AddressDAO'
@@ -88,9 +89,17 @@ export class DashscanWalletProvider implements WalletProvider {
     return dashscanToWalletTransactions(collected, this.walletId, owned)
   }
 
-  async getTransactionCount(address: string): Promise<number> {
-    const [info] = await this.addressInfo([address])
-    return info?.txCount ?? 0
+  async getAddressInfos(addresses: string[]): Promise<AddressInfo[]> {
+    if (addresses.length === 0) return []
+
+    const infos = await this.addressInfo(addresses)
+    const byAddress = new Map(infos.map(info => [info.address, info]))
+
+    // An address the API omits has never been seen on chain.
+    return addresses.map(address => {
+      const info = byAddress.get(address)
+      return {address, balance: BigInt(info?.balance ?? 0), txCount: info?.txCount ?? 0}
+    })
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {
@@ -161,8 +170,14 @@ export class DashscanWalletProvider implements WalletProvider {
     return infos.filter(info => info.txCount > 0).map(info => info.address)
   }
 
-  private async allWalletAddresses(): Promise<string[]> {
-    const grouped = await this.addressDAO.getAddressesByWalletId(this.walletId)
-    return [...grouped.change, ...grouped.receiving].map(({address}) => address)
+  // A provider instance serves one operation, and getTransactions runs once per
+  // address within it — re-reading the address table each time would be the same
+  // query a hundred-odd times.
+  private ownedAddresses: Promise<string[]> | null = null
+
+  private allWalletAddresses(): Promise<string[]> {
+    this.ownedAddresses ??= this.addressDAO.getAddressesByWalletId(this.walletId)
+      .then(grouped => [...grouped.change, ...grouped.receiving].map(({address}) => address))
+    return this.ownedAddresses
   }
 }

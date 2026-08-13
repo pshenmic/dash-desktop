@@ -454,26 +454,21 @@ export class WalletService {
 
     const provider = this.getProvider(wallet.walletId, wallet.network)
 
-    // TODO: add real usd balance
-    const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({
-        ...address,
-        balance: await provider.getBalance(address.address),
-        txCount: await provider.getTransactionCount(address.address),
-        usdBalance: '0.0'
-      })
-    ))
+    const all = [...addresses.receiving, ...addresses.change]
+    const infos = await provider.getAddressInfos(all.map(a => a.address))
+    const byAddress = new Map(infos.map(info => [info.address, info]))
 
-    const changeAddressesWithBalance = await Promise.all(addresses.change.map(async (address) => ({
-        ...address,
-        balance: await provider.getBalance(address.address),
-        txCount: await provider.getTransactionCount(address.address),
-        usdBalance: '0.0'
-      })
-    ))
+    // TODO: add real usd balance
+    const withBalance = (address: Address): Address => ({
+      ...address,
+      balance: byAddress.get(address.address)?.balance ?? 0n,
+      txCount: byAddress.get(address.address)?.txCount ?? 0,
+      usdBalance: '0.0'
+    })
 
     return {
-      receiving: receivingAddressesWithBalance,
-      change: changeAddressesWithBalance
+      receiving: addresses.receiving.map(withBalance),
+      change: addresses.change.map(withBalance)
     }
   }
 
@@ -487,7 +482,13 @@ export class WalletService {
     const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
     const allAddresses = [...addresses.change, ...addresses.receiving]
     const provider = this.getProvider(wallet.walletId, wallet.network)
-    const txArrays = await Promise.all(allAddresses.map(a => provider.getTransactions(a.address)))
+
+    // History is per-address, so asking for addresses the chain has never seen
+    // buys an empty result per lookahead address. One batched used-check answers
+    // for all of them. It reads live state, not the stored isUsed flag, which
+    // only advances on the discovery tick.
+    const active = await provider.getUsedAddresses(allAddresses.map(a => a.address))
+    const txArrays = await Promise.all(active.map(address => provider.getTransactions(address)))
 
     return dedupeTransactions(txArrays.flat())
   }
