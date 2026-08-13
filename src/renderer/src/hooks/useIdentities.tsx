@@ -1,6 +1,6 @@
 import { API } from '@renderer/api'
 import { IDENTITIES_REFRESH_MS } from '@renderer/constants'
-import { prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
+import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type IdentityApiDto = {
   identityIndex: number
@@ -30,4 +30,9 @@ export function useIdentities(walletId?: string) {
 
 export function prefetchIdentities(walletId: string): Promise<void> {
   return prefetchAsyncCache('identities', walletId, () => fetchIdentities(walletId))
+}
+
+export function refreshIdentities(walletId: string): Promise<void> {
+  invalidateAsyncCache('identities', walletId)
+  return prefetchIdentities(walletId)
 }
