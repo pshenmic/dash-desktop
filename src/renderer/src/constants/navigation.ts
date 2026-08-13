@@ -3,7 +3,6 @@ export interface NavItem {
   label: string
   to: string
   debugOnly?: boolean
-  requiresIdentities?: boolean
 }
 
 export interface NavGroup {
@@ -49,8 +48,7 @@ export const navGroups: NavGroup[] = [
       {
         id: 'identities',
         label: 'Identities',
-        to: '/identities',
-        requiresIdentities: true
+        to: '/identities'
       },
       {
         id: 'shielded',

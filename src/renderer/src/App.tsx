@@ -10,6 +10,7 @@ import CreateWalletWrapper from "./pages/auth/CreateWalletWrapper"
 import ReceivePage from "./pages/Receive"
 import ShieldedPage from "./pages/Shielded"
 import IdentitiesPage from "./pages/Identities"
+import IdentityRegistrationPage from "./pages/IdentityRegistration"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
 import { useAuth } from "./contexts/AuthContext"
@@ -60,6 +61,7 @@ function App(): React.JSX.Element {
             <Route path={"/withdraw-l1"} element={<Navigate to={"/send?from=shielded&to=coreAddress"} replace />} />
             <Route path={"/addresses"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
+            <Route path={"/identities/register"} element={<IdentityRegistrationPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />
           </Routes>
         </Layout>

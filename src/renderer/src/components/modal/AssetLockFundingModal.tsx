@@ -13,6 +13,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
 import { ASSET_LOCK_FUNDING_POLL_MS } from '@renderer/constants'
+import { davToDash } from '@renderer/utils/balance'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
@@ -138,6 +139,26 @@ export default function AssetLockFundingModal({
   }, [isOpen])
 
   useEffect(() => {
+    if (!isOpen || !resume || !walletId) return
+    let dead = false
+
+    API.getAssetLockFundingState(walletId)
+      .then((current) => {
+        if (
+          dead
+          || current.kind !== kind
+          || current.phase === AssetLockFundingPhase.Idle
+          || current.phase === AssetLockFundingPhase.Resumable
+        ) return
+        setState(current)
+        setStarted(true)
+      })
+      .catch(() => {})
+
+    return () => { dead = true }
+  }, [isOpen, resume, walletId, kind])
+
+  useEffect(() => {
     if (!started || !walletId) return
     let dead = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -229,7 +250,7 @@ export default function AssetLockFundingModal({
               {amountDuffs.length > 0 && (
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount to lock</Text>
-                  <Text size={14} weight={"extrabold"} color={"brand"}>{amountDuffs} duffs</Text>
+                  <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(BigInt(amountDuffs))} Dash</Text>
                 </div>
               )}
               <div className={"flex justify-between items-center gap-4"}>
@@ -298,7 +319,7 @@ export default function AssetLockFundingModal({
               </div>
             )}
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-              You can close this window — the funding keeps running and can be resumed from the Send page.
+              You can close this window — the funding keeps running and its progress remains available in the wallet.
             </Text>
           </div>
         )}
@@ -315,7 +336,7 @@ export default function AssetLockFundingModal({
             )}
             {state.phase === AssetLockFundingPhase.Resumable && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-                The locked Dash is safe — you can resume this funding from the Send page.
+                The locked Dash is safe — you can return to this flow and resume the funding.
               </Text>
             )}
             <div className={"mt-4.5 flex gap-2"}>
