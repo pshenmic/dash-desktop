@@ -2,7 +2,7 @@ import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../src/types'
 import {parsePeerAddress} from './peerAddress'
-import {POOL_CONNECT_HEADROOM, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from './constants'
+import {FALLBACK_PEERS, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from './constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
@@ -42,6 +42,8 @@ export class PoolService extends EventEmitter {
   private lastReady = -1
   private stalledFills = 0
   private shortTicks = 0
+  private emptyTicks = 0
+  private fallbackDialled = false
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
@@ -74,7 +76,7 @@ export class PoolService extends EventEmitter {
     this.pool.connect()
     const seeds = this.pool.dnsSeed ? this.pool.network?.dnsSeeds ?? [] : []
     console.log(`[${this.label}] start seeds=${seeds.join(',') || '(none)'} custom=${this.customPeers.length} known=${this.pool._addrs.length}`)
-    this.addAddresses(this.parseCustomPeers())
+    this.addAddresses(this.parsePeers(this.customPeers))
     this.refillTimer = setInterval(() => {
       if (this.stopped) return
       // maxSize caps connections, not ready peers, and dead gossip addresses
@@ -88,6 +90,12 @@ export class PoolService extends EventEmitter {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pool = this.pool as any
+
+      // Nothing connected is a different failure from being under target: it
+      // means discovery produced no usable address, which no amount of
+      // refilling fixes.
+      if (ready > 0) this.emptyTicks = 0
+      else if (++this.emptyTicks >= POOL_FALLBACK_TICKS) this.dialFallbackPeers()
 
       if (ready < this.minPeers && ++this.shortTicks >= POOL_SHORT_REPORT_TICKS) {
         this.shortTicks = 0
@@ -133,10 +141,19 @@ export class PoolService extends EventEmitter {
     pool._fillConnections()
   }
 
-  private parseCustomPeers(): AddrInfo[] {
+  private dialFallbackPeers(): void {
+    if (this.fallbackDialled) return
+    this.fallbackDialled = true
+
+    const parsed = this.parsePeers(FALLBACK_PEERS[this.network])
+    console.log(`[${this.label}] no peers after ${(POOL_FALLBACK_TICKS * POOL_REFILL_INTERVAL_MS) / 1000}s — dialling ${parsed.length} built-in address(es)`)
+    this.addAddresses(parsed)
+  }
+
+  private parsePeers(entries: string[]): AddrInfo[] {
     const port = this.pool.network?.port ?? 0
     const parsed: AddrInfo[] = []
-    for (const entry of this.customPeers) {
+    for (const entry of entries) {
       const addr = parsePeerAddress(entry, port)
       if (addr == null) {
         console.error(`[${this.label}] ignoring unparseable peer ${JSON.stringify(entry)}`)
