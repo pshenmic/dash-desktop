@@ -80,9 +80,8 @@ describe('CFilterSyncWorker rewind', () => {
   let worker: CFilterSyncWorker
   let cursorResets: Array<{walletId: string; height: number}>
 
-  // The scan only pumps from 'cfilters' or 'synced'. Reaching either for real
-  // means driving cfcheckpt and the cfheaders walk, which is the protocol this
-  // test is not about — the subject is what a rewind does to a running scan.
+  // The scan only pumps from 'cfilters' or 'synced'; reaching either for real
+  // means driving cfcheckpt and the cfheaders walk.
   const setPhase = (phase: string): void => {
     ;(worker as unknown as {phase: string}).phase = phase
   }
@@ -134,8 +133,7 @@ describe('CFilterSyncWorker rewind', () => {
     worker.onChainRewound(FORK)
     pool.sent = []
 
-    // The replacement branch arriving mid-hold must not restart the scan: the
-    // spend map still reflects blocks that no longer exist.
+    // The spend map still reflects blocks that no longer exist.
     worker.onChainExtended([header(FORK + 1), header(FORK + 2)])
 
     expect(pool.sent).toEqual([])

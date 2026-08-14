@@ -483,10 +483,8 @@ export class WalletService {
     const allAddresses = [...addresses.change, ...addresses.receiving]
     const provider = this.getProvider(wallet.walletId, wallet.network)
 
-    // History is per-address, so asking for addresses the chain has never seen
-    // buys an empty result per lookahead address. One batched used-check answers
-    // for all of them. It reads live state, not the stored isUsed flag, which
-    // only advances on the discovery tick.
+    // History is per-address, so unused lookahead addresses each buy an empty
+    // result. Live state, not the isUsed flag, which lags the discovery tick.
     const active = await provider.getUsedAddresses(allAddresses.map(a => a.address))
     const txArrays = await Promise.all(active.map(address => provider.getTransactions(address)))
 

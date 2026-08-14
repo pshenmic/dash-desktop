@@ -71,9 +71,7 @@ export interface P2PWatchTxsMessage {
   txids: string[]
 }
 
-// The post-rewind UTXO set, answering P2PChainRewoundMessage. The worker's scan
-// stays held until this lands — its in-memory spend map still carries outputs
-// from the orphaned branch until then.
+// Answers P2PChainRewoundMessage. The worker's scan stays held until it lands.
 export interface P2PReseedUtxosMessage {
   type: 'reseedUtxos'
   walletId: string
@@ -158,8 +156,8 @@ export interface P2PChainLockedMessage {
   height: number
 }
 
-// A competing branch outweighed ours and blocks above `height` were orphaned.
-// Main un-confirms their transactions and answers with reseedUtxos.
+// Blocks above `height` were orphaned. Main un-confirms their transactions and
+// answers with reseedUtxos.
 export interface P2PChainRewoundMessage {
   type: 'chainRewound'
   walletId: string

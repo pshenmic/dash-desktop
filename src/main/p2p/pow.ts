@@ -13,8 +13,8 @@ export function bitsToTarget(bits: number): bigint {
 
 export const POW_LIMIT_TARGET = bitsToTarget(POW_LIMIT_BITS)
 
-// Expected hashes to satisfy `bits`, the comparable unit for branch selection.
-// Height is not a substitute: a branch can be longer and still carry less work.
+// Expected hashes to satisfy `bits`. A longer branch can carry less work, so
+// branch selection compares this rather than height.
 export function headerWork(bits: number): bigint {
   const target = bitsToTarget(bits)
   if (target <= 0n) return 0n

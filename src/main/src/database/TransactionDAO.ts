@@ -136,18 +136,13 @@ export class TransactionDAO {
     })
   }
 
-  // Undoes the blocks a reorg orphaned. Transactions go back to block_height 0
-  // rather than being deleted: an orphaned tx is normally re-mined within a
-  // block or two, and the sentinel puts it straight back into the rebroadcast
-  // and isdlock-watch sets that already serve locally-broadcast txs. One that
-  // never returns is abandonTransaction's job, as it is for any stuck tx.
-  //
-  // is_used is left set — an address that received coins on the orphaned branch
-  // was still revealed, and un-deriving it would hand it out twice.
+  // Orphaned txs go back to the block_height 0 sentinel rather than being
+  // deleted: one is normally re-mined, and that puts it back in the rebroadcast
+  // and isdlock-watch sets. is_used stays set — the address was still revealed.
   rewindToHeight = async (walletId: string, height: number): Promise<void> => {
     await this.knex.transaction(async trx => {
-      // Spends recorded by the orphaned blocks; an instant lock does not
-      // survive its tx losing the chain, so no spender is exempt here.
+      // An instant lock does not survive its tx losing the chain, so no
+      // spender is exempt here.
       await trx('transaction_outputs')
         .where('wallet_id', walletId)
         .andWhere('spent_at_height', '>', height)
@@ -158,8 +153,7 @@ export class TransactionDAO {
         .andWhere('block_height', '>', height)
         .update({block_height: 0, block_hash: '', chainlocked: false})
 
-      // Only downward: the scan has to re-cover the replacement blocks, and
-      // advanceCursor's MAX semantics would otherwise ignore this.
+      // Only downward: advanceCursor's MAX semantics would ignore this.
       await trx('wallet_sync_state')
         .where('wallet_id', walletId)
         .andWhere('cfilter_cursor_height', '>', height)

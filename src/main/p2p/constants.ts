@@ -87,6 +87,14 @@ export const HEADER_RACE_PEERS = 15
 
 export const HEADER_SYNC_TIMEOUT_MS = 30_000
 
+// Past 'synced' the tip only moves on unsolicited `headers` pushes, which need a
+// peer that honours sendheaders. A peer set where none does freezes the tip.
+export const HEADER_STALL_TIMEOUT_MS = 10 * 60_000
+export const HEADER_STALL_CHECK_MS = 60_000
+
+// Cleared whenever headers land, so this only caps a run of unanswered chases.
+export const ANNOUNCE_DEDUPE_LIMIT = 256
+
 // ── CFilter sync ────────────────────────────────────────────────────────────
 
 export const FILTER_TYPE = 0
@@ -108,17 +116,14 @@ export const BLOCK_REQUEST_TIMEOUT_MS = 10_000
 
 // How far below the synced tip cf* stop hashes are capped. Dash Core silently
 // drops requests for blocks not in its active chain, so a stop hash peers have
-// not seen yet costs a batch timeout — this buys them a block of slack. Every
-// block of depth is ~2.5 minutes before a received payment is scanned, so it
-// stays as low as the reorg handling allows.
+// not seen yet costs a batch timeout. Each block of depth is ~2.5 minutes of
+// latency before a received payment is scanned.
 export const SCAN_TIP_DEPTH = 1
 
 // ── Reorg ───────────────────────────────────────────────────────────────────
 
-// How far back a competing branch may fork before we refuse it outright.
-// ChainLocks are the real bound — a chainlocked block cannot be reorged, and
-// clsig lands within a block or two — so this only covers the window before a
-// lock arrives, and caps the recent-header window the rewind path keeps.
+// How far back a competing branch may fork before we refuse it outright, and
+// the depth of the recent-header window. ChainLocks are the tighter bound.
 export const REORG_MAX_DEPTH = 24
 
 // Consecutive tip heights in a getheaders locator before it starts doubling.
