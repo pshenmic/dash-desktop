@@ -1,4 +1,4 @@
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -61,7 +61,7 @@ export class API {
     return this.api.setWalletLabel(walletId, label) as Promise<QueryStatus>
   }
 
-  static async getTransactions(walletId: string) {
+  static async getTransactions(walletId: string): Promise<Transaction[]> {
     return this.api.getTransactions(walletId)
   }
 

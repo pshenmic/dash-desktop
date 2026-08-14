@@ -87,6 +87,9 @@ export const dashscanToWalletTransactions = (
       txid: tx.hash,
       vin,
       vout,
+      instantLocked: tx.instantLock != null,
+      chainlocked: tx.chainLocked === true,
+      isLocal: null,
     }
   })
 }

@@ -1,24 +1,7 @@
 import { API } from '@renderer/api'
+import type { Transaction, TransactionInput, TransactionOutput } from '@renderer/api/types'
 import { formatCreationDate } from '@renderer/utils/date'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
-
-export type WalletTxDto = {
-  walletId: string
-  txid: string
-  address: string
-  direction: 1 | -1
-  inAmount: bigint
-  blockHeight: number | undefined
-  size: number
-  outAmount: bigint
-  transferAmount: bigint
-  usdAmount: string
-  date: string | Date
-  confirmations: number
-  status: string
-  vin: Array<{ addr?: string; value?: number; valueSat?: number }>
-  vout: Array<{ value: string; address?: string }>
-}
 
 type UiStatus = 'success' | 'failed' | 'pending'
 
@@ -36,8 +19,8 @@ export type WalletTxItem = {
   usdAmount: string
   date: Date
   direction: 'in' | 'out'
-  vin: Array<{ addr?: string; value?: number; valueSat?: number }>
-  vout: Array<{ value: string; address?: string }>
+  vin: TransactionInput[]
+  vout: TransactionOutput[]
 }
 
 type TransactionGroup = {
@@ -63,7 +46,7 @@ function mapStatus(status: string, confirmations: number): UiStatus {
   return 'pending'
 }
 
-function mapTx(raw: WalletTxDto): WalletTxItem {
+function mapTx(raw: Transaction): WalletTxItem {
   const direction: 'in' | 'out' = raw.direction === 1 ? 'in' : 'out'
   return {
     id: raw.txid,
@@ -86,7 +69,7 @@ function mapTx(raw: WalletTxDto): WalletTxItem {
 
 const fetchTransactionGroups = (walletId: string): Promise<TransactionGroup[]> =>
   API.getTransactions(walletId)
-    .then((raw) => groupTransactionsByDay(((raw ?? []) as WalletTxDto[]).map(mapTx)))
+    .then((raw) => groupTransactionsByDay((raw ?? []).map(mapTx)))
 
 export function useWalletTransactions(walletId: string | undefined) {
   const { data: groups, loading, err } = useAsyncWithCache<TransactionGroup[]>(

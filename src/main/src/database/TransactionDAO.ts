@@ -463,6 +463,7 @@ export class TransactionDAO {
         't.block_time as t_block_time',
         't.instant_locked as t_instant_locked',
         't.chainlocked as t_chainlocked',
+        't.is_local as t_is_local',
         this.knex.raw('length(t.raw) as t_size'),
         'o.vout as o_vout',
         'o.address as o_address',
@@ -506,6 +507,7 @@ export class TransactionDAO {
         't.block_time as t_block_time',
         't.instant_locked as t_instant_locked',
         't.chainlocked as t_chainlocked',
+        't.is_local as t_is_local',
         this.knex.raw('length(t.raw) as t_size'),
         'o.vout as o_vout',
         'o.address as o_address',
@@ -549,7 +551,7 @@ async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: s
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; locked: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
+  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; instantLocked: boolean; chainlocked: boolean; isLocal: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
 
   for (const row of rows) {
     let acc = byTxid.get(row.t_txid)
@@ -558,7 +560,9 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
         blockHeight: row.t_block_height,
         blockTime: row.t_block_time,
         size: row.t_size,
-        locked: Boolean(row.t_instant_locked) || Boolean(row.t_chainlocked),
+        instantLocked: Boolean(row.t_instant_locked),
+        chainlocked: Boolean(row.t_chainlocked),
+        isLocal: Boolean(row.t_is_local),
         outputs: new Map(),
         inputs: new Map(),
       }
@@ -620,12 +624,15 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
       date: new Date(acc.blockTime * 1000),
       size: acc.size,
       blockHeight: acc.blockHeight,
-      status: acc.locked ? 'Locked' : 'Pending',
+      status: acc.instantLocked || acc.chainlocked ? 'Locked' : 'Pending',
       walletId,
       confirmations: 0,
       txid,
       vin,
       vout,
+      instantLocked: acc.instantLocked,
+      chainlocked: acc.chainlocked,
+      isLocal: acc.isLocal,
     })
   }
 

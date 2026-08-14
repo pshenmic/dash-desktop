@@ -1,5 +1,47 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
+// Hand-maintained alongside definitions.ts, and deliberately a second
+// declaration of src/main/src/types/Transaction: the three bundles do not share
+// types. Amounts stay bigint — structured clone carries them as themselves.
+interface TransactionInputDTO {
+  value: string
+  n: number
+  addr: string
+  prevTxId: string
+  prevVout: number
+  sequence: number
+}
+
+interface TransactionOutputDTO {
+  value: string
+  n: number
+  address: string
+  spentTxId: string
+  spentIndex: number
+  spentHeight: number
+}
+
+interface TransactionDTO {
+  address: string
+  direction: number
+  inAmount: bigint
+  outAmount: bigint
+  transferAmount: bigint
+  usdAmount: string
+  date: Date
+  size: number
+  blockHeight: number
+  status: 'Pending' | 'Locked'
+  walletId: string
+  confirmations: number
+  txid: string
+  vin: TransactionInputDTO[]
+  vout: TransactionOutputDTO[]
+  instantLocked: boolean
+  chainlocked: boolean
+  isLocal: boolean | null
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -15,8 +57,8 @@ declare global {
       getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
-      getTransactions: (walletId: string) => Promise<unknown>
-      getTransactionByHash: (hash: string, network: string) => Promise<unknown>
+      getTransactions: (walletId: string) => Promise<TransactionDTO[]>
+      getTransactionByHash: (hash: string, network: string) => Promise<TransactionDTO>
       getBalance: (address: string | string[], network: string) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
