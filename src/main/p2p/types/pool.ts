@@ -35,6 +35,7 @@ export interface PoolServiceEventMap {
   peercfheaders: (peer: Peer, message: Message) => void
   peercfilter: (peer: Peer, message: Message) => void
   peerislock: (peer: Peer, message: Message & { txid?: string }) => void
+  peertx: (peer: Peer, message: Message & { transaction?: unknown }) => void
   peerisdlock: (peer: Peer, message: Message & { txid?: string }) => void
   peerclsig: (peer: Peer, message: Message & { height?: number; blockHash?: string }) => void
   seederror: (err: Error) => void

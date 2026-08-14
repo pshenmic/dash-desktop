@@ -280,3 +280,80 @@ describe('WalletSyncService reorg persistence', () => {
     expect(sentToChild).toEqual([])
   })
 })
+
+describe('WalletSyncService incoming mempool tx', () => {
+  let transactionDAO: {
+    recordPendingTx: ReturnType<typeof vi.fn>
+    getPendingTxs: ReturnType<typeof vi.fn>
+    getInitialScanComplete: ReturnType<typeof vi.fn>
+  }
+  let service: WalletSyncService
+
+  const incoming = (txid: string): unknown => ({
+    type: 'incomingTx',
+    walletId: WALLET,
+    tx: {txid, raw: new Uint8Array([1]), inputs: [], outputs: []},
+  })
+
+  const emit = (event: unknown): void => {
+    ;(service as unknown as {handleP2PEvent: (e: unknown) => void}).handleP2PEvent(event)
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    sentToChild.length = 0
+
+    transactionDAO = {
+      recordPendingTx: vi.fn().mockResolvedValue(undefined),
+      getPendingTxs: vi.fn().mockResolvedValue([]),
+      getInitialScanComplete: vi.fn().mockResolvedValue(false),
+    }
+    const walletDAO = {getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet'})}
+    service = new WalletSyncService(walletDAO as never, {} as never, transactionDAO as never, Preferences.default())
+  })
+
+  // Lock arming and rebroadcast both no-op without a child, which in production
+  // the lock listener has already forked.
+  const withChild = async (): Promise<void> => {
+    await service.startLockListen('testnet')
+    sentToChild.length = 0
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('records it as not ours', async () => {
+    emit(incoming('aa'.repeat(32)))
+    await tick()
+
+    expect(transactionDAO.recordPendingTx).toHaveBeenCalledTimes(1)
+    expect(transactionDAO.recordPendingTx.mock.calls[0][2]).toBe(false)
+  })
+
+  it('arms the lock watch so the isdlock can mark it final', async () => {
+    await withChild()
+
+    emit(incoming('aa'.repeat(32)))
+    await tick()
+
+    expect(sentToChild).toContainEqual({type: 'watchTxs', mode: 'add', txids: ['aa'.repeat(32)]})
+  })
+
+  // Re-pushing one would relay a stranger's transaction for as long as it
+  // stays unconfirmed.
+  it('never rebroadcasts a tx that is not ours', async () => {
+    transactionDAO.getPendingTxs.mockResolvedValue([
+      {txid: 'aa'.repeat(32), raw: new Uint8Array([1]), firstSeenAt: 0, instantLocked: false, isLocal: false},
+      {txid: 'bb'.repeat(32), raw: new Uint8Array([2]), firstSeenAt: 0, instantLocked: false, isLocal: true},
+    ])
+    await withChild()
+    ;(service as unknown as {activeWalletId: string}).activeWalletId = WALLET
+
+    await (service as unknown as {rebroadcastPending: () => Promise<void>}).rebroadcastPending()
+
+    const broadcasts = sentToChild.filter(m => (m as {type: string}).type === 'broadcast')
+    expect(broadcasts).toHaveLength(1)
+    expect((broadcasts[0] as {txHex: string}).txHex).toBe('02')
+  })
+})

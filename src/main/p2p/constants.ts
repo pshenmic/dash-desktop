@@ -19,7 +19,7 @@ export const INV_TYPE_NAMES: Record<number, string> = {
 
 export const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
   'peerconnect', 'peerready', 'peerdisconnect', 'peerversion',
-  'peerheaders', 'peerinv', 'peerblock', 'peeraddr',
+  'peerheaders', 'peerinv', 'peerblock', 'peeraddr', 'peertx',
   'peercfcheckpt', 'peercfheaders', 'peercfilter',
   'peerislock', 'peerisdlock', 'peerclsig',
   'seederror',
@@ -94,6 +94,14 @@ export const HEADER_STALL_CHECK_MS = 60_000
 
 // Cleared whenever headers land, so this only caps a run of unanswered chases.
 export const ANNOUNCE_DEDUPE_LIMIT = 256
+
+// Mempool txids already fetched. Every lock-pool peer announces the same tx, so
+// without this each one costs a getdata; measured at ~9 duplicates per tx.
+export const MEMPOOL_SEEN_LIMIT = 20_000
+
+// A wallet nobody pays would otherwise log nothing at all, leaving a broken
+// watch indistinguishable from an idle one.
+export const MEMPOOL_REPORT_INTERVAL_MS = 5 * 60_000
 
 // ── CFilter sync ────────────────────────────────────────────────────────────
 
