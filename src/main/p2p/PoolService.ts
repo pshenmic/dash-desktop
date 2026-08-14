@@ -129,7 +129,7 @@ export class PoolService extends EventEmitter {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     for (const addr of addrs) pool._addAddr({...addr, hash: undefined})
-    console.log(`[${this.label}] +${addrs.length} address(es) known=${this.pool._addrs.length}`)
+    console.log(`[${this.label}] +${addrs.length} peers(es) known=${this.pool._addrs.length}`)
     pool._fillConnections()
   }
 

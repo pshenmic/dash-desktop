@@ -112,6 +112,28 @@ export class ChainStore {
     await batch.write()
   }
 
+  // Reorg: drop the orphaned branch and re-point the tip in one batch, so a
+  // crash mid-rewind cannot leave a tip marker addressing deleted headers.
+  deleteHeadersFrom = async (fromHeight: number, nextState: ChainTipState): Promise<void> => {
+    const batch = this.db.batch()
+    // ; sorts immediately after :, capping each keyspace at its own prefix.
+    for (const [key, cap] of [[headerKey(fromHeight), 'h;'], [hashKey(fromHeight), 'n;']] as const) {
+      const iter = this.db.iterator({gte: key, lt: cap})
+      try {
+        for await (const [k] of iter) batch.del(k)
+      } finally {
+        await iter.close()
+      }
+    }
+    const stored: StoredState = {
+      tipHeight: nextState.tipHeight,
+      tipHash: nextState.tipHash,
+      updatedAt: Date.now(),
+    }
+    batch.put(stateKey(this.network), encodeJson(stored))
+    await batch.write()
+  }
+
   getHeaderByHeight = async (height: number): Promise<Uint8Array | null> => {
     try {
       return (await this.db.get(headerKey(height))) ?? null

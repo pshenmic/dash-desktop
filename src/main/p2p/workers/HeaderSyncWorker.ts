@@ -2,15 +2,18 @@ import {Message, Peer} from 'dash-core-p2p'
 import {utils as coreUtils} from 'dash-core-sdk'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
-import {bitsToTarget, hashHeaderRaw, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
+import {buildLocatorHeights} from '../blockLocator'
+import {bitsToTarget, hashHeaderRaw, headerWork, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
 import {Worker} from './Worker'
 import {
   HEADER_RACE_PEERS,
   HEADER_SYNC_TIMEOUT_MS,
   INV_TYPE_NAMES,
   MAX_FUTURE_BLOCK_TIME,
+  REORG_MAX_DEPTH,
 } from '../constants'
 import type {
+  ChainWindowEntry,
   HeaderRace,
   HeaderSyncPhase,
   HeaderSyncWorkerOptions,
@@ -35,6 +38,13 @@ export class HeaderSyncWorker extends Worker {
   private chainTipHeight: number
   private chainTipHash: string
   private maxPeerHeight = 0
+  private finalityHeight: number
+
+  // The last REORG_MAX_DEPTH accepted headers, by height and by hash. Bounds
+  // both the locator and how far back an incoming branch may connect: a fork
+  // older than this window is one we would refuse anyway.
+  private window = new Map<number, ChainWindowEntry>()
+  private windowByHash = new Map<string, number>()
 
   private currentRace: HeaderRace | null = null
   private phase: HeaderSyncPhase = 'connecting'
@@ -54,9 +64,17 @@ export class HeaderSyncWorker extends Worker {
     this.peerPool = opts.peerPool
     this.chainTipHeight = opts.initialTipHeight
     this.chainTipHash = opts.initialTipHash
+    this.finalityHeight = opts.finalityHeight
   }
 
-  start = (): void => {
+  // ChainLocks arrive on the lock pool, which outlives this worker, so the
+  // floor moves under us rather than being fixed at construction.
+  setFinalityHeight = (height: number): void => {
+    if (height > this.finalityHeight) this.finalityHeight = height
+  }
+
+  start = async (): Promise<void> => {
+    await this.loadWindow()
     this.peerPool.on('peerready', this.onPeerReady)
     this.peerPool.on('peerheaders', this.onPeerHeaders)
     this.peerPool.on('peerinv', this.onPeerInv)
@@ -92,6 +110,58 @@ export class HeaderSyncWorker extends Worker {
       peerCount: this.peerPool.readyPeers.size,
     }
     this.emit('status', status)
+  }
+
+  // ── recent-header window ──────────────────────────────────────────────────
+
+  // ChainLocks are announced network-wide, so during initial sync the floor
+  // runs millions of blocks ahead of our tip. Clamped, or the locator asks for
+  // heights we have not reached and degenerates to a single hash.
+  private windowFloor(): number {
+    return Math.max(1, Math.min(this.finalityHeight, this.chainTipHeight), this.chainTipHeight - REORG_MAX_DEPTH)
+  }
+
+  private async loadWindow(): Promise<void> {
+    const from = Math.max(1, this.chainTipHeight - REORG_MAX_DEPTH)
+    const stored = await this.chainStore.iterateHeadersInRange(from, this.chainTipHeight)
+    for (const {height, raw} of stored) {
+      if (raw.length < 80) continue
+      const nBits = new DataView(raw.buffer, raw.byteOffset, raw.byteLength).getUint32(72, true)
+      this.recordWindow(height, hashHeaderRaw(raw), headerWork(nBits))
+    }
+    // Genesis is never written to chain.db (HeaderSync starts with it as its
+    // tip), and neither is a resume tip whose headers predate the h: keyspace.
+    // Work 0 is only ever compared across heights above a fork point, so a
+    // placeholder at the tip cannot skew branch selection.
+    if (!this.window.has(this.chainTipHeight)) {
+      this.recordWindow(this.chainTipHeight, this.chainTipHash, 0n)
+    }
+  }
+
+  private recordWindow(height: number, hash: string, work: bigint): void {
+    this.window.set(height, {hash, work})
+    this.windowByHash.set(hash, height)
+    this.pruneWindow()
+  }
+
+  private pruneWindow(): void {
+    const floor = Math.max(1, this.chainTipHeight - REORG_MAX_DEPTH)
+    for (const [height, entry] of this.window) {
+      if (height >= floor && height <= this.chainTipHeight) continue
+      this.window.delete(height)
+      // Only if it still maps here: a rewound height is re-recorded with the
+      // winning branch's hash before the loser is pruned.
+      if (this.windowByHash.get(entry.hash) === height) this.windowByHash.delete(entry.hash)
+    }
+  }
+
+  // Total work over (fromHeight, chainTipHeight] — our side of a fork choice.
+  private workAbove(fromHeight: number): bigint {
+    let total = 0n
+    for (let h = fromHeight + 1; h <= this.chainTipHeight; h++) {
+      total += this.window.get(h)?.work ?? 0n
+    }
+    return total
   }
 
   // ── peer event handlers ───────────────────────────────────────────────────
@@ -137,9 +207,9 @@ export class HeaderSyncWorker extends Worker {
     console.log(`[p2p] peerheaders ${peer.host} count=${rawHeaders.length} phase=${this.phase}`)
 
     if (this.phase !== 'syncing-headers') {
-      // Tip-following: post-sync, accept unsolicited extensions.
+      // Tip-following: post-sync, accept unsolicited extensions and the
+      // competing branches processHeaders resolves against our own.
       if (rawHeaders.length === 0 || rawHeaders[0]!.length < 80) return
-      if (rawPrevHash(rawHeaders[0]!) !== this.chainTipHash) return
       this.processHeaders(rawHeaders).catch(err => {
         console.error('[p2p] processHeaders (tip-follow) failed:', err)
         this.reportError(formatChainDbError(err), false)
@@ -150,24 +220,24 @@ export class HeaderSyncWorker extends Worker {
     const race = this.currentRace
     if (!race || !race.racers.has(peer)) return
 
-    if (rawHeaders.length > 0) {
-      if (rawHeaders[0]!.length < 80) {
-        race.racers.delete(peer)
-        return
-      }
-      if (rawPrevHash(rawHeaders[0]!) !== race.locator) return
-    }
-
+    // Unconditional: a peer that answered has had its turn either way. Leaving
+    // a racer in the set on a response we could not use is what let a batch we
+    // rejected hold the race open until its timeout, re-asking the same peers
+    // with the same locator forever.
     race.racers.delete(peer)
+
+    if (rawHeaders.length > 0 && rawHeaders[0]!.length < 80) {
+      this.restartIfExhausted(race)
+      return
+    }
 
     if (rawHeaders.length === 0) {
       race.zeroResponses++
       const agreeThreshold = Math.min(2, Math.max(1, this.peerPool.readyPeers.size))
       if (race.zeroResponses >= agreeThreshold) {
         this.finishHeaderSync()
-      } else if (race.racers.size === 0) {
-        this.endRace(race)
-        this.startHeaderRace()
+      } else {
+        this.restartIfExhausted(race)
       }
       return
     }
@@ -175,10 +245,9 @@ export class HeaderSyncWorker extends Worker {
     this.processHeaders(rawHeaders).then(advanced => {
       if (this.stopped) return
       if (!advanced) {
-        if (race.racers.size === 0 && race.zeroResponses === 0) {
-          this.endRace(race)
-          this.startHeaderRace()
-        }
+        // zeroResponses left alone: those peers are counting toward
+        // finishHeaderSync, and restarting would re-ask them the same thing.
+        if (race.zeroResponses === 0) this.restartIfExhausted(race)
         return
       }
       this.endRace(race)
@@ -204,12 +273,22 @@ export class HeaderSyncWorker extends Worker {
 
   // ── race machinery ────────────────────────────────────────────────────────
 
-  private getHeadersMsg(locator: string): Message {
+  private getHeadersMsg(locator: string[]): Message {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.peerPool.messages as any).GetHeaders({
-      starts: [coreUtils.hexToBytes(locator).reverse()],
+      starts: locator.map(hash => coreUtils.hexToBytes(hash).reverse()),
       stop: new Uint8Array(32),
     })
+  }
+
+  private buildLocator(): string[] {
+    const hashes: string[] = []
+    for (const height of buildLocatorHeights(this.chainTipHeight, this.windowFloor())) {
+      const entry = this.window.get(height)
+      if (entry) hashes.push(entry.hash)
+    }
+    // Nothing loaded yet (fresh chain.db at genesis) — the tip still locates us.
+    return hashes.length > 0 ? hashes : [this.chainTipHash]
   }
 
   private startHeaderRace(): void {
@@ -222,13 +301,13 @@ export class HeaderSyncWorker extends Worker {
     }
     if (picks.length === 0) return
 
-    const locator = this.chainTipHash
+    const locator = this.buildLocator()
     const race: HeaderRace = {locator, racers: new Set(picks), zeroResponses: 0, timer: null}
     this.currentRace = race
 
     const msg = this.getHeadersMsg(locator)
     for (const p of picks) p.sendMessage(msg)
-    console.log(`[p2p] race start locator=${locator} height=${this.chainTipHeight} racers=${picks.length}`)
+    console.log(`[p2p] race start locator=${locator[0]}+${locator.length - 1} height=${this.chainTipHeight} racers=${picks.length}`)
 
     race.timer = setTimeout(() => {
       if (this.currentRace !== race) return
@@ -236,6 +315,14 @@ export class HeaderSyncWorker extends Worker {
       this.endRace(race)
       this.startHeaderRace()
     }, HEADER_SYNC_TIMEOUT_MS)
+  }
+
+  // The last outstanding racer answered with nothing usable. Without this the
+  // race holds until HEADER_SYNC_TIMEOUT_MS before anyone else is asked.
+  private restartIfExhausted(race: HeaderRace): void {
+    if (race.racers.size > 0) return
+    this.endRace(race)
+    this.startHeaderRace()
   }
 
   private endRace(race: HeaderRace): void {
@@ -251,19 +338,115 @@ export class HeaderSyncWorker extends Worker {
     this.emitStatus('synced')
   }
 
-  // DGWv3 difficulty validation is intentionally off: replicating Dash
-  // testnet's early-chain edge cases (min-difficulty rule, encoded POW_LIMIT
-  // round-tripping) is out of scope until a recent checkpoint anchors trust.
+  // Returns whether our tip moved — a batch that loses a fork choice, or does
+  // not connect at all, is not an advance.
   private async processHeaders(rawHeaders: Uint8Array[]): Promise<boolean> {
     console.log(`[p2p] processHeaders: ${rawHeaders.length}`)
     if (rawHeaders.length === 0) return false
 
+    const incomingPrev = rawPrevHash(rawHeaders[0]!)
+    if (incomingPrev === this.chainTipHash) {
+      const validated = this.validateHeaders(rawHeaders, this.chainTipHeight, this.chainTipHash)
+      return validated == null ? false : await this.commitHeaders(validated.accepted)
+    }
+
+    // Builds on a block below our tip. Usually not a competing branch at all: a
+    // second peer announcing the block we just accepted lands here too, because
+    // by then its parent sits one below the tip.
+    const connectsAt = this.windowByHash.get(incomingPrev)
+    if (connectsAt == null) {
+      console.warn(`[p2p] reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+      return false
+    }
+
+    const {rest, height, hash} = this.trimKnownPrefix(rawHeaders, connectsAt, incomingPrev)
+    if (rest.length === 0) return false
+    if (height === this.chainTipHeight) {
+      const validated = this.validateHeaders(rest, this.chainTipHeight, this.chainTipHash)
+      return validated == null ? false : await this.commitHeaders(validated.accepted)
+    }
+    return await this.considerFork(rest, height, hash)
+  }
+
+  // Drops leading headers we already hold, so re-announced blocks of our own do
+  // not reach the fork machinery. Trimming rather than rejecting outright is
+  // what keeps a batch that overlaps our tip and then extends past it: the known
+  // part is skipped and the remainder is still applied.
+  private trimKnownPrefix(
+    rawHeaders: Uint8Array[],
+    connectsAt: number,
+    connectsTo: string,
+  ): {rest: Uint8Array[]; height: number; hash: string} {
+    let height = connectsAt
+    let hash = connectsTo
+    let index = 0
+
+    while (index < rawHeaders.length) {
+      const raw = rawHeaders[index]!
+      if (raw.length < 80) break
+      const known = this.window.get(height + 1)
+      if (known == null || known.hash !== hashHeaderRaw(raw)) break
+      height++
+      hash = known.hash
+      index++
+    }
+
+    return {rest: rawHeaders.slice(index), height, hash}
+  }
+
+  private async considerFork(rawHeaders: Uint8Array[], forkHeight: number, forkHash: string): Promise<boolean> {
+    // A ChainLock is final by consensus, so a branch forking under one is not a
+    // chain we lost — it is a peer on a chain that lost.
+    if (forkHeight < this.finalityHeight) {
+      console.warn(`[p2p] refusing fork at h=${forkHeight}: below chainlocked h=${this.finalityHeight}`)
+      return false
+    }
+
+    const validated = this.validateHeaders(rawHeaders, forkHeight, forkHash)
+    if (validated == null) return false
+
+    const ourWork = this.workAbove(forkHeight)
+    if (validated.work <= ourWork) {
+      console.log(`[p2p] fork at h=${forkHeight} carries no more work than ours — keeping current branch`)
+      return false
+    }
+
+    await this.rewindTo(forkHeight, forkHash)
+    return await this.commitHeaders(validated.accepted)
+  }
+
+  private async rewindTo(forkHeight: number, forkHash: string): Promise<void> {
+    console.warn(`[p2p] reorg: dropping ${this.chainTipHeight - forkHeight} block(s) back to h=${forkHeight} ${forkHash}`)
+    await this.chainStore.deleteHeadersFrom(forkHeight + 1, {tipHeight: forkHeight, tipHash: forkHash})
+
+    this.chainTipHeight = forkHeight
+    this.chainTipHash = forkHash
+    this.pruneWindow()
+
+    // Ordered before the winning branch's chainExtended so the filter scan and
+    // SQL have dropped the orphaned blocks by the time replacements arrive.
+    this.emit('chainRewound', forkHeight)
+  }
+
+  // DGWv3 difficulty validation is intentionally off: replicating Dash
+  // testnet's early-chain edge cases (min-difficulty rule, encoded POW_LIMIT
+  // round-tripping) is out of scope until a recent checkpoint anchors trust.
+  private validateHeaders(
+    rawHeaders: Uint8Array[],
+    startHeight: number,
+    startHash: string,
+  ): {accepted: PersistedHeader[]; work: bigint} | null {
     const futureLimit = Math.floor(Date.now() / 1000) + MAX_FUTURE_BLOCK_TIME
-    let prevHash = this.chainTipHash
-    let h = this.chainTipHeight
+    let prevHash = startHash
+    let h = startHeight
+    let work = 0n
     const accepted: PersistedHeader[] = []
 
     for (const raw of rawHeaders) {
+      if (raw.length < 80) {
+        console.warn(`[p2p] reject ~h=${h + 1} short header (${raw.length} bytes)`)
+        return null
+      }
       const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
       const time = dv.getUint32(68, true)
       const nBits = dv.getUint32(72, true)
@@ -271,39 +454,47 @@ export class HeaderSyncWorker extends Worker {
 
       if (incomingPrev !== prevHash) {
         console.warn(`[p2p] reject ~h=${h + 1} prev mismatch got=${incomingPrev} want=${prevHash}`)
-        return false
+        return null
       }
       if (time > futureLimit) {
         console.warn(`[p2p] reject ~h=${h + 1} time too far in future: ${time}`)
-        return false
+        return null
       }
 
       const target = bitsToTarget(nBits)
       if (target <= 0n || target > POW_LIMIT_TARGET) {
         console.warn(`[p2p] reject ~h=${h + 1} bad nBits=0x${nBits.toString(16)}`)
-        return false
+        return null
       }
 
       const hashHex = hashHeaderRaw(raw)
       if (BigInt('0x' + hashHex) > target) {
         console.warn(`[p2p] reject ~h=${h + 1} PoW fail hash=${hashHex.slice(0, 16)}`)
-        return false
+        return null
       }
 
       h++
       accepted.push({height: h, hash: hashHex, prevHash, time, nBits, raw})
+      work += headerWork(nBits)
       prevHash = hashHex
     }
+
+    return accepted.length > 0 ? {accepted, work} : null
+  }
+
+  private async commitHeaders(accepted: PersistedHeader[]): Promise<boolean> {
+    const last = accepted[accepted.length - 1]!
 
     // Advance the in-memory tip BEFORE awaiting the write: racing peers
     // re-enter processHeaders during the await, and against the old tip they
     // all pass validation and queue duplicate batches (12x write
     // amplification). Updating first makes the prev-hash check reject them
     // synchronously.
-    this.chainTipHeight = h
-    this.chainTipHash = prevHash
+    this.chainTipHeight = last.height
+    this.chainTipHash = last.hash
+    for (const header of accepted) this.recordWindow(header.height, header.hash, headerWork(header.nBits))
 
-    const nextState: ChainTipState = {tipHeight: h, tipHash: prevHash}
+    const nextState: ChainTipState = {tipHeight: last.height, tipHash: last.hash}
     await this.chainStore.appendHeaders(accepted, nextState)
 
     // A tip-follow batch arriving after 'synced' must not flip the phase

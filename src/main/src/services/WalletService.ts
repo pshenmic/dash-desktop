@@ -422,8 +422,8 @@ export class WalletService {
     // their history.
     //
     // Accepted residual: the scan tip is chainTip - SCAN_TIP_DEPTH, so
-    // convergence can be declared while a used address hides in the last ~10
-    // blocks. It could then surface later, extend the frontier, and derive an
+    // convergence can be declared while a used address hides in the last couple
+    // of blocks. It could then surface later, extend the frontier, and derive an
     // index whose deep history is skipped. Revisit if we track a birthday or
     // scan the tip window before latching.
     if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {

@@ -249,6 +249,9 @@ export class CFilterSyncWorker extends Worker {
   // Height of the last block applied before the gap ran out. Non-null means the
   // scan is held and pumpCFilters is a no-op.
   private gapPausedAt: number | null = null
+  // Set between a rewind and main's reseedUtxos answer; pauses the scan for the
+  // same reason gapPausedAt does — the inputs it matches against are stale.
+  private awaitingReseed = false
   private draining = false
 
   // ── per-phase state ─────────────────────────────────────────────────────
@@ -371,6 +374,50 @@ export class CFilterSyncWorker extends Worker {
       if (this.phase === 'synced') this.emitStatus('cfilters')
       this.pumpCFilters()
     }
+  }
+
+  // A competing branch won: everything above `forkHeight` is orphaned. Drops
+  // the filter headers and matched-block work derived from it and re-points the
+  // scan, then holds until main answers with the rewound UTXO set — scanning on
+  // with a spend map that still reflects orphaned blocks would mis-detect the
+  // replacement blocks.
+  onChainRewound = (forkHeight: number): void => {
+    if (this.stopped) return
+    console.warn(`[cfilter] chain rewound to h=${forkHeight} — dropping derived state above it`)
+
+    this.clearTimers()
+    this.blockFetch.matched.clear()
+
+    this.heightToFilterHeader.deleteFrom(forkHeight + 1)
+    this.chainStore.deleteFilterHeadersFrom(forkHeight + 1).catch(err => {
+      console.error('[cfilter] failed to drop filter headers above the fork:', err)
+      this.reportError(formatChainDbError(err), false)
+    })
+
+    this.chainTipHeight = forkHeight
+    this.cfilter.cursor = Math.min(this.cfilter.cursor, forkHeight + 1)
+    this.cfHeaders.walkStart = Math.min(this.cfHeaders.walkStart, forkHeight + 1)
+    this.awaitingReseed = true
+
+    this.emit('cursorReset', {walletId: this.walletId, height: forkHeight})
+  }
+
+  // Answers the hold above with the post-rewind UTXO set from SQL. watchedItems
+  // is rebuilt rather than appended to: the orphaned outpoints have to leave it.
+  reseedUtxos = (utxos: WalletSyncUtxo[]): void => {
+    if (this.stopped) return
+    this.utxos.clear()
+    for (const u of utxos) this.utxos.set(`${u.txid}:${u.vout}`, u)
+
+    this.watchedItems = [
+      ...[...this.watchedAddressSet].map(p2pkhScript),
+      ...utxos.map(u => new OutPoint(u.txid, u.vout).bytes()),
+    ]
+
+    this.awaitingReseed = false
+    console.log(`[cfilter] reseeded ${utxos.length} utxo(s) after rewind — resuming at h=${this.cfilter.cursor}`)
+    if (this.phase === 'synced') this.emitStatus('cfilters')
+    this.pumpCFilters()
   }
 
   private registerWatchAddress(a: WatchAddress): boolean {
@@ -833,7 +880,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private pumpCFilters(): void {
-    if (this.stopped || this.gapPausedAt != null) return
+    if (this.stopped || this.gapPausedAt != null || this.awaitingReseed) return
     const effectiveTip = this.effectiveScanTipHeight()
     while (this.cfilter.cursor <= effectiveTip && this.cfilter.inflightBatches.size < MAX_INFLIGHT_BATCHES) {
       const startHeight = this.cfilter.cursor
@@ -874,7 +921,7 @@ export class CFilterSyncWorker extends Worker {
   // the scan runs is what lets gap exhaustion be caught mid-scan rather than
   // after it — and it keeps matched blocks from piling up in memory.
   private async drainMatched(): Promise<void> {
-    if (this.draining || this.gapPausedAt != null) return
+    if (this.draining || this.gapPausedAt != null || this.awaitingReseed) return
     this.draining = true
     try {
       const settled = this.settledHeight()
