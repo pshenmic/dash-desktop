@@ -1,4 +1,4 @@
-import {Message, Peer} from 'dash-core-p2p'
+import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {utils as coreUtils} from 'dash-core-sdk'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
@@ -6,7 +6,10 @@ import {buildLocatorHeights} from '../blockLocator'
 import {bitsToTarget, hashHeaderRaw, headerWork, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
 import {Worker} from './Worker'
 import {
+  ANNOUNCE_DEDUPE_LIMIT,
   HEADER_RACE_PEERS,
+  HEADER_STALL_CHECK_MS,
+  HEADER_STALL_TIMEOUT_MS,
   HEADER_SYNC_TIMEOUT_MS,
   INV_TYPE_NAMES,
   MAX_FUTURE_BLOCK_TIME,
@@ -40,15 +43,19 @@ export class HeaderSyncWorker extends Worker {
   private maxPeerHeight = 0
   private finalityHeight: number
 
-  // The last REORG_MAX_DEPTH accepted headers, by height and by hash. Bounds
-  // both the locator and how far back an incoming branch may connect: a fork
-  // older than this window is one we would refuse anyway.
+  // Bounds both the locator and how far back an incoming branch may connect.
   private window = new Map<number, ChainWindowEntry>()
   private windowByHash = new Map<string, number>()
 
   private currentRace: HeaderRace | null = null
   private phase: HeaderSyncPhase = 'connecting'
   private stopped = false
+
+  // Chased announcements, so one block costs one getheaders across all peers.
+  private announcedBlocks = new Set<string>()
+  private lastHeaderAt = Date.now()
+  private lastStallPollAt = 0
+  private stallTimer: ReturnType<typeof setInterval> | null = null
 
   // Bound listener references so stop() can detach cleanly.
   private onPeerReady = (peer: Peer): void => this.handlePeerReady(peer)
@@ -81,6 +88,10 @@ export class HeaderSyncWorker extends Worker {
     this.peerPool.on('peerdisconnect', this.onPeerDisconnect)
     this.emitStatus('connecting')
 
+    this.lastHeaderAt = Date.now()
+    this.stallTimer = setInterval(() => this.checkForStall(), HEADER_STALL_CHECK_MS)
+    this.stallTimer.unref?.()
+
     // Any peers already ready when we attached should kick off the race.
     for (const peer of this.peerPool.readyPeers) this.handlePeerReady(peer)
   }
@@ -90,6 +101,8 @@ export class HeaderSyncWorker extends Worker {
     this.stopped = true
     if (this.currentRace?.timer) clearTimeout(this.currentRace.timer)
     this.currentRace = null
+    if (this.stallTimer) clearInterval(this.stallTimer)
+    this.stallTimer = null
     this.peerPool.off('peerready', this.onPeerReady)
     this.peerPool.off('peerheaders', this.onPeerHeaders)
     this.peerPool.off('peerinv', this.onPeerInv)
@@ -114,9 +127,8 @@ export class HeaderSyncWorker extends Worker {
 
   // ── recent-header window ──────────────────────────────────────────────────
 
-  // ChainLocks are announced network-wide, so during initial sync the floor
-  // runs millions of blocks ahead of our tip. Clamped, or the locator asks for
-  // heights we have not reached and degenerates to a single hash.
+  // ChainLocks are announced network-wide, so mid-sync the floor sits millions
+  // of blocks above our tip — unclamped it would ask for heights we lack.
   private windowFloor(): number {
     return Math.max(1, Math.min(this.finalityHeight, this.chainTipHeight), this.chainTipHeight - REORG_MAX_DEPTH)
   }
@@ -129,10 +141,8 @@ export class HeaderSyncWorker extends Worker {
       const nBits = new DataView(raw.buffer, raw.byteOffset, raw.byteLength).getUint32(72, true)
       this.recordWindow(height, hashHeaderRaw(raw), headerWork(nBits))
     }
-    // Genesis is never written to chain.db (HeaderSync starts with it as its
-    // tip), and neither is a resume tip whose headers predate the h: keyspace.
-    // Work 0 is only ever compared across heights above a fork point, so a
-    // placeholder at the tip cannot skew branch selection.
+    // Genesis is never written to chain.db, and neither is a resume tip whose
+    // headers predate the h: keyspace. Work is only summed above a fork point.
     if (!this.window.has(this.chainTipHeight)) {
       this.recordWindow(this.chainTipHeight, this.chainTipHash, 0n)
     }
@@ -186,6 +196,8 @@ export class HeaderSyncWorker extends Worker {
   }
 
   private handlePeerInv(peer: Peer, inventory: Array<{ type: number; hash?: Uint8Array }>): void {
+    this.chaseAnnouncedBlocks(peer, inventory)
+
     const counts: Record<number, number> = {}
     for (const item of inventory) counts[item.type] = (counts[item.type] ?? 0) + 1
     // With relay on, peers stream mempool tx inv continuously and none of it
@@ -200,6 +212,50 @@ export class HeaderSyncWorker extends Worker {
       .map(i => `${typeName(i.type)}:${Buffer.from(i.hash!).reverse().toString('hex')}`)
       .join(' ')
     console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'}${hashes ? ` [${hashes}]` : ''}`)
+  }
+
+  // Past 'synced' the tip rides on unsolicited pushes, which need a peer that
+  // honours sendheaders. An inv announcement is the only other signal we are behind.
+  private chaseAnnouncedBlocks(peer: Peer, inventory: Array<{ type: number; hash?: Uint8Array }>): void {
+    if (this.stopped || this.phase !== 'synced') return
+
+    let chase = false
+    for (const item of inventory) {
+      if (item.type !== Inventory.TYPE.BLOCK || !item.hash) continue
+      const hash = Buffer.from(item.hash).reverse().toString('hex')
+      // Already ours, or already chased by another peer's announcement.
+      if (this.windowByHash.has(hash) || this.announcedBlocks.has(hash)) continue
+      if (this.announcedBlocks.size >= ANNOUNCE_DEDUPE_LIMIT) this.announcedBlocks.clear()
+      this.announcedBlocks.add(hash)
+      chase = true
+    }
+
+    if (!chase) return
+    console.log(`[p2p] block announced by ${peer.host} above h=${this.chainTipHeight} — requesting headers`)
+    this.requestTipHeaders([peer])
+  }
+
+  private requestTipHeaders(peers: Peer[]): void {
+    if (peers.length === 0) return
+    const msg = this.getHeadersMsg(this.buildLocator())
+    for (const peer of peers) peer.sendMessage(msg)
+  }
+
+  // Backstop for the inv path: a peer set sending neither headers nor
+  // announcements freezes the tip while status still reads 'synced'.
+  private checkForStall(): void {
+    if (this.stopped || this.phase !== 'synced') return
+
+    const quietSince = Math.max(this.lastHeaderAt, this.lastStallPollAt)
+    if (Date.now() - quietSince < HEADER_STALL_TIMEOUT_MS) return
+
+    const peers = [...this.peerPool.readyPeers].slice(0, HEADER_RACE_PEERS)
+    if (peers.length === 0) return
+
+    this.lastStallPollAt = Date.now()
+    const quietFor = Math.round((Date.now() - this.lastHeaderAt) / 1000)
+    console.warn(`[p2p] no headers for ${quietFor}s at h=${this.chainTipHeight} — polling ${peers.length} peer(s)`)
+    this.requestTipHeaders(peers)
   }
 
   private handlePeerHeaders(peer: Peer, rawHeaders: Uint8Array[]): void {
@@ -220,10 +276,8 @@ export class HeaderSyncWorker extends Worker {
     const race = this.currentRace
     if (!race || !race.racers.has(peer)) return
 
-    // Unconditional: a peer that answered has had its turn either way. Leaving
-    // a racer in the set on a response we could not use is what let a batch we
-    // rejected hold the race open until its timeout, re-asking the same peers
-    // with the same locator forever.
+    // Unconditional: a racer left in the set on an unusable response holds the
+    // race open until its timeout, re-asking the same peers the same question.
     race.racers.delete(peer)
 
     if (rawHeaders.length > 0 && rawHeaders[0]!.length < 80) {
@@ -338,8 +392,6 @@ export class HeaderSyncWorker extends Worker {
     this.emitStatus('synced')
   }
 
-  // Returns whether our tip moved — a batch that loses a fork choice, or does
-  // not connect at all, is not an advance.
   private async processHeaders(rawHeaders: Uint8Array[]): Promise<boolean> {
     console.log(`[p2p] processHeaders: ${rawHeaders.length}`)
     if (rawHeaders.length === 0) return false
@@ -350,9 +402,8 @@ export class HeaderSyncWorker extends Worker {
       return validated == null ? false : await this.commitHeaders(validated.accepted)
     }
 
-    // Builds on a block below our tip. Usually not a competing branch at all: a
-    // second peer announcing the block we just accepted lands here too, because
-    // by then its parent sits one below the tip.
+    // Usually not a competing branch: a second peer announcing the block we just
+    // accepted lands here too, its parent now one below the tip.
     const connectsAt = this.windowByHash.get(incomingPrev)
     if (connectsAt == null) {
       console.warn(`[p2p] reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
@@ -369,9 +420,7 @@ export class HeaderSyncWorker extends Worker {
   }
 
   // Drops leading headers we already hold, so re-announced blocks of our own do
-  // not reach the fork machinery. Trimming rather than rejecting outright is
-  // what keeps a batch that overlaps our tip and then extends past it: the known
-  // part is skipped and the remainder is still applied.
+  // not reach the fork machinery while a batch that extends past them still applies.
   private trimKnownPrefix(
     rawHeaders: Uint8Array[],
     connectsAt: number,
@@ -493,6 +542,10 @@ export class HeaderSyncWorker extends Worker {
     this.chainTipHeight = last.height
     this.chainTipHash = last.hash
     for (const header of accepted) this.recordWindow(header.height, header.hash, headerWork(header.nBits))
+
+    this.lastHeaderAt = Date.now()
+    // Whatever was outstanding is either in the window now or was never ours.
+    this.announcedBlocks.clear()
 
     const nextState: ChainTipState = {tipHeight: last.height, tipHash: last.hash}
     await this.chainStore.appendHeaders(accepted, nextState)

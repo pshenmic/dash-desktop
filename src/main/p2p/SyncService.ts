@@ -220,8 +220,8 @@ export class SyncService {
     })
     this.headerSyncWorker.on('chainRewound', (height: number) => {
       this.cfilterSyncWorker?.onChainRewound(height)
-      // Rewound before the cfilter worker booted: it takes its cursor from the
-      // start command, not from SQL, so the pending seed has to come down too.
+      // The worker takes its cursor from the start command, not from SQL, so a
+      // rewind before it boots has to come down with it.
       if (this.cfilterSyncWorker == null && this.activeCFilterCursor != null) {
         this.activeCFilterCursor = Math.min(this.activeCFilterCursor, height)
       }
@@ -388,10 +388,8 @@ export class SyncService {
     const height = msg.height ?? 0
     if (height <= this.chainlockedHeight) return
     this.chainlockedHeight = height
-    // Header sync will not rewind below this, which is what keeps a reorg
-    // shallow enough to handle without full most-work fork resolution. Logged
-    // because the floor is otherwise invisible, and a floor stuck at 0 leaves
-    // REORG_MAX_DEPTH as the only bound on a rewind.
+    // Header sync will not rewind below this. Logged because a floor stuck at 0
+    // leaves REORG_MAX_DEPTH as the only bound on a rewind.
     this.headerSyncWorker?.setFinalityHeight(height)
     console.log(`[locks] chainlock h=${height} — reorg floor ${this.headerSyncWorker ? 'applied' : 'not applied (no header sync)'}`)
     this.events.chainLocked(this.lockNetwork, height)

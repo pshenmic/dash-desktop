@@ -251,8 +251,7 @@ describe('WalletSyncService reorg persistence', () => {
     expect(order).toEqual(['rewindToHeight', 'getUtxos'])
   })
 
-  // Both ride the same persist queue, so a block still being written cannot be
-  // undone by a rewind that overtakes it.
+  // Both ride the same persist queue.
   it('undoes the orphaned blocks only after their own writes have landed', async () => {
     emit({
       type: 'blockApplied',

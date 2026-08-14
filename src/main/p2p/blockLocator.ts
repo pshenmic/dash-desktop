@@ -1,12 +1,8 @@
 import {LOCATOR_DENSE_HEIGHTS} from './constants'
 
-// Heights for a `getheaders` locator, tip-first: every height for the most
-// recent LOCATOR_DENSE_HEIGHTS blocks, then doubling steps down to `floor`.
-//
-// A single-hash locator is what wedges header sync across a reorg: the peer
-// cannot find a common ancestor from a hash that left its active chain, and
-// answers from genesis instead. The dense head covers shallow forks in one
-// round trip; the doubling tail bounds the list at ~log2 of the range.
+// Tip-first locator heights: dense over the most recent blocks, then doubling
+// down to `floor`. A peer cannot find a common ancestor from a lone hash that
+// left its active chain, and answers from genesis instead.
 export function buildLocatorHeights(tipHeight: number, floorHeight: number): number[] {
   const floor = Math.max(1, floorHeight)
   if (tipHeight < floor) return [floor]

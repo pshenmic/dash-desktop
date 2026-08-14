@@ -177,9 +177,8 @@ export class WalletSyncService {
     } else if (data.type === 'cursorReset') {
       this.enqueuePersist(() => this.transactionDAO.resetCursor(data.walletId, data.height))
     } else if (data.type === 'chainRewound') {
-      // On the persist queue so the orphaned blocks' own writes have landed
-      // before they are undone. The worker holds its scan until the reseed
-      // answers, so this is also what resumes it.
+      // On the persist queue so the orphaned blocks' own writes land before they
+      // are undone. The reseed is also what resumes the worker's held scan.
       this.enqueuePersist(async () => {
         await this.transactionDAO.rewindToHeight(data.walletId, data.height)
         const utxos = await this.transactionDAO.getUtxos(data.walletId)

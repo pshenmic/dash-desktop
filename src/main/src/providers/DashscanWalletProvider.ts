@@ -171,8 +171,7 @@ export class DashscanWalletProvider implements WalletProvider {
   }
 
   // A provider instance serves one operation, and getTransactions runs once per
-  // address within it — re-reading the address table each time would be the same
-  // query a hundred-odd times.
+  // address within it.
   private ownedAddresses: Promise<string[]> | null = null
 
   private allWalletAddresses(): Promise<string[]> {

@@ -8,9 +8,8 @@ import {TxLockStatus} from '../types/TxLockStatus'
 // WalletSyncService, which owns the p2p transport in both connection modes.
 export interface WalletProvider {
   getTransactions(address: string): Promise<Transaction[]>
-  // Balance and tx count for many addresses at once, in the order asked for.
   // Both fields come off one lookup, so anything needing either per address
-  // goes through here rather than a call per address.
+  // goes through here rather than a call per address. Order is preserved.
   getAddressInfos(addresses: string[]): Promise<AddressInfo[]>
   getBalance(address: string | string[]): Promise<bigint>
   getTransactionByHash(txId: string): Promise<Transaction>

@@ -249,8 +249,8 @@ export class CFilterSyncWorker extends Worker {
   // Height of the last block applied before the gap ran out. Non-null means the
   // scan is held and pumpCFilters is a no-op.
   private gapPausedAt: number | null = null
-  // Set between a rewind and main's reseedUtxos answer; pauses the scan for the
-  // same reason gapPausedAt does — the inputs it matches against are stale.
+  // Held between a rewind and main's reseedUtxos answer: the spend map it
+  // matches against still reflects orphaned blocks.
   private awaitingReseed = false
   private draining = false
 
@@ -376,11 +376,8 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
-  // A competing branch won: everything above `forkHeight` is orphaned. Drops
-  // the filter headers and matched-block work derived from it and re-points the
-  // scan, then holds until main answers with the rewound UTXO set — scanning on
-  // with a spend map that still reflects orphaned blocks would mis-detect the
-  // replacement blocks.
+  // Everything above `forkHeight` is orphaned, so the filter headers and matched
+  // blocks derived from it go, and the scan holds until main reseeds the UTXOs.
   onChainRewound = (forkHeight: number): void => {
     if (this.stopped) return
     console.warn(`[cfilter] chain rewound to h=${forkHeight} — dropping derived state above it`)
@@ -402,8 +399,8 @@ export class CFilterSyncWorker extends Worker {
     this.emit('cursorReset', {walletId: this.walletId, height: forkHeight})
   }
 
-  // Answers the hold above with the post-rewind UTXO set from SQL. watchedItems
-  // is rebuilt rather than appended to: the orphaned outpoints have to leave it.
+  // watchedItems is rebuilt rather than appended to: the orphaned outpoints
+  // have to leave it.
   reseedUtxos = (utxos: WalletSyncUtxo[]): void => {
     if (this.stopped) return
     this.utxos.clear()
