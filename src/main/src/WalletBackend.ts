@@ -227,7 +227,7 @@ export class WalletBackend {
       // that starts listening for them. Re-run on the periodic tick so a lost
       // utility process is picked back up.
       try {
-        walletSyncService.startLockListen(selected.network)
+        await walletSyncService.startLockListen(selected.network, selected.walletId)
       } catch (err) {
         console.error('[locks] failed to start lock listener:', err)
       }

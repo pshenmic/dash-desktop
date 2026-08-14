@@ -1,6 +1,13 @@
 import {BroadcastService} from './BroadcastService'
 import {ChainStore} from './ChainStore'
-import {GENESIS, LOCK_POOL_MAX_CONNECTIONS, LOCK_POOL_MIN_PEERS, LOCK_POOL_READY_PEERS} from './constants'
+import {
+  GENESIS,
+  LOCK_POOL_MAX_CONNECTIONS,
+  LOCK_POOL_MIN_PEERS,
+  LOCK_POOL_READY_PEERS,
+  MEMPOOL_REPORT_INTERVAL_MS,
+  MEMPOOL_SEEN_LIMIT,
+} from './constants'
 import {PoolService} from './PoolService'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
@@ -9,8 +16,9 @@ import type {CFilterSyncWorkerStatus} from './types/cfilterSync'
 import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PReseedUtxosMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
 import {Network} from '../src/types'
 import {BroadcastResult} from './types/broadcast'
-import {AppliedBlock, GapExhausted, WalletSyncStatus, WatchAddress} from './types/walletSync'
+import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from './types/walletSync'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
+import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from './types/chainStore'
 import {SyncServiceEvents} from './types/sync'
 import {PeerOverrides} from './types/pool'
@@ -44,6 +52,14 @@ export class SyncService {
   private watchedTxids = new Set<string>()
   // Highest ChainLock height observed — dedupes repeated clsig emits.
   private chainlockedHeight = 0
+
+  // Addresses the lock pool matches mempool txs against. Separate from
+  // activeWatchAddresses because rpc mode has no cfilter session to own them.
+  private lockWalletId: string | null = null
+  private lockAddresses = new Set<string>()
+  private mempoolSeen = new Set<string>()
+  private mempoolStats = {announced: 0, fetched: 0, matched: 0}
+  private mempoolReportTimer: ReturnType<typeof setInterval> | null = null
 
   private status: WalletSyncStatus = {
     phase: 'idle',
@@ -86,7 +102,18 @@ export class SyncService {
   // `start` is a superset, so listening first and syncing later grows the
   // session rather than restarting it.
   listen = (cmd: P2PListenMessage): Promise<void> =>
-    this.runExclusive(async () => this.startLockCore(cmd.network, cmd.peerOverrides))
+    this.runExclusive(async () => {
+      this.startLockCore(cmd.network, cmd.peerOverrides)
+      if (cmd.walletId) this.setLockAddresses(cmd.walletId, cmd.watchAddresses ?? [])
+    })
+
+  // The lock pool is network-scoped and survives a wallet switch, so its match
+  // set is replaced wholesale rather than merged.
+  private setLockAddresses = (walletId: string, addresses: WatchAddress[]): void => {
+    if (this.lockWalletId !== walletId) this.mempoolSeen.clear()
+    this.lockWalletId = walletId
+    this.lockAddresses = new Set(addresses.map(a => a.address))
+  }
 
   // Everything that touches neither chain.db nor the sync workers, so it runs
   // in rpc mode and survives the bulk layer stopping — pending lock waiters
@@ -111,6 +138,7 @@ export class SyncService {
     })
     this.lockPool.on('peerinv', this.onPeerInvForLocks)
     this.lockPool.on('peerisdlock', this.onIsdlock)
+    this.lockPool.on('peertx', this.onTx)
     this.lockPool.on('peerclsig', this.onClsig)
     this.lockPool.on('peeraddr', this.feedBulkPool)
     // Nothing else emits status while the bulk layer is down, so lock-pool
@@ -118,6 +146,21 @@ export class SyncService {
     this.lockPool.on('peerready', this.onLockPeerChange)
     this.lockPool.on('peerdisconnect', this.onLockPeerChange)
     this.lockPool.start()
+
+    this.mempoolReportTimer = setInterval(this.reportMempoolWatch, MEMPOOL_REPORT_INTERVAL_MS)
+    this.mempoolReportTimer.unref?.()
+  }
+
+  // Counts rather than per-tx lines: a busy mainnet mempool would be thousands
+  // of lines an hour. `watching 0` is what a wallet that never supplied its
+  // addresses looks like.
+  private reportMempoolWatch = (): void => {
+    const {announced, fetched, matched} = this.mempoolStats
+    this.mempoolStats = {announced: 0, fetched: 0, matched: 0}
+    console.log(
+      `[locks] mempool watch: ${announced} announced, ${fetched} fetched, ${matched} ours ` +
+      `(watching ${this.lockAddresses.size} address(es))`,
+    )
   }
 
   private onLockPeerChange = (): void => {
@@ -149,6 +192,7 @@ export class SyncService {
     this.activeSeedUtxos = cmd.seedUtxos ?? []
     this.activeCFilterCursor = cmd.cfilterCursor ?? null
     this.cfilterStarted = false
+    this.setLockAddresses(cmd.walletId, this.activeWatchAddresses)
 
     this.emit({
       phase: 'connecting',
@@ -316,6 +360,7 @@ export class SyncService {
     const merged = new Map(this.activeWatchAddresses.map(a => [a.address, a]))
     for (const a of cmd.addresses) merged.set(a.address, a)
     this.activeWatchAddresses = [...merged.values()]
+    for (const a of cmd.addresses) this.lockAddresses.add(a.address)
     this.cfilterSyncWorker?.addWatchAddresses(cmd.addresses, cmd.rewindToHeight)
   }
 
@@ -348,7 +393,18 @@ export class SyncService {
     const wantChainlocks = this.watchedTxids.size > 0 || this.bulkPool != null
     const wanted: Array<{type: number; hash: Uint8Array}> = []
     for (const item of msg.inventory ?? []) {
-      if (item.type === Inventory.TYPE.CLSIG) {
+      if (item.type === Inventory.TYPE.TX) {
+        // An inv carries no outputs, so telling whether a tx pays us means
+        // fetching it. Every peer announces the same one, hence the seen set.
+        this.mempoolStats.announced++
+        if (this.lockAddresses.size === 0) continue
+        const txid = Buffer.from(item.hash).reverse().toString('hex')
+        if (this.mempoolSeen.has(txid)) continue
+        if (this.mempoolSeen.size >= MEMPOOL_SEEN_LIMIT) this.mempoolSeen.clear()
+        this.mempoolSeen.add(txid)
+        this.mempoolStats.fetched++
+        wanted.push({type: item.type, hash: item.hash})
+      } else if (item.type === Inventory.TYPE.CLSIG) {
         if (wantChainlocks) wanted.push({type: item.type, hash: item.hash})
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
         const hashHex = Buffer.from(item.hash).reverse().toString('hex')
@@ -381,6 +437,42 @@ export class SyncService {
     // subscribeToTransactions never delivers it.
     const islockHex = Buffer.from((msg as unknown as {getPayload(): Uint8Array}).getPayload()).toString('hex')
     this.events.txInstantLocked(displayTxid, islockHex)
+  }
+
+  // Outputs are matched here rather than in main so a mempool we mostly do not
+  // care about never crosses the process boundary.
+  private onTx = (_peer: Peer, msg: Message & {transaction?: unknown}): void => {
+    if (!this.lockNetwork || !this.lockWalletId || this.lockAddresses.size === 0) return
+
+    const tx = msg.transaction as SDKTransaction | undefined
+    if (!tx || tx.outputs.length === 0) return
+
+    const label = this.lockNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'
+    const outputs = tx.outputs.map((output, vout) => {
+      const address = output.getAddress(label) ?? null
+      return {
+        vout,
+        address,
+        satoshis: output.satoshis.toString(),
+        isMine: address != null && this.lockAddresses.has(address),
+      }
+    })
+    if (!outputs.some(o => o.isMine)) return
+
+    const applied: AppliedTx = {
+      txid: tx.hash(),
+      raw: tx.bytes(),
+      inputs: tx.inputs.map((input, vin) => ({
+        vin,
+        prevTxid: input.txId,
+        prevVout: input.vOut,
+        sequence: input.sequence,
+      })),
+      outputs,
+    }
+    this.mempoolStats.matched++
+    console.log(`[locks] incoming mempool tx ${applied.txid} paying ${outputs.filter(o => o.isMine).length} of our output(s)`)
+    this.events.incomingTx(this.lockWalletId, applied)
   }
 
   private onClsig = (_peer: Peer, msg: Message & {height?: number}): void => {
@@ -422,6 +514,8 @@ export class SyncService {
 
   private teardownLock(): void {
     this.lockNetwork = null
+    if (this.mempoolReportTimer) clearInterval(this.mempoolReportTimer)
+    this.mempoolReportTimer = null
     if (!this.lockPool) return
     this.lockPool.stop()
     this.lockPool.removeAllListeners()

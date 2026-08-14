@@ -80,6 +80,7 @@ export class WalletSyncService {
   // here so the periodic replace-mode refresh cannot drop them.
   private armedLockTxids = new Map<string, number>()
   private lockListenNetwork: 'mainnet' | 'testnet' | null = null
+  private lockListenWalletId: string | undefined = undefined
   // The worker emits cursorAdvanced at the end of every scan regardless of what
   // landed, so without this the resume marker steps over a block that failed to
   // reach SQL and its coins are gone until a full resetSync.
@@ -176,6 +177,8 @@ export class WalletSyncService {
       this.enqueuePersist(() => this.advanceCursorGated(data.walletId, data.height))
     } else if (data.type === 'cursorReset') {
       this.enqueuePersist(() => this.transactionDAO.resetCursor(data.walletId, data.height))
+    } else if (data.type === 'incomingTx') {
+      this.enqueuePersist(() => this.recordIncomingTx(data.walletId, data.tx))
     } else if (data.type === 'chainRewound') {
       // On the persist queue so the orphaned blocks' own writes land before they
       // are undone. The reseed is also what resumes the worker's held scan.
@@ -358,10 +361,21 @@ export class WalletSyncService {
 
   // Runs in both connection modes: an rpc-mode wallet still needs InstantSend
   // locks for asset-lock funding, and nothing else listens for them.
-  startLockListen = (network: 'mainnet' | 'testnet'): void => {
-    if (this.lockListenNetwork === network && this.child) return
+  startLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
+    if (this.lockListenNetwork === network && this.lockListenWalletId === walletId && this.child) return
     this.lockListenNetwork = network
-    this.send({type: 'listen', network, peerOverrides: this.preferences.network[network]})
+    this.lockListenWalletId = walletId
+    // Without addresses the pool still watches locks and broadcasts; it just
+    // cannot tell whether a mempool tx pays us.
+    const grouped = walletId ? await this.addressDAO.getAddressesByWalletId(walletId) : null
+    const watchAddresses = grouped ? [...grouped.receiving, ...grouped.change].map(toWatchAddress) : undefined
+    this.send({
+      type: 'listen',
+      network,
+      walletId,
+      watchAddresses,
+      peerOverrides: this.preferences.network[network],
+    })
   }
 
   // Arm lock capture for a txid. Without this the utility process never issues
@@ -541,7 +555,7 @@ export class WalletSyncService {
     if (!this.activeWalletId || !this.child) return
     const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
     for (const p of pending) {
-      if (p.instantLocked) continue
+      if (p.instantLocked || !p.isLocal) continue
       const hex = Buffer.from(p.raw).toString('hex')
       this.broadcastTransaction(hex).catch(() => { /* best-effort re-push */ })
     }
@@ -603,7 +617,17 @@ export class WalletSyncService {
         }
       }),
     }
-    await this.transactionDAO.recordPendingBroadcast(walletId, applied)
+    await this.transactionDAO.recordPendingTx(walletId, applied, true)
+  }
+
+  // A payment the lock pool saw in the mempool. Recorded unconfirmed so the
+  // balance moves immediately, then armed so its isdlock marks it final.
+  private async recordIncomingTx(walletId: string, tx: AppliedTx): Promise<void> {
+    await this.transactionDAO.recordPendingTx(walletId, tx, false)
+    const received = tx.outputs.filter(o => o.isMine).reduce((sum, o) => sum + BigInt(o.satoshis), 0n)
+    console.log(`[walletSync] incoming tx ${tx.txid} recorded unconfirmed (+${received} duffs)`)
+    this.watchForInstantLock(tx.txid)
+    this.notifyWalletActivity(walletId)
   }
 
   // Always sourced from SQL — no main-process cache. Returns [] when no

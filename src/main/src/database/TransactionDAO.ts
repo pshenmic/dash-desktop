@@ -214,7 +214,7 @@ export class TransactionDAO {
   // block_height = 0 marks it unconfirmed; inputs are flagged spent so getUtxos
   // stops offering them immediately and outputs are inserted so change is
   // spendable right away. Idempotent, so rebroadcast is safe.
-  recordPendingBroadcast = async (walletId: string, tx: AppliedTx): Promise<void> => {
+  recordPendingTx = async (walletId: string, tx: AppliedTx, isLocal: boolean): Promise<void> => {
     const now = Date.now()
     await this.knex.transaction(async trx => {
       await trx('transactions')
@@ -226,6 +226,7 @@ export class TransactionDAO {
           block_time: Math.floor(now / 1000),
           raw: Buffer.from(tx.raw.buffer, tx.raw.byteOffset, tx.raw.byteLength),
           first_seen_at: now,
+          is_local: isLocal,
         })
         .onConflict(['wallet_id', 'txid'])
         .ignore()
@@ -277,13 +278,14 @@ export class TransactionDAO {
   // Unconfirmed (block_height = 0) txs — for rebroadcast and isdlock watching.
   getPendingTxs = async (walletId: string): Promise<PendingTx[]> => {
     const rows = await this.knex('transactions')
-      .select('txid', 'raw', 'first_seen_at', 'instant_locked')
+      .select('txid', 'raw', 'first_seen_at', 'instant_locked', 'is_local')
       .where({wallet_id: walletId, block_height: 0})
     return rows.map(r => ({
       txid: r.txid,
       raw: r.raw,
       firstSeenAt: r.first_seen_at ?? 0,
       instantLocked: Boolean(r.instant_locked),
+      isLocal: Boolean(r.is_local),
     }))
   }
 

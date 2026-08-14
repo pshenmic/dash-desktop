@@ -1,7 +1,7 @@
 import {Network} from '../../src/types'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
 import {PeerOverrides} from './pool'
-import {AppliedBlock, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
+import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
 // the envelope; the payload keeps its consumer-side name (WalletSync* /
@@ -33,6 +33,10 @@ export interface P2PStartMessage {
 export interface P2PListenMessage {
   type: 'listen'
   network: Network
+  // Present so the lock pool can match mempool txs paying us. Absent leaves the
+  // pool doing lock watching and broadcast only.
+  walletId?: string
+  watchAddresses?: WatchAddress[]
   peerOverrides?: PeerOverrides
 }
 
@@ -156,6 +160,14 @@ export interface P2PChainLockedMessage {
   height: number
 }
 
+// A mempool tx paying one of our addresses, seen on the lock pool before any
+// block carries it. Recorded unconfirmed; its isdlock is what makes it final.
+export interface P2PIncomingTxMessage {
+  type: 'incomingTx'
+  walletId: string
+  tx: AppliedTx
+}
+
 // Blocks above `height` were orphaned. Main un-confirms their transactions and
 // answers with reseedUtxos.
 export interface P2PChainRewoundMessage {
@@ -175,3 +187,4 @@ export type P2PEvent =
   | P2PTxInstantLockedMessage
   | P2PChainLockedMessage
   | P2PChainRewoundMessage
+  | P2PIncomingTxMessage

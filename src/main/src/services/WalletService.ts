@@ -203,7 +203,10 @@ export class WalletService {
     const result = await this.walletDAO.setSelectedWallet(walletId)
     if (result.success) {
       const wallet = await this.walletDAO.getWalletById(walletId)
-      if (wallet != null) this.walletSyncService.startLockListen(wallet.network)
+      if (wallet != null) {
+        await this.walletSyncService.startLockListen(wallet.network, walletId)
+          .catch(err => console.error('[locks] failed to start lock listener:', err))
+      }
     }
     return result
   }
