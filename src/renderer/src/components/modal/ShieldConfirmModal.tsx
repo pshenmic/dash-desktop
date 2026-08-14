@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, ShieldSmallIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
+import { Button, CrossIcon, Input, Text, SuccessIcon, ShieldSmallIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
-import { platformTransactionUrl, openExternal } from '@renderer/utils/explorer'
+import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
@@ -210,23 +210,15 @@ export default function ShieldConfirmModal({
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.fromAddress}</Text>
               </div>
-              {result?.stHash && <HashField hash={result.stHash} />}
+              {result?.stHash && (
+                <HashField
+                  hash={result.stHash}
+                  explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null}
+                />
+              )}
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
-              {result?.stHash && network && (
-                <Button
-                  type={"button"}
-                  onClick={() => openExternal(platformTransactionUrl(result.stHash, network))}
-                  variant={"outline"}
-                  colorScheme={"primary-light"}
-                  size={"sm"}
-                  className={"flex-1 rounded-[.9375rem] gap-2"}
-                >
-                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-                  View on explorer
-                </Button>
-              )}
               <Button
                 type={"button"}
                 onClick={onClose}

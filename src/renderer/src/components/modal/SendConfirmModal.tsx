@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
-import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
+import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { Network, SendResult, TxLockStatus } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
-import { transactionUrl, openExternal } from '@renderer/utils/explorer'
+import { transactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
+import HashField from '@renderer/components/ui/HashField'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 
 interface SendConfirmModalProps {
@@ -35,77 +35,6 @@ const LOCK_PHASE_COPY: Record<SendLockPhase, string> = {
   [SendLockPhase.Instant]: 'Confirmed by InstantSend — the payment is final.',
   [SendLockPhase.Chainlocked]: 'Confirmed by ChainLock — the payment is final.',
   [SendLockPhase.Confirmed]: 'Confirmed in a block.',
-}
-
-function TxidField({ txid, network }: { txid: string; network: Network | null }): React.JSX.Element {
-  const [copied, setCopied] = useState(false)
-
-  const copy = (): void => {
-    navigator.clipboard.writeText(txid).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1600)
-    }).catch(() => {})
-  }
-
-  return (
-    <div className={"flex flex-col gap-[.375rem]"}>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Transaction ID</Text>
-      <div className={"flex items-stretch gap-2"}>
-        <button
-          onClick={copy}
-          title={"Click to copy"}
-          className={`
-            group flex-1 min-w-0 text-left
-            px-3 py-2.5 rounded-[.75rem]
-            dash-block-accent-5 dash-black-border
-            cursor-pointer
-            hover:dash-block-accent-10
-            transition-colors duration-200
-          `}
-        >
-          <Text size={12} weight={"medium"} color={"brand"} className={"font-mono break-all select-all leading-[140%]"}>
-            {txid}
-          </Text>
-        </button>
-        <div className={"flex flex-col gap-2 shrink-0"}>
-          <button
-            onClick={copy}
-            title={copied ? 'Copied' : 'Copy'}
-            className={`
-              size-9 rounded-[.75rem] flex items-center justify-center
-              dash-block-5 dash-black-border cursor-pointer
-              hover:opacity-80 transition-all duration-200
-            `}
-          >
-            {copied
-              ? <CheckIcon size={16} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
-              : <CopyIcon2 size={16} color={"currentColor"} className={"dash-text-default opacity-60"} />}
-          </button>
-          <button
-            onClick={() => network && openExternal(transactionUrl(txid, network))}
-            title={"View on explorer"}
-            disabled={!network}
-            className={`
-              size-9 rounded-[.75rem] flex items-center justify-center
-              dash-block-5 dash-black-border cursor-pointer
-              hover:opacity-80 transition-opacity duration-200
-              disabled:opacity-40 disabled:cursor-default
-            `}
-          >
-            <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default opacity-60"} />
-          </button>
-        </div>
-      </div>
-      <button
-        onClick={copy}
-        className={"self-start cursor-pointer"}
-      >
-        <Text size={10} weight={"medium"} color={copied ? 'blue-mint' : 'brand'} opacity={copied ? 100 : 40} className={"transition-colors duration-200"}>
-          {copied ? 'Copied to clipboard' : 'Click the hash to copy'}
-        </Text>
-      </button>
-    </div>
-  )
 }
 
 export default function SendConfirmModal({
@@ -318,23 +247,16 @@ export default function SendConfirmModal({
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
                 <Text size={12} weight={"medium"} color={"brand"}>{result ? davToDash(result.fee) : ''} Dash</Text>
               </div>
-              {result?.txid && <TxidField txid={result.txid} network={network} />}
+              {result?.txid && (
+                <HashField
+                  hash={result.txid}
+                  label={"Transaction ID"}
+                  explorerUrl={network ? transactionUrl(result.txid, network) : null}
+                />
+              )}
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
-              {result?.txid && network && (
-                <Button
-                  type={"button"}
-                  onClick={() => openExternal(transactionUrl(result.txid, network))}
-                  variant={"outline"}
-                  colorScheme={"primary-light"}
-                  size={"sm"}
-                  className={"flex-1 rounded-[.9375rem] gap-2"}
-                >
-                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-                  View on explorer
-                </Button>
-              )}
               <Button
                 type={"button"}
                 onClick={onClose}
