@@ -82,7 +82,7 @@ export const POOL_REFILL_INTERVAL_MS = 5_000
 export const POOL_SHORT_REPORT_TICKS = 12
 
 // Refill ticks with nothing connected before the built-in peers are dialled.
-export const POOL_FALLBACK_TICKS = 3
+export const POOL_FALLBACK_TICKS = 2
 
 // Dialled only when discovery has produced no live peer at all: mainnet ships a
 // single DNS seed, and a resolver that cannot answer it — or answers it with
