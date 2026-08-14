@@ -6,7 +6,7 @@ import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
 import type {HeaderSyncWorkerStatus} from './types/headerSync'
 import type {CFilterSyncWorkerStatus} from './types/cfilterSync'
-import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
+import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PReseedUtxosMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
 import {Network} from '../src/types'
 import {BroadcastResult} from './types/broadcast'
 import {AppliedBlock, GapExhausted, WalletSyncStatus, WatchAddress} from './types/walletSync'
@@ -212,15 +212,25 @@ export class SyncService {
       peerPool: this.bulkPool,
       initialTipHeight: resumeHeight,
       initialTipHash: resumeHash,
+      finalityHeight: this.chainlockedHeight,
     })
     this.headerSyncWorker.on('status', (s: HeaderSyncWorkerStatus) => this.onHeaderStatus(s))
     this.headerSyncWorker.on('chainExtended', (headers: PersistedHeader[]) => {
       this.cfilterSyncWorker?.onChainExtended(headers)
     })
+    this.headerSyncWorker.on('chainRewound', (height: number) => {
+      this.cfilterSyncWorker?.onChainRewound(height)
+      // Rewound before the cfilter worker booted: it takes its cursor from the
+      // start command, not from SQL, so the pending seed has to come down too.
+      if (this.cfilterSyncWorker == null && this.activeCFilterCursor != null) {
+        this.activeCFilterCursor = Math.min(this.activeCFilterCursor, height)
+      }
+      if (this.activeWalletId) this.events.chainRewound(this.activeWalletId, height)
+    })
     this.headerSyncWorker.on('error', err =>
       this.handleWorkerError('HeaderSyncWorker', err.message)
     )
-    this.headerSyncWorker.start()
+    await this.headerSyncWorker.start()
   }
 
   private stopInner = async (): Promise<void> => {
@@ -309,6 +319,12 @@ export class SyncService {
     this.cfilterSyncWorker?.addWatchAddresses(cmd.addresses, cmd.rewindToHeight)
   }
 
+  reseedUtxos = (cmd: P2PReseedUtxosMessage): void => {
+    if (cmd.walletId !== this.activeWalletId) return
+    this.activeSeedUtxos = cmd.utxos
+    this.cfilterSyncWorker?.reseedUtxos(cmd.utxos)
+  }
+
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
     if (cmd.mode === 'replace') {
       this.watchedTxids = new Set(cmd.txids)
@@ -372,6 +388,12 @@ export class SyncService {
     const height = msg.height ?? 0
     if (height <= this.chainlockedHeight) return
     this.chainlockedHeight = height
+    // Header sync will not rewind below this, which is what keeps a reorg
+    // shallow enough to handle without full most-work fork resolution. Logged
+    // because the floor is otherwise invisible, and a floor stuck at 0 leaves
+    // REORG_MAX_DEPTH as the only bound on a rewind.
+    this.headerSyncWorker?.setFinalityHeight(height)
+    console.log(`[locks] chainlock h=${height} — reorg floor ${this.headerSyncWorker ? 'applied' : 'not applied (no header sync)'}`)
     this.events.chainLocked(this.lockNetwork, height)
   }
 

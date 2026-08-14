@@ -107,9 +107,22 @@ export const CFILTER_BATCH_TIMEOUT_MS = 10_000
 export const BLOCK_REQUEST_TIMEOUT_MS = 10_000
 
 // How far below the synced tip cf* stop hashes are capped. Dash Core silently
-// drops requests for blocks not in its active chain, so anything closer fails
-// intermittently — at the cost of confirmation latency.
-export const SCAN_TIP_DEPTH = 5
+// drops requests for blocks not in its active chain, so a stop hash peers have
+// not seen yet costs a batch timeout — this buys them a block of slack. Every
+// block of depth is ~2.5 minutes before a received payment is scanned, so it
+// stays as low as the reorg handling allows.
+export const SCAN_TIP_DEPTH = 1
+
+// ── Reorg ───────────────────────────────────────────────────────────────────
+
+// How far back a competing branch may fork before we refuse it outright.
+// ChainLocks are the real bound — a chainlocked block cannot be reorged, and
+// clsig lands within a block or two — so this only covers the window before a
+// lock arrives, and caps the recent-header window the rewind path keeps.
+export const REORG_MAX_DEPTH = 24
+
+// Consecutive tip heights in a getheaders locator before it starts doubling.
+export const LOCATOR_DENSE_HEIGHTS = 10
 
 // ── Broadcast ───────────────────────────────────────────────────────────────
 

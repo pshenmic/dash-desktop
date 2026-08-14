@@ -136,6 +136,37 @@ export class TransactionDAO {
     })
   }
 
+  // Undoes the blocks a reorg orphaned. Transactions go back to block_height 0
+  // rather than being deleted: an orphaned tx is normally re-mined within a
+  // block or two, and the sentinel puts it straight back into the rebroadcast
+  // and isdlock-watch sets that already serve locally-broadcast txs. One that
+  // never returns is abandonTransaction's job, as it is for any stuck tx.
+  //
+  // is_used is left set — an address that received coins on the orphaned branch
+  // was still revealed, and un-deriving it would hand it out twice.
+  rewindToHeight = async (walletId: string, height: number): Promise<void> => {
+    await this.knex.transaction(async trx => {
+      // Spends recorded by the orphaned blocks; an instant lock does not
+      // survive its tx losing the chain, so no spender is exempt here.
+      await trx('transaction_outputs')
+        .where('wallet_id', walletId)
+        .andWhere('spent_at_height', '>', height)
+        .update({spent_in_txid: null, spent_at_height: null})
+
+      await trx('transactions')
+        .where('wallet_id', walletId)
+        .andWhere('block_height', '>', height)
+        .update({block_height: 0, block_hash: '', chainlocked: false})
+
+      // Only downward: the scan has to re-cover the replacement blocks, and
+      // advanceCursor's MAX semantics would otherwise ignore this.
+      await trx('wallet_sync_state')
+        .where('wallet_id', walletId)
+        .andWhere('cfilter_cursor_height', '>', height)
+        .update({cfilter_cursor_height: height})
+    })
+  }
+
   // Standalone cursor advance (MAX semantics). Used at cfilter scan
   // completion when the scan tip moves past blocks that produced no matches.
   advanceCursor = async (walletId: string, height: number): Promise<void> => {

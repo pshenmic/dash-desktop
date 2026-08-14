@@ -176,6 +176,16 @@ export class WalletSyncService {
       this.enqueuePersist(() => this.advanceCursorGated(data.walletId, data.height))
     } else if (data.type === 'cursorReset') {
       this.enqueuePersist(() => this.transactionDAO.resetCursor(data.walletId, data.height))
+    } else if (data.type === 'chainRewound') {
+      // On the persist queue so the orphaned blocks' own writes have landed
+      // before they are undone. The worker holds its scan until the reseed
+      // answers, so this is also what resumes it.
+      this.enqueuePersist(async () => {
+        await this.transactionDAO.rewindToHeight(data.walletId, data.height)
+        const utxos = await this.transactionDAO.getUtxos(data.walletId)
+        console.warn(`[walletSync] reorg: un-confirmed everything above h=${data.height}; reseeding ${utxos.length} utxo(s)`)
+        this.send({type: 'reseedUtxos', walletId: data.walletId, utxos})
+      })
     } else if (data.type === 'gapExhausted') {
       this.gapHeld.add(data.gap.walletId)
       console.log(

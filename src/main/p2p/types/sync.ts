@@ -7,6 +7,7 @@ export interface SyncServiceEvents {
   blockApplied: (block: AppliedBlock) => void
   cursorAdvanced: (walletId: string, height: number) => void
   cursorReset: (walletId: string, height: number) => void
+  chainRewound: (walletId: string, height: number) => void
   gapExhausted: (gap: GapExhausted) => void
   error: (message: string) => void
   broadcastResult: (
