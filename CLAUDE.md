@@ -201,10 +201,10 @@ The p2p utility process owns **two pools**, and only one of them is a mode:
 
 | Pool | Peers | Carries | Lifetime |
 |---|---|---|---|
-| `lockPool` | relay=**true**, network-scoped | broadcast, InstantSend (`isdlock`) and ChainLock (`clsig`) watching | **always up**, both modes |
+| `lockPool` | relay=**true**, network-scoped | broadcast, InstantSend (`isdlock`) and ChainLock (`clsig`) watching, incoming mempool txs | **always up**, both modes |
 | `bulkPool` | relay=false, dnsSeed=false | headers, cfilters, blocks | `p2p` mode only, via `startWalletSync` |
 
-`startLockListen(network)` is called from `WalletBackend` at boot and
+`startLockListen(network, walletId)` is called from `WalletBackend` at boot and
 `WalletService` on wallet select, with **no `connectionType` check**. So the
 child process exists and hears locks even in the default `rpc` mode.
 
@@ -224,6 +224,33 @@ this wallet broadcast.** DAPI is a different network path and does not deliver
 that lock in either mode. Use `WalletService.waitForInstantLock(txid, timeoutMs)`.
 Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have no
 waiter yet — they only feed `markChainlockedUpTo`.
+
+### Incoming mempool txs (lock pool)
+
+Payments are spotted before any block carries them: `SyncService` matches TX invs
+on the lock pool against the addresses shipped in the `listen` command, emits
+`incomingTx`, and `WalletSyncService.recordIncomingTx` writes the tx at
+`block_height = 0` with `is_local = false`, then arms `watchForInstantLock`.
+
+- **An `isdlock` cannot tell you a tx pays you.** It carries `inputs`, `txid`,
+  `cycleHash` and `sig` — no outputs, no addresses — and its inv hash is not the
+  txid. It is the *finality* signal; discovery has to come from the TX inv, which
+  means fetching the tx to see its outputs. Matching happens in the child so the
+  mempool never crosses the process boundary.
+- **`is_local` is why the migration exists.** `rebroadcastPending` re-pushes
+  every unconfirmed tx on a timer; without the filter the wallet would relay a
+  stranger's transaction for as long as it stayed unconfirmed. `refreshWatchedTxids`
+  deliberately does *not* filter — arming incoming txs is what captures their lock.
+- Every peer announces the same tx (~9x measured), so `mempoolSeen` dedupes the
+  `getdata`. `[locks] mempool watch: …` reports counts every 5 min; `watching 0
+  address(es)` is what a wallet that never supplied its addresses looks like.
+
+**In `rpc` mode the row is written but never displayed.** `getProvider()` returns
+`DashscanWalletProvider`, which does not read local SQL, and nothing merges
+pending rows into its result — so `getTransactions`/`getWalletBalance` omit them,
+and `is_local` never comes back `false` in the renderer. Nothing moves those rows
+off `block_height = 0` in that mode either (no cfilter scan), so they accumulate
+in `getPendingTxs` and the isdlock watch set. Both are open.
 
 ## Renderer conventions worth knowing
 
