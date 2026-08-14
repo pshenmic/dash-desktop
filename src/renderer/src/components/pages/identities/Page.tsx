@@ -48,7 +48,7 @@ export default function Identities(): React.JSX.Element {
                 <div className={"flex flex-col items-center gap-1"}>
                   <Text size={16} weight={"bold"} color={"brand"} className={"leading-[120%]"}>No identities yet</Text>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-                    Register a wallet-owned Platform identity from your Dash Core balance.
+                    Register a wallet-owned Platform identity using Core, a Platform address or your Shielded balance.
                   </Text>
                 </div>
                 <Button type={"button"} size={"sm"} onClick={() => navigate('/identities/register')}>Register identity</Button>
