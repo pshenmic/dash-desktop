@@ -435,6 +435,52 @@ export class TransactionDAO {
 
   // One query returning the (tx × output × input × prev-output) product, pivoted
   // in JS to one Transaction per txid.
+  // The prev join is what gives an input its address and value: only our own
+  // outputs are stored, so the input row itself carries just a reference.
+  private transactionRows(walletId: string): Knex.QueryBuilder {
+    return this.knex('transactions as t')
+      .leftJoin('transaction_outputs as o', function() {
+        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_inputs as i', function() {
+        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_outputs as prev', function() {
+        this.on('prev.wallet_id', '=', 't.wallet_id')
+          .andOn('prev.txid', '=', 'i.prev_txid')
+          .andOn('prev.vout', '=', 'i.prev_vout')
+      })
+      .select(
+        't.txid as t_txid',
+        't.block_height as t_block_height',
+        't.block_time as t_block_time',
+        't.instant_locked as t_instant_locked',
+        't.chainlocked as t_chainlocked',
+        't.is_local as t_is_local',
+        this.knex.raw('length(t.raw) as t_size'),
+        'o.vout as o_vout',
+        'o.address as o_address',
+        'o.satoshis as o_satoshis',
+        'o.is_mine as o_is_mine',
+        'o.spent_in_txid as o_spent_in_txid',
+        'o.spent_at_height as o_spent_at_height',
+        'i.vin as i_vin',
+        'i.prev_txid as i_prev_txid',
+        'i.prev_vout as i_prev_vout',
+        'i.sequence as i_sequence',
+        'prev.address as i_prev_address',
+        'prev.satoshis as i_prev_satoshis',
+        'prev.is_mine as i_prev_is_mine',
+      )
+      .where('t.wallet_id', walletId)
+  }
+
+  getTransactionsByWallet = async (walletId: string): Promise<Transaction[]> => {
+    const rows = await this.transactionRows(walletId).orderBy(['t.txid', 'o.vout', 'i.vin'])
+
+    return shapeRowsToTransactions(rows, walletId)
+  }
+
   getTransactionsByAddress = async (walletId: string, address: string): Promise<Transaction[]> => {
     const txidsForAddress = this.knex('transaction_outputs')
       .select('txid')
@@ -445,85 +491,15 @@ export class TransactionDAO {
         .where({wallet_id: walletId, address})
         .whereNotNull('spent_in_txid'))
 
-    const rows = await this.knex('transactions as t')
-      .leftJoin('transaction_outputs as o', function() {
-        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_inputs as i', function() {
-        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_outputs as prev', function() {
-        this.on('prev.wallet_id', '=', 't.wallet_id')
-          .andOn('prev.txid', '=', 'i.prev_txid')
-          .andOn('prev.vout', '=', 'i.prev_vout')
-      })
-      .select(
-        't.txid as t_txid',
-        't.block_height as t_block_height',
-        't.block_time as t_block_time',
-        't.instant_locked as t_instant_locked',
-        't.chainlocked as t_chainlocked',
-        't.is_local as t_is_local',
-        this.knex.raw('length(t.raw) as t_size'),
-        'o.vout as o_vout',
-        'o.address as o_address',
-        'o.satoshis as o_satoshis',
-        'o.is_mine as o_is_mine',
-        'o.spent_in_txid as o_spent_in_txid',
-        'o.spent_at_height as o_spent_at_height',
-        'i.vin as i_vin',
-        'i.prev_txid as i_prev_txid',
-        'i.prev_vout as i_prev_vout',
-        'i.sequence as i_sequence',
-        'prev.address as i_prev_address',
-        'prev.satoshis as i_prev_satoshis',
-        'prev.is_mine as i_prev_is_mine',
-      )
-      .where('t.wallet_id', walletId)
+    const rows = await this.transactionRows(walletId)
       .whereIn('t.txid', txidsForAddress)
       .orderBy(['t.txid', 'o.vout', 'i.vin'])
 
     return shapeRowsToTransactions(rows, walletId)
   }
 
-  // Same JOIN as above, scoped to one txid. Returns undefined if the tx
-  // isn't recorded for this wallet.
   getTransactionByTxid = async (walletId: string, txid: string): Promise<Transaction | undefined> => {
-    const rows = await this.knex('transactions as t')
-      .leftJoin('transaction_outputs as o', function() {
-        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_inputs as i', function() {
-        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_outputs as prev', function() {
-        this.on('prev.wallet_id', '=', 't.wallet_id')
-          .andOn('prev.txid', '=', 'i.prev_txid')
-          .andOn('prev.vout', '=', 'i.prev_vout')
-      })
-      .select(
-        't.txid as t_txid',
-        't.block_height as t_block_height',
-        't.block_time as t_block_time',
-        't.instant_locked as t_instant_locked',
-        't.chainlocked as t_chainlocked',
-        't.is_local as t_is_local',
-        this.knex.raw('length(t.raw) as t_size'),
-        'o.vout as o_vout',
-        'o.address as o_address',
-        'o.satoshis as o_satoshis',
-        'o.is_mine as o_is_mine',
-        'o.spent_in_txid as o_spent_in_txid',
-        'o.spent_at_height as o_spent_at_height',
-        'i.vin as i_vin',
-        'i.prev_txid as i_prev_txid',
-        'i.prev_vout as i_prev_vout',
-        'i.sequence as i_sequence',
-        'prev.address as i_prev_address',
-        'prev.satoshis as i_prev_satoshis',
-        'prev.is_mine as i_prev_is_mine',
-      )
-      .where('t.wallet_id', walletId)
+    const rows = await this.transactionRows(walletId)
       .andWhere('t.txid', txid)
       .orderBy(['o.vout', 'i.vin'])
 

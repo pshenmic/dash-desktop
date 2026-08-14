@@ -5,16 +5,29 @@ import {AddressInfo} from '../types/AddressInfo'
 import {WalletProvider} from './WalletProvider'
 import {Transaction} from '../types/Transaction'
 import {AddressDAO} from '../database/AddressDAO'
+import {WalletDAO} from '../database/WalletDAO'
 import {dashscanToWalletTransactions} from '../utils/dashscanTransactions'
-import {DashscanAddressInfo, DashscanPage, DashscanTransaction, DashscanUTXO} from '../types/Dashscan'
+import {dedupeTransactions} from '../utils/dedupeTransactions'
+import {
+  DashscanAddressInfo,
+  DashscanCursorPage,
+  DashscanPage,
+  DashscanTransaction,
+  DashscanUTXO,
+  DashscanXpubAddress,
+  DashscanXpubSummary,
+} from '../types/Dashscan'
 import {TxLockStatus} from '../types/TxLockStatus'
+import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types'
 import {
+  ADDRESS_LOOKAHEAD,
   DASHSCAN_ADDRESS_CHUNK,
   DASHSCAN_BASE_URLS,
-  DASHSCAN_PAGE_LIMIT,
   DASHSCAN_REQUEST_TIMEOUT_MS,
   DASHSCAN_RETRY_DELAYS_MS,
+  XPUB_MAX_PAGES,
+  XPUB_PAGE_LIMIT,
 } from '../constants'
 
 export class DashscanWalletProvider implements WalletProvider {
@@ -24,13 +37,14 @@ export class DashscanWalletProvider implements WalletProvider {
     network: Network,
     private readonly walletId: string,
     private readonly addressDAO: AddressDAO,
+    private readonly walletDAO: WalletDAO,
   ) {
     this.baseUrl = DASHSCAN_BASE_URLS[network]
   }
 
   // Every call through here is a read — broadcast runs over the p2p pool — so a
   // retry can never resend a transaction.
-  async sendRequest<T>(path: string): Promise<T> {
+  async sendRequest<T>(path: string, payload?: unknown): Promise<T> {
     let lastError: unknown
 
     for (let attempt = 0; attempt <= DASHSCAN_RETRY_DELAYS_MS.length; attempt++) {
@@ -38,7 +52,12 @@ export class DashscanWalletProvider implements WalletProvider {
 
       let response: Response
       try {
-        response = await net.fetch(`${this.baseUrl}${path}`, {signal: AbortSignal.timeout(DASHSCAN_REQUEST_TIMEOUT_MS)})
+        response = await net.fetch(`${this.baseUrl}${path}`, {
+          signal: AbortSignal.timeout(DASHSCAN_REQUEST_TIMEOUT_MS),
+          ...(payload != null
+            ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)}
+            : {}),
+        })
       } catch (err) {
         lastError = err
         continue
@@ -71,35 +90,77 @@ export class DashscanWalletProvider implements WalletProvider {
     return chunks.flat()
   }
 
-  async getTransactions(address: string): Promise<Transaction[]> {
-    const collected: DashscanTransaction[] = []
+  // Set at creation and backfilled on login, so its absence is a bug rather
+  // than an older wallet format.
+  private async requireXpub(): Promise<string> {
+    const wallet = await this.walletDAO.getWalletById(this.walletId)
+    if (wallet?.coreXpub == null) {
+      throw new Error(`Wallet ${this.walletId} has no account xpub — reopen the wallet to derive it`)
+    }
+    return wallet.coreXpub
+  }
 
-    // Pagination is mandatory here and the wallet needs the whole history, so
-    // walk pages until the reported total is covered.
-    for (let page = 1; ; page++) {
-      const {resultSet, pagination} = await this.sendRequest<DashscanPage<DashscanTransaction>>(
-        `/address/${address}/transactions?page=${page}&limit=${DASHSCAN_PAGE_LIMIT}&order=desc`
-      )
+  // Pending transactions ride along on the first page only, so the walk has to
+  // start without a cursor to see them.
+  async getWalletTransactions(): Promise<Transaction[]> {
+    const xpub = await this.requireXpub()
+    const collected: DashscanTransaction[] = []
+    let cursor: string | null = null
+
+    for (let page = 0; page < XPUB_MAX_PAGES; page++) {
+      const {resultSet, pagination}: DashscanCursorPage<DashscanTransaction> =
+        await this.sendRequest<DashscanCursorPage<DashscanTransaction>>('/xpub/transactions', {
+          xpub,
+          gap_limit: ADDRESS_LOOKAHEAD,
+          limit: XPUB_PAGE_LIMIT,
+          ...(cursor != null ? {cursor} : {}),
+        })
 
       collected.push(...resultSet)
-      if (resultSet.length < DASHSCAN_PAGE_LIMIT || collected.length >= pagination.total) break
+      if (pagination.nextCursor == null || pagination.nextCursor === cursor) break
+      cursor = pagination.nextCursor
     }
 
     const owned = await this.allWalletAddresses()
-    return dashscanToWalletTransactions(collected, this.walletId, owned)
+    return dedupeTransactions(dashscanToWalletTransactions(collected, this.walletId, owned))
   }
 
+  // No wallet-wide endpoint carries per-address balance or tx count.
   async getAddressInfos(addresses: string[]): Promise<AddressInfo[]> {
     if (addresses.length === 0) return []
 
-    const infos = await this.addressInfo(addresses)
-    const byAddress = new Map(infos.map(info => [info.address, info]))
+    const [utxos, transactions] = await Promise.all([this.getWalletUtxos(), this.getWalletTransactions()])
 
-    // An address the API omits has never been seen on chain.
-    return addresses.map(address => {
-      const info = byAddress.get(address)
-      return {address, balance: BigInt(info?.balance ?? 0), txCount: info?.txCount ?? 0}
+    const balances = new Map<string, bigint>()
+    for (const utxo of utxos) {
+      balances.set(utxo.address, (balances.get(utxo.address) ?? 0n) + utxo.satoshis)
+    }
+
+    // One transaction touching an address on both sides still counts once.
+    const counts = new Map<string, number>()
+    for (const transaction of transactions) {
+      const touched = new Set<string>()
+      for (const input of transaction.vin) if (input.addr !== '') touched.add(input.addr)
+      for (const output of transaction.vout) if (output.address !== '') touched.add(output.address)
+      for (const address of touched) counts.set(address, (counts.get(address) ?? 0) + 1)
+    }
+
+    return addresses.map(address => ({
+      address,
+      balance: balances.get(address) ?? 0n,
+      txCount: counts.get(address) ?? 0,
+    }))
+  }
+
+  // Summed over the server's own gap walk, and includes unconfirmed outputs.
+  async getWalletBalance(): Promise<bigint> {
+    const xpub = await this.requireXpub()
+    const {balance} = await this.sendRequest<DashscanXpubSummary>('/xpub', {
+      xpub,
+      gap_limit: ADDRESS_LOOKAHEAD,
     })
+
+    return BigInt(balance)
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {
@@ -118,17 +179,25 @@ export class DashscanWalletProvider implements WalletProvider {
     return transaction
   }
 
-  // Batched: a send asks for every address at once, and /addresses/utxo answers
-  // 100 of them in one unpaginated call.
-  async getUTXOs(address: string | string[]): Promise<UTXO[]> {
-    const addresses = Array.isArray(address) ? address : [address]
-    if (addresses.length === 0) return []
+  // The server's gap walk decides the address set, so this sees coins on an
+  // index our local window has not derived yet.
+  async getWalletUtxos(): Promise<UTXO[]> {
+    const xpub = await this.requireXpub()
+    const collected: DashscanUTXO[] = []
 
-    const results = await Promise.all(this.chunkAddresses(addresses).map(chunk =>
-      this.sendRequest<DashscanUTXO[]>(`/addresses/utxo?addresses=${chunk.join(',')}`)
-    ))
+    for (let page = 1; ; page++) {
+      const {resultSet, pagination} = await this.sendRequest<DashscanPage<DashscanUTXO>>('/xpub/utxo', {
+        xpub,
+        gap_limit: ADDRESS_LOOKAHEAD,
+        page,
+        limit: XPUB_PAGE_LIMIT,
+      })
 
-    return results.flat()
+      collected.push(...resultSet)
+      if (resultSet.length < XPUB_PAGE_LIMIT || collected.length >= pagination.total) break
+    }
+
+    return collected
       .filter(utxo => utxo.prevTxHash != null && utxo.vOutIndex != null && utxo.scriptPubKeyHex != null)
       .map(utxo => ({
         address: utxo.address ?? '',
@@ -161,6 +230,30 @@ export class DashscanWalletProvider implements WalletProvider {
     if (receiving.length === 0) throw new Error('Wallet has no receiving addresses')
     const unused = receiving.find(a => !a.isUsed)
     return (unused ?? receiving[receiving.length - 1]).address
+  }
+
+  // Only branch, index and usage are kept: a server-supplied address string
+  // would let a compromised indexer seed the wallet with one we cannot spend.
+  async scanAddressUsage(gapLimit: number): Promise<AddressUsage[] | null> {
+    const xpub = await this.requireXpub()
+    const usage: AddressUsage[] = []
+
+    for (let page = 1; ; page++) {
+      const {resultSet, pagination} = await this.sendRequest<DashscanPage<DashscanXpubAddress>>(
+        '/xpub/addresses',
+        {xpub, gap_limit: gapLimit, page, limit: XPUB_PAGE_LIMIT},
+      )
+
+      usage.push(...resultSet.map(entry => ({
+        isChange: entry.branch === 1,
+        index: entry.index,
+        isUsed: entry.used,
+      })))
+
+      if (resultSet.length < XPUB_PAGE_LIMIT || usage.length >= pagination.total) break
+    }
+
+    return usage
   }
 
   async getUsedAddresses(addresses: string[]): Promise<string[]> {

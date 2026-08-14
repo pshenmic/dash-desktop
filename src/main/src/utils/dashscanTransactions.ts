@@ -82,7 +82,9 @@ export const dashscanToWalletTransactions = (
       status: tx.instantLock != null ? 'Locked' as const : 'Pending' as const,
       size: tx.size ?? 0,
       blockHeight: tx.blockHeight ?? 0,
-      date: tx.timestamp != null ? new Date(tx.timestamp) : new Date(0),
+      // The renderer sorts and groups on this field, so a mempool row dated to
+      // the epoch sinks to the bottom of the history.
+      date: tx.timestamp != null ? new Date(tx.timestamp) : new Date(),
       confirmations: tx.confirmations ?? 0,
       txid: tx.hash,
       vin,
