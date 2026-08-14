@@ -22,7 +22,6 @@ import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
 import {TxLockStatus} from "../types/TxLockStatus";
 import {selectCoins} from '../utils/coinSelection'
-import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService} from './CoreTransactionService'
 import {decryptMnemonic, encryptMnemonic} from "../utils";
 import {withUnlockedWallet} from "../utils/walletSeed";
@@ -36,6 +35,7 @@ import {
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
 import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
+import {AddressUsage} from '../types/AddressDiscovery'
 import {SelectableUtxo} from '../types/CoinSelection'
 import {TransferInput} from '../types/CoreTransaction'
 
@@ -86,7 +86,7 @@ export class WalletService {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
       return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
     }
-    return new DashscanWalletProvider(network, walletId, this.addressDAO)
+    return new DashscanWalletProvider(network, walletId, this.addressDAO, this.walletDAO)
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
@@ -373,45 +373,11 @@ export class WalletService {
     const coreXpub = wallet.coreXpub
     const network = wallet.network
     const provider = this.getProvider(walletId, network)
-    const coinType = COIN_TYPE[network]
-    const added: Address[] = []
 
-    for (const isChange of [false, true]) {
-      for (let round = 0; round < MAX_DISCOVERY_ROUNDS; round++) {
-        const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-        const chain = isChange ? grouped.change : grouped.receiving
-        const unused = chain.filter(a => !a.isUsed)
-        const newlyUsed = unused.length > 0 ? await provider.getUsedAddresses(unused.map(a => a.address)) : []
-        if (newlyUsed.length > 0) {
-          await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
-        }
-
-        const usedSet = new Set(newlyUsed)
-        const entries = chain.map(a => ({index: a.index, isUsed: a.isUsed || usedSet.has(a.address)}))
-        const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD)
-        if (indexes.length === 0) break
-
-        const rows: Address[] = indexes.map(index => {
-          const publicKey = deriveCorePublicKey(coreXpub, network, isChange, index)
-          return {
-            walletId,
-            accountId: 0,
-            address: this.keyPair.p2pkhAddress(publicKey, network),
-            derivationPath: `m/44'/${coinType}'/0'/${isChange ? 1 : 0}/${index}`,
-            index,
-            isChange,
-            isUsed: false,
-            label: null
-          }
-        })
-        await this.addressDAO.insertAddresses(rows)
-        added.push(...rows)
-        console.log(
-          `[discovery] ${isChange ? 'change' : 'receiving'} gap exhausted — derived ` +
-          `${rows.length} address(es) at index ${indexes[0]}..${indexes[indexes.length - 1]}`,
-        )
-      }
-    }
+    const scan = await provider.scanAddressUsage(ADDRESS_LOOKAHEAD)
+    const added = scan != null
+      ? await this.applyAddressScan(walletId, coreXpub, network, scan)
+      : await this.widenAddressWindow(walletId, coreXpub, network, provider)
 
     if (added.length > 0) {
       await this.walletSyncService.addWatchAddresses(walletId, added)
@@ -436,6 +402,117 @@ export class WalletService {
         console.error('[discovery] markInitialScanComplete failed:', err)
       })
     }
+  }
+
+  private coreAddressRows(
+    walletId: string,
+    coreXpub: string,
+    network: Network,
+    isChange: boolean,
+    indexes: number[],
+  ): Address[] {
+    const coinType = COIN_TYPE[network]
+    return indexes.map(index => ({
+      walletId,
+      accountId: 0,
+      address: this.keyPair.p2pkhAddress(deriveCorePublicKey(coreXpub, network, isChange, index), network),
+      derivationPath: `m/44'/${coinType}'/0'/${isChange ? 1 : 0}/${index}`,
+      index,
+      isChange,
+      isUsed: false,
+      label: null,
+    }))
+  }
+
+  // The scan already walked the gap to the frontier, so one pass replaces the
+  // widening rounds.
+  private async applyAddressScan(
+    walletId: string,
+    coreXpub: string,
+    network: Network,
+    scan: AddressUsage[],
+  ): Promise<Address[]> {
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+    const added: Address[] = []
+
+    for (const isChange of [false, true]) {
+      const chain = isChange ? grouped.change : grouped.receiving
+      const scanned = scan.filter(entry => entry.isChange === isChange)
+      const known = new Map(chain.map(a => [a.index, a]))
+
+      const usedIndexes = scanned.filter(entry => entry.isUsed).map(entry => entry.index)
+      const lastUsed = usedIndexes.reduce((max, index) => Math.max(max, index), -1)
+      const highestKnown = chain.reduce((max, a) => Math.max(max, a.index), -1)
+
+      // The window must stay contiguous from zero: a used index the scan found
+      // past the old frontier is otherwise never derived.
+      const frontier = Math.max(highestKnown, lastUsed + ADDRESS_LOOKAHEAD)
+      const missing: number[] = []
+      for (let index = 0; index <= frontier; index++) {
+        if (!known.has(index)) missing.push(index)
+      }
+
+      const rows = missing.length > 0
+        ? this.coreAddressRows(walletId, coreXpub, network, isChange, missing)
+        : []
+      if (rows.length > 0) {
+        await this.addressDAO.insertAddresses(rows)
+        added.push(...rows)
+        console.log(
+          `[discovery] ${isChange ? 'change' : 'receiving'} scan — derived ` +
+          `${rows.length} address(es) at index ${missing[0]}..${missing[missing.length - 1]}`,
+        )
+      }
+
+      const addressAt = new Map([...known].map(([index, a]) => [index, a.address]))
+      for (const row of rows) addressAt.set(row.index, row.address)
+
+      const newlyUsed = usedIndexes
+        .filter(index => known.get(index)?.isUsed !== true)
+        .map(index => addressAt.get(index))
+        .filter((address): address is string => address != null)
+      if (newlyUsed.length > 0) {
+        await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
+      }
+    }
+
+    return added
+  }
+
+  private async widenAddressWindow(
+    walletId: string,
+    coreXpub: string,
+    network: Network,
+    provider: WalletProvider,
+  ): Promise<Address[]> {
+    const added: Address[] = []
+
+    for (const isChange of [false, true]) {
+      for (let round = 0; round < MAX_DISCOVERY_ROUNDS; round++) {
+        const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+        const chain = isChange ? grouped.change : grouped.receiving
+        const unused = chain.filter(a => !a.isUsed)
+        const newlyUsed = unused.length > 0 ? await provider.getUsedAddresses(unused.map(a => a.address)) : []
+        if (newlyUsed.length > 0) {
+          await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
+        }
+
+        const usedSet = new Set(newlyUsed)
+        const entries = chain.map(a => ({index: a.index, isUsed: a.isUsed || usedSet.has(a.address)}))
+        const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD)
+        if (indexes.length === 0) break
+
+        const rows = this.coreAddressRows(walletId, coreXpub, network, isChange, indexes)
+        await this.addressDAO.insertAddresses(rows)
+        added.push(...rows)
+        console.log(
+          `[discovery] ${isChange ? 'change' : 'receiving'} gap exhausted — derived ` +
+          `${rows.length} address(es) at index ${indexes[0]}..${indexes[indexes.length - 1]}`,
+        )
+      }
+    }
+
+    return added
   }
 
   async getReceiveAddress(walletId: string): Promise<string> {
@@ -482,16 +559,9 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
 
-    const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const allAddresses = [...addresses.change, ...addresses.receiving]
     const provider = this.getProvider(wallet.walletId, wallet.network)
 
-    // History is per-address, so unused lookahead addresses each buy an empty
-    // result. Live state, not the isUsed flag, which lags the discovery tick.
-    const active = await provider.getUsedAddresses(allAddresses.map(a => a.address))
-    const txArrays = await Promise.all(active.map(address => provider.getTransactions(address)))
-
-    return dedupeTransactions(txArrays.flat())
+    return provider.getWalletTransactions()
   }
 
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
@@ -517,17 +587,15 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
 
-    const walletAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const addresses = [...walletAddresses.change, ...walletAddresses.receiving]
-
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
 
     const provider = this.getProvider(wallet.walletId, wallet.network)
 
-    const addressesBalance = await provider.getBalance(addresses.map(addr => addr.address))
+    const addressesBalance = await provider.getWalletBalance()
 
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
       identifiers: identities.map(identity => identity.identifier),
+      skipDPNS: true,
     })
     const identitiesBalance = infos.reduce((acc, info) => acc + info.balance, 0n)
 
@@ -634,9 +702,11 @@ export class WalletService {
     const provider = this.getProvider(walletId, network)
     await provider.ensureReady()
 
-    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
-
-    const ownedUtxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
+    // The provider answers for the whole wallet, including indexes discovery
+    // has not derived — those have no derivation path and cannot be signed.
+    const ownedUtxos = (await provider.getWalletUtxos())
+      .filter(utxo => pathByAddress.has(utxo.address))
+      .filter(utxo => fromAddress == null || utxo.address === fromAddress)
 
     if (ownedUtxos.length === 0) {
       throw new Error('No spendable funds in this wallet')
@@ -752,6 +822,7 @@ export class WalletService {
     const stored = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
       identifiers: stored.map(entry => entry.identifier),
+      skipDPNS: false,
     })
     const byIdentifier = new Map(infos.map(info => [info.identifier, info]))
 

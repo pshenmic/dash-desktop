@@ -23,6 +23,7 @@ export interface Harness {
   knex: Knex
   walletDAO: WalletDAO
   addressDAO: AddressDAO
+  identityDAO: IdentityDAO
   transactionDAO: TransactionDAO
   walletService: WalletService
   applicationService: ApplicationService
@@ -62,6 +63,7 @@ export async function harness(): Promise<Harness> {
     knex,
     walletDAO,
     addressDAO,
+    identityDAO,
     transactionDAO,
     walletService,
     applicationService,

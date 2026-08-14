@@ -233,7 +233,9 @@ export interface PlatformOperations {
     result: {nonce: bigint}
   }
   identityInfos: {
-    payload: {identifiers: string[]}
+    // An alias costs a DPNS document search per identity, on top of the
+    // identity fetch.
+    payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
     result: {infos: Array<{identifier: string; balance: bigint; alias: string | null}>}
   }
