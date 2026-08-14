@@ -81,6 +81,50 @@ export const POOL_REFILL_INTERVAL_MS = 5_000
 // address book is indistinguishable from a healthy coasting pool.
 export const POOL_SHORT_REPORT_TICKS = 12
 
+// Refill ticks with nothing connected before the built-in peers are dialled.
+export const POOL_FALLBACK_TICKS = 3
+
+// Dialled only when discovery has produced no live peer at all: mainnet ships a
+// single DNS seed, and a resolver that cannot answer it — or answers it with
+// rewritten records — otherwise leaves the pool with nothing to try. Harvested
+// from the seeds over DoH, one per /16 so no single operator carries the list.
+export const FALLBACK_PEERS: Record<Network, string[]> = {
+  mainnet: [
+    '46.101.187.72:9999',
+    '188.40.108.88:9999',
+    '134.209.176.109:9999',
+    '185.8.107.195:9999',
+    '178.208.87.221:9999',
+    '104.238.179.122:9999',
+    '167.99.65.122:9999',
+    '37.27.199.15:9999',
+    '8.219.196.16:9999',
+    '93.115.172.39:9999',
+    '138.197.161.165:9999',
+    '45.76.236.39:9999',
+    '132.243.197.21:9999',
+    '139.59.56.7:9999',
+    '46.4.162.101:9999',
+    '168.119.57.12:9999',
+    '159.65.2.7:9999',
+    '65.21.237.225:9999',
+    '91.198.108.39:9999',
+    '178.63.121.132:9999',
+  ],
+  testnet: [
+    '158.160.14.115:19999',
+    '46.224.41.173:19999',
+    '68.67.122.4:19999',
+    '68.67.122.7:19999',
+    '68.67.122.13:19999',
+    '68.67.122.16:19999',
+    '68.67.122.23:19999',
+    '68.67.122.26:19999',
+    '68.67.122.38:19999',
+    '68.67.122.59:19999',
+  ],
+}
+
 // ── Header sync ─────────────────────────────────────────────────────────────
 
 export const HEADER_RACE_PEERS = 15
