@@ -80,7 +80,7 @@ export const MAX_DISCOVERY_BATCHES = 50
 
 // Bounds how far addAddress derives forward while skipping already-used
 // diversified addresses.
-export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 1000
+export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 2000
 
 // How often the backend re-runs address discovery for the selected wallet.
 export const DISCOVERY_INTERVAL_MS = 120_000
