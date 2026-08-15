@@ -134,6 +134,14 @@ export class ShieldedService {
       count++
       address = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
     } while (used.has(address) && count < limit)
+
+    // The loop has two exits and only one is success. Falling through on the
+    // other would persist the count and hand back an address that already
+    // received a note — the linkage the pool exists to prevent.
+    if (used.has(address)) {
+      throw new Error(`No unused shielded address within ${NEW_ADDRESS_LOOKAHEAD_LIMIT} indexes of ${count - NEW_ADDRESS_LOOKAHEAD_LIMIT}`)
+    }
+
     await this.walletDAO.setShieldedAddressCount(walletId, count)
     return this.cacheAddresses(walletId, seed, network)
   }
