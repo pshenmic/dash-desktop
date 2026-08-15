@@ -1,4 +1,4 @@
-import type {Network} from '../../src/types'
+import type {Network} from '../../src/types/Network'
 import type {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus} from './walletSync'
 import type {BroadcastResult} from './broadcast'
 

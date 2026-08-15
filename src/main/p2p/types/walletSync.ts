@@ -1,4 +1,4 @@
-import {Network} from '../../src/types'
+import {Network} from '../../src/types/Network'
 
 // Domain types for wallet sync, independent of transport: messages.ts wraps
 // them for the wire, TransactionDAO consumes the apply payload directly.

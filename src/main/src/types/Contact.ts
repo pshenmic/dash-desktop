@@ -1,4 +1,4 @@
-import {Network} from './index'
+import {Network} from './Network'
 
 export interface Contact {
   id: number

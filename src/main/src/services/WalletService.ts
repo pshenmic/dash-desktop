@@ -10,7 +10,7 @@ import {WalletSyncService} from './WalletSyncService'
 import {WalletProvider} from '../providers/WalletProvider'
 import {DashscanWalletProvider} from '../providers/DashscanWalletProvider'
 import {P2PWalletProvider} from '../providers/P2PWalletProvider'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {Address} from '../types/Address'
 import {GroupedAddresses} from '../types/GroupedAddresses'
 import {IdentityInfo} from '../types/Identity'
@@ -687,6 +687,16 @@ export class WalletService {
   // depending on DAPI islock delivery. Null if none arrives within timeoutMs.
   waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null> {
     return this.walletSyncService.waitForInstantLock(txid, timeoutMs)
+  }
+
+  // The clsig counterpart. Null if the pool reports no height that high within
+  // timeoutMs.
+  waitForChainLock(network: Network, minHeight: number, timeoutMs: number): Promise<number | null> {
+    return this.walletSyncService.waitForChainLock(network, minHeight, timeoutMs)
+  }
+
+  chainlockedHeight(network: Network): number {
+    return this.walletSyncService.chainlockedHeight(network)
   }
 
   private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint, fromAddress?: string): Promise<{

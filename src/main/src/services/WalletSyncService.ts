@@ -2,7 +2,7 @@ import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
-import {ADDRESS_LOOKAHEAD, ChainStorageFilename, HomeFolderName, LOCK_WATCH_TTL_MS} from '../constants'
+import {ADDRESS_LOOKAHEAD, ChainStorageFilename, HomeFolderName, LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../constants'
 import {Address} from '../types/Address'
 import {logChildOutput} from '../logger'
 import {WalletDAO} from '../database/WalletDAO'
@@ -22,6 +22,7 @@ import {GENESIS} from '../../p2p/constants'
 import {QueryStatus} from '../types/QueryStatus'
 import {ScanCursorGate} from '../utils/scanCursorGate'
 import {Preferences} from '../preferences'
+import {Network} from '../types/Network'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 
 
@@ -60,6 +61,7 @@ export class WalletSyncService {
   private activeNetwork: 'mainnet' | 'testnet' | null = null
   // Re-pushes unconfirmed local txs on an interval while a wallet is synced.
   private rebroadcastTimer: ReturnType<typeof setInterval> | null = null
+  private lockWatchSweepTimer: ReturnType<typeof setInterval> | null = null
   // Rolling stdout+stderr tail, so a crash carries its own cause instead of a
   // bare exit code.
   private childOutputTail = ''
@@ -76,6 +78,11 @@ export class WalletSyncService {
   // construction for shield / asset-lock funding.
   private instantLocks = new Map<string, string>()
   private instantLockWaiters = new Map<string, Array<(hex: string) => void>>()
+  // Highest clsig height the lock pool has reported, per network. A chainlock
+  // is a threshold rather than an event: a waiter for a height already passed
+  // has to resolve without waiting for the next block's clsig.
+  private chainlockedHeights = new Map<Network, number>()
+  private chainLockWaiters = new Set<{network: Network; minHeight: number; notify: (height: number) => void}>()
   // Txids armed for lock capture that SQL does not know are pending yet, held
   // here so the periodic replace-mode refresh cannot drop them.
   private armedLockTxids = new Map<string, number>()
@@ -213,6 +220,7 @@ export class WalletSyncService {
       this.transactionDAO.markChainlockedUpTo(data.network, data.height).catch(err =>
         console.error('[walletSync] markChainlockedUpTo failed:', err)
       )
+      this.recordChainLock(data.network, data.height)
     } else if (data.type === 'error') {
       console.error('[p2p] utility process error:', data.message)
     }
@@ -376,6 +384,22 @@ export class WalletSyncService {
       watchAddresses,
       peerOverrides: this.preferences.network[network],
     })
+    this.startLockWatchSweep()
+  }
+
+  private startLockWatchSweep(): void {
+    if (this.lockWatchSweepTimer) return
+    this.lockWatchSweepTimer = setInterval(() => {
+      this.refreshWatchedTxids().catch(err =>
+        console.error('[walletSync] lock watch sweep failed:', err))
+    }, LOCK_WATCH_SWEEP_INTERVAL_MS)
+    this.lockWatchSweepTimer.unref?.()
+  }
+
+  private stopLockWatchSweep(): void {
+    if (!this.lockWatchSweepTimer) return
+    clearInterval(this.lockWatchSweepTimer)
+    this.lockWatchSweepTimer = null
   }
 
   // Arm lock capture for a txid. Without this the utility process never issues
@@ -386,11 +410,17 @@ export class WalletSyncService {
     this.send({type: 'watchTxs', mode: 'add', txids: [txid]})
   }
 
-  // Null if no isdlock arrives within timeoutMs. The tx must have been armed
-  // (watchForInstantLock / broadcastTransaction) for the lock to be captured.
+  // Null if no isdlock arrives within timeoutMs.
+  //
+  // Arms the txid itself rather than trusting the caller to have done it: a
+  // funding resumed after a restart reaches here with a watch set the new child
+  // process never received, and an unarmed tx has its lock seen and dropped.
+  // Arming also lifts the worker's chainlock gate, which is what feeds
+  // waitForChainLock in rpc mode.
   waitForInstantLock = (txid: string, timeoutMs: number): Promise<string | null> => {
     const cached = this.instantLocks.get(txid)
     if (cached) return Promise.resolve(cached)
+    if (!this.armedLockTxids.has(txid)) this.watchForInstantLock(txid)
     return new Promise<string | null>(resolve => {
       let done = false
       const finish = (hex: string | null): void => {
@@ -406,10 +436,11 @@ export class WalletSyncService {
         resolve(hex)
       }
       const onLock = (hex: string): void => finish(hex)
-      const timer = setTimeout(() => {
-        this.disarmLockWatch(txid)
-        finish(null)
-      }, timeoutMs)
+      // Deliberately does not disarm: an unanswered islock does not mean the
+      // funding is over, and emptying the watch set here would also shut off
+      // the worker's chainlock stream, which the caller may still be waiting
+      // on. The TTL sweep expires the arm instead.
+      const timer = setTimeout(() => finish(null), timeoutMs)
       timer.unref?.()
       const arr = this.instantLockWaiters.get(txid) ?? []
       arr.push(onLock)
@@ -418,6 +449,52 @@ export class WalletSyncService {
   }
 
   hasInstantLock = (txid: string): boolean => this.instantLocks.has(txid)
+
+  private recordChainLock(network: Network, height: number): void {
+    if (height <= (this.chainlockedHeights.get(network) ?? 0)) return
+    this.chainlockedHeights.set(network, height)
+
+    const woken: number[] = []
+    for (const waiter of this.chainLockWaiters) {
+      if (waiter.network !== network || height < waiter.minHeight) continue
+      this.chainLockWaiters.delete(waiter)
+      woken.push(waiter.minHeight)
+      waiter.notify(height)
+    }
+
+    // Silent while nobody is waiting — the child already logs every clsig. This
+    // line is the only place the crossing into main is observable.
+    if (woken.length > 0) {
+      console.log(`[locks] chainlock h=${height} woke ${woken.length} waiter(s) for h>=${Math.min(...woken)}`)
+    }
+  }
+
+  chainlockedHeight = (network: Network): number => this.chainlockedHeights.get(network) ?? 0
+
+  // Resolves with the chainlocked height once it reaches minHeight, or null on
+  // timeout. Fed by the lock pool's clsig stream, which is up in both connection
+  // modes — so this answers locally what polling DAPI for coreChainLockedHeight
+  // asks a remote service for.
+  //
+  // A chainlock only ever moves forward, so an already-passed height resolves
+  // without waiting for the next block.
+  waitForChainLock = (network: Network, minHeight: number, timeoutMs: number): Promise<number | null> => {
+    const seen = this.chainlockedHeights.get(network) ?? 0
+    if (seen >= minHeight) return Promise.resolve(seen)
+
+    return new Promise<number | null>(resolve => {
+      const waiter = {network, minHeight, notify: (height: number): void => {
+        clearTimeout(timer)
+        resolve(height)
+      }}
+      const timer = setTimeout(() => {
+        this.chainLockWaiters.delete(waiter)
+        resolve(null)
+      }, timeoutMs)
+      timer.unref?.()
+      this.chainLockWaiters.add(waiter)
+    })
+  }
 
   isSyncedFor(walletId: string): boolean {
     return this.status.phase === 'synced' && this.status.walletId === walletId
@@ -649,6 +726,7 @@ export class WalletSyncService {
   }
 
   shutdown = async (): Promise<void> => {
+    this.stopLockWatchSweep()
     if (!this.child) return
     const child = this.child
     const exited = new Promise<void>((resolve) => {

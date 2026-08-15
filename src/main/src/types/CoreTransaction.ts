@@ -1,5 +1,5 @@
 import {Script} from 'dash-core-sdk'
-import {Network} from './index'
+import {Network} from './Network'
 
 export type RecipientType = 'p2pkh' | 'p2sh'
 

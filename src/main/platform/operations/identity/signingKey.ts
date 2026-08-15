@@ -1,7 +1,7 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {IdentityPublicKeyWASM, PrivateKeyWASM} from 'dash-platform-sdk/types.js'
 import {StateTransitionWASM} from 'pshenmic-dpp'
-import {Network} from '../../../src/types'
+import {Network} from '../../../src/types/Network'
 import {matchIdentityKey} from '../../../src/utils/identityKeys'
 import {OperationError} from '../types'
 import {DerivedKeyHash} from '../../../src/types/IdentityKeys'

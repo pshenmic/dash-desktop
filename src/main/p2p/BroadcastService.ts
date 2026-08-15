@@ -31,7 +31,7 @@ export class BroadcastService {
 
   private run(tx: Transaction, overrides?: BroadcastPolicyOverrides): Promise<BroadcastResult> {
     const {
-      minPeerAcks, peerWaitMs, rebroadcastIntervalMs: rebroadcastMs,
+      minPeerAcks, peerWaitMs, rebroadcastIntervalMs: rebroadcastMs, witnessPeers,
       maxRebroadcasts, unsolicitedPushAfterMs: unsolicitedAfterMs, failOnReject,
     } = BROADCAST_POLICY
     const waitForIs = overrides?.waitForInstantLock ?? BROADCAST_POLICY.waitForInstantLock
@@ -99,11 +99,10 @@ export class BroadcastService {
         reject(err)
       }
 
-      // A peer announcing our txid back to us proves the tx entered its
-      // mempool, which is stronger evidence than either an ack or our own
-      // write returning.
-      const spread = (): boolean =>
-        session.propagatedFrom.size > 0 || delivered().size >= minPeerAcks
+      // A peer announcing our txid back proves the tx entered its mempool.
+      // Delivery does not: it says the bytes left our socket, which a peer that
+      // dropped the tx and a peer that accepted it produce alike.
+      const spread = (): boolean => session.propagatedFrom.size > 0
 
       const checkDone = (): void => {
         if (settled) return
@@ -133,9 +132,27 @@ export class BroadcastService {
         pushTimers.set(peer, t)
       }
 
+      // Held back for the life of the session: a witness that gets an inv from
+      // us stops being able to answer the only question we have.
+      const witnesses = new Set<Peer>()
+      const reserveWitnesses = (): void => {
+        if (witnesses.size > 0) return
+        const ready = session.readyPeers()
+        // Never at the cost of carrying the tx — below this the pool is too
+        // small to both broadcast and observe, and only a lock can confirm.
+        const spare = Math.min(witnessPeers, ready.length - minPeerAcks)
+        if (spare <= 0) return
+        for (const peer of ready.slice(-spare)) witnesses.add(peer)
+      }
+
       const inviteNewPeers = (): number => {
+        reserveWitnesses()
         const before = session.invSentTo.size
-        const sent = session.announce()
+        const sent: Peer[] = []
+        for (const peer of session.readyPeers()) {
+          if (witnesses.has(peer)) continue
+          sent.push(...session.announce(peer))
+        }
         for (const p of sent) armUnsolicited(p)
         return sent.length || (session.invSentTo.size - before)
       }
@@ -164,6 +181,7 @@ export class BroadcastService {
 
       const onPeerReady = (peer: Peer): void => {
         if (settled) return
+        if (witnesses.has(peer)) return
         const sent = session.announce(peer)
         if (sent.length) armUnsolicited(peer)
         checkDone()
@@ -189,16 +207,16 @@ export class BroadcastService {
           const diagnostics =
             `invited=${session.invSentTo.size}, ack=${session.requestedBy.size}, ` +
             `delivered=${delivered().size}, propagated=${session.propagatedFrom.size}, ` +
-            `islock=${session.instantLocked}`
-          // Dash Core dropped BIP61 reject, so silence is not failure: once the
-          // bytes reached a peer the tx is on the network. Only a caller that
-          // demanded a lock may treat this as an error.
-          if (delivered().size > 0 && !requireIs) {
-            console.log(`[broadcast] ${session.txid} settling on delivery without ack (${diagnostics})`)
-            succeed()
+            `witnesses=${witnesses.size}, islock=${session.instantLocked}`
+          // Dash Core dropped BIP61 reject, so a peer that refuses the tx says
+          // nothing. The evidence therefore has to be positive — a witness
+          // announcing the txid back, or a lock — and neither arrived. The tx is
+          // armed before broadcast, so a lock would already have settled this.
+          if (witnesses.size === 0) {
+            fail(`no peer to spare as a propagation witness, and no instant lock arrived (${diagnostics})`)
             return
           }
-          fail(`timed out after ${timeoutMs}ms (${diagnostics})`)
+          fail(`no witness saw the tx enter a mempool within ${timeoutMs}ms (${diagnostics})`)
         }, timeoutMs),
       )
 

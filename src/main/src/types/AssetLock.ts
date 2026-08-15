@@ -1,6 +1,7 @@
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {AssetLockProofParams} from '../../platform/types/messages'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
+import {Network} from './Network'
 
 export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
 
@@ -41,6 +42,8 @@ export interface AssetLockFunder {
     credit?: {address: string; derivationPath: string},
   ): Promise<BroadcastedAssetLock>
   waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null>
+  waitForChainLock(network: Network, minHeight: number, timeoutMs: number): Promise<number | null>
+  chainlockedHeight(network: Network): number
 }
 
 export interface AcquiredAssetLock {
