@@ -9,9 +9,9 @@ import {
 } from 'dash-core-sdk'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX, SEQUENCE_FINAL} from '../constants'
-import {BuildSignedTransferParams, RecipientType, TransferInput} from '../types/CoreTransaction' 
+import {BuildSignedTransferParams, RecipientType, TransferInput} from '../types/CoreTransaction'
 import {buildAssetLockOutputs} from '../utils/assetLockTx'
 
 

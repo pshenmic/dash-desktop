@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { Network } from '../../types'
+import { Network } from '../../types/Network'
 import { WalletService } from '../../services/WalletService'
 import {Transaction} from "../../types/Transaction";
 

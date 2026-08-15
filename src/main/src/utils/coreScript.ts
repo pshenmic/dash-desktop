@@ -1,6 +1,6 @@
 import {CoreScriptWASM} from 'pshenmic-dpp'
 import {Base58Check} from 'dash-core-sdk/src/base58check.js'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX} from '../constants'
 
 export function coreAddressToScript(coreAddress: string, network: Network): CoreScriptWASM {

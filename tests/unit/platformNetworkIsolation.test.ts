@@ -2,7 +2,7 @@ import {describe, it, expect, vi} from 'vitest'
 import {PlatformService} from '../../src/main/platform/PlatformService'
 import {SdkSource} from '../../src/main/platform/types/sdk'
 import {PlatformEvent, PlatformRequestMessage} from '../../src/main/platform/types/messages'
-import {Network} from '../../src/main/src/types'
+import {Network} from '../../src/main/src/types/Network'
 
 // A stub SDK that records which network it belongs to and blocks until
 // released, so two operations can be held in flight at the same time.

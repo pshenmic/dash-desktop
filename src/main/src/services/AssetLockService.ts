@@ -9,7 +9,7 @@ import {WalletDAO} from '../database/WalletDAO'
 import {AssetLockDAO} from '../database/AssetLockDAO'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
 import {AssetLockFundingState} from '../types/AssetLockFunding'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {AssetLockProofParams} from '../../platform/types/messages'
 import {
@@ -17,7 +17,7 @@ import {
   AcquiredAssetLock,
   AssetLockFunder,
 } from '../types/AssetLock'
-import {IDENTITY_LOCK_POLL_INTERVAL_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../constants'
+import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../constants'
 import {AssetLockFundingKind, AssetLockFundingRow} from '../types/AssetLock'
 const coreSDKs = new Map<Network, DashCoreSDK>()
 
@@ -236,8 +236,9 @@ export class AssetLockService {
     }
   }
 
-  // Races the instant lock (our own p2p pool) against the chain lock (DAPI
-  // polling, because chain-lock events can be missed). First to resolve wins.
+  // Races the instant lock against the chain lock, first to resolve wins. Both
+  // are driven by our own lock pool; DAPI is still asked which block holds the
+  // transaction, because a clsig carries a height and no outpoint.
   private async waitForAssetLockProof(
     assetLockTx: SDKTransaction,
     txid: string,
@@ -260,6 +261,9 @@ export class AssetLockService {
       }) as InstantAssetLockProofParams
     }
 
+    // Our own lock pool sees every clsig, so a chainlock is the only event that
+    // can change either answer below. Between two of them, re-asking DAPI can
+    // only return what it already returned.
     const chainLockRace = async (): Promise<ChainAssetLockProofParams> => {
       const sdk = coreSDK(network)
       const deadline = Date.now() + IDENTITY_LOCK_TIMEOUT_MS
@@ -267,38 +271,34 @@ export class AssetLockService {
       while (Date.now() < deadline) {
         if (settled) throw new Error('cancelled')
 
-        try {
-          const dapiTx = await sdk.getTransaction(txid)
+        // Re-read every round rather than pinning the first answer, which would
+        // outlive the transaction being reorged out of the block it names.
+        const dapiTx = await sdk.getTransaction(txid).catch(() => null)
 
-          if (dapiTx.isChainLocked) {
-            const requiredHeight = dapiTx.height
+        if (dapiTx?.isChainLocked === true) {
+          // Platform validates the proof against its own core node, so its view
+          // of the chainlocked tip is the one that has to have reached the tx.
+          const platformHeight = await this.platform.request('nodeStatus', network, {})
+            .then(({chain}) => chain?.coreChainLockedHeight ?? 0)
+            .catch(err => {
+              console.warn(`[assetLock] ${txid}: platform node status unavailable:`, err)
+              return 0
+            })
 
-            while (Date.now() < deadline) {
-              if (settled) throw new Error('cancelled')
-
-              try {
-                const {chain} = await this.platform.request('nodeStatus', network, {})
-                const latestHeight = chain?.coreChainLockedHeight
-
-                if (latestHeight != null && latestHeight >= requiredHeight) {
-                  return coreUtils.createAssetLockProof({
-                    transaction: assetLockTx,
-                    coreChainLockedHeight: dapiTx.height,
-                    outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
-                  }) as ChainAssetLockProofParams
-                }
-              } catch {
-                // Platform node status unavailable — keep polling until deadline.
-              }
-
-              await coreUtils.wait(IDENTITY_LOCK_POLL_INTERVAL_MS)
-            }
+          if (platformHeight >= dapiTx.height) {
+            console.log(`[assetLock] ${txid}: chainlocked at h=${dapiTx.height}, platform at h=${platformHeight} — building proof`)
+            return coreUtils.createAssetLockProof({
+              transaction: assetLockTx,
+              coreChainLockedHeight: dapiTx.height,
+              outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
+            }) as ChainAssetLockProofParams
           }
-        } catch {
-          // Asset lock tx not yet visible on DAPI — keep polling until deadline.
         }
 
-        await coreUtils.wait(IDENTITY_LOCK_POLL_INTERVAL_MS)
+        const seen = this.funder.chainlockedHeight(network)
+        console.log(`[assetLock] ${txid}: not chainlocked yet (tx ${dapiTx == null ? 'not on DAPI' : `h=${dapiTx.height}`}) — waiting past h=${seen}`)
+        const remaining = Math.max(0, deadline - Date.now())
+        await this.funder.waitForChainLock(network, seen + 1, Math.min(remaining, CHAIN_LOCK_BACKSTOP_MS))
       }
 
       throw new Error(`Timed out waiting for asset lock proof on transaction ${txid} after ${Math.round(IDENTITY_LOCK_TIMEOUT_MS / 1000)}s`)

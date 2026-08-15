@@ -1,5 +1,5 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
-import {Network} from '../../src/types'
+import {Network} from '../../src/types/Network'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
 // shapes live with their operations. Every terminal event echoes back the

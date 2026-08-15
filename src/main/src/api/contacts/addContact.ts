@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { ContactService } from '../../services/ContactService'
 import { QueryStatus } from '../../types/QueryStatus'
-import { Network } from '../../types'
+import { Network } from '../../types/Network'
 
 export class AddContactHandler {
   private contactService: ContactService

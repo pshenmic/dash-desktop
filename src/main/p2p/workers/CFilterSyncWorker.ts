@@ -19,7 +19,7 @@ import {
 import {Block, OutPoint, Script, utils as sdkUtils} from 'dash-core-sdk'
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
-import {Network} from '../../src/types'
+import {Network} from '../../src/types/Network'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
 import {GENESIS, HASH_LEN, MB} from '../constants'

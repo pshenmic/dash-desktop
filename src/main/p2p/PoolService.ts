@@ -1,8 +1,8 @@
 import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
-import {Network} from '../src/types'
+import {Network} from '../src/types/Network'
 import {parsePeerAddress} from './peerAddress'
-import {FALLBACK_PEERS, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from './constants'
+import {FALLBACK_PEERS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from './constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
@@ -20,15 +20,22 @@ export class PoolService extends EventEmitter {
   readonly peerServices = new WeakMap<Peer, bigint>()
 
   // Moves rather than copies: Dash Core caps connections per source IP, so two
-  // pools dialling the same nodes means one starves. Half, because only ~1% of
-  // gossiped addresses are live and this pool needs candidates of its own.
+  // pools dialling the same nodes means one starves.
+  //
+  // Only the surplus above the reserve moves. Handing over a *fraction* of the
+  // book drained it instead: this runs on every gossip and every peer change,
+  // so half of the remainder went each time — measured at 33 known addresses
+  // and 2 ready peers here against 731 and 18 in the pool being fed.
   takeAddresses(): AddrInfo[] {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     const addrs = pool._addrs as AddrInfo[]
     const spare = addrs.filter(addr =>
       !(addr.hash! in pool._connectedPeers) && addr.retryTime == null)
-    const taken = spare.filter((_, i) => i % 2 === 1)
+
+    const taken = spare.slice(0, Math.max(0, spare.length - POOL_ADDRESS_RESERVE))
+    if (taken.length === 0) return []
+
     const gone = new Set(taken.map(addr => addr.hash))
     pool._addrs = addrs.filter((addr: AddrInfo) => !gone.has(addr.hash))
     return taken

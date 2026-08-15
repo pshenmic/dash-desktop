@@ -1,4 +1,4 @@
-import type {Network} from '../../src/types'
+import type {Network} from '../../src/types/Network'
 import type {ChainStore} from '../ChainStore'
 import type {PoolService} from '../PoolService'
 import type {WalletSyncUtxo, WatchAddress} from './walletSync'

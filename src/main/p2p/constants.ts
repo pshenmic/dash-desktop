@@ -1,4 +1,4 @@
-import {Network} from '../src/types'
+import {Network} from '../src/types/Network'
 import type {ChainAnchor} from './types/chain'
 import type {PoolServiceEventMap} from './types/pool'
 
@@ -81,13 +81,18 @@ export const POOL_REFILL_INTERVAL_MS = 5_000
 // address book is indistinguishable from a healthy coasting pool.
 export const POOL_SHORT_REPORT_TICKS = 12
 
+// Spare addresses a pool keeps for itself before any surplus moves to another pool.
+export const POOL_ADDRESS_RESERVE = 100
+
 // Refill ticks with nothing connected before the built-in peers are dialled.
 export const POOL_FALLBACK_TICKS = 2
 
-// Dialled only when discovery has produced no live peer at all: mainnet ships a
-// single DNS seed, and a resolver that cannot answer it — or answers it with
-// rewritten records — otherwise leaves the pool with nothing to try. Harvested
-// from the seeds over DoH, one per /16 so no single operator carries the list.
+// Dialled when a pool has produced no live peer at all. Two cases reach it: a
+// resolver that cannot answer the single mainnet DNS seed — or answers it with
+// rewritten records — and the bulk pool, which runs no DNS of its own and now
+// only receives the lock pool's surplus, so it can start with nothing.
+// Harvested from the seeds over DoH, one per /16 so no single operator carries
+// the list.
 export const FALLBACK_PEERS: Record<Network, string[]> = {
   mainnet: [
     '46.101.187.72:9999',
@@ -191,7 +196,12 @@ export const BROADCAST_POLICY = {
   // Counts peers we pushed to, not just those answering an inv with getdata:
   // observed on testnet, that getdata often never comes, so a threshold on acks
   // alone is unreachable and every send burns the full timeout.
-  minPeerAcks: 3,
+  minPeerAcks: 2,
+  // Peers deliberately left uninvited. Core does not relay a tx back toward a
+  // peer that announced it, so a pool we invite in full can never show us
+  // propagation — these are the only nodes whose inv for our txid proves the tx
+  // reached a mempool rather than just a socket.
+  witnessPeers: 2,
   waitForInstantLock: false,
   requireInstantLock: false,
   peerWaitMs: 10_000,

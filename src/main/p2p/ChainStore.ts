@@ -1,5 +1,5 @@
 import {ClassicLevel} from 'classic-level'
-import {Network} from '../src/types'
+import {Network} from '../src/types/Network'
 
 import {ChainTipState, PersistedHeader, StoredState} from './types/chainStore'
 import {HEIGHT_KEY_WIDTH} from './constants'

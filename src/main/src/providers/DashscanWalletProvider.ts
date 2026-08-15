@@ -19,7 +19,7 @@ import {
 } from '../types/Dashscan'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {
   ADDRESS_LOOKAHEAD,
   DASHSCAN_ADDRESS_CHUNK,

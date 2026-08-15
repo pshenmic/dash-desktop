@@ -51,8 +51,18 @@ export const SHIELDED_NOTES_FETCH_BATCH = 8192
 
 // The instant lock usually arrives within seconds; the chain-lock fallback can
 // take minutes, hence the generous timeout.
-export const IDENTITY_LOCK_POLL_INTERVAL_MS = 5_000
 export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
+
+// Backstop on the clsig wait in the chain-lock fallback. The lock pool wakes
+// that loop, so this covers the two cases the pool cannot: no peers, and DAPI
+// still reporting a transaction unlocked that our pool already saw locked —
+// where waiting for the *next* clsig would cost a whole block interval.
+export const CHAIN_LOCK_BACKSTOP_MS = 45 * 1000
+
+// Sweeps expired entries out of the isdlock watch set. The rebroadcast loop
+// does this too, but only runs in p2p mode, so without it an rpc-mode wallet
+// keeps the worker fetching isdlocks nobody is waiting on.
+export const LOCK_WATCH_SWEEP_INTERVAL_MS = 5 * 60 * 1000
 
 // Outlives the asset-lock timeout above, so an arm never expires under a live
 // waiter. Past it nothing is waiting and staying armed only makes the worker

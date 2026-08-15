@@ -1,7 +1,7 @@
 import { KeyPairController } from 'dash-platform-sdk/src/keyPair/index.js'
 import { OrchardAddressWASM } from 'pshenmic-dpp'
 import { IdentityRegistrationService } from './IdentityRegistrationService'
-import { Network } from '../types'
+import { Network } from '../types/Network'
 import { WalletDAO } from '../database/WalletDAO'
 import { IdentityDAO } from '../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'

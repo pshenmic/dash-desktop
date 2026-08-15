@@ -1,4 +1,4 @@
-import {Network} from '../../src/types'
+import {Network} from '../../src/types/Network'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
 import {PeerOverrides} from './pool'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'

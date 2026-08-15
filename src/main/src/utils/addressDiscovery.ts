@@ -1,5 +1,5 @@
 import {HDKey} from '@scure/bip32'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 
 import {GapEntry} from '../types/AddressDiscovery'
 import {HD_VERSIONS} from '../constants'

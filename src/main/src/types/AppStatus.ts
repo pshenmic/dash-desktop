@@ -1,5 +1,5 @@
 import {WalletSyncStatus} from '../../p2p/types/walletSync'
-import {Network} from './index'
+import {Network} from './Network'
 
 // Aggregated app status. Wallet-sync progress is folded in here rather
 // than exposed via a separate IPC so the renderer has a single poll

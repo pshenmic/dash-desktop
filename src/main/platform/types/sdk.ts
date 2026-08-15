@@ -1,5 +1,5 @@
 import type {DashPlatformSDK} from 'dash-platform-sdk'
-import type {Network} from '../../src/types'
+import type {Network} from '../../src/types/Network'
 
 // What the dispatcher needs from an SDK source. Narrow on purpose: it is the
 // seam the network-isolation test stubs.

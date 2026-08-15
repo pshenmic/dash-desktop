@@ -1,6 +1,6 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {ShieldedBuilderWASM} from 'pshenmic-dpp'
-import {Network} from '../src/types'
+import {Network} from '../src/types/Network'
 
 import {NETWORKS} from './constants'
 import {SdkSource} from './types/sdk'

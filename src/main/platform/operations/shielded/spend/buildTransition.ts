@@ -1,6 +1,6 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {OrchardAddressWASM, ShieldedMemoWASM, SpendableNoteWASM, StateTransitionWASM} from 'pshenmic-dpp'
-import {Network} from '../../../../src/types'
+import {Network} from '../../../../src/types/Network'
 import {coreAddressToScript} from '../../../../src/utils/coreScript'
 import {PlatformOperations} from '../../../types/messages'
 import {WITHDRAWAL_CORE_FEE_PER_BYTE} from '../constants'
