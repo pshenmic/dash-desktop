@@ -1,5 +1,9 @@
+// The wallet has exactly two networks. Spelling it `string` on some signatures
+// and the union on others let an unchecked value reach the IPC boundary.
+type Network = 'mainnet' | 'testnet'
+
 export const apiDefinitions = (ipcRenderer) => ({
-  createWallet: (seedphrase: string, network: string, password: string) => ipcRenderer.invoke('createWallet', seedphrase, network, password),
+  createWallet: (seedphrase: string, network: Network, password: string) => ipcRenderer.invoke('createWallet', seedphrase, network, password),
   deleteWallet: (walletId: string) => ipcRenderer.invoke('deleteWallet', walletId),
   verifyWalletPassword: (walletId: string, password: string) => ipcRenderer.invoke('verifyWalletPassword', walletId, password),
   exportMnemonic: (walletId: string, password: string): Promise<string> => ipcRenderer.invoke('exportMnemonic', walletId, password),
@@ -12,8 +16,8 @@ export const apiDefinitions = (ipcRenderer) => ({
   selectWallet: (walletId: string) => ipcRenderer.invoke('selectWallet', walletId),
   getAllWallets: () => ipcRenderer.invoke('getAllWallets'),
   getTransactions: (walletId: string) => ipcRenderer.invoke('getTransactions', walletId),
-  getTransactionByHash: (hash: string, network: string) => ipcRenderer.invoke('getTransactionByHash', hash, network),
-  getBalance: (address: string | string[], network: string) => ipcRenderer.invoke('getBalance', address, network),
+  getTransactionByHash: (hash: string, network: Network) => ipcRenderer.invoke('getTransactionByHash', hash, network),
+  getBalance: (address: string | string[], network: Network) => ipcRenderer.invoke('getBalance', address, network),
   getWalletBalance: (walletId: string) => ipcRenderer.invoke('getWalletBalance', walletId),
   getIdentities: (walletId: string) => ipcRenderer.invoke('getIdentities', walletId),
   getIdentityBalance: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityBalance', identifier),
@@ -24,7 +28,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   setWalletLabel: (walletId: string, label: string | null) => ipcRenderer.invoke('setWalletLabel', walletId, label),
   sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password, fromAddress),
   getTxLockStatus: (walletId: string, txid: string) => ipcRenderer.invoke('getTxLockStatus', walletId, txid),
-  estimateTransitionFee: (network: 'mainnet' | 'testnet', query: unknown) => ipcRenderer.invoke('estimateTransitionFee', network, query),
+  estimateTransitionFee: (network: Network, query: unknown) => ipcRenderer.invoke('estimateTransitionFee', network, query),
   sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, fromAddress, toAddress, amountCredits, password),
   topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, fromAddress, amountCredits, password),
   withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, fromAddress, toCoreAddress, amountCredits, password),
@@ -45,7 +49,7 @@ export const apiDefinitions = (ipcRenderer) => ({
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),
   stopWalletSync: () => ipcRenderer.invoke('stopWalletSync'),
-  resetWalletSync: (network: 'mainnet' | 'testnet') => ipcRenderer.invoke('resetWalletSync', network),
+  resetWalletSync: (network: Network) => ipcRenderer.invoke('resetWalletSync', network),
   getUtxos: () => ipcRenderer.invoke('getUtxos'),
   hasSyncProgress: (walletId: string) => ipcRenderer.invoke('hasSyncProgress', walletId),
   broadcastTransaction: (txHex: string) => ipcRenderer.invoke('broadcastTransaction', txHex),
@@ -54,12 +58,12 @@ export const apiDefinitions = (ipcRenderer) => ({
 
   saveTextFile: (defaultFileName: string, content: string) => ipcRenderer.invoke('saveTextFile', defaultFileName, content),
 
-  getContacts: (network?: 'mainnet' | 'testnet') => ipcRenderer.invoke('getContacts', network),
-  addContact: (label: string, address: string, network: 'mainnet' | 'testnet') => ipcRenderer.invoke('addContact', label, address, network),
+  getContacts: (network?: Network) => ipcRenderer.invoke('getContacts', network),
+  addContact: (label: string, address: string, network: Network) => ipcRenderer.invoke('addContact', label, address, network),
   deleteContact: (id: number) => ipcRenderer.invoke('deleteContact', id),
 
   getShieldedStatus: () => ipcRenderer.invoke('getShieldedStatus'),
-  getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => ipcRenderer.invoke('getShieldedPoolInfo', network),
+  getShieldedPoolInfo: (network: Network) => ipcRenderer.invoke('getShieldedPoolInfo', network),
   getShieldedNotesInfo: (walletId: string) => ipcRenderer.invoke('getShieldedNotesInfo', walletId),
   startShieldedSync: (walletId: string, password: string) => ipcRenderer.invoke('startShieldedSync', walletId, password),
   getShieldedSyncState: (walletId: string) => ipcRenderer.invoke('getShieldedSyncState', walletId),

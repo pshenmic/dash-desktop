@@ -1,5 +1,9 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
+// Mirrors definitions.ts, which declares the same alias: the bundles do not
+// share types, so each spells the two networks out for itself.
+type Network = 'mainnet' | 'testnet'
+
 // Hand-maintained alongside definitions.ts, and deliberately a second
 // declaration of src/main/src/types/Transaction: the three bundles do not share
 // types. Amounts stay bigint — structured clone carries them as themselves.
@@ -47,7 +51,7 @@ declare global {
     electron: ElectronAPI
     api: unknown
     electronAPI: {
-      createWallet: (seedphrase: string, network: string, password: string) => Promise<unknown>
+      createWallet: (seedphrase: string, network: Network, password: string) => Promise<unknown>
       verifyWalletPassword: (walletId: string, password: string) => Promise<boolean>
       exportMnemonic: (walletId: string, password: string) => Promise<string>
       verifyWalletMnemonic: (walletId: string, mnemonic: string) => Promise<boolean>
@@ -58,8 +62,8 @@ declare global {
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
       getTransactions: (walletId: string) => Promise<TransactionDTO[]>
-      getTransactionByHash: (hash: string, network: string) => Promise<TransactionDTO>
-      getBalance: (address: string | string[], network: string) => Promise<unknown>
+      getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
+      getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
@@ -72,7 +76,7 @@ declare global {
       setWalletLabel: (walletId: string, label: string | null) => Promise<{ success: boolean; errorMessage: string | null }>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
-      estimateTransitionFee: (network: 'mainnet' | 'testnet', query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
+      estimateTransitionFee: (network: Network, query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
@@ -92,16 +96,16 @@ declare global {
       resetPreferences: () => Promise<unknown>
       startWalletSync: (walletId: string) => Promise<unknown>
       stopWalletSync: () => Promise<void>
-      resetWalletSync: (network: 'mainnet' | 'testnet') => Promise<unknown>
+      resetWalletSync: (network: Network) => Promise<unknown>
       getUtxos: () => Promise<unknown>
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
       saveTextFile: (defaultFileName: string, content: string) => Promise<{ success: boolean; errorMessage: string | null }>
-      getContacts: (network?: 'mainnet' | 'testnet') => Promise<unknown>
-      addContact: (label: string, address: string, network: 'mainnet' | 'testnet') => Promise<unknown>
+      getContacts: (network?: Network) => Promise<unknown>
+      addContact: (label: string, address: string, network: Network) => Promise<unknown>
       deleteContact: (id: number) => Promise<unknown>
       getShieldedStatus: () => Promise<{ prover: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
-      getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => Promise<{ poolState: bigint | null; notesCount: bigint | null }>
+      getShieldedPoolInfo: (network: Network) => Promise<{ poolState: bigint | null; notesCount: bigint | null }>
       getShieldedNotesInfo: (walletId: string) => Promise<{ undecodedCount: number }>
       startShieldedSync: (walletId: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
       getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
