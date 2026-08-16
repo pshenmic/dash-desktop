@@ -15,12 +15,12 @@ import {Address} from '../types/Address'
 import {GroupedAddresses} from '../types/GroupedAddresses'
 import {IdentityInfo} from '../types/Identity'
 import {Wallet} from '../types/Wallet'
-import {Transaction as SDKTransaction} from "dash-core-sdk";
 import {QueryStatus} from "../types/QueryStatus";
 import {WalletBalance} from "../types/WalletBalance";
 import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
 import {TxLockStatus} from "../types/TxLockStatus";
+import {BuiltAssetLock} from '../types/AssetLock'
 import {selectCoins} from '../utils/coinSelection'
 import {CoreTransactionService} from './CoreTransactionService'
 import {decryptMnemonic, encryptMnemonic} from "../utils";
@@ -760,13 +760,7 @@ export class WalletService {
     return {transferInputs, inputTotal: selection.inputTotal, changeAddress, grouped}
   }
 
-  async buildAndBroadcastAssetLock(walletId: string, amountDuffs: bigint, seed: Uint8Array, credit?: {address: string; derivationPath: string}): Promise<{
-    tx: SDKTransaction
-    txid: string
-    creditAddress: string
-    creditDerivationPath: string
-    inputAddresses: string[]
-  }> {
+  async buildAssetLock(walletId: string, amountDuffs: bigint, seed: Uint8Array, credit?: {address: string; derivationPath: string}): Promise<BuiltAssetLock> {
     if (amountDuffs <= 0n) {
       throw new Error('Amount must be greater than zero')
     }
@@ -791,21 +785,32 @@ export class WalletService {
       network,
     })
 
-    let txid: string
-    try {
-      txid = (await this.walletSyncService.broadcastTransaction(tx.hex())).txid
-    } catch (error) {
-      console.error('Asset lock broadcast failed, rawtx:', tx.hex())
-      throw error
-    }
-
     return {
       tx,
-      txid,
+      txid: tx.hash(),
       creditAddress: creditTarget.address,
       creditDerivationPath: creditTarget.derivationPath,
       inputAddresses: transferInputs.map(input => input.address),
     }
+  }
+
+  async broadcastAssetLock(txHex: string): Promise<void> {
+    try {
+      await this.walletSyncService.broadcastTransaction(txHex)
+    } catch (error) {
+      console.error('Asset lock broadcast failed, rawtx:', txHex)
+      throw error
+    }
+  }
+
+  // Wallet-scoped, unlike getTransactionByHash: a resume reads the funding's
+  // own wallet, which is not necessarily the selected one.
+  async getTransaction(walletId: string, txid: string): Promise<Transaction> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) {
+      throw new Error('Wallet not found')
+    }
+    return this.getProvider(wallet.walletId, wallet.network).getTransactionByHash(txid)
   }
 
   private pickCreditChangeAddress(grouped: GroupedAddresses, changeAddress: string): {address: string; derivationPath: string} {

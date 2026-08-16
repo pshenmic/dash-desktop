@@ -138,48 +138,60 @@ export class AssetLockService {
     console.error(`[assetLock] ${state.txid ?? state.kind}: ${state.phase} — ${state.error}`)
   }
 
-  async markBroadcastingSt(state: AssetLockFundingState, txid: string): Promise<void> {
+  async markBroadcastingSt(state: AssetLockFundingState, row: AssetLockFundingRow): Promise<void> {
     state.phase = 'broadcastingST'
-    console.log(`[assetLock] ${txid}: broadcasting state transition`)
-    await this.assetLockDAO.updateStatus(txid, AssetLockFundingStatus.StBroadcast)
+    console.log(`[assetLock] ${row.txid}: broadcasting state transition`)
+    await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.StBroadcast)
   }
 
-  async done(state: AssetLockFundingState, txid: string, stHash: string): Promise<void> {
+  async done(state: AssetLockFundingState, row: AssetLockFundingRow, stHash: string): Promise<void> {
     state.stHash = stHash
     state.phase = 'done'
-    console.log(`[assetLock] ${txid}: done st=${stHash}`)
-    await this.assetLockDAO.updateStatus(txid, AssetLockFundingStatus.Done, {stHash})
+    console.log(`[assetLock] ${row.txid}: done st=${stHash}`)
+    await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.Done, {stHash})
   }
 
-  // Builds and broadcasts the L1 lock, records it, then waits for the proof.
+  // Records the L1 lock before putting it on the network, then waits for the
+  // proof. The other order loses the funding outright if the write fails or the
+  // app dies in between: the coins are committed and nothing can resume them.
   async acquire(state: AssetLockFundingState, params: AcquireParams): Promise<AcquiredAssetLock> {
     const {walletId, amountDuffs, seed} = params
 
     state.phase = 'broadcastingL1'
-    const broadcasted = await this.funder.buildAndBroadcastAssetLock(walletId, amountDuffs, seed, params.credit)
-    state.txid = broadcasted.txid
-    console.log(`[assetLock] ${broadcasted.txid}: L1 lock broadcast, credit ${broadcasted.creditAddress}`)
+    const built = await this.funder.buildAssetLock(walletId, amountDuffs, seed, params.credit)
+    state.txid = built.txid
 
     await this.assetLockDAO.insertFunding({
       walletId,
-      txid: broadcasted.txid,
+      txid: built.txid,
       outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
-      creditDerivationPath: broadcasted.creditDerivationPath,
+      creditDerivationPath: built.creditDerivationPath,
       amountDuffs,
       toPlatformAddress: params.destination,
       kind: params.kind,
       status: AssetLockFundingStatus.L1Broadcast,
       identityIndex: params.identityIndex ?? null,
-      txHex: broadcasted.tx.hex(),
+      txHex: built.tx.hex(),
       createdAt: Math.floor(Date.now() / 1000),
     })
+
+    try {
+      await this.funder.broadcastAssetLock(built.tx.hex())
+    } catch (error) {
+      // Nothing reached the network, so the row describes a spend that never
+      // happened — keeping it would offer a resume that can only time out.
+      await this.assetLockDAO.deleteFunding(walletId, built.txid)
+      state.txid = null
+      throw error
+    }
+    console.log(`[assetLock] ${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
 
     const row = await this.assetLockDAO.getActiveFunding(walletId)
     if (row == null) {
       throw new Error('Funding record not found after broadcast')
     }
 
-    const proof = await this.awaitProof(state, row, {tx: broadcasted.tx})
+    const proof = await this.awaitProof(state, row, {tx: built.tx})
     return {row, proof}
   }
 
@@ -213,6 +225,8 @@ export class AssetLockService {
       throw new Error('Funding record is missing the asset lock transaction')
     }
 
+    if (live == null) await this.ensureOnNetwork(row, tx, network)
+
     const resolved = await this.waitForAssetLockProof(tx, row.txid, network)
 
     let proof: AssetLockProofParams
@@ -231,10 +245,54 @@ export class AssetLockService {
 
     this.applyLockKind(state, proof)
     console.log(`[assetLock] ${row.txid}: settled by ${proof.type}`)
-    await this.assetLockDAO.saveProof(row.txid, proof)
-    await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
+    await this.assetLockDAO.saveProof(row.walletId, row.txid, proof)
+    await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.ChainLocked)
 
     return proof
+  }
+
+  // A resumed funding may never have reached the network — a broadcast that
+  // failed to propagate, or a crash before it was sent. Waiting for a lock that
+  // cannot arrive is the one outcome worth ruling out before spending the
+  // timeout on it.
+  private async ensureOnNetwork(row: AssetLockFundingRow, tx: SDKTransaction, network: Network): Promise<void> {
+    // Presence in the local store proves nothing: recordOptimisticSpend writes
+    // our own transaction at broadcast time. Only confirmation or a lock is
+    // evidence some peer accepted it.
+    const status = await this.funder.getTxLockStatus(row.walletId, row.txid)
+    if (status.confirmed || status.instantLocked || status.chainlocked) return
+
+    // The wallet's own view is behind the chain by however far its scan is
+    // behind — it reported no confirmation for a funding that had four. A
+    // transaction DAPI can see is one the network already took.
+    const seen = await coreSDK(network).getTransaction(row.txid).catch(() => null)
+    if (seen != null) return
+
+    const conflict = await this.findConflictingSpend(row, tx)
+    if (conflict != null) {
+      const message = `Asset lock inputs were already spent by ${conflict} — this funding can never confirm`
+      await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.Error, {error: message})
+      throw new Error(message)
+    }
+
+    // Best-effort: peers that already hold the transaction never request it, so
+    // a rebroadcast of a live funding reports no propagation and lands here.
+    console.log(`[assetLock] ${row.txid}: no confirmation or lock on record — rebroadcasting`)
+    await this.funder.broadcastAssetLock(tx.hex()).catch(err =>
+      console.warn(`[assetLock] ${row.txid}: rebroadcast did not propagate:`, err))
+  }
+
+  // Only a positive answer is actionable: a source that cannot say who spent an
+  // outpoint is not saying the funding is dead.
+  private async findConflictingSpend(row: AssetLockFundingRow, tx: SDKTransaction): Promise<string | null> {
+    for (const input of tx.inputs) {
+      const prev = await this.funder.getTransaction(row.walletId, input.txId).catch(() => null)
+      if (prev == null) continue
+
+      const spender = prev.vout.find(output => output.n === input.vOut)?.spentTxId
+      if (spender != null && spender !== '' && spender !== row.txid) return spender
+    }
+    return null
   }
 
   private applyLockKind(state: AssetLockFundingState, proof: AssetLockProofParams): void {

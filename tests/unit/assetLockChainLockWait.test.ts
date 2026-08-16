@@ -57,10 +57,15 @@ function wire(): {
   // No islock ever arrives, so the chain-lock path decides every case here.
   const waitForChainLock = vi.fn().mockResolvedValue(5_000)
   const funder = {
-    buildAndBroadcastAssetLock: vi.fn(),
+    buildAssetLock: vi.fn(),
+    broadcastAssetLock: vi.fn(),
     waitForInstantLock: vi.fn().mockResolvedValue(null),
     waitForChainLock,
     chainlockedHeight: vi.fn().mockReturnValue(4_999),
+    // These cases are about the proof race on a funding that is already mined,
+    // so the resume path's network check passes straight through.
+    getTxLockStatus: vi.fn().mockResolvedValue({instantLocked: false, chainlocked: false, confirmed: true}),
+    getTransaction: vi.fn(),
   } as unknown as AssetLockFunder
 
   const request = vi.fn().mockResolvedValue({chain: {coreChainLockedHeight: TX_HEIGHT + 1}})

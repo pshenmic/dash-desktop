@@ -474,7 +474,7 @@ export class PlatformAddressService {
     state: AssetLockFundingState,
     {row, proof}: AcquiredAssetLock,
   ): Promise<void> {
-    await this.assetLock.markBroadcastingSt(state, row.txid)
+    await this.assetLock.markBroadcastingSt(state, row)
 
     const {stHash} = await this.platform.request('addressFundingFromAssetLock', network, {
       seed,
@@ -485,7 +485,7 @@ export class PlatformAddressService {
       recipient: row.toPlatformAddress,
     })
 
-    await this.assetLock.done(state, row.txid, stHash)
+    await this.assetLock.done(state, row, stHash)
   }
 
   private async requireWallet(walletId: string): Promise<Wallet> {

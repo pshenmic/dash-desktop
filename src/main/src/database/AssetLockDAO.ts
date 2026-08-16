@@ -57,16 +57,24 @@ export class AssetLockDAO {
     })
   }
 
-  updateStatus = async (txid: string, status: AssetLockFundingStatus, fields?: {stHash?: string; error?: string}): Promise<void> => {
-    await this.knex('asset_lock_fundings').where({txid}).update({
+  // Scoped like the reads. A globally unique txid already makes the wallet
+  // redundant here; it stops being redundant the moment that index is relaxed.
+  updateStatus = async (walletId: string, txid: string, status: AssetLockFundingStatus, fields?: {stHash?: string; error?: string}): Promise<void> => {
+    await this.knex('asset_lock_fundings').where({wallet_id: walletId, txid}).update({
       status,
       ...(fields?.stHash != null ? {st_hash: fields.stHash} : {}),
-      ...(fields?.error != null ? {error: fields.error} : {}),
+      error: fields?.error ?? null,
     })
   }
 
-  saveProof = async (txid: string, proof: AssetLockProofParams): Promise<void> => {
-    await this.knex('asset_lock_fundings').where({txid}).update({asset_lock_proof: JSON.stringify(proof)})
+  saveProof = async (walletId: string, txid: string, proof: AssetLockProofParams): Promise<void> => {
+    await this.knex('asset_lock_fundings')
+      .where({wallet_id: walletId, txid})
+      .update({asset_lock_proof: JSON.stringify(proof)})
+  }
+
+  deleteFunding = async (walletId: string, txid: string): Promise<void> => {
+    await this.knex('asset_lock_fundings').where({wallet_id: walletId, txid}).delete()
   }
 
   countFundingsByKind = async (walletId: string, kind: AssetLockFundingKind): Promise<number> => {

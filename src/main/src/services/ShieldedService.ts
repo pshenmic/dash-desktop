@@ -512,7 +512,7 @@ export class ShieldedService {
     state: AssetLockFundingState,
     {row, proof}: AcquiredAssetLock,
   ): Promise<void> {
-    await this.assetLock.markBroadcastingSt(state, row.txid)
+    await this.assetLock.markBroadcastingSt(state, row)
 
     const surplus = await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
     const {stHash} = await this.platform.request('shieldFromAssetLock', network, {
@@ -526,7 +526,7 @@ export class ShieldedService {
       surplusAddress: surplus.toBech32m(network),
     })
 
-    await this.assetLock.done(state, row.txid, stHash)
+    await this.assetLock.done(state, row, stHash)
     // Awaited: runFunding zeroes the seed the moment this settles.
     await this.refreshNotes(walletId, network, seed)
   }
