@@ -257,3 +257,82 @@ describe('observability of the crossing into main', () => {
     expect(logged).toEqual([])
   })
 })
+
+describe('waiting for a sync phase', () => {
+  let service: WalletSyncService
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    const transactionDAO = {markChainlockedUpTo: vi.fn().mockResolvedValue(undefined)}
+    service = new WalletSyncService({} as never, {} as never, transactionDAO as never, Preferences.default())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  const wait = (phase: string, ms: number): Promise<void> =>
+    (service as unknown as {waitForPhase: (p: string, m: number) => Promise<void>}).waitForPhase(phase, ms)
+
+  const status = (phase: string): void => {
+    ;(service as unknown as {handleP2PEvent: (e: unknown) => void})
+      .handleP2PEvent({type: 'status', status: {...service.getStatus(), phase}})
+  }
+
+  // The assignment happens in a handler on this same event loop, so there is
+  // nothing to poll for — the waiter is resolved where the write happens.
+  it('resolves on the status that assigns the phase', async () => {
+    status('syncing-headers')
+    const settled = vi.fn()
+    void wait('stopped', 3_000).then(settled)
+
+    status('stopped')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(settled).toHaveBeenCalled()
+  })
+
+  it('does not wake on a different phase', async () => {
+    // The service starts 'stopped', so it has to leave that phase before a
+    // wait for it means anything.
+    status('syncing-headers')
+    const settled = vi.fn()
+    void wait('stopped', 3_000).then(settled)
+
+    status('synced')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(settled).not.toHaveBeenCalled()
+  })
+
+  it('returns immediately when already in that phase', async () => {
+    await expect(wait(service.getStatus().phase, 3_000)).resolves.toBeUndefined()
+  })
+
+  // A resolved waiter left behind would be notified again on the next status,
+  // and its timer would keep a reference alive past the quit.
+  it('drops a waiter once it has fired', async () => {
+    status('syncing-headers')
+    const settled = wait('stopped', 3_000)
+
+    status('stopped')
+    await settled
+
+    const pending = (service as unknown as {phaseWaiters: Set<unknown>}).phaseWaiters
+    expect(pending.size).toBe(0)
+  })
+
+  // shutdown kills the child either way; the deadline must not hold the quit.
+  it('gives up on the deadline', async () => {
+    status('syncing-headers')
+    const settled = vi.fn()
+    void wait('stopped', 3_000).then(settled)
+
+    await vi.advanceTimersByTimeAsync(3_000)
+
+    expect(settled).toHaveBeenCalled()
+    const pending = (service as unknown as {phaseWaiters: Set<unknown>}).phaseWaiters
+    expect(pending.size).toBe(0)
+  })
+})

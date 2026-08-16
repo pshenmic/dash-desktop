@@ -83,6 +83,7 @@ export class WalletSyncService {
   // has to resolve without waiting for the next block's clsig.
   private chainlockedHeights = new Map<Network, number>()
   private chainLockWaiters = new Set<{network: Network; minHeight: number; notify: (height: number) => void}>()
+  private phaseWaiters = new Set<{phase: WalletSyncStatus['phase']; notify: () => void}>()
   // Txids armed for lock capture that SQL does not know are pending yet, held
   // here so the periodic replace-mode refresh cannot drop them.
   private armedLockTxids = new Map<string, number>()
@@ -149,6 +150,7 @@ export class WalletSyncService {
         })
       }
       this.pendingBroadcasts.clear()
+      this.notifyPhase('stopped')
       this.status = {
         phase: 'stopped',
         network: null,
@@ -178,6 +180,7 @@ export class WalletSyncService {
   private handleP2PEvent(data: P2PEvent): void {
     if (data.type === 'status') {
       this.status = data.status
+      this.notifyPhase(data.status.phase)
     } else if (data.type === 'blockApplied') {
       this.persistAppliedBlock(data.block)
     } else if (data.type === 'cursorAdvanced') {
@@ -230,12 +233,33 @@ export class WalletSyncService {
     this.ensureChild().postMessage(command)
   }
 
-  // Used by shutdown to confirm chain.db closed before the process is killed.
-  private async waitForPhase(phase: WalletSyncStatus['phase'], timeoutMs: number): Promise<void> {
-    const start = Date.now()
-    while (this.status.phase !== phase && Date.now() - start < timeoutMs) {
-      await new Promise(resolve => setTimeout(resolve, 50))
+  private notifyPhase(phase: WalletSyncStatus['phase']): void {
+    for (const waiter of this.phaseWaiters) {
+      if (waiter.phase !== phase) continue
+      this.phaseWaiters.delete(waiter)
+      waiter.notify()
     }
+  }
+
+  // Used by shutdown to confirm chain.db closed before the process is killed.
+  // Resolves on the deadline as well as the phase: the caller kills the child
+  // either way, and a worker that dies without a final status still reaches
+  // 'stopped' through the exit handler.
+  private waitForPhase(phase: WalletSyncStatus['phase'], timeoutMs: number): Promise<void> {
+    if (this.status.phase === phase) return Promise.resolve()
+
+    return new Promise<void>(resolve => {
+      const waiter = {phase, notify: (): void => {
+        clearTimeout(timer)
+        resolve()
+      }}
+      const timer = setTimeout(() => {
+        this.phaseWaiters.delete(waiter)
+        resolve()
+      }, timeoutMs)
+      timer.unref?.()
+      this.phaseWaiters.add(waiter)
+    })
   }
 
   // Ack only: returning a status snapshot here handed the renderer a stale
