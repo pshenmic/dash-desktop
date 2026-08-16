@@ -132,7 +132,7 @@ describe('identity funding from an asset lock', () => {
       'assetlock-txid',
     )
     expect(state.identityIdentifier).toBe('identifierABC')
-    expect(done).toHaveBeenCalledWith(state, 'assetlock-txid', 'sthash')
+    expect(done).toHaveBeenCalledWith(state, expect.objectContaining({walletId: WALLET_ID, txid: 'assetlock-txid'}), 'sthash')
   })
 
   // The seed is live for as long as the lock takes to confirm, so nothing may
@@ -204,7 +204,7 @@ describe('identity funding from an asset lock', () => {
     }))
     expect(insertIdentity).not.toHaveBeenCalled()
     expect(state.identityIdentifier).toBe(TARGET_IDENTITY)
-    expect(done).toHaveBeenCalledWith(state, 'assetlock-txid', 'topup-sthash')
+    expect(done).toHaveBeenCalledWith(state, expect.objectContaining({walletId: WALLET_ID, txid: 'assetlock-txid'}), 'topup-sthash')
   })
 
   it('rejects a top-up without an identity identifier', async () => {

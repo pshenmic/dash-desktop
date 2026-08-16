@@ -156,7 +156,7 @@ export class IdentityRegistrationService {
     {row, proof}: AcquiredAssetLock,
     identityIndex: number,
   ): Promise<void> {
-    await this.assetLock.markBroadcastingSt(state, row.txid)
+    await this.assetLock.markBroadcastingSt(state, row)
 
     const {stHash, identifier} = await this.platform.request('identityCreateFromAssetLock', unlocked.wallet.network, {
       seed: unlocked.seed,
@@ -178,11 +178,11 @@ export class IdentityRegistrationService {
     }
 
     state.identityIdentifier = identifier
-    await this.assetLock.done(state, row.txid, stHash)
+    await this.assetLock.done(state, row, stHash)
   }
 
   private async settleTopUp(unlocked: UnlockedWallet, state: AssetLockFundingState, {row, proof}: AcquiredAssetLock): Promise<void> {
-    await this.assetLock.markBroadcastingSt(state, row.txid)
+    await this.assetLock.markBroadcastingSt(state, row)
 
     const {stHash} = await this.platform.request('identityTopUpFromAssetLock', unlocked.wallet.network, {
       seed: unlocked.seed,
@@ -194,7 +194,7 @@ export class IdentityRegistrationService {
     })
 
     state.identityIdentifier = row.toPlatformAddress
-    await this.assetLock.done(state, row.txid, stHash)
+    await this.assetLock.done(state, row, stHash)
   }
 
   private async prepareRegistration(walletId: string, unlocked: UnlockedWallet): Promise<{identityIndex: number; credit: {address: string; derivationPath: string}}> {

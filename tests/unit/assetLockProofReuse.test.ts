@@ -40,7 +40,8 @@ function serviceWith(waitForInstantLock = vi.fn()): {
   waitForInstantLock: ReturnType<typeof vi.fn>
 } {
   const funder = {
-    buildAndBroadcastAssetLock: vi.fn(),
+    buildAssetLock: vi.fn(),
+    broadcastAssetLock: vi.fn(),
     waitForInstantLock,
   } as unknown as AssetLockFunder
 
