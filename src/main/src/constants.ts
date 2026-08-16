@@ -139,6 +139,23 @@ export const HD_VERSIONS: Record<'mainnet' | 'testnet', {private: number; public
   testnet: {private: 0x04358394, public: 0x043587cf},
 }
 
+// Every table keyed by wallet_id, minus `wallet` itself, which deleteWallet
+// removes last so the rows referencing it go first. Deleting a wallet has to
+// clear all of them: what survived otherwise was the whole L1 history plus the
+// decrypted amount and address of every shielded note the wallet owned.
+// `contacts` and `shielded_pool_notes` are network-scoped and stay.
+export const WALLET_SCOPED_TABLES = [
+  'identities',
+  'addresses',
+  'transactions',
+  'transaction_outputs',
+  'transaction_inputs',
+  'wallet_sync_state',
+  'asset_lock_fundings',
+  'shielded_addresses',
+  'shielded_notes',
+] as const
+
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
 
 export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
