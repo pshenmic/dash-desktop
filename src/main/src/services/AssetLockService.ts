@@ -111,6 +111,7 @@ export class AssetLockService {
       amountDuffs,
     }
     this.states.set(walletId, state)
+    console.log(`[assetLock] ${walletId}: begin ${kind} ${amountDuffs} duffs -> ${destination}`)
     return state
   }
 
@@ -126,6 +127,7 @@ export class AssetLockService {
       amountDuffs: row.amountDuffs,
     }
     this.states.set(walletId, state)
+    console.log(`[assetLock] ${row.txid}: resuming ${row.kind} from ${row.status}`)
     return state
   }
 
@@ -133,16 +135,19 @@ export class AssetLockService {
   fail(state: AssetLockFundingState, error: unknown): void {
     state.error = error instanceof Error ? error.message : String(error)
     state.phase = state.txid != null ? 'resumable' : 'error'
+    console.error(`[assetLock] ${state.txid ?? state.kind}: ${state.phase} — ${state.error}`)
   }
 
   async markBroadcastingSt(state: AssetLockFundingState, txid: string): Promise<void> {
     state.phase = 'broadcastingST'
+    console.log(`[assetLock] ${txid}: broadcasting state transition`)
     await this.assetLockDAO.updateStatus(txid, AssetLockFundingStatus.StBroadcast)
   }
 
   async done(state: AssetLockFundingState, txid: string, stHash: string): Promise<void> {
     state.stHash = stHash
     state.phase = 'done'
+    console.log(`[assetLock] ${txid}: done st=${stHash}`)
     await this.assetLockDAO.updateStatus(txid, AssetLockFundingStatus.Done, {stHash})
   }
 
@@ -153,6 +158,7 @@ export class AssetLockService {
     state.phase = 'broadcastingL1'
     const broadcasted = await this.funder.buildAndBroadcastAssetLock(walletId, amountDuffs, seed, params.credit)
     state.txid = broadcasted.txid
+    console.log(`[assetLock] ${broadcasted.txid}: L1 lock broadcast, credit ${broadcasted.creditAddress}`)
 
     await this.assetLockDAO.insertFunding({
       walletId,
@@ -190,6 +196,7 @@ export class AssetLockService {
   ): Promise<AssetLockProofParams> {
     if (row.assetLockProof != null) {
       this.applyLockKind(state, row.assetLockProof)
+      console.log(`[assetLock] ${row.txid}: reusing stored ${row.assetLockProof.type} proof`)
       return row.assetLockProof
     }
 
@@ -223,6 +230,7 @@ export class AssetLockService {
     }
 
     this.applyLockKind(state, proof)
+    console.log(`[assetLock] ${row.txid}: settled by ${proof.type}`)
     await this.assetLockDAO.saveProof(row.txid, proof)
     await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.ChainLocked)
 
