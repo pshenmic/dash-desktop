@@ -44,6 +44,9 @@ export interface AssetLockFunder {
   waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null>
   waitForChainLock(network: Network, minHeight: number, timeoutMs: number): Promise<number | null>
   chainlockedHeight(network: Network): number
+  // Which of these have on-chain history. Provider-backed, so it answers in
+  // both connection modes.
+  getUsedAddresses(walletId: string, addresses: string[]): Promise<string[]>
 }
 
 export interface AcquiredAssetLock {

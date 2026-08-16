@@ -5,6 +5,7 @@ import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {AssetLockService} from '../../src/main/src/services/AssetLockService'
 import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
+import {AssetLockFunder} from '../../src/main/src/types/AssetLock'
 import {IdentityRegistrationService} from '../../src/main/src/services/IdentityRegistrationService'
 import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
@@ -16,6 +17,7 @@ function serviceWith(request = vi.fn()): IdentityRegistrationService {
     {} as IdentityDAO,
     {} as AssetLockService,
     {request} as unknown as PlatformWorkerService,
+    {} as unknown as AssetLockFunder,
   )
 }
 

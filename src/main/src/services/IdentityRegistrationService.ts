@@ -8,8 +8,8 @@ import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {unlockWallet, zeroSeed} from '../utils/walletSeed'
 import {identityPath} from '../utils/identityKeys'
-import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants'
-import {AssetLockFundingRow, AcquiredAssetLock} from '../types/AssetLock'
+import {COIN_TYPE, IDENTITY_SCAN_LIMIT, TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../constants'
+import {AssetLockFundingRow, AcquiredAssetLock, AssetLockFunder} from '../types/AssetLock'
 import {UnlockedWallet} from '../types/UnlockedWallet'
 
 
@@ -26,6 +26,7 @@ export class IdentityRegistrationService {
     private readonly identityDAO: IdentityDAO,
     private readonly assetLock: AssetLockService,
     private readonly platform: PlatformWorkerService,
+    private readonly funder: AssetLockFunder,
   ) {}
 
   registrationKeyPath(identityIndex: number, network: Network): string {
@@ -213,9 +214,42 @@ export class IdentityRegistrationService {
     }
   }
 
+  // The chain, not a local row count: every index this wallet used paid an asset
+  // lock to its credit address, so the history is on L1 and survives a restore
+  // that leaves asset_lock_fundings empty. Mirrors findNextIdentityIndex, which
+  // asks Platform the same question for registration keys.
+  async findNextTopUpIndex(walletId: string, seed: Uint8Array, network: Network): Promise<number> {
+    let gap = 0
+    let firstFree: number | null = null
+
+    for (let index = 0; index < TOPUP_KEY_SCAN_LIMIT && gap < TOPUP_KEY_GAP_LIMIT; index += TOPUP_KEY_GAP_LIMIT) {
+      const batch: string[] = []
+      for (let i = index; i < index + TOPUP_KEY_GAP_LIMIT; i++) {
+        const key = await this.deriveTopUpKey(seed, i, network)
+        batch.push(this.keyPair.p2pkhAddress(key.getPublicKey().bytes(), network))
+      }
+
+      const used = new Set(await this.funder.getUsedAddresses(walletId, batch))
+      batch.forEach((address, i) => {
+        if (used.has(address)) {
+          gap = 0
+          firstFree = null
+        } else {
+          gap++
+          firstFree ??= index + i
+        }
+      })
+    }
+
+    if (firstFree == null) {
+      throw new Error(`No unused top-up funding index within ${TOPUP_KEY_SCAN_LIMIT} attempts`)
+    }
+    return firstFree
+  }
+
   private async prepareTopUp(walletId: string, unlocked: UnlockedWallet): Promise<{topUpIndex: number; credit: {address: string; derivationPath: string}}> {
     const {wallet: {network}, seed} = unlocked
-    const topUpIndex = await this.assetLock.countFundings(walletId, 'identityTopUp')
+    const topUpIndex = await this.findNextTopUpIndex(walletId, seed, network)
     const fundingKey = await this.deriveTopUpKey(seed, topUpIndex, network)
 
     return {
