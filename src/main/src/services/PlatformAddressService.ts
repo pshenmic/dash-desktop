@@ -66,11 +66,26 @@ export class PlatformAddressService {
     this.shielded = shielded
   }
 
+  // Up to MAX_DISCOVERY_BATCHES sequential worker round trips, on a channel the
+  // renderer polls and addPlatformAddress calls straight past its cache. Same
+  // guard as WalletService.discoveryInflight and ShieldedService.noteFetches.
+  private windowInflight = new Map<string, Promise<void>>()
+
+  private extendPlatformWindowOnce(walletId: string, xpub: string, network: Network): Promise<void> {
+    const existing = this.windowInflight.get(walletId)
+    if (existing) return existing
+
+    const run = this.extendPlatformWindow(walletId, xpub, network)
+      .finally(() => this.windowInflight.delete(walletId))
+    this.windowInflight.set(walletId, run)
+    return run
+  }
+
   async getPlatformAddresses(walletId: string): Promise<PlatformAddressEntry[]> {
     const wallet = await this.requireWallet(walletId)
     if (wallet.platformXpub == null) return []
 
-    await this.extendPlatformWindow(walletId, wallet.platformXpub, wallet.network)
+    await this.extendPlatformWindowOnce(walletId, wallet.platformXpub, wallet.network)
 
     const candidates = await this.loadPlatformCandidates(walletId, wallet.platformXpub, wallet.network)
     return candidates.map(candidate => ({
