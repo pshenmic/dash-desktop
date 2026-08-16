@@ -40,10 +40,16 @@ function service(usedIndexes: number[], storedCount = 0): {
 }
 
 // unlockWallet decrypts a real mnemonic; the seed itself never reaches the stub.
-vi.mock('../../src/main/src/utils/walletSeed', () => ({
-  unlockWallet: vi.fn().mockResolvedValue({wallet: {network: 'testnet'}, seed: new Uint8Array(64)}),
-  zeroSeed: vi.fn(),
-}))
+vi.mock('../../src/main/src/utils/walletSeed', () => {
+  const unlocked = {wallet: {network: 'testnet'}, seed: new Uint8Array(64)}
+  return {
+    unlockWallet: vi.fn().mockResolvedValue(unlocked),
+    zeroSeed: vi.fn(),
+    withUnlockedWallet: vi.fn(
+      (_dao: unknown, _id: string, _pw: string, work: (u: typeof unlocked) => Promise<unknown>) => work(unlocked),
+    ),
+  }
+})
 
 describe('adding a shielded address', () => {
   beforeEach(() => vi.spyOn(console, 'log').mockImplementation(() => undefined))

@@ -9,7 +9,8 @@ import { ShieldedPoolDAO } from '../database/ShieldedPoolDAO'
 import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
 import { AssetLockFundingState } from '../types/AssetLockFunding'
 import {AssetLockService} from './AssetLockService'
-import { unlockWallet, zeroSeed } from '../utils/walletSeed'
+import { unlockWallet, withUnlockedWallet, zeroSeed } from '../utils/walletSeed'
+import { UnlockedWallet } from '../types/UnlockedWallet'
 import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
 import { identityPath } from '../utils/identityKeys'
 import { shieldAmountFromLockedDuffs } from '../utils/assetLockTx'
@@ -125,25 +126,26 @@ export class ShieldedService {
   // addresses share one viewing key, so a synced wallet can hold notes on
   // indexes never shown yet — those are skipped (but become visible).
   async addAddress(walletId: string, password: string): Promise<string[]> {
-    const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
-    const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
-    let count = await this.walletDAO.getShieldedAddressCount(walletId)
-    const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
-    let address: string
-    do {
-      count++
-      address = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
-    } while (used.has(address) && count < limit)
+    return withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet: {network}, seed}) => {
+      const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
+      let count = await this.walletDAO.getShieldedAddressCount(walletId)
+      const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
+      let address: string
+      do {
+        count++
+        address = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
+      } while (used.has(address) && count < limit)
 
-    // The loop has two exits and only one is success. Falling through on the
-    // other would persist the count and hand back an address that already
-    // received a note — the linkage the pool exists to prevent.
-    if (used.has(address)) {
-      throw new Error(`No unused shielded address within ${NEW_ADDRESS_LOOKAHEAD_LIMIT} indexes of ${count - NEW_ADDRESS_LOOKAHEAD_LIMIT}`)
-    }
+      // The loop has two exits and only one is success. Falling through on the
+      // other would persist the count and hand back an address that already
+      // received a note — the linkage the pool exists to prevent.
+      if (used.has(address)) {
+        throw new Error(`No unused shielded address within ${NEW_ADDRESS_LOOKAHEAD_LIMIT} indexes of ${count - NEW_ADDRESS_LOOKAHEAD_LIMIT}`)
+      }
 
-    await this.walletDAO.setShieldedAddressCount(walletId, count)
-    return this.cacheAddresses(walletId, seed, network)
+      await this.walletDAO.setShieldedAddressCount(walletId, count)
+      return this.cacheAddresses(walletId, seed, network)
+    })
   }
 
   // Display only: all diversified addresses of the account share one incoming
@@ -249,11 +251,20 @@ export class ShieldedService {
     const {state, running} = this.beginSync(walletId)
     if (running) return state
 
+    let unlocked: UnlockedWallet | null = null
     try {
-      const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
+      unlocked = await unlockWallet(this.walletDAO, walletId, password)
+      const {wallet: {network}, seed} = unlocked
       await this.cacheAddresses(walletId, seed, network)
-      this.syncNotes(walletId, network, seed, state).catch(e => this.failed(state, e))
+
+      // The scan outlives this method, so it owns the seed and zeroes it however
+      // it settles.
+      const held = unlocked
+      this.syncNotes(walletId, network, seed, state)
+        .catch(e => this.failed(state, e))
+        .finally(() => zeroSeed(held))
     } catch (e) {
+      if (unlocked != null) zeroSeed(unlocked)
       this.failed(state, e)
     }
     return state
@@ -370,13 +381,17 @@ export class ShieldedService {
     const {state, running} = this.beginSpend(walletId)
     if (running) return state
 
+    let unlocked: UnlockedWallet | null = null
     try {
       if (amountCredits <= 0n) throw new Error('Amount must be greater than zero')
 
-      const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
+      unlocked = await unlockWallet(this.walletDAO, walletId, password)
+      const {wallet: {network}, seed} = unlocked
       await this.cacheAddresses(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
+      // runSpend owns the seed from here — proving runs for minutes past this
+      // method, and it zeroes on settlement.
       this.runSpend(walletId, network, state, {
         seed,
         kind,
@@ -388,6 +403,7 @@ export class ShieldedService {
         failureAddress: null,
       })
     } catch (e) {
+      if (unlocked != null) zeroSeed(unlocked)
       this.failed(state, e)
     }
     return state
@@ -408,26 +424,31 @@ export class ShieldedService {
         this.markNotesSpent(walletId, indexes).catch(e =>
           console.error('Failed to record spent shielded notes', e))
       },
-    }).then(result => {
+    }).then(async result => {
       state.stHash = result.stHash
       state.identityId = result.identityId
       state.phase = 'done'
-      void this.refreshNotes(walletId, network, payload.seed)
+      // Awaited: the seed is zeroed the moment this chain settles, and the
+      // refresh trial-decrypts with it.
+      await this.refreshNotes(walletId, network, payload.seed)
       if (identityCreate != null && result.identityId != null) {
         this.persistCreatedIdentity({walletId, network, ...identityCreate}, result.identityId).catch(e =>
           console.error('Failed to persist identity created from the shielded pool', e))
       }
     }).catch(e => this.failed(state, e))
+      .finally(() => zeroSeed(payload))
   }
 
   async startIdentityCreate(walletId: string, password: string, denominationCredits: bigint): Promise<ShieldedSpendState> {
     const {state, running} = this.beginSpend(walletId)
     if (running) return state
 
+    let unlocked: UnlockedWallet | null = null
     try {
       if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
 
-      const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
+      unlocked = await unlockWallet(this.walletDAO, walletId, password)
+      const {wallet: {network}, seed} = unlocked
       await this.cacheAddresses(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
@@ -448,6 +469,7 @@ export class ShieldedService {
         failureAddress,
       }, {identityIndex})
     } catch (e) {
+      if (unlocked != null) zeroSeed(unlocked)
       this.failed(state, e)
     }
     return state
