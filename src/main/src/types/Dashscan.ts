@@ -87,3 +87,9 @@ export interface DashscanAddressInfo {
   balance: string
   txCount: number
 }
+// The HTTP status rides along so a caller can tell "the indexer has not seen
+// this" from "the indexer did not answer" without matching on message text.
+// Null when the request never produced a response at all.
+export interface DashscanRequestError extends Error {
+  status: number | null
+}
