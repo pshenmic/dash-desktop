@@ -78,6 +78,13 @@ export const IDENTITY_SCAN_LIMIT = 100
 export const PLATFORM_ADDRESS_LOOKAHEAD = 20
 export const MAX_DISCOVERY_BATCHES = 50
 
+// Consecutive unused indexes that end the top-up funding-key scan. A top-up's
+// credit address receives the asset lock output, so the chain records every
+// index this wallet ever used — which a local row count does not survive a
+// restore to.
+export const TOPUP_KEY_GAP_LIMIT = 5
+export const TOPUP_KEY_SCAN_LIMIT = 200
+
 // Bounds how far addAddress derives forward while skipping already-used
 // diversified addresses.
 export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 2000

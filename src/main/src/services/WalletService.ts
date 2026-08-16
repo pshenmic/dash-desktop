@@ -699,6 +699,12 @@ export class WalletService {
     return this.walletSyncService.chainlockedHeight(network)
   }
 
+  async getUsedAddresses(walletId: string, addresses: string[]): Promise<string[]> {
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet == null) throw new Error('Wallet not found')
+    return this.getProvider(walletId, wallet.network).getUsedAddresses(addresses)
+  }
+
   private async gatherTransferInputs(walletId: string, network: Network, amountDuffs: bigint, fromAddress?: string): Promise<{
     transferInputs: TransferInput[]
     inputTotal: bigint

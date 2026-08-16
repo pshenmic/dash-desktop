@@ -7,7 +7,7 @@ import {IdentityRegistrationService} from '../../src/main/src/services/IdentityR
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
-import {AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
+import {AssetLockFunder, AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
 import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
 
 const WALLET_ID = 'wallet-1'
@@ -103,6 +103,8 @@ describe('identity funding from an asset lock', () => {
       identityDAO,
       assetLock,
       {request} as unknown as PlatformWorkerService,
+      // Nothing on chain, so the top-up scan settles on index 0.
+      {getUsedAddresses: vi.fn().mockResolvedValue([])} as unknown as AssetLockFunder,
     )
   })
 
