@@ -193,6 +193,23 @@ describe('the chain-lock fallback', () => {
     await expect(service.reacquire(state(), row())).rejects.toThrow('malformed outpoint')
   })
 
+  // R-2: a funding that fails left no trace at all, so "it hung" arrived with
+  // nothing to read. The state carried the error; the log did not.
+  it('records a failure rather than only storing it on the state', async () => {
+    const errors: string[] = []
+    vi.spyOn(console, 'error').mockImplementation((msg: unknown) => { errors.push(String(msg)) })
+
+    const {service} = wire()
+    const s = state()
+    s.txid = TXID
+
+    service.fail(s, new Error('consensus said no'))
+
+    expect(s.phase).toBe('resumable')
+    expect(errors.join('\n')).toContain('consensus said no')
+    expect(errors.join('\n')).toContain(TXID)
+  })
+
   it('gives up with a timeout once the clsig stream stops answering', async () => {
     const {service, waitForChainLock} = wire()
     stub.getTransaction.mockResolvedValue(chainState(0, false))
