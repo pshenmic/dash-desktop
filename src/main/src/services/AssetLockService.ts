@@ -16,9 +16,12 @@ import {
   AcquireParams,
   AcquiredAssetLock,
   AssetLockFunder,
+  AssetLockFundingKind,
+  AssetLockFundingRow,
 } from '../types/AssetLock'
 import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../constants'
-import {AssetLockFundingKind, AssetLockFundingRow} from '../types/AssetLock'
+import {requireWallet} from '../utils/requireWallet'
+
 const coreSDKs = new Map<Network, DashCoreSDK>()
 
 // The constructor starts evonode discovery in the background, so one is kept per
@@ -89,10 +92,6 @@ export class AssetLockService {
 
   getResumable(walletId: string): Promise<AssetLockFundingRow | null> {
     return this.assetLockDAO.getActiveFunding(walletId)
-  }
-
-  countFundings(walletId: string, kind: AssetLockFundingKind): Promise<number> {
-    return this.assetLockDAO.countFundingsByKind(walletId, kind)
   }
 
   // Installs the job state for a new funding. Throws when one is already
@@ -211,11 +210,7 @@ export class AssetLockService {
       return row.assetLockProof
     }
 
-    const wallet = await this.walletDAO.getWalletById(row.walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    const network = wallet.network
+    const network = (await requireWallet(this.walletDAO, row.walletId)).network
 
     state.phase = 'waitingChainLock'
 

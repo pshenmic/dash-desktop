@@ -19,6 +19,7 @@ import {CoreDiscoveryService} from './CoreDiscoveryService'
 import {WalletSyncService} from './WalletSyncService'
 import {decryptMnemonic, encryptMnemonic} from "../utils";
 import {withUnlockedWallet} from "../utils/walletSeed";
+import {requireSelectedWallet, requireWallet} from '../utils/requireWallet'
 import {
   ADDRESS_LOOKAHEAD,
   COIN_TYPE,
@@ -189,10 +190,7 @@ export class WalletService {
   }
 
   async exportMnemonic(walletId: string, password: string): Promise<string> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     const isValid = await this.verifyWalletPassword(walletId, password)
     if (!isValid) {
@@ -203,11 +201,7 @@ export class WalletService {
   }
 
   async verifyWalletPassword(walletId: string, password: string): Promise<boolean> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-
-    if (wallet == null) {
-      throw new Error('No selected wallet found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     let decryptedMnemonic: string
 
@@ -238,10 +232,7 @@ export class WalletService {
   }
 
   async verifyWalletMnemonic(walletId: string, mnemonic: string): Promise<boolean> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     return this.mnemonicMatchesWallet(walletId, wallet.network, mnemonic)
   }
@@ -327,19 +318,14 @@ export class WalletService {
   }
 
   async getReceiveAddress(walletId: string): Promise<string> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) throw new Error('Wallet not found')
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
     return provider.nextUnusedAddress()
   }
 
   async getAddressesByWalletId(walletId: string): Promise<GroupedAddresses> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
 
@@ -364,11 +350,7 @@ export class WalletService {
   }
 
   async getTransactions(walletId: string): Promise<Transaction[]> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
 
@@ -380,11 +362,7 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const wallet = await this.walletDAO.getSelectedWallet()
-
-    if (wallet == null) {
-      throw new Error('No selected wallet found')
-    }
+    const wallet = await requireSelectedWallet(this.walletDAO)
 
     const provider = this.providers.forWallet(wallet.walletId, network)
 
@@ -392,11 +370,7 @@ export class WalletService {
   }
 
   async getWalletBalance(walletId: string): Promise<WalletBalance> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
 
@@ -427,10 +401,7 @@ export class WalletService {
       throw new Error('Invalid network ("mainnet", "testnet")')
     }
 
-    const wallet = await this.walletDAO.getSelectedWallet()
-    if (wallet == null) {
-      throw new Error('No selected wallet found')
-    }
+    const wallet = await requireSelectedWallet(this.walletDAO)
     const provider = this.providers.forWallet(wallet.walletId, network)
 
     return await provider.getBalance(address)
@@ -486,11 +457,7 @@ export class WalletService {
   }
 
   async getIdentities(walletId: string): Promise<IdentityInfo[]> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-
-    if (!wallet) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
 
     const stored = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
@@ -520,19 +487,13 @@ export class WalletService {
   }
 
   async getIdentityBalance(identifier: string): Promise<bigint> {
-    const wallet = await this.walletDAO.getSelectedWallet()
-    if (wallet == null) {
-      throw new Error('No selected wallet found')
-    }
+    const wallet = await requireSelectedWallet(this.walletDAO)
     const {credits} = await this.platform.request('identityBalance', wallet.network, {identifier})
     return credits
   }
 
   async getIdentityNonce(identifier: string): Promise<bigint> {
-    const wallet = await this.walletDAO.getSelectedWallet()
-    if (wallet == null) {
-      throw new Error('No selected wallet found')
-    }
+    const wallet = await requireSelectedWallet(this.walletDAO)
     const {nonce} = await this.platform.request('identityNonce', wallet.network, {identifier})
     return nonce
   }

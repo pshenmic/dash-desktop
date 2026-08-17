@@ -169,7 +169,7 @@ export class ShieldedService {
   // No password needed — the payloads are network state, trial-decrypted later
   // when the user unlocks a sync. Deduped per network, so wallets sharing one
   // share the download.
-  checkForNewNotes(network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
+  private checkForNewNotes(network: Network, onProgress?: (fetched: number, total: number) => void): Promise<void> {
     const inFlight = this.noteFetches.get(network)
     if (inFlight != null) return inFlight
     const fetch = this.fetchNewNotes(network, onProgress)
