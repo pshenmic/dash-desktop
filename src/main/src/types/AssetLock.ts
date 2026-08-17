@@ -33,9 +33,8 @@ export interface BuiltAssetLock {
   inputAddresses: string[]
 }
 
-// What the asset-lock primitive needs from the wallet's L1 side. Coin
-// selection, read providers and UTXOs belong to WalletService, which satisfies
-// this as-is.
+// What the asset-lock primitive needs from the wallet's L1 side, implemented by
+// CoreLockService.
 export interface AssetLockFunder {
   // Separate so the funding row can be written between them: a spend nobody
   // recorded cannot be resumed.

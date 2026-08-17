@@ -11,6 +11,12 @@ export interface TransferInput {
   address: string
 }
 
+export interface TransferInputSelection {
+  transferInputs: TransferInput[]
+  inputTotal: bigint
+  changeAddress: string
+}
+
 export interface BuildSignedTransferParams {
   inputs: TransferInput[]
   toAddress: string

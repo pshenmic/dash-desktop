@@ -87,6 +87,10 @@ import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
 import {DISCOVERY_INTERVAL_MS} from './constants'
+import {CoreDiscoveryService} from './services/CoreDiscoveryService'
+import {CoreLockService} from './services/CoreLockService'
+import {CoreTransactionService} from './services/CoreTransactionService'
+import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
 
@@ -102,20 +106,22 @@ export class WalletBackend {
   private shieldedService?: ShieldedService
   private readonly platformWorkerService = new PlatformWorkerService()
   private assetLockService?: AssetLockService
+  private coreDiscoveryService?: CoreDiscoveryService
+  private coreLockService?: CoreLockService
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService) {
+    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
     ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.shieldedService).handle)
     ipcMain.handle('deleteWallet', new DeleteWalletHandler(this.walletService).handle)
     ipcMain.handle('getAllWallets', new GetAllWalletsHandler(this.walletService).handle)
-    ipcMain.handle('selectWallet', new SelectWallet(this.walletService).handle)
+    ipcMain.handle('selectWallet', new SelectWallet(this.walletService, this.coreDiscoveryService).handle)
     ipcMain.handle('getWalletBalance', new GetWalletBalance(this.walletService).handle)
     ipcMain.handle('getAddresses', new GetWalletAddressesHandler(this.walletService).handle)
     ipcMain.handle('addWalletAddress', new AddWalletAddressHandler(this.walletService).handle)
@@ -132,7 +138,7 @@ export class WalletBackend {
     ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
-    ipcMain.handle('getTxLockStatus', new GetTxLockStatusHandler(this.walletService).handle)
+    ipcMain.handle('getTxLockStatus', new GetTxLockStatusHandler(this.coreLockService).handle)
     ipcMain.handle('estimateTransitionFee', new EstimateTransitionFeeHandler(this.platformAddressService).handle)
     ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformAddressService).handle)
     ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformAddressService).handle)
@@ -152,7 +158,7 @@ export class WalletBackend {
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
-    ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService).handle)
+    ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
@@ -205,11 +211,15 @@ export class WalletBackend {
     this.platformWorkerService.start()
 
     // Consumers depend on the asset lock primitive, never the other way round:
-    // WalletService funds the L1 lock, AssetLockService turns it into a proof,
+    // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,
     // and each consumer settles that proof into its own transition.
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, transactionDAO, this.applicationService, this.walletSyncService, this.platformWorkerService, calibratedIterations)
-    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.walletService, this.platformWorkerService)
-    this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.walletService)
+    const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService)
+    const coreTransactionService = new CoreTransactionService()
+    this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
+    this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, calibratedIterations)
+    this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
+    this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService)
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService, this.assetLockService)
     this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.shieldedService)
     this.walletDAO = walletDAO
@@ -218,7 +228,7 @@ export class WalletBackend {
 
     this.initHandlers()
 
-    const walletService = this.walletService
+    const discovery = this.coreDiscoveryService
     const walletSyncService = this.walletSyncService
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
@@ -231,16 +241,16 @@ export class WalletBackend {
       } catch (err) {
         console.error('[locks] failed to start lock listener:', err)
       }
-      await walletService.discoverCoreAddresses(selected.walletId)
+      await discovery.discoverCoreAddresses(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
-      walletService.discoverCoreAddresses(walletId).catch(err =>
+      discovery.discoverCoreAddresses(walletId).catch(err =>
         console.error('[discovery] post-sync address discovery failed:', err))
     }
     // The scan is stopped until this answers, so it must not join a discovery
     // run that started before the block that exhausted the gap was persisted.
     this.walletSyncService.onGapExhausted = (gap) => {
-      walletService.rediscoverCoreAddresses(gap.walletId).catch(err =>
+      discovery.rediscoverCoreAddresses(gap.walletId).catch(err =>
         console.error('[discovery] gap-exhausted address discovery failed:', err))
     }
     discoverSelected().catch(err => console.error('[discovery] startup address discovery failed:', err))
