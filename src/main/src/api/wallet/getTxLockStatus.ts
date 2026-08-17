@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { CoreLockService } from '../../services/CoreLockService'
+import { CoreLockService } from '../../services/core/CoreLockService'
 import { TxLockStatus } from '../../types/TxLockStatus'
 
 export class GetTxLockStatusHandler {

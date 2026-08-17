@@ -1,19 +1,19 @@
 import { KeyPairController } from 'dash-platform-sdk/src/keyPair/index.js'
 import { OrchardAddressWASM } from 'pshenmic-dpp'
 import { IdentityRegistrationService } from './IdentityRegistrationService'
-import { Network } from '../types/Network'
-import { WalletDAO } from '../database/WalletDAO'
-import { IdentityDAO } from '../database/IdentityDAO'
-import { ShieldedNoteDAO } from '../database/ShieldedNoteDAO'
-import { ShieldedPoolDAO } from '../database/ShieldedPoolDAO'
-import { ShieldedAddressDAO } from '../database/ShieldedAddressDAO'
-import { AssetLockFundingState } from '../types/AssetLockFunding'
+import { Network } from '../../types/Network'
+import { WalletDAO } from '../../database/WalletDAO'
+import { IdentityDAO } from '../../database/IdentityDAO'
+import { ShieldedNoteDAO } from '../../database/ShieldedNoteDAO'
+import { ShieldedPoolDAO } from '../../database/ShieldedPoolDAO'
+import { ShieldedAddressDAO } from '../../database/ShieldedAddressDAO'
+import { AssetLockFundingState } from '../../types/AssetLockFunding'
 import {AssetLockService} from './AssetLockService'
-import { unlockWallet, withUnlockedWallet, zeroSeed } from '../utils/walletSeed'
-import { UnlockedWallet } from '../types/UnlockedWallet'
-import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../constants'
-import { identityPath } from '../utils/identityKeys'
-import { shieldAmountFromLockedDuffs } from '../utils/assetLockTx'
+import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSeed'
+import { UnlockedWallet } from '../../types/UnlockedWallet'
+import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../../constants'
+import { identityPath } from '../../utils/identityKeys'
+import { shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
   ShieldedNoteInfo,
@@ -24,14 +24,14 @@ import {
   ShieldedStatus,
   ShieldedSyncPhase,
   ShieldedSyncState,
-} from '../types/Shielded'
+} from '../../types/Shielded'
 import {
   EncryptedNotePayload,
   PlatformPayload,
   PlatformPhase,
   SpendKind,
-} from '../../platform/types/messages'
-import {AssetLockFundingRow, AcquiredAssetLock} from '../types/AssetLock'
+} from '../../../platform/types/messages'
+import {AssetLockFundingRow, AcquiredAssetLock} from '../../types/AssetLock'
 
 type SpendPayload = PlatformPayload<'spend'>
 

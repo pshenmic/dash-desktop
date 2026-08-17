@@ -1,7 +1,7 @@
 import {describe, it, expect, vi} from 'vitest'
-import {PlatformAddressService} from '../../src/main/src/services/PlatformAddressService'
+import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 
 const WALLET = 'w1'
 const XPUB = 'xpub-test'

@@ -5,22 +5,22 @@ import {
   utils as coreUtils,
 } from 'dash-core-sdk'
 import type {ChainAssetLockProofParams, InstantAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
-import {WalletDAO} from '../database/WalletDAO'
-import {AssetLockDAO} from '../database/AssetLockDAO'
-import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
-import {AssetLockFundingState} from '../types/AssetLockFunding'
-import {Network} from '../types/Network'
+import {WalletDAO} from '../../database/WalletDAO'
+import {AssetLockDAO} from '../../database/AssetLockDAO'
+import {AssetLockFundingStatus} from '../../enums/AssetLockFundingStatus'
+import {AssetLockFundingState} from '../../types/AssetLockFunding'
+import {Network} from '../../types/Network'
 import {PlatformWorkerService} from './PlatformWorkerService'
-import {AssetLockProofParams} from '../../platform/types/messages'
+import {AssetLockProofParams} from '../../../platform/types/messages'
 import {
   AcquireParams,
   AcquiredAssetLock,
   AssetLockFunder,
   AssetLockFundingKind,
   AssetLockFundingRow,
-} from '../types/AssetLock'
-import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../constants'
-import {requireWallet} from '../utils/requireWallet'
+} from '../../types/AssetLock'
+import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../../constants'
+import {requireWallet} from '../../utils/requireWallet'
 
 const coreSDKs = new Map<Network, DashCoreSDK>()
 

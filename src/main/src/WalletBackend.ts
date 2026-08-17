@@ -8,10 +8,10 @@ import { AddressDAO } from './database/AddressDAO'
 import { IdentityDAO } from './database/IdentityDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
-import { WalletService } from './services/WalletService'
-import { IdentityRegistrationService } from './services/IdentityRegistrationService'
-import { PlatformAddressService } from './services/PlatformAddressService'
-import { ApplicationService } from './services/ApplicationService'
+import { WalletService } from './services/core/WalletService'
+import { IdentityRegistrationService } from './services/platform/IdentityRegistrationService'
+import { PlatformAddressService } from './services/platform/PlatformAddressService'
+import { ApplicationService } from './services/app/ApplicationService'
 import {Preferences} from "./preferences";
 import { CreateWalletHandler } from './api/wallet/createWallet'
 import { GetWalletAddressesHandler } from './api/wallet/getAddresses'
@@ -45,7 +45,7 @@ import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
 import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
 import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding";
 import {AssetLockDAO} from "./database/AssetLockDAO";
-import {AssetLockService} from "./services/AssetLockService";
+import {AssetLockService} from "./services/platform/AssetLockService";
 import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
@@ -57,9 +57,9 @@ import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetConnectionTypeHandler} from "./api/setConnectionType";
-import {WalletSyncService} from './services/WalletSyncService'
-import {ShieldedService} from './services/ShieldedService'
-import {PlatformWorkerService} from './services/PlatformWorkerService'
+import {WalletSyncService} from './services/core/WalletSyncService'
+import {ShieldedService} from './services/platform/ShieldedService'
+import {PlatformWorkerService} from './services/platform/PlatformWorkerService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
 import {ShieldedPoolDAO} from './database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
@@ -76,9 +76,9 @@ import {GetShieldedSpendStateHandler} from './api/shielded/getShieldedSpendState
 import {GetShieldedAddressHandler} from './api/shielded/getShieldedAddress'
 import {GetShieldedAddressesHandler} from './api/shielded/getShieldedAddresses'
 import {AddShieldedAddressHandler} from './api/shielded/addShieldedAddress'
-import {RatesService} from './services/RatesService'
+import {RatesService} from './services/app/RatesService'
 import {GetExchangeRatesHandler} from './api/getExchangeRates'
-import {ContactService} from './services/ContactService'
+import {ContactService} from './services/app/ContactService'
 import {GetContactsHandler} from './api/contacts/getContacts'
 import {AddContactHandler} from './api/contacts/addContact'
 import {DeleteContactHandler} from './api/contacts/deleteContact'
@@ -87,9 +87,9 @@ import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
 import {DISCOVERY_INTERVAL_MS} from './constants'
-import {CoreDiscoveryService} from './services/CoreDiscoveryService'
-import {CoreLockService} from './services/CoreLockService'
-import {CoreTransactionService} from './services/CoreTransactionService'
+import {CoreDiscoveryService} from './services/core/CoreDiscoveryService'
+import {CoreLockService} from './services/core/CoreLockService'
+import {CoreTransactionService} from './services/core/CoreTransactionService'
 import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'

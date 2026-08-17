@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../services/WalletService'
-import { ApplicationService } from '../services/ApplicationService'
-import { WalletSyncService } from '../services/WalletSyncService'
+import { WalletService } from '../services/core/WalletService'
+import { ApplicationService } from '../services/app/ApplicationService'
+import { WalletSyncService } from '../services/core/WalletSyncService'
 
 import {AppStatus} from '../types/AppStatus'
 export class GetStatusHandler {

@@ -6,7 +6,7 @@ vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
 import {PlatformService} from '../../src/main/platform/PlatformService'
 import {SdkSource} from '../../src/main/platform/types/sdk'
 import {PlatformEvent, PlatformRequestMessage} from '../../src/main/platform/types/messages'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 
 const flush = async (): Promise<void> => {
   await vi.advanceTimersByTimeAsync(0)

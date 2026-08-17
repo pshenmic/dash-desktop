@@ -1,7 +1,7 @@
-import {ContactDAO} from '../database/ContactDAO'
-import {Contact} from '../types/Contact'
-import {Network} from '../types/Network'
-import {QueryStatus} from '../types/QueryStatus'
+import {ContactDAO} from '../../database/ContactDAO'
+import {Contact} from '../../types/Contact'
+import {Network} from '../../types/Network'
+import {QueryStatus} from '../../types/QueryStatus'
 
 export class ContactService {
   private contactDAO: ContactDAO

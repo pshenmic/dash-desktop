@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {WalletService} from '../../src/main/src/services/WalletService'
+import {WalletService} from '../../src/main/src/services/core/WalletService'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'

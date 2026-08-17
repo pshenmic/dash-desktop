@@ -1,5 +1,5 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {WalletSyncService} from '../../services/WalletSyncService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
 import {BroadcastResult} from '../../../p2p/types/broadcast'
 
 export class BroadcastTransactionHandler {

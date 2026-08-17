@@ -1,9 +1,9 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { AssetLockService } from '../../services/AssetLockService'
+import { AssetLockService } from '../../services/platform/AssetLockService'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
-import { IdentityRegistrationService } from '../../services/IdentityRegistrationService'
-import { PlatformAddressService } from '../../services/PlatformAddressService'
-import { ShieldedService } from '../../services/ShieldedService'
+import { IdentityRegistrationService } from '../../services/platform/IdentityRegistrationService'
+import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
+import { ShieldedService } from '../../services/platform/ShieldedService'
 
 export class ResumeAssetLockFundingHandler {
   constructor(

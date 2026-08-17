@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/WalletService'
-import { CoreDiscoveryService } from '../../services/CoreDiscoveryService'
+import { WalletService } from '../../services/core/WalletService'
+import { CoreDiscoveryService } from '../../services/core/CoreDiscoveryService'
 import {QueryStatus} from "../../types/QueryStatus";
 
 export class SelectWallet {

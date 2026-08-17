@@ -22,15 +22,15 @@ vi.mock('dash-platform-sdk/src/keyPair/index.js', () => ({
 
 vi.mock('pshenmic-dpp', () => ({OrchardAddressWASM: class {}}))
 
-import {ShieldedService} from '../../src/main/src/services/ShieldedService'
+import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
 import {ShieldedPoolDAO} from '../../src/main/src/database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from '../../src/main/src/database/ShieldedAddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
-import {IdentityRegistrationService} from '../../src/main/src/services/IdentityRegistrationService'
-import {AssetLockService} from '../../src/main/src/services/AssetLockService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
+import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
+import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
 
 const WALLET = 'wallet-1'
 const PASSWORD = 'password'

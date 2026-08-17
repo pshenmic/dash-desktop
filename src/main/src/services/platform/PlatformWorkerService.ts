@@ -1,10 +1,10 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import {randomUUID} from 'crypto'
-import {logChildOutput} from '../logger'
-import {PendingRequest, PlatformRequestOptions} from '../types/PlatformWorker'
-import {CHILD_OUTPUT_TAIL_LIMIT} from '../constants'
-import {Network} from '../types/Network'
+import {logChildOutput} from '../../logger'
+import {PendingRequest, PlatformRequestOptions} from '../../types/PlatformWorker'
+import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants'
+import {Network} from '../../types/Network'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -15,7 +15,7 @@ import {
   PlatformPayload,
   PlatformRequestMessage,
   PlatformWorkerStatus,
-} from '../../platform/types/messages'
+} from '../../../platform/types/messages'
 
 
 export class PlatformWorkerError extends Error {
