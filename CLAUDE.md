@@ -65,7 +65,7 @@ and TypeScript. Three processes:
   a lock pool that is up in **both** connection modes and a bulk pool that is
   not, see "Connection modes" below — plus header/cfilter sync and transaction
   broadcast. Communicates with the main process by message passing
-  (`p2p/types/messages.ts`).
+  (`p2p/types/messages.ts`). See "p2p invariants" before changing it.
 - `src/main/shielded/` — the shielded (Orchard) subsystem runs in its own
   **Electron utility process** (forked from `ShieldedService`): Halo2 prover,
   note trial-decryption, proof building, ST broadcast. The main-process
@@ -121,6 +121,27 @@ account 0, lookahead 20). The account-level xpub is persisted in
 `PlatformAddressService` derives the address list from the xpub without a
 password and derives per-index keys from the seed for signing. Platform
 addresses are NOT mirrors of L1 addresses anymore.
+
+### p2p invariants (`src/main/p2p/`)
+
+Things the code cannot tell you, and that a plausible-looking change breaks:
+
+- **chain.db is network-scoped and nothing under `p2p/` opens SQLite.** Wallet
+  state arrives in the `start` command (`seedUtxos`, `cfilterCursor`) and leaves
+  as `blockApplied` / `cursorAdvanced` for main to persist.
+- **An address belongs to exactly one pool.** `PoolService.takeAddresses()`
+  *moves* rather than copies, because a node dialled twice from one host drops
+  both connections.
+- **A pool resting under its ready target is intended.** Dead gossip addresses
+  are the majority, and their socket setup and teardown run on the thread
+  parsing sync responses. Do not fix it by dialling harder.
+- **No hardcoded block hashes.** Trust anchors come from `cfcheckpt` or
+  `GENESIS`; do not add a checkpoint table.
+- **x11 comes from `crypto-toothpick`** (native, WASM fallback) and resolves its
+  addon at runtime, so it must stay in `external` in `electron.vite.config.ts`.
+  Digests are in wire byte order — convert with `byteOrder.ts`.
+- **`FilterMatcher` caches the watch set natively**, so anything mutating
+  `WatchSet.items` must leave `revision` bumped.
 
 ### Preload (`src/preload/`)
 
