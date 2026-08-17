@@ -22,7 +22,10 @@ import x11 from '@dashevo/x11-hash-js'
 import {Network} from '../../src/types/Network'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
-import {GENESIS, HASH_LEN, MB} from '../constants'
+import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
+import {formatChainDbError} from '../chainDbError'
+import {HashIndex} from '../hashIndex'
+import {GENESIS, MB} from '../constants'
 import type {
   AppliedBlock,
   AppliedSpend,
@@ -56,17 +59,7 @@ import {
 import {Worker} from './Worker'
 import {PersistedHeader} from '../types/chainStore'
 
-const {doubleSHA256, hexToBytes, bytesToHex, addressToPublicKeyHash} = sdkUtils
-
-function displayHexToWire(hex: string): Uint8Array {
-  return hexToBytes(hex).reverse()
-}
-
-function wireToDisplayHex(wire: Uint8Array): string {
-  let out = ''
-  for (let i = wire.length - 1; i >= 0; i--) out += wire[i]!.toString(16).padStart(2, '0')
-  return out
-}
+const {doubleSHA256, bytesToHex, addressToPublicKeyHash} = sdkUtils
 
 function x11Wire(raw: Uint8Array): Uint8Array {
   const buf = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
@@ -101,107 +94,6 @@ function logMem(label: string): void {
   )
 }
 
-// One contiguous buffer rather than a Map<number,Uint8Array>: at ~2.5M blocks
-// the Map costs ~600MB (~245B/entry in V8 headers and per-array backing
-// stores), this ~80MB. get() returns a copy so callers can hold it across the
-// reallocation tip-follow growth triggers.
-class BlockHashIndex {
-  private data: Uint8Array
-  private present: Uint8Array
-  private capacity: number
-
-  constructor(initialHeights: number) {
-    this.capacity = Math.max(initialHeights + 1, 1024)
-    this.data = new Uint8Array(this.capacity * HASH_LEN)
-    this.present = new Uint8Array((this.capacity + 7) >> 3)
-  }
-
-  private grow(minHeight: number): void {
-    const next = Math.max(minHeight + 1, Math.ceil(this.capacity * 1.5))
-    const data = new Uint8Array(next * HASH_LEN)
-    data.set(this.data)
-    const present = new Uint8Array((next + 7) >> 3)
-    present.set(this.present)
-    this.data = data
-    this.present = present
-    this.capacity = next
-  }
-
-  set(height: number, wire: Uint8Array): void {
-    if (height < 0) return
-    if (height >= this.capacity) this.grow(height)
-    this.data.set(wire, height * HASH_LEN)
-    this.present[height >> 3]! |= 1 << (height & 7)
-  }
-
-  has(height: number): boolean {
-    return height >= 0 && height < this.capacity && (this.present[height >> 3]! & (1 << (height & 7))) !== 0
-  }
-
-  get(height: number): Uint8Array | undefined {
-    if (!this.has(height)) return undefined
-    return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
-  }
-}
-
-// Same layout as BlockHashIndex, for the same reason: as a Map this cache was
-// the p2p process' dominant resident cost (~400MB → ~70MB).
-class FilterHeaderIndex {
-  private data: Uint8Array
-  private present: Uint8Array
-  private capacity: number
-  private count = 0
-
-  constructor(initialHeights: number) {
-    this.capacity = Math.max(initialHeights + 1, 1024)
-    this.data = new Uint8Array(this.capacity * HASH_LEN)
-    this.present = new Uint8Array((this.capacity + 7) >> 3)
-  }
-
-  get size(): number {
-    return this.count
-  }
-
-  private grow(minHeight: number): void {
-    const next = Math.max(minHeight + 1, Math.ceil(this.capacity * 1.5))
-    const data = new Uint8Array(next * HASH_LEN)
-    data.set(this.data)
-    const present = new Uint8Array((next + 7) >> 3)
-    present.set(this.present)
-    this.data = data
-    this.present = present
-    this.capacity = next
-  }
-
-  has(height: number): boolean {
-    return height >= 0 && height < this.capacity && (this.present[height >> 3]! & (1 << (height & 7))) !== 0
-  }
-
-  set(height: number, header: Uint8Array): void {
-    if (height < 0) return
-    if (height >= this.capacity) this.grow(height)
-    if (!this.has(height)) this.count++
-    this.data.set(header, height * HASH_LEN)
-    this.present[height >> 3]! |= 1 << (height & 7)
-  }
-
-  get(height: number): Uint8Array | undefined {
-    if (!this.has(height)) return undefined
-    return this.data.slice(height * HASH_LEN, height * HASH_LEN + HASH_LEN)
-  }
-
-  // Checkpoint-divergence recovery: drop everything at or above `fromHeight`.
-  deleteFrom(fromHeight: number): void {
-    const start = Math.max(0, fromHeight)
-    for (let h = start; h < this.capacity; h++) {
-      if (this.has(h)) {
-        this.present[h >> 3]! &= ~(1 << (h & 7))
-        this.count--
-      }
-    }
-  }
-}
-
 export class CFilterSyncWorker extends Worker {
   readonly name = 'CFilterSyncWorker'
 
@@ -229,11 +121,11 @@ export class CFilterSyncWorker extends Worker {
   // Forward only. The reverse lookup comes from bounded inflight state — block
   // fetches carry their height, cfilter batches register their hashes, cfheaders
   // match the few pending stop-hashes — dropping a ~250MB full-chain map.
-  private readonly blockHashIndex: BlockHashIndex
+  private readonly blockHashIndex: HashIndex
   private cfilterInflightHeights = new Map<string, number>()
 
   // ── filter-header chain ──────────────────────────────────────────────────
-  private readonly heightToFilterHeader: FilterHeaderIndex
+  private readonly heightToFilterHeader: HashIndex
   private checkpointHeaders = new Map<number, Uint8Array>()
   private anchorHeight = -1
 
@@ -302,8 +194,8 @@ export class CFilterSyncWorker extends Worker {
     this.peerPool = opts.peerPool
     this.chainTipHeight = opts.chainTipHeight
     this.chainTipWire = displayHexToWire(opts.chainTipHashDisplayHex)
-    this.blockHashIndex = new BlockHashIndex(opts.chainTipHeight)
-    this.heightToFilterHeader = new FilterHeaderIndex(opts.chainTipHeight)
+    this.blockHashIndex = new HashIndex(opts.chainTipHeight)
+    this.heightToFilterHeader = new HashIndex(opts.chainTipHeight)
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
     this.seedUtxos = opts.seedUtxos
     this.initialCfilterCursor = opts.cfilterCursor
@@ -1121,12 +1013,4 @@ export class CFilterSyncWorker extends Worker {
       spends,
     } satisfies AppliedBlock)
   }
-}
-
-// The LevelDB code has to reach the message text — that string is what
-// SyncService.isFatalChainDbError matches on to decide to tear down.
-function formatChainDbError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err)
-  const code = (err as { code?: string }).code
-  return code ? `${code}: ${message}` : message
 }
