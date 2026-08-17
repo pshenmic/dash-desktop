@@ -50,15 +50,14 @@ export const POOL_MIN_PEERS = 15
 // that never completes its handshake holds a slot anyway.
 export const POOL_MAX_CONNECTIONS = 128
 
-// Refill ticks with no gain in ready peers before we stop widening. Without it
-// a supply below POOL_MIN_PEERS pins the pool in refill — measured at 72k
-// connection attempts in 50s, which reads as a port scan to the nodes we
-// depend on for locks.
+// Refill ticks with no gain in ready peers before we stop widening. A supply
+// below POOL_MIN_PEERS otherwise pins the pool in refill, and at ~72k connection
+// attempts in 50s that reads as a port scan to the nodes we depend on for locks.
 export const POOL_FILL_STALL_LIMIT = 72
 
 // Sized down because this pool carries `relay: true`, so every peer on it is a
 // duplicate copy of the whole tx inv stream. Locks are relayed network-wide and
-// BROADCAST_POLICY asks for 3 acks, so a small pool covers both jobs.
+// BROADCAST_POLICY needs a handful of peers, so a small pool covers both jobs.
 export const LOCK_POOL_READY_PEERS = 10
 export const LOCK_POOL_MIN_PEERS = 6
 
@@ -66,9 +65,8 @@ export const LOCK_POOL_MIN_PEERS = 6
 // sockets to seat 10 peers, competing with the app's own HTTPS traffic.
 export const LOCK_POOL_MAX_CONNECTIONS = 24
 
-// Slots kept above the ready target once coasting. A clamp of exactly the
-// target leaves no room to replace a socket still timing out — measured a lock
-// pool resting at 6-7 ready against a target of 10 for want of this.
+// Slots kept above the ready target once coasting. A clamp of exactly the target
+// leaves no room to replace a socket still timing out, so the pool rests under.
 export const POOL_CONNECT_HEADROOM = 8
 
 // Matches dash-core-p2p's internal default; higher makes initial sync slow to
@@ -86,12 +84,10 @@ export const POOL_ADDRESS_RESERVE = 100
 // Refill ticks with nothing connected before the built-in peers are dialled.
 export const POOL_FALLBACK_TICKS = 2
 
-// Dialled when a pool has produced no live peer at all. Two cases reach it: a
-// resolver that cannot answer the single mainnet DNS seed — or answers it with
-// rewritten records — and the bulk pool, which runs no DNS of its own and now
-// only receives the lock pool's surplus, so it can start with nothing.
-// Harvested from the seeds over DoH, one per /16 so no single operator carries
-// the list.
+// Dialled when a pool has produced no live peer at all: a resolver that cannot
+// answer the single mainnet DNS seed — or answers it with rewritten records —
+// and the bulk pool, which runs no DNS of its own and lives off the lock pool's
+// surplus. Harvested over DoH, one per /16 so no single operator carries it.
 export const FALLBACK_PEERS: Record<Network, string[]> = {
   mainnet: [
     '46.101.187.72:9999',
@@ -131,11 +127,9 @@ export const FALLBACK_PEERS: Record<Network, string[]> = {
 
 // ── Header sync ─────────────────────────────────────────────────────────────
 
-// The response that counts is the first to arrive, so this is a latency hedge:
-// the wait is the minimum over the peers asked. Narrowing it to 5 cost more
-// than the redundant batches did — measured 151ms per race against ~80ms here —
-// because a small sample is more often won by a slow peer. Roughly 3 peers
-// answer whatever the width, so widening costs little beyond those copies.
+// A latency hedge, not a throughput knob: the response that counts is the first
+// to arrive, so the wait is the minimum over the peers asked. Roughly 3 answer
+// whatever the width, and a narrow sample is more often won by a slow peer.
 export const HEADER_RACE_PEERS = 10
 
 export const HEADER_SYNC_TIMEOUT_MS = 30_000
@@ -171,12 +165,10 @@ export const MAX_INFLIGHT_BATCHES = 10
 // outstanding — so this is what decides how long the phase takes.
 export const MAX_INFLIGHT_CFHEADERS = 10
 
-// Peers asked for a given cfilter batch. Unlike the cf* races above, one
-// request draws CFILTER_BATCH separate cfilter messages back per peer, so this
-// multiplies the largest stream in the sync — every peer beyond the first sends
-// filters that arrive after the batch already has them and are dropped. Kept
-// above 1 only to hedge a peer that stalls mid-batch; the batch timer rotates
-// to untried peers, so a stall costs latency rather than the scan.
+// Peers asked for a given cfilter batch. Unlike the cf* races below, one request
+// draws CFILTER_BATCH separate cfilter messages back per peer, so every peer past
+// the first duplicates the largest stream in the sync. Above 1 only to hedge a
+// peer that stalls mid-batch.
 export const CFILTER_BATCH_PEERS = 2
 
 export const CFCHECKPT_RACE_PEERS = 5

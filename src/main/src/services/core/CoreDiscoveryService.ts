@@ -76,15 +76,12 @@ export class CoreDiscoveryService {
 
     // Latching convergence lets later frontier-derived addresses skip the
     // historical rewind (see addWatchAddresses). The gate is "discovery added
-    // nothing", not merely "reached the tip": while gap batches are still being
-    // found this stays unlatched, so they keep triggering the rewind that finds
-    // their history.
+    // nothing", not merely "reached the tip": gap batches still being found must
+    // keep triggering the rewind that finds their history.
     //
-    // Accepted residual: the scan tip is chainTip - SCAN_TIP_DEPTH, so
-    // convergence can be declared while a used address hides in the last couple
-    // of blocks. It could then surface later, extend the frontier, and derive an
-    // index whose deep history is skipped. Revisit if we track a birthday or
-    // scan the tip window before latching.
+    // The scan tip is chainTip - SCAN_TIP_DEPTH, so a used address hiding in the
+    // last blocks can latch convergence and later derive an index whose deep
+    // history is skipped.
     if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
       this.scanCompleteLatched.add(walletId)
       await this.transactionDAO.markInitialScanComplete(walletId).catch(err => {

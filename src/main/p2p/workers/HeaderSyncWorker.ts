@@ -558,11 +558,9 @@ export class HeaderSyncWorker extends Worker {
   private async commitHeaders(accepted: PersistedHeader[]): Promise<boolean> {
     const last = accepted[accepted.length - 1]!
 
-    // Advance the in-memory tip BEFORE awaiting the write: racing peers
-    // re-enter processHeaders during the await, and against the old tip they
-    // all pass validation and queue duplicate batches (12x write
-    // amplification). Updating first makes the prev-hash check reject them
-    // synchronously.
+    // Advance the in-memory tip BEFORE awaiting the write: racing peers re-enter
+    // processHeaders during the await and, against the old tip, all pass
+    // validation and queue duplicate batches (~12x write amplification).
     this.chainTipHeight = last.height
     this.chainTipHash = last.hash
     for (const header of accepted) this.recordWindow(header.height, header.hash, headerWork(header.nBits))
