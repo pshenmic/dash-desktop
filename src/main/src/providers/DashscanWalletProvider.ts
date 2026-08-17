@@ -228,10 +228,8 @@ export class DashscanWalletProvider implements WalletProvider {
         confirmed: (tx.confirmations ?? 0) > 0,
       }
     } catch (err) {
-      // A transaction the indexer has never seen is not locked — the local
-      // store answers the same way for a txid it has no row for. Anything else
-      // is the indexer failing to answer, which is a different claim, and
-      // reporting it as "not locked" is how a send looks stuck.
+      // 404 is the indexer saying it has never seen the transaction, the same
+      // claim the local store makes. Any other failure is not an answer at all.
       if ((err as DashscanRequestError).status === 404) {
         return {instantLocked: false, chainlocked: false, confirmed: false}
       }

@@ -37,9 +37,8 @@ export interface BuiltAssetLock {
 // selection, read providers and UTXOs belong to WalletService, which satisfies
 // this as-is.
 export interface AssetLockFunder {
-  // Signing and broadcasting are separate so the funding row can be written
-  // between them: the txid is known from the signed transaction, and a spend
-  // nobody recorded cannot be resumed.
+  // Separate so the funding row can be written between them: a spend nobody
+  // recorded cannot be resumed.
   buildAssetLock(
     walletId: string,
     amountDuffs: bigint,

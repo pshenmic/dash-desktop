@@ -78,9 +78,8 @@ function wire(): {
       return {tx: fundingTx, txid: TXID, creditAddress: 'credit', creditDerivationPath: "m/9'/1'/5'/1'/0", inputAddresses: []}
     }),
     broadcastAssetLock: vi.fn(async () => { calls.push('broadcast') }),
-    // An islock settles the proof race immediately. Every assertion here is
-    // about what ran before it, and a race left unsettled spins on a real
-    // wall-clock deadline.
+    // An islock settles the proof race immediately; a race left unsettled spins
+    // on a real wall-clock deadline.
     waitForInstantLock: vi.fn().mockResolvedValue('islock-hex'),
     waitForChainLock: vi.fn().mockResolvedValue(null),
     chainlockedHeight: vi.fn().mockReturnValue(0),
@@ -127,8 +126,8 @@ describe('recording an asset lock before broadcasting it', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  // The old order spent the coins first: anything failing before the insert
-  // left a funding on chain that nothing could resume.
+  // Coins committed before the row exists cannot be resumed, so the insert has
+  // to precede the broadcast.
   it('writes the funding row before the transaction reaches the network', async () => {
     const {service, calls} = wire()
 
@@ -226,9 +225,8 @@ describe('resuming a funding', () => {
     expect(funder.broadcastAssetLock).not.toHaveBeenCalled()
   })
 
-  // The wallet's own scan can be arbitrarily far behind the chain: it reported
-  // no confirmation for a funding that already had four, and the resume spent
-  // 30s pushing a mined transaction at peers that already held it.
+  // The wallet's own scan can sit arbitrarily far behind the chain, so a local
+  // "no confirmation" is not evidence the network never took the transaction.
   it('does not rebroadcast a funding DAPI can already see', async () => {
     const {service, funder} = wire()
     stub.getTransaction.mockResolvedValue({height: 1_535_567, isChainLocked: true})

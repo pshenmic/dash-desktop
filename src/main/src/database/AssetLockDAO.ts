@@ -57,8 +57,8 @@ export class AssetLockDAO {
     })
   }
 
-  // Scoped like the reads. A globally unique txid already makes the wallet
-  // redundant here; it stops being redundant the moment that index is relaxed.
+  // txid is unique table-wide, so wallet_id cannot narrow this today. It keeps
+  // the write scoped if that index is ever relaxed.
   updateStatus = async (walletId: string, txid: string, status: AssetLockFundingStatus, fields?: {stHash?: string; error?: string}): Promise<void> => {
     await this.knex('asset_lock_fundings').where({wallet_id: walletId, txid}).update({
       status,

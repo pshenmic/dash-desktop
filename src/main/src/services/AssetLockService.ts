@@ -151,9 +151,8 @@ export class AssetLockService {
     await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.Done, {stHash})
   }
 
-  // Records the L1 lock before putting it on the network, then waits for the
-  // proof. The other order loses the funding outright if the write fails or the
-  // app dies in between: the coins are committed and nothing can resume them.
+  // The funding row is written before the broadcast: coins committed with no
+  // row on disk cannot be resumed.
   async acquire(state: AssetLockFundingState, params: AcquireParams): Promise<AcquiredAssetLock> {
     const {walletId, amountDuffs, seed} = params
 
@@ -251,19 +250,15 @@ export class AssetLockService {
     return proof
   }
 
-  // A resumed funding may never have reached the network — a broadcast that
-  // failed to propagate, or a crash before it was sent. Waiting for a lock that
-  // cannot arrive is the one outcome worth ruling out before spending the
-  // timeout on it.
+  // A resumed funding may never have reached the network, and a lock that
+  // cannot arrive is worth ruling out before spending the timeout on it.
   private async ensureOnNetwork(row: AssetLockFundingRow, tx: SDKTransaction, network: Network): Promise<void> {
-    // Presence in the local store proves nothing: recordOptimisticSpend writes
-    // our own transaction at broadcast time. Only confirmation or a lock is
-    // evidence some peer accepted it.
+    // recordOptimisticSpend writes our own transaction locally at broadcast
+    // time, so only a confirmation or a lock is evidence a peer accepted it.
     const status = await this.funder.getTxLockStatus(row.walletId, row.txid)
     if (status.confirmed || status.instantLocked || status.chainlocked) return
 
-    // The wallet's own view is behind the chain by however far its scan is
-    // behind — it reported no confirmation for a funding that had four. A
+    // The wallet's own scan can sit arbitrarily far behind the chain; a
     // transaction DAPI can see is one the network already took.
     const seen = await coreSDK(network).getTransaction(row.txid).catch(() => null)
     if (seen != null) return

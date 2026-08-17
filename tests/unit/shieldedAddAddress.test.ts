@@ -71,9 +71,8 @@ describe('adding a shielded address', () => {
     expect(setCount).toHaveBeenCalledWith('w1', 7)
   })
 
-  // The defect this replaces: both loop exits fell through to the same lines,
-  // so exhaustion persisted the count and returned a used address as the
-  // user's fresh one — the linkage the pool exists to prevent.
+  // Persisting the count on exhaustion would return an address that already
+  // holds a note — the linkage the pool exists to prevent.
   it('refuses rather than handing back a used address when the window is exhausted', async () => {
     const all = Array.from({length: NEW_ADDRESS_LOOKAHEAD_LIMIT + 1}, (_, i) => i)
     const {service: svc, setCount} = service(all, 0)
