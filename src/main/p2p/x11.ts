@@ -1,11 +1,8 @@
-// @ts-ignore — no bundled types for @dashevo/x11-hash-js
-import x11 from '@dashevo/x11-hash-js'
-
-// Dash's block-header hash, in wire byte order. The library rejects a bare
-// Uint8Array (it tests for Buffer.isBuffer), so the bytes are wrapped in a view
-// rather than copied out.
-export function x11Wire(raw: Uint8Array): Uint8Array {
-  const buf = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return new Uint8Array((x11 as any).digest(buf, 1, 1) as number[])
-}
+// Dash's block-header hash. crypto-toothpick is a Rust implementation behind an
+// N-API addon, ~40x the pure-JS one and the difference between minutes and
+// seconds over a full header sync; it falls back to its own WebAssembly build on
+// a platform with no prebuilt addon.
+//
+// The digest comes back in internal (wire) byte order, which is what the chain
+// index and the cf* stop hashes are keyed by.
+export {x11Hash as x11Wire} from 'crypto-toothpick'

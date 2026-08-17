@@ -7,7 +7,7 @@ import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Address} from '../../types/Address'
 import {AddressUsage} from '../../types/AddressDiscovery'
 import {Network} from '../../types/Network'
-import {ADDRESS_LOOKAHEAD, COIN_TYPE, MAX_DISCOVERY_ROUNDS} from '../../constants'
+import {ADDRESS_GAP_BATCH, ADDRESS_LOOKAHEAD, COIN_TYPE, MAX_DISCOVERY_ROUNDS} from '../../constants'
 import {deriveCorePublicKey, planGapExtension} from '../../utils/addressDiscovery'
 import {WalletSyncService} from './WalletSyncService'
 
@@ -189,7 +189,7 @@ export class CoreDiscoveryService {
 
         const usedSet = new Set(newlyUsed)
         const entries = chain.map(a => ({index: a.index, isUsed: a.isUsed || usedSet.has(a.address)}))
-        const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD)
+        const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD, ADDRESS_GAP_BATCH)
         if (indexes.length === 0) break
 
         const rows = this.coreAddressRows(walletId, coreXpub, network, isChange, indexes)

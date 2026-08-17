@@ -49,7 +49,7 @@ export const POOL_MIN_PEERS = 15
 // Must exceed the ready target: most gossiped addresses are dead, and a socket
 // that never completes its handshake holds a slot anyway. Measured against an
 // 840-entry book — 20 slots reached 7 ready in two minutes, 36 sustained 31.
-export const POOL_MAX_CONNECTIONS = 64
+export const POOL_MAX_CONNECTIONS = 128
 
 // Refill ticks with no gain in ready peers before we stop widening. Without it
 // a supply below POOL_MIN_PEERS pins the pool in refill — measured at 72k
@@ -162,14 +162,26 @@ export const CFILTER_BATCH = 900
 
 export const MAX_INFLIGHT_BATCHES = 10
 
-export const CFCHECKPT_RACE_PEERS = 15
+// Peers asked for a given cfilter batch. Unlike the cf* races above, one
+// request draws CFILTER_BATCH separate cfilter messages back per peer, so this
+// multiplies the largest stream in the sync — every peer beyond the first sends
+// filters that arrive after the batch already has them and are dropped. Kept
+// above 1 only to hedge a peer that stalls mid-batch; the batch timer rotates
+// to untried peers, so a stall costs latency rather than the scan.
+export const CFILTER_BATCH_PEERS = 2
 
-export const CFHEADERS_RACE_PEERS = 15
+export const CFCHECKPT_RACE_PEERS = 5
 
-export const CFCHECKPT_RACE_TIMEOUT_MS = 10_000
-export const CFHEADERS_RACE_TIMEOUT_MS = 10_000
-export const CFILTER_BATCH_TIMEOUT_MS = 10_000
-export const BLOCK_REQUEST_TIMEOUT_MS = 10_000
+export const CFHEADERS_RACE_PEERS = 5
+
+// A peer that is going to answer a cf* request answers in tens of milliseconds;
+// one that is going to stay silent never answers at all. These bound how long
+// silence costs before another peer is asked, so they are sized for the retry,
+// not for a slow peer.
+export const CFCHECKPT_RACE_TIMEOUT_MS = 5_000
+export const CFHEADERS_RACE_TIMEOUT_MS = 5_000
+export const CFILTER_BATCH_TIMEOUT_MS = 5_000
+export const BLOCK_REQUEST_TIMEOUT_MS = 5_000
 
 // How far below the synced tip cf* stop hashes are capped. Dash Core silently
 // drops requests for blocks not in its active chain, so a stop hash peers have

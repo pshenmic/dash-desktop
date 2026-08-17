@@ -113,7 +113,9 @@ describe('p2p address discovery', () => {
 
     const after = await addressDAO.getAddressesByWalletId(walletId)
     expect(after.receiving.find(a => a.address === missed.address)?.isUsed).toBe(true)
-    expect(after.receiving).toHaveLength(missed.index + 1 + ADDRESS_LOOKAHEAD)
+    // At least a full gap above the used index — the extension rounds up to a
+    // batch, so the exact count is not the contract.
+    expect(after.receiving.length).toBeGreaterThanOrEqual(missed.index + 1 + ADDRESS_LOOKAHEAD)
   })
 
   it('adds nothing when no address has been paid', async () => {

@@ -72,6 +72,12 @@ export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 // BIP-44 gap limits and the ceiling on each discovery walk. Without a ceiling
 // only the gap can stop the loop.
 export const ADDRESS_LOOKAHEAD = 50
+
+// Addresses derived at once when the gap runs short. Extending to exactly the
+// gap limit re-exhausts on the very next used address, and a wallet with a run
+// of them makes the cfilter scan rewind once per address.
+export const ADDRESS_GAP_BATCH = 20
+
 export const IDENTITY_LOOKAHEAD = 10
 export const MAX_DISCOVERY_ROUNDS = 50
 export const IDENTITY_SCAN_LIMIT = 100
