@@ -7,7 +7,7 @@
 // block hashes). Wallet state stays in SQL: the worker emits blockApplied /
 // cursorAdvanced and main persists them.
 
-import {gcsMatchAny} from 'crypto-toothpick'
+import {FilterMatcher} from 'crypto-toothpick'
 import {
   type CFCheckptArgs,
   type CFHeadersArgs,
@@ -113,6 +113,9 @@ export class CFilterSyncWorker extends Worker {
 
   // ── watch set (cfilter inputs) ──────────────────────────────────────────
   private readonly watchSet: WatchSet
+
+  private matcher: FilterMatcher | null = null
+  private matcherRevision = -1
   // Height of the last block applied before the gap ran out. Non-null means the
   // scan is held and pumpCFilters is a no-op.
   private gapPausedAt: number | null = null
@@ -861,6 +864,14 @@ export class CFilterSyncWorker extends Worker {
     console.log(`[cfilter] scan complete utxos=${this.watchSet.utxoCount} balance=${this.watchSet.totalSatoshis()} sats`)
   }
 
+  private filterMatcher(): FilterMatcher {
+    if (this.matcher == null || this.matcherRevision !== this.watchSet.revision) {
+      this.matcher = new FilterMatcher(this.watchSet.items, {p: GCS_P, m: GCS_M})
+      this.matcherRevision = this.watchSet.revision
+    }
+    return this.matcher
+  }
+
   private onCFilter(msg: CFilterArgs): void {
     if (this.stopped) return
     const blockHashWire = msg.blockHash ?? new Uint8Array(32)
@@ -875,7 +886,7 @@ export class CFilterSyncWorker extends Worker {
     owner.remaining.delete(height)
     this.cfilterInflightHeights.delete(hashKey)
 
-    if (gcsMatchAny(msg.filter ?? new Uint8Array(0), blockHashWire, this.watchSet.items, {p: GCS_P, m: GCS_M})) {
+    if (this.filterMatcher().matchBlock(msg.filter ?? new Uint8Array(0), blockHashWire)) {
       console.log(`[cfilter] match h=${height} block=${wireToDisplayHex(blockHashWire).slice(0, 16)}…`)
       this.requestFullBlock(height, blockHashWire)
     }

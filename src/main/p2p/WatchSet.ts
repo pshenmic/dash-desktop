@@ -34,6 +34,7 @@ export class WatchSet {
   private readonly addresses = new Set<string>()
   private readonly byAddress = new Map<string, WatchAddress>()
   private matchItems: Uint8Array[] = []
+  private itemsRevision = 0
   private utxos = new Map<string, WalletSyncUtxo>()
   private gap: Record<'receiving' | 'change', ChainGapState> = {
     receiving: {maxIndex: -1, lastUsed: -1},
@@ -49,6 +50,12 @@ export class WatchSet {
   // The cfilter match set (GCS membership test input).
   get items(): Uint8Array[] {
     return this.matchItems
+  }
+
+  // Bumped whenever `items` changes, so a consumer that caches a view of the
+  // set — the native FilterMatcher — can tell when its copy is stale.
+  get revision(): number {
+    return this.itemsRevision
   }
 
   get size(): number {
@@ -74,6 +81,7 @@ export class WatchSet {
     this.addresses.add(a.address)
     this.byAddress.set(a.address, a)
     this.matchItems.push(p2pkhScript(a.address))
+    this.itemsRevision++
     const chain = this.gap[a.isChange ? 'change' : 'receiving']
     if (a.index > chain.maxIndex) chain.maxIndex = a.index
     if (a.isUsed && a.index > chain.lastUsed) chain.lastUsed = a.index
@@ -88,6 +96,7 @@ export class WatchSet {
       ...[...this.addresses].map(p2pkhScript),
       ...utxos.map(u => new OutPoint(u.txid, u.vout).bytes()),
     ]
+    this.itemsRevision++
   }
 
   // Fewer than gapLimit unused addresses above the highest used index means a
@@ -140,6 +149,7 @@ export class WatchSet {
         const u: WalletSyncUtxo = {txid, vout, satoshis: output.satoshis.toString(), address: address!, height}
         this.utxos.set(k, u)
         this.matchItems.push(new OutPoint(txid, vout).bytes())
+        this.itemsRevision++
         isOurs = true
         console.log(`[cfilter] received ${txid.slice(0, 16)}…:${vout} +${u.satoshis} h=${height} (${address})`)
       }

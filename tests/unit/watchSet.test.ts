@@ -145,6 +145,51 @@ describe('WatchSet block matching', () => {
   })
 })
 
+// The native FilterMatcher caches a copy of `items`, keyed on this. A revision
+// that fails to move leaves the scan matching against a stale set.
+describe('WatchSet.revision', () => {
+  it('moves when an address is added, and not when one is a duplicate', () => {
+    const set = new WatchSet('testnet', GAP_LIMIT, [])
+    const before = set.revision
+
+    expect(set.add(watched(1))).toBe(true)
+    expect(set.revision).toBeGreaterThan(before)
+
+    const afterAdd = set.revision
+    expect(set.add(watched(1))).toBe(false)
+    expect(set.revision).toBe(afterAdd)
+  })
+
+  it('moves when the utxo snapshot is replaced', () => {
+    const set = new WatchSet('testnet', GAP_LIMIT, [watched(1)])
+    const before = set.revision
+
+    set.setUtxos([utxo(7, addressAt(1))])
+
+    expect(set.revision).toBeGreaterThan(before)
+  })
+
+  // applyBlock appends an outpoint for each output it claims.
+  it('moves when a matched block adds an outpoint', () => {
+    const set = new WatchSet('testnet', GAP_LIMIT, [watched(1)])
+    const before = set.revision
+
+    set.applyBlock(block([{txid: txidAt(7), outputs: [{address: addressAt(1), satoshis: 10}]}]), 11)
+
+    expect(set.revision).toBeGreaterThan(before)
+    expect(set.items).toHaveLength(2)
+  })
+
+  it('stays put for a block that touches nothing of ours', () => {
+    const set = new WatchSet('testnet', GAP_LIMIT, [watched(1)])
+    const before = set.revision
+
+    set.applyBlock(block([{txid: txidAt(3), outputs: [{address: addressAt(9), satoshis: 10}]}]), 12)
+
+    expect(set.revision).toBe(before)
+  })
+})
+
 describe('WatchSet.setUtxos', () => {
   // After a rewind the orphaned outpoints must leave the match set, so it is
   // rebuilt from the addresses rather than appended to.
