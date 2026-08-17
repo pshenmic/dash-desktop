@@ -62,6 +62,12 @@ export interface WatchAddress {
   isUsed: boolean
 }
 
+// Per-chain view of the derived address range, maintained from the watch set.
+export interface ChainGapState {
+  maxIndex: number
+  lastUsed: number
+}
+
 // The scan stopped: fewer than gapLimit unused addresses remain above lastUsed
 // on this chain, so blocks past `height` cannot be matched correctly until main
 // derives more. The scan resumes at height + 1, never from genesis.
@@ -124,6 +130,13 @@ export interface AppliedBlock {
   height: number
   blockHash: string
   blockTime: number
+  txs: AppliedTx[]
+  spends: AppliedSpend[]
+}
+
+// What the watch set found in one block, before the worker attaches the block
+// and wallet identity that turn it into an AppliedBlock.
+export interface BlockMatch {
   txs: AppliedTx[]
   spends: AppliedSpend[]
 }

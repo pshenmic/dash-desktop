@@ -27,12 +27,6 @@ export interface PendingCFHeaders {
   raceTimer: ReturnType<typeof setTimeout> | null
 }
 
-// Per-chain view of the derived address range, maintained from the watch set.
-export interface ChainGapState {
-  maxIndex: number
-  lastUsed: number
-}
-
 export type CFilterPhase =
   | 'connecting'
   | 'cfcheckpt'

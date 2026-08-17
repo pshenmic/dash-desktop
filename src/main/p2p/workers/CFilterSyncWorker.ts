@@ -16,32 +16,24 @@ import {
   type Message,
   type Peer,
 } from 'dash-core-p2p'
-import {Block, OutPoint, Script, utils as sdkUtils} from 'dash-core-sdk'
+import {Block, utils as sdkUtils} from 'dash-core-sdk'
 // @ts-ignore — no bundled types for @dashevo/x11-hash-js
 import x11 from '@dashevo/x11-hash-js'
 import {Network} from '../../src/types/Network'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
+import {WatchSet} from '../WatchSet'
 import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
 import {formatChainDbError} from '../chainDbError'
 import {HashIndex} from '../hashIndex'
 import {GENESIS, MB} from '../constants'
-import type {
-  AppliedBlock,
-  AppliedSpend,
-  AppliedTx,
-  AppliedTxInput,
-  AppliedTxOutput,
-  WalletSyncUtxo,
-  WatchAddress,
-} from '../types/walletSync'
+import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../types/walletSync'
 import type {
   BlockRequest,
   CFilterBatch,
   CFilterPhase,
   CFilterSyncWorkerOptions,
   CFilterSyncWorkerStatus,
-  ChainGapState,
   PendingCFHeaders,
 } from '../types/cfilterSync'
 import {
@@ -59,22 +51,12 @@ import {
 import {Worker} from './Worker'
 import {PersistedHeader} from '../types/chainStore'
 
-const {doubleSHA256, bytesToHex, addressToPublicKeyHash} = sdkUtils
+const {doubleSHA256, bytesToHex} = sdkUtils
 
 function x11Wire(raw: Uint8Array): Uint8Array {
   const buf = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new Uint8Array((x11 as any).digest(buf, 1, 1) as number[])
-}
-
-function p2pkhScript(address: string): Uint8Array {
-  const s = new Script()
-  s.pushOpCode('OP_DUP')
-  s.pushOpCode('OP_HASH160')
-  s.pushOpCode('OP_PUSHBYTES_20', addressToPublicKeyHash(address))
-  s.pushOpCode('OP_EQUALVERIFY')
-  s.pushOpCode('OP_CHECKSIG')
-  return s.bytes()
 }
 
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -130,14 +112,7 @@ export class CFilterSyncWorker extends Worker {
   private anchorHeight = -1
 
   // ── watch set (cfilter inputs) ──────────────────────────────────────────
-  private watchedItems: Uint8Array[] = []
-  private watchedAddressSet = new Set<string>()
-  private watchedAddressIndex = new Map<string, WatchAddress>()
-  private readonly gapLimit: number
-  private gap: Record<'receiving' | 'change', ChainGapState> = {
-    receiving: {maxIndex: -1, lastUsed: -1},
-    change: {maxIndex: -1, lastUsed: -1},
-  }
+  private readonly watchSet: WatchSet
   // Height of the last block applied before the gap ran out. Non-null means the
   // scan is held and pumpCFilters is a no-op.
   private gapPausedAt: number | null = null
@@ -168,13 +143,6 @@ export class CFilterSyncWorker extends Worker {
     matched: new Map<number, Block>(),
   }
 
-  // Session cache seeded from SQL at start, discarded on stop. The worker
-  // cannot be stateless here: matchAny runs where peer messages arrive, and its
-  // set needs our outpoints as well as our scripts or a purely outgoing tx —
-  // one spending our UTXOs without paying any of our addresses — is missed.
-  // Maintaining those outpoints requires knowing which outputs are ours.
-  private utxos = new Map<string, WalletSyncUtxo>()
-
   // Bound peer-event listeners. Stable references kept for stop()'s off().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly peerListeners: Array<[string, (...args: any[]) => void]> = [
@@ -199,9 +167,7 @@ export class CFilterSyncWorker extends Worker {
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
     this.seedUtxos = opts.seedUtxos
     this.initialCfilterCursor = opts.cfilterCursor
-    this.gapLimit = opts.gapLimit
-
-    for (const a of opts.watchAddresses) this.registerWatchAddress(a)
+    this.watchSet = new WatchSet(opts.network, opts.gapLimit, opts.watchAddresses)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.M = this.peerPool.messages as any
@@ -209,10 +175,7 @@ export class CFilterSyncWorker extends Worker {
 
   start = async (): Promise<void> => {
     // Restore prior per-wallet state from seed (sourced from SQL by main).
-    for (const u of this.seedUtxos) {
-      this.utxos.set(`${u.txid}:${u.vout}`, u)
-      this.watchedItems.push(new OutPoint(u.txid, u.vout).bytes())
-    }
+    this.watchSet.setUtxos(this.seedUtxos)
 
     this.cfilter.cursor = this.initialCfilterCursor != null
       ? Math.max(this.birthdayHeight, this.initialCfilterCursor + 1)
@@ -291,43 +254,13 @@ export class CFilterSyncWorker extends Worker {
     this.emit('cursorReset', {walletId: this.walletId, height: forkHeight})
   }
 
-  // watchedItems is rebuilt rather than appended to: the orphaned outpoints
-  // have to leave it.
   reseedUtxos = (utxos: WalletSyncUtxo[]): void => {
     if (this.stopped) return
-    this.utxos.clear()
-    for (const u of utxos) this.utxos.set(`${u.txid}:${u.vout}`, u)
-
-    this.watchedItems = [
-      ...[...this.watchedAddressSet].map(p2pkhScript),
-      ...utxos.map(u => new OutPoint(u.txid, u.vout).bytes()),
-    ]
-
+    this.watchSet.setUtxos(utxos)
     this.awaitingReseed = false
     console.log(`[cfilter] reseeded ${utxos.length} utxo(s) after rewind — resuming at h=${this.cfilter.cursor}`)
     if (this.phase === 'synced') this.emitStatus('cfilters')
     this.pumpCFilters()
-  }
-
-  private registerWatchAddress(a: WatchAddress): boolean {
-    if (this.watchedAddressSet.has(a.address)) return false
-    this.watchedAddressSet.add(a.address)
-    this.watchedAddressIndex.set(a.address, a)
-    this.watchedItems.push(p2pkhScript(a.address))
-    const chain = this.gap[a.isChange ? 'change' : 'receiving']
-    if (a.index > chain.maxIndex) chain.maxIndex = a.index
-    if (a.isUsed && a.index > chain.lastUsed) chain.lastUsed = a.index
-    return true
-  }
-
-  // Fewer than gapLimit unused addresses above the highest used index means a
-  // payment to an address we have not derived can no longer be ruled out.
-  private exhaustedChain(): 'receiving' | 'change' | null {
-    for (const name of ['receiving', 'change'] as const) {
-      const chain = this.gap[name]
-      if (chain.lastUsed + this.gapLimit > chain.maxIndex) return name
-    }
-    return null
   }
 
   // rewindToHeight set means the addresses may carry past on-chain activity, so
@@ -336,17 +269,17 @@ export class CFilterSyncWorker extends Worker {
   addWatchAddresses = (addresses: WatchAddress[], rewindToHeight?: number): void => {
     if (this.stopped) return
     let added = 0
-    for (const a of addresses) if (this.registerWatchAddress(a)) added++
+    for (const a of addresses) if (this.watchSet.add(a)) added++
 
     if (this.gapPausedAt != null) {
-      const still = this.exhaustedChain()
+      const still = this.watchSet.exhaustedChain()
       if (still != null) {
         console.warn(`[cfilter] +${added} address(es) but ${still} gap still short — scan stays held at h=${this.gapPausedAt}`)
         return
       }
       const resumeAt = this.gapPausedAt + 1
       this.gapPausedAt = null
-      console.log(`[cfilter] gap extended (+${added}, total ${this.watchedAddressSet.size}) — resuming scan at h=${resumeAt}`)
+      console.log(`[cfilter] gap extended (+${added}, total ${this.watchSet.size}) — resuming scan at h=${resumeAt}`)
       this.emitStatus('cfilters')
       this.pumpCFilters()
       return
@@ -356,7 +289,7 @@ export class CFilterSyncWorker extends Worker {
 
     if (rewindToHeight != null) {
       const target = Math.max(this.birthdayHeight, rewindToHeight)
-      console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); rewinding cursor to h=${target}`)
+      console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchSet.size}); rewinding cursor to h=${target}`)
       for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
       this.cfilter.inflightBatches.clear()
       this.cfilterInflightHeights.clear()
@@ -364,7 +297,7 @@ export class CFilterSyncWorker extends Worker {
       this.cfilter.cursor = target
       this.emit('cursorReset', {walletId: this.walletId, height: target})
     } else {
-      console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchedAddressSet.size}); forward-only (no rewind)`)
+      console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchSet.size}); forward-only (no rewind)`)
     }
 
     if (this.phase === 'cfheaders' || this.phase === 'cfcheckpt' || this.phase === 'connecting') return
@@ -737,7 +670,7 @@ export class CFilterSyncWorker extends Worker {
     this.emitStatus('cfilters')
     // Usage main already knew about can leave the gap short before a single
     // filter is matched; scanning on would repeat the miss.
-    const exhausted = this.exhaustedChain()
+    const exhausted = this.watchSet.exhaustedChain()
     if (exhausted != null) {
       this.holdForGap(exhausted, this.cfilter.cursor - 1)
       return
@@ -819,7 +752,7 @@ export class CFilterSyncWorker extends Worker {
         const block = this.blockFetch.matched.get(height)!
         this.blockFetch.matched.delete(height)
         await this.applyBlock(block, height)
-        const exhausted = this.exhaustedChain()
+        const exhausted = this.watchSet.exhaustedChain()
         if (exhausted != null) {
           this.holdForGap(exhausted, height)
           return
@@ -835,7 +768,7 @@ export class CFilterSyncWorker extends Worker {
   // matched against a watch set now known to be short, and the range is rescanned
   // from height + 1 once main answers.
   private holdForGap(chainName: 'receiving' | 'change', height: number): void {
-    const chain = this.gap[chainName]
+    const chain = this.watchSet.gapState(chainName)
     this.gapPausedAt = height
     for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
     for (const r of this.blockFetch.inflight.values()) if (r.timer) clearTimeout(r.timer)
@@ -846,7 +779,7 @@ export class CFilterSyncWorker extends Worker {
     this.cfilter.cursor = height + 1
     console.log(
       `[cfilter] ${chainName} gap exhausted at h=${height} ` +
-      `(lastUsed=${chain.lastUsed} maxIndex=${chain.maxIndex} gapLimit=${this.gapLimit}) — ` +
+      `(lastUsed=${chain.lastUsed} maxIndex=${chain.maxIndex} gapLimit=${this.watchSet.gapLimit}) — ` +
       'scan held, awaiting new addresses',
     )
     this.emit('gapExhausted', {
@@ -871,8 +804,7 @@ export class CFilterSyncWorker extends Worker {
     }
     this.emit('cursorAdvanced', {walletId: this.walletId, height: this.effectiveScanTipHeight()})
     this.emitStatus('synced')
-    const balance = [...this.utxos.values()].reduce((s, u) => s + BigInt(u.satoshis), 0n)
-    console.log(`[cfilter] scan complete utxos=${this.utxos.size} balance=${balance.toString()} sats`)
+    console.log(`[cfilter] scan complete utxos=${this.watchSet.utxoCount} balance=${this.watchSet.totalSatoshis()} sats`)
   }
 
   private onCFilter(msg: CFilterArgs): void {
@@ -890,7 +822,7 @@ export class CFilterSyncWorker extends Worker {
     this.cfilterInflightHeights.delete(hashKey)
 
     const cf = new CompactFilter(msg.filter ?? new Uint8Array(0), blockHashWire)
-    if (cf.matchAny(this.watchedItems)) {
+    if (cf.matchAny(this.watchSet.items)) {
       console.log(`[cfilter] match h=${height} block=${wireToDisplayHex(blockHashWire).slice(0, 16)}…`)
       this.requestFullBlock(height, blockHashWire)
     }
@@ -957,60 +889,15 @@ export class CFilterSyncWorker extends Worker {
 
   private async applyBlock(block: Block, height: number): Promise<void> {
     if (this.stopped) return
-    const blockHashHex = block.hash()
-    const blockTime = block.blockHeader.time
-    const oursTxs: AppliedTx[] = []
-    const spends: AppliedSpend[] = []
-
-    for (const tx of block.txs) {
-      const txid = tx.hash()
-      const inputs: AppliedTxInput[] = []
-      const outputs: AppliedTxOutput[] = []
-      let isOurs = false
-
-      for (let vin = 0; vin < tx.inputs.length; vin++) {
-        const input = tx.inputs[vin]!
-        inputs.push({vin, prevTxid: input.txId, prevVout: input.vOut, sequence: input.sequence})
-        const u = this.utxos.get(`${input.txId}:${input.vOut}`)
-        if (u) {
-          spends.push({prevTxid: u.txid, prevVout: u.vout, spentInTxid: txid})
-          this.utxos.delete(`${input.txId}:${input.vOut}`)
-          isOurs = true
-          console.log(`[cfilter] spent ${u.txid.slice(0, 16)}…:${u.vout} -${u.satoshis} h=${height}`)
-        }
-      }
-
-      for (let vout = 0; vout < tx.outputs.length; vout++) {
-        const output = tx.outputs[vout]!
-        const address = output.getAddress(this.network === 'mainnet' ? 'Mainnet' : 'Testnet')
-        const isMine = !!(address && this.watchedAddressSet.has(address))
-        outputs.push({vout, address: address ?? null, satoshis: output.satoshis.toString(), isMine})
-        if (!isMine) continue
-        const watched = this.watchedAddressIndex.get(address!)
-        if (watched) {
-          const chain = this.gap[watched.isChange ? 'change' : 'receiving']
-          if (watched.index > chain.lastUsed) chain.lastUsed = watched.index
-        }
-        const k = `${txid}:${vout}`
-        if (this.utxos.has(k)) continue
-        const u: WalletSyncUtxo = {txid, vout, satoshis: output.satoshis.toString(), address: address!, height}
-        this.utxos.set(k, u)
-        this.watchedItems.push(new OutPoint(txid, vout).bytes())
-        isOurs = true
-        console.log(`[cfilter] received ${txid.slice(0, 16)}…:${vout} +${u.satoshis} h=${height} (${address})`)
-      }
-
-      if (isOurs) oursTxs.push({txid, raw: tx.bytes(), inputs, outputs})
-    }
-
-    if (oursTxs.length === 0 && spends.length === 0) return
+    const match = this.watchSet.applyBlock(block, height)
+    if (match == null) return
     this.emit('blockApplied', {
       walletId: this.walletId,
       height,
-      blockHash: blockHashHex,
-      blockTime,
-      txs: oursTxs,
-      spends,
+      blockHash: block.hash(),
+      blockTime: block.blockHeader.time,
+      txs: match.txs,
+      spends: match.spends,
     } satisfies AppliedBlock)
   }
 }
