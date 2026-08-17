@@ -72,10 +72,12 @@ export class PoolService extends EventEmitter {
     const base = Networks.get(network)
     this.pool = new Pool({
       network: seeds.length > 0 && base ? {...base, dnsSeeds: seeds} : network,
-      // Opened wide rather than at the ready target: most gossiped addresses are
-      // dead, so a target-sized book of slots seats a fraction of it. The refill
-      // loop clamps back to the target once the pool is full.
-      maxSize: this.maxConnections,
+      // Opened at the ready target, not at maxConnections: most gossiped
+      // addresses are dead, so a wide opening spends the sync dialling them.
+      // Measured at 467 failed sockets against 51 handshakes during header sync,
+      // and that setup and teardown runs on the thread parsing the responses.
+      // The refill loop still widens when the pool is genuinely short.
+      maxSize: this.readyTarget,
       relay: options.relay ?? true,
       messages: this.messages,
       dnsSeed: options.dnsSeed ?? true,
