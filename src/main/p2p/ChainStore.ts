@@ -1,6 +1,7 @@
 import {ClassicLevel} from 'classic-level'
 import {Network} from '../src/types/Network'
 
+import {displayHexToWire} from './byteOrder'
 import {ChainTipState, PersistedHeader, StoredState} from './types/chainStore'
 import {HEIGHT_KEY_WIDTH} from './constants'
 
@@ -20,17 +21,6 @@ function filterHeaderKey(height: number): string {
 
 function stateKey(network: Network): string {
   return `s:${network}`
-}
-
-// Display-order hex (what HeaderSync stores) to wire bytes (what cfilter peers
-// exchange). Inverse of bytesToHex(wire).
-function displayHashToWire(hex: string): Uint8Array {
-  const out = new Uint8Array(32)
-  for (let i = 0; i < 32; i++) {
-    const j = (31 - i) * 2
-    out[i] = parseInt(hex.slice(j, j + 2), 16)
-  }
-  return out
 }
 
 // Single-owner facade over chain storage — workers never open LevelDB directly.
@@ -71,18 +61,10 @@ export class ChainStore {
 
     try {
       const buf = await this.db.get(stateKey(this.network))
-
-      console.log('stage 1: ', buf)
-
       if (buf == null) return defaultValue()
 
       const stored = JSON.parse(Buffer.from(buf).toString('utf8')) as StoredState
-
-      console.log('stage 2: ', stored)
-
       if (stored == null) return defaultValue()
-
-      console.log('stage 3: returning sync state')
 
       return {tipHeight: stored.tipHeight, tipHash: stored.tipHash}
     } catch (err) {
@@ -101,7 +83,7 @@ export class ChainStore {
       batch.put(headerKey(h.height), h.raw)
       // Free here (processHeaders already computed h.hash) and saves cfilter
       // sync x11-rehashing every header on launch — minutes for a full chain.
-      batch.put(hashKey(h.height), displayHashToWire(h.hash))
+      batch.put(hashKey(h.height), displayHexToWire(h.hash))
     }
     const stored: StoredState = {
       tipHeight: nextState.tipHeight,

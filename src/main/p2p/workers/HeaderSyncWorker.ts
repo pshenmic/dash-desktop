@@ -1,8 +1,9 @@
 import {Inventory, Message, Peer} from 'dash-core-p2p'
-import {utils as coreUtils} from 'dash-core-sdk'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
 import {buildLocatorHeights} from '../blockLocator'
+import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
+import {formatChainDbError} from '../chainDbError'
 import {bitsToTarget, hashHeaderRaw, headerWork, POW_LIMIT_TARGET, rawPrevHash} from '../pow'
 import {Worker} from './Worker'
 import {
@@ -209,7 +210,7 @@ export class HeaderSyncWorker extends Worker {
     // Display order, so the line correlates with the lock watcher's logs.
     const hashes = inventory
       .filter(i => i.type !== 1 && i.type !== 16 && i.hash)
-      .map(i => `${typeName(i.type)}:${Buffer.from(i.hash!).reverse().toString('hex')}`)
+      .map(i => `${typeName(i.type)}:${wireToDisplayHex(i.hash!)}`)
       .join(' ')
     console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'}${hashes ? ` [${hashes}]` : ''}`)
   }
@@ -222,7 +223,7 @@ export class HeaderSyncWorker extends Worker {
     let chase = false
     for (const item of inventory) {
       if (item.type !== Inventory.TYPE.BLOCK || !item.hash) continue
-      const hash = Buffer.from(item.hash).reverse().toString('hex')
+      const hash = wireToDisplayHex(item.hash)
       // Already ours, or already chased by another peer's announcement.
       if (this.windowByHash.has(hash) || this.announcedBlocks.has(hash)) continue
       if (this.announcedBlocks.size >= ANNOUNCE_DEDUPE_LIMIT) this.announcedBlocks.clear()
@@ -330,7 +331,7 @@ export class HeaderSyncWorker extends Worker {
   private getHeadersMsg(locator: string[]): Message {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.peerPool.messages as any).GetHeaders({
-      starts: locator.map(hash => coreUtils.hexToBytes(hash).reverse()),
+      starts: locator.map(displayHexToWire),
       stop: new Uint8Array(32),
     })
   }
@@ -562,12 +563,4 @@ export class HeaderSyncWorker extends Worker {
     this.emit('chainExtended', accepted)
     return true
   }
-}
-
-// The LevelDB code has to reach the message text — that string is what
-// SyncService.isFatalChainDbError matches on to decide to tear down.
-function formatChainDbError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err)
-  const code = (err as { code?: string }).code
-  return code ? `${code}: ${message}` : message
 }

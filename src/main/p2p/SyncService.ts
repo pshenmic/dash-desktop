@@ -1,5 +1,7 @@
 import {BroadcastService} from './BroadcastService'
 import {ChainStore} from './ChainStore'
+import {reverseHex, wireToDisplayHex} from './byteOrder'
+import {isFatalChainDbError} from './chainDbError'
 import {
   GENESIS,
   LOCK_POOL_MAX_CONNECTIONS,
@@ -398,7 +400,7 @@ export class SyncService {
         // fetching it. Every peer announces the same one, hence the seen set.
         this.mempoolStats.announced++
         if (this.lockAddresses.size === 0) continue
-        const txid = Buffer.from(item.hash).reverse().toString('hex')
+        const txid = wireToDisplayHex(item.hash)
         if (this.mempoolSeen.has(txid)) continue
         if (this.mempoolSeen.size >= MEMPOOL_SEEN_LIMIT) this.mempoolSeen.clear()
         this.mempoolSeen.add(txid)
@@ -407,7 +409,7 @@ export class SyncService {
       } else if (item.type === Inventory.TYPE.CLSIG) {
         if (wantChainlocks) wanted.push({type: item.type, hash: item.hash})
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
-        const hashHex = Buffer.from(item.hash).reverse().toString('hex')
+        const hashHex = wireToDisplayHex(item.hash)
         if (this.watchedTxids.size > 0) {
           console.log(`[locks] isdlock inv ${hashHex} — requesting getdata (watching ${this.watchedTxids.size})`)
           wanted.push({type: item.type, hash: item.hash})
@@ -658,19 +660,6 @@ function describeError(err: unknown): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-// Reverse a hex string byte-wise (wire/internal txid order ⇄ display order).
-function reverseHex(hex: string): string {
-  let out = ''
-  for (let i = hex.length - 2; i >= 0; i -= 2) out += hex.slice(i, i + 2)
-  return out
-}
-
-// chain.db is unusable past this point (corruption, IO error, folder unlinked
-// mid-sync) — workers cannot safely keep running and main must resetSync.
-function isFatalChainDbError(message: string): boolean {
-  return /LEVEL_(CORRUPTION|IO_ERROR|DATABASE_NOT_OPEN|NOT_FOUND)|ENOENT|EBADF/i.test(message)
 }
 
 function phaseCurrentHeight(s: WalletSyncStatus): number | null {
