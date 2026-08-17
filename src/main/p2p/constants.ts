@@ -47,8 +47,7 @@ export const POOL_READY_PEERS = 25
 export const POOL_MIN_PEERS = 15
 
 // Must exceed the ready target: most gossiped addresses are dead, and a socket
-// that never completes its handshake holds a slot anyway. Measured against an
-// 840-entry book — 20 slots reached 7 ready in two minutes, 36 sustained 31.
+// that never completes its handshake holds a slot anyway.
 export const POOL_MAX_CONNECTIONS = 128
 
 // Refill ticks with no gain in ready peers before we stop widening. Without it

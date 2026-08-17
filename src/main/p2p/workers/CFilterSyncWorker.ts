@@ -435,6 +435,7 @@ export class CFilterSyncWorker extends Worker {
       console.warn(`[cfilter] peerblock from ${peer.host} missing block payload`)
       return
     }
+    this.unresponsivePeers.delete(peer)
     const blockHashHex = block.hash()
     const blockHashWire = displayHexToWire(blockHashHex)
     const key = bytesToHex(blockHashWire)
@@ -911,7 +912,13 @@ export class CFilterSyncWorker extends Worker {
     this.armBlockRequestTimer(key, entry)
   }
 
+  // Any ready peer serves a block, so this draws on readyPeers rather than the
+  // filter-capable subset — but it skips the peers that have gone silent on the
+  // cf* paths, which are the same sockets.
   private pickBlockPeer(exclude: Set<Peer>): Peer | undefined {
+    for (const p of this.peerPool.readyPeers) {
+      if (!exclude.has(p) && !this.unresponsivePeers.has(p)) return p
+    }
     for (const p of this.peerPool.readyPeers) if (!exclude.has(p)) return p
     return undefined
   }
@@ -920,6 +927,9 @@ export class CFilterSyncWorker extends Worker {
     if (entry.timer) clearTimeout(entry.timer)
     entry.timer = setTimeout(() => {
       if (this.stopped || !this.blockFetch.inflight.has(key)) return
+      // Whoever was asked did not deliver, so they stop being a first choice
+      // here and on the cf* paths until they answer something.
+      for (const peer of entry.triedPeers) this.unresponsivePeers.add(peer)
       let next = this.pickBlockPeer(entry.triedPeers)
       if (!next) {
         entry.triedPeers.clear()
