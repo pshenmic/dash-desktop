@@ -7,11 +7,12 @@
 // block hashes). Wallet state stays in SQL: the worker emits blockApplied /
 // cursorAdvanced and main persists them.
 
+import {gcsMatchAny} from 'crypto-toothpick'
 import {
   type CFCheckptArgs,
   type CFHeadersArgs,
   type CFilterArgs,
-  CompactFilter,
+  GCS_M, GCS_P,
   Inventory,
   type Message,
   type Peer,
@@ -42,6 +43,7 @@ import {
   CFHEADERS_RACE_PEERS,
   CFHEADERS_RACE_TIMEOUT_MS,
   CFILTER_BATCH,
+  CFILTER_BATCH_PEERS,
   CFILTER_BATCH_TIMEOUT_MS,
   FILTER_TYPE,
   MAX_INFLIGHT_BATCHES,
@@ -98,6 +100,11 @@ export class CFilterSyncWorker extends Worker {
   // match the few pending stop-hashes — dropping a ~250MB full-chain map.
   private readonly blockHashIndex: HashIndex
   private cfilterInflightHeights = new Map<string, number>()
+
+  // Peers that let a cf* request time out. Selection is otherwise insertion
+  // ordered, so without this the same silent peers sit at the head of the pool
+  // and every fresh request pays a full timeout before reaching anyone else.
+  private unresponsivePeers = new Set<Peer>()
 
   // ── filter-header chain ──────────────────────────────────────────────────
   private readonly heightToFilterHeader: HashIndex
@@ -396,10 +403,28 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
+  // A request whose last peer drops has nobody left to answer it. Waiting for
+  // its timer to notice costs the full timeout per request, which on a churning
+  // peer set is most of the sync.
   private handlePeerDisconnect(peer: Peer): void {
     if (peer === this.leader) {
       this.leader = null
       if (this.phase === 'cfcheckpt') this.requestCheckpoints()
+    }
+
+    for (const entry of this.cfHeaders.pending.values()) {
+      if (!entry.inflightPeers.delete(peer) || entry.inflightPeers.size > 0) continue
+      console.warn(`[cfilter] cfheaders ${entry.startHeight}..${entry.stopHeight} lost its last peer — re-racing`)
+      this.dispatchCFHeaders(entry)
+      this.armCFHeadersTimer(entry)
+    }
+
+    for (const batch of this.cfilter.inflightBatches.values()) {
+      if (!batch.inflightPeers.delete(peer) || batch.inflightPeers.size > 0) continue
+      if (batch.remaining.size === 0) continue
+      console.warn(`[cfilter] batch ${batch.startHeight}..${batch.stopHeight} lost its last peer — re-racing`)
+      this.dispatchCFilterBatch(batch)
+      this.armCFilterBatchTimer(batch)
     }
   }
 
@@ -453,11 +478,7 @@ export class CFilterSyncWorker extends Worker {
       console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
       return
     }
-    let candidates = [...this.peerPool.filterCapablePeers].filter(p => !this.cfcheckpt.triedPeers.has(p))
-    if (candidates.length === 0) {
-      this.cfcheckpt.triedPeers.clear()
-      candidates = [...this.peerPool.filterCapablePeers]
-    }
+    const candidates = this.pickCandidates(this.cfcheckpt.triedPeers)
     if (candidates.length === 0) {
       console.warn('[cfilter] cfcheckpt: no +CF peers — waiting')
       return
@@ -486,6 +507,7 @@ export class CFilterSyncWorker extends Worker {
       clearTimeout(this.cfcheckpt.raceTimer)
       this.cfcheckpt.raceTimer = null
     }
+    this.unresponsivePeers.delete(fromPeer)
     this.leader = fromPeer
 
     const headers = msg.filterHeaders ?? []
@@ -561,24 +583,40 @@ export class CFilterSyncWorker extends Worker {
       console.warn('[cfilter] cfheaders: no +CF peers — waiting')
       return
     }
-    const entry: PendingCFHeaders = {startHeight, stopHeight, triedPeers: new Set(), raceTimer: null}
+    const entry: PendingCFHeaders = {
+      startHeight, stopHeight, triedPeers: new Set(), inflightPeers: new Set(), raceTimer: null,
+    }
     this.cfHeaders.pending.set(stopHeight, entry)
     this.dispatchCFHeaders(entry)
     this.armCFHeadersTimer(entry)
   }
 
+  // Peers worth asking, best first: never-tried and responsive, then the ones
+  // that have gone silent, then everyone. `tried` is cleared once exhausted so a
+  // request can keep retrying against a pool smaller than its race width.
+  private pickCandidates(tried: Set<Peer>): Peer[] {
+    const all = [...this.peerPool.filterCapablePeers]
+    const fresh = all.filter(p => !tried.has(p) && !this.unresponsivePeers.has(p))
+    if (fresh.length > 0) return fresh
+
+    const untried = all.filter(p => !tried.has(p))
+    if (untried.length > 0) return untried
+
+    tried.clear()
+    this.unresponsivePeers.clear()
+    return all
+  }
+
   private dispatchCFHeaders(entry: PendingCFHeaders): void {
     const stopHashWire = this.blockHashIndex.get(entry.stopHeight)
     if (!stopHashWire) return
-    let candidates = [...this.peerPool.filterCapablePeers].filter(p => !entry.triedPeers.has(p))
-    if (candidates.length === 0) {
-      entry.triedPeers.clear()
-      candidates = [...this.peerPool.filterCapablePeers]
-    }
+    const candidates = this.pickCandidates(entry.triedPeers)
     const picks = candidates.slice(0, CFHEADERS_RACE_PEERS)
     const msg = this.M.GetCFHeaders({filterType: FILTER_TYPE, startHeight: entry.startHeight, stopHash: stopHashWire})
+    entry.inflightPeers.clear()
     for (const p of picks) {
       entry.triedPeers.add(p)
+      entry.inflightPeers.add(p)
       p.sendMessage(msg)
     }
   }
@@ -588,6 +626,7 @@ export class CFilterSyncWorker extends Worker {
     entry.raceTimer = setTimeout(() => {
       if (!this.cfHeaders.pending.has(entry.stopHeight) || this.stopped) return
       console.warn(`[cfilter] cfheaders ${entry.startHeight}..${entry.stopHeight} timeout — re-racing`)
+      for (const peer of entry.inflightPeers) this.unresponsivePeers.add(peer)
       this.dispatchCFHeaders(entry)
       this.armCFHeadersTimer(entry)
     }, CFHEADERS_RACE_TIMEOUT_MS)
@@ -641,6 +680,7 @@ export class CFilterSyncWorker extends Worker {
 
     if (pending.raceTimer) clearTimeout(pending.raceTimer)
     this.cfHeaders.pending.delete(pending.stopHeight)
+    this.unresponsivePeers.delete(fromPeer)
     this.leader = fromPeer
 
     for (const e of derived) this.heightToFilterHeader.set(e.height, e.header)
@@ -673,22 +713,39 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private dispatchCFilterBatch(batch: CFilterBatch): void {
-    const racers = [...this.peerPool.filterCapablePeers]
-    if (racers.length === 0) return
+    const candidates = this.pickCandidates(batch.triedPeers)
+    const picks = candidates.slice(0, CFILTER_BATCH_PEERS)
+    if (picks.length === 0) return
     const msg = this.M.GetCFilters({
       filterType: FILTER_TYPE,
       startHeight: batch.startHeight,
       stopHash: batch.stopHashWire,
     })
-    for (const p of racers) p.sendMessage(msg)
+    batch.inflightPeers.clear()
+    for (const p of picks) {
+      batch.triedPeers.add(p)
+      batch.inflightPeers.add(p)
+      p.sendMessage(msg)
+    }
   }
 
   private armCFilterBatchTimer(batch: CFilterBatch): void {
     if (batch.timer) clearTimeout(batch.timer)
+    batch.remainingAtArm = batch.remaining.size
     batch.timer = setTimeout(() => {
       if (!this.cfilter.inflightBatches.has(batch.startHeight) || this.stopped) return
       if (batch.remaining.size === 0) return
-      console.warn(`[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stuck (${batch.remaining.size}) — re-racing`)
+
+      // Filters landed during the interval, so the peer is delivering and only
+      // needs longer. Re-racing here asks a second peer for the whole batch to
+      // re-send what is already arriving.
+      if (batch.remaining.size < batch.remainingAtArm) {
+        this.armCFilterBatchTimer(batch)
+        return
+      }
+
+      console.warn(`[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stalled (${batch.remaining.size}) — re-racing`)
+      for (const peer of batch.inflightPeers) this.unresponsivePeers.add(peer)
       this.dispatchCFilterBatch(batch)
       this.armCFilterBatchTimer(batch)
     }, CFILTER_BATCH_TIMEOUT_MS)
@@ -708,7 +765,10 @@ export class CFilterSyncWorker extends Worker {
         const wire = this.blockHashIndex.get(h)
         if (wire) this.cfilterInflightHeights.set(bytesToHex(wire), h)
       }
-      const batch: CFilterBatch = {startHeight, stopHeight, stopHashWire, remaining, timer: null}
+      const batch: CFilterBatch = {
+        startHeight, stopHeight, stopHashWire, remaining,
+        triedPeers: new Set(), inflightPeers: new Set(), remainingAtArm: 0, timer: null,
+      }
       this.cfilter.inflightBatches.set(startHeight, batch)
       this.dispatchCFilterBatch(batch)
       this.armCFilterBatchTimer(batch)
@@ -814,8 +874,7 @@ export class CFilterSyncWorker extends Worker {
     owner.remaining.delete(height)
     this.cfilterInflightHeights.delete(hashKey)
 
-    const cf = new CompactFilter(msg.filter ?? new Uint8Array(0), blockHashWire)
-    if (cf.matchAny(this.watchSet.items)) {
+    if (gcsMatchAny(msg.filter ?? new Uint8Array(0), blockHashWire, this.watchSet.items, {p: GCS_P, m: GCS_M})) {
       console.log(`[cfilter] match h=${height} block=${wireToDisplayHex(blockHashWire).slice(0, 16)}…`)
       this.requestFullBlock(height, blockHashWire)
     }

@@ -10,6 +10,15 @@ export interface CFilterBatch {
   stopHeight: number
   stopHashWire: Uint8Array
   remaining: Set<number>
+  // Rotation memory, so a re-race reaches peers that have not been asked.
+  triedPeers: Set<Peer>
+  // The peers currently expected to answer. Emptied by disconnects, which is
+  // how a request notices it has nobody left rather than waiting for its timer.
+  inflightPeers: Set<Peer>
+  // `remaining` when the timer was last armed. A batch arrives as CFILTER_BATCH
+  // separate messages, so the question at each tick is whether any landed — not
+  // whether the batch is done.
+  remainingAtArm: number
   timer: ReturnType<typeof setTimeout> | null
 }
 
@@ -24,6 +33,7 @@ export interface PendingCFHeaders {
   startHeight: number
   stopHeight: number
   triedPeers: Set<Peer>
+  inflightPeers: Set<Peer>
   raceTimer: ReturnType<typeof setTimeout> | null
 }
 

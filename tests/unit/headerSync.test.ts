@@ -1,25 +1,23 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 import {EventEmitter} from 'events'
 
-// Real x11 needs ~2^20 hashes per header to clear POW_LIMIT_TARGET, minutes per
-// block in JS. Display order is the digest reversed, so zeroing its tail is what
-// puts the result under the limit.
-vi.mock('@dashevo/x11-hash-js', () => ({
-  default: {
-    digest: (input: ArrayLike<number>) => {
-      let a = 0x811c9dc5
-      let b = 0x01000193
-      for (let i = 0; i < input.length; i++) {
-        a = ((a ^ input[i]!) * 0x01000193) >>> 0
-        b = ((b + input[i]! * (i + 1)) * 0x85ebca6b) >>> 0
-      }
-      const out = new Array<number>(32).fill(0)
-      for (let i = 0; i < 4; i++) {
-        out[i] = (a >>> (i * 8)) & 0xff
-        out[i + 4] = (b >>> (i * 8)) & 0xff
-      }
-      return out
-    },
+// Real x11 needs ~2^20 hashes per header to clear POW_LIMIT_TARGET, which no
+// test can mine. Display order is the digest reversed, so zeroing its tail is
+// what puts the result under the limit.
+vi.mock('../../src/main/p2p/x11', () => ({
+  x11Wire: (input: Uint8Array) => {
+    let a = 0x811c9dc5
+    let b = 0x01000193
+    for (let i = 0; i < input.length; i++) {
+      a = ((a ^ input[i]!) * 0x01000193) >>> 0
+      b = ((b + input[i]! * (i + 1)) * 0x85ebca6b) >>> 0
+    }
+    const out = new Uint8Array(32)
+    for (let i = 0; i < 4; i++) {
+      out[i] = (a >>> (i * 8)) & 0xff
+      out[i + 4] = (b >>> (i * 8)) & 0xff
+    }
+    return out
   },
 }))
 

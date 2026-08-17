@@ -195,14 +195,16 @@ export class PoolService extends EventEmitter {
 
     // Tracked here so workers just read readyPeers / filterCapablePeers.
     this.pool.on('peerversion', (peer: Peer, message: Message & { services?: bigint }) => {
-      const services = message.services ?? 0n
-      this.peerServices.set(peer, services)
-      if ((services & BigInt(NODE_COMPACT_FILTERS)) !== 0n) {
-        this.filterCapablePeers.add(peer)
-      }
+      this.peerServices.set(peer, message.services ?? 0n)
     })
+    // filterCapablePeers is filled here rather than on `peerversion`, which
+    // arrives mid-handshake: a request sent to a peer that has not finished one
+    // is simply never answered, and costs a full race timeout to find out.
     this.pool.on('peerready', (peer: Peer) => {
       this.readyPeers.add(peer)
+      if (((this.peerServices.get(peer) ?? 0n) & BigInt(NODE_COMPACT_FILTERS)) !== 0n) {
+        this.filterCapablePeers.add(peer)
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       peer.sendMessage((this.messages as any).GetAddr())
     })
