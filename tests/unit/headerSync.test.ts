@@ -23,7 +23,10 @@ vi.mock('../../src/main/p2p/x11', () => ({
 
 const {HeaderSyncWorker} = await import('../../src/main/p2p/workers/HeaderSyncWorker')
 const {hashHeaderRaw} = await import('../../src/main/p2p/pow')
-const {POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS} = await import('../../src/main/p2p/constants')
+const {
+  POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS,
+  HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS,
+} = await import('../../src/main/p2p/constants')
 type ChainStore = import('../../src/main/p2p/ChainStore').ChainStore
 type PoolService = import('../../src/main/p2p/PoolService').PoolService
 type PersistedHeader = import('../../src/main/p2p/types/chainStore').PersistedHeader
@@ -399,5 +402,139 @@ describe('HeaderSyncWorker tip-follow stall', () => {
 
     expect(getHeaderRequests(peer)).toEqual([])
     expect((worker as unknown as {stallTimer: unknown}).stallTimer).toBeNull()
+  })
+})
+
+// A narrow race can strand itself: readyPeers is insertion ordered, so without
+// tracking, the same silent peers head every race and each one costs a full
+// HEADER_SYNC_TIMEOUT_MS before anyone else is asked.
+describe('HeaderSyncWorker race peer selection', () => {
+  let pool: FakePool
+  let worker: InstanceType<typeof HeaderSyncWorker>
+  let peers: ReturnType<typeof makePeer>[]
+
+  const silent = (): ReturnType<typeof makePeer>[] => peers.slice(0, HEADER_RACE_PEERS)
+  const untried = (): ReturnType<typeof makePeer>[] => peers.slice(HEADER_RACE_PEERS)
+
+  beforeEach(async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    pool = new FakePool()
+    // More peers than one race can hold, or every peer is asked regardless.
+    peers = Array.from({length: HEADER_RACE_PEERS + 5}, (_, i) => makePeer(`10.0.0.${i}`))
+    for (const peer of peers) pool.readyPeers.add(peer)
+
+    worker = new HeaderSyncWorker({
+      chainStore: new FakeChainStore() as unknown as ChainStore,
+      peerPool: pool as unknown as PoolService,
+      initialTipHeight: 10,
+      initialTipHash: GENESIS_HASH,
+      finalityHeight: 0,
+    })
+    await worker.start()
+  })
+
+  afterEach(() => {
+    worker.stop()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('asks the first race up to the race width', () => {
+    expect(silent().every(p => getHeaderRequests(p).length === 1)).toBe(true)
+    expect(untried().every(p => getHeaderRequests(p).length === 0)).toBe(true)
+  })
+
+  it('reaches untried peers after a race times out', () => {
+    vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
+
+    // Every peer the first race never got to is asked by the second.
+    expect(untried().every(p => getHeaderRequests(p).length === 1)).toBe(true)
+  })
+
+  it('clears a peer that answers, silent or not', () => {
+    const tracked = worker as unknown as {unresponsivePeers: Set<unknown>}
+    vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
+    expect(tracked.unresponsivePeers.size).toBe(HEADER_RACE_PEERS)
+
+    // An empty `headers` is still an answer — the peer has nothing, not nothing to say.
+    pool.emit('peerheaders', peers[0]!, {headers: []})
+
+    expect(tracked.unresponsivePeers.has(peers[0]!)).toBe(false)
+  })
+
+  it('forgets a peer that disconnects', () => {
+    const tracked = worker as unknown as {unresponsivePeers: Set<unknown>}
+    vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
+
+    pool.readyPeers.delete(peers[0]!)
+    pool.emit('peerdisconnect', peers[0]!)
+
+    expect(tracked.unresponsivePeers.has(peers[0]!)).toBe(false)
+  })
+})
+
+// Writes are queued rather than awaited in line, so a reorg's delete must not
+// overtake an append still in flight — that would put the orphaned branch back.
+describe('HeaderSyncWorker chain write ordering', () => {
+  it('drains queued appends before a rewind deletes', async () => {
+    const ops: string[] = []
+    let releaseAppend: (() => void) | undefined
+
+    class SlowStore extends FakeChainStore {
+      override appendHeaders = async (headers: PersistedHeader[], next: ChainTipState): Promise<void> => {
+        // The first append is held open, so a rewind would race it.
+        if (releaseAppend === undefined) {
+          await new Promise<void>(resolve => { releaseAppend = resolve })
+        }
+        ops.push('append')
+        this.appended.push(headers)
+        this.state = next
+      }
+
+      override deleteHeadersFrom = async (from: number, next: ChainTipState): Promise<void> => {
+        ops.push('delete')
+        this.deletedFrom.push(from)
+        this.state = next
+      }
+    }
+
+    const store = new SlowStore()
+    const pool = new FakePool()
+    const peerA = makePeer('1.1.1.1')
+    const peerB = makePeer('2.2.2.2')
+    pool.readyPeers.add(peerA)
+    pool.readyPeers.add(peerB)
+
+    const worker = new HeaderSyncWorker({
+      chainStore: store as unknown as ChainStore,
+      peerPool: pool as unknown as PoolService,
+      initialTipHeight: 10,
+      initialTipHash: GENESIS_HASH,
+      finalityHeight: 0,
+    })
+    await worker.start()
+    pool.emit('peerheaders', peerA, {headers: []})
+    pool.emit('peerheaders', peerB, {headers: []})
+    await Promise.resolve()
+
+    // One block in, whose write is still pending.
+    pool.emit('peerheaders', peerA, {headers: makeChain(GENESIS_HASH, 1, 1)})
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(ops).toEqual([])
+
+    // A heavier competing branch forces a rewind while that append is queued.
+    pool.emit('peerheaders', peerB, {headers: makeChain(GENESIS_HASH, 3, 500)})
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    releaseAppend?.()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    expect(ops[0]).toBe('append')
+    expect(ops).toContain('delete')
+    expect(ops.indexOf('delete')).toBeGreaterThan(ops.indexOf('append'))
+    worker.stop()
   })
 })

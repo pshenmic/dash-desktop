@@ -51,6 +51,8 @@ export class PoolService extends EventEmitter {
   private shortTicks = 0
   private emptyTicks = 0
   private fallbackDialled = false
+  private noDelayPeers = 0
+  private noDelayUnavailable = false
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
@@ -70,7 +72,10 @@ export class PoolService extends EventEmitter {
     const base = Networks.get(network)
     this.pool = new Pool({
       network: seeds.length > 0 && base ? {...base, dnsSeeds: seeds} : network,
-      maxSize: this.readyTarget,
+      // Opened wide rather than at the ready target: most gossiped addresses are
+      // dead, so a target-sized book of slots seats a fraction of it. The refill
+      // loop clamps back to the target once the pool is full.
+      maxSize: this.maxConnections,
       relay: options.relay ?? true,
       messages: this.messages,
       dnsSeed: options.dnsSeed ?? true,
@@ -133,6 +138,10 @@ export class PoolService extends EventEmitter {
         }
         console.log(`[${this.label}] trimmed ${surplus.length} peers ready=${ready}->${this.readyPeers.size}`)
       }
+      // Deliberately no refill between the minimum and the target: most known
+      // addresses are dead, so topping up a pool that is merely below target
+      // dials them on every tick. Measured at ~2.6 failed sockets a second,
+      // which cost the sync more than the peers they seated were worth.
     }, POOL_REFILL_INTERVAL_MS)
     this.refillTimer.unref?.()
   }
@@ -191,6 +200,29 @@ export class PoolService extends EventEmitter {
     })
     this.pool.on('seederror', (err: Error) => {
       console.error(`[${this.label}] dns seed failed, no addresses to dial: ${err.message}`)
+    })
+
+    // dash-core-p2p never sets TCP_NODELAY, so Nagle holds a small write until
+    // the previous one is acknowledged. Every cf*/getheaders request is a small
+    // write followed by a wait, which is the case Nagle plus the peer's delayed
+    // ACK turns into a fixed ~40ms stall per round trip — invisible as CPU or
+    // bandwidth, and only paid when one request is outstanding at a time.
+    this.pool.on('peerconnect', (peer: Peer) => {
+      const socket = (peer as unknown as {socket?: {setNoDelay?: (on: boolean) => void}}).socket
+      if (typeof socket?.setNoDelay !== 'function') {
+        // Reported once: silently skipping it looks identical to a slow network.
+        if (!this.noDelayUnavailable) {
+          this.noDelayUnavailable = true
+          console.warn(`[${this.label}] socket has no setNoDelay — Nagle stays on`)
+        }
+        return
+      }
+      socket.setNoDelay(true)
+      // Once, on the first socket: a silent no-op here is indistinguishable
+      // from a slow network, so the log has to say which happened.
+      if (this.noDelayPeers++ === 0) {
+        console.log(`[${this.label}] TCP_NODELAY set on peer sockets`)
+      }
     })
 
     // Tracked here so workers just read readyPeers / filterCapablePeers.

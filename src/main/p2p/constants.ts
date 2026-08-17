@@ -131,6 +131,11 @@ export const FALLBACK_PEERS: Record<Network, string[]> = {
 
 // ── Header sync ─────────────────────────────────────────────────────────────
 
+// The response that counts is the first to arrive, so this is a latency hedge:
+// the wait is the minimum over the peers asked. Narrowing it to 5 cost more
+// than the redundant batches did — measured 151ms per race against ~80ms here —
+// because a small sample is more often won by a slow peer. Roughly 3 peers
+// answer whatever the width, so widening costs little beyond those copies.
 export const HEADER_RACE_PEERS = 15
 
 export const HEADER_SYNC_TIMEOUT_MS = 30_000
@@ -160,6 +165,11 @@ export const FILTER_TYPE = 0
 export const CFILTER_BATCH = 900
 
 export const MAX_INFLIGHT_BATCHES = 10
+
+// cfheaders chunks requested at once. The walk is a round trip per 1000 blocks
+// and nothing else — neither CPU nor bandwidth is near its limit while one is
+// outstanding — so this is what decides how long the phase takes.
+export const MAX_INFLIGHT_CFHEADERS = 10
 
 // Peers asked for a given cfilter batch. Unlike the cf* races above, one
 // request draws CFILTER_BATCH separate cfilter messages back per peer, so this
