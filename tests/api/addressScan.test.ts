@@ -1,5 +1,6 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {WalletService} from '../../src/main/src/services/WalletService'
+import {CoreDiscoveryService} from '../../src/main/src/services/CoreDiscoveryService'
+import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
 import {Knex} from 'knex'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
@@ -29,7 +30,8 @@ const providerStub = (scan: AddressUsage[] | null): WalletProvider => ({
 })
 
 describe('address discovery from an xpub scan', () => {
-  let walletService: WalletService
+  let discovery: CoreDiscoveryService
+  let providers: WalletProviderFactory
   let walletDAO: WalletDAO
   let addressDAO: AddressDAO
   let createWalletHandler: CreateWalletHandler
@@ -38,7 +40,8 @@ describe('address discovery from an xpub scan', () => {
 
   beforeEach(async () => {
     const wired = await harness()
-    walletService = wired.walletService
+    discovery = wired.coreDiscoveryService
+    providers = wired.providers
     walletDAO = wired.walletDAO
     addressDAO = wired.addressDAO
     createWalletHandler = wired.createWalletHandler
@@ -48,8 +51,8 @@ describe('address discovery from an xpub scan', () => {
   })
 
   const runWith = async (scan: AddressUsage[] | null): Promise<void> => {
-    vi.spyOn(walletService, 'getProvider').mockReturnValue(providerStub(scan))
-    await walletService.discoverCoreAddresses(walletId)
+    vi.spyOn(providers, 'forWallet').mockReturnValue(providerStub(scan))
+    await discovery.discoverCoreAddresses(walletId)
   }
 
   it('marks the addresses the scan reports as used', async () => {
@@ -92,7 +95,7 @@ describe('address discovery from an xpub scan', () => {
     const derived = receiving.find(a => a.index === 75)!
 
     const publicKey = deriveCorePublicKey(wallet!.coreXpub!, 'testnet', false, 75)
-    expect(derived.address).toBe(walletService['keyPair'].p2pkhAddress(publicKey, 'testnet'))
+    expect(derived.address).toBe(discovery['keyPair'].p2pkhAddress(publicKey, 'testnet'))
     expect(derived.derivationPath).toBe("m/44'/1'/0'/0/75")
   })
 
@@ -108,7 +111,7 @@ describe('address discovery from an xpub scan', () => {
     expect(restored).toBeDefined()
     const wallet = await walletDAO.getWalletById(walletId)
     const publicKey = deriveCorePublicKey(wallet!.coreXpub!, 'testnet', false, 7)
-    expect(restored!.address).toBe(walletService['keyPair'].p2pkhAddress(publicKey, 'testnet'))
+    expect(restored!.address).toBe(discovery['keyPair'].p2pkhAddress(publicKey, 'testnet'))
   })
 
   it('leaves the window alone when nothing in the scan is used', async () => {
@@ -124,9 +127,9 @@ describe('address discovery from an xpub scan', () => {
   it('widens round by round when the provider cannot scan', async () => {
     const provider = providerStub(null)
     const getUsedAddresses = vi.spyOn(provider, 'getUsedAddresses')
-    vi.spyOn(walletService, 'getProvider').mockReturnValue(provider)
+    vi.spyOn(providers, 'forWallet').mockReturnValue(provider)
 
-    await walletService.discoverCoreAddresses(walletId)
+    await discovery.discoverCoreAddresses(walletId)
 
     expect(getUsedAddresses).toHaveBeenCalled()
   })

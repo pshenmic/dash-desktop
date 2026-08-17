@@ -59,8 +59,7 @@ and TypeScript. Three processes:
 - `src/main/src/WalletBackend.ts` — the real backend. `start()` runs
   migrations, constructs DAOs/services, and **registers every wallet IPC
   handler directly** via `ipcMain.handle(...)` in `initHandlers()`. There is
-  **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied). The
-  `src/main/src/api/WalletAPI.ts` file is dead/unused — do not add to it.
+  **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied).
 - `src/main/p2p/` — the SPV P2P subsystem runs in a separate **Electron
   utility process** (forked from `WalletSyncService`). It owns two peer pools —
   a lock pool that is up in **both** connection modes and a bulk pool that is
@@ -80,15 +79,20 @@ and TypeScript. Three processes:
   register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
 - `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
   `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
-- `services/` — business logic only (`WalletService`,
-  `PlatformAddressService`, `ShieldedService`, `WalletSyncService`,
-  `RatesService`, `ContactService`, `ApplicationService`, `AssetLockService`,
-  `CoreTransactionService`).
-- `utils/` — pure, unit-tested helpers (`coinSelection`, `dedupeTransactions`,
-  `platformTransfer`, `shieldedNoteSelection`, `coreScript`, `identityKeys`,
-  `assetLockTx`) + `utils/index.ts` (crypto/knex/migrations). Helper-only
-  modules go here, NOT in `services/`.
-- `providers/` — see "Connection modes" below.
+- `services/` — business logic only (`WalletService`, `CoreDiscoveryService`,
+  `CoreLockService`, `PlatformAddressService`, `ShieldedService`,
+  `WalletSyncService`, `RatesService`, `ContactService`, `ApplicationService`,
+  `AssetLockService`, `CoreTransactionService`). Three kinds share the suffix
+  and fail differently: **process supervisors** (`WalletSyncService`,
+  `PlatformWorkerService`) own a `UtilityProcess`; **job runners**
+  (`AssetLockService`, `ShieldedService`) own keyed state that outlives the
+  method that started it; the rest are request/response.
+- `utils/` — pure, unit-tested helpers (`coinSelection`, `transferInputs`,
+  `dedupeTransactions`, `platformTransfer`, `shieldedNoteSelection`,
+  `coreScript`, `identityKeys`, `assetLockTx`) + `utils/index.ts`
+  (crypto/knex/migrations). Helper-only modules go here, NOT in `services/`.
+- `providers/` — the two `WalletProvider` implementations and
+  `WalletProviderFactory`, which picks between them. See "Connection modes".
 - `types/` — domain types with `fromRow` factories.
 
 **Platform (L2) addresses are DIP-17** (`m/9'/coinType'/17'/account'/0'/index`,
@@ -174,8 +178,9 @@ Forgetting this means the table is never created and DAO calls fail at runtime
 
 ## Connection modes (p2p vs rpc) — important for any wallet data feature
 
-`WalletService.getProvider()` returns one of two `WalletProvider`
-implementations based on the `connectionType` preference:
+`WalletProviderFactory.forWallet()` returns one of two `WalletProvider`
+implementations based on the `connectionType` preference. It is resolved per
+call, never cached on a service, because the preference changes at runtime:
 
 - **`rpc`** (default) → `DashscanWalletProvider`: hits the Dashscan REST API
   (`DASHSCAN_BASE_URLS`). Batch endpoints (`/addresses/info`,
@@ -192,7 +197,7 @@ duffs live in `inAmount` / `outAmount` / `transferAmount` as `bigint`.
 
 Write wallet features against the `WalletProvider` interface so they work in
 both modes. Note `getTransactions` fetches per-address and is de-duped by txid
-in `WalletService` (one tx touches several owned addresses: spent inputs +
+inside each provider (one tx touches several owned addresses: spent inputs +
 change) — see `dedupeTransactions`.
 
 ### The lock pool runs in BOTH modes — `connectionType` does not gate it
@@ -210,9 +215,9 @@ child process exists and hears locks even in the default `rpc` mode.
 
 Two consequences that are easy to get wrong:
 
-- **Locally-signed transactions never go out over Dashscan.** `getProvider()`
+- **Locally-signed transactions never go out over Dashscan.** `forWallet()`
   covers *reads* and third-party broadcast; asset locks bypass it —
-  `WalletService.buildAndBroadcastAssetLock` calls
+  `CoreLockService.broadcastAssetLock` calls
   `walletSyncService.broadcastTransaction` directly, in both modes, because the
   lock pool is the only pool that can hear the resulting `isdlock`.
 - **A tx must be armed before its lock can arrive.** An ISDLOCK inv requires an
@@ -221,7 +226,7 @@ Two consequences that are easy to get wrong:
 
 Corollary: **never reach for `coreSDK.subscribeToTransactions` for a transaction
 this wallet broadcast.** DAPI is a different network path and does not deliver
-that lock in either mode. Use `WalletService.waitForInstantLock(txid, timeoutMs)`.
+that lock in either mode. Use `CoreLockService.waitForInstantLock(txid, timeoutMs)`.
 Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have no
 waiter yet — they only feed `markChainlockedUpTo`.
 
@@ -245,7 +250,7 @@ on the lock pool against the addresses shipped in the `listen` command, emits
   `getdata`. `[locks] mempool watch: …` reports counts every 5 min; `watching 0
   address(es)` is what a wallet that never supplied its addresses looks like.
 
-**In `rpc` mode the row is written but never displayed.** `getProvider()` returns
+**In `rpc` mode the row is written but never displayed.** `forWallet()` returns
 `DashscanWalletProvider`, which does not read local SQL, and nothing merges
 pending rows into its result — so `getTransactions`/`getWalletBalance` omit them,
 and `is_local` never comes back `false` in the renderer. Nothing moves those rows

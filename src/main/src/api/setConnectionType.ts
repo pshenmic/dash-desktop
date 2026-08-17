@@ -4,14 +4,17 @@ import {ZodError} from "zod";
 import {ConnectionType} from "../preferences/general";
 import {ApplicationService} from "../services/ApplicationService";
 import {WalletService} from "../services/WalletService";
+import {CoreDiscoveryService} from "../services/CoreDiscoveryService";
 
 export class SetConnectionTypeHandler {
   private applicationService: ApplicationService
   private walletService: WalletService
+  private discovery: CoreDiscoveryService
 
-  constructor(applicationService: ApplicationService, walletService: WalletService) {
+  constructor(applicationService: ApplicationService, walletService: WalletService, discovery: CoreDiscoveryService) {
     this.applicationService = applicationService
     this.walletService = walletService
+    this.discovery = discovery
   }
 
   handle = async (_event: IpcMainInvokeEvent, connectionType: ConnectionType): Promise<QueryStatus> => {
@@ -33,7 +36,7 @@ export class SetConnectionTypeHandler {
       if (previous !== connectionType) {
         const selected = await this.walletService.getSelectedWallet()
         if (selected != null) {
-          this.walletService.rediscoverCoreAddresses(selected.walletId).catch(err =>
+          this.discovery.rediscoverCoreAddresses(selected.walletId).catch(err =>
             console.error('[discovery] connection-type switch address discovery failed:', err))
         }
       }
