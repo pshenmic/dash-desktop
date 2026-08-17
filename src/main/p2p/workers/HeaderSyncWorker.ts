@@ -53,12 +53,6 @@ export class HeaderSyncWorker extends Worker {
   // race can strand itself on them for HEADER_SYNC_TIMEOUT_MS at a time.
   private unresponsivePeers = new Set<Peer>()
 
-  // chain.db writes, queued rather than awaited in line. The tip and window a
-  // request needs are updated before the write is issued, so gating the next
-  // getheaders on the batch reaching disk only put write latency in series with
-  // every round trip. The chain keeps batches in order against each other.
-  private chainWrites: Promise<void> = Promise.resolve()
-
   private currentRace: HeaderRace | null = null
   private phase: HeaderSyncPhase = 'connecting'
   private stopped = false
@@ -496,11 +490,7 @@ export class HeaderSyncWorker extends Worker {
 
   private async rewindTo(forkHeight: number, forkHash: string): Promise<void> {
     console.warn(`[p2p] reorg: dropping ${this.chainTipHeight - forkHeight} block(s) back to h=${forkHeight} ${forkHash}`)
-    // Through the same queue: an append still in flight would otherwise land
-    // after the delete and put the orphaned branch back.
-    this.chainWrites = this.chainWrites
-      .then(() => this.chainStore.deleteHeadersFrom(forkHeight + 1, {tipHeight: forkHeight, tipHash: forkHash}))
-    await this.chainWrites
+    await this.chainStore.deleteHeadersFrom(forkHeight + 1, {tipHeight: forkHeight, tipHash: forkHash})
 
     this.chainTipHeight = forkHeight
     this.chainTipHash = forkHash
@@ -582,12 +572,7 @@ export class HeaderSyncWorker extends Worker {
     this.announcedBlocks.clear()
 
     const nextState: ChainTipState = {tipHeight: last.height, tipHash: last.hash}
-    this.chainWrites = this.chainWrites
-      .then(() => this.chainStore.appendHeaders(accepted, nextState))
-      .catch(err => {
-        console.error('[p2p] appendHeaders failed:', err)
-        this.reportError(formatChainDbError(err), false)
-      })
+    await this.chainStore.appendHeaders(accepted, nextState)
 
     // A tip-follow batch arriving after 'synced' must not flip the phase
     // backward, so past that point we re-emit the current phase to push
