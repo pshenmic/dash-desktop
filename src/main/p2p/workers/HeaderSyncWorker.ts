@@ -48,6 +48,17 @@ export class HeaderSyncWorker extends Worker {
   private window = new Map<number, ChainWindowEntry>()
   private windowByHash = new Map<string, number>()
 
+  // Peers that let a race time out without answering. readyPeers is insertion
+  // ordered, so without this the same silent peers head every race and a narrow
+  // race can strand itself on them for HEADER_SYNC_TIMEOUT_MS at a time.
+  private unresponsivePeers = new Set<Peer>()
+
+  // chain.db writes, queued rather than awaited in line. The tip and window a
+  // request needs are updated before the write is issued, so gating the next
+  // getheaders on the batch reaching disk only put write latency in series with
+  // every round trip. The chain keeps batches in order against each other.
+  private chainWrites: Promise<void> = Promise.resolve()
+
   private currentRace: HeaderRace | null = null
   private phase: HeaderSyncPhase = 'connecting'
   private stopped = false
@@ -261,6 +272,7 @@ export class HeaderSyncWorker extends Worker {
 
   private handlePeerHeaders(peer: Peer, rawHeaders: Uint8Array[]): void {
     if (this.stopped) return
+    this.unresponsivePeers.delete(peer)
     console.log(`[p2p] peerheaders ${peer.host} count=${rawHeaders.length} phase=${this.phase}`)
 
     if (this.phase !== 'syncing-headers') {
@@ -316,6 +328,7 @@ export class HeaderSyncWorker extends Worker {
 
   private handlePeerDisconnect(peer: Peer): void {
     console.log(`[p2p] peerdisconnect ${peer.host}:${peer.port} ready=${this.peerPool.readyPeers.size}`)
+    this.unresponsivePeers.delete(peer)
     const race = this.currentRace
     if (race && race.racers.has(peer)) {
       race.racers.delete(peer)
@@ -346,14 +359,27 @@ export class HeaderSyncWorker extends Worker {
     return hashes.length > 0 ? hashes : [this.chainTipHash]
   }
 
-  private startHeaderRace(): void {
-    if (this.stopped || this.peerPool.readyPeers.size === 0 || this.currentRace) return
-
+  // Responsive peers first, falling back to the silent ones so a pool where
+  // everyone has gone quiet still gets asked rather than stalling.
+  private pickRacers(): Peer[] {
     const picks: Peer[] = []
     for (const p of this.peerPool.readyPeers) {
+      if (this.unresponsivePeers.has(p)) continue
+      picks.push(p)
+      if (picks.length >= HEADER_RACE_PEERS) return picks
+    }
+    for (const p of this.peerPool.readyPeers) {
+      if (picks.includes(p)) continue
       picks.push(p)
       if (picks.length >= HEADER_RACE_PEERS) break
     }
+    return picks
+  }
+
+  private startHeaderRace(): void {
+    if (this.stopped || this.peerPool.readyPeers.size === 0 || this.currentRace) return
+
+    const picks = this.pickRacers()
     if (picks.length === 0) return
 
     const locator = this.buildLocator()
@@ -366,7 +392,10 @@ export class HeaderSyncWorker extends Worker {
 
     race.timer = setTimeout(() => {
       if (this.currentRace !== race) return
-      console.warn(`[p2p] race at ${locator} timed out`)
+      console.warn(`[p2p] race at ${locator} timed out (silent: ${race.racers.size})`)
+      // Whoever is still outstanding never answered, so the next race prefers
+      // anyone else.
+      for (const peer of race.racers) this.unresponsivePeers.add(peer)
       this.endRace(race)
       this.startHeaderRace()
     }, HEADER_SYNC_TIMEOUT_MS)
@@ -467,7 +496,11 @@ export class HeaderSyncWorker extends Worker {
 
   private async rewindTo(forkHeight: number, forkHash: string): Promise<void> {
     console.warn(`[p2p] reorg: dropping ${this.chainTipHeight - forkHeight} block(s) back to h=${forkHeight} ${forkHash}`)
-    await this.chainStore.deleteHeadersFrom(forkHeight + 1, {tipHeight: forkHeight, tipHash: forkHash})
+    // Through the same queue: an append still in flight would otherwise land
+    // after the delete and put the orphaned branch back.
+    this.chainWrites = this.chainWrites
+      .then(() => this.chainStore.deleteHeadersFrom(forkHeight + 1, {tipHeight: forkHeight, tipHash: forkHash}))
+    await this.chainWrites
 
     this.chainTipHeight = forkHeight
     this.chainTipHash = forkHash
@@ -549,7 +582,12 @@ export class HeaderSyncWorker extends Worker {
     this.announcedBlocks.clear()
 
     const nextState: ChainTipState = {tipHeight: last.height, tipHash: last.hash}
-    await this.chainStore.appendHeaders(accepted, nextState)
+    this.chainWrites = this.chainWrites
+      .then(() => this.chainStore.appendHeaders(accepted, nextState))
+      .catch(err => {
+        console.error('[p2p] appendHeaders failed:', err)
+        this.reportError(formatChainDbError(err), false)
+      })
 
     // A tip-follow batch arriving after 'synced' must not flip the phase
     // backward, so past that point we re-emit the current phase to push

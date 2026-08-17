@@ -47,6 +47,7 @@ import {
   CFILTER_BATCH_TIMEOUT_MS,
   FILTER_TYPE,
   MAX_INFLIGHT_BATCHES,
+  MAX_INFLIGHT_CFHEADERS,
   SCAN_TIP_DEPTH,
 } from '../constants'
 import {Worker} from './Worker'
@@ -570,29 +571,43 @@ export class CFilterSyncWorker extends Worker {
     }
 
     if (this.cfHeaders.walkStart > effectiveTip) {
-      console.log('[cfilter] cfheaders complete (cached); starting cfilter scan')
-      this.startCFilterScan()
+      // Everything is requested; the last chunk to land starts the scan.
+      if (this.cfHeaders.pending.size === 0) {
+        console.log('[cfilter] cfheaders complete; starting cfilter scan')
+        this.startCFilterScan()
+      }
       return
     }
-    this.emitStatus('cfheaders')
-    const startHeight = this.cfHeaders.walkStart
-    const nextCkpt = (Math.floor(startHeight / 1000) + 1) * 1000
-    const stopHeight = Math.min(nextCkpt, effectiveTip)
-    if (!this.blockHashIndex.has(stopHeight)) {
-      console.warn(`[cfilter] cfheaders: no hash for h=${stopHeight}; stopping`)
-      return
-    }
-    if (this.cfHeaders.pending.has(stopHeight)) return
     if (this.peerPool.filterCapablePeers.size === 0) {
       console.warn('[cfilter] cfheaders: no +CF peers — waiting')
       return
     }
-    const entry: PendingCFHeaders = {
-      startHeight, stopHeight, triedPeers: new Set(), inflightPeers: new Set(), raceTimer: null,
+    this.emitStatus('cfheaders')
+
+    // Requested in parallel: each chunk sits between two cfcheckpt anchors, so
+    // it is verified on arrival without the chunk below it. One at a time made
+    // the walk a round trip per 1000 blocks and nothing else.
+    while (
+      this.cfHeaders.walkStart <= effectiveTip &&
+      this.cfHeaders.pending.size < MAX_INFLIGHT_CFHEADERS
+    ) {
+      const startHeight = this.cfHeaders.walkStart
+      const nextCkpt = (Math.floor(startHeight / 1000) + 1) * 1000
+      const stopHeight = Math.min(nextCkpt, effectiveTip)
+      if (!this.blockHashIndex.has(stopHeight)) {
+        console.warn(`[cfilter] cfheaders: no hash for h=${stopHeight}; stopping`)
+        return
+      }
+      if (!this.cfHeaders.pending.has(stopHeight)) {
+        const entry: PendingCFHeaders = {
+          startHeight, stopHeight, triedPeers: new Set(), inflightPeers: new Set(), raceTimer: null,
+        }
+        this.cfHeaders.pending.set(stopHeight, entry)
+        this.dispatchCFHeaders(entry)
+        this.armCFHeadersTimer(entry)
+      }
+      this.cfHeaders.walkStart = stopHeight + 1
     }
-    this.cfHeaders.pending.set(stopHeight, entry)
-    this.dispatchCFHeaders(entry)
-    this.armCFHeadersTimer(entry)
   }
 
   // Peers worth asking, best first: never-tried and responsive, then the ones
@@ -658,7 +673,12 @@ export class CFilterSyncWorker extends Worker {
     }
 
     let prev = msg.previousFilterHeader ?? new Uint8Array(32)
-    const prevExpected = this.heightToFilterHeader.get(pending.startHeight - 1)
+    // Chunks break on checkpoint boundaries, so the height below a chunk is
+    // itself a checkpoint for all but the first. Taking the anchor from there
+    // rather than from the derived chain is what lets chunks be verified in any
+    // order, and so be fetched in parallel.
+    const prevExpected = this.checkpointHeaders.get(pending.startHeight - 1)
+      ?? this.heightToFilterHeader.get(pending.startHeight - 1)
     if (prevExpected && !equalBytes(prevExpected, prev)) {
       console.warn(`[cfilter] cfheaders prev mismatch at h=${pending.startHeight - 1} from ${fromPeer.host} — re-racing`)
       this.dispatchCFHeaders(pending)
@@ -695,7 +715,6 @@ export class CFilterSyncWorker extends Worker {
 
     console.log(`[cfheaders] processed checkpoint until: ${pending.startHeight}`)
 
-    this.cfHeaders.walkStart = pending.stopHeight + 1
     this.emitStatus('cfheaders')
     this.walkCFHeadersNext()
   }
