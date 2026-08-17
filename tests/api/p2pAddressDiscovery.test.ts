@@ -1,6 +1,6 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {CoreDiscoveryService} from '../../src/main/src/services/CoreDiscoveryService'
+import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {ADDRESS_LOOKAHEAD} from '../../src/main/src/constants'

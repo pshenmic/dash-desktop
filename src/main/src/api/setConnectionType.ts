@@ -2,9 +2,9 @@ import {IpcMainInvokeEvent} from 'electron/utility'
 import {QueryStatus} from "../types/QueryStatus";
 import {ZodError} from "zod";
 import {ConnectionType} from "../preferences/general";
-import {ApplicationService} from "../services/ApplicationService";
-import {WalletService} from "../services/WalletService";
-import {CoreDiscoveryService} from "../services/CoreDiscoveryService";
+import {ApplicationService} from "../services/app/ApplicationService";
+import {WalletService} from "../services/core/WalletService";
+import {CoreDiscoveryService} from "../services/core/CoreDiscoveryService";
 
 export class SetConnectionTypeHandler {
   private applicationService: ApplicationService

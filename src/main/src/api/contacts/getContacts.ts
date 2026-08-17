@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { ContactService } from '../../services/ContactService'
+import { ContactService } from '../../services/app/ContactService'
 import { Contact } from '../../types/Contact'
 import { Network } from '../../types/Network'
 

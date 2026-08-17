@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import {QueryStatus} from "../types/QueryStatus";
 import {ZodError} from "zod";
-import {ApplicationService} from "../services/ApplicationService";
+import {ApplicationService} from "../services/app/ApplicationService";
 
 export class SetFiatCurrencyHandler {
   private applicationService: ApplicationService

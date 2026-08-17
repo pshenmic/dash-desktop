@@ -79,18 +79,31 @@ and TypeScript. Three processes:
   register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
 - `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
   `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
-- `services/` — business logic only (`WalletService`, `CoreDiscoveryService`,
-  `CoreLockService`, `PlatformAddressService`, `ShieldedService`,
-  `WalletSyncService`, `RatesService`, `ContactService`, `ApplicationService`,
-  `AssetLockService`, `CoreTransactionService`). Three kinds share the suffix
-  and fail differently: **process supervisors** (`WalletSyncService`,
-  `PlatformWorkerService`) own a `UtilityProcess`; **job runners**
-  (`AssetLockService`, `ShieldedService`) own keyed state that outlives the
-  method that started it; the rest are request/response.
+- `services/` — business logic only, in three subdirectories by domain:
+  - `services/core/` — L1: `WalletService`, `CoreDiscoveryService`,
+    `CoreLockService`, `CoreTransactionService`, `WalletSyncService`.
+  - `services/platform/` — L2: `PlatformWorkerService`,
+    `PlatformAddressService`, `IdentityRegistrationService`, `ShieldedService`,
+    `AssetLockService`.
+  - `services/app/` — process-wide, wallet-agnostic: `ApplicationService`,
+    `ContactService`, `RatesService`.
+
+  `platform/` depends on `core/`, and there is exactly one edge the other way:
+  `WalletService` → `PlatformWorkerService`, for the three identity read
+  methods that have not been extracted yet. Do not add a second one.
+
+  Three kinds also share the `Service` suffix and fail differently: **process
+  supervisors** (`WalletSyncService`, `PlatformWorkerService`) own a
+  `UtilityProcess`; **job runners** (`AssetLockService`, `ShieldedService`) own
+  keyed state that outlives the method that started it; the rest are
+  request/response.
 - `utils/` — pure, unit-tested helpers (`coinSelection`, `transferInputs`,
   `dedupeTransactions`, `platformTransfer`, `shieldedNoteSelection`,
   `coreScript`, `identityKeys`, `assetLockTx`) + `utils/index.ts`
   (crypto/knex/migrations). Helper-only modules go here, NOT in `services/`.
+  `requireWallet`/`requireSelectedWallet` and `walletSeed` take a `WalletDAO`
+  rather than being pure — that is the one exception, so a guard or an unlock
+  is written once instead of at every call site.
 - `providers/` — the two `WalletProvider` implementations and
   `WalletProviderFactory`, which picks between them. See "Connection modes".
 - `types/` — domain types with `fromRow` factories.

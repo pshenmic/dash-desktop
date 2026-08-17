@@ -1,6 +1,6 @@
 import { net } from 'electron'
-import {RATES_REQUEST_TIMEOUT_MS, RATES_TTL_MS, SUPPORTED_CURRENCIES} from '../constants'
-import {ExchangeRates, ExchangeRatesResult, ProviderRates, RateProvider} from '../types/Rates'
+import {RATES_REQUEST_TIMEOUT_MS, RATES_TTL_MS, SUPPORTED_CURRENCIES} from '../../constants'
+import {ExchangeRates, ExchangeRatesResult, ProviderRates, RateProvider} from '../../types/Rates'
 
 function zeroRates(): ExchangeRates {
   return Object.fromEntries(SUPPORTED_CURRENCIES.map((c) => [c, 0]))

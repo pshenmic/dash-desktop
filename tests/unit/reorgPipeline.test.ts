@@ -95,7 +95,7 @@ vi.mock('fs', () => {
 })
 
 import {SyncService} from '../../src/main/p2p/SyncService'
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {Preferences} from '../../src/main/src/preferences'
 import type {WalletSyncUtxo} from '../../src/main/p2p/types/walletSync'
 

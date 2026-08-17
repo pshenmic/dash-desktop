@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/WalletService'
+import { WalletService } from '../../services/core/WalletService'
 import {WalletBalance} from "../../types/WalletBalance";
 
 export class GetWalletBalance {

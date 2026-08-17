@@ -1,35 +1,35 @@
 import {randomBytes} from 'crypto'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
-import {PlatformWorkerService} from './PlatformWorkerService'
-import {WalletDAO} from '../database/WalletDAO'
-import {AddressDAO} from '../database/AddressDAO'
-import {IdentityDAO} from '../database/IdentityDAO'
-import {WalletProviderFactory} from '../providers/WalletProviderFactory'
-import {Network} from '../types/Network'
-import {Address} from '../types/Address'
-import {GroupedAddresses} from '../types/GroupedAddresses'
-import {IdentityInfo} from '../types/Identity'
-import {Wallet} from '../types/Wallet'
-import {QueryStatus} from "../types/QueryStatus";
-import {WalletBalance} from "../types/WalletBalance";
-import {Transaction} from "../types/Transaction";
-import {SendResult} from "../types/SendResult";
+import {PlatformWorkerService} from '../platform/PlatformWorkerService'
+import {WalletDAO} from '../../database/WalletDAO'
+import {AddressDAO} from '../../database/AddressDAO'
+import {IdentityDAO} from '../../database/IdentityDAO'
+import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
+import {Network} from '../../types/Network'
+import {Address} from '../../types/Address'
+import {GroupedAddresses} from '../../types/GroupedAddresses'
+import {IdentityInfo} from '../../types/Identity'
+import {Wallet} from '../../types/Wallet'
+import {QueryStatus} from "../../types/QueryStatus";
+import {WalletBalance} from "../../types/WalletBalance";
+import {Transaction} from "../../types/Transaction";
+import {SendResult} from "../../types/SendResult";
 import {CoreTransactionService} from './CoreTransactionService'
 import {CoreDiscoveryService} from './CoreDiscoveryService'
 import {WalletSyncService} from './WalletSyncService'
-import {decryptMnemonic, encryptMnemonic} from "../utils";
-import {withUnlockedWallet} from "../utils/walletSeed";
-import {requireSelectedWallet, requireWallet} from '../utils/requireWallet'
+import {decryptMnemonic, encryptMnemonic} from "../../utils";
+import {withUnlockedWallet} from "../../utils/walletSeed";
+import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {
   ADDRESS_LOOKAHEAD,
   COIN_TYPE,
   IDENTITY_LOOKAHEAD,
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
-} from '../constants'
-import {identityPath} from '../utils/identityKeys'
-import {coreAccountPath} from "../utils/addressDiscovery";
-import {selectTransferInputs} from '../utils/transferInputs'
+} from '../../constants'
+import {identityPath} from '../../utils/identityKeys'
+import {coreAccountPath} from "../../utils/addressDiscovery";
+import {selectTransferInputs} from '../../utils/transferInputs'
 
 export class WalletService {
   private walletDAO: WalletDAO

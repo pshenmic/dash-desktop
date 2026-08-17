@@ -16,8 +16,8 @@ const chainState = (height: number, isChainLocked = true): unknown => ({height, 
 
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AssetLockDAO} from '../../src/main/src/database/AssetLockDAO'
-import {AssetLockService} from '../../src/main/src/services/AssetLockService'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
+import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {AssetLockFundingRow, AssetLockFunder} from '../../src/main/src/types/AssetLock'
 import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'

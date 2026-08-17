@@ -1,5 +1,5 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {WalletSyncService} from '../../services/WalletSyncService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
 
 export class ResetWalletSyncHandler {
   constructor(private readonly walletSyncService: WalletSyncService) {}

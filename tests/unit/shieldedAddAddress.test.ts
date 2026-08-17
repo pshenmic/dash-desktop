@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
-import {ShieldedService} from '../../src/main/src/services/ShieldedService'
+import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 import {NEW_ADDRESS_LOOKAHEAD_LIMIT} from '../../src/main/src/constants'
 
 const PASSWORD = 'password'

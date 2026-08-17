@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {CoreDiscoveryService} from '../../src/main/src/services/CoreDiscoveryService'
+import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
 import {Knex} from 'knex'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'

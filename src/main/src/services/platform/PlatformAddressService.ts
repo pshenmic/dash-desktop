@@ -1,18 +1,18 @@
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
-import {WalletDAO} from '../database/WalletDAO'
+import {WalletDAO} from '../../database/WalletDAO'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {ShieldedService} from './ShieldedService'
-import {IdentityDAO} from '../database/IdentityDAO'
-import {AssetLockFundingState} from '../types/AssetLockFunding'
-import {Network} from '../types/Network'
-import {Wallet} from '../types/Wallet'
-import {Identity} from '../types/Identity'
-import {PlatformAddressEntry} from '../types/PlatformAddress'
-import {PlatformSendResult} from '../types/PlatformSendResult'
-import {IdentityCreateResult} from '../types/IdentityCreateResult'
-import {ShieldResult} from '../types/ShieldResult'
-import {unlockWallet, zeroSeed} from '../utils/walletSeed'
+import {IdentityDAO} from '../../database/IdentityDAO'
+import {AssetLockFundingState} from '../../types/AssetLockFunding'
+import {Network} from '../../types/Network'
+import {Wallet} from '../../types/Wallet'
+import {Identity} from '../../types/Identity'
+import {PlatformAddressEntry} from '../../types/PlatformAddress'
+import {PlatformSendResult} from '../../types/PlatformSendResult'
+import {IdentityCreateResult} from '../../types/IdentityCreateResult'
+import {ShieldResult} from '../../types/ShieldResult'
+import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {
   IDENTITY_CREATE_KEY_COUNT,
   IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
@@ -23,13 +23,13 @@ import {
   PLATFORM_ADDRESS_LOOKAHEAD,
   TRANSFER_FEE_CREDITS,
   WITHDRAWAL_FEE_CREDITS,
-} from '../constants'
-import {identityPath} from '../utils/identityKeys'
-import {requireWallet} from '../utils/requireWallet'
-import {FeeQuery, FeeQuote} from '../../platform/types/messages'
-import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits, toAddressInput} from '../utils/platformTransfer'
-import {AcquiredAssetLock, AssetLockFundingRow} from '../types/AssetLock'
-import {PlatformSourceCandidate} from '../types/PlatformTransfer'
+} from '../../constants'
+import {identityPath} from '../../utils/identityKeys'
+import {requireWallet} from '../../utils/requireWallet'
+import {FeeQuery, FeeQuote} from '../../../platform/types/messages'
+import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits, toAddressInput} from '../../utils/platformTransfer'
+import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
+import {PlatformSourceCandidate} from '../../types/PlatformTransfer'
 
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.

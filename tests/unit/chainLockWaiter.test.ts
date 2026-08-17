@@ -7,7 +7,7 @@ vi.mock('fs', () => {
   return {...mocked, default: mocked}
 })
 
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {Preferences} from '../../src/main/src/preferences'
 import {Network} from '../../src/main/src/types/Network'
 import {LOCK_WATCH_SWEEP_INTERVAL_MS} from '../../src/main/src/constants'

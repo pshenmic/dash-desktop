@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { Wallet } from '../../types/Wallet'
-import { WalletService } from '../../services/WalletService'
+import { WalletService } from '../../services/core/WalletService'
 
 export class GetAllWalletsHandler {
   private walletService: WalletService
