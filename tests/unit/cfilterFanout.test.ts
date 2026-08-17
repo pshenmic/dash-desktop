@@ -159,6 +159,35 @@ describe('cfilter batch fan-out', () => {
     expect(pool.peersAsked('getcfilters')).toHaveLength(0)
   })
 
+  // Block fetches draw on readyPeers rather than the filter-capable subset, but
+  // it is the same sockets — a peer that went silent on a cf* request should not
+  // then be first in line for a block.
+  it('skips peers that went silent when picking a block peer', () => {
+    const worker_ = worker as unknown as {
+      unresponsivePeers: Set<unknown>
+      pickBlockPeer: (exclude: Set<unknown>) => unknown
+    }
+    const first = pool.peers[0]!
+
+    expect(worker_.pickBlockPeer(new Set())).toBe(first)
+
+    worker_.unresponsivePeers.add(first)
+
+    expect(worker_.pickBlockPeer(new Set())).toBe(pool.peers[1])
+  })
+
+  it('falls back to a silent peer when it is the only one left', () => {
+    const worker_ = worker as unknown as {
+      unresponsivePeers: Set<unknown>
+      pickBlockPeer: (exclude: Set<unknown>) => unknown
+    }
+    const only = pool.peers[0]!
+    for (const peer of pool.peers.slice(1)) pool.readyPeers.delete(peer)
+    worker_.unresponsivePeers.add(only)
+
+    expect(worker_.pickBlockPeer(new Set())).toBe(only)
+  })
+
   // A stalled peer must cost latency, not the batch: the retry has to reach
   // peers that were not asked the first time.
   it('rotates to untried peers when a batch times out', () => {
