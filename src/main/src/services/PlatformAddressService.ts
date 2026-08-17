@@ -25,16 +25,12 @@ import {
   WITHDRAWAL_FEE_CREDITS,
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
-import {AddressInput, FeeQuery, FeeQuote} from '../../platform/types/messages'
-import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits} from '../utils/platformTransfer'
+import {requireWallet} from '../utils/requireWallet'
+import {FeeQuery, FeeQuote} from '../../platform/types/messages'
+import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits, toAddressInput} from '../utils/platformTransfer'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../types/AssetLock'
 import {PlatformSourceCandidate} from '../types/PlatformTransfer'
-const toInput = (candidate: PlatformSourceCandidate, credits: bigint): AddressInput => ({
-  platformAddress: candidate.platformAddress,
-  index: candidate.index,
-  nonce: candidate.nonce,
-  credits,
-})
+
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
 // The account-level xpub is persisted per wallet so the address list derives
@@ -81,7 +77,7 @@ export class PlatformAddressService {
   }
 
   async getPlatformAddresses(walletId: string): Promise<PlatformAddressEntry[]> {
-    const wallet = await this.requireWallet(walletId)
+    const wallet = await requireWallet(this.walletDAO, walletId)
     if (wallet.platformXpub == null) return []
 
     await this.extendPlatformWindowOnce(walletId, wallet.platformXpub, wallet.network)
@@ -95,7 +91,7 @@ export class PlatformAddressService {
   }
 
   async addPlatformAddress(walletId: string): Promise<PlatformAddressEntry[]> {
-    const wallet = await this.requireWallet(walletId)
+    const wallet = await requireWallet(this.walletDAO, walletId)
     if (wallet.platformXpub == null) {
       throw new Error('Platform addresses are not derived yet')
     }
@@ -134,7 +130,7 @@ export class PlatformAddressService {
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
       seed,
-      input: toInput(source, amountCredits),
+      input: toAddressInput(source, amountCredits),
       recipient: toPlatformAddress,
       amountCredits,
     })
@@ -256,7 +252,7 @@ export class PlatformAddressService {
     const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
       seed,
       identityIndex,
-      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
     })
 
     await this.identityDAO.insertIdentities([{
@@ -299,7 +295,7 @@ export class PlatformAddressService {
     const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
       seed,
       identifier: identityId,
-      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
     })
 
     return {
@@ -335,7 +331,7 @@ export class PlatformAddressService {
 
     const {stHash} = await this.platform.request('addressWithdrawal', network, {
       seed,
-      inputs: plan.inputs.map(({candidate, credits}) => toInput(candidate, credits)),
+      inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
       coreAddress: toCoreAddress,
     })
 
@@ -487,13 +483,6 @@ export class PlatformAddressService {
     await this.assetLock.done(state, row, stHash)
   }
 
-  private async requireWallet(walletId: string): Promise<Wallet> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    return wallet
-  }
 
   private async requireIdentity(walletId: string, identifier: string): Promise<Identity> {
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
