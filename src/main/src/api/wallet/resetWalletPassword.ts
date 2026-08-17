@@ -1,14 +1,14 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/core/WalletService'
+import { WalletCredentialsService } from '../../services/wallet/WalletCredentialsService'
 
 export class ResetWalletPasswordHandler {
-  private walletService: WalletService
+  private credentials: WalletCredentialsService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(credentials: WalletCredentialsService) {
+    this.credentials = credentials
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: string, mnemonic: string, newPassword: string): Promise<boolean> => {
-    return this.walletService.resetWalletPassword(walletId, mnemonic, newPassword)
+    return this.credentials.resetWalletPassword(walletId, mnemonic, newPassword)
   }
 }

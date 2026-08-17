@@ -1,14 +1,14 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/core/WalletService'
+import { IdentityService } from '../../services/platform/IdentityService'
 
 export class GetIdentityBalance {
-  private walletService: WalletService
+  private identities: IdentityService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(identities: IdentityService) {
+    this.identities = identities
   }
 
   handle = async (_event: IpcMainInvokeEvent, identityId: string): Promise<bigint> => {
-    return this.walletService.getIdentityBalance(identityId)
+    return this.identities.getIdentityBalance(identityId)
   }
 }

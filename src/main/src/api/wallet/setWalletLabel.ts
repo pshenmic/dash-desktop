@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/core/WalletService'
+import { WalletService } from '../../services/wallet/WalletService'
 import {QueryStatus} from "../../types/QueryStatus";
 
 export class SetWalletLabel {

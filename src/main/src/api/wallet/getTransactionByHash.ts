@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { Network } from '../../types/Network'
-import { WalletService } from '../../services/core/WalletService'
+import { WalletService } from '../../services/wallet/WalletService'
 import {Transaction} from "../../types/Transaction";
 
 export class GetTransactionByHashHandler {

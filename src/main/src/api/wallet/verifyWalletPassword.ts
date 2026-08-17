@@ -1,14 +1,14 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/core/WalletService'
+import { WalletCredentialsService } from '../../services/wallet/WalletCredentialsService'
 
 export class VerifyWalletPasswordHandler {
-  private walletService: WalletService
+  private credentials: WalletCredentialsService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(credentials: WalletCredentialsService) {
+    this.credentials = credentials
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: string, password: string): Promise<boolean> => {
-    return this.walletService.verifyWalletPassword(walletId, password)
+    return this.credentials.verifyWalletPassword(walletId, password)
   }
 }

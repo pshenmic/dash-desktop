@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {WalletService} from '../../src/main/src/services/core/WalletService'
+import {IdentityService} from '../../src/main/src/services/platform/IdentityService'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
@@ -7,7 +7,7 @@ import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 const IDENTIFIER = 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec'
 
 describe('listing identities', () => {
-  let walletService: WalletService
+  let identities: IdentityService
   let identityDAO: IdentityDAO
   let createWalletHandler: CreateWalletHandler
   let request: ReturnType<typeof vi.fn>
@@ -15,7 +15,7 @@ describe('listing identities', () => {
 
   beforeEach(async () => {
     const wired = await harness()
-    walletService = wired.walletService
+    identities = wired.identityService
     identityDAO = wired.identityDAO
     createWalletHandler = wired.createWalletHandler
     request = wired.request
@@ -29,19 +29,19 @@ describe('listing identities', () => {
   it('asks for aliases', async () => {
     request.mockResolvedValue({infos: [{identifier: IDENTIFIER, balance: 5n, alias: 'alice.dash'}]})
 
-    const identities = await walletService.getIdentities(walletId)
+    const listed = await identities.getIdentities(walletId)
 
     expect(request).toHaveBeenCalledWith(
       'identityInfos',
       'testnet',
       expect.objectContaining({skipDPNS: false}),
     )
-    expect(identities[0]!.alias).toBe('alice.dash')
+    expect(listed[0]!.alias).toBe('alice.dash')
   })
 
   it('skips an identity Platform does not know yet', async () => {
     request.mockResolvedValue({infos: []})
 
-    expect(await walletService.getIdentities(walletId)).toEqual([])
+    expect(await identities.getIdentities(walletId)).toEqual([])
   })
 })

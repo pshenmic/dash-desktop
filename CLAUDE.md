@@ -79,18 +79,25 @@ and TypeScript. Three processes:
   register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
 - `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
   `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
-- `services/` — business logic only, in three subdirectories by domain:
-  - `services/core/` — L1: `WalletService`, `CoreDiscoveryService`,
-    `CoreLockService`, `CoreTransactionService`, `WalletSyncService`.
-  - `services/platform/` — L2: `PlatformWorkerService`,
-    `PlatformAddressService`, `IdentityRegistrationService`, `ShieldedService`,
+- `services/` — business logic only, in four subdirectories:
+  - `services/wallet/` — the wallet record and the aggregate over it:
+    `WalletService`, `WalletCredentialsService`.
+  - `services/core/` — L1: `CoreDiscoveryService`, `CoreLockService`,
+    `CoreTransactionService`, `WalletSyncService`.
+  - `services/platform/` — L2: `PlatformWorkerService`, `IdentityService`,
+    `IdentityRegistrationService`, `PlatformAddressService`, `ShieldedService`,
     `AssetLockService`.
   - `services/app/` — process-wide, wallet-agnostic: `ApplicationService`,
     `ContactService`, `RatesService`.
 
-  `platform/` depends on `core/`, and there is exactly one edge the other way:
-  `WalletService` → `PlatformWorkerService`, for the three identity read
-  methods that have not been extracted yet. Do not add a second one.
+  **`core/` imports nothing from `platform/`, and `WalletService` is the only
+  service that crosses groups at all.** It is an aggregate — `getWalletBalance`
+  is the L1 address total plus the L2 identity credits, which no single layer
+  can answer — so composing both is its job and nothing else may copy it.
+
+  `WalletCredentialsService` owns the mnemonic and the password and touches no
+  chain, which is why it is not in `core/`. `IdentityService` reads identities;
+  `IdentityRegistrationService` creates them by funding an asset lock.
 
   Three kinds also share the `Service` suffix and fail differently: **process
   supervisors** (`WalletSyncService`, `PlatformWorkerService`) own a

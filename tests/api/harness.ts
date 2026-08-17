@@ -1,7 +1,7 @@
 import {vi} from 'vitest'
 import {Knex} from 'knex'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {WalletService} from '../../src/main/src/services/core/WalletService'
+import {WalletService} from '../../src/main/src/services/wallet/WalletService'
 import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {ApplicationService} from '../../src/main/src/services/app/ApplicationService'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
@@ -11,6 +11,8 @@ import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
+import {WalletCredentialsService} from '../../src/main/src/services/wallet/WalletCredentialsService'
+import {IdentityService} from '../../src/main/src/services/platform/IdentityService'
 import {CoreLockService} from '../../src/main/src/services/core/CoreLockService'
 import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
@@ -33,6 +35,8 @@ export interface Harness {
   providers: WalletProviderFactory
   coreDiscoveryService: CoreDiscoveryService
   coreLockService: CoreLockService
+  walletCredentialsService: WalletCredentialsService
+  identityService: IdentityService
   applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -66,8 +70,11 @@ export async function harness(): Promise<Harness> {
   const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers)
 
+  const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
+  const identityService = new IdentityService(walletDAO, identityDAO, platform)
+
   const walletService = new WalletService(
-    walletDAO, addressDAO, identityDAO, walletSyncService, platform,
+    walletDAO, addressDAO, identityDAO, identityService, walletSyncService, platform,
     providers, coreDiscoveryService, coreTransactionService, TEST_PBKDF2_ITERATIONS,
   )
 
@@ -81,6 +88,8 @@ export async function harness(): Promise<Harness> {
     providers,
     coreDiscoveryService,
     coreLockService,
+    walletCredentialsService,
+    identityService,
     applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,
