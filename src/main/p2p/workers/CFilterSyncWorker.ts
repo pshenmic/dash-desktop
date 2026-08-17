@@ -585,8 +585,7 @@ export class CFilterSyncWorker extends Worker {
     this.emitStatus('cfheaders')
 
     // Requested in parallel: each chunk sits between two cfcheckpt anchors, so
-    // it is verified on arrival without the chunk below it. One at a time made
-    // the walk a round trip per 1000 blocks and nothing else.
+    // it is verified on arrival without the chunk below it.
     while (
       this.cfHeaders.walkStart <= effectiveTip &&
       this.cfHeaders.pending.size < MAX_INFLIGHT_CFHEADERS
@@ -674,9 +673,8 @@ export class CFilterSyncWorker extends Worker {
 
     let prev = msg.previousFilterHeader ?? new Uint8Array(32)
     // Chunks break on checkpoint boundaries, so the height below a chunk is
-    // itself a checkpoint for all but the first. Taking the anchor from there
-    // rather than from the derived chain is what lets chunks be verified in any
-    // order, and so be fetched in parallel.
+    // itself a checkpoint for all but the first. Anchoring there rather than on
+    // the derived chain is what lets chunks verify in any order.
     const prevExpected = this.checkpointHeaders.get(pending.startHeight - 1)
       ?? this.heightToFilterHeader.get(pending.startHeight - 1)
     if (prevExpected && !equalBytes(prevExpected, prev)) {

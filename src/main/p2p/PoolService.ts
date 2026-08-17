@@ -19,13 +19,10 @@ export class PoolService extends EventEmitter {
   readonly filterCapablePeers = new Set<Peer>()
   readonly peerServices = new WeakMap<Peer, bigint>()
 
-  // Moves rather than copies: Dash Core caps connections per source IP, so two
-  // pools dialling the same nodes means one starves.
-  //
-  // Only the surplus above the reserve moves. Handing over a *fraction* of the
-  // book drained it instead: this runs on every gossip and every peer change,
-  // so half of the remainder went each time — measured at 33 known addresses
-  // and 2 ready peers here against 731 and 18 in the pool being fed.
+  // Moves rather than copies: a node dialled twice from one host drops both
+  // connections, so every address has exactly one owner. Only the surplus above
+  // the reserve moves — this runs on every gossip and every peer change, so a
+  // fractional hand-off would drain the book a slice at a time.
   takeAddresses(): AddrInfo[] {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
@@ -73,10 +70,8 @@ export class PoolService extends EventEmitter {
     this.pool = new Pool({
       network: seeds.length > 0 && base ? {...base, dnsSeeds: seeds} : network,
       // Opened at the ready target, not at maxConnections: most gossiped
-      // addresses are dead, so a wide opening spends the sync dialling them.
-      // Measured at 467 failed sockets against 51 handshakes during header sync,
-      // and that setup and teardown runs on the thread parsing the responses.
-      // The refill loop still widens when the pool is genuinely short.
+      // addresses are dead, and their socket setup and teardown runs on the same
+      // thread that parses sync responses. The refill loop widens when short.
       maxSize: this.readyTarget,
       relay: options.relay ?? true,
       messages: this.messages,
@@ -93,9 +88,9 @@ export class PoolService extends EventEmitter {
     this.addAddresses(this.parsePeers(this.customPeers))
     this.refillTimer = setInterval(() => {
       if (this.stopped) return
-      // maxSize caps connections, not ready peers, and dead gossip addresses
-      // hold half-open slots until they time out — so capacity opens wide while
-      // short and clamps back once filled, or dead sockets crowd out live ones.
+      // maxSize caps connections, not ready peers, and dead gossip addresses hold
+      // half-open slots until they time out — so capacity has to clamp back once
+      // filled, or those sockets crowd out live ones.
       const ready = this.readyPeers.size
       // A run of ticks with no movement means we have found the network's
       // ceiling; widening past it just re-dials the same dead addresses.
@@ -141,9 +136,8 @@ export class PoolService extends EventEmitter {
         console.log(`[${this.label}] trimmed ${surplus.length} peers ready=${ready}->${this.readyPeers.size}`)
       }
       // Deliberately no refill between the minimum and the target: most known
-      // addresses are dead, so topping up a pool that is merely below target
-      // dials them on every tick. Measured at ~2.6 failed sockets a second,
-      // which cost the sync more than the peers they seated were worth.
+      // addresses are dead, so topping up a merely-below-target pool re-dials
+      // them every tick and costs the sync more than the peers it seats.
     }, POOL_REFILL_INTERVAL_MS)
     this.refillTimer.unref?.()
   }
@@ -204,15 +198,14 @@ export class PoolService extends EventEmitter {
       console.error(`[${this.label}] dns seed failed, no addresses to dial: ${err.message}`)
     })
 
-    // dash-core-p2p never sets TCP_NODELAY, so Nagle holds a small write until
-    // the previous one is acknowledged. Every cf*/getheaders request is a small
-    // write followed by a wait, which is the case Nagle plus the peer's delayed
-    // ACK turns into a fixed ~40ms stall per round trip — invisible as CPU or
-    // bandwidth, and only paid when one request is outstanding at a time.
+    // dash-core-p2p never sets TCP_NODELAY. Every cf*/getheaders request is a
+    // small write followed by a wait, which is the case Nagle plus the peer's
+    // delayed ACK turns into a fixed ~40ms stall per round trip.
     this.pool.on('peerconnect', (peer: Peer) => {
       const socket = (peer as unknown as {socket?: {setNoDelay?: (on: boolean) => void}}).socket
+      // Logged either way, once: whether this took effect is indistinguishable
+      // from a slow network otherwise.
       if (typeof socket?.setNoDelay !== 'function') {
-        // Reported once: silently skipping it looks identical to a slow network.
         if (!this.noDelayUnavailable) {
           this.noDelayUnavailable = true
           console.warn(`[${this.label}] socket has no setNoDelay — Nagle stays on`)
@@ -220,8 +213,6 @@ export class PoolService extends EventEmitter {
         return
       }
       socket.setNoDelay(true)
-      // Once, on the first socket: a silent no-op here is indistinguishable
-      // from a slow network, so the log has to say which happened.
       if (this.noDelayPeers++ === 0) {
         console.log(`[${this.label}] TCP_NODELAY set on peer sockets`)
       }
