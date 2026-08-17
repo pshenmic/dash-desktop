@@ -8,16 +8,16 @@ import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Network} from '../../types/Network'
 import {Address} from '../../types/Address'
 import {GroupedAddresses} from '../../types/GroupedAddresses'
-import {IdentityInfo} from '../../types/Identity'
 import {Wallet} from '../../types/Wallet'
 import {QueryStatus} from "../../types/QueryStatus";
 import {WalletBalance} from "../../types/WalletBalance";
 import {Transaction} from "../../types/Transaction";
 import {SendResult} from "../../types/SendResult";
-import {CoreTransactionService} from './CoreTransactionService'
-import {CoreDiscoveryService} from './CoreDiscoveryService'
-import {WalletSyncService} from './WalletSyncService'
-import {decryptMnemonic, encryptMnemonic} from "../../utils";
+import {IdentityService} from '../platform/IdentityService'
+import {CoreTransactionService} from '../core/CoreTransactionService'
+import {CoreDiscoveryService} from '../core/CoreDiscoveryService'
+import {WalletSyncService} from '../core/WalletSyncService'
+import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {
@@ -35,6 +35,7 @@ export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
+  private identities: IdentityService
   private walletSyncService: WalletSyncService
   private platform: PlatformWorkerService
   private providers: WalletProviderFactory
@@ -49,6 +50,7 @@ export class WalletService {
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
+    identities: IdentityService,
     walletSyncService: WalletSyncService,
     platform: PlatformWorkerService,
     providers: WalletProviderFactory,
@@ -59,6 +61,7 @@ export class WalletService {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
+    this.identities = identities
     this.walletSyncService = walletSyncService
     this.platform = platform
     this.providers = providers
@@ -189,90 +192,6 @@ export class WalletService {
     return result
   }
 
-  async exportMnemonic(walletId: string, password: string): Promise<string> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-
-    const isValid = await this.verifyWalletPassword(walletId, password)
-    if (!isValid) {
-      throw new Error('Invalid password')
-    }
-
-    return decryptMnemonic(wallet.encryptedMnemonic, password)
-  }
-
-  async verifyWalletPassword(walletId: string, password: string): Promise<boolean> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-
-    let decryptedMnemonic: string
-
-    try {
-       decryptedMnemonic = decryptMnemonic(wallet.encryptedMnemonic, password)
-    } catch {
-      return false
-    }
-
-    const isValid = await this.mnemonicMatchesWallet(walletId, wallet.network, decryptedMnemonic)
-
-    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null)) {
-      const seed = this.keyPair.mnemonicToSeed(decryptedMnemonic)
-      const hdKey = this.keyPair.seedToHdKey(seed, wallet.network)
-
-      if (wallet.platformXpub == null) {
-        const platformXpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
-        await this.walletDAO.setPlatformXpub(walletId, platformXpub)
-      }
-
-      if (wallet.coreXpub == null) {
-        const accountNode = await this.keyPair.derivePath(hdKey, coreAccountPath(COIN_TYPE[wallet.network], 0))
-        await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
-      }
-    }
-
-    return isValid
-  }
-
-  async verifyWalletMnemonic(walletId: string, mnemonic: string): Promise<boolean> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-
-    return this.mnemonicMatchesWallet(walletId, wallet.network, mnemonic)
-  }
-
-  async resetWalletPassword(walletId: string, mnemonic: string, newPassword: string): Promise<boolean> {
-    const matches = await this.verifyWalletMnemonic(walletId, mnemonic)
-    if (!matches) {
-      return false
-    }
-
-    const encryptedMnemonic = encryptMnemonic(mnemonic.trim(), newPassword, this.pbkdf2Iterations)
-    await this.walletDAO.updateEncryptedMnemonic(walletId, encryptedMnemonic)
-
-    return true
-  }
-
-  private async mnemonicMatchesWallet(walletId: string, network: Network, mnemonic: string): Promise<boolean> {
-    const groupedAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const [referenceWalletAddress] = [...groupedAddresses.change, ...groupedAddresses.receiving]
-
-    if (referenceWalletAddress == null) {
-      return false
-    }
-
-    try {
-      const seed = this.keyPair.mnemonicToSeed(mnemonic.trim())
-      const hdKey = this.keyPair.seedToHdKey(seed, network)
-      const coinType = COIN_TYPE[network]
-
-      const key = await this.keyPair.derivePath(hdKey, `m/44'/${coinType}'/0'/1/${referenceWalletAddress.index}`)
-      if (!key.publicKey) {
-        return false
-      }
-
-      return this.keyPair.p2pkhAddress(key.publicKey, network) === referenceWalletAddress.address
-    } catch {
-      return false
-    }
-  }
-
   async setAddressLabel(walletId: string, address: string, label: string): Promise<QueryStatus> {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }
@@ -372,17 +291,10 @@ export class WalletService {
   async getWalletBalance(walletId: string): Promise<WalletBalance> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
-    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
 
     const addressesBalance = await provider.getWalletBalance()
-
-    const {infos} = await this.platform.request('identityInfos', wallet.network, {
-      identifiers: identities.map(identity => identity.identifier),
-      skipDPNS: true,
-    })
-    const identitiesBalance = infos.reduce((acc, info) => acc + info.balance, 0n)
+    const identitiesBalance = await this.identities.totalCredits(walletId, wallet.network)
 
     return {
       dash: {
@@ -455,47 +367,4 @@ export class WalletService {
       peersAcked: broadcast.peersDelivered.length,
     }
   }
-
-  async getIdentities(walletId: string): Promise<IdentityInfo[]> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-
-    const stored = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const {infos} = await this.platform.request('identityInfos', wallet.network, {
-      identifiers: stored.map(entry => entry.identifier),
-      skipDPNS: false,
-    })
-    const byIdentifier = new Map(infos.map(info => [info.identifier, info]))
-
-    // An identity the worker could not resolve is not registered yet — skipped,
-    // as before.
-    return stored.flatMap(entry => {
-      const info = byIdentifier.get(entry.identifier)
-      if (info == null) return []
-      // TODO: Implement read usd amount
-      return [{
-        identityIndex: entry.identityIndex,
-        identifier: info.identifier,
-        alias: info.alias,
-        balance: {
-          amount: info.balance,
-          usdAmount: '0.0'
-        },
-        derivationPath: entry.derivationPath,
-        assetLockTxid: entry.assetLockTxid ?? null
-      }]
-    })
-  }
-
-  async getIdentityBalance(identifier: string): Promise<bigint> {
-    const wallet = await requireSelectedWallet(this.walletDAO)
-    const {credits} = await this.platform.request('identityBalance', wallet.network, {identifier})
-    return credits
-  }
-
-  async getIdentityNonce(identifier: string): Promise<bigint> {
-    const wallet = await requireSelectedWallet(this.walletDAO)
-    const {nonce} = await this.platform.request('identityNonce', wallet.network, {identifier})
-    return nonce
-  }
 }
-

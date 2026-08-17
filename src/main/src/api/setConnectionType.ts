@@ -3,7 +3,7 @@ import {QueryStatus} from "../types/QueryStatus";
 import {ZodError} from "zod";
 import {ConnectionType} from "../preferences/general";
 import {ApplicationService} from "../services/app/ApplicationService";
-import {WalletService} from "../services/core/WalletService";
+import {WalletService} from "../services/wallet/WalletService";
 import {CoreDiscoveryService} from "../services/core/CoreDiscoveryService";
 
 export class SetConnectionTypeHandler {
