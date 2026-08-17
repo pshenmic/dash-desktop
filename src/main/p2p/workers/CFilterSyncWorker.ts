@@ -17,8 +17,6 @@ import {
   type Peer,
 } from 'dash-core-p2p'
 import {Block, utils as sdkUtils} from 'dash-core-sdk'
-// @ts-ignore — no bundled types for @dashevo/x11-hash-js
-import x11 from '@dashevo/x11-hash-js'
 import {Network} from '../../src/types/Network'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
@@ -26,6 +24,7 @@ import {WatchSet} from '../WatchSet'
 import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
 import {formatChainDbError} from '../chainDbError'
 import {HashIndex} from '../hashIndex'
+import {x11Wire} from '../x11'
 import {GENESIS, MB} from '../constants'
 import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../types/walletSync'
 import type {
@@ -52,12 +51,6 @@ import {Worker} from './Worker'
 import {PersistedHeader} from '../types/chainStore'
 
 const {doubleSHA256, bytesToHex} = sdkUtils
-
-function x11Wire(raw: Uint8Array): Uint8Array {
-  const buf = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return new Uint8Array((x11 as any).digest(buf, 1, 1) as number[])
-}
 
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false

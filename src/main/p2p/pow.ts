@@ -1,7 +1,6 @@
-// @ts-ignore — no bundled types for @dashevo/x11-hash-js
-import x11 from '@dashevo/x11-hash-js'
-
+import {wireToDisplayHex} from './byteOrder'
 import {POW_LIMIT_BITS} from './constants'
+import {x11Wire} from './x11'
 
 export function bitsToTarget(bits: number): bigint {
   const exponent = bits >>> 24
@@ -21,15 +20,11 @@ export function headerWork(bits: number): bigint {
   return ((1n << 256n) - target - 1n) / (target + 1n) + 1n
 }
 
+// Bytes 4..35 of a header are its parent's hash, in wire order.
 export function rawPrevHash(raw: Uint8Array): string {
-  let out = ''
-  for (let i = 35; i >= 4; i--) out += raw[i]!.toString(16).padStart(2, '0')
-  return out
+  return wireToDisplayHex(raw.subarray(4, 36))
 }
 
 export function hashHeaderRaw(raw: Uint8Array): string {
-  const digest = (x11 as any).digest([...raw], 1, 1) as number[]
-  let hex = ''
-  for (let i = digest.length - 1; i >= 0; i--) hex += digest[i]!.toString(16).padStart(2, '0')
-  return hex
+  return wireToDisplayHex(x11Wire(raw))
 }
