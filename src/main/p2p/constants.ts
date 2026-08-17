@@ -136,7 +136,7 @@ export const FALLBACK_PEERS: Record<Network, string[]> = {
 // than the redundant batches did — measured 151ms per race against ~80ms here —
 // because a small sample is more often won by a slow peer. Roughly 3 peers
 // answer whatever the width, so widening costs little beyond those copies.
-export const HEADER_RACE_PEERS = 15
+export const HEADER_RACE_PEERS = 10
 
 export const HEADER_SYNC_TIMEOUT_MS = 30_000
 
