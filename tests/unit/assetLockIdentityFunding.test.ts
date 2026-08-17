@@ -83,7 +83,6 @@ describe('identity funding from an asset lock', () => {
       markBroadcastingSt: vi.fn().mockResolvedValue(undefined),
       done,
       fail,
-      countFundings: vi.fn().mockResolvedValue(0),
     } as unknown as AssetLockService
 
     insertIdentity = vi.fn().mockResolvedValue(undefined)

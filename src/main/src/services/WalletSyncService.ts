@@ -626,13 +626,6 @@ export class WalletSyncService {
     return result
   }
 
-  // Frees the inputs to be respent. The caller accepts the risk the tx still
-  // confirms later — short of a confirmed conflict there is no way to prove a
-  // broadcast failed.
-  abandonTransaction = async (walletId: string, txid: string): Promise<void> => {
-    await this.transactionDAO.abandonTransaction(walletId, txid)
-  }
-
   // ── pending-tx upkeep ──────────────────────────────────────────────────────
 
   private startRebroadcastLoop(): void {

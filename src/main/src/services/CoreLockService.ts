@@ -6,6 +6,7 @@ import {Network} from '../types/Network'
 import {Transaction} from '../types/Transaction'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {pickCreditChangeAddress, selectTransferInputs} from '../utils/transferInputs'
+import {requireWallet} from '../utils/requireWallet'
 import {CoreTransactionService} from './CoreTransactionService'
 import {WalletSyncService} from './WalletSyncService'
 
@@ -40,11 +41,7 @@ export class CoreLockService implements AssetLockFunder {
       throw new Error('Amount must be greater than zero')
     }
 
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
-    const network = wallet.network
+    const network = (await requireWallet(this.walletDAO, walletId)).network
 
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const provider = this.providers.forWallet(walletId, network)
@@ -99,10 +96,7 @@ export class CoreLockService implements AssetLockFunder {
   }
 
   async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
     const status = await this.providers.forWallet(walletId, wallet.network).getTxLockStatus(txid)
     if (status.instantLocked) return status
     // The isdlock arrives on our own pool in both modes, but rpc mode keeps no
@@ -113,16 +107,12 @@ export class CoreLockService implements AssetLockFunder {
   // Wallet-scoped, unlike WalletService.getTransactionByHash: a resume reads the
   // funding's own wallet, which is not necessarily the selected one.
   async getTransaction(walletId: string, txid: string): Promise<Transaction> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) {
-      throw new Error('Wallet not found')
-    }
+    const wallet = await requireWallet(this.walletDAO, walletId)
     return this.providers.forWallet(walletId, wallet.network).getTransactionByHash(txid)
   }
 
   async getUsedAddresses(walletId: string, addresses: string[]): Promise<string[]> {
-    const wallet = await this.walletDAO.getWalletById(walletId)
-    if (wallet == null) throw new Error('Wallet not found')
+    const wallet = await requireWallet(this.walletDAO, walletId)
     return this.providers.forWallet(walletId, wallet.network).getUsedAddresses(addresses)
   }
 }
