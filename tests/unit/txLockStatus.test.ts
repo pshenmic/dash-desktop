@@ -50,8 +50,8 @@ describe('reading a transaction lock status', () => {
     })
   })
 
-  // The defect: an indexer that could not answer produced the same all-false
-  // shape, so a send looked stuck rather than unverified.
+  // An indexer that could not answer must not produce the same all-false shape
+  // as one reporting no lock — a send would look stuck rather than unverified.
   it('refuses to call a server failure "not locked"', async () => {
     vi.useFakeTimers()
     state.respond = () => status(503)

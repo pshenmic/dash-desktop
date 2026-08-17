@@ -46,8 +46,7 @@ describe('asset lock funding writes', () => {
   }
 
   // txid is globally unique in this table, so the where clause cannot reach
-  // another wallet's row today. These pin the scope so it stays that way if the
-  // index is ever relaxed — the reads have always been wallet-scoped.
+  // another wallet's row today — these hold if that index is ever relaxed.
   it('advances only the funding it names', async () => {
     await dao.updateStatus(A, TXID_A, AssetLockFundingStatus.Done, {stHash: 'st'})
 
@@ -75,8 +74,8 @@ describe('asset lock funding writes', () => {
     })
   })
 
-  // The real half of the finding: error was only ever set, never cleared, so a
-  // funding that failed and then succeeded on resume kept the stale message.
+  // error is only ever set by the failing path, so a funding that failed and
+  // then succeeded on resume must not keep the stale message.
   it('clears a stale error when the funding moves on', async () => {
     await dao.updateStatus(A, TXID_A, AssetLockFundingStatus.Error, {error: 'broadcast rejected'})
     expect(await dao.getActiveFunding(A)).toBeNull()

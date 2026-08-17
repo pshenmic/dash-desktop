@@ -157,8 +157,7 @@ describe('the seed a shielded job holds', () => {
   })
 
   // The refresh that follows a spend trial-decrypts with the same seed. Zeroing
-  // without waiting for it hands the worker 64 zero bytes and decodes nothing,
-  // silently — the balance just fails to move.
+  // before it runs hands the worker 64 zero bytes and decodes nothing, silently.
   it('is still live while the post-spend refresh trial-decrypts', async () => {
     const {service, request} = wire()
     let liveDuringSync: boolean | null = null

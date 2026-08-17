@@ -67,8 +67,7 @@ export class PlatformAddressService {
   }
 
   // Up to MAX_DISCOVERY_BATCHES sequential worker round trips, on a channel the
-  // renderer polls and addPlatformAddress calls straight past its cache. Same
-  // guard as WalletService.discoveryInflight and ShieldedService.noteFetches.
+  // renderer polls — the same guard as WalletService.discoveryInflight.
   private windowInflight = new Map<string, Promise<void>>()
 
   private extendPlatformWindowOnce(walletId: string, xpub: string, network: Network): Promise<void> {
