@@ -1,8 +1,8 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
-import os from 'os'
 import fs from 'fs'
-import {ADDRESS_LOOKAHEAD, ChainStorageFilename, HomeFolderName, LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants'
+import {ADDRESS_LOOKAHEAD, ChainStorageFilename, LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants'
+import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {logChildOutput} from '../../logger'
 import {WalletDAO} from '../../database/WalletDAO'
@@ -292,7 +292,7 @@ export class WalletSyncService {
     const seedUtxos = await this.transactionDAO.getUtxos(walletId)
     const cfilterCursor = await this.transactionDAO.getCursor(walletId)
 
-    const chainDbPath = path.join(os.homedir(), HomeFolderName, ChainStorageFilename, network)
+    const chainDbPath = dataPath(ChainStorageFilename, network)
     try {
       fs.mkdirSync(chainDbPath, {recursive: true})
     } catch (err) {
@@ -737,7 +737,7 @@ export class WalletSyncService {
     // the wipe, re-creating the cursor at its block's height so the next scan
     // skips everything below it.
     await this.persistQueue
-    const chainDbPath = path.join(os.homedir(), HomeFolderName, ChainStorageFilename, network)
+    const chainDbPath = dataPath(ChainStorageFilename, network)
     await rmWithRetry(chainDbPath)
     await this.transactionDAO.resetSyncDataByNetwork(network)
   }

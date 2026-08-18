@@ -208,6 +208,15 @@ SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,
 `addresses`, `identities`, `transactions` (+ `transaction_inputs/_outputs`,
 `wallet_sync_state`), `contacts`.
 
+**Never build a path under the data folder by hand.** Everything on disk —
+`storage.db`, `preferences.json`, `logs/`, `ChainStorage/` — goes through
+`dataPath(...segments)` in `src/main/src/utils/dataPath.ts`, which roots an
+unpackaged run at `~/.dash-desktop/dev/` and a packaged one at
+`~/.dash-desktop/`. The switch is `import.meta.env.DEV`, so electron-vite
+folds it away at build time and the shipped bundle has no dev branch. A
+`path.join(os.homedir(), HomeFolderName, ...)` written at a call site silently
+opts that file out of the split.
+
 **Migrations are registered BY HAND, not auto-discovered.** Adding a file under
 `src/main/migrations/` does nothing on its own — `migrateKnex()` in
 `src/main/src/utils.ts` builds an inline `migrations` array. You MUST:

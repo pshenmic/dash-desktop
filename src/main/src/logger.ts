@@ -1,15 +1,14 @@
 import log from 'electron-log/main'
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 import {
-  HomeFolderName,
   LogsFolderName,
   LOG_FILE_MAX_SIZE,
   LOG_RETENTION_DAYS
 } from './constants'
+import {dataPath} from './utils/dataPath'
 
-const logsDir = path.join(os.homedir(), HomeFolderName, LogsFolderName)
+const logsDir = dataPath(LogsFolderName)
 
 const dateStamp = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
