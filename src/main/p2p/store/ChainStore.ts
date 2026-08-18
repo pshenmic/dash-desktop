@@ -1,9 +1,9 @@
 import {ClassicLevel} from 'classic-level'
-import {Network} from '../src/types/Network'
+import {Network} from '../../src/types/Network'
 
-import {displayHexToWire} from './byteOrder'
-import {ChainTipState, PersistedHeader, StoredState} from './types/chainStore'
-import {HEIGHT_KEY_WIDTH} from './constants'
+import {displayHexToWire} from '../utils/byteOrder'
+import {ChainTipState, PersistedHeader, StoredState} from '../types/chainStore'
+import {HEIGHT_KEY_WIDTH} from '../constants'
 
 function headerKey(height: number): string {
   return `h:${height.toString().padStart(HEIGHT_KEY_WIDTH, '0')}`

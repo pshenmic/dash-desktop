@@ -5,7 +5,7 @@ const captured = vi.hoisted(() => ({
   cfilterWorkers: [] as Array<Record<string, unknown>>,
 }))
 
-vi.mock('../../src/main/p2p/ChainStore', () => ({
+vi.mock('../../src/main/p2p/store/ChainStore', () => ({
   ChainStore: class {
     network: string
     constructor(_path: string, network: string) {
@@ -18,7 +18,7 @@ vi.mock('../../src/main/p2p/ChainStore', () => ({
   },
 }))
 
-vi.mock('../../src/main/p2p/PoolService', async () => {
+vi.mock('../../src/main/p2p/net/PoolService', async () => {
   const {EventEmitter} = await import('events')
   return {
     PoolService: class extends EventEmitter {
@@ -37,7 +37,7 @@ vi.mock('../../src/main/p2p/PoolService', async () => {
   }
 })
 
-vi.mock('../../src/main/p2p/workers/HeaderSyncWorker', async () => {
+vi.mock('../../src/main/p2p/sync/workers/HeaderSyncWorker', async () => {
   const {EventEmitter} = await import('events')
   return {
     HeaderSyncWorker: class extends EventEmitter {
@@ -55,7 +55,7 @@ vi.mock('../../src/main/p2p/workers/HeaderSyncWorker', async () => {
   }
 })
 
-vi.mock('../../src/main/p2p/workers/CFilterSyncWorker', async () => {
+vi.mock('../../src/main/p2p/sync/workers/CFilterSyncWorker', async () => {
   const {EventEmitter} = await import('events')
   return {
     CFilterSyncWorker: class extends EventEmitter {
@@ -94,7 +94,7 @@ vi.mock('fs', () => {
   return {...mocked, default: mocked}
 })
 
-import {SyncService} from '../../src/main/p2p/SyncService'
+import {SyncService} from '../../src/main/p2p/sync/SyncService'
 import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {Preferences} from '../../src/main/src/preferences'
 import type {WalletSyncUtxo} from '../../src/main/p2p/types/walletSync'

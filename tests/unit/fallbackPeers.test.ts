@@ -28,7 +28,7 @@ vi.mock('dash-core-p2p', async () => {
   }
 })
 
-import {PoolService} from '../../src/main/p2p/PoolService'
+import {PoolService} from '../../src/main/p2p/net/PoolService'
 import {FALLBACK_PEERS, POOL_FALLBACK_TICKS, POOL_REFILL_INTERVAL_MS} from '../../src/main/p2p/constants'
 import {Network} from '../../src/main/src/types/Network'
 

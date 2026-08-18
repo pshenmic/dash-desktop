@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {ChainWindow} from '../../src/main/p2p/chainWindow'
+import {ChainWindow} from '../../src/main/p2p/store/chainWindow'
 import {REORG_MAX_DEPTH} from '../../src/main/p2p/constants'
 
 const hashAt = (height: number): string => height.toString(16).padStart(64, '0')

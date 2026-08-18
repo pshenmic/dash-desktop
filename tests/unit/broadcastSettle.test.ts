@@ -56,9 +56,9 @@ vi.mock('dash-core-sdk', () => ({
   Transaction: {fromHex: vi.fn(() => ({hash: (): string => 'txid-1'}))},
 }))
 
-import {BroadcastService} from '../../src/main/p2p/BroadcastService'
+import {BroadcastService} from '../../src/main/p2p/net/BroadcastService'
 import {BROADCAST_POLICY} from '../../src/main/p2p/constants'
-import {PoolService} from '../../src/main/p2p/PoolService'
+import {PoolService} from '../../src/main/p2p/net/PoolService'
 
 const {minPeerAcks, witnessPeers, timeoutMs} = BROADCAST_POLICY
 

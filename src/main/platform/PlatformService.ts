@@ -43,7 +43,7 @@ import {ERROR_CODES} from './constants'
 import {InFlight} from './types/service'
 
 // Orchestrator for the platform utility process: owns the SDKs and the lanes,
-// dispatches commands, and aggregates status. Mirrors p2p/SyncService — it
+// dispatches commands, and aggregates status. Mirrors p2p/sync/SyncService — it
 // never touches parentPort (that is index.ts' job), never opens storage, and
 // holds no wallet state. Operations receive an OperationContext and know
 // nothing about the transport.

@@ -17,26 +17,26 @@ import {
   type Peer,
 } from 'dash-core-p2p'
 import {Block, utils as sdkUtils} from 'dash-core-sdk'
-import {Network} from '../../src/types/Network'
-import {ChainStore} from '../ChainStore'
-import {PoolService} from '../PoolService'
+import {Network} from '../../../src/types/Network'
+import {ChainStore} from '../../store/ChainStore'
+import {PoolService} from '../../net/PoolService'
 import {WatchSet} from '../WatchSet'
 import {BlockFetcher} from '../blockFetcher'
-import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
-import {formatChainDbError} from '../chainDbError'
+import {displayHexToWire, wireToDisplayHex} from '../../utils/byteOrder'
+import {formatChainDbError} from '../../store/chainDbError'
 import {CheckpointAnchors} from '../checkpointAnchors'
-import {HashIndex} from '../hashIndex'
-import {PeerRotation} from '../peerRotation'
-import {x11Wire} from '../x11'
-import {GENESIS, MB} from '../constants'
-import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../types/walletSync'
+import {HashIndex} from '../../store/hashIndex'
+import {PeerRotation} from '../../net/peerRotation'
+import {x11Wire} from '../../utils/x11'
+import {GENESIS, MB} from '../../constants'
+import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../../types/walletSync'
 import type {
   CFilterBatch,
   CFilterPhase,
   CFilterSyncWorkerOptions,
   CFilterSyncWorkerStatus,
   PendingCFHeaders,
-} from '../types/cfilterSync'
+} from '../../types/cfilterSync'
 import {
   CFHEADERS_RACE_PEERS,
   CFHEADERS_RACE_TIMEOUT_MS,
@@ -47,9 +47,9 @@ import {
   MAX_INFLIGHT_BATCHES,
   MAX_INFLIGHT_CFHEADERS,
   SCAN_TIP_DEPTH,
-} from '../constants'
+} from '../../constants'
 import {Worker} from './Worker'
-import {PersistedHeader} from '../types/chainStore'
+import {PersistedHeader} from '../../types/chainStore'
 
 const {doubleSHA256, bytesToHex} = sdkUtils
 

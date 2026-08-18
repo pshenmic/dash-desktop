@@ -1,5 +1,5 @@
-import type {ChainStore} from '../ChainStore'
-import type {PoolService} from '../PoolService'
+import type {ChainStore} from '../store/ChainStore'
+import type {PoolService} from '../net/PoolService'
 import type {PersistedHeader} from './chainStore'
 
 import type {Peer} from 'dash-core-p2p'

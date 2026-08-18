@@ -1,7 +1,7 @@
 import type {Network} from '../../src/types/Network'
-import type {ChainStore} from '../ChainStore'
-import type {PeerRotation} from '../peerRotation'
-import type {PoolService} from '../PoolService'
+import type {ChainStore} from '../store/ChainStore'
+import type {PeerRotation} from '../net/peerRotation'
+import type {PoolService} from '../net/PoolService'
 import type {WalletSyncUtxo, WatchAddress} from './walletSync'
 
 import type {Peer} from 'dash-core-p2p'

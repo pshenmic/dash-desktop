@@ -124,6 +124,14 @@ addresses are NOT mirrors of L1 addresses anymore.
 
 ### p2p invariants (`src/main/p2p/`)
 
+Four directories, split by what a thing *is*, not what it is about. `utils/` is
+pure functions (byte order, x11, pow, header validation, locators) and `store/`
+is chain.db plus the in-memory structures over it (`HashIndex`, `ChainWindow`);
+neither knows a peer exists. `net/` (pools, broadcast, peer selection) imports
+nothing. `sync/` (`SyncService`, `WatchSet`, `sync/workers/`) is the only layer
+that touches the others, and the only one holding timers and retry state.
+`index.ts` is the IPC adapter and holds no logic.
+
 Things the code cannot tell you, and that a plausible-looking change breaks:
 
 - **chain.db is network-scoped and nothing under `p2p/` opens SQLite.** Wallet
@@ -406,7 +414,7 @@ break something rather than tidy it:
    in `preferences/`, `ReturnType<...>` aliases.
 3. **A type that is the file's whole purpose** — `providers/WalletProvider.ts`.
 4. **Values computed at module load, not literals** — `POW_LIMIT_TARGET =
-   bitsToTarget(POW_LIMIT_BITS)` in `p2p/pow.ts` (moving it makes
+   bitsToTarget(POW_LIMIT_BITS)` in `p2p/utils/pow.ts` (moving it makes
    `constants.ts` ↔ `pow.ts` circular) and `DEDUCT_FROM_FIRST` in
    `platform/operations/address/signInputs.ts` (constructs a WASM object at
    import time; relocating it changes WASM init order in that bundle).

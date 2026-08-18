@@ -1,7 +1,7 @@
-import {MAX_FUTURE_BLOCK_TIME} from './constants'
+import {MAX_FUTURE_BLOCK_TIME} from '../constants'
 import {bitsToTarget, hashHeaderRaw, headerWork, POW_LIMIT_TARGET, rawPrevHash} from './pow'
-import type {PersistedHeader} from './types/chainStore'
-import type {ValidatedHeaders} from './types/headerSync'
+import type {PersistedHeader} from '../types/chainStore'
+import type {ValidatedHeaders} from '../types/headerSync'
 
 // DGWv3 difficulty validation is intentionally off: replicating Dash testnet's
 // early-chain edge cases (min-difficulty rule, encoded POW_LIMIT round-tripping)

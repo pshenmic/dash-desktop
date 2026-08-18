@@ -1,13 +1,13 @@
 import {Inventory, Message, Peer} from 'dash-core-p2p'
-import {ChainStore} from '../ChainStore'
-import {PoolService} from '../PoolService'
-import {buildLocatorHeights} from '../blockLocator'
-import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
-import {ChainWindow} from '../chainWindow'
-import {formatChainDbError} from '../chainDbError'
-import {validateHeaders} from '../headerValidation'
-import {PeerRotation} from '../peerRotation'
-import {headerWork, rawPrevHash} from '../pow'
+import {ChainStore} from '../../store/ChainStore'
+import {PoolService} from '../../net/PoolService'
+import {buildLocatorHeights} from '../../utils/blockLocator'
+import {displayHexToWire, wireToDisplayHex} from '../../utils/byteOrder'
+import {ChainWindow} from '../../store/chainWindow'
+import {formatChainDbError} from '../../store/chainDbError'
+import {validateHeaders} from '../../utils/headerValidation'
+import {PeerRotation} from '../../net/peerRotation'
+import {headerWork, rawPrevHash} from '../../utils/pow'
 import {Worker} from './Worker'
 import {
   ANNOUNCE_DEDUPE_LIMIT,
@@ -17,14 +17,14 @@ import {
   HEADER_SYNC_TIMEOUT_MS,
   INV_TYPE_NAMES,
   REORG_MAX_DEPTH,
-} from '../constants'
+} from '../../constants'
 import type {
   HeaderRace,
   HeaderSyncPhase,
   HeaderSyncWorkerOptions,
   HeaderSyncWorkerStatus,
-} from '../types/headerSync'
-import {PersistedHeader, ChainTipState} from '../types/chainStore'
+} from '../../types/headerSync'
+import {PersistedHeader, ChainTipState} from '../../types/chainStore'
 
 function typeName(t: number): string {
   return INV_TYPE_NAMES[t] ?? `UNKNOWN(${t})`

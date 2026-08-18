@@ -1,5 +1,5 @@
 import {wireToDisplayHex} from './byteOrder'
-import {POW_LIMIT_BITS} from './constants'
+import {POW_LIMIT_BITS} from '../constants'
 import {x11Wire} from './x11'
 
 export function bitsToTarget(bits: number): bigint {

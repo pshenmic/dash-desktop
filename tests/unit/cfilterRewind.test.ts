@@ -1,9 +1,9 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {EventEmitter} from 'events'
-import {CFilterSyncWorker} from '../../src/main/p2p/workers/CFilterSyncWorker'
+import {CFilterSyncWorker} from '../../src/main/p2p/sync/workers/CFilterSyncWorker'
 import {SCAN_TIP_DEPTH} from '../../src/main/p2p/constants'
-import type {ChainStore} from '../../src/main/p2p/ChainStore'
-import type {PoolService} from '../../src/main/p2p/PoolService'
+import type {ChainStore} from '../../src/main/p2p/store/ChainStore'
+import type {PoolService} from '../../src/main/p2p/net/PoolService'
 import type {PersistedHeader} from '../../src/main/p2p/types/chainStore'
 import type {WalletSyncUtxo} from '../../src/main/p2p/types/walletSync'
 

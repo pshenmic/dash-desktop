@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {utils as sdkUtils} from 'dash-core-sdk'
-import {WatchSet} from '../../src/main/p2p/WatchSet'
+import {WatchSet} from '../../src/main/p2p/sync/WatchSet'
 import type {WalletSyncUtxo, WatchAddress} from '../../src/main/p2p/types/walletSync'
 import type {Block} from 'dash-core-sdk'
 

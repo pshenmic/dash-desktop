@@ -1,5 +1,5 @@
 import {Block, OutPoint, Script, utils as sdkUtils} from 'dash-core-sdk'
-import {Network} from '../src/types/Network'
+import {Network} from '../../src/types/Network'
 import type {
   AppliedSpend,
   AppliedTx,
@@ -9,7 +9,7 @@ import type {
   ChainGapState,
   WalletSyncUtxo,
   WatchAddress,
-} from './types/walletSync'
+} from '../types/walletSync'
 
 const {addressToPublicKeyHash} = sdkUtils
 

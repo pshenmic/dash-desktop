@@ -1,4 +1,4 @@
-import {SyncService} from './SyncService'
+import {SyncService} from './sync/SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
 import {MB} from './constants'
 
