@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {buildLocatorHeights} from '../../src/main/p2p/blockLocator'
-import {bitsToTarget, headerWork} from '../../src/main/p2p/pow'
+import {buildLocatorHeights} from '../../src/main/p2p/utils/blockLocator'
+import {bitsToTarget, headerWork} from '../../src/main/p2p/utils/pow'
 import {LOCATOR_DENSE_HEIGHTS, REORG_MAX_DEPTH} from '../../src/main/p2p/constants'
 
 describe('buildLocatorHeights', () => {

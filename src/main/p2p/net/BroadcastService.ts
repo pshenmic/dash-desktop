@@ -1,8 +1,8 @@
 import {Peer, RejectInfo, TxBroadcast} from 'dash-core-p2p'
 import {Transaction} from 'dash-core-sdk'
-import {BROADCAST_POLICY} from './constants'
+import {BROADCAST_POLICY} from '../constants'
 import {PoolService} from './PoolService'
-import {BroadcastPolicyOverrides, BroadcastResult} from './types/broadcast'
+import {BroadcastPolicyOverrides, BroadcastResult} from '../types/broadcast'
 
 // Policy layer over dash-core-p2p's TxBroadcast, which owns the wire protocol
 // (inv, getdata, push, reject/islock watching).

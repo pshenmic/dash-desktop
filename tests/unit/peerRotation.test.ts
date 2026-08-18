@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {PeerRotation} from '../../src/main/p2p/peerRotation'
+import {PeerRotation} from '../../src/main/p2p/net/peerRotation'
 import type {Peer} from 'dash-core-p2p'
 
 const peer = (host: string): Peer => ({host} as unknown as Peer)

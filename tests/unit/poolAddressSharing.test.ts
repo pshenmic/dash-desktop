@@ -21,7 +21,7 @@ vi.mock('dash-core-p2p', async () => {
   }
 })
 
-import {PoolService} from '../../src/main/p2p/PoolService'
+import {PoolService} from '../../src/main/p2p/net/PoolService'
 import {POOL_ADDRESS_RESERVE} from '../../src/main/p2p/constants'
 
 type RawPool = {

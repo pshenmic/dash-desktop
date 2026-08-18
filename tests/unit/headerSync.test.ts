@@ -4,7 +4,7 @@ import {EventEmitter} from 'events'
 // Real x11 needs ~2^20 hashes per header to clear POW_LIMIT_TARGET, which no
 // test can mine. Display order is the digest reversed, so zeroing its tail is
 // what puts the result under the limit.
-vi.mock('../../src/main/p2p/x11', () => ({
+vi.mock('../../src/main/p2p/utils/x11', () => ({
   x11Wire: (input: Uint8Array) => {
     let a = 0x811c9dc5
     let b = 0x01000193
@@ -21,15 +21,15 @@ vi.mock('../../src/main/p2p/x11', () => ({
   },
 }))
 
-const {HeaderSyncWorker} = await import('../../src/main/p2p/workers/HeaderSyncWorker')
-const {hashHeaderRaw} = await import('../../src/main/p2p/pow')
+const {HeaderSyncWorker} = await import('../../src/main/p2p/sync/workers/HeaderSyncWorker')
+const {hashHeaderRaw} = await import('../../src/main/p2p/utils/pow')
 const {
   POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS,
   HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS,
 } = await import('../../src/main/p2p/constants')
-type PeerRotation = import('../../src/main/p2p/peerRotation').PeerRotation
-type ChainStore = import('../../src/main/p2p/ChainStore').ChainStore
-type PoolService = import('../../src/main/p2p/PoolService').PoolService
+type PeerRotation = import('../../src/main/p2p/net/peerRotation').PeerRotation
+type ChainStore = import('../../src/main/p2p/store/ChainStore').ChainStore
+type PoolService = import('../../src/main/p2p/net/PoolService').PoolService
 type PersistedHeader = import('../../src/main/p2p/types/chainStore').PersistedHeader
 type ChainTipState = import('../../src/main/p2p/types/chainStore').ChainTipState
 

@@ -1,7 +1,7 @@
-import {BroadcastService} from './BroadcastService'
-import {ChainStore} from './ChainStore'
-import {reverseHex, wireToDisplayHex} from './byteOrder'
-import {isFatalChainDbError} from './chainDbError'
+import {BroadcastService} from '../net/BroadcastService'
+import {ChainStore} from '../store/ChainStore'
+import {reverseHex, wireToDisplayHex} from '../utils/byteOrder'
+import {isFatalChainDbError} from '../store/chainDbError'
 import {
   GENESIS,
   LOCK_POOL_MAX_CONNECTIONS,
@@ -9,21 +9,21 @@ import {
   LOCK_POOL_READY_PEERS,
   MEMPOOL_REPORT_INTERVAL_MS,
   MEMPOOL_SEEN_LIMIT,
-} from './constants'
-import {PoolService} from './PoolService'
+} from '../constants'
+import {PoolService} from '../net/PoolService'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
-import type {HeaderSyncWorkerStatus} from './types/headerSync'
-import type {CFilterSyncWorkerStatus} from './types/cfilterSync'
-import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PReseedUtxosMessage, P2PStartMessage, P2PWatchTxsMessage} from './types/messages'
-import {Network} from '../src/types/Network'
-import {BroadcastResult} from './types/broadcast'
-import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from './types/walletSync'
+import type {HeaderSyncWorkerStatus} from '../types/headerSync'
+import type {CFilterSyncWorkerStatus} from '../types/cfilterSync'
+import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PReseedUtxosMessage, P2PStartMessage, P2PWatchTxsMessage} from '../types/messages'
+import {Network} from '../../src/types/Network'
+import {BroadcastResult} from '../types/broadcast'
+import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from '../types/walletSync'
 import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
-import {ChainTipState, PersistedHeader} from './types/chainStore'
-import {SyncServiceEvents} from './types/sync'
-import {PeerOverrides} from './types/pool'
+import {ChainTipState, PersistedHeader} from '../types/chainStore'
+import {SyncServiceEvents} from '../types/sync'
+import {PeerOverrides} from '../types/pool'
 
 // Top-level controller for the p2p utility process: owns ChainStore and the
 // pools, spawns workers per session, aggregates their status.

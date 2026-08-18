@@ -1,7 +1,7 @@
-import {REORG_MAX_DEPTH} from './constants'
-import {hashHeaderRaw, headerWork} from './pow'
+import {REORG_MAX_DEPTH} from '../constants'
+import {hashHeaderRaw, headerWork} from '../utils/pow'
 import type {ChainStore} from './ChainStore'
-import type {ChainWindowEntry, TrimmedHeaders} from './types/headerSync'
+import type {ChainWindowEntry, TrimmedHeaders} from '../types/headerSync'
 
 // The recent-header window: the last REORG_MAX_DEPTH accepted headers, indexed
 // both ways. It bounds the getheaders locator and decides how far back an

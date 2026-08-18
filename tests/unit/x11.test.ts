@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
-import {x11Wire} from '../../src/main/p2p/x11'
-import {hashHeaderRaw} from '../../src/main/p2p/pow'
-import {wireToDisplayHex} from '../../src/main/p2p/byteOrder'
+import {x11Wire} from '../../src/main/p2p/utils/x11'
+import {hashHeaderRaw} from '../../src/main/p2p/utils/pow'
+import {wireToDisplayHex} from '../../src/main/p2p/utils/byteOrder'
 
 const header = (seed: number): Uint8Array =>
   Uint8Array.from({length: 80}, (_, i) => (i * seed) & 0xff)

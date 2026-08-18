@@ -1,9 +1,9 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 import {EventEmitter} from 'events'
-import {CFilterSyncWorker} from '../../src/main/p2p/workers/CFilterSyncWorker'
+import {CFilterSyncWorker} from '../../src/main/p2p/sync/workers/CFilterSyncWorker'
 import {MAX_INFLIGHT_CFHEADERS} from '../../src/main/p2p/constants'
-import type {ChainStore} from '../../src/main/p2p/ChainStore'
-import type {PoolService} from '../../src/main/p2p/PoolService'
+import type {ChainStore} from '../../src/main/p2p/store/ChainStore'
+import type {PoolService} from '../../src/main/p2p/net/PoolService'
 
 // The cfheaders walk is a round trip per 1000 blocks and nothing else — with one
 // request outstanding it is neither CPU nor bandwidth bound, just latency times

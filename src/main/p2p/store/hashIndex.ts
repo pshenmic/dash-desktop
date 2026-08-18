@@ -1,4 +1,4 @@
-import {HASH_LEN} from './constants'
+import {HASH_LEN} from '../constants'
 
 // Height-keyed 32-byte values in one contiguous buffer rather than a
 // Map<number,Uint8Array>: at ~2.5M blocks the Map form cost ~600MB in V8 object

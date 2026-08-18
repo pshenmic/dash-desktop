@@ -1,15 +1,15 @@
 import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
-import {Network} from '../src/types/Network'
+import {Network} from '../../src/types/Network'
 import {parsePeerAddress} from './peerAddress'
-import {FALLBACK_PEERS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from './constants'
+import {FALLBACK_PEERS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from '../constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
 // coordination (who serves filters, who leads a race) impossible.
 
-import {PoolServiceEventMap, PoolServiceOptions} from './types/pool'
-import {FORWARDED_EVENTS} from './constants'
+import {PoolServiceEventMap, PoolServiceOptions} from '../types/pool'
+import {FORWARDED_EVENTS} from '../constants'
 
 export class PoolService extends EventEmitter {
   readonly network: Network

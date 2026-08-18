@@ -1,7 +1,7 @@
 import {Inventory, type Message, type Peer} from 'dash-core-p2p'
-import {BLOCK_REQUEST_TIMEOUT_MS} from './constants'
-import type {PeerRotation} from './peerRotation'
-import type {BlockRequest, BlockFetcherOptions} from './types/cfilterSync'
+import {BLOCK_REQUEST_TIMEOUT_MS} from '../constants'
+import type {PeerRotation} from '../net/peerRotation'
+import type {BlockRequest, BlockFetcherOptions} from '../types/cfilterSync'
 
 function keyOf(hashWire: Uint8Array): string {
   return Buffer.from(hashWire).toString('hex')

@@ -1,7 +1,7 @@
 import type {CFCheckptArgs, Peer} from 'dash-core-p2p'
-import {CFCHECKPT_RACE_PEERS, CFCHECKPT_RACE_TIMEOUT_MS, FILTER_TYPE} from './constants'
-import type {PeerRotation} from './peerRotation'
-import type {CheckpointAnchorsOptions} from './types/cfilterSync'
+import {CFCHECKPT_RACE_PEERS, CFCHECKPT_RACE_TIMEOUT_MS, FILTER_TYPE} from '../constants'
+import type {PeerRotation} from '../net/peerRotation'
+import type {CheckpointAnchorsOptions} from '../types/cfilterSync'
 
 // The filter-header chain's trust anchors: one `getcfcheckpt` gives every
 // 1000th filter header up to a stop hash. Every cfheaders chunk is verified

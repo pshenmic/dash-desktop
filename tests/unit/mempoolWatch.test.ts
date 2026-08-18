@@ -2,7 +2,7 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 
 const captured = vi.hoisted(() => ({pools: [] as Array<Record<string, unknown>>}))
 
-vi.mock('../../src/main/p2p/PoolService', async () => {
+vi.mock('../../src/main/p2p/net/PoolService', async () => {
   const {EventEmitter} = await import('events')
   return {
     PoolService: class extends EventEmitter {
@@ -22,7 +22,7 @@ vi.mock('../../src/main/p2p/PoolService', async () => {
   }
 })
 
-import {SyncService} from '../../src/main/p2p/SyncService'
+import {SyncService} from '../../src/main/p2p/sync/SyncService'
 import type {AppliedTx, WatchAddress} from '../../src/main/p2p/types/walletSync'
 
 const OURS = 'yOurAddress'

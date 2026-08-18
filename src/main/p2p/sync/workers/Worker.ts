@@ -1,5 +1,5 @@
 import {EventEmitter} from 'events'
-import {WorkerErrorEvent} from '../types/worker'
+import {WorkerErrorEvent} from '../../types/worker'
 
 // Workers never touch the parent IPC and never own a peer pool or ChainDAO —
 // ChainStore + PeerPool arrive via the constructor and are the whole dependency

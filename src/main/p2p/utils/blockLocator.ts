@@ -1,4 +1,4 @@
-import {LOCATOR_DENSE_HEIGHTS} from './constants'
+import {LOCATOR_DENSE_HEIGHTS} from '../constants'
 
 // Tip-first locator heights: dense over the most recent blocks, then doubling
 // down to `floor`. A peer cannot find a common ancestor from a lone hash that
