@@ -1,7 +1,4 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
+import {PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
 import knex, {Knex} from 'knex'
 import {SqliteConnection} from '../types/SqliteConnection'
 import * as migration0000 from '../../migrations/0000_init'
@@ -146,10 +143,6 @@ export function getKnex (path?: string): Knex {
 
 export async function migrateKnex (knex: Knex): Promise<void> {
   await knex.migrate.latest({ migrationSource: inlineMigrationSource })
-}
-
-export function ensureHomeFolder (): void {
-  fs.mkdirSync(path.join(os.homedir(), HomeFolderName), { recursive: true })
 }
 
 export const fetchIdentitiesBySeed = async (seed: Uint8Array, sdk: DashPlatformSDK, network: Network): Promise<IdentityWASM[]> => {

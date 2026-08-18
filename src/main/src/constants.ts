@@ -2,6 +2,7 @@ import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
 import type {CoinSelectionParams} from './types/CoinSelection'
 
 export const HomeFolderName = '.dash-desktop'
+export const DevFolderName = 'dev'
 export const StorageFilename = 'storage.db'
 export const ChainStorageFilename = 'ChainStorage'
 export const LogsFolderName = 'logs'
