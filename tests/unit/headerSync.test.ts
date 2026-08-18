@@ -27,6 +27,7 @@ const {
   POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS,
   HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS,
 } = await import('../../src/main/p2p/constants')
+type PeerRotation = import('../../src/main/p2p/peerRotation').PeerRotation
 type ChainStore = import('../../src/main/p2p/ChainStore').ChainStore
 type PoolService = import('../../src/main/p2p/PoolService').PoolService
 type PersistedHeader = import('../../src/main/p2p/types/chainStore').PersistedHeader
@@ -415,6 +416,7 @@ describe('HeaderSyncWorker race peer selection', () => {
 
   const silent = (): ReturnType<typeof makePeer>[] => peers.slice(0, HEADER_RACE_PEERS)
   const untried = (): ReturnType<typeof makePeer>[] => peers.slice(HEADER_RACE_PEERS)
+  const rotation = (): PeerRotation => (worker as unknown as {rotation: PeerRotation}).rotation
 
   beforeEach(async () => {
     vi.useFakeTimers()
@@ -455,23 +457,21 @@ describe('HeaderSyncWorker race peer selection', () => {
   })
 
   it('clears a peer that answers, silent or not', () => {
-    const tracked = worker as unknown as {unresponsivePeers: Set<unknown>}
     vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
-    expect(tracked.unresponsivePeers.size).toBe(HEADER_RACE_PEERS)
+    expect(rotation().silentCount).toBe(HEADER_RACE_PEERS)
 
     // An empty `headers` is still an answer — the peer has nothing, not nothing to say.
     pool.emit('peerheaders', peers[0]!, {headers: []})
 
-    expect(tracked.unresponsivePeers.has(peers[0]!)).toBe(false)
+    expect(rotation().isSilent(peers[0]! as never)).toBe(false)
   })
 
   it('forgets a peer that disconnects', () => {
-    const tracked = worker as unknown as {unresponsivePeers: Set<unknown>}
     vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
 
     pool.readyPeers.delete(peers[0]!)
     pool.emit('peerdisconnect', peers[0]!)
 
-    expect(tracked.unresponsivePeers.has(peers[0]!)).toBe(false)
+    expect(rotation().isSilent(peers[0]! as never)).toBe(false)
   })
 })

@@ -1,9 +1,25 @@
 import type {Network} from '../../src/types/Network'
 import type {ChainStore} from '../ChainStore'
+import type {PeerRotation} from '../peerRotation'
 import type {PoolService} from '../PoolService'
 import type {WalletSyncUtxo, WatchAddress} from './walletSync'
 
 import type {Peer} from 'dash-core-p2p'
+
+export interface BlockFetcherOptions {
+  rotation: PeerRotation
+  // PoolService.messages, whose factories dash-core-p2p does not type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any
+}
+
+export interface CheckpointAnchorsOptions {
+  rotation: PeerRotation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any
+  stopHashAt: (height: number) => Uint8Array | undefined
+  onReady: (headers: Uint8Array[], fromPeer: Peer) => void
+}
 
 export interface CFilterBatch {
   startHeight: number
