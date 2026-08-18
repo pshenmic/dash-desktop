@@ -2,17 +2,35 @@ appId: org.pshenmic.dashdesktop
 productName: Dash Desktop
 directories:
   buildResources: buildResources
-#files:
-#  - '!**/.vscode/*'
-#  - '!src/*'
-#  - '!electron.vite.config.{js,ts,mjs,cjs}'
-#  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-#  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-#  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-#asarUnpack:
-#  - resources/**
-#afterSign: build/notarize.js
-#  executableName: vue-ts
+afterPack: build/pruneForeignBinaries.cjs
+# A platform-specific `files` list would be normalized into a second matcher
+# that never receives electron-builder's own exclusions, so dist/ and .git/
+# would be packaged. Everything platform-dependent lives in the afterPack hook.
+files:
+  # electron-vite emits out/; the sources it was built from and the tooling
+  # around them are never loaded at runtime.
+  - '!src{,/**/*}'
+  - '!tests{,/**/*}'
+  - '!review{,/**/*}'
+  - '!build{,/**/*}'
+  - '!{.claude,.idea,.obsidian}{,/**/*}'
+  - '!{AGENTS.md,CLAUDE.md,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{electron.vite.config.ts,vitest.config.ts,eslint.config.mjs,postcss.config.js,tailwind.config.js}'
+  - '!*.tsbuildinfo'
+  # dash-core-sdk declares its build tools as runtime dependencies. Nothing in
+  # its published sources imports either one.
+  - '!node_modules/protoc{,/**/*}'
+  - '!node_modules/typescript{,/**/*}'
+  # Source-build machinery for sqlite3 and classic-level. npmRebuild produces
+  # build/Release, which both bindings resolve before anything else — so the
+  # Node-ABI prebuilds could not be loaded under Electron even if kept.
+  - '!node_modules/{node-gyp,node-addon-api,prebuild-install,tar}{,/**/*}'
+  - '!node_modules/sqlite3/deps{,/**/*}'
+  - '!node_modules/classic-level/{deps,prebuilds}{,/**/*}'
+  # React Native artifacts of the two N-API packages; under Electron the loader
+  # resolves dist/binaries/native/<rust-triple> and falls back to the wasm.
+  - '!node_modules/{pshenmic-dpp,crypto-toothpick}/dist/binaries/*.{android,apple}.node{,/**/*}'
 win:
   target:
     - target: nsis
