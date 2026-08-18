@@ -13,7 +13,6 @@ import {
   type CFHeadersArgs,
   type CFilterArgs,
   GCS_M, GCS_P,
-  Inventory,
   type Message,
   type Peer,
 } from 'dash-core-p2p'
@@ -22,14 +21,16 @@ import {Network} from '../../src/types/Network'
 import {ChainStore} from '../ChainStore'
 import {PoolService} from '../PoolService'
 import {WatchSet} from '../WatchSet'
+import {BlockFetcher} from '../blockFetcher'
 import {displayHexToWire, wireToDisplayHex} from '../byteOrder'
 import {formatChainDbError} from '../chainDbError'
+import {CheckpointAnchors} from '../checkpointAnchors'
 import {HashIndex} from '../hashIndex'
+import {PeerRotation} from '../peerRotation'
 import {x11Wire} from '../x11'
 import {GENESIS, MB} from '../constants'
 import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../types/walletSync'
 import type {
-  BlockRequest,
   CFilterBatch,
   CFilterPhase,
   CFilterSyncWorkerOptions,
@@ -37,9 +38,6 @@ import type {
   PendingCFHeaders,
 } from '../types/cfilterSync'
 import {
-  BLOCK_REQUEST_TIMEOUT_MS,
-  CFCHECKPT_RACE_PEERS,
-  CFCHECKPT_RACE_TIMEOUT_MS,
   CFHEADERS_RACE_PEERS,
   CFHEADERS_RACE_TIMEOUT_MS,
   CFILTER_BATCH,
@@ -93,6 +91,8 @@ export class CFilterSyncWorker extends Worker {
   // ── worker state ─────────────────────────────────────────────────────────
   private phase: CFilterPhase = 'connecting'
   private stopped = false
+  // Whoever last served filter data. Its disconnect mid-cfcheckpt is what
+  // re-races the anchors rather than waiting out the timer.
   private leader: Peer | null = null
 
   // ── chain index (height → wire-byte hash) ────────────────────────────────
@@ -102,14 +102,15 @@ export class CFilterSyncWorker extends Worker {
   private readonly blockHashIndex: HashIndex
   private cfilterInflightHeights = new Map<string, number>()
 
-  // Peers that let a cf* request time out. Selection is otherwise insertion
-  // ordered, so without this the same silent peers sit at the head of the pool
-  // and every fresh request pays a full timeout before reaching anyone else.
-  private unresponsivePeers = new Set<Peer>()
+  // cf* requests race the filter-capable subset; blocks come from any ready
+  // peer, but the sockets that go silent are the same ones, so blockRotation
+  // shares nothing but its source with the cf* one.
+  private readonly rotation: PeerRotation
+  private readonly blockRotation: PeerRotation
 
   // ── filter-header chain ──────────────────────────────────────────────────
   private readonly heightToFilterHeader: HashIndex
-  private checkpointHeaders = new Map<number, Uint8Array>()
+  private readonly checkpoints: CheckpointAnchors
   private anchorHeight = -1
 
   // ── watch set (cfilter inputs) ──────────────────────────────────────────
@@ -126,11 +127,7 @@ export class CFilterSyncWorker extends Worker {
   private draining = false
 
   // ── per-phase state ─────────────────────────────────────────────────────
-  private cfcheckpt = {
-    responded: false,
-    raceTimer: null as ReturnType<typeof setTimeout> | null,
-    triedPeers: new Set<Peer>(),
-  }
+  private readonly blockFetcher: BlockFetcher
 
   private cfHeaders = {
     walkStart: 0,
@@ -142,17 +139,14 @@ export class CFilterSyncWorker extends Worker {
     inflightBatches: new Map<number, CFilterBatch>(),
   }
 
-  private blockFetch = {
-    inflight: new Map<string, BlockRequest>(),
-    matched: new Map<number, Block>(),
-  }
+  private matchedBlocks = new Map<number, Block>()
 
   // Bound peer-event listeners. Stable references kept for stop()'s off().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly peerListeners: Array<[string, (...args: any[]) => void]> = [
     ['peerready', (p: Peer) => this.handlePeerReady(p)],
     ['peerdisconnect', (p: Peer) => this.handlePeerDisconnect(p)],
-    ['peercfcheckpt', (p: Peer, m: Message) => this.onCheckpoints(m as Message & CFCheckptArgs, p)],
+    ['peercfcheckpt', (p: Peer, m: Message) => this.checkpoints.receive(m as Message & CFCheckptArgs, p)],
     ['peercfheaders', (p: Peer, m: Message) => this.onCFHeaders(m as Message & CFHeadersArgs, p)],
     ['peercfilter', (_p: Peer, m: Message) => this.onCFilter(m as Message & CFilterArgs)],
     ['peerblock', (p: Peer, m: Message & {block?: unknown}) => this.handlePeerBlock(p, m)],
@@ -175,6 +169,16 @@ export class CFilterSyncWorker extends Worker {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.M = this.peerPool.messages as any
+
+    this.rotation = new PeerRotation(() => this.peerPool.filterCapablePeers)
+    this.blockRotation = this.rotation.over(() => this.peerPool.readyPeers)
+    this.blockFetcher = new BlockFetcher({rotation: this.blockRotation, messages: this.M})
+    this.checkpoints = new CheckpointAnchors({
+      rotation: this.rotation,
+      messages: this.M,
+      stopHashAt: height => this.blockHashIndex.get(height),
+      onReady: (headers, fromPeer) => this.onCheckpointsReady(headers, fromPeer),
+    })
   }
 
   start = async (): Promise<void> => {
@@ -214,6 +218,8 @@ export class CFilterSyncWorker extends Worker {
     if (this.stopped) return
     this.stopped = true
     this.clearTimers()
+    this.checkpoints.stop()
+    this.blockFetcher.stop()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const [evt, handler] of this.peerListeners) (this.peerPool as any).off(evt, handler)
     this.emitStatus('stopped')
@@ -242,7 +248,7 @@ export class CFilterSyncWorker extends Worker {
     console.warn(`[cfilter] chain rewound to h=${forkHeight} — dropping derived state above it`)
 
     this.clearTimers()
-    this.blockFetch.matched.clear()
+    this.matchedBlocks.clear()
 
     this.heightToFilterHeader.deleteFrom(forkHeight + 1)
     this.chainStore.deleteFilterHeadersFrom(forkHeight + 1).catch(err => {
@@ -297,7 +303,7 @@ export class CFilterSyncWorker extends Worker {
       for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
       this.cfilter.inflightBatches.clear()
       this.cfilterInflightHeights.clear()
-      this.blockFetch.matched.clear()
+      this.matchedBlocks.clear()
       this.cfilter.cursor = target
       this.emit('cursorReset', {walletId: this.walletId, height: target})
     } else {
@@ -321,7 +327,7 @@ export class CFilterSyncWorker extends Worker {
       phase,
       cfheadersHeight: Math.max(0, this.cfHeaders.walkStart - 1),
       cfilterScanHeight: Math.max(0, this.cfilter.cursor - 1),
-      matchedBlocksPending: this.blockFetch.matched.size + this.blockFetch.inflight.size,
+      matchedBlocksPending: this.matchedBlocks.size + this.blockFetcher.size,
       peerCount: this.peerPool.readyPeers.size,
       filterCapablePeerCount: this.peerPool.filterCapablePeers.size,
     } satisfies CFilterSyncWorkerStatus)
@@ -332,15 +338,13 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private clearTimers(): void {
-    if (this.cfcheckpt.raceTimer) clearTimeout(this.cfcheckpt.raceTimer)
-    this.cfcheckpt.raceTimer = null
+    this.checkpoints.reset()
     for (const p of this.cfHeaders.pending.values()) if (p.raceTimer) clearTimeout(p.raceTimer)
     for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
-    for (const r of this.blockFetch.inflight.values()) if (r.timer) clearTimeout(r.timer)
+    this.blockFetcher.reset()
     this.cfHeaders.pending.clear()
     this.cfilter.inflightBatches.clear()
     this.cfilterInflightHeights.clear()
-    this.blockFetch.inflight.clear()
   }
 
   private effectiveScanTipHeight(): number {
@@ -411,6 +415,7 @@ export class CFilterSyncWorker extends Worker {
   // its timer to notice costs the full timeout per request, which on a churning
   // peer set is most of the sync.
   private handlePeerDisconnect(peer: Peer): void {
+    this.rotation.forget(peer)
     if (peer === this.leader) {
       this.leader = null
       if (this.phase === 'cfcheckpt') this.requestCheckpoints()
@@ -439,25 +444,15 @@ export class CFilterSyncWorker extends Worker {
       console.warn(`[cfilter] peerblock from ${peer.host} missing block payload`)
       return
     }
-    this.unresponsivePeers.delete(peer)
     const blockHashHex = block.hash()
-    const blockHashWire = displayHexToWire(blockHashHex)
-    const key = bytesToHex(blockHashWire)
-    // Blocks arrive only because we asked, so the inflight request carries the
-    // height and no hash→height map is needed.
-    const pending = this.blockFetch.inflight.get(key)
-    const height = pending ? pending.height : -1
-    if (pending) {
-      if (pending.timer) clearTimeout(pending.timer)
-      this.blockFetch.inflight.delete(key)
-    }
-    if (height < 0) {
+    const height = this.blockFetcher.receive(peer, displayHexToWire(blockHashHex))
+    if (height == null) {
       console.warn(`[cfilter] peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
       return
     }
-    console.log(`[cfilter] peerblock h=${height} from ${peer.host}  inflight-blocks=${this.blockFetch.inflight.size}`)
+    console.log(`[cfilter] peerblock h=${height} from ${peer.host}  inflight-blocks=${this.blockFetcher.size}`)
     if (this.phase === 'cfilters') {
-      this.blockFetch.matched.set(height, block)
+      this.matchedBlocks.set(height, block)
       this.maybeDrainAndFinish().catch(err => {
         console.error('[cfilter] drain failed:', err)
         this.reportError(formatChainDbError(err), false)
@@ -474,57 +469,17 @@ export class CFilterSyncWorker extends Worker {
 
   private requestCheckpoints(): void {
     if (this.stopped) return
-    this.cfcheckpt.responded = false
-    // Highest checkpoint (real height that is a multiple of 1000) at or below
-    // the scan tip, expressed in our internal numbering.
-    const stopHeight = Math.floor(this.effectiveScanTipHeight() / 1000) * 1000
-    const stopHashWire = this.blockHashIndex.get(stopHeight)
-    if (!stopHashWire) {
-      console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
-      return
-    }
-    const candidates = this.pickCandidates(this.cfcheckpt.triedPeers)
-    if (candidates.length === 0) {
-      console.warn('[cfilter] cfcheckpt: no +CF peers — waiting')
-      return
-    }
-    const picks = candidates.slice(0, CFCHECKPT_RACE_PEERS)
-    console.log(`[cfilter] cfcheckpt stopHeight=${stopHeight} picks=${picks.length} pool=${this.peerPool.filterCapablePeers.size}`)
-    const msg = this.M.GetCFCheckpt({filterType: FILTER_TYPE, stopHash: stopHashWire})
-    for (const p of picks) {
-      this.cfcheckpt.triedPeers.add(p)
-      p.sendMessage(msg)
-    }
-    if (this.cfcheckpt.raceTimer) clearTimeout(this.cfcheckpt.raceTimer)
-    this.cfcheckpt.raceTimer = setTimeout(() => {
-      if (this.cfcheckpt.responded || this.stopped) return
-      console.warn('[cfilter] cfcheckpt timeout — rotating')
-      this.requestCheckpoints()
-    }, CFCHECKPT_RACE_TIMEOUT_MS)
-    this.emitStatus('cfcheckpt')
+    if (this.checkpoints.request(this.effectiveScanTipHeight())) this.emitStatus('cfcheckpt')
   }
 
-  private onCheckpoints(msg: CFCheckptArgs, fromPeer: Peer): void {
-    if (this.stopped || this.cfcheckpt.responded) return
-    this.cfcheckpt.responded = true
-    this.cfcheckpt.triedPeers.clear()
-    if (this.cfcheckpt.raceTimer) {
-      clearTimeout(this.cfcheckpt.raceTimer)
-      this.cfcheckpt.raceTimer = null
-    }
-    this.unresponsivePeers.delete(fromPeer)
+  // The anchors are in; reconcile the cached filter-header chain against them
+  // and pick the height the walk starts from.
+  private onCheckpointsReady(headers: Uint8Array[], fromPeer: Peer): void {
     this.leader = fromPeer
-
-    const headers = msg.filterHeaders ?? []
-    // headers[i] is the filter header at real height (i+1)*1000; key it by the
-    // matching internal height.
-    for (let i = 0; i < headers.length; i++) {
-      this.checkpointHeaders.set((i + 1) * 1000, headers[i]!)
-    }
 
     // Cross-validate cached filter headers against checkpoints.
     let firstBadCheckpoint = Infinity
-    for (const [ckptHeight, ckptHeader] of this.checkpointHeaders) {
+    for (const [ckptHeight, ckptHeader] of this.checkpoints.entries()) {
       const cached = this.heightToFilterHeader.get(ckptHeight)
       if (cached && !equalBytes(cached, ckptHeader)) {
         firstBadCheckpoint = Math.min(firstBadCheckpoint, ckptHeight)
@@ -541,9 +496,9 @@ export class CFilterSyncWorker extends Worker {
 
     const start = Math.max(this.birthdayHeight, this.cfilter.cursor)
     const anchorCkpt = Math.floor((start - 1) / 1000) * 1000
-    if (anchorCkpt > 0 && this.checkpointHeaders.has(anchorCkpt)) {
+    if (anchorCkpt > 0 && this.checkpoints.has(anchorCkpt)) {
       this.anchorHeight = anchorCkpt
-      this.heightToFilterHeader.set(anchorCkpt, this.checkpointHeaders.get(anchorCkpt)!)
+      this.heightToFilterHeader.set(anchorCkpt, this.checkpoints.get(anchorCkpt)!)
     } else {
       this.anchorHeight = 0
     }
@@ -609,27 +564,10 @@ export class CFilterSyncWorker extends Worker {
     }
   }
 
-  // Peers worth asking, best first: never-tried and responsive, then the ones
-  // that have gone silent, then everyone. `tried` is cleared once exhausted so a
-  // request can keep retrying against a pool smaller than its race width.
-  private pickCandidates(tried: Set<Peer>): Peer[] {
-    const all = [...this.peerPool.filterCapablePeers]
-    const fresh = all.filter(p => !tried.has(p) && !this.unresponsivePeers.has(p))
-    if (fresh.length > 0) return fresh
-
-    const untried = all.filter(p => !tried.has(p))
-    if (untried.length > 0) return untried
-
-    tried.clear()
-    this.unresponsivePeers.clear()
-    return all
-  }
-
   private dispatchCFHeaders(entry: PendingCFHeaders): void {
     const stopHashWire = this.blockHashIndex.get(entry.stopHeight)
     if (!stopHashWire) return
-    const candidates = this.pickCandidates(entry.triedPeers)
-    const picks = candidates.slice(0, CFHEADERS_RACE_PEERS)
+    const picks = this.rotation.pick(CFHEADERS_RACE_PEERS, entry.triedPeers)
     const msg = this.M.GetCFHeaders({filterType: FILTER_TYPE, startHeight: entry.startHeight, stopHash: stopHashWire})
     entry.inflightPeers.clear()
     for (const p of picks) {
@@ -644,7 +582,7 @@ export class CFilterSyncWorker extends Worker {
     entry.raceTimer = setTimeout(() => {
       if (!this.cfHeaders.pending.has(entry.stopHeight) || this.stopped) return
       console.warn(`[cfilter] cfheaders ${entry.startHeight}..${entry.stopHeight} timeout — re-racing`)
-      for (const peer of entry.inflightPeers) this.unresponsivePeers.add(peer)
+      this.rotation.markSilent(entry.inflightPeers)
       this.dispatchCFHeaders(entry)
       this.armCFHeadersTimer(entry)
     }, CFHEADERS_RACE_TIMEOUT_MS)
@@ -675,7 +613,7 @@ export class CFilterSyncWorker extends Worker {
     // Chunks break on checkpoint boundaries, so the height below a chunk is
     // itself a checkpoint for all but the first. Anchoring there rather than on
     // the derived chain is what lets chunks verify in any order.
-    const prevExpected = this.checkpointHeaders.get(pending.startHeight - 1)
+    const prevExpected = this.checkpoints.get(pending.startHeight - 1)
       ?? this.heightToFilterHeader.get(pending.startHeight - 1)
     if (prevExpected && !equalBytes(prevExpected, prev)) {
       console.warn(`[cfilter] cfheaders prev mismatch at h=${pending.startHeight - 1} from ${fromPeer.host} — re-racing`)
@@ -692,7 +630,7 @@ export class CFilterSyncWorker extends Worker {
       derived.push({height: pending.startHeight + i, header: next})
       prev = next
     }
-    const ckpt = this.checkpointHeaders.get(pending.stopHeight)
+    const ckpt = this.checkpoints.get(pending.stopHeight)
     if (ckpt && !equalBytes(ckpt, prev)) {
       console.warn(`[cfilter] cfheaders checkpoint mismatch at h=${pending.stopHeight} from ${fromPeer.host} — peer dishonest, re-racing`)
       this.dispatchCFHeaders(pending)
@@ -702,7 +640,7 @@ export class CFilterSyncWorker extends Worker {
 
     if (pending.raceTimer) clearTimeout(pending.raceTimer)
     this.cfHeaders.pending.delete(pending.stopHeight)
-    this.unresponsivePeers.delete(fromPeer)
+    this.rotation.markResponsive(fromPeer)
     this.leader = fromPeer
 
     for (const e of derived) this.heightToFilterHeader.set(e.height, e.header)
@@ -734,8 +672,7 @@ export class CFilterSyncWorker extends Worker {
   }
 
   private dispatchCFilterBatch(batch: CFilterBatch): void {
-    const candidates = this.pickCandidates(batch.triedPeers)
-    const picks = candidates.slice(0, CFILTER_BATCH_PEERS)
+    const picks = this.rotation.pick(CFILTER_BATCH_PEERS, batch.triedPeers)
     if (picks.length === 0) return
     const msg = this.M.GetCFilters({
       filterType: FILTER_TYPE,
@@ -766,7 +703,7 @@ export class CFilterSyncWorker extends Worker {
       }
 
       console.warn(`[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stalled (${batch.remaining.size}) — re-racing`)
-      for (const peer of batch.inflightPeers) this.unresponsivePeers.add(peer)
+      this.rotation.markSilent(batch.inflightPeers)
       this.dispatchCFilterBatch(batch)
       this.armCFilterBatchTimer(batch)
     }, CFILTER_BATCH_TIMEOUT_MS)
@@ -808,7 +745,7 @@ export class CFilterSyncWorker extends Worker {
   private settledHeight(): number {
     let lowest = Infinity
     for (const b of this.cfilter.inflightBatches.values()) lowest = Math.min(lowest, b.startHeight)
-    for (const r of this.blockFetch.inflight.values()) lowest = Math.min(lowest, r.height)
+    lowest = Math.min(lowest, this.blockFetcher.lowestHeight())
     return lowest === Infinity ? this.effectiveScanTipHeight() : lowest - 1
   }
 
@@ -821,10 +758,10 @@ export class CFilterSyncWorker extends Worker {
     this.draining = true
     try {
       const settled = this.settledHeight()
-      const heights = [...this.blockFetch.matched.keys()].filter(h => h <= settled).sort((a, b) => a - b)
+      const heights = [...this.matchedBlocks.keys()].filter(h => h <= settled).sort((a, b) => a - b)
       for (const height of heights) {
-        const block = this.blockFetch.matched.get(height)!
-        this.blockFetch.matched.delete(height)
+        const block = this.matchedBlocks.get(height)!
+        this.matchedBlocks.delete(height)
         await this.applyBlock(block, height)
         const exhausted = this.watchSet.exhaustedChain()
         if (exhausted != null) {
@@ -845,11 +782,10 @@ export class CFilterSyncWorker extends Worker {
     const chain = this.watchSet.gapState(chainName)
     this.gapPausedAt = height
     for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
-    for (const r of this.blockFetch.inflight.values()) if (r.timer) clearTimeout(r.timer)
+    this.blockFetcher.reset()
     this.cfilter.inflightBatches.clear()
     this.cfilterInflightHeights.clear()
-    this.blockFetch.inflight.clear()
-    this.blockFetch.matched.clear()
+    this.matchedBlocks.clear()
     this.cfilter.cursor = height + 1
     console.log(
       `[cfilter] ${chainName} gap exhausted at h=${height} ` +
@@ -871,8 +807,8 @@ export class CFilterSyncWorker extends Worker {
     if (this.gapPausedAt != null) return
     if (this.cfilter.cursor <= this.effectiveScanTipHeight()) return
     if (this.cfilter.inflightBatches.size > 0) return
-    if (this.blockFetch.inflight.size > 0) {
-      const waiting = [...this.blockFetch.inflight.values()].map(r => r.height).sort((a, b) => a - b)
+    if (this.blockFetcher.size > 0) {
+      const waiting = this.blockFetcher.heights()
       console.log(`[cfilters] scan reached tip; waiting on ${waiting.length} block(s): ${waiting.slice(0, 10).join(',')}${waiting.length > 10 ? '…' : ''}`)
       return
     }
@@ -905,7 +841,7 @@ export class CFilterSyncWorker extends Worker {
 
     if (this.filterMatcher().matchBlock(msg.filter ?? new Uint8Array(0), blockHashWire)) {
       console.log(`[cfilter] match h=${height} block=${wireToDisplayHex(blockHashWire).slice(0, 16)}…`)
-      this.requestFullBlock(height, blockHashWire)
+      this.blockFetcher.request(height, blockHashWire)
     }
 
     if (owner.remaining.size === 0) {
@@ -923,58 +859,6 @@ export class CFilterSyncWorker extends Worker {
         })
       }
     }
-  }
-
-  private requestFullBlock(height: number, blockHashWire: Uint8Array): void {
-    const key = bytesToHex(blockHashWire)
-    if (this.blockFetch.inflight.has(key)) return
-    const entry: BlockRequest = {hashWire: blockHashWire, height, triedPeers: new Set(), timer: null}
-    this.blockFetch.inflight.set(key, entry)
-    const target = this.pickBlockPeer(new Set())
-    if (target) {
-      entry.triedPeers.add(target)
-      target.sendMessage(this.M.GetData([{type: Inventory.TYPE.BLOCK, hash: blockHashWire}]))
-    } else {
-      console.warn(`[cfilter] block h=${height} matched but no ready peers — retrying on timer`)
-    }
-    this.armBlockRequestTimer(key, entry)
-  }
-
-  // Any ready peer serves a block, so this draws on readyPeers rather than the
-  // filter-capable subset — but it skips the peers that have gone silent on the
-  // cf* paths, which are the same sockets.
-  private pickBlockPeer(exclude: Set<Peer>): Peer | undefined {
-    for (const p of this.peerPool.readyPeers) {
-      if (!exclude.has(p) && !this.unresponsivePeers.has(p)) return p
-    }
-    for (const p of this.peerPool.readyPeers) if (!exclude.has(p)) return p
-    return undefined
-  }
-
-  private armBlockRequestTimer(key: string, entry: BlockRequest): void {
-    if (entry.timer) clearTimeout(entry.timer)
-    entry.timer = setTimeout(() => {
-      if (this.stopped || !this.blockFetch.inflight.has(key)) return
-      // Whoever was asked did not deliver, so they stop being a first choice
-      // here and on the cf* paths until they answer something.
-      for (const peer of entry.triedPeers) this.unresponsivePeers.add(peer)
-      let next = this.pickBlockPeer(entry.triedPeers)
-      if (!next) {
-        entry.triedPeers.clear()
-        next = this.pickBlockPeer(entry.triedPeers)
-        if (!next) {
-          console.warn(`[cfilter] block h=${entry.height} retry — no ready peers, re-arming`)
-          this.armBlockRequestTimer(key, entry)
-          return
-        }
-        console.warn(`[cfilter] block h=${entry.height} retry — no fresh peers, re-asking ${next.host}`)
-      } else {
-        console.warn(`[cfilter] block h=${entry.height} timeout — retrying via ${next.host} (tried ${entry.triedPeers.size})`)
-      }
-      entry.triedPeers.add(next)
-      next.sendMessage(this.M.GetData([{type: Inventory.TYPE.BLOCK, hash: entry.hashWire}]))
-      this.armBlockRequestTimer(key, entry)
-    }, BLOCK_REQUEST_TIMEOUT_MS)
   }
 
   private async applyBlock(block: Block, height: number): Promise<void> {

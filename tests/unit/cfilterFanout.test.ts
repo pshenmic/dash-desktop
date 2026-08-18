@@ -3,6 +3,7 @@ import {EventEmitter} from 'events'
 import {CFilterSyncWorker} from '../../src/main/p2p/workers/CFilterSyncWorker'
 import {CFILTER_BATCH_PEERS, CFILTER_BATCH_TIMEOUT_MS} from '../../src/main/p2p/constants'
 import type {ChainStore} from '../../src/main/p2p/ChainStore'
+import type {PeerRotation} from '../../src/main/p2p/peerRotation'
 import type {PoolService} from '../../src/main/p2p/PoolService'
 import type {PersistedHeader} from '../../src/main/p2p/types/chainStore'
 
@@ -87,6 +88,10 @@ describe('cfilter batch fan-out', () => {
     ;(worker as unknown as {phase: string}).phase = phase
   }
 
+  type Rotations = {rotation: PeerRotation; blockRotation: PeerRotation}
+  const cfRotation = (): PeerRotation => (worker as unknown as Rotations).rotation
+  const blockRotation = (): PeerRotation => (worker as unknown as Rotations).blockRotation
+
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -163,29 +168,23 @@ describe('cfilter batch fan-out', () => {
   // it is the same sockets — a peer that went silent on a cf* request should not
   // then be first in line for a block.
   it('skips peers that went silent when picking a block peer', () => {
-    const worker_ = worker as unknown as {
-      unresponsivePeers: Set<unknown>
-      pickBlockPeer: (exclude: Set<unknown>) => unknown
-    }
     const first = pool.peers[0]!
 
-    expect(worker_.pickBlockPeer(new Set())).toBe(first)
+    expect(blockRotation().first(new Set())).toBe(first)
 
-    worker_.unresponsivePeers.add(first)
+    // Marked on the cf* rotation, read through the block one: the two share
+    // their silence memory precisely so this carries across.
+    cfRotation().markSilent([first as never])
 
-    expect(worker_.pickBlockPeer(new Set())).toBe(pool.peers[1])
+    expect(blockRotation().first(new Set())).toBe(pool.peers[1])
   })
 
   it('falls back to a silent peer when it is the only one left', () => {
-    const worker_ = worker as unknown as {
-      unresponsivePeers: Set<unknown>
-      pickBlockPeer: (exclude: Set<unknown>) => unknown
-    }
     const only = pool.peers[0]!
     for (const peer of pool.peers.slice(1)) pool.readyPeers.delete(peer)
-    worker_.unresponsivePeers.add(only)
+    cfRotation().markSilent([only as never])
 
-    expect(worker_.pickBlockPeer(new Set())).toBe(only)
+    expect(blockRotation().first(new Set())).toBe(only)
   })
 
   // A stalled peer must cost latency, not the batch: the retry has to reach

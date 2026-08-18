@@ -1,5 +1,6 @@
 import type {ChainStore} from '../ChainStore'
 import type {PoolService} from '../PoolService'
+import type {PersistedHeader} from './chainStore'
 
 import type {Peer} from 'dash-core-p2p'
 
@@ -16,6 +17,19 @@ export interface HeaderRace {
 export interface ChainWindowEntry {
   hash: string
   work: bigint
+}
+
+export interface ValidatedHeaders {
+  accepted: PersistedHeader[]
+  work: bigint
+}
+
+// What survives after dropping a batch's leading headers we already hold:
+// `height`/`hash` are where `rest` connects.
+export interface TrimmedHeaders {
+  rest: Uint8Array[]
+  height: number
+  hash: string
 }
 
 export type HeaderSyncPhase = 'connecting' | 'syncing-headers' | 'synced' | 'stopped'
