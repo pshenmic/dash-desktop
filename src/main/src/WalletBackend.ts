@@ -97,7 +97,7 @@ import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction
 import {LogService} from './services/LogService'
 import {GetLogFilesHandler} from './api/logs/getLogFiles'
 import {GetLogFileHandler} from './api/logs/getLogFile'
-import {SaveLogFileHandler} from './api/logs/saveLogFile'
+import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
 
 
 export class WalletBackend {
@@ -193,7 +193,7 @@ export class WalletBackend {
     ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
     ipcMain.handle('getLogFiles', new GetLogFilesHandler(this.logService).handle)
     ipcMain.handle('getLogFile', new GetLogFileHandler(this.logService).handle)
-    ipcMain.handle('saveLogFile', new SaveLogFileHandler(this.logService).handle)
+    ipcMain.handle('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
   }
 
   async start(): Promise<void> {

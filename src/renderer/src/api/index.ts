@@ -125,8 +125,8 @@ export class API {
     return this.api.getLogFile(name)
   }
 
-  static async saveLogFile(name: string): Promise<QueryStatus> {
-    return this.api.saveLogFile(name)
+  static async showLogFileInFolder(name: string): Promise<QueryStatus> {
+    return this.api.showLogFileInFolder(name)
   }
 
   static async getContacts(network?: Network): Promise<Contact[]> {

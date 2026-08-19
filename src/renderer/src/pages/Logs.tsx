@@ -23,7 +23,6 @@ export default function LogsPage(): React.JSX.Element {
   const [lineLimit, setLineLimit] = useState(INITIAL_LOG_LINES)
   const [loadingFiles, setLoadingFiles] = useState(true)
   const [loadingContent, setLoadingContent] = useState(false)
-  const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadContent = useCallback(async (name: string): Promise<void> => {
@@ -66,16 +65,13 @@ export default function LogsPage(): React.JSX.Element {
   const filteredLines = useMemo(() => filterLogLines(allLines, query, level), [allLines, query, level])
   const visibleLines = useMemo(() => newestLogWindow(filteredLines, lineLimit), [filteredLines, lineLimit])
 
-  const download = async (): Promise<void> => {
-    if (!selectedName || downloading) return
-    setDownloading(true)
+  const showInFolder = async (): Promise<void> => {
+    if (!selectedName) return
     try {
-      const result = await API.saveLogFile(selectedName)
-      if (!result.success && result.errorMessage) toast.error(`**Download failed** ${result.errorMessage}`)
+      const result = await API.showLogFileInFolder(selectedName)
+      if (!result.success && result.errorMessage) toast.error(`**Could not show log file** ${result.errorMessage}`)
     } catch (cause) {
-      toast.error(`**Download failed** ${cause instanceof Error ? cause.message : String(cause)}`)
-    } finally {
-      setDownloading(false)
+      toast.error(`**Could not show log file** ${cause instanceof Error ? cause.message : String(cause)}`)
     }
   }
 
@@ -98,7 +94,7 @@ export default function LogsPage(): React.JSX.Element {
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void refresh()} disabled={loadingFiles}>Refresh</Button>
-            <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void download()} disabled={!selected || downloading}>{downloading ? 'Downloading…' : 'Download'}</Button>
+            <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void showInFolder()} disabled={!selected}>Show Log in Folder</Button>
           </div>
         </div>
 

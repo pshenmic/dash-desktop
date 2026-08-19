@@ -43,6 +43,21 @@ describe('LogService', () => {
     expect(result.rotated).toBe(false)
   })
 
+  it('returns the path of a regular log file', async () => {
+    const name = 'wallet-2026-08-12.log'
+    const filePath = path.join(directory, name)
+    await fs.writeFile(filePath, 'log')
+
+    await expect(service.getFilePath(name)).resolves.toBe(filePath)
+  })
+
+  it('rejects a directory with a valid log file name', async () => {
+    const name = 'wallet-2026-08-12.log'
+    await fs.mkdir(path.join(directory, name))
+
+    await expect(service.getFilePath(name)).rejects.toThrow('Log file is not a regular file')
+  })
+
   it.each(['../wallet-2026-08-12.log', 'C:\\wallet-2026-08-12.log', 'wallet.log', 'wallet-2026-08-12.log/other'])(
     'rejects unsafe or invalid name %s',
     async (name) => expect(service.readFile(name)).rejects.toThrow('Invalid log file name')

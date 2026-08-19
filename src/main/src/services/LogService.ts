@@ -46,11 +46,11 @@ export class LogService {
     return { name, content, size: stats.size, modifiedAt: stats.mtimeMs, rotated: name.endsWith('.old.log') }
   }
 
-  async copyFile(name: string, destination: string): Promise<void> {
+  async getFilePath(name: string): Promise<string> {
     const source = this.resolveFile(name)
     const stats = await fs.lstat(source)
     if (!stats.isFile() || stats.isSymbolicLink()) throw new Error('Log file is not a regular file')
-    await fs.copyFile(source, destination)
+    return source
   }
 
   validateFileName(name: string): void {

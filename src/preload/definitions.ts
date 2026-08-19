@@ -59,7 +59,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   saveTextFile: (defaultFileName: string, content: string) => ipcRenderer.invoke('saveTextFile', defaultFileName, content),
   getLogFiles: () => ipcRenderer.invoke('getLogFiles'),
   getLogFile: (name: string) => ipcRenderer.invoke('getLogFile', name),
-  saveLogFile: (name: string) => ipcRenderer.invoke('saveLogFile', name),
+  showLogFileInFolder: (name: string) => ipcRenderer.invoke('showLogFileInFolder', name),
 
   getContacts: (network?: Network) => ipcRenderer.invoke('getContacts', network),
   addContact: (label: string, address: string, network: Network) => ipcRenderer.invoke('addContact', label, address, network),
