@@ -43,6 +43,7 @@ import {CreateIdentityFromAddressesHandler} from "./api/wallet/createIdentityFro
 import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
 import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
 import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding";
+import {DismissAssetLockFundingHandler} from './api/wallet/dismissAssetLockFunding'
 import {AssetLockDAO} from "./database/AssetLockDAO";
 import {AssetLockService} from "./services/platform/AssetLockService";
 import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
@@ -158,6 +159,7 @@ export class WalletBackend {
     ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
     ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
+    ipcMain.handle('dismissAssetLockFunding', new DismissAssetLockFundingHandler(this.assetLockService).handle)
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletCredentialsService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletCredentialsService).handle)

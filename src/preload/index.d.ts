@@ -93,6 +93,7 @@ declare global {
       startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => Promise<unknown>
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
+      dismissAssetLockFunding: (walletId: string) => Promise<unknown>
       shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>

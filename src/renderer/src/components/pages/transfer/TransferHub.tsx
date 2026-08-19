@@ -104,6 +104,8 @@ function WalletTransferHub(): React.JSX.Element {
   const [fundingRefresh, setFundingRefresh] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
+  const [dismissBusy, setDismissBusy] = useState(false)
+  const [dismissError, setDismissError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!walletId) return
@@ -117,6 +119,21 @@ function WalletTransferHub(): React.JSX.Element {
       .catch(() => {})
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
+
+  const dismissFunding = async (): Promise<void> => {
+    if (!walletId || dismissBusy) return
+    setDismissBusy(true)
+    setDismissError(null)
+    try {
+      await API.dismissAssetLockFunding(walletId)
+      setResumableFunding(null)
+      setResumeOpen(false)
+    } catch (error) {
+      setDismissError(error instanceof Error ? error.message : 'Could not dismiss the pending funding.')
+    } finally {
+      setDismissBusy(false)
+    }
+  }
 
   const { syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
@@ -706,14 +723,29 @@ function WalletTransferHub(): React.JSX.Element {
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
               {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === AssetLockFundingKind.Identity ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
             </Text>
+            {dismissError && <Text size={12} weight={"medium"} color={"red"}>{dismissError}</Text>}
           </div>
-          <button
-            type={"button"}
-            onClick={() => setResumeOpen(true)}
-            className={"shrink-0 px-4 py-2 rounded-[.75rem] dash-bg-inverse cursor-pointer hover:opacity-90 transition-opacity"}
-          >
-            <Text size={12} weight={"extrabold"} color={"blue-mint"}>Resume</Text>
-          </button>
+          <div className={"shrink-0 flex items-center gap-2"}>
+            <button
+              type={"button"}
+              onClick={dismissFunding}
+              disabled={dismissBusy}
+              className={"px-3 py-2 rounded-[.75rem] border border-red-300 dark:border-red-700 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-default"}
+            >
+              <span className={"flex items-center gap-1.5"}>
+                {dismissBusy && <Spinner size={12} className={"text-red-700 dark:text-red-400"} />}
+                <Text size={12} weight={"extrabold"} color={"red"}>{dismissBusy ? 'Dismissing…' : 'Dismiss'}</Text>
+              </span>
+            </button>
+            <button
+              type={"button"}
+              onClick={() => setResumeOpen(true)}
+              disabled={dismissBusy}
+              className={"px-4 py-2 rounded-[.75rem] dash-bg-inverse cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-default"}
+            >
+              <Text size={12} weight={"extrabold"} color={"blue-mint"}>Resume</Text>
+            </button>
+          </div>
         </div>
       )}
 

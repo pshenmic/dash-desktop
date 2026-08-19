@@ -209,6 +209,10 @@ export class API {
     return this.api.resumeAssetLockFunding(walletId, password) as Promise<AssetLockFundingState>
   }
 
+  static async dismissAssetLockFunding(walletId: string): Promise<AssetLockFundingState> {
+    return this.api.dismissAssetLockFunding(walletId) as Promise<AssetLockFundingState>
+  }
+
   static async shieldToPool(walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string): Promise<ShieldResult> {
     return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
   }

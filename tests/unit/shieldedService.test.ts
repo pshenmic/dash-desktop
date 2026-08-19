@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {ShieldedService} from '../../src/main/src/services/ShieldedService'
+import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 
 function service(): ShieldedService {
   return new ShieldedService(

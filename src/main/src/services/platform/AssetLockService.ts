@@ -19,9 +19,13 @@ import {
   AssetLockFundingKind,
   AssetLockFundingRow,
 } from '../../types/AssetLock'
-import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../../constants'
+import {
+  ASSET_LOCK_CREDIT_OUTPUT_INDEX,
+  ASSET_LOCK_DISMISSED_ERROR,
+  CHAIN_LOCK_BACKSTOP_MS,
+  IDENTITY_LOCK_TIMEOUT_MS,
+} from '../../constants'
 import {requireWallet} from '../../utils/requireWallet'
-
 const coreSDKs = new Map<Network, DashCoreSDK>()
 
 // The constructor starts evonode discovery in the background, so one is kept per
@@ -94,6 +98,23 @@ export class AssetLockService {
     return this.assetLockDAO.getActiveFunding(walletId)
   }
 
+  async dismiss(walletId: string): Promise<AssetLockFundingState> {
+    if (this.getActive(walletId) != null) {
+      throw new Error('Cannot dismiss funding while it is running')
+    }
+
+    const row = await this.assetLockDAO.getActiveFunding(walletId)
+    if (this.getActive(walletId) != null) {
+      throw new Error('Cannot dismiss funding while it is running')
+    }
+    if (row != null) {
+      await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Error, {error: ASSET_LOCK_DISMISSED_ERROR})
+    }
+
+    const state = this.idleState()
+    this.states.set(walletId, state)
+    return state
+  }
   // Installs the job state for a new funding. Throws when one is already
   // running or a previous one is still resumable.
   async begin(walletId: string, kind: AssetLockFundingKind, destination: string, amountDuffs: bigint): Promise<AssetLockFundingState> {
