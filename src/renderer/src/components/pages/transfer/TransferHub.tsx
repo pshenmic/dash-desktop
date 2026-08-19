@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
 import { Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
@@ -25,12 +25,11 @@ import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import {
-  initialSpecificSourcePreferences,
   specificSourceKindForOperation,
   updateSpecificSourcePreference,
 } from "@renderer/utils/specificSource";
+import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
 import {
-  SOURCE_KINDS,
   DESTINATION_KINDS,
   resolveOperation,
   unsupportedReason,
@@ -48,6 +47,8 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
+import type { SendDraft } from "@renderer/types/SendDraft";
+import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
 import { CORE_FEE_DUFFS, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
@@ -63,28 +64,40 @@ import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
 
-function initialSourceKind(value: string | null): SourceKind {
-  return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : SourceKind.Core
-}
-
-function initialDestinationKind(value: string | null): DestinationKind {
-  return DESTINATION_KINDS.some(k => k.kind === value) ? value as DestinationKind : DestinationKind.CoreAddress
-}
-
 export default function TransferHub(): React.JSX.Element {
+  const { status } = useAuth()
+  return <WalletTransferHub key={status?.selectedWalletId ?? 'no-wallet'} />
+}
+
+function WalletTransferHub(): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
   const [searchParams] = useSearchParams()
-  const [fromKind, setFromKind] = useState<SourceKind>(() => initialSourceKind(searchParams.get('from')))
-  const [toKind, setToKind] = useState<DestinationKind>(() => initialDestinationKind(searchParams.get('to')))
-  const [fromAddress, setFromAddress] = useState('')
-  const [fromIdentity, setFromIdentity] = useState('')
-  const [toValue, setToValue] = useState('')
-  const [amount, setAmount] = useState('')
-  const [acked, setAcked] = useState(false)
-  const [specificSourcePreferences, setSpecificSourcePreferences] = useState(initialSpecificSourcePreferences)
+  const [draft, setDraftState] = useState<SendDraft>(() =>
+    getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
+  const draftRef = useRef(draft)
+  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, specificSourcePreferences } = draft
+  const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
+    const next = update(draftRef.current)
+    draftRef.current = next
+    setDraftState(next)
+    if (walletId != null) saveSendDraft(walletId, next)
+  }
+  const setFromKind = (fromKind: SourceKind): void => updateDraft(current => ({ ...current, fromKind }))
+  const setToKind = (toKind: DestinationKind): void => updateDraft(current => ({ ...current, toKind }))
+  const setFromAddress = (fromAddress: string): void => updateDraft(current => ({ ...current, fromAddress }))
+  const setFromIdentity = (fromIdentity: string): void => updateDraft(current => ({ ...current, fromIdentity }))
+  const setToValue = (toValue: string): void => updateDraft(current => ({ ...current, toValue }))
+  const setAmount = (amount: string): void => updateDraft(current => ({ ...current, amount }))
+  const setAcked = (acked: boolean): void => updateDraft(current => ({ ...current, acked }))
+  const setSpecificSourcePreferences = (
+    update: (current: SpecificSourcePreferences) => SpecificSourcePreferences,
+  ): void => updateDraft(current => ({
+    ...current,
+    specificSourcePreferences: update(current.specificSourcePreferences),
+  }))
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
@@ -315,9 +328,10 @@ export default function TransferHub(): React.JSX.Element {
   const fieldError = amountError ?? feeErr
 
   const resetForm = (): void => {
-    setToValue('')
-    setAmount('')
-    setAcked(false)
+    const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
+    draftRef.current = resetDraft
+    setDraftState(resetDraft)
+    if (walletId) clearSendDraft(walletId)
     setWizardKey(k => k + 1)
     if (walletId) {
       refreshPlatformAddresses(walletId)
