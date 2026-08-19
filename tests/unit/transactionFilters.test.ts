@@ -17,9 +17,11 @@ const DASH = 100_000_000n
 
 function tx(overrides: Partial<FilterableTx> = {}): FilterableTx {
   return {
+    id: 'ABC123txid',
     direction: 'in',
     status: 'success',
     amount: DASH,
+    vin: [{ addr: 'XInputAddr' }],
     vout: [{ value: '1.0', address: 'XaddrA' }],
     ...overrides,
   }
@@ -54,37 +56,67 @@ describe('matchesTxFilter', () => {
   })
 
   it('filters by direction', () => {
-    const received: TxFilter = { direction: TxDirectionFilter.Received, type: TxTypeFilter.All }
+    const received: TxFilter = { direction: TxDirectionFilter.Received, type: TxTypeFilter.All, search: '' }
     expect(matchesTxFilter(tx({ direction: 'in' }), received)).toBe(true)
     expect(matchesTxFilter(tx({ direction: 'out' }), received)).toBe(false)
 
-    const sent: TxFilter = { direction: TxDirectionFilter.Sent, type: TxTypeFilter.All }
+    const sent: TxFilter = { direction: TxDirectionFilter.Sent, type: TxTypeFilter.All, search: '' }
     expect(matchesTxFilter(tx({ direction: 'in' }), sent)).toBe(false)
     expect(matchesTxFilter(tx({ direction: 'out' }), sent)).toBe(true)
   })
 
   it('filters by type', () => {
-    const transfers: TxFilter = { direction: TxDirectionFilter.All, type: TxTypeFilter.Transfer }
+    const transfers: TxFilter = { direction: TxDirectionFilter.All, type: TxTypeFilter.Transfer, search: '' }
     expect(matchesTxFilter(tx(), transfers)).toBe(true)
     expect(matchesTxFilter(assetLockTx(), transfers)).toBe(false)
 
-    const assetLocks: TxFilter = { direction: TxDirectionFilter.All, type: TxTypeFilter.AssetLock }
+    const assetLocks: TxFilter = { direction: TxDirectionFilter.All, type: TxTypeFilter.AssetLock, search: '' }
     expect(matchesTxFilter(tx(), assetLocks)).toBe(false)
     expect(matchesTxFilter(assetLockTx(), assetLocks)).toBe(true)
   })
 
   it('requires both direction and type to match', () => {
-    const filter: TxFilter = { direction: TxDirectionFilter.Sent, type: TxTypeFilter.AssetLock }
+    const filter: TxFilter = { direction: TxDirectionFilter.Sent, type: TxTypeFilter.AssetLock, search: '' }
     expect(matchesTxFilter(assetLockTx({ direction: 'out' }), filter)).toBe(true)
     expect(matchesTxFilter(assetLockTx({ direction: 'in' }), filter)).toBe(false)
     expect(matchesTxFilter(tx({ direction: 'out' }), filter)).toBe(false)
+  })
+
+  it('matches a partial txid case-insensitively', () => {
+    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'c123TX' })).toBe(true)
+  })
+
+  it('matches partial input and output addresses case-insensitively', () => {
+    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'inputa' })).toBe(true)
+    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'ADDRA' })).toBe(true)
+  })
+
+  it('ignores surrounding whitespace and treats whitespace-only search as empty', () => {
+    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: '  C123  ' })).toBe(true)
+    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: '   ' })).toBe(true)
+  })
+
+  it('does not match unrelated text', () => {
+    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'not-present' })).toBe(false)
+  })
+
+  it('combines search with direction and type filters', () => {
+    const matching: TxFilter = {
+      direction: TxDirectionFilter.Sent,
+      type: TxTypeFilter.AssetLock,
+      search: 'changeaddr',
+    }
+    expect(matchesTxFilter(assetLockTx(), matching)).toBe(true)
+    expect(matchesTxFilter(assetLockTx({ direction: 'in' }), matching)).toBe(false)
+    expect(matchesTxFilter(tx({ direction: 'out' }), matching)).toBe(false)
+    expect(matchesTxFilter(assetLockTx(), { ...matching, search: 'not-present' })).toBe(false)
   })
 })
 
 describe('filterTransactions', () => {
   it('keeps only matching transactions', () => {
     const txs = [tx({ direction: 'in' }), tx({ direction: 'out' }), assetLockTx()]
-    const sent = filterTransactions(txs, { direction: TxDirectionFilter.Sent, type: TxTypeFilter.All })
+    const sent = filterTransactions(txs, { direction: TxDirectionFilter.Sent, type: TxTypeFilter.All, search: '' })
     expect(sent).toHaveLength(2)
     expect(sent.every((t) => t.direction === 'out')).toBe(true)
   })
@@ -99,6 +131,7 @@ describe('filterTransactionGroups', () => {
     const filtered = filterTransactionGroups(groups, {
       direction: TxDirectionFilter.Sent,
       type: TxTypeFilter.All,
+      search: '',
     })
     expect(filtered).toHaveLength(1)
     expect(filtered[0].date).toBe('02/06/2026')
@@ -149,11 +182,13 @@ describe('computeTxTotals', () => {
 describe('isDefaultTxFilter', () => {
   it('detects the default filter', () => {
     expect(isDefaultTxFilter(DEFAULT_TX_FILTER)).toBe(true)
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All })).toBe(true)
+    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All, search: '' })).toBe(true)
+    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All, search: '   ' })).toBe(true)
   })
 
   it('detects a non-default filter', () => {
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.Sent, type: TxTypeFilter.All })).toBe(false)
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.Transfer })).toBe(false)
+    expect(isDefaultTxFilter({ direction: TxDirectionFilter.Sent, type: TxTypeFilter.All, search: '' })).toBe(false)
+    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.Transfer, search: '' })).toBe(false)
+    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All, search: 'txid' })).toBe(false)
   })
 })

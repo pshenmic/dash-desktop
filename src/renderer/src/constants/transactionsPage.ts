@@ -18,6 +18,10 @@ interface TransactionsPage {
       documentsBatch: TransactionType
     }
     filters: {
+      search: {
+        label: string
+        placeholder: string
+      }
       direction: {
         label: string
         all: string
@@ -83,6 +87,10 @@ export const transactionsPage: TransactionsPage = {
       }
     },
     filters: {
+      search: {
+        label: 'Search transactions',
+        placeholder: 'TxID or address',
+      },
       direction: {
         label: 'Direction',
         all: 'All',
