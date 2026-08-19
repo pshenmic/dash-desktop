@@ -7,7 +7,7 @@ import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
-import { defaultReceiveShieldedAddress } from '@renderer/utils/receiveDefaults'
+import { defaultReceiveShieldedAddress, receiveShieldedAddresses } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
@@ -51,9 +51,14 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   }
 
   if (addresses !== null) {
-    const selected = selectedAddress != null && addresses.includes(selectedAddress)
+    const receiveAddresses = receiveShieldedAddresses(addresses, balances)
+    if (receiveAddresses.length === 0) {
+      return <Text size={12} weight={"medium"} color={"brand"} opacity={50}>No unfunded shielded addresses available.</Text>
+    }
+
+    const selected = selectedAddress != null && receiveAddresses.includes(selectedAddress)
       ? selectedAddress
-      : defaultReceiveShieldedAddress(addresses, balances) ?? addresses[0]
+      : defaultReceiveShieldedAddress(receiveAddresses, balances)!
     const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
     return (
@@ -77,7 +82,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
               <div className={"flex items-center gap-[.625rem]"}>
                 <div className={"flex-1 min-w-0"}>
                   <ShieldedAddressSelect
-                    addresses={addresses}
+                    addresses={receiveAddresses}
                     balances={synced ? balances : undefined}
                     selected={selected}
                     onSelect={setSelectedAddress}

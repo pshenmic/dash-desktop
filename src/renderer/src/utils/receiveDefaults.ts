@@ -4,10 +4,12 @@ export function isUnusedPlatformAddress(address: PlatformAddressDto): boolean {
   return address.nonce === 0 && address.balanceCredits === 0n
 }
 
+export function receivePlatformAddresses(addresses: PlatformAddressDto[]): PlatformAddressDto[] {
+  return addresses.filter(isUnusedPlatformAddress)
+}
+
 export function defaultReceivePlatformAddress(addresses: PlatformAddressDto[]): PlatformAddressDto | undefined {
-  return addresses.find(isUnusedPlatformAddress)
-    ?? addresses.find((a) => a.balanceCredits === 0n)
-    ?? addresses[0]
+  return receivePlatformAddresses(addresses)[0]
 }
 
 export function defaultReceiveCoreAddress(
@@ -25,5 +27,12 @@ export function defaultReceiveShieldedAddress(
   addresses: string[],
   balances: Map<string, bigint>,
 ): string | undefined {
-  return addresses.find((a) => (balances.get(a) ?? 0n) === 0n) ?? addresses[0]
+  return receiveShieldedAddresses(addresses, balances)[0]
+}
+
+export function receiveShieldedAddresses(
+  addresses: string[],
+  balances: Map<string, bigint>,
+): string[] {
+  return addresses.filter((address) => (balances.get(address) ?? 0n) === 0n)
 }

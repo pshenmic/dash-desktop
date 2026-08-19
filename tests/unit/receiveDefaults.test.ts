@@ -4,6 +4,8 @@ import {
   defaultReceiveShieldedAddress,
   defaultReceivePlatformAddress,
   isUnusedPlatformAddress,
+  receivePlatformAddresses,
+  receiveShieldedAddresses,
 } from '../../src/renderer/src/utils/receiveDefaults'
 import type { WalletAddressDto } from '../../src/renderer/src/api/types'
 
@@ -33,18 +35,25 @@ describe('defaultReceivePlatformAddress', () => {
     expect(defaultReceivePlatformAddress(list)?.platformAddress).toBe('c')
   })
 
-  it('prefers a zero-balance address with an advanced nonce over funded ones', () => {
+  it('does not return a zero-balance address with an advanced nonce', () => {
     const list = [platformAddr('a', 500n, 2), platformAddr('b', 0n, 3), platformAddr('c', 10n, 0)]
-    expect(defaultReceivePlatformAddress(list)?.platformAddress).toBe('b')
+    expect(defaultReceivePlatformAddress(list)).toBeUndefined()
   })
 
-  it('falls back to the first address when all are funded', () => {
+  it('returns undefined when all addresses are funded', () => {
     const list = [platformAddr('a', 500n, 2), platformAddr('b', 10n, 0)]
-    expect(defaultReceivePlatformAddress(list)?.platformAddress).toBe('a')
+    expect(defaultReceivePlatformAddress(list)).toBeUndefined()
   })
 
   it('returns undefined for an empty list', () => {
     expect(defaultReceivePlatformAddress([])).toBeUndefined()
+  })
+})
+
+describe('receivePlatformAddresses', () => {
+  it('excludes funded addresses and addresses with an advanced nonce', () => {
+    const list = [platformAddr('a', 0n, 0), platformAddr('b', 10n, 0), platformAddr('c', 0n, 1)]
+    expect(receivePlatformAddresses(list).map(address => address.platformAddress)).toEqual(['a'])
   })
 })
 
@@ -85,9 +94,9 @@ describe('defaultReceiveShieldedAddress', () => {
     expect(defaultReceiveShieldedAddress(['a', 'b'], balances)).toBe('b')
   })
 
-  it('falls back to the first address when all are funded', () => {
+  it('returns undefined when all addresses are funded', () => {
     const balances = new Map<string, bigint>([['a', 10n], ['b', 5n]])
-    expect(defaultReceiveShieldedAddress(['a', 'b'], balances)).toBe('a')
+    expect(defaultReceiveShieldedAddress(['a', 'b'], balances)).toBeUndefined()
   })
 
   it('picks the first address when the balance map is empty', () => {
@@ -96,5 +105,12 @@ describe('defaultReceiveShieldedAddress', () => {
 
   it('returns undefined for an empty list', () => {
     expect(defaultReceiveShieldedAddress([], new Map())).toBeUndefined()
+  })
+})
+
+describe('receiveShieldedAddresses', () => {
+  it('excludes addresses with a positive current balance', () => {
+    const balances = new Map<string, bigint>([['a', 10n], ['b', 0n]])
+    expect(receiveShieldedAddresses(['a', 'b', 'c'], balances)).toEqual(['b', 'c'])
   })
 })
