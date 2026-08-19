@@ -115,7 +115,6 @@ export default function TransferHub(): React.JSX.Element {
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
-  const optionalShieldRecipient = operation === TransferOperation.AssetLockShield
 
   const destinationKinds = useMemo(
     () => DESTINATION_KINDS.filter(d => d.kind !== DestinationKind.NewIdentity && resolveOperation(fromKind, d.kind) != null),
@@ -196,7 +195,7 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
     : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
     : toKind === DestinationKind.NewIdentity ? true
-    : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
+    : isLikelyShieldedAddress(trimmedTo)
 
   const { feeCredits, maxPerTx, loading: feeLoading, err: feeErr } = useOperationFee(network, operation, {
     destinationValid,
@@ -390,12 +389,6 @@ export default function TransferHub(): React.JSX.Element {
 
       {coreSourceGated && <P2pSyncAlert />}
 
-      {optionalShieldRecipient && (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
-          Leave the address empty to shield to this wallet's own shielded balance.
-        </Text>
-      )}
-
       {reason && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={60} className={"leading-[130%]"}>{reason}</Text>
@@ -555,9 +548,7 @@ export default function TransferHub(): React.JSX.Element {
     : fromKind === SourceKind.Identity ? (selectedIdentity?.identifier ?? '')
     : 'Your shielded balance'
 
-  const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity'
-    : optionalShieldRecipient && trimmedTo.length === 0 ? 'Your shielded balance'
-    : trimmedTo
+  const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
 
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>

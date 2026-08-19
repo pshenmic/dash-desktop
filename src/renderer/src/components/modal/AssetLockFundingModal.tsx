@@ -74,7 +74,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneHeading: 'Credits shielded',
     doneNote: 'The locked Dash is now a note in your shielded balance.',
     toLabel: 'To (Shielded)',
-    emptyTo: 'Your shielded balance',
+    emptyTo: '',
     confirm: 'Confirm & Shield',
   },
   identity: {
