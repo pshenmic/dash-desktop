@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Identifier, useTheme, TimeDelta, ChevronIcon, DashLogo } from 'dash-ui-kit/react'
 import { cva } from 'class-variance-authority'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
@@ -23,6 +23,8 @@ import { transactionUrl, addressUrl, openExternal } from '@renderer/utils/explor
 import { ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Network } from '@renderer/api/types'
+import { API } from '@renderer/api'
+import { mapWalletTransaction } from '@renderer/utils/walletTransactions'
 
 const cardStyles = cva(
   'flex flex-col gap-5 p-[.9375rem] rounded-[.9375rem] dash-card-base shadow-[0_0_50px_0_rgba(0,0,0,0.1)]'
@@ -106,9 +108,41 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
   const { status: appStatus } = useAuth()
   const network = appStatus?.network ?? null
   const [qrAddress, setQrAddress] = useState<string | null>(null)
-  const isIncoming = transaction.direction === 'in'
+  const [resolvedTransaction, setResolvedTransaction] = useState(transaction)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const isIncoming = resolvedTransaction.direction === 'in'
   const hoverNotification = useRipple()
   const { format: formatFiat, rateReady } = useFiat()
+
+  useEffect(() => {
+    setResolvedTransaction(transaction)
+    setDetailsError(null)
+
+    if (network == null) {
+      setDetailsLoading(false)
+      return
+    }
+
+    let active = true
+    setDetailsLoading(true)
+
+    API.getTransactionByHash(transaction.id, network)
+      .then((raw) => {
+        if (active) setResolvedTransaction(mapWalletTransaction(raw))
+      })
+      .catch((error) => {
+        console.error('[transaction detail] fetch failed:', error)
+        if (active) setDetailsError('Could not load complete transaction details. Showing cached data.')
+      })
+      .finally(() => {
+        if (active) setDetailsLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [network, transaction])
 
   function trimTrailingZeros(value: string): string {
     return value
@@ -135,9 +169,20 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         </button>
         <Text size={40} weight={"medium"} color={"brand"} className={"tracking-[-0.03em]"}>
           <span className={"opacity-50"}>{detail.titlePrefix}</span>
-          {' '}{transaction.title}
+          {' '}{resolvedTransaction.title}
         </Text>
       </div>
+
+      {detailsLoading && (
+        <Text size={14} weight={"medium"} color={"brand"} opacity={50}>
+          Loading complete transaction details...
+        </Text>
+      )}
+      {detailsError && (
+        <Text size={14} weight={"medium"} color={"brand"}>
+          {detailsError}
+        </Text>
+      )}
 
       <div className={cardStyles()}>
         <div className={"flex items-center gap-[.625rem]"}>
@@ -150,12 +195,12 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         </div>
         <div className={"flex items-center gap-[.3125rem]"}>
           <Identifier className={"font-mono font-extrabold!"} >
-            {transaction.id}
+            {resolvedTransaction.id}
           </Identifier>
-          <CopyButton text={transaction.id} />
+          <CopyButton text={resolvedTransaction.id} />
           {network && (
             <button
-              onClick={() => openExternal(transactionUrl(transaction.id, network))}
+              onClick={() => openExternal(transactionUrl(resolvedTransaction.id, network))}
               title={"Open in explorer"}
               className={"size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
             >
@@ -171,7 +216,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
             {detail.details}:
           </Text>
           <Text size={14} weight={"medium"} color={"brand"} opacity={50} className={"tracking-[-0.03em]"}>
-            {detail.size}: {transaction.size} {detail.bytes}
+            {detail.size}: {resolvedTransaction.size} {detail.bytes}
           </Text>
         </div>
 
@@ -182,10 +227,10 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               label={`${detail.fields.date}:`}
               value={
                 <Text size={14} weight={"extrabold"} color={"brand"}>
-                    {formatCreationDate(transaction.date)} <span className={"font-medium"}>{timePart(transaction.date)}</span>
+                    {formatCreationDate(resolvedTransaction.date)} <span className={"font-medium"}>{timePart(resolvedTransaction.date)}</span>
                 </Text>
               }
-              subValue={<TimeDelta endDate={transaction.date} />}
+              subValue={<TimeDelta endDate={resolvedTransaction.date} />}
             />
             <DetailToken
               icon={<DashLogo size={14} color={theme === 'light' ? 'var(--color-dash-brand)' : 'var(--color-dash-mint)'} className={"dash-text-primary"} />}
@@ -194,12 +239,12 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                 <Text size={14} weight={"medium"} color={"brand"}>
                   <span className={`font-extrabold ${isIncoming ? 'dash-text-primary' : ''}`}>
                     {isIncoming ? '+ ' : '- '}
-                    <DashBigNumber>{davToDash(transaction.amount).toString()}</DashBigNumber>
+                    <DashBigNumber>{davToDash(resolvedTransaction.amount).toString()}</DashBigNumber>
                   </span>
                   {' Dash'}
                 </Text>
               }
-              subValue={rateReady ? `~ ${formatFiat(transaction.amount)}` : undefined}
+              subValue={rateReady ? `~ ${formatFiat(resolvedTransaction.amount)}` : undefined}
             />
           </div>
           <div className={"flex gap-3 min-h-17"}>
@@ -208,17 +253,17 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               label={`${detail.fields.confirmations}:`}
               value={
                 <Text size={14} weight={"medium"} color={"brand"}>
-                  <DashBigNumber className={"gap-0!"}>{transaction.confirmations}</DashBigNumber>
+                  <DashBigNumber className={"gap-0!"}>{resolvedTransaction.confirmations}</DashBigNumber>
                 </Text>
               }
             />
-            {transaction.blockHeight && (
+            {resolvedTransaction.blockHeight && (
               <DetailToken
                 icon={<BoxIcon size={14} color={"currentColor"} className={"dash-text-primary"} />}
                 label={`${detail.fields.lockTime}:`}
                 value={
                   <Text size={14} weight={"medium"} color={"brand"}>
-                    <DashBigNumber className={"gap-0!"}>{transaction.blockHeight}</DashBigNumber>
+                    <DashBigNumber className={"gap-0!"}>{resolvedTransaction.blockHeight}</DashBigNumber>
                   </Text>
                 }
                 subValue={detail.fields.height}
@@ -233,10 +278,10 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
           <Text size={14} weight={"medium"} color={"brand"} className={"tracking-[-0.03em]"}>
             {detail.inputs}:
           </Text>
-          <CustomBadge text={transaction.vin.length.toString()} variant={"muted"} size={"xs"} />
+          <CustomBadge text={resolvedTransaction.vin.length.toString()} variant={"muted"} size={"xs"} />
         </div>
         <div className={"flex flex-col gap-3"}>
-           {transaction.vin.map((input, i) => (
+           {resolvedTransaction.vin.map((input, i) => (
             <div key={`input-${i}`} className={"flex items-center gap-2 justify-between"}>
               <div className={"flex items-center gap-[.3125rem] flex-1 min-w-0"}>
                 <Identifier className={"font-mono opacity-40 dark:opacity-100"}>
@@ -262,10 +307,10 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
           <Text size={14} weight={"medium"} color={"brand"} className={"tracking-[-0.03em]"}>
             {detail.outputs}:
           </Text>
-          <CustomBadge text={transaction.vout.length.toString()} variant={"muted"} size={"xs"} />
+          <CustomBadge text={resolvedTransaction.vout.length.toString()} variant={"muted"} size={"xs"} />
         </div>
         <div className={"flex flex-col gap-3"}>
-          {transaction.vout.map((output, i) => (
+          {resolvedTransaction.vout.map((output, i) => (
             <div key={`output-${i}`} className={"flex items-center gap-2 justify-between"}>
               <div className={"flex items-center gap-2 flex-1 min-w-0"}>
                 {

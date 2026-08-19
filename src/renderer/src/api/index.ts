@@ -1,3 +1,4 @@
+import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
 
 export class API {
@@ -63,6 +64,10 @@ export class API {
 
   static async getTransactions(walletId: string): Promise<Transaction[]> {
     return this.api.getTransactions(walletId)
+  }
+
+  static async getTransactionByHash(hash: string, network: Network): Promise<WalletTxDto> {
+    return this.api.getTransactionByHash(hash, network) as Promise<WalletTxDto>
   }
 
   static async getIdentities(walletId: string) {
