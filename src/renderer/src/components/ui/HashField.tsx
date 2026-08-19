@@ -41,7 +41,7 @@ export default function HashField({ hash, label = 'State transition hash', explo
         {explorerUrl && (
           <button onClick={() => openExternal(explorerUrl)} className={"cursor-pointer flex items-center gap-1 hover:opacity-60"}>
             <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-70"} />
-            <Text size={10} weight={"medium"} color={"brand"} opacity={40}>View on Dashscan</Text>
+            <Text size={10} weight={"medium"} color={"brand"} opacity={40}>View on explorer</Text>
           </button>
         )}
       </div>
