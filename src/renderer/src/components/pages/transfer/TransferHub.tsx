@@ -25,6 +25,11 @@ import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import {
+  initialSpecificSourcePreferences,
+  specificSourceKindForOperation,
+  updateSpecificSourcePreference,
+} from "@renderer/utils/specificSource";
+import {
   SOURCE_KINDS,
   DESTINATION_KINDS,
   resolveOperation,
@@ -79,9 +84,7 @@ export default function TransferHub(): React.JSX.Element {
   const [toValue, setToValue] = useState('')
   const [amount, setAmount] = useState('')
   const [acked, setAcked] = useState(false)
-  const [useSpecificSource, setUseSpecificSource] = useState(false)
-  const [coreFromAddress, setCoreFromAddress] = useState<string | null>(null)
-  const [shieldedFromAddress, setShieldedFromAddress] = useState<string | null>(null)
+  const [specificSourcePreferences, setSpecificSourcePreferences] = useState(initialSpecificSourcePreferences)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
@@ -115,6 +118,9 @@ export default function TransferHub(): React.JSX.Element {
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
+  const specificSourceKind = specificSourceKindForOperation(operation)
+  const specificSourcePreference = specificSourceKind == null ? null : specificSourcePreferences[specificSourceKind]
+  const useSpecificSource = specificSourcePreference?.enabled ?? false
 
   const destinationKinds = useMemo(
     () => DESTINATION_KINDS.filter(d => d.kind !== DestinationKind.NewIdentity && resolveOperation(fromKind, d.kind) != null),
@@ -151,7 +157,7 @@ export default function TransferHub(): React.JSX.Element {
       .sort((a, b) => (a.balance < b.balance ? 1 : a.balance > b.balance ? -1 : 0)),
     [receiving, change],
   )
-  const selectedCoreAddress = coreAddresses.find(a => a.address === coreFromAddress) ?? coreAddresses[0]
+  const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences[SourceKind.Core].address) ?? coreAddresses[0]
   const coreSpecificAddress = operation === TransferOperation.CoreSend && useSpecificSource ? selectedCoreAddress : undefined
 
   const spendableNotes = useMemo(
@@ -164,6 +170,7 @@ export default function TransferHub(): React.JSX.Element {
   const notesSyncing = shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering
   const shieldedAddressBalances = useMemo(() => shieldedBalancesByAddress(spendableNotes), [spendableNotes])
   const shieldedAddresses = useMemo(() => [...shieldedAddressBalances.keys()], [shieldedAddressBalances])
+  const shieldedFromAddress = specificSourcePreferences[SourceKind.Shielded].address
   const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
     ? shieldedFromAddress
     : shieldedAddresses[0]
@@ -331,18 +338,20 @@ export default function TransferHub(): React.JSX.Element {
         onIdentityChange={setFromIdentity}
       />
 
-      {(operation === TransferOperation.CoreSend || shieldedSpendOperation) && (
+      {specificSourceKind != null && (
         <div className={"flex flex-col gap-2"}>
           <Checkbox
             checked={useSpecificSource}
-            onChange={setUseSpecificSource}
+            onChange={enabled => setSpecificSourcePreferences(current =>
+              updateSpecificSourcePreference(current, specificSourceKind, { enabled }))}
             label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
           />
           {useSpecificSource && operation === TransferOperation.CoreSend && (
             <CoreAddressSelect
               addresses={coreAddresses}
               selected={selectedCoreAddress}
-              onSelect={setCoreFromAddress}
+              onSelect={address => setSpecificSourcePreferences(current =>
+                updateSpecificSourcePreference(current, SourceKind.Core, { address }))}
             />
           )}
           {useSpecificSource && shieldedSpendOperation && (
@@ -351,7 +360,8 @@ export default function TransferHub(): React.JSX.Element {
                 addresses={shieldedAddresses}
                 balances={shieldedAddressBalances}
                 selected={selectedShieldedAddress}
-                onSelect={setShieldedFromAddress}
+                onSelect={address => setSpecificSourcePreferences(current =>
+                  updateSpecificSourcePreference(current, SourceKind.Shielded, { address }))}
               />
               <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
             </>
