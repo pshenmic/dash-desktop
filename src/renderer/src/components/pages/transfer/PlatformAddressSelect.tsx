@@ -27,10 +27,12 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
         className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
       >
         {selected ? (
-          <div className={"flex items-center gap-2.5 min-w-0"}>
+          <div className={"flex items-center gap-2.5 min-w-0 flex-1"}>
             <CreditsIcon size={18} className={"shrink-0"} />
-            <div className={"flex flex-col items-start min-w-0"}>
-              <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{selected.platformAddress}</Text>
+            <div className={"flex flex-col items-start min-w-0 flex-1"}>
+              <span title={selected.platformAddress} className={"block max-w-full truncate text-left"}>
+                <Text reset size={14} weight={"medium"} color={"brand"} className={"font-mono"}>{selected.platformAddress}</Text>
+              </span>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 <CreditsAmount credits={selected.balanceCredits} />
               </Text>
@@ -56,8 +58,10 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
               `}
             >
               <CreditsIcon size={18} className={"shrink-0"} />
-              <div className={"flex flex-col min-w-0"}>
-                <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{a.platformAddress}</Text>
+              <div className={"flex flex-col min-w-0 flex-1"}>
+                <span title={a.platformAddress} className={"block max-w-full truncate text-left"}>
+                  <Text reset size={14} weight={"medium"} color={"brand"} className={"font-mono"}>{a.platformAddress}</Text>
+                </span>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   <CreditsAmount credits={a.balanceCredits} />
                 </Text>
