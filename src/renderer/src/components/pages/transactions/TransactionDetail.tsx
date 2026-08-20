@@ -311,12 +311,12 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         </div>
         <div className={"flex flex-col gap-3"}>
           {resolvedTransaction.vout.map((output, i) => (
-            <div key={`output-${i}`} className={"flex items-center gap-2 justify-between"}>
-              <div className={"flex items-center gap-2 flex-1 min-w-0"}>
+            <div key={`output-${i}`} className={"flex w-max min-w-full items-center gap-2 justify-between"}>
+              <div className={"flex items-center gap-2"}>
                 {
                   output.address ? (
                     <>
-                      <Identifier>{output.address}</Identifier>
+                      <Identifier linesAdjustment={false} className={"whitespace-nowrap"}>{output.address}</Identifier>
                       <AddressActions address={output.address} network={network} onShowQr={setQrAddress} />
                     </>
                   ) : (

@@ -20,11 +20,11 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
   useClickOutside(ref, () => setOpen(false))
 
   return (
-    <div className={"relative w-max min-w-full"} ref={ref}>
+    <div className={"relative w-fit self-start"} ref={ref}>
       <button
         type={"button"}
         onClick={() => addresses.length > 0 && setOpen(v => !v)}
-        className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
+        className={`w-max ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
       >
         {selected ? (
           <div className={"flex items-center gap-2.5"}>
@@ -50,7 +50,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
               type={"button"}
               onClick={() => { onSelect(a.platformAddress); setOpen(false) }}
               className={`
-                w-max min-w-full flex items-center gap-2.5 p-[.625rem] rounded-[.625rem] cursor-pointer text-left
+                w-full flex items-center gap-2.5 p-[.625rem] rounded-[.625rem] cursor-pointer text-left
                 hover:dash-block-accent-10 transition-colors duration-150
                 ${a.platformAddress === selected?.platformAddress ? 'dash-block-accent-5' : ''}
               `}
