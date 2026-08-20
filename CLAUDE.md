@@ -59,14 +59,13 @@ and TypeScript. Three processes:
 - `src/main/src/WalletBackend.ts` — the real backend. `start()` runs
   migrations, constructs DAOs/services, and **registers every wallet IPC
   handler directly** via `ipcMain.handle(...)` in `initHandlers()`. There is
-  **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied). The
-  `src/main/src/api/WalletAPI.ts` file is dead/unused — do not add to it.
+  **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied).
 - `src/main/p2p/` — the SPV P2P subsystem runs in a separate **Electron
   utility process** (forked from `WalletSyncService`). It owns two peer pools —
   a lock pool that is up in **both** connection modes and a bulk pool that is
   not, see "Connection modes" below — plus header/cfilter sync and transaction
   broadcast. Communicates with the main process by message passing
-  (`p2p/types/messages.ts`).
+  (`p2p/types/messages.ts`). See "p2p invariants" before changing it.
 - `src/main/shielded/` — the shielded (Orchard) subsystem runs in its own
   **Electron utility process** (forked from `ShieldedService`): Halo2 prover,
   note trial-decryption, proof building, ST broadcast. The main-process
@@ -80,15 +79,40 @@ and TypeScript. Three processes:
   register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
 - `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
   `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
-- `services/` — business logic only (`WalletService`,
-  `PlatformAddressService`, `ShieldedService`, `WalletSyncService`,
-  `RatesService`, `ContactService`, `ApplicationService`, `AssetLockService`,
-  `CoreTransactionService`).
-- `utils/` — pure, unit-tested helpers (`coinSelection`, `dedupeTransactions`,
-  `platformTransfer`, `shieldedNoteSelection`, `coreScript`, `identityKeys`,
-  `assetLockTx`) + `utils/index.ts` (crypto/knex/migrations). Helper-only
-  modules go here, NOT in `services/`.
-- `providers/` — see "Connection modes" below.
+- `services/` — business logic only, in four subdirectories:
+  - `services/wallet/` — the wallet record and the aggregate over it:
+    `WalletService`, `WalletCredentialsService`.
+  - `services/core/` — L1: `CoreDiscoveryService`, `CoreLockService`,
+    `CoreTransactionService`, `WalletSyncService`.
+  - `services/platform/` — L2: `PlatformWorkerService`, `IdentityService`,
+    `IdentityRegistrationService`, `PlatformAddressService`, `ShieldedService`,
+    `AssetLockService`.
+  - `services/app/` — process-wide, wallet-agnostic: `ApplicationService`,
+    `ContactService`, `RatesService`.
+
+  **`core/` imports nothing from `platform/`, and `WalletService` is the only
+  service that crosses groups at all.** It is an aggregate — `getWalletBalance`
+  is the L1 address total plus the L2 identity credits, which no single layer
+  can answer — so composing both is its job and nothing else may copy it.
+
+  `WalletCredentialsService` owns the mnemonic and the password and touches no
+  chain, which is why it is not in `core/`. `IdentityService` reads identities;
+  `IdentityRegistrationService` creates them by funding an asset lock.
+
+  Three kinds also share the `Service` suffix and fail differently: **process
+  supervisors** (`WalletSyncService`, `PlatformWorkerService`) own a
+  `UtilityProcess`; **job runners** (`AssetLockService`, `ShieldedService`) own
+  keyed state that outlives the method that started it; the rest are
+  request/response.
+- `utils/` — pure, unit-tested helpers (`coinSelection`, `transferInputs`,
+  `dedupeTransactions`, `platformTransfer`, `shieldedNoteSelection`,
+  `coreScript`, `identityKeys`, `assetLockTx`) + `utils/index.ts`
+  (crypto/knex/migrations). Helper-only modules go here, NOT in `services/`.
+  `requireWallet`/`requireSelectedWallet` and `walletSeed` take a `WalletDAO`
+  rather than being pure — that is the one exception, so a guard or an unlock
+  is written once instead of at every call site.
+- `providers/` — the two `WalletProvider` implementations and
+  `WalletProviderFactory`, which picks between them. See "Connection modes".
 - `types/` — domain types with `fromRow` factories.
 
 **Platform (L2) addresses are DIP-17** (`m/9'/coinType'/17'/account'/0'/index`,
@@ -97,6 +121,35 @@ account 0, lookahead 20). The account-level xpub is persisted in
 `PlatformAddressService` derives the address list from the xpub without a
 password and derives per-index keys from the seed for signing. Platform
 addresses are NOT mirrors of L1 addresses anymore.
+
+### p2p invariants (`src/main/p2p/`)
+
+Four directories, split by what a thing *is*, not what it is about. `utils/` is
+pure functions (byte order, x11, pow, header validation, locators) and `store/`
+is chain.db plus the in-memory structures over it (`HashIndex`, `ChainWindow`);
+neither knows a peer exists. `net/` (pools, broadcast, peer selection) imports
+nothing. `sync/` (`SyncService`, `WatchSet`, `sync/workers/`) is the only layer
+that touches the others, and the only one holding timers and retry state.
+`index.ts` is the IPC adapter and holds no logic.
+
+Things the code cannot tell you, and that a plausible-looking change breaks:
+
+- **chain.db is network-scoped and nothing under `p2p/` opens SQLite.** Wallet
+  state arrives in the `start` command (`seedUtxos`, `cfilterCursor`) and leaves
+  as `blockApplied` / `cursorAdvanced` for main to persist.
+- **An address belongs to exactly one pool.** `PoolService.takeAddresses()`
+  *moves* rather than copies, because a node dialled twice from one host drops
+  both connections.
+- **A pool resting under its ready target is intended.** Dead gossip addresses
+  are the majority, and their socket setup and teardown run on the thread
+  parsing sync responses. Do not fix it by dialling harder.
+- **No hardcoded block hashes.** Trust anchors come from `cfcheckpt` or
+  `GENESIS`; do not add a checkpoint table.
+- **x11 comes from `crypto-toothpick`** (native, WASM fallback) and resolves its
+  addon at runtime, so it must stay in `external` in `electron.vite.config.ts`.
+  Digests are in wire byte order — convert with `byteOrder.ts`.
+- **`FilterMatcher` caches the watch set natively**, so anything mutating
+  `WatchSet.items` must leave `revision` bumped.
 
 ### Preload (`src/preload/`)
 
@@ -155,6 +208,15 @@ SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,
 `addresses`, `identities`, `transactions` (+ `transaction_inputs/_outputs`,
 `wallet_sync_state`), `contacts`.
 
+**Never build a path under the data folder by hand.** Everything on disk —
+`storage.db`, `preferences.json`, `logs/`, `ChainStorage/` — goes through
+`dataPath(...segments)` in `src/main/src/utils/dataPath.ts`, which roots an
+unpackaged run at `~/.dash-desktop/dev/` and a packaged one at
+`~/.dash-desktop/`. The switch is `import.meta.env.DEV`, so electron-vite
+folds it away at build time and the shipped bundle has no dev branch. A
+`path.join(os.homedir(), HomeFolderName, ...)` written at a call site silently
+opts that file out of the split.
+
 **Migrations are registered BY HAND, not auto-discovered.** Adding a file under
 `src/main/migrations/` does nothing on its own — `migrateKnex()` in
 `src/main/src/utils.ts` builds an inline `migrations` array. You MUST:
@@ -174,8 +236,9 @@ Forgetting this means the table is never created and DAO calls fail at runtime
 
 ## Connection modes (p2p vs rpc) — important for any wallet data feature
 
-`WalletService.getProvider()` returns one of two `WalletProvider`
-implementations based on the `connectionType` preference:
+`WalletProviderFactory.forWallet()` returns one of two `WalletProvider`
+implementations based on the `connectionType` preference. It is resolved per
+call, never cached on a service, because the preference changes at runtime:
 
 - **`rpc`** (default) → `DashscanWalletProvider`: hits the Dashscan REST API
   (`DASHSCAN_BASE_URLS`). Batch endpoints (`/addresses/info`,
@@ -192,7 +255,7 @@ duffs live in `inAmount` / `outAmount` / `transferAmount` as `bigint`.
 
 Write wallet features against the `WalletProvider` interface so they work in
 both modes. Note `getTransactions` fetches per-address and is de-duped by txid
-in `WalletService` (one tx touches several owned addresses: spent inputs +
+inside each provider (one tx touches several owned addresses: spent inputs +
 change) — see `dedupeTransactions`.
 
 ### The lock pool runs in BOTH modes — `connectionType` does not gate it
@@ -201,18 +264,18 @@ The p2p utility process owns **two pools**, and only one of them is a mode:
 
 | Pool | Peers | Carries | Lifetime |
 |---|---|---|---|
-| `lockPool` | relay=**true**, network-scoped | broadcast, InstantSend (`isdlock`) and ChainLock (`clsig`) watching | **always up**, both modes |
+| `lockPool` | relay=**true**, network-scoped | broadcast, InstantSend (`isdlock`) and ChainLock (`clsig`) watching, incoming mempool txs | **always up**, both modes |
 | `bulkPool` | relay=false, dnsSeed=false | headers, cfilters, blocks | `p2p` mode only, via `startWalletSync` |
 
-`startLockListen(network)` is called from `WalletBackend` at boot and
+`startLockListen(network, walletId)` is called from `WalletBackend` at boot and
 `WalletService` on wallet select, with **no `connectionType` check**. So the
 child process exists and hears locks even in the default `rpc` mode.
 
 Two consequences that are easy to get wrong:
 
-- **Locally-signed transactions never go out over Dashscan.** `getProvider()`
+- **Locally-signed transactions never go out over Dashscan.** `forWallet()`
   covers *reads* and third-party broadcast; asset locks bypass it —
-  `WalletService.buildAndBroadcastAssetLock` calls
+  `CoreLockService.broadcastAssetLock` calls
   `walletSyncService.broadcastTransaction` directly, in both modes, because the
   lock pool is the only pool that can hear the resulting `isdlock`.
 - **A tx must be armed before its lock can arrive.** An ISDLOCK inv requires an
@@ -221,9 +284,36 @@ Two consequences that are easy to get wrong:
 
 Corollary: **never reach for `coreSDK.subscribeToTransactions` for a transaction
 this wallet broadcast.** DAPI is a different network path and does not deliver
-that lock in either mode. Use `WalletService.waitForInstantLock(txid, timeoutMs)`.
+that lock in either mode. Use `CoreLockService.waitForInstantLock(txid, timeoutMs)`.
 Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have no
 waiter yet — they only feed `markChainlockedUpTo`.
+
+### Incoming mempool txs (lock pool)
+
+Payments are spotted before any block carries them: `SyncService` matches TX invs
+on the lock pool against the addresses shipped in the `listen` command, emits
+`incomingTx`, and `WalletSyncService.recordIncomingTx` writes the tx at
+`block_height = 0` with `is_local = false`, then arms `watchForInstantLock`.
+
+- **An `isdlock` cannot tell you a tx pays you.** It carries `inputs`, `txid`,
+  `cycleHash` and `sig` — no outputs, no addresses — and its inv hash is not the
+  txid. It is the *finality* signal; discovery has to come from the TX inv, which
+  means fetching the tx to see its outputs. Matching happens in the child so the
+  mempool never crosses the process boundary.
+- **`is_local` is why the migration exists.** `rebroadcastPending` re-pushes
+  every unconfirmed tx on a timer; without the filter the wallet would relay a
+  stranger's transaction for as long as it stayed unconfirmed. `refreshWatchedTxids`
+  deliberately does *not* filter — arming incoming txs is what captures their lock.
+- Every peer announces the same tx (~9x measured), so `mempoolSeen` dedupes the
+  `getdata`. `[locks] mempool watch: …` reports counts every 5 min; `watching 0
+  address(es)` is what a wallet that never supplied its addresses looks like.
+
+**In `rpc` mode the row is written but never displayed.** `forWallet()` returns
+`DashscanWalletProvider`, which does not read local SQL, and nothing merges
+pending rows into its result — so `getTransactions`/`getWalletBalance` omit them,
+and `is_local` never comes back `false` in the renderer. Nothing moves those rows
+off `block_height = 0` in that mode either (no cfilter scan), so they accumulate
+in `getPendingTxs` and the isdlock watch set. Both are open.
 
 ## Renderer conventions worth knowing
 
@@ -333,7 +423,7 @@ break something rather than tidy it:
    in `preferences/`, `ReturnType<...>` aliases.
 3. **A type that is the file's whole purpose** — `providers/WalletProvider.ts`.
 4. **Values computed at module load, not literals** — `POW_LIMIT_TARGET =
-   bitsToTarget(POW_LIMIT_BITS)` in `p2p/pow.ts` (moving it makes
+   bitsToTarget(POW_LIMIT_BITS)` in `p2p/utils/pow.ts` (moving it makes
    `constants.ts` ↔ `pow.ts` circular) and `DEDUCT_FROM_FIRST` in
    `platform/operations/address/signInputs.ts` (constructs a WASM object at
    import time; relocating it changes WASM init order in that bundle).

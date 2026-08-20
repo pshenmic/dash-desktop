@@ -204,12 +204,7 @@ export default function TransferConfirmModal({
                   <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
                 </div>
               )}
-              {result?.stHash && (
-                <HashField
-                  hash={result.stHash}
-                  explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null}
-                />
-              )}
+              {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>

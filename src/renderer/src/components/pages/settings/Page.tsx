@@ -11,7 +11,6 @@ import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
 import { ThemePreference } from '@renderer/utils/theme'
 import { ZoomPreference, ZOOM_PRESETS } from '@renderer/utils/zoom'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
-import { WalletTxDto } from '@renderer/hooks/useWalletTransactions'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
@@ -193,7 +192,7 @@ export default function Settings(): React.JSX.Element {
     if (!walletId || exportPending) return
     setExportPending(true)
     try {
-      const raw = (await API.getTransactions(walletId)) as WalletTxDto[]
+      const raw = await API.getTransactions(walletId)
       const rows: CsvTxRow[] = (raw ?? []).map((tx) => ({
         date: new Date(tx.date),
         direction: tx.direction === 1 ? 'in' : 'out',

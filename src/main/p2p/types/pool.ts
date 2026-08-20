@@ -1,6 +1,16 @@
 import type {Message, Peer} from 'dash-core-p2p'
 
+// User-supplied discovery, per network. Empty arrays mean built-in behaviour.
+export interface PeerOverrides {
+  dnsSeeds: string[]
+  peers: string[]
+}
+
 export interface PoolServiceOptions {
+  // Replaces the network's built-in seeds when non-empty.
+  dnsSeeds?: string[]
+  // Dialled on start, in addition to whatever discovery finds.
+  peers?: string[]
   // false drops the tx inv stream — and with it ISLOCK/ISDLOCK inv, so only a
   // pool that never needs lock detection may set it.
   relay?: boolean
@@ -25,6 +35,7 @@ export interface PoolServiceEventMap {
   peercfheaders: (peer: Peer, message: Message) => void
   peercfilter: (peer: Peer, message: Message) => void
   peerislock: (peer: Peer, message: Message & { txid?: string }) => void
+  peertx: (peer: Peer, message: Message & { transaction?: unknown }) => void
   peerisdlock: (peer: Peer, message: Message & { txid?: string }) => void
   peerclsig: (peer: Peer, message: Message & { height?: number; blockHash?: string }) => void
   seederror: (err: Error) => void

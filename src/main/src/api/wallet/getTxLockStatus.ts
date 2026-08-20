@@ -1,12 +1,12 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/WalletService'
+import { CoreLockService } from '../../services/core/CoreLockService'
 import { TxLockStatus } from '../../types/TxLockStatus'
 
 export class GetTxLockStatusHandler {
-  private walletService: WalletService
+  private coreLockService: CoreLockService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(coreLockService: CoreLockService) {
+    this.coreLockService = coreLockService
   }
 
   handle = async (
@@ -14,6 +14,6 @@ export class GetTxLockStatusHandler {
     walletId: string,
     txid: string,
   ): Promise<TxLockStatus> => {
-    return this.walletService.getTxLockStatus(walletId, txid)
+    return this.coreLockService.getTxLockStatus(walletId, txid)
   }
 }

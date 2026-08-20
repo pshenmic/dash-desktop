@@ -140,9 +140,20 @@ export interface GeneralPreferencesJSON {
   connectionType: ConnectionType
 }
 
+export interface PeerOverridesJSON {
+  dnsSeeds: string[]
+  peers: string[]
+}
+
+export interface NetworkPreferencesJSON {
+  mainnet: PeerOverridesJSON
+  testnet: PeerOverridesJSON
+}
+
 export interface PreferencesJSON {
   version: number
   general: GeneralPreferencesJSON
+  network: NetworkPreferencesJSON
 }
 
 export interface QueryStatus {
@@ -185,6 +196,52 @@ export interface SendResult {
   toAddress: string
   changeAddress: string | null
   peersAcked: number
+}
+
+export interface TransactionInput {
+  value: string
+  n: number
+  addr: string
+  prevTxId: string
+  prevVout: number
+  sequence: number
+}
+
+export interface TransactionOutput {
+  value: string
+  n: number
+  address: string
+  spentTxId: string
+  spentIndex: number
+  spentHeight: number
+}
+
+// getTransactions / getTransactionByHash
+export interface Transaction {
+  address: string
+  // -1 spent from this wallet, 1 received into it
+  direction: number
+  inAmount: bigint
+  outAmount: bigint
+  transferAmount: bigint
+  usdAmount: string
+  date: Date
+  size: number
+  // 0 while the tx is only in the mempool
+  blockHeight: number
+  status: 'Pending' | 'Locked'
+  walletId: string
+  confirmations: number
+  txid: string
+  vin: TransactionInput[]
+  vout: TransactionOutput[]
+  // A DIP-24 lock makes a tx final before any block carries it, so an
+  // unconfirmed tx can still be irreversible.
+  instantLocked: boolean
+  chainlocked: boolean
+  // Whether this wallet broadcast it. Only meaningful while unconfirmed, and
+  // null from sources that cannot know — the chain does not record provenance.
+  isLocal: boolean | null
 }
 
 export interface TxLockStatus {

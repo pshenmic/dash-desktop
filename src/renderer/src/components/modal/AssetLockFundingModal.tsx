@@ -375,19 +375,8 @@ export default function AssetLockFundingModal({
                   </div>
                 </div>
               )}
-              {doneTxid && (
-                <HashField
-                  hash={doneTxid}
-                  label={"L1 txid"}
-                  explorerUrl={network ? transactionUrl(doneTxid, network) : null}
-                />
-              )}
-              {state.stHash && (
-                <HashField
-                  hash={state.stHash}
-                  explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null}
-                />
-              )}
+              {doneTxid && <HashField hash={doneTxid} label={"L1 transaction hash"} explorerUrl={network ? transactionUrl(doneTxid, network) : null} />}
+              {state.stHash && <HashField hash={state.stHash} label={"L2 state transition hash"} explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null} />}
             </div>
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>

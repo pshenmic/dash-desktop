@@ -89,7 +89,9 @@ Output is placed in the `dist/` directory.
 
 ## Data storage
 
-All data is stored locally under `~/.dash-desktop/`.
+All data is stored locally under `~/.dash-desktop/`. A development run
+(`yarn dev`) uses `~/.dash-desktop/dev/` instead, so it never touches the
+installed app's data.
 
 | File | Purpose |
 |------|---------|

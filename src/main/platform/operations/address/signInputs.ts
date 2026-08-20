@@ -1,6 +1,6 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {AddressWitnessWASM, InputAddressWASM, AddressFundsFeeStrategyStepWASM} from 'dash-platform-sdk/types.js'
-import {Network} from '../../../src/types'
+import {Network} from '../../../src/types/Network'
 import {PLATFORM_ACCOUNT} from '../../../src/constants'
 import {AddressInput} from '../../types/messages'
 

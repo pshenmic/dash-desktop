@@ -1,4 +1,4 @@
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -10,31 +10,31 @@ export class API {
   }
 
   static async setConnectionType(connectionType: ConnectionType): Promise<QueryStatus> {
-    return this.api.setConnectionType(connectionType) as Promise<QueryStatus>
+    return this.api.setConnectionType(connectionType)
   }
 
   static async setFiatCurrency(currency: string): Promise<QueryStatus> {
-    return this.api.setFiatCurrency(currency) as Promise<QueryStatus>
+    return this.api.setFiatCurrency(currency)
   }
 
   static async startWalletSync(walletId: string): Promise<QueryStatus> {
-    return this.api.startWalletSync(walletId) as Promise<QueryStatus>
+    return this.api.startWalletSync(walletId)
   }
 
   static async stopWalletSync(): Promise<void> {
     return this.api.stopWalletSync()
   }
 
-  static async resetWalletSync(network: 'mainnet' | 'testnet'): Promise<void> {
+  static async resetWalletSync(network: Network): Promise<void> {
     await this.api.resetWalletSync(network)
   }
 
   static async hasSyncProgress(walletId: string): Promise<boolean> {
-    return this.api.hasSyncProgress(walletId) as Promise<boolean>
+    return this.api.hasSyncProgress(walletId)
   }
 
-  static async createWallet(seedphrase: string, network: string, password: string): Promise<string> {
-    return this.api.createWallet(seedphrase, network, password) as Promise<string>
+  static async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
+    return this.api.createWallet(seedphrase, network, password)
   }
 
   static async getAddresses(walletId: string) {
@@ -58,10 +58,10 @@ export class API {
   }
 
   static async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
-    return this.api.setWalletLabel(walletId, label) as Promise<QueryStatus>
+    return this.api.setWalletLabel(walletId, label)
   }
 
-  static async getTransactions(walletId: string) {
+  static async getTransactions(walletId: string): Promise<Transaction[]> {
     return this.api.getTransactions(walletId)
   }
 
@@ -82,7 +82,7 @@ export class API {
   }
 
   static async deleteWallet(walletId: string): Promise<QueryStatus> {
-    return this.api.deleteWallet(walletId) as Promise<QueryStatus>
+    return this.api.deleteWallet(walletId)
   }
 
   static async selectWallet(walletId: string) {
@@ -114,7 +114,7 @@ export class API {
   }
 
   static async saveTextFile(defaultFileName: string, content: string): Promise<QueryStatus> {
-    return this.api.saveTextFile(defaultFileName, content) as Promise<QueryStatus>
+    return this.api.saveTextFile(defaultFileName, content)
   }
 
   static async getContacts(network?: Network): Promise<Contact[]> {
@@ -122,11 +122,11 @@ export class API {
   }
 
   static async addContact(label: string, address: string, network: Network): Promise<QueryStatus> {
-    return this.api.addContact(label, address, network) as Promise<QueryStatus>
+    return this.api.addContact(label, address, network)
   }
 
   static async deleteContact(id: number): Promise<QueryStatus> {
-    return this.api.deleteContact(id) as Promise<QueryStatus>
+    return this.api.deleteContact(id)
   }
 
   static async sendTransaction(walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string): Promise<SendResult> {
@@ -222,14 +222,14 @@ export class API {
   }
 
   static async getShieldedAddress(walletId: string, password?: string): Promise<string | null> {
-    return this.api.getShieldedAddress(walletId, password) as Promise<string | null>
+    return this.api.getShieldedAddress(walletId, password)
   }
 
   static async getShieldedAddresses(walletId: string, password?: string): Promise<string[] | null> {
-    return this.api.getShieldedAddresses(walletId, password) as Promise<string[] | null>
+    return this.api.getShieldedAddresses(walletId, password)
   }
 
   static async addShieldedAddress(walletId: string, password: string): Promise<string[]> {
-    return this.api.addShieldedAddress(walletId, password) as Promise<string[]>
+    return this.api.addShieldedAddress(walletId, password)
   }
 }

@@ -1,8 +1,9 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import type {AddressInfo} from '../types/AddressInfo'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
-import type {Network} from '../types'
+import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
 import {SELECT_CHUNK_SIZE} from '../constants'
@@ -135,6 +136,31 @@ export class TransactionDAO {
     })
   }
 
+  // Orphaned txs go back to the block_height 0 sentinel rather than being
+  // deleted: one is normally re-mined, and that puts it back in the rebroadcast
+  // and isdlock-watch sets. is_used stays set — the address was still revealed.
+  rewindToHeight = async (walletId: string, height: number): Promise<void> => {
+    await this.knex.transaction(async trx => {
+      // An instant lock does not survive its tx losing the chain, so no
+      // spender is exempt here.
+      await trx('transaction_outputs')
+        .where('wallet_id', walletId)
+        .andWhere('spent_at_height', '>', height)
+        .update({spent_in_txid: null, spent_at_height: null})
+
+      await trx('transactions')
+        .where('wallet_id', walletId)
+        .andWhere('block_height', '>', height)
+        .update({block_height: 0, block_hash: '', chainlocked: false})
+
+      // Only downward: advanceCursor's MAX semantics would ignore this.
+      await trx('wallet_sync_state')
+        .where('wallet_id', walletId)
+        .andWhere('cfilter_cursor_height', '>', height)
+        .update({cfilter_cursor_height: height})
+    })
+  }
+
   // Standalone cursor advance (MAX semantics). Used at cfilter scan
   // completion when the scan tip moves past blocks that produced no matches.
   advanceCursor = async (walletId: string, height: number): Promise<void> => {
@@ -188,7 +214,7 @@ export class TransactionDAO {
   // block_height = 0 marks it unconfirmed; inputs are flagged spent so getUtxos
   // stops offering them immediately and outputs are inserted so change is
   // spendable right away. Idempotent, so rebroadcast is safe.
-  recordPendingBroadcast = async (walletId: string, tx: AppliedTx): Promise<void> => {
+  recordPendingTx = async (walletId: string, tx: AppliedTx, isLocal: boolean): Promise<void> => {
     const now = Date.now()
     await this.knex.transaction(async trx => {
       await trx('transactions')
@@ -200,6 +226,7 @@ export class TransactionDAO {
           block_time: Math.floor(now / 1000),
           raw: Buffer.from(tx.raw.buffer, tx.raw.byteOffset, tx.raw.byteLength),
           first_seen_at: now,
+          is_local: isLocal,
         })
         .onConflict(['wallet_id', 'txid'])
         .ignore()
@@ -251,13 +278,14 @@ export class TransactionDAO {
   // Unconfirmed (block_height = 0) txs — for rebroadcast and isdlock watching.
   getPendingTxs = async (walletId: string): Promise<PendingTx[]> => {
     const rows = await this.knex('transactions')
-      .select('txid', 'raw', 'first_seen_at', 'instant_locked')
+      .select('txid', 'raw', 'first_seen_at', 'instant_locked', 'is_local')
       .where({wallet_id: walletId, block_height: 0})
     return rows.map(r => ({
       txid: r.txid,
       raw: r.raw,
       firstSeenAt: r.first_seen_at ?? 0,
       instantLocked: Boolean(r.instant_locked),
+      isLocal: Boolean(r.is_local),
     }))
   }
 
@@ -370,8 +398,89 @@ export class TransactionDAO {
     return addresses.filter(address => used.has(address))
   }
 
+  // txCount counts the same txids getTransactionsByAddress would return: those
+  // paying the address, plus those spending what it received. satoshis is TEXT,
+  // so the sum is taken in JS rather than by SQLite.
+  getAddressInfos = async (walletId: string, addresses: string[]): Promise<AddressInfo[]> => {
+    const balances = new Map<string, bigint>()
+    const txids = new Map<string, Set<string>>()
+
+    for (let offset = 0; offset < addresses.length; offset += SELECT_CHUNK_SIZE) {
+      const chunk = addresses.slice(offset, offset + SELECT_CHUNK_SIZE)
+
+      const rows = await this.knex('transaction_outputs')
+        .select('address', 'txid', 'satoshis', 'spent_in_txid')
+        .where('wallet_id', walletId)
+        .whereIn('address', chunk)
+
+      for (const row of rows) {
+        const address = row.address as string
+        if (row.spent_in_txid == null) {
+          balances.set(address, (balances.get(address) ?? 0n) + BigInt(row.satoshis))
+        }
+
+        const seen = txids.get(address) ?? new Set<string>()
+        seen.add(row.txid as string)
+        if (row.spent_in_txid != null) seen.add(row.spent_in_txid as string)
+        txids.set(address, seen)
+      }
+    }
+
+    return addresses.map(address => ({
+      address,
+      balance: balances.get(address) ?? 0n,
+      txCount: txids.get(address)?.size ?? 0,
+    }))
+  }
+
   // One query returning the (tx × output × input × prev-output) product, pivoted
   // in JS to one Transaction per txid.
+  // The prev join is what gives an input its address and value: only our own
+  // outputs are stored, so the input row itself carries just a reference.
+  private transactionRows(walletId: string): Knex.QueryBuilder {
+    return this.knex('transactions as t')
+      .leftJoin('transaction_outputs as o', function() {
+        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_inputs as i', function() {
+        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
+      })
+      .leftJoin('transaction_outputs as prev', function() {
+        this.on('prev.wallet_id', '=', 't.wallet_id')
+          .andOn('prev.txid', '=', 'i.prev_txid')
+          .andOn('prev.vout', '=', 'i.prev_vout')
+      })
+      .select(
+        't.txid as t_txid',
+        't.block_height as t_block_height',
+        't.block_time as t_block_time',
+        't.instant_locked as t_instant_locked',
+        't.chainlocked as t_chainlocked',
+        't.is_local as t_is_local',
+        this.knex.raw('length(t.raw) as t_size'),
+        'o.vout as o_vout',
+        'o.address as o_address',
+        'o.satoshis as o_satoshis',
+        'o.is_mine as o_is_mine',
+        'o.spent_in_txid as o_spent_in_txid',
+        'o.spent_at_height as o_spent_at_height',
+        'i.vin as i_vin',
+        'i.prev_txid as i_prev_txid',
+        'i.prev_vout as i_prev_vout',
+        'i.sequence as i_sequence',
+        'prev.address as i_prev_address',
+        'prev.satoshis as i_prev_satoshis',
+        'prev.is_mine as i_prev_is_mine',
+      )
+      .where('t.wallet_id', walletId)
+  }
+
+  getTransactionsByWallet = async (walletId: string): Promise<Transaction[]> => {
+    const rows = await this.transactionRows(walletId).orderBy(['t.txid', 'o.vout', 'i.vin'])
+
+    return shapeRowsToTransactions(rows, walletId)
+  }
+
   getTransactionsByAddress = async (walletId: string, address: string): Promise<Transaction[]> => {
     const txidsForAddress = this.knex('transaction_outputs')
       .select('txid')
@@ -382,83 +491,15 @@ export class TransactionDAO {
         .where({wallet_id: walletId, address})
         .whereNotNull('spent_in_txid'))
 
-    const rows = await this.knex('transactions as t')
-      .leftJoin('transaction_outputs as o', function() {
-        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_inputs as i', function() {
-        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_outputs as prev', function() {
-        this.on('prev.wallet_id', '=', 't.wallet_id')
-          .andOn('prev.txid', '=', 'i.prev_txid')
-          .andOn('prev.vout', '=', 'i.prev_vout')
-      })
-      .select(
-        't.txid as t_txid',
-        't.block_height as t_block_height',
-        't.block_time as t_block_time',
-        't.instant_locked as t_instant_locked',
-        't.chainlocked as t_chainlocked',
-        this.knex.raw('length(t.raw) as t_size'),
-        'o.vout as o_vout',
-        'o.address as o_address',
-        'o.satoshis as o_satoshis',
-        'o.is_mine as o_is_mine',
-        'o.spent_in_txid as o_spent_in_txid',
-        'o.spent_at_height as o_spent_at_height',
-        'i.vin as i_vin',
-        'i.prev_txid as i_prev_txid',
-        'i.prev_vout as i_prev_vout',
-        'i.sequence as i_sequence',
-        'prev.address as i_prev_address',
-        'prev.satoshis as i_prev_satoshis',
-        'prev.is_mine as i_prev_is_mine',
-      )
-      .where('t.wallet_id', walletId)
+    const rows = await this.transactionRows(walletId)
       .whereIn('t.txid', txidsForAddress)
       .orderBy(['t.txid', 'o.vout', 'i.vin'])
 
     return shapeRowsToTransactions(rows, walletId)
   }
 
-  // Same JOIN as above, scoped to one txid. Returns undefined if the tx
-  // isn't recorded for this wallet.
   getTransactionByTxid = async (walletId: string, txid: string): Promise<Transaction | undefined> => {
-    const rows = await this.knex('transactions as t')
-      .leftJoin('transaction_outputs as o', function() {
-        this.on('o.wallet_id', '=', 't.wallet_id').andOn('o.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_inputs as i', function() {
-        this.on('i.wallet_id', '=', 't.wallet_id').andOn('i.txid', '=', 't.txid')
-      })
-      .leftJoin('transaction_outputs as prev', function() {
-        this.on('prev.wallet_id', '=', 't.wallet_id')
-          .andOn('prev.txid', '=', 'i.prev_txid')
-          .andOn('prev.vout', '=', 'i.prev_vout')
-      })
-      .select(
-        't.txid as t_txid',
-        't.block_height as t_block_height',
-        't.block_time as t_block_time',
-        't.instant_locked as t_instant_locked',
-        't.chainlocked as t_chainlocked',
-        this.knex.raw('length(t.raw) as t_size'),
-        'o.vout as o_vout',
-        'o.address as o_address',
-        'o.satoshis as o_satoshis',
-        'o.is_mine as o_is_mine',
-        'o.spent_in_txid as o_spent_in_txid',
-        'o.spent_at_height as o_spent_at_height',
-        'i.vin as i_vin',
-        'i.prev_txid as i_prev_txid',
-        'i.prev_vout as i_prev_vout',
-        'i.sequence as i_sequence',
-        'prev.address as i_prev_address',
-        'prev.satoshis as i_prev_satoshis',
-        'prev.is_mine as i_prev_is_mine',
-      )
-      .where('t.wallet_id', walletId)
+    const rows = await this.transactionRows(walletId)
       .andWhere('t.txid', txid)
       .orderBy(['o.vout', 'i.vin'])
 
@@ -486,7 +527,7 @@ async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: s
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; locked: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
+  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; instantLocked: boolean; chainlocked: boolean; isLocal: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
 
   for (const row of rows) {
     let acc = byTxid.get(row.t_txid)
@@ -495,7 +536,9 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
         blockHeight: row.t_block_height,
         blockTime: row.t_block_time,
         size: row.t_size,
-        locked: Boolean(row.t_instant_locked) || Boolean(row.t_chainlocked),
+        instantLocked: Boolean(row.t_instant_locked),
+        chainlocked: Boolean(row.t_chainlocked),
+        isLocal: Boolean(row.t_is_local),
         outputs: new Map(),
         inputs: new Map(),
       }
@@ -557,12 +600,15 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
       date: new Date(acc.blockTime * 1000),
       size: acc.size,
       blockHeight: acc.blockHeight,
-      status: acc.locked ? 'Locked' : 'Pending',
+      status: acc.instantLocked || acc.chainlocked ? 'Locked' : 'Pending',
       walletId,
       confirmations: 0,
       txid,
       vin,
       vout,
+      instantLocked: acc.instantLocked,
+      chainlocked: acc.chainlocked,
+      isLocal: acc.isLocal,
     })
   }
 

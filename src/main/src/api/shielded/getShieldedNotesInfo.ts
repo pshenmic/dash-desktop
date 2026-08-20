@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import {ShieldedService} from '../../services/ShieldedService'
+import {ShieldedService} from '../../services/platform/ShieldedService'
 import {ShieldedNotesInfo} from '../../types/Shielded'
 export class GetShieldedNotesInfoHandler {
   private shieldedService: ShieldedService

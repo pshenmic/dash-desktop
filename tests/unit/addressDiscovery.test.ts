@@ -42,6 +42,57 @@ describe('planGapExtension', () => {
     const shuffled = [...entries([19], 20)].reverse()
     expect(planGapExtension(shuffled, GAP)).toHaveLength(20)
   })
+
+  // The cfilter scan rewinds its whole in-flight window every time the gap runs
+  // short, so an extension that lands exactly on the limit makes the next used
+  // address pay for another one.
+  describe('minBatch', () => {
+    it('derives a full batch when only one index is short', () => {
+      // lastUsed 2, maxIndex 21: the limit alone asks for index 22 and nothing more.
+      const chain = entries([2], 22)
+
+      expect(planGapExtension(chain, GAP)).toEqual([22])
+      expect(planGapExtension(chain, GAP, 10)).toEqual(
+        Array.from({length: 10}, (_, i) => 22 + i),
+      )
+    })
+
+    it('still reaches the gap limit when that is further than the batch', () => {
+      const chain = entries([19], 20)
+
+      expect(planGapExtension(chain, GAP, 5)).toEqual(
+        Array.from({length: 20}, (_, i) => 20 + i),
+      )
+    })
+
+    it('derives nothing while the gap is already satisfied', () => {
+      expect(planGapExtension(entries([], 20), GAP, 10)).toEqual([])
+      expect(planGapExtension(entries([5], 26), GAP, 10)).toEqual([])
+    })
+
+    // A run of used addresses is what the batch exists to absorb: extending by
+    // the minimum each time is one rewind per address.
+    it('absorbs a run of newly used addresses in fewer extensions', () => {
+      const count = (batch: number): number => {
+        const used = new Set([0])
+        let known = GAP
+        let rounds = 0
+        for (let nextUsed = 1; nextUsed <= 10; nextUsed++) {
+          used.add(nextUsed)
+          const chain = Array.from({length: known}, (_, i) => ({index: i, isUsed: used.has(i)}))
+          const added = planGapExtension(chain, GAP, batch)
+          if (added.length > 0) {
+            rounds++
+            known += added.length
+          }
+        }
+        return rounds
+      }
+
+      expect(count(1)).toBe(10)
+      expect(count(10)).toBe(2)
+    })
+  })
 })
 
 describe('deriveCorePublicKey', () => {

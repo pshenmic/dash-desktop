@@ -1,7 +1,4 @@
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
-import {HomeFolderName, PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
+import {PBKDF2_DIGEST, PBKDF2_KEY_LENGTH, PBKDF2_SALT_LENGTH} from '../constants'
 import knex, {Knex} from 'knex'
 import {SqliteConnection} from '../types/SqliteConnection'
 import * as migration0000 from '../../migrations/0000_init'
@@ -19,6 +16,7 @@ import * as migration0011 from '../../migrations/0011_shielded_note_ciphertext'
 import * as migration0012 from '../../migrations/0012_wallet_sync_initial_scan'
 import * as migration0013 from '../../migrations/0013_shielded_pool_split'
 import * as migration0014 from '../../migrations/0014_asset_lock_proof'
+import * as migration0015 from '../../migrations/0015_transaction_origin'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -36,6 +34,7 @@ const migrations = [
   { name: '0012_wallet_sync_initial_scan.ts', migration: migration0012 },
   { name: '0013_shielded_pool_split.ts', migration: migration0013 },
   { name: '0014_asset_lock_proof.ts', migration: migration0014 },
+  { name: '0015_transaction_origin.ts', migration: migration0015 },
 ]
 
 const inlineMigrationSource = {
@@ -45,7 +44,7 @@ const inlineMigrationSource = {
 }
 import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
 import {DashPlatformSDK} from "dash-platform-sdk";
-import {Network} from "../types";
+import {Network} from "../types/Network";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
 export function calibratePBKDF2Iterations(targetMs: number): number {
@@ -144,10 +143,6 @@ export function getKnex (path?: string): Knex {
 
 export async function migrateKnex (knex: Knex): Promise<void> {
   await knex.migrate.latest({ migrationSource: inlineMigrationSource })
-}
-
-export function ensureHomeFolder (): void {
-  fs.mkdirSync(path.join(os.homedir(), HomeFolderName), { recursive: true })
 }
 
 export const fetchIdentitiesBySeed = async (seed: Uint8Array, sdk: DashPlatformSDK, network: Network): Promise<IdentityWASM[]> => {

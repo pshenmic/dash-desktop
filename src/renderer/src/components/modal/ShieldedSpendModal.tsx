@@ -299,12 +299,7 @@ export default function ShieldedSpendModal({
             </div>
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               {spend?.identityId && <HashField hash={spend.identityId} label={"Identity"} />}
-              {spend?.stHash && (
-                <HashField
-                  hash={spend.stHash}
-                  explorerUrl={network ? platformTransactionUrl(spend.stHash, network) : null}
-                />
-              )}
+              {spend?.stHash && <HashField hash={spend.stHash} explorerUrl={network ? platformTransactionUrl(spend.stHash, network) : null} />}
             </div>
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>

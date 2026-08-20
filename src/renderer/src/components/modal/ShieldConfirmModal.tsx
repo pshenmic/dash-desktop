@@ -210,12 +210,7 @@ export default function ShieldConfirmModal({
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.fromAddress}</Text>
               </div>
-              {result?.stHash && (
-                <HashField
-                  hash={result.stHash}
-                  explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null}
-                />
-              )}
+              {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>

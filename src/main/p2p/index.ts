@@ -1,4 +1,4 @@
-import {SyncService} from './SyncService'
+import {SyncService} from './sync/SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
 import {MB} from './constants'
 
@@ -40,6 +40,10 @@ const sync = new SyncService({
     process.parentPort.postMessage({type: 'cursorAdvanced', walletId, height}),
   cursorReset: (walletId, height) =>
     process.parentPort.postMessage({type: 'cursorReset', walletId, height}),
+  chainRewound: (walletId, height) =>
+    process.parentPort.postMessage({type: 'chainRewound', walletId, height}),
+  incomingTx: (walletId, tx) =>
+    process.parentPort.postMessage({type: 'incomingTx', walletId, tx}),
   gapExhausted: gap => process.parentPort.postMessage({type: 'gapExhausted', gap}),
   error: message => process.parentPort.postMessage({type: 'error', message}),
   broadcastResult: (requestId, ok, result, errorMessage) =>
@@ -53,7 +57,6 @@ const sync = new SyncService({
 process.parentPort.on('message', ({data}) => {
   switch (data.type) {
     case 'start':
-      console.log(data)
       sync.start(data).catch(err => {
         const message = err instanceof Error ? err.message : String(err)
         process.parentPort.postMessage({type: 'error', message})
@@ -66,7 +69,6 @@ process.parentPort.on('message', ({data}) => {
       })
       return
     case 'stop':
-      console.log(data)
       sync.stop().catch(err => {
         const message = err instanceof Error ? err.message : String(err)
         process.parentPort.postMessage({type: 'error', message})
@@ -80,6 +82,9 @@ process.parentPort.on('message', ({data}) => {
       return
     case 'watchTxs':
       sync.watchTxs(data)
+      return
+    case 'reseedUtxos':
+      sync.reseedUtxos(data)
       return
   }
 })

@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { PlatformAddressService } from '../../services/PlatformAddressService'
-import { Network } from '../../types'
+import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
+import { Network } from '../../types/Network'
 import { FeeQuery, FeeQuote } from '../../../platform/types/messages'
 
 export class EstimateTransitionFeeHandler {

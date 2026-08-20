@@ -1,11 +1,63 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
+// Mirrors definitions.ts, which declares the same alias: the bundles do not
+// share types, so each spells the two networks out for itself.
+type Network = 'mainnet' | 'testnet'
+
+// Every handler that reports an outcome rather than a value returns this.
+interface QueryStatusDTO {
+  success: boolean
+  errorMessage: string | null
+}
+
+// Hand-maintained alongside definitions.ts, and deliberately a second
+// declaration of src/main/src/types/Transaction: the three bundles do not share
+// types. Amounts stay bigint — structured clone carries them as themselves.
+interface TransactionInputDTO {
+  value: string
+  n: number
+  addr: string
+  prevTxId: string
+  prevVout: number
+  sequence: number
+}
+
+interface TransactionOutputDTO {
+  value: string
+  n: number
+  address: string
+  spentTxId: string
+  spentIndex: number
+  spentHeight: number
+}
+
+interface TransactionDTO {
+  address: string
+  direction: number
+  inAmount: bigint
+  outAmount: bigint
+  transferAmount: bigint
+  usdAmount: string
+  date: Date
+  size: number
+  blockHeight: number
+  status: 'Pending' | 'Locked'
+  walletId: string
+  confirmations: number
+  txid: string
+  vin: TransactionInputDTO[]
+  vout: TransactionOutputDTO[]
+  instantLocked: boolean
+  chainlocked: boolean
+  isLocal: boolean | null
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
     api: unknown
     electronAPI: {
-      createWallet: (seedphrase: string, network: string, password: string) => Promise<unknown>
+      createWallet: (seedphrase: string, network: Network, password: string) => Promise<string>
       verifyWalletPassword: (walletId: string, password: string) => Promise<boolean>
       exportMnemonic: (walletId: string, password: string) => Promise<string>
       verifyWalletMnemonic: (walletId: string, mnemonic: string) => Promise<boolean>
@@ -15,22 +67,22 @@ declare global {
       getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
-      getTransactions: (walletId: string) => Promise<unknown>
-      getTransactionByHash: (hash: string, network: string) => Promise<unknown>
-      getBalance: (address: string | string[], network: string) => Promise<unknown>
+      getTransactions: (walletId: string) => Promise<TransactionDTO[]>
+      getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
+      getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>
       addPlatformAddress: (walletId: string) => Promise<unknown>
-      deleteWallet: (walletId: string) => Promise<unknown>
+      deleteWallet: (walletId: string) => Promise<QueryStatusDTO>
       selectWallet: (walletId: string) => Promise<unknown>
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<unknown>
-      setWalletLabel: (walletId: string, label: string | null) => Promise<{ success: boolean; errorMessage: string | null }>
+      setWalletLabel: (walletId: string, label: string | null) => Promise<QueryStatusDTO>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
-      estimateTransitionFee: (network: 'mainnet' | 'testnet', query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
+      estimateTransitionFee: (network: Network, query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
@@ -45,21 +97,21 @@ declare global {
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
       setLanguage: (language: string) => Promise<unknown>
-      setFiatCurrency: (currency: string) => Promise<unknown>
-      setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<unknown>
+      setFiatCurrency: (currency: string) => Promise<QueryStatusDTO>
+      setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<QueryStatusDTO>
       resetPreferences: () => Promise<unknown>
-      startWalletSync: (walletId: string) => Promise<unknown>
+      startWalletSync: (walletId: string) => Promise<QueryStatusDTO>
       stopWalletSync: () => Promise<void>
-      resetWalletSync: (network: 'mainnet' | 'testnet') => Promise<unknown>
+      resetWalletSync: (network: Network) => Promise<unknown>
       getUtxos: () => Promise<unknown>
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
-      saveTextFile: (defaultFileName: string, content: string) => Promise<{ success: boolean; errorMessage: string | null }>
-      getContacts: (network?: 'mainnet' | 'testnet') => Promise<unknown>
-      addContact: (label: string, address: string, network: 'mainnet' | 'testnet') => Promise<unknown>
-      deleteContact: (id: number) => Promise<unknown>
+      saveTextFile: (defaultFileName: string, content: string) => Promise<QueryStatusDTO>
+      getContacts: (network?: Network) => Promise<unknown>
+      addContact: (label: string, address: string, network: Network) => Promise<QueryStatusDTO>
+      deleteContact: (id: number) => Promise<QueryStatusDTO>
       getShieldedStatus: () => Promise<{ prover: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
-      getShieldedPoolInfo: (network: 'mainnet' | 'testnet') => Promise<{ poolState: bigint | null; notesCount: bigint | null }>
+      getShieldedPoolInfo: (network: Network) => Promise<{ poolState: bigint | null; notesCount: bigint | null }>
       getShieldedNotesInfo: (walletId: string) => Promise<{ undecodedCount: number }>
       startShieldedSync: (walletId: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
       getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>

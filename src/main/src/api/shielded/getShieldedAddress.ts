@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { ShieldedService } from '../../services/ShieldedService'
+import { ShieldedService } from '../../services/platform/ShieldedService'
 
 export class GetShieldedAddressHandler {
   private shieldedService: ShieldedService

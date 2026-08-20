@@ -8,6 +8,15 @@ export interface DashscanPage<T> {
   }
 }
 
+// No total: the cursor is the only position marker, and null ends the walk.
+export interface DashscanCursorPage<T> {
+  resultSet: T[]
+  pagination: {
+    limit: number
+    nextCursor: string | null
+  }
+}
+
 export interface DashscanVIn {
   prevTxHash: string | null
   vOutIndex: number | null
@@ -59,8 +68,27 @@ export interface DashscanUTXO {
   confirmations: number | null
 }
 
+// Only the field we trust. The same response carries `received` and `sent`,
+// which count every change output on both sides and so overstate both.
+export interface DashscanXpubSummary {
+  balance: string
+}
+
+export interface DashscanXpubAddress {
+  address: string
+  // 0 external (receive), 1 internal (change).
+  branch: number
+  index: number
+  used: boolean
+}
+
 export interface DashscanAddressInfo {
   address: string
   balance: string
   txCount: number
+}
+// Carries the HTTP status so a caller can tell "not seen" from "no answer"
+// without matching on message text. Null when no response arrived at all.
+export interface DashscanRequestError extends Error {
+  status: number | null
 }

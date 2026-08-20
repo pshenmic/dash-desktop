@@ -1,6 +1,6 @@
 import type {Knex} from 'knex'
 import {Contact} from '../types/Contact'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {QueryStatus} from '../types/QueryStatus'
 import {isConstraintViolation} from './errors'
 

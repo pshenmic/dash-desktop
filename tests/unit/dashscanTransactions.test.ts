@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { dashscanToWalletTransactions } from '../../src/main/src/utils/dashscanTransactions'
 import { DashscanTransaction, DashscanVIn, DashscanVOut } from '../../src/main/src/types/Dashscan'
 
@@ -179,6 +179,23 @@ describe('dashscanToWalletTransactions', () => {
     expect(mempool.blockHeight).toBe(0)
     expect(mempool.confirmations).toBe(0)
     expect(mempool.size).toBe(0)
-    expect(mempool.date).toEqual(new Date(0))
+  })
+
+  // The renderer sorts and day-groups on this field, so a mempool transaction
+  // dated to the epoch would sink to the bottom of the history.
+  it('dates a mempool transaction to now, not the epoch', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-14T12:00:00.000Z'))
+
+    try {
+      const [mempool] = dashscanToWalletTransactions([tx({ timestamp: null })], 'w1', [OURS])
+      const [confirmed] = dashscanToWalletTransactions([tx({ timestamp: '2020-04-09T06:00:12.000Z' })], 'w1', [OURS])
+
+      expect(mempool.date).toEqual(new Date('2026-08-14T12:00:00.000Z'))
+      expect(confirmed.date).toEqual(new Date('2020-04-09T06:00:12.000Z'))
+      expect(mempool.date.getTime()).toBeGreaterThan(confirmed.date.getTime())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

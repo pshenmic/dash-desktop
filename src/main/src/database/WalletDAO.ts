@@ -1,4 +1,5 @@
 import {Wallet} from '../types/Wallet'
+import {WALLET_SCOPED_TABLES} from '../constants'
 import {QueryStatus} from "../types/QueryStatus";
 
 function fromRow({wallet_id, label, network, encrypted_mnemonic, selected, platform_xpub, core_xpub}): Wallet {
@@ -213,35 +214,33 @@ export class WalletDAO {
 
   deleteWallet = async (walletId: string): Promise<QueryStatus> => {
     try {
-      const target = await this.knex('wallet')
-        .select('selected')
-        .where('wallet_id', walletId)
-        .first()
-      const wasSelected = Boolean(target?.selected)
-
-      await this.knex('identities')
-        .delete()
-        .where('wallet_id', walletId)
-
-      await this.knex('addresses')
-        .delete()
-        .where('wallet_id', walletId)
-
-      await this.knex('wallet')
-        .delete()
-        .where('wallet_id', walletId)
-
-      if (wasSelected) {
-        const survivor = await this.knex('wallet')
-          .select('wallet_id')
+      await this.knex.transaction(async trx => {
+        const target = await trx('wallet')
+          .select('selected')
+          .where('wallet_id', walletId)
           .first()
+        const wasSelected = Boolean(target?.selected)
 
-        if (survivor != null) {
-          await this.knex('wallet')
-            .where('wallet_id', survivor.wallet_id)
-            .update({selected: true})
+        for (const table of WALLET_SCOPED_TABLES) {
+          await trx(table).delete().where('wallet_id', walletId)
         }
-      }
+
+        await trx('wallet')
+          .delete()
+          .where('wallet_id', walletId)
+
+        if (wasSelected) {
+          const survivor = await trx('wallet')
+            .select('wallet_id')
+            .first()
+
+          if (survivor != null) {
+            await trx('wallet')
+              .where('wallet_id', survivor.wallet_id)
+              .update({selected: true})
+          }
+        }
+      })
 
       return {
         success: true,

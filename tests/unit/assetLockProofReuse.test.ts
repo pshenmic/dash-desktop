@@ -1,8 +1,8 @@
 import {describe, it, expect, vi} from 'vitest'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AssetLockDAO} from '../../src/main/src/database/AssetLockDAO'
-import {AssetLockService} from '../../src/main/src/services/AssetLockService'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
+import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {AssetLockProofParams} from '../../src/main/platform/types/messages'
 import {AssetLockFundingRow, AssetLockFunder} from '../../src/main/src/types/AssetLock'
@@ -40,7 +40,8 @@ function serviceWith(waitForInstantLock = vi.fn()): {
   waitForInstantLock: ReturnType<typeof vi.fn>
 } {
   const funder = {
-    buildAndBroadcastAssetLock: vi.fn(),
+    buildAssetLock: vi.fn(),
+    broadcastAssetLock: vi.fn(),
     waitForInstantLock,
   } as unknown as AssetLockFunder
 

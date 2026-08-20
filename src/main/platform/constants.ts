@@ -1,5 +1,5 @@
 import {PlatformRequestMessage} from './types/messages'
-import type {Network} from '../src/types'
+import type {Network} from '../src/types/Network'
 
 export const PROVER_LANE = 'prover'
 
