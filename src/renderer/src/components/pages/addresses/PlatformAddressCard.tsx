@@ -14,18 +14,18 @@ export default function PlatformAddressCard({
   const network = appStatus?.network ?? null
 
   return (
-    <div className={"flex items-center justify-between px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
-      <div className={"flex flex-col gap-1 min-w-0"}>
+    <div className={"flex w-max min-w-full items-center justify-between px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
+      <div className={"flex flex-col gap-1"}>
         <div className={"flex items-center gap-[.3125rem]"}>
-          <Text size={12} weight={"medium"} color={"brand"}>
+          <Text reset size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap"}>
             {platformAddress}
           </Text>
-          <CopyButton text={platformAddress} />
+          <CopyButton text={platformAddress} className={"shrink-0"} />
           {network && (
             <button
               onClick={() => openExternal(platformAddressUrl(platformAddress, network))}
               title={"Open in explorer"}
-              className={"size-5 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
+              className={"size-5 shrink-0 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
             >
               <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-50"} />
             </button>

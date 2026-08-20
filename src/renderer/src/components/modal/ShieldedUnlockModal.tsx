@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 interface ShieldedUnlockModalProps {
   isOpen: boolean
@@ -39,7 +40,7 @@ export default function ShieldedUnlockModal({
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError('Incorrect password. Please try again.')
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
         setLoading(false)
         return
       }

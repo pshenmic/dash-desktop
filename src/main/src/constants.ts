@@ -198,6 +198,7 @@ export const MIN_BUNDLE_ACTIONS = 2
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
+export const ASSET_LOCK_DISMISSED_ERROR = 'Pending funding dismissed by user'
 export const CREDITS_PER_DUFF = 1_000n
 export const SHIELD_FUNDING_FEE_RESERVE_CREDITS = 300_000_000n
 

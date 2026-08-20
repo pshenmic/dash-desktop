@@ -11,19 +11,23 @@ import NoResults from '@renderer/components/ui/NoResults'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import { davToDashCompact } from '@renderer/utils/balance'
 import {
-  DEFAULT_TX_FILTER,
   TxFilter,
   computeTxTotals,
   filterTransactionGroups,
 } from '@renderer/utils/transactionFilters'
 
 interface TransactionsListProps {
+  filter: TxFilter
+  onFilterChange: (filter: TxFilter) => void
   onTransactionClick?: (transaction: WalletTxItem) => void
 }
 
-export default function TransactionsList({ onTransactionClick }: TransactionsListProps = {}): React.JSX.Element {
+export default function TransactionsList({
+  filter,
+  onFilterChange,
+  onTransactionClick,
+}: TransactionsListProps): React.JSX.Element {
   const [activeTab, setActiveTab] = useState('transactions')
-  const [filter, setFilter] = useState<TxFilter>(DEFAULT_TX_FILTER)
   const {
     transactions: { title, filters }
   } = transactionsPage
@@ -112,7 +116,7 @@ export default function TransactionsList({ onTransactionClick }: TransactionsLis
                 </Text>
               </div>
             </div>
-            <TransactionsFilter filter={filter} onChange={setFilter} />
+            <TransactionsFilter filter={filter} onChange={onFilterChange} />
           </div>
         )}
         <Tabs

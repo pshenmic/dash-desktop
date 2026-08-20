@@ -46,13 +46,11 @@ export default function ReceiveAddressCard({
               {data.adressText}
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
-              <div className={"flex-1 min-w-0"}>
-                <CoreAddressSelect
-                  addresses={addresses}
-                  selected={selected}
-                  onSelect={setSelectedAddress}
-                />
-              </div>
+              <CoreAddressSelect
+                addresses={addresses}
+                selected={selected}
+                onSelect={setSelectedAddress}
+              />
               <CopyButton text={address} />
             </div>
           </div>

@@ -3,6 +3,7 @@ import { Button, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshBalance } from '@renderer/hooks/useWalletBalance'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export default function AddAddressSection({ walletId, kind }: { walletId: string | undefined, kind: 'receiving' | 'change' | 'platform' }): React.JSX.Element {
   const [password, setPassword] = useState('')
@@ -32,7 +33,7 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError('Incorrect password. Please try again.')
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
         return
       }
       await API.addWalletAddress(walletId, password, kind === 'change')

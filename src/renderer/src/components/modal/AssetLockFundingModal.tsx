@@ -12,7 +12,7 @@ import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
-import { ASSET_LOCK_FUNDING_POLL_MS } from '@renderer/constants'
+import { ASSET_LOCK_FUNDING_POLL_MS, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { davToDash } from '@renderer/utils/balance'
 
 interface AssetLockFundingModalProps {
@@ -72,9 +72,9 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     resumeTitle: 'Resume shielding',
     doneTitle: 'Credits shielded',
     doneHeading: 'Credits shielded',
-    doneNote: 'The locked Dash is now a note in your shielded balance.',
+    doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
     toLabel: 'To (Shielded)',
-    emptyTo: 'Your shielded balance',
+    emptyTo: '',
     confirm: 'Confirm & Shield',
   },
   identity: {
@@ -198,7 +198,7 @@ export default function AssetLockFundingModal({
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setPreError('Incorrect password. Please try again.')
+        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
         setBusy(false)
         return
       }

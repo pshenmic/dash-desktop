@@ -11,6 +11,7 @@ import { davToDash } from "@renderer/utils/balance"
 import { useFiat } from "@renderer/hooks/useFiat"
 import { useAuth } from "@renderer/contexts/AuthContext"
 import { transactionUrl, openExternal } from "@renderer/utils/explorer"
+import { transactionsPage } from "@renderer/constants"
 
 const transactionCardStyles = cva(
   `
@@ -55,7 +56,7 @@ export default function TransactionCard({
   return (
     <div className={transactionCardStyles({ status })} >
       <TransactionCardIcons status={status} />
-      <div className={"flex-1 flex flex-col gap-[.25rem]"}>
+      <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
         <div className={"flex items-center gap-[.3125rem]"}>
           <CustomBadge text={kind ?? ''} variant={variantAmountSummary} size={"s"} />
           <Text size={12} weight={"medium"} color={"brand"} className={"leading-[120%]"}>
@@ -66,6 +67,25 @@ export default function TransactionCard({
         <Text size={10} weight={"light"} color={"brand"} opacity={30}>
           {subtitleLabel}: {labelValue}
         </Text>
+
+        <div
+          className={"flex min-w-0 items-center gap-[.25rem]"}
+          title={id}
+          aria-label={`${transactionsPage.detail.transactionId}: ${id}`}
+        >
+          <Text size={10} weight={"light"} color={"brand"} opacity={30} className={"shrink-0"}>
+            {transactionsPage.detail.transactionId}:
+          </Text>
+          <Text
+            size={10}
+            weight={"medium"}
+            color={"brand"}
+            opacity={50}
+            className={"min-w-0 truncate font-mono"}
+          >
+            {id}
+          </Text>
+        </div>
       </div>
 
       <AmountSummary
