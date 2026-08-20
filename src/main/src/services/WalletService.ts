@@ -22,7 +22,6 @@ import {Transaction} from "../types/Transaction";
 import {SendResult} from "../types/SendResult";
 import {TxLockStatus} from "../types/TxLockStatus";
 import {selectCoins} from '../utils/coinSelection'
-import {dedupeTransactions} from "../utils/dedupeTransactions";
 import {CoreTransactionService} from './CoreTransactionService'
 import {decryptMnemonic, encryptMnemonic} from "../utils";
 import {withUnlockedWallet} from "../utils/walletSeed";
@@ -36,6 +35,7 @@ import {
 } from '../constants'
 import {identityPath} from '../utils/identityKeys'
 import {coreAccountPath, deriveCorePublicKey, planGapExtension} from "../utils/addressDiscovery";
+import {AddressUsage} from '../types/AddressDiscovery'
 import {SelectableUtxo} from '../types/CoinSelection'
 import {TransferInput} from '../types/CoreTransaction'
 
@@ -86,7 +86,7 @@ export class WalletService {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
       return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
     }
-    return new DashscanWalletProvider(network, walletId, this.addressDAO)
+    return new DashscanWalletProvider(network, walletId, this.addressDAO, this.walletDAO)
   }
 
   async createWallet(seedphrase: string, network: Network, password: string): Promise<string> {
@@ -203,7 +203,10 @@ export class WalletService {
     const result = await this.walletDAO.setSelectedWallet(walletId)
     if (result.success) {
       const wallet = await this.walletDAO.getWalletById(walletId)
-      if (wallet != null) this.walletSyncService.startLockListen(wallet.network)
+      if (wallet != null) {
+        await this.walletSyncService.startLockListen(wallet.network, walletId)
+          .catch(err => console.error('[locks] failed to start lock listener:', err))
+      }
     }
     return result
   }
@@ -370,7 +373,118 @@ export class WalletService {
     const coreXpub = wallet.coreXpub
     const network = wallet.network
     const provider = this.getProvider(walletId, network)
+
+    const scan = await provider.scanAddressUsage(ADDRESS_LOOKAHEAD)
+    const added = scan != null
+      ? await this.applyAddressScan(walletId, coreXpub, network, scan)
+      : await this.widenAddressWindow(walletId, coreXpub, network, provider)
+
+    if (added.length > 0) {
+      await this.walletSyncService.addWatchAddresses(walletId, added)
+      return
+    }
+
+    // Latching convergence lets later frontier-derived addresses skip the
+    // historical rewind (see addWatchAddresses). The gate is "discovery added
+    // nothing", not merely "reached the tip": while gap batches are still being
+    // found this stays unlatched, so they keep triggering the rewind that finds
+    // their history.
+    //
+    // Accepted residual: the scan tip is chainTip - SCAN_TIP_DEPTH, so
+    // convergence can be declared while a used address hides in the last couple
+    // of blocks. It could then surface later, extend the frontier, and derive an
+    // index whose deep history is skipped. Revisit if we track a birthday or
+    // scan the tip window before latching.
+    if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
+      this.scanCompleteLatched.add(walletId)
+      await this.transactionDAO.markInitialScanComplete(walletId).catch(err => {
+        this.scanCompleteLatched.delete(walletId)
+        console.error('[discovery] markInitialScanComplete failed:', err)
+      })
+    }
+  }
+
+  private coreAddressRows(
+    walletId: string,
+    coreXpub: string,
+    network: Network,
+    isChange: boolean,
+    indexes: number[],
+  ): Address[] {
     const coinType = COIN_TYPE[network]
+    return indexes.map(index => ({
+      walletId,
+      accountId: 0,
+      address: this.keyPair.p2pkhAddress(deriveCorePublicKey(coreXpub, network, isChange, index), network),
+      derivationPath: `m/44'/${coinType}'/0'/${isChange ? 1 : 0}/${index}`,
+      index,
+      isChange,
+      isUsed: false,
+      label: null,
+    }))
+  }
+
+  // The scan already walked the gap to the frontier, so one pass replaces the
+  // widening rounds.
+  private async applyAddressScan(
+    walletId: string,
+    coreXpub: string,
+    network: Network,
+    scan: AddressUsage[],
+  ): Promise<Address[]> {
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+    const added: Address[] = []
+
+    for (const isChange of [false, true]) {
+      const chain = isChange ? grouped.change : grouped.receiving
+      const scanned = scan.filter(entry => entry.isChange === isChange)
+      const known = new Map(chain.map(a => [a.index, a]))
+
+      const usedIndexes = scanned.filter(entry => entry.isUsed).map(entry => entry.index)
+      const lastUsed = usedIndexes.reduce((max, index) => Math.max(max, index), -1)
+      const highestKnown = chain.reduce((max, a) => Math.max(max, a.index), -1)
+
+      // The window must stay contiguous from zero: a used index the scan found
+      // past the old frontier is otherwise never derived.
+      const frontier = Math.max(highestKnown, lastUsed + ADDRESS_LOOKAHEAD)
+      const missing: number[] = []
+      for (let index = 0; index <= frontier; index++) {
+        if (!known.has(index)) missing.push(index)
+      }
+
+      const rows = missing.length > 0
+        ? this.coreAddressRows(walletId, coreXpub, network, isChange, missing)
+        : []
+      if (rows.length > 0) {
+        await this.addressDAO.insertAddresses(rows)
+        added.push(...rows)
+        console.log(
+          `[discovery] ${isChange ? 'change' : 'receiving'} scan — derived ` +
+          `${rows.length} address(es) at index ${missing[0]}..${missing[missing.length - 1]}`,
+        )
+      }
+
+      const addressAt = new Map([...known].map(([index, a]) => [index, a.address]))
+      for (const row of rows) addressAt.set(row.index, row.address)
+
+      const newlyUsed = usedIndexes
+        .filter(index => known.get(index)?.isUsed !== true)
+        .map(index => addressAt.get(index))
+        .filter((address): address is string => address != null)
+      if (newlyUsed.length > 0) {
+        await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
+      }
+    }
+
+    return added
+  }
+
+  private async widenAddressWindow(
+    walletId: string,
+    coreXpub: string,
+    network: Network,
+    provider: WalletProvider,
+  ): Promise<Address[]> {
     const added: Address[] = []
 
     for (const isChange of [false, true]) {
@@ -388,19 +502,7 @@ export class WalletService {
         const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD)
         if (indexes.length === 0) break
 
-        const rows: Address[] = indexes.map(index => {
-          const publicKey = deriveCorePublicKey(coreXpub, network, isChange, index)
-          return {
-            walletId,
-            accountId: 0,
-            address: this.keyPair.p2pkhAddress(publicKey, network),
-            derivationPath: `m/44'/${coinType}'/0'/${isChange ? 1 : 0}/${index}`,
-            index,
-            isChange,
-            isUsed: false,
-            label: null
-          }
-        })
+        const rows = this.coreAddressRows(walletId, coreXpub, network, isChange, indexes)
         await this.addressDAO.insertAddresses(rows)
         added.push(...rows)
         console.log(
@@ -410,29 +512,7 @@ export class WalletService {
       }
     }
 
-    if (added.length > 0) {
-      await this.walletSyncService.addWatchAddresses(walletId, added)
-      return
-    }
-
-    // Latching convergence lets later frontier-derived addresses skip the
-    // historical rewind (see addWatchAddresses). The gate is "discovery added
-    // nothing", not merely "reached the tip": while gap batches are still being
-    // found this stays unlatched, so they keep triggering the rewind that finds
-    // their history.
-    //
-    // Accepted residual: the scan tip is chainTip - SCAN_TIP_DEPTH, so
-    // convergence can be declared while a used address hides in the last ~10
-    // blocks. It could then surface later, extend the frontier, and derive an
-    // index whose deep history is skipped. Revisit if we track a birthday or
-    // scan the tip window before latching.
-    if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
-      this.scanCompleteLatched.add(walletId)
-      await this.transactionDAO.markInitialScanComplete(walletId).catch(err => {
-        this.scanCompleteLatched.delete(walletId)
-        console.error('[discovery] markInitialScanComplete failed:', err)
-      })
-    }
+    return added
   }
 
   async getReceiveAddress(walletId: string): Promise<string> {
@@ -454,26 +534,21 @@ export class WalletService {
 
     const provider = this.getProvider(wallet.walletId, wallet.network)
 
-    // TODO: add real usd balance
-    const receivingAddressesWithBalance = await Promise.all(addresses.receiving.map(async (address) => ({
-        ...address,
-        balance: await provider.getBalance(address.address),
-        txCount: await provider.getTransactionCount(address.address),
-        usdBalance: '0.0'
-      })
-    ))
+    const all = [...addresses.receiving, ...addresses.change]
+    const infos = await provider.getAddressInfos(all.map(a => a.address))
+    const byAddress = new Map(infos.map(info => [info.address, info]))
 
-    const changeAddressesWithBalance = await Promise.all(addresses.change.map(async (address) => ({
-        ...address,
-        balance: await provider.getBalance(address.address),
-        txCount: await provider.getTransactionCount(address.address),
-        usdBalance: '0.0'
-      })
-    ))
+    // TODO: add real usd balance
+    const withBalance = (address: Address): Address => ({
+      ...address,
+      balance: byAddress.get(address.address)?.balance ?? 0n,
+      txCount: byAddress.get(address.address)?.txCount ?? 0,
+      usdBalance: '0.0'
+    })
 
     return {
-      receiving: receivingAddressesWithBalance,
-      change: changeAddressesWithBalance
+      receiving: addresses.receiving.map(withBalance),
+      change: addresses.change.map(withBalance)
     }
   }
 
@@ -484,12 +559,9 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
 
-    const addresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const allAddresses = [...addresses.change, ...addresses.receiving]
     const provider = this.getProvider(wallet.walletId, wallet.network)
-    const txArrays = await Promise.all(allAddresses.map(a => provider.getTransactions(a.address)))
 
-    return dedupeTransactions(txArrays.flat())
+    return provider.getWalletTransactions()
   }
 
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
@@ -515,17 +587,15 @@ export class WalletService {
       throw new Error('Wallet not found')
     }
 
-    const walletAddresses = await this.addressDAO.getAddressesByWalletId(walletId)
-    const addresses = [...walletAddresses.change, ...walletAddresses.receiving]
-
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
 
     const provider = this.getProvider(wallet.walletId, wallet.network)
 
-    const addressesBalance = await provider.getBalance(addresses.map(addr => addr.address))
+    const addressesBalance = await provider.getWalletBalance()
 
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
       identifiers: identities.map(identity => identity.identifier),
+      skipDPNS: true,
     })
     const identitiesBalance = infos.reduce((acc, info) => acc + info.balance, 0n)
 
@@ -632,9 +702,11 @@ export class WalletService {
     const provider = this.getProvider(walletId, network)
     await provider.ensureReady()
 
-    const utxoAddresses = fromAddress != null ? allAddresses.filter(a => a.address === fromAddress) : allAddresses
-
-    const ownedUtxos = await provider.getUTXOs(utxoAddresses.map(a => a.address))
+    // The provider answers for the whole wallet, including indexes discovery
+    // has not derived — those have no derivation path and cannot be signed.
+    const ownedUtxos = (await provider.getWalletUtxos())
+      .filter(utxo => pathByAddress.has(utxo.address))
+      .filter(utxo => fromAddress == null || utxo.address === fromAddress)
 
     if (ownedUtxos.length === 0) {
       throw new Error('No spendable funds in this wallet')
@@ -750,6 +822,7 @@ export class WalletService {
     const stored = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
       identifiers: stored.map(entry => entry.identifier),
+      skipDPNS: false,
     })
     const byIdentifier = new Map(infos.map(info => [info.identifier, info]))
 

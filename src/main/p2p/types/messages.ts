@@ -1,6 +1,7 @@
 import {Network} from '../../src/types'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
-import {AppliedBlock, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
+import {PeerOverrides} from './pool'
+import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
 // the envelope; the payload keeps its consumer-side name (WalletSync* /
@@ -23,6 +24,7 @@ export interface P2PStartMessage {
   seedUtxos: WalletSyncUtxo[]
   // null = never synced. Worker resumes from max(birthday, cfilterCursor + 1).
   cfilterCursor: number | null
+  peerOverrides?: PeerOverrides
 }
 
 // Lock pool only — no chain.db, no header/cfilter sync. What an rpc-mode wallet
@@ -31,6 +33,11 @@ export interface P2PStartMessage {
 export interface P2PListenMessage {
   type: 'listen'
   network: Network
+  // Present so the lock pool can match mempool txs paying us. Absent leaves the
+  // pool doing lock watching and broadcast only.
+  walletId?: string
+  watchAddresses?: WatchAddress[]
+  peerOverrides?: PeerOverrides
 }
 
 export interface P2PStopMessage {
@@ -68,6 +75,13 @@ export interface P2PWatchTxsMessage {
   txids: string[]
 }
 
+// Answers P2PChainRewoundMessage. The worker's scan stays held until it lands.
+export interface P2PReseedUtxosMessage {
+  type: 'reseedUtxos'
+  walletId: string
+  utxos: WalletSyncUtxo[]
+}
+
 export type P2PCommand =
   | P2PStartMessage
   | P2PListenMessage
@@ -75,6 +89,7 @@ export type P2PCommand =
   | P2PAddWatchAddressesMessage
   | P2PBroadcastMessage
   | P2PWatchTxsMessage
+  | P2PReseedUtxosMessage
 
 // ── Events (utility -> main) ────────────────────────────────────────────────
 
@@ -145,6 +160,22 @@ export interface P2PChainLockedMessage {
   height: number
 }
 
+// A mempool tx paying one of our addresses, seen on the lock pool before any
+// block carries it. Recorded unconfirmed; its isdlock is what makes it final.
+export interface P2PIncomingTxMessage {
+  type: 'incomingTx'
+  walletId: string
+  tx: AppliedTx
+}
+
+// Blocks above `height` were orphaned. Main un-confirms their transactions and
+// answers with reseedUtxos.
+export interface P2PChainRewoundMessage {
+  type: 'chainRewound'
+  walletId: string
+  height: number
+}
+
 export type P2PEvent =
   | P2PStatusMessage
   | P2PBlockAppliedMessage
@@ -155,3 +186,5 @@ export type P2PEvent =
   | P2PBroadcastResultMessage
   | P2PTxInstantLockedMessage
   | P2PChainLockedMessage
+  | P2PChainRewoundMessage
+  | P2PIncomingTxMessage

@@ -19,6 +19,9 @@ function tx(overrides: Partial<Transaction>): Transaction {
     txid: 'tx',
     vin: [],
     vout: [],
+    instantLocked: false,
+    chainlocked: false,
+    isLocal: true,
     ...overrides,
   }
 }

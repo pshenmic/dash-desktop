@@ -198,7 +198,7 @@ export class WalletBackend {
     const contactDAO = new ContactDAO(knex)
 
     this.applicationService = new ApplicationService(preferences)
-    this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+    this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO, preferences)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
@@ -227,7 +227,7 @@ export class WalletBackend {
       // that starts listening for them. Re-run on the periodic tick so a lost
       // utility process is picked back up.
       try {
-        walletSyncService.startLockListen(selected.network)
+        await walletSyncService.startLockListen(selected.network, selected.walletId)
       } catch (err) {
         console.error('[locks] failed to start lock listener:', err)
       }

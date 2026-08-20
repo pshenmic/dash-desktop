@@ -23,6 +23,7 @@ export interface Harness {
   knex: Knex
   walletDAO: WalletDAO
   addressDAO: AddressDAO
+  identityDAO: IdentityDAO
   transactionDAO: TransactionDAO
   walletService: WalletService
   applicationService: ApplicationService
@@ -47,7 +48,7 @@ export async function harness(): Promise<Harness> {
   const preferences = Preferences.default()
   preferences.general.connectionType = 'p2p'
   const applicationService = new ApplicationService(preferences)
-  const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO)
+  const walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO, preferences)
 
   const request = vi.fn().mockResolvedValue({identities: [], nextFreeIndex: 0})
   const platform = {request} as unknown as PlatformWorkerService
@@ -62,6 +63,7 @@ export async function harness(): Promise<Harness> {
     knex,
     walletDAO,
     addressDAO,
+    identityDAO,
     transactionDAO,
     walletService,
     applicationService,

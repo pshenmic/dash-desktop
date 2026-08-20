@@ -40,6 +40,10 @@ const sync = new SyncService({
     process.parentPort.postMessage({type: 'cursorAdvanced', walletId, height}),
   cursorReset: (walletId, height) =>
     process.parentPort.postMessage({type: 'cursorReset', walletId, height}),
+  chainRewound: (walletId, height) =>
+    process.parentPort.postMessage({type: 'chainRewound', walletId, height}),
+  incomingTx: (walletId, tx) =>
+    process.parentPort.postMessage({type: 'incomingTx', walletId, tx}),
   gapExhausted: gap => process.parentPort.postMessage({type: 'gapExhausted', gap}),
   error: message => process.parentPort.postMessage({type: 'error', message}),
   broadcastResult: (requestId, ok, result, errorMessage) =>
@@ -80,6 +84,9 @@ process.parentPort.on('message', ({data}) => {
       return
     case 'watchTxs':
       sync.watchTxs(data)
+      return
+    case 'reseedUtxos':
+      sync.reseedUtxos(data)
       return
   }
 })
