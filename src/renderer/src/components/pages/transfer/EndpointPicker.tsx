@@ -102,6 +102,8 @@ function IdentitySelect({identities, selected, onSelect}: IdentitySelectProps): 
 interface SourcePickerProps {
   kind: SourceKind
   onKindChange: (kind: SourceKind) => void
+  kinds?: Array<{kind: SourceKind; label: string}>
+  label?: string
   platformAddresses: PlatformAddressDto[]
   selectedPlatformAddress: PlatformAddressDto | undefined
   onPlatformAddressChange: (address: string) => void
@@ -113,6 +115,8 @@ interface SourcePickerProps {
 export function SourcePicker({
   kind,
   onKindChange,
+  kinds = SOURCE_KINDS,
+  label = 'From',
   platformAddresses,
   selectedPlatformAddress,
   onPlatformAddressChange,
@@ -122,8 +126,8 @@ export function SourcePicker({
 }: SourcePickerProps): React.JSX.Element {
   return (
     <div className={"flex flex-col gap-2"}>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
-      <KindDropdown kinds={SOURCE_KINDS} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
+      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
+      <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
       {kind === SourceKind.PlatformAddress && (
         <PlatformAddressSelect
           addresses={platformAddresses}
