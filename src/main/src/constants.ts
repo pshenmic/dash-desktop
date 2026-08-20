@@ -117,6 +117,15 @@ export const PERSIST_RETRY_MS = 1_000
 export const PAYLOAD_CHUNK_SIZE = 100
 export const SELECT_CHUNK_SIZE = 500
 
+// Parent transactions read per prev-out resolution pass, and how many of those
+// DAPI reads run at once. A wallet restored from scratch can reference thousands
+// of them, and the pass repeats on the discovery tick until none are left.
+export const PREVOUT_RESOLVE_BATCH = 50
+export const PREVOUT_RESOLVE_CONCURRENCY = 5
+
+// A coinbase input names no parent transaction.
+export const COINBASE_PREV_TXID = '0'.repeat(64)
+
 export const RATES_TTL_MS = 60_000
 export const RATES_REQUEST_TIMEOUT_MS = 8_000
 

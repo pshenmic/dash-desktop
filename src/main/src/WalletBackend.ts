@@ -87,6 +87,7 @@ import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
 import {DISCOVERY_INTERVAL_MS} from './constants'
 import {CoreDiscoveryService} from './services/core/CoreDiscoveryService'
+import {CorePrevOutService} from './services/core/CorePrevOutService'
 import {WalletCredentialsService} from './services/wallet/WalletCredentialsService'
 import {IdentityService} from './services/platform/IdentityService'
 import {CoreLockService} from './services/core/CoreLockService'
@@ -235,6 +236,15 @@ export class WalletBackend {
 
     const discovery = this.coreDiscoveryService
     const walletSyncService = this.walletSyncService
+    const prevOuts = new CorePrevOutService(walletDAO, transactionDAO)
+    const applicationService = this.applicationService
+    // rpc mode reads whole transactions from the indexer, which already carries
+    // what every input spends, and never displays the local rows this fills in.
+    const resolvePrevOuts = (walletId: string): void => {
+      if (applicationService.preferences.general.connectionType !== 'p2p') return
+      prevOuts.resolvePrevOuts(walletId).catch(err =>
+        console.error('[prevout] input resolution failed:', err))
+    }
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
       if (selected == null) return
@@ -247,10 +257,12 @@ export class WalletBackend {
         console.error('[locks] failed to start lock listener:', err)
       }
       await discovery.discoverCoreAddresses(selected.walletId)
+      resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
       discovery.discoverCoreAddresses(walletId).catch(err =>
         console.error('[discovery] post-sync address discovery failed:', err))
+      resolvePrevOuts(walletId)
     }
     // The scan is stopped until this answers, so it must not join a discovery
     // run that started before the block that exhausted the gap was persisted.

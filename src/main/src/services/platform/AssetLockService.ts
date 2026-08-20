@@ -1,5 +1,4 @@
 import {
-  DashCoreSDK,
   InstantLock,
   Transaction as SDKTransaction,
   utils as coreUtils,
@@ -21,20 +20,7 @@ import {
 } from '../../types/AssetLock'
 import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS, ASSET_LOCK_CREDIT_OUTPUT_INDEX} from '../../constants'
 import {requireWallet} from '../../utils/requireWallet'
-
-const coreSDKs = new Map<Network, DashCoreSDK>()
-
-// The constructor starts evonode discovery in the background, so one is kept per
-// network — a fresh instance answers its first request against an empty DAPI
-// url list.
-function coreSDK(network: Network): DashCoreSDK {
-  let sdk = coreSDKs.get(network)
-  if (sdk == null) {
-    sdk = new DashCoreSDK({network})
-    coreSDKs.set(network, sdk)
-  }
-  return sdk
-}
+import {coreSDK} from '../../utils/coreSDK'
 
 // Locks L1 coins and produces the proof that funds a platform state transition.
 // Deliberately knows nothing about what the proof is spent on — identities,
