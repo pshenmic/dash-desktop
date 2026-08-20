@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { LogService } from '../../src/main/src/services/LogService'
+import { LogService } from '../../src/main/src/services/app/LogService'
 
 describe('LogService', () => {
   let directory: string

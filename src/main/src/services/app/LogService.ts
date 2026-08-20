@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { LOG_FILE_NAME_PATTERN } from '../constants'
-import { LogFileContent, LogFileInfo } from '../types/Log'
+import { LOG_FILE_NAME_PATTERN } from '../../constants'
+import { LogFileContent, LogFileInfo } from '../../types/Log'
 
 export class LogService {
   constructor(private readonly logsDir: string) {}

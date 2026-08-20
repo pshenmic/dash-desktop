@@ -1,6 +1,6 @@
 import { shell } from 'electron'
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { LogService } from '../../services/LogService'
+import { LogService } from '../../services/app/LogService'
 import { QueryStatus } from '../../types/QueryStatus'
 
 export class ShowLogFileInFolderHandler {

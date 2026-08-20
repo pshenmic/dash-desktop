@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { LogService } from '../../services/LogService'
+import { LogService } from '../../services/app/LogService'
 import { LogFileContent } from '../../types/Log'
 
 export class GetLogFileHandler {
