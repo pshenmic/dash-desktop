@@ -114,8 +114,7 @@ function WalletTransferHub(): React.JSX.Element {
     API.getAssetLockFundingState(walletId)
       .then(state => {
         if (dead) return
-        const resumable = state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error
-        setResumableFunding(resumable ? state : null)
+        setResumableFunding(state.phase === AssetLockFundingPhase.Resumable ? state : null)
       })
       .catch(() => {})
     return () => { dead = true }
