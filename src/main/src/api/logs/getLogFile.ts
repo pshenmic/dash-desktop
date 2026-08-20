@@ -5,5 +5,5 @@ import { LogFileContent } from '../../types/Log'
 export class GetLogFileHandler {
   constructor(private readonly logService: LogService) {}
 
-  handle = async (_event: IpcMainInvokeEvent, name: string): Promise<LogFileContent> => this.logService.readFile(name)
+  handle = async (_event: IpcMainInvokeEvent, name: string): Promise<LogFileContent> => this.logService.readLogFile(name)
 }

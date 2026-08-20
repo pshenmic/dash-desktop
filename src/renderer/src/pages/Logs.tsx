@@ -68,8 +68,7 @@ export default function LogsPage(): React.JSX.Element {
   const showInFolder = async (): Promise<void> => {
     if (!selectedName) return
     try {
-      const result = await API.showLogFileInFolder(selectedName)
-      if (!result.success && result.errorMessage) toast.error(`**Could not show log file** ${result.errorMessage}`)
+      await API.showLogFileInFolder(selectedName)
     } catch (cause) {
       toast.error(`**Could not show log file** ${cause instanceof Error ? cause.message : String(cause)}`)
     }

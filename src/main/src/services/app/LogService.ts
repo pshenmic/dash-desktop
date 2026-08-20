@@ -38,7 +38,7 @@ export class LogService {
       .sort((a, b) => b.modifiedAt - a.modifiedAt || b.name.localeCompare(a.name))
   }
 
-  async readFile(name: string): Promise<LogFileContent> {
+  async readLogFile(name: string): Promise<LogFileContent> {
     const source = this.resolveFile(name)
     const stats = await fs.lstat(source)
     if (!stats.isFile() || stats.isSymbolicLink()) throw new Error('Log file is not a regular file')
@@ -53,12 +53,8 @@ export class LogService {
     return source
   }
 
-  validateFileName(name: string): void {
-    if (!LOG_FILE_NAME_PATTERN.test(name)) throw new Error('Invalid log file name')
-  }
-
   private resolveFile(name: string): string {
-    this.validateFileName(name)
+    if (!LOG_FILE_NAME_PATTERN.test(name)) throw new Error('Invalid log file name')
     return path.join(this.logsDir, name)
   }
 }

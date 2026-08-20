@@ -36,7 +36,7 @@ describe('LogService', () => {
   it('reads content and metadata', async () => {
     const name = 'wallet-2026-08-12.log'
     await fs.writeFile(path.join(directory, name), 'Привет')
-    const result = await service.readFile(name)
+    const result = await service.readLogFile(name)
     expect(result.name).toBe(name)
     expect(result.content).toBe('Привет')
     expect(result.size).toBe(Buffer.byteLength('Привет'))
@@ -60,7 +60,7 @@ describe('LogService', () => {
 
   it.each(['../wallet-2026-08-12.log', 'C:\\wallet-2026-08-12.log', 'wallet.log', 'wallet-2026-08-12.log/other'])(
     'rejects unsafe or invalid name %s',
-    async (name) => expect(service.readFile(name)).rejects.toThrow('Invalid log file name')
+    async (name) => expect(service.readLogFile(name)).rejects.toThrow('Invalid log file name')
   )
 
   it('returns an empty list when the directory does not exist', async () => {

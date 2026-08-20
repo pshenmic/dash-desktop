@@ -125,7 +125,7 @@ export class API {
     return this.api.getLogFile(name)
   }
 
-  static async showLogFileInFolder(name: string): Promise<QueryStatus> {
+  static async showLogFileInFolder(name: string): Promise<void> {
     return this.api.showLogFileInFolder(name)
   }
 

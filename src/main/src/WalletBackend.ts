@@ -95,7 +95,7 @@ import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
 import {LogService} from './services/app/LogService'
-import {GetLogFilesHandler} from './api/logs/getLogFiles'
+import {ListLogFiles} from './api/logs/listLogFiles'
 import {GetLogFileHandler} from './api/logs/getLogFile'
 import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
 
@@ -115,14 +115,14 @@ export class WalletBackend {
   private coreLockService?: CoreLockService
   private walletCredentialsService?: WalletCredentialsService
   private identityService?: IdentityService
-  private readonly logService = new LogService(dataPath(LogsFolderName))
+  private logService?: LogService
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService) {
+    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -191,7 +191,7 @@ export class WalletBackend {
     ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
     ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
-    ipcMain.handle('getLogFiles', new GetLogFilesHandler(this.logService).handle)
+    ipcMain.handle('getLogFiles', new ListLogFiles(this.logService).handle)
     ipcMain.handle('getLogFile', new GetLogFileHandler(this.logService).handle)
     ipcMain.handle('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
   }
@@ -218,6 +218,7 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO, preferences)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
+    this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.platformWorkerService.start()
 
