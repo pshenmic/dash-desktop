@@ -1,5 +1,5 @@
 import {Script} from 'dash-core-sdk'
-import {Network} from './index'
+import {Network} from './Network'
 
 export type RecipientType = 'p2pkh' | 'p2sh'
 
@@ -9,6 +9,12 @@ export interface TransferInput {
   script: Script
   derivationPath: string
   address: string
+}
+
+export interface TransferInputSelection {
+  transferInputs: TransferInput[]
+  inputTotal: bigint
+  changeAddress: string
 }
 
 export interface BuildSignedTransferParams {

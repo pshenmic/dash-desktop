@@ -1,5 +1,15 @@
 import {PlatformInputPlan, PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
+import {AddressInput} from '../../platform/types/messages'
 import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../constants'
+
+export function toAddressInput(candidate: PlatformSourceCandidate, credits: bigint): AddressInput {
+  return {
+    platformAddress: candidate.platformAddress,
+    index: candidate.index,
+    nonce: candidate.nonce,
+    credits,
+  }
+}
 
 export function identityTransferFeeCredits(recipientCount: number): bigint {
   return 500_000n + 6_000_000n * BigInt(recipientCount)

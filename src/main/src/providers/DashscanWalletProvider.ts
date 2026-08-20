@@ -11,6 +11,7 @@ import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {
   DashscanAddressInfo,
   DashscanCursorPage,
+  DashscanRequestError,
   DashscanPage,
   DashscanTransaction,
   DashscanUTXO,
@@ -19,7 +20,7 @@ import {
 } from '../types/Dashscan'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
-import {Network} from '../types'
+import {Network} from '../types/Network'
 import {
   ADDRESS_LOOKAHEAD,
   DASHSCAN_ADDRESS_CHUNK,
@@ -66,13 +67,19 @@ export class DashscanWalletProvider implements WalletProvider {
       if (response.ok) return await response.json() as T
 
       const body = (await response.text().catch(() => '')).slice(0, 500)
-      lastError = new Error(`${response.status}${body ? ` — ${body}` : ''}`)
+      lastError = Object.assign(
+        new Error(`${response.status}${body ? ` — ${body}` : ''}`),
+        {status: response.status},
+      )
       // 4xx is our request being wrong; repeating it just wastes the deadline.
       if (response.status < 500 && response.status !== 429) break
     }
 
     const detail = lastError instanceof Error ? lastError.message : String(lastError)
-    throw new Error(`Dashscan request failed (${path}): ${detail}`)
+    throw Object.assign(
+      new Error(`Dashscan request failed (${path}): ${detail}`),
+      {status: (lastError as {status?: number}).status ?? null},
+    ) as DashscanRequestError
   }
 
   private chunkAddresses(addresses: string[]): string[][] {
@@ -220,8 +227,13 @@ export class DashscanWalletProvider implements WalletProvider {
         chainlocked: tx.chainLocked === true,
         confirmed: (tx.confirmations ?? 0) > 0,
       }
-    } catch {
-      return {instantLocked: false, chainlocked: false, confirmed: false}
+    } catch (err) {
+      // 404 is the indexer saying it has never seen the transaction, the same
+      // claim the local store makes. Any other failure is not an answer at all.
+      if ((err as DashscanRequestError).status === 404) {
+        return {instantLocked: false, chainlocked: false, confirmed: false}
+      }
+      throw err
     }
   }
 

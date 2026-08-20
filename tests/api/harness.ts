@@ -1,15 +1,21 @@
 import {vi} from 'vitest'
 import {Knex} from 'knex'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {WalletService} from '../../src/main/src/services/WalletService'
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
-import {ApplicationService} from '../../src/main/src/services/ApplicationService'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
-import {ShieldedService} from '../../src/main/src/services/ShieldedService'
+import {WalletService} from '../../src/main/src/services/wallet/WalletService'
+import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
+import {ApplicationService} from '../../src/main/src/services/app/ApplicationService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
+import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
+import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
+import {WalletCredentialsService} from '../../src/main/src/services/wallet/WalletCredentialsService'
+import {IdentityService} from '../../src/main/src/services/platform/IdentityService'
+import {CoreLockService} from '../../src/main/src/services/core/CoreLockService'
+import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
+import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
 import {Preferences} from '../../src/main/src/preferences'
 import {getKnex, migrateKnex} from '../../src/main/src/utils'
 
@@ -26,6 +32,11 @@ export interface Harness {
   identityDAO: IdentityDAO
   transactionDAO: TransactionDAO
   walletService: WalletService
+  providers: WalletProviderFactory
+  coreDiscoveryService: CoreDiscoveryService
+  coreLockService: CoreLockService
+  walletCredentialsService: WalletCredentialsService
+  identityService: IdentityService
   applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -54,9 +65,17 @@ export async function harness(): Promise<Harness> {
   const platform = {request} as unknown as PlatformWorkerService
   const shieldedService = {getAddresses: vi.fn().mockResolvedValue([])} as unknown as ShieldedService
 
+  const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService)
+  const coreTransactionService = new CoreTransactionService()
+  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
+  const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers)
+
+  const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
+  const identityService = new IdentityService(walletDAO, identityDAO, platform)
+
   const walletService = new WalletService(
-    walletDAO, addressDAO, identityDAO, transactionDAO,
-    applicationService, walletSyncService, platform, TEST_PBKDF2_ITERATIONS,
+    walletDAO, addressDAO, identityDAO, identityService, walletSyncService, platform,
+    providers, coreDiscoveryService, coreTransactionService, TEST_PBKDF2_ITERATIONS,
   )
 
   return {
@@ -66,6 +85,11 @@ export async function harness(): Promise<Harness> {
     identityDAO,
     transactionDAO,
     walletService,
+    providers,
+    coreDiscoveryService,
+    coreLockService,
+    walletCredentialsService,
+    identityService,
     applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,

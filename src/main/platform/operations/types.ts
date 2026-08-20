@@ -1,5 +1,5 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
-import {Network} from '../../src/types'
+import {Network} from '../../src/types/Network'
 import {PlatformErrorCode, PlatformPhase} from '../types/messages'
 
 // What an operation is given. No requestId: PlatformService binds the emitters,

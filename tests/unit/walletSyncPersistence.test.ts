@@ -9,7 +9,7 @@ vi.mock('fs', () => {
   return {...mocked, default: mocked}
 })
 
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {Preferences} from '../../src/main/src/preferences'
 import {GENESIS} from '../../src/main/p2p/constants'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'

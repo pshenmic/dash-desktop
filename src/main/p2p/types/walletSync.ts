@@ -1,4 +1,4 @@
-import {Network} from '../../src/types'
+import {Network} from '../../src/types/Network'
 
 // Domain types for wallet sync, independent of transport: messages.ts wraps
 // them for the wire, TransactionDAO consumes the apply payload directly.
@@ -60,6 +60,12 @@ export interface WatchAddress {
   index: number
   isChange: boolean
   isUsed: boolean
+}
+
+// Per-chain view of the derived address range, maintained from the watch set.
+export interface ChainGapState {
+  maxIndex: number
+  lastUsed: number
 }
 
 // The scan stopped: fewer than gapLimit unused addresses remain above lastUsed
@@ -124,6 +130,13 @@ export interface AppliedBlock {
   height: number
   blockHash: string
   blockTime: number
+  txs: AppliedTx[]
+  spends: AppliedSpend[]
+}
+
+// What the watch set found in one block, before the worker attaches the block
+// and wallet identity that turn it into an AppliedBlock.
+export interface BlockMatch {
   txs: AppliedTx[]
   spends: AppliedSpend[]
 }

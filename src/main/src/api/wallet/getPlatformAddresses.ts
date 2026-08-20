@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { PlatformAddressService } from '../../services/PlatformAddressService'
+import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
 import { PlatformAddressEntry } from '../../types/PlatformAddress'
 
 export class GetPlatformAddressesHandler {

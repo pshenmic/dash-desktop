@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {Output, Script, TransactionType, utils as sdkUtils} from 'dash-core-sdk'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
-import {CoreTransactionService} from '../../src/main/src/services/CoreTransactionService'
+import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {TransferInput} from '../../src/main/src/types/CoreTransaction'
 const service = new CoreTransactionService()
 

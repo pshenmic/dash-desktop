@@ -1,4 +1,4 @@
-import {SyncService} from './SyncService'
+import {SyncService} from './sync/SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
 import {MB} from './constants'
 
@@ -57,7 +57,6 @@ const sync = new SyncService({
 process.parentPort.on('message', ({data}) => {
   switch (data.type) {
     case 'start':
-      console.log(data)
       sync.start(data).catch(err => {
         const message = err instanceof Error ? err.message : String(err)
         process.parentPort.postMessage({type: 'error', message})
@@ -70,7 +69,6 @@ process.parentPort.on('message', ({data}) => {
       })
       return
     case 'stop':
-      console.log(data)
       sync.stop().catch(err => {
         const message = err instanceof Error ? err.message : String(err)
         process.parentPort.postMessage({type: 'error', message})

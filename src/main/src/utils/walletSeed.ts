@@ -26,9 +26,8 @@ export async function unlockWallet(walletDAO: WalletDAO, walletId: string, passw
   return {wallet, seed: keyPair.mnemonicToSeed(mnemonic)}
 }
 
-// Every spending key in the wallet derives from this seed, and an asset lock
-// job holds it across minutes of waiting for a lock. Overwrite it the moment
-// the job settles rather than leaving it for the GC to maybe reclaim.
+// Partial by construction: decryptMnemonic returns a JS string, which cannot be
+// overwritten, so the mnemonic behind the seed outlives every call here.
 export function zeroSeed(unlocked: {seed: Uint8Array}): void {
   unlocked.seed.fill(0)
 }

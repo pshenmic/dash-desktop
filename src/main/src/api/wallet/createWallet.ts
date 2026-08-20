@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { Network } from '../../types'
-import { WalletService } from '../../services/WalletService'
-import { ShieldedService } from '../../services/ShieldedService'
+import { Network } from '../../types/Network'
+import { WalletService } from '../../services/wallet/WalletService'
+import { ShieldedService } from '../../services/platform/ShieldedService'
 
 export class CreateWalletHandler {
   private walletService: WalletService

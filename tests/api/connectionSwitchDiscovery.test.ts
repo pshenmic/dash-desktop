@@ -1,13 +1,15 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {SetConnectionTypeHandler} from '../../src/main/src/api/setConnectionType'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {WalletService} from '../../src/main/src/services/WalletService'
-import {ApplicationService} from '../../src/main/src/services/ApplicationService'
+import {WalletService} from '../../src/main/src/services/wallet/WalletService'
+import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
+import {ApplicationService} from '../../src/main/src/services/app/ApplicationService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('connection type switch', () => {
   let walletService: WalletService
+  let discovery: CoreDiscoveryService
   let applicationService: ApplicationService
   let createWalletHandler: CreateWalletHandler
   let walletDAO: WalletDAO
@@ -17,12 +19,13 @@ describe('connection type switch', () => {
   beforeEach(async () => {
     const wired = await harness()
     walletService = wired.walletService
+    discovery = wired.coreDiscoveryService
     applicationService = wired.applicationService
     createWalletHandler = wired.createWalletHandler
     walletDAO = wired.walletDAO
     // Discovery under 'rpc' would reach the Dashscan API.
-    rediscover = vi.spyOn(walletService, 'rediscoverCoreAddresses').mockResolvedValue(undefined)
-    handler = new SetConnectionTypeHandler(applicationService, walletService)
+    rediscover = vi.spyOn(discovery, 'rediscoverCoreAddresses').mockResolvedValue(undefined)
+    handler = new SetConnectionTypeHandler(applicationService, walletService, discovery)
   })
 
   it('rediscovers addresses for the selected wallet when the mode changes', async () => {

@@ -1,33 +1,35 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 import {EventEmitter} from 'events'
 
-// Real x11 needs ~2^20 hashes per header to clear POW_LIMIT_TARGET, minutes per
-// block in JS. Display order is the digest reversed, so zeroing its tail is what
-// puts the result under the limit.
-vi.mock('@dashevo/x11-hash-js', () => ({
-  default: {
-    digest: (input: ArrayLike<number>) => {
-      let a = 0x811c9dc5
-      let b = 0x01000193
-      for (let i = 0; i < input.length; i++) {
-        a = ((a ^ input[i]!) * 0x01000193) >>> 0
-        b = ((b + input[i]! * (i + 1)) * 0x85ebca6b) >>> 0
-      }
-      const out = new Array<number>(32).fill(0)
-      for (let i = 0; i < 4; i++) {
-        out[i] = (a >>> (i * 8)) & 0xff
-        out[i + 4] = (b >>> (i * 8)) & 0xff
-      }
-      return out
-    },
+// Real x11 needs ~2^20 hashes per header to clear POW_LIMIT_TARGET, which no
+// test can mine. Display order is the digest reversed, so zeroing its tail is
+// what puts the result under the limit.
+vi.mock('../../src/main/p2p/utils/x11', () => ({
+  x11Wire: (input: Uint8Array) => {
+    let a = 0x811c9dc5
+    let b = 0x01000193
+    for (let i = 0; i < input.length; i++) {
+      a = ((a ^ input[i]!) * 0x01000193) >>> 0
+      b = ((b + input[i]! * (i + 1)) * 0x85ebca6b) >>> 0
+    }
+    const out = new Uint8Array(32)
+    for (let i = 0; i < 4; i++) {
+      out[i] = (a >>> (i * 8)) & 0xff
+      out[i + 4] = (b >>> (i * 8)) & 0xff
+    }
+    return out
   },
 }))
 
-const {HeaderSyncWorker} = await import('../../src/main/p2p/workers/HeaderSyncWorker')
-const {hashHeaderRaw} = await import('../../src/main/p2p/pow')
-const {POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS} = await import('../../src/main/p2p/constants')
-type ChainStore = import('../../src/main/p2p/ChainStore').ChainStore
-type PoolService = import('../../src/main/p2p/PoolService').PoolService
+const {HeaderSyncWorker} = await import('../../src/main/p2p/sync/workers/HeaderSyncWorker')
+const {hashHeaderRaw} = await import('../../src/main/p2p/utils/pow')
+const {
+  POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS,
+  HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS,
+} = await import('../../src/main/p2p/constants')
+type PeerRotation = import('../../src/main/p2p/net/peerRotation').PeerRotation
+type ChainStore = import('../../src/main/p2p/store/ChainStore').ChainStore
+type PoolService = import('../../src/main/p2p/net/PoolService').PoolService
 type PersistedHeader = import('../../src/main/p2p/types/chainStore').PersistedHeader
 type ChainTipState = import('../../src/main/p2p/types/chainStore').ChainTipState
 
@@ -401,5 +403,75 @@ describe('HeaderSyncWorker tip-follow stall', () => {
 
     expect(getHeaderRequests(peer)).toEqual([])
     expect((worker as unknown as {stallTimer: unknown}).stallTimer).toBeNull()
+  })
+})
+
+// A narrow race can strand itself: readyPeers is insertion ordered, so without
+// tracking, the same silent peers head every race and each one costs a full
+// HEADER_SYNC_TIMEOUT_MS before anyone else is asked.
+describe('HeaderSyncWorker race peer selection', () => {
+  let pool: FakePool
+  let worker: InstanceType<typeof HeaderSyncWorker>
+  let peers: ReturnType<typeof makePeer>[]
+
+  const silent = (): ReturnType<typeof makePeer>[] => peers.slice(0, HEADER_RACE_PEERS)
+  const untried = (): ReturnType<typeof makePeer>[] => peers.slice(HEADER_RACE_PEERS)
+  const rotation = (): PeerRotation => (worker as unknown as {rotation: PeerRotation}).rotation
+
+  beforeEach(async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    pool = new FakePool()
+    // More peers than one race can hold, or every peer is asked regardless.
+    peers = Array.from({length: HEADER_RACE_PEERS + 5}, (_, i) => makePeer(`10.0.0.${i}`))
+    for (const peer of peers) pool.readyPeers.add(peer)
+
+    worker = new HeaderSyncWorker({
+      chainStore: new FakeChainStore() as unknown as ChainStore,
+      peerPool: pool as unknown as PoolService,
+      initialTipHeight: 10,
+      initialTipHash: GENESIS_HASH,
+      finalityHeight: 0,
+    })
+    await worker.start()
+  })
+
+  afterEach(() => {
+    worker.stop()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('asks the first race up to the race width', () => {
+    expect(silent().every(p => getHeaderRequests(p).length === 1)).toBe(true)
+    expect(untried().every(p => getHeaderRequests(p).length === 0)).toBe(true)
+  })
+
+  it('reaches untried peers after a race times out', () => {
+    vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
+
+    // Every peer the first race never got to is asked by the second.
+    expect(untried().every(p => getHeaderRequests(p).length === 1)).toBe(true)
+  })
+
+  it('clears a peer that answers, silent or not', () => {
+    vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
+    expect(rotation().silentCount).toBe(HEADER_RACE_PEERS)
+
+    // An empty `headers` is still an answer — the peer has nothing, not nothing to say.
+    pool.emit('peerheaders', peers[0]!, {headers: []})
+
+    expect(rotation().isSilent(peers[0]! as never)).toBe(false)
+  })
+
+  it('forgets a peer that disconnects', () => {
+    vi.advanceTimersByTime(HEADER_SYNC_TIMEOUT_MS + 1)
+
+    pool.readyPeers.delete(peers[0]!)
+    pool.emit('peerdisconnect', peers[0]!)
+
+    expect(rotation().isSilent(peers[0]! as never)).toBe(false)
   })
 })

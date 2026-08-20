@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {selectPlatformSource, identityTransferFeeCredits, identityCreateFeeCredits, topUpFeeCredits} from '../../src/main/src/utils/platformTransfer'
+import {selectPlatformSource, identityTransferFeeCredits, identityCreateFeeCredits, topUpFeeCredits, toAddressInput} from '../../src/main/src/utils/platformTransfer'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {MIN_OUTPUT_CREDITS} from '../../src/main/src/constants'
 function candidate(platformAddress: string, balanceCredits: bigint, nonce = 0): PlatformSourceCandidate {
@@ -66,5 +66,15 @@ describe('platform fee helpers', () => {
   it('top-up fee scales with input count', () => {
     expect(topUpFeeCredits(1)).toBe(1_000_000n)
     expect(topUpFeeCredits(3)).toBe(2_000_000n)
+  })
+})
+
+describe('toAddressInput', () => {
+  // The candidate carries the address's own balance; the input carries what the
+  // transition spends from it.
+  it('takes the spend amount rather than the candidate balance', () => {
+    const input = toAddressInput(candidate('addr-1', 9_000_000n, 4), 1_000_000n)
+
+    expect(input).toEqual({platformAddress: 'addr-1', index: 0, nonce: 4, credits: 1_000_000n})
   })
 })

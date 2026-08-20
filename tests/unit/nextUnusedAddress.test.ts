@@ -2,7 +2,7 @@ import {describe, it, expect, vi} from 'vitest'
 import {P2PWalletProvider} from '../../src/main/src/providers/P2PWalletProvider'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
-import {WalletSyncService} from '../../src/main/src/services/WalletSyncService'
+import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 
 const receiving = Array.from({length: 50}, (_, index) => ({address: `addr-${index}`, index}))
 

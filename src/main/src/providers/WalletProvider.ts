@@ -21,10 +21,8 @@ export interface WalletProvider {
   getWalletUtxos(): Promise<UTXO[]>
   getTxLockStatus(txid: string): Promise<TxLockStatus>
   ensureReady(): Promise<void>
-  // Returns the next unused receiving address for the wallet — used by the
-  // Receive tab and change-output selection. The provider decides what
-  // "unused" means against its source of truth (chain state via API,
-  // local SPV-synced DB, etc.).
+  // "Unused" is whatever the provider's own source of truth says: chain state
+  // over the API, or the local SPV store.
   nextUnusedAddress(): Promise<string>
   getUsedAddresses(addresses: string[]): Promise<string[]>
   // Null means the source cannot run the gap walk itself, and the caller has to

@@ -1,13 +1,13 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {AssetLockService} from '../../src/main/src/services/AssetLockService'
-import {PlatformWorkerService} from '../../src/main/src/services/PlatformWorkerService'
-import {IdentityRegistrationService} from '../../src/main/src/services/IdentityRegistrationService'
+import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
+import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
+import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
-import {AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
+import {AssetLockFunder, AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
 import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
 
 const WALLET_ID = 'wallet-1'
@@ -83,7 +83,6 @@ describe('identity funding from an asset lock', () => {
       markBroadcastingSt: vi.fn().mockResolvedValue(undefined),
       done,
       fail,
-      countFundings: vi.fn().mockResolvedValue(0),
     } as unknown as AssetLockService
 
     insertIdentity = vi.fn().mockResolvedValue(undefined)
@@ -103,6 +102,8 @@ describe('identity funding from an asset lock', () => {
       identityDAO,
       assetLock,
       {request} as unknown as PlatformWorkerService,
+      // Nothing on chain, so the top-up scan settles on index 0.
+      {getUsedAddresses: vi.fn().mockResolvedValue([])} as unknown as AssetLockFunder,
     )
   })
 
@@ -130,7 +131,7 @@ describe('identity funding from an asset lock', () => {
       'assetlock-txid',
     )
     expect(state.identityIdentifier).toBe('identifierABC')
-    expect(done).toHaveBeenCalledWith(state, 'assetlock-txid', 'sthash')
+    expect(done).toHaveBeenCalledWith(state, expect.objectContaining({walletId: WALLET_ID, txid: 'assetlock-txid'}), 'sthash')
   })
 
   // The seed is live for as long as the lock takes to confirm, so nothing may
@@ -202,7 +203,7 @@ describe('identity funding from an asset lock', () => {
     }))
     expect(insertIdentity).not.toHaveBeenCalled()
     expect(state.identityIdentifier).toBe(TARGET_IDENTITY)
-    expect(done).toHaveBeenCalledWith(state, 'assetlock-txid', 'topup-sthash')
+    expect(done).toHaveBeenCalledWith(state, expect.objectContaining({walletId: WALLET_ID, txid: 'assetlock-txid'}), 'topup-sthash')
   })
 
   it('rejects a top-up without an identity identifier', async () => {

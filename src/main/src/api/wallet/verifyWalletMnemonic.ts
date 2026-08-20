@@ -1,14 +1,14 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { WalletService } from '../../services/WalletService'
+import { WalletCredentialsService } from '../../services/wallet/WalletCredentialsService'
 
 export class VerifyWalletMnemonicHandler {
-  private walletService: WalletService
+  private credentials: WalletCredentialsService
 
-  constructor(walletService: WalletService) {
-    this.walletService = walletService
+  constructor(credentials: WalletCredentialsService) {
+    this.credentials = credentials
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: string, mnemonic: string): Promise<boolean> => {
-    return this.walletService.verifyWalletMnemonic(walletId, mnemonic)
+    return this.credentials.verifyWalletMnemonic(walletId, mnemonic)
   }
 }

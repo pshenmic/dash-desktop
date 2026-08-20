@@ -51,8 +51,18 @@ export const SHIELDED_NOTES_FETCH_BATCH = 8192
 
 // The instant lock usually arrives within seconds; the chain-lock fallback can
 // take minutes, hence the generous timeout.
-export const IDENTITY_LOCK_POLL_INTERVAL_MS = 5_000
 export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
+
+// Backstop on the clsig wait in the chain-lock fallback. The lock pool wakes
+// that loop, so this covers the two cases the pool cannot: no peers, and DAPI
+// still reporting a transaction unlocked that our pool already saw locked —
+// where waiting for the *next* clsig would cost a whole block interval.
+export const CHAIN_LOCK_BACKSTOP_MS = 45 * 1000
+
+// Sweeps expired entries out of the isdlock watch set. The rebroadcast loop
+// does this too, but only runs in p2p mode, so without it an rpc-mode wallet
+// keeps the worker fetching isdlocks nobody is waiting on.
+export const LOCK_WATCH_SWEEP_INTERVAL_MS = 5 * 60 * 1000
 
 // Outlives the asset-lock timeout above, so an arm never expires under a live
 // waiter. Past it nothing is waiting and staying armed only makes the worker
@@ -62,15 +72,28 @@ export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 // BIP-44 gap limits and the ceiling on each discovery walk. Without a ceiling
 // only the gap can stop the loop.
 export const ADDRESS_LOOKAHEAD = 50
+
+// Addresses derived at once when the gap runs short. Extending to exactly the
+// gap limit re-exhausts on the very next used address, and a wallet with a run
+// of them makes the cfilter scan rewind once per address.
+export const ADDRESS_GAP_BATCH = 20
+
 export const IDENTITY_LOOKAHEAD = 10
 export const MAX_DISCOVERY_ROUNDS = 50
 export const IDENTITY_SCAN_LIMIT = 100
 export const PLATFORM_ADDRESS_LOOKAHEAD = 20
 export const MAX_DISCOVERY_BATCHES = 50
 
+// Consecutive unused indexes that end the top-up funding-key scan. A top-up's
+// credit address receives the asset lock output, so the chain records every
+// index this wallet ever used — which a local row count does not survive a
+// restore to.
+export const TOPUP_KEY_GAP_LIMIT = 5
+export const TOPUP_KEY_SCAN_LIMIT = 200
+
 // Bounds how far addAddress derives forward while skipping already-used
 // diversified addresses.
-export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 1000
+export const NEW_ADDRESS_LOOKAHEAD_LIMIT = 2000
 
 // How often the backend re-runs address discovery for the selected wallet.
 export const DISCOVERY_INTERVAL_MS = 120_000
@@ -121,6 +144,23 @@ export const HD_VERSIONS: Record<'mainnet' | 'testnet', {private: number; public
   mainnet: {private: 0x0488ade4, public: 0x0488b21e},
   testnet: {private: 0x04358394, public: 0x043587cf},
 }
+
+// Every table keyed by wallet_id, minus `wallet` itself, which deleteWallet
+// removes last so the rows referencing it go first. Deleting a wallet has to
+// clear all of them: what survived otherwise was the whole L1 history plus the
+// decrypted amount and address of every shielded note the wallet owned.
+// `contacts` and `shielded_pool_notes` are network-scoped and stay.
+export const WALLET_SCOPED_TABLES = [
+  'identities',
+  'addresses',
+  'transactions',
+  'transaction_outputs',
+  'transaction_inputs',
+  'wallet_sync_state',
+  'asset_lock_fundings',
+  'shielded_addresses',
+  'shielded_notes',
+] as const
 
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
 

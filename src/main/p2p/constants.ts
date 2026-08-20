@@ -1,4 +1,4 @@
-import {Network} from '../src/types'
+import {Network} from '../src/types/Network'
 import type {ChainAnchor} from './types/chain'
 import type {PoolServiceEventMap} from './types/pool'
 
@@ -47,19 +47,17 @@ export const POOL_READY_PEERS = 25
 export const POOL_MIN_PEERS = 15
 
 // Must exceed the ready target: most gossiped addresses are dead, and a socket
-// that never completes its handshake holds a slot anyway. Measured against an
-// 840-entry book — 20 slots reached 7 ready in two minutes, 36 sustained 31.
-export const POOL_MAX_CONNECTIONS = 64
+// that never completes its handshake holds a slot anyway.
+export const POOL_MAX_CONNECTIONS = 128
 
-// Refill ticks with no gain in ready peers before we stop widening. Without it
-// a supply below POOL_MIN_PEERS pins the pool in refill — measured at 72k
-// connection attempts in 50s, which reads as a port scan to the nodes we
-// depend on for locks.
+// Refill ticks with no gain in ready peers before we stop widening. A supply
+// below POOL_MIN_PEERS otherwise pins the pool in refill, and at ~72k connection
+// attempts in 50s that reads as a port scan to the nodes we depend on for locks.
 export const POOL_FILL_STALL_LIMIT = 72
 
 // Sized down because this pool carries `relay: true`, so every peer on it is a
 // duplicate copy of the whole tx inv stream. Locks are relayed network-wide and
-// BROADCAST_POLICY asks for 3 acks, so a small pool covers both jobs.
+// BROADCAST_POLICY needs a handful of peers, so a small pool covers both jobs.
 export const LOCK_POOL_READY_PEERS = 10
 export const LOCK_POOL_MIN_PEERS = 6
 
@@ -67,9 +65,8 @@ export const LOCK_POOL_MIN_PEERS = 6
 // sockets to seat 10 peers, competing with the app's own HTTPS traffic.
 export const LOCK_POOL_MAX_CONNECTIONS = 24
 
-// Slots kept above the ready target once coasting. A clamp of exactly the
-// target leaves no room to replace a socket still timing out — measured a lock
-// pool resting at 6-7 ready against a target of 10 for want of this.
+// Slots kept above the ready target once coasting. A clamp of exactly the target
+// leaves no room to replace a socket still timing out, so the pool rests under.
 export const POOL_CONNECT_HEADROOM = 8
 
 // Matches dash-core-p2p's internal default; higher makes initial sync slow to
@@ -81,13 +78,16 @@ export const POOL_REFILL_INTERVAL_MS = 5_000
 // address book is indistinguishable from a healthy coasting pool.
 export const POOL_SHORT_REPORT_TICKS = 12
 
+// Spare addresses a pool keeps for itself before any surplus moves to another pool.
+export const POOL_ADDRESS_RESERVE = 100
+
 // Refill ticks with nothing connected before the built-in peers are dialled.
 export const POOL_FALLBACK_TICKS = 2
 
-// Dialled only when discovery has produced no live peer at all: mainnet ships a
-// single DNS seed, and a resolver that cannot answer it — or answers it with
-// rewritten records — otherwise leaves the pool with nothing to try. Harvested
-// from the seeds over DoH, one per /16 so no single operator carries the list.
+// Dialled when a pool has produced no live peer at all: a resolver that cannot
+// answer the single mainnet DNS seed — or answers it with rewritten records —
+// and the bulk pool, which runs no DNS of its own and lives off the lock pool's
+// surplus. Harvested over DoH, one per /16 so no single operator carries it.
 export const FALLBACK_PEERS: Record<Network, string[]> = {
   mainnet: [
     '46.101.187.72:9999',
@@ -127,7 +127,10 @@ export const FALLBACK_PEERS: Record<Network, string[]> = {
 
 // ── Header sync ─────────────────────────────────────────────────────────────
 
-export const HEADER_RACE_PEERS = 15
+// A latency hedge, not a throughput knob: the response that counts is the first
+// to arrive, so the wait is the minimum over the peers asked. Roughly 3 answer
+// whatever the width, and a narrow sample is more often won by a slow peer.
+export const HEADER_RACE_PEERS = 10
 
 export const HEADER_SYNC_TIMEOUT_MS = 30_000
 
@@ -157,14 +160,29 @@ export const CFILTER_BATCH = 900
 
 export const MAX_INFLIGHT_BATCHES = 10
 
-export const CFCHECKPT_RACE_PEERS = 15
+// cfheaders chunks requested at once. The walk is a round trip per 1000 blocks
+// and nothing else — neither CPU nor bandwidth is near its limit while one is
+// outstanding — so this is what decides how long the phase takes.
+export const MAX_INFLIGHT_CFHEADERS = 10
 
-export const CFHEADERS_RACE_PEERS = 15
+// Peers asked for a given cfilter batch. Unlike the cf* races below, one request
+// draws CFILTER_BATCH separate cfilter messages back per peer, so every peer past
+// the first duplicates the largest stream in the sync. Above 1 only to hedge a
+// peer that stalls mid-batch.
+export const CFILTER_BATCH_PEERS = 2
 
-export const CFCHECKPT_RACE_TIMEOUT_MS = 10_000
-export const CFHEADERS_RACE_TIMEOUT_MS = 10_000
-export const CFILTER_BATCH_TIMEOUT_MS = 10_000
-export const BLOCK_REQUEST_TIMEOUT_MS = 10_000
+export const CFCHECKPT_RACE_PEERS = 5
+
+export const CFHEADERS_RACE_PEERS = 5
+
+// A peer that is going to answer a cf* request answers in tens of milliseconds;
+// one that is going to stay silent never answers at all. These bound how long
+// silence costs before another peer is asked, so they are sized for the retry,
+// not for a slow peer.
+export const CFCHECKPT_RACE_TIMEOUT_MS = 5_000
+export const CFHEADERS_RACE_TIMEOUT_MS = 5_000
+export const CFILTER_BATCH_TIMEOUT_MS = 5_000
+export const BLOCK_REQUEST_TIMEOUT_MS = 5_000
 
 // How far below the synced tip cf* stop hashes are capped. Dash Core silently
 // drops requests for blocks not in its active chain, so a stop hash peers have
@@ -191,7 +209,12 @@ export const BROADCAST_POLICY = {
   // Counts peers we pushed to, not just those answering an inv with getdata:
   // observed on testnet, that getdata often never comes, so a threshold on acks
   // alone is unreachable and every send burns the full timeout.
-  minPeerAcks: 3,
+  minPeerAcks: 2,
+  // Peers deliberately left uninvited. Core does not relay a tx back toward a
+  // peer that announced it, so a pool we invite in full can never show us
+  // propagation — these are the only nodes whose inv for our txid proves the tx
+  // reached a mempool rather than just a socket.
+  witnessPeers: 2,
   waitForInstantLock: false,
   requireInstantLock: false,
   peerWaitMs: 10_000,

@@ -3,7 +3,7 @@ import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/wall
 import type {AddressInfo} from '../types/AddressInfo'
 import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
-import type {Network} from '../types'
+import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
 import {SELECT_CHUNK_SIZE} from '../constants'

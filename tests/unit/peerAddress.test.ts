@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {parsePeerAddress} from '../../src/main/p2p/peerAddress'
+import {parsePeerAddress} from '../../src/main/p2p/net/peerAddress'
 
 const PORT = 9999
 
