@@ -99,10 +99,6 @@ export class AssetLockService {
   }
 
   async dismiss(walletId: string): Promise<AssetLockFundingState> {
-    if (this.getActive(walletId) != null) {
-      throw new Error('Cannot dismiss funding while it is running')
-    }
-
     const row = await this.assetLockDAO.getActiveFunding(walletId)
     if (this.getActive(walletId) != null) {
       throw new Error('Cannot dismiss funding while it is running')

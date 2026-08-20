@@ -70,7 +70,7 @@ describe('asset lock funding dismissal', () => {
     getActiveFunding.mockClear()
 
     await expect(service.dismiss('wallet-1')).rejects.toThrow('Cannot dismiss funding while it is running')
-    expect(getActiveFunding).not.toHaveBeenCalled()
+    expect(getActiveFunding).toHaveBeenCalledTimes(1)
     expect(updateStatus).not.toHaveBeenCalled()
   })
 })
