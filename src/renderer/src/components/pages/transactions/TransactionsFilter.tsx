@@ -89,7 +89,7 @@ export default function TransactionsFilter({ filter, onChange }: TransactionsFil
             onChange={(event) => onChange({ ...filter, search: event.target.value })}
             placeholder={filters.search.placeholder}
             aria-label={filters.search.label}
-            prefix={<SearchIcon size={14} />}
+            prefix={<SearchIcon size={14} color={"currentColor"} className={"dash-text-default"} />}
           />
           <FilterSection
             label={filters.direction.label}
