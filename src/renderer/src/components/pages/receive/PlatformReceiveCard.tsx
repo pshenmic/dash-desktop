@@ -51,13 +51,11 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
             Platform Address
           </Text>
           <div className={"flex items-center gap-[.625rem]"}>
-            <div className={"flex-1"}>
-              <PlatformAddressSelect
-                addresses={receiveAddresses}
-                selected={selected}
-                onSelect={setSelectedAddress}
-              />
-            </div>
+            <PlatformAddressSelect
+              addresses={receiveAddresses}
+              selected={selected}
+              onSelect={setSelectedAddress}
+            />
             <CopyButton text={selected.platformAddress} />
           </div>
         </div>

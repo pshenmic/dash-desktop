@@ -173,14 +173,12 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
                 Shielded Address
               </Text>
               <div className={"flex items-center gap-[.625rem]"}>
-                <div className={"flex-1"}>
-                  <ShieldedAddressSelect
-                    addresses={receiveAddresses}
-                    balances={synced ? balances : undefined}
-                    selected={selected}
-                    onSelect={setSelectedAddress}
-                  />
-                </div>
+                <ShieldedAddressSelect
+                  addresses={receiveAddresses}
+                  balances={synced ? balances : undefined}
+                  selected={selected}
+                  onSelect={setSelectedAddress}
+                />
                 <CopyButton text={selected} />
               </div>
             </div>
