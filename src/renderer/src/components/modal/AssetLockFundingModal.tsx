@@ -72,7 +72,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     resumeTitle: 'Resume shielding',
     doneTitle: 'Credits shielded',
     doneHeading: 'Credits shielded',
-    doneNote: 'The locked Dash is now a note in your shielded balance.',
+    doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
     toLabel: 'To (Shielded)',
     emptyTo: '',
     confirm: 'Confirm & Shield',
