@@ -117,8 +117,8 @@ export class API {
     return this.api.saveTextFile(defaultFileName, content)
   }
 
-  static async getLogFiles(): Promise<LogFileInfo[]> {
-    return this.api.getLogFiles()
+  static async listLogFiles(): Promise<LogFileInfo[]> {
+    return this.api.listLogFiles()
   }
 
   static async getLogFile(name: string): Promise<LogFileContent> {

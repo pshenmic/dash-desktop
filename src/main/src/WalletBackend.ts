@@ -191,7 +191,7 @@ export class WalletBackend {
     ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
     ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
-    ipcMain.handle('getLogFiles', new ListLogFiles(this.logService).handle)
+    ipcMain.handle('listLogFiles', new ListLogFiles(this.logService).handle)
     ipcMain.handle('getLogFile', new GetLogFileHandler(this.logService).handle)
     ipcMain.handle('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
   }

@@ -57,7 +57,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getExchangeRates: () => ipcRenderer.invoke('getExchangeRates'),
 
   saveTextFile: (defaultFileName: string, content: string) => ipcRenderer.invoke('saveTextFile', defaultFileName, content),
-  getLogFiles: () => ipcRenderer.invoke('getLogFiles'),
+  listLogFiles: () => ipcRenderer.invoke('listLogFiles'),
   getLogFile: (name: string) => ipcRenderer.invoke('getLogFile', name),
   showLogFileInFolder: (name: string) => ipcRenderer.invoke('showLogFileInFolder', name),
 

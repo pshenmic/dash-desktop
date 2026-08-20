@@ -44,7 +44,7 @@ export default function LogsPage(): React.JSX.Element {
     setLoadingFiles(true)
     setError(null)
     try {
-      const nextFiles = await API.getLogFiles()
+      const nextFiles = await API.listLogFiles()
       setFiles(nextFiles)
       const nextName = nextFiles.some((file) => file.name === selectedName) ? selectedName : nextFiles[0]?.name ?? null
       if (nextName) await loadContent(nextName)
