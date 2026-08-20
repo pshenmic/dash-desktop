@@ -26,7 +26,8 @@ import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import {
   specificSourceKindForOperation,
-  updateSpecificSourcePreference,
+  updateSpecificSourceAddress,
+  updateSpecificSourceEnabled,
 } from "@renderer/utils/specificSource";
 import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
 import {
@@ -149,8 +150,7 @@ function WalletTransferHub(): React.JSX.Element {
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
   const specificSourceKind = specificSourceKindForOperation(operation)
-  const specificSourcePreference = specificSourceKind == null ? null : specificSourcePreferences[specificSourceKind]
-  const useSpecificSource = specificSourcePreference?.enabled ?? false
+  const useSpecificSource = specificSourcePreferences.enabled
 
   const destinationKinds = useMemo(
     () => DESTINATION_KINDS.filter(d => d.kind !== DestinationKind.NewIdentity && resolveOperation(fromKind, d.kind) != null),
@@ -187,7 +187,7 @@ function WalletTransferHub(): React.JSX.Element {
       .sort((a, b) => (a.balance < b.balance ? 1 : a.balance > b.balance ? -1 : 0)),
     [receiving, change],
   )
-  const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences[SourceKind.Core].address) ?? coreAddresses[0]
+  const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences.addresses[SourceKind.Core]) ?? coreAddresses[0]
   const coreSpecificAddress = operation === TransferOperation.CoreSend && useSpecificSource ? selectedCoreAddress : undefined
 
   const spendableNotes = useMemo(
@@ -200,7 +200,7 @@ function WalletTransferHub(): React.JSX.Element {
   const notesSyncing = shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering
   const shieldedAddressBalances = useMemo(() => shieldedBalancesByAddress(spendableNotes), [spendableNotes])
   const shieldedAddresses = useMemo(() => [...shieldedAddressBalances.keys()], [shieldedAddressBalances])
-  const shieldedFromAddress = specificSourcePreferences[SourceKind.Shielded].address
+  const shieldedFromAddress = specificSourcePreferences.addresses[SourceKind.Shielded]
   const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
     ? shieldedFromAddress
     : shieldedAddresses[0]
@@ -374,7 +374,7 @@ function WalletTransferHub(): React.JSX.Element {
           <Checkbox
             checked={useSpecificSource}
             onChange={enabled => setSpecificSourcePreferences(current =>
-              updateSpecificSourcePreference(current, specificSourceKind, { enabled }))}
+              updateSpecificSourceEnabled(current, enabled))}
             label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
           />
           {useSpecificSource && operation === TransferOperation.CoreSend && (
@@ -382,7 +382,7 @@ function WalletTransferHub(): React.JSX.Element {
               addresses={coreAddresses}
               selected={selectedCoreAddress}
               onSelect={address => setSpecificSourcePreferences(current =>
-                updateSpecificSourcePreference(current, SourceKind.Core, { address }))}
+                updateSpecificSourceAddress(current, SourceKind.Core, address))}
             />
           )}
           {useSpecificSource && shieldedSpendOperation && (
@@ -392,7 +392,7 @@ function WalletTransferHub(): React.JSX.Element {
                 balances={shieldedAddressBalances}
                 selected={selectedShieldedAddress}
                 onSelect={address => setSpecificSourcePreferences(current =>
-                  updateSpecificSourcePreference(current, SourceKind.Shielded, { address }))}
+                  updateSpecificSourceAddress(current, SourceKind.Shielded, address))}
               />
               <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
             </>

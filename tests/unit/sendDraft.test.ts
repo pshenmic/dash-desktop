@@ -34,8 +34,11 @@ describe('send drafts', () => {
       amount: '1.25',
       acked: true,
       specificSourcePreferences: {
-        [SourceKind.Core]: { enabled: true, address: 'core-source' },
-        [SourceKind.Shielded]: { enabled: true, address: 'shielded-source' },
+        enabled: true,
+        addresses: {
+          [SourceKind.Core]: 'core-source',
+          [SourceKind.Shielded]: 'shielded-source',
+        },
       },
     }
     saveSendDraft('wallet-a', draft)

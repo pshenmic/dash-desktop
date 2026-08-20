@@ -4,42 +4,33 @@ import { TransferOperation } from '../../src/renderer/src/enums/TransferOperatio
 import {
   initialSpecificSourcePreferences,
   specificSourceKindForOperation,
-  updateSpecificSourcePreference,
+  updateSpecificSourceAddress,
+  updateSpecificSourceEnabled,
 } from '../../src/renderer/src/utils/specificSource'
 
 describe('specific source preferences', () => {
-  it('keeps Core and Shielded settings independent', () => {
-    const initial = initialSpecificSourcePreferences()
-    const withCore = updateSpecificSourcePreference(initial, SourceKind.Core, {
-      enabled: true,
-      address: 'core-address',
-    })
-    const withShielded = updateSpecificSourcePreference(withCore, SourceKind.Shielded, {
-      address: 'shielded-address',
-    })
+  it('stays enabled when switching from a Core method to a Shielded method', () => {
+    const preferences = updateSpecificSourceEnabled(initialSpecificSourcePreferences(), true)
 
-    expect(withShielded[SourceKind.Core]).toEqual({
-      enabled: true,
-      address: 'core-address',
-    })
-    expect(withShielded[SourceKind.Shielded]).toEqual({
-      enabled: false,
-      address: 'shielded-address',
-    })
+    expect(preferences.enabled).toBe(true)
+    expect(specificSourceKindForOperation(TransferOperation.CoreSend)).toBe(SourceKind.Core)
+    expect(specificSourceKindForOperation(TransferOperation.ShieldedTransfer)).toBe(SourceKind.Shielded)
+    expect(preferences.enabled).toBe(true)
   })
 
-  it('keeps the selected address when a method preference is toggled', () => {
-    const selected = updateSpecificSourcePreference(
-      initialSpecificSourcePreferences(),
-      SourceKind.Core,
-      { enabled: true, address: 'core-address' },
-    )
-    const disabled = updateSpecificSourcePreference(selected, SourceKind.Core, { enabled: false })
-    const enabledAgain = updateSpecificSourcePreference(disabled, SourceKind.Core, { enabled: true })
+  it('keeps Core and Shielded addresses independent when the shared setting is toggled', () => {
+    const withCore = updateSpecificSourceAddress(initialSpecificSourcePreferences(), SourceKind.Core, 'core-address')
+    const withShielded = updateSpecificSourceAddress(withCore, SourceKind.Shielded, 'shielded-address')
+    const enabled = updateSpecificSourceEnabled(withShielded, true)
+    const disabled = updateSpecificSourceEnabled(enabled, false)
+    const enabledAgain = updateSpecificSourceEnabled(disabled, true)
 
-    expect(enabledAgain[SourceKind.Core]).toEqual({
+    expect(enabledAgain).toEqual({
       enabled: true,
-      address: 'core-address',
+      addresses: {
+        [SourceKind.Core]: 'core-address',
+        [SourceKind.Shielded]: 'shielded-address',
+      },
     })
   })
 

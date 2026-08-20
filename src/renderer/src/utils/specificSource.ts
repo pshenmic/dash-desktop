@@ -2,14 +2,16 @@ import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
 import type {
   SpecificSourceKind,
-  SpecificSourcePreference,
   SpecificSourcePreferences,
 } from '../types/SpecificSource'
 
 export function initialSpecificSourcePreferences(): SpecificSourcePreferences {
   return {
-    [SourceKind.Core]: { enabled: false, address: null },
-    [SourceKind.Shielded]: { enabled: false, address: null },
+    enabled: false,
+    addresses: {
+      [SourceKind.Core]: null,
+      [SourceKind.Shielded]: null,
+    },
   }
 }
 
@@ -25,13 +27,20 @@ export function specificSourceKindForOperation(operation: TransferOperation | nu
   return null
 }
 
-export function updateSpecificSourcePreference(
+export function updateSpecificSourceEnabled(
+  preferences: SpecificSourcePreferences,
+  enabled: boolean,
+): SpecificSourcePreferences {
+  return { ...preferences, enabled }
+}
+
+export function updateSpecificSourceAddress(
   preferences: SpecificSourcePreferences,
   kind: SpecificSourceKind,
-  update: Partial<SpecificSourcePreference>,
+  address: string,
 ): SpecificSourcePreferences {
   return {
     ...preferences,
-    [kind]: { ...preferences[kind], ...update },
+    addresses: { ...preferences.addresses, [kind]: address },
   }
 }
