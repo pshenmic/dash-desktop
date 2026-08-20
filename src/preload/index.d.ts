@@ -107,6 +107,9 @@ declare global {
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
       saveTextFile: (defaultFileName: string, content: string) => Promise<QueryStatusDTO>
+      listLogFiles: () => Promise<{ name: string; size: number; modifiedAt: number; rotated: boolean }[]>
+      getLogFile: (name: string) => Promise<{ name: string; content: string; size: number; modifiedAt: number; rotated: boolean }>
+      showLogFileInFolder: (name: string) => Promise<void>
       getContacts: (network?: Network) => Promise<unknown>
       addContact: (label: string, address: string, network: Network) => Promise<QueryStatusDTO>
       deleteContact: (id: number) => Promise<QueryStatusDTO>

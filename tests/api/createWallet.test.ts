@@ -3,6 +3,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {ADDRESS_LOOKAHEAD} from '../../src/main/src/constants'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('CreateWalletHandler', () => {
@@ -38,13 +39,13 @@ describe('CreateWalletHandler', () => {
     expect(wallet!.encryptedMnemonic).toMatch(/^[0-9a-f]+$/)
   })
 
-  it('inserts 40 addresses (20 receiving + 20 change)', async () => {
+  it('inserts the initial lookahead window for receiving and change addresses', async () => {
     const walletId = await handler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
 
     const {receiving, change} = await addressDAO.getAddressesByWalletId(walletId)
 
-    expect(receiving).toHaveLength(20)
-    expect(change).toHaveLength(20)
+    expect(receiving).toHaveLength(ADDRESS_LOOKAHEAD)
+    expect(change).toHaveLength(ADDRESS_LOOKAHEAD)
   })
 
   it('generates testnet receiving addresses with the BIP-44 testnet path', async () => {
@@ -108,7 +109,7 @@ describe('CreateWalletHandler', () => {
 
     expect(walletId).toMatch(/^[0-9a-f]{8}$/)
     const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
-    expect(receiving).toHaveLength(20)
+    expect(receiving).toHaveLength(ADDRESS_LOOKAHEAD)
   })
 
   it('rejects a seedphrase with wrong word count', async () => {

@@ -1,4 +1,4 @@
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -115,6 +115,18 @@ export class API {
 
   static async saveTextFile(defaultFileName: string, content: string): Promise<QueryStatus> {
     return this.api.saveTextFile(defaultFileName, content)
+  }
+
+  static async listLogFiles(): Promise<LogFileInfo[]> {
+    return this.api.listLogFiles()
+  }
+
+  static async getLogFile(name: string): Promise<LogFileContent> {
+    return this.api.getLogFile(name)
+  }
+
+  static async showLogFileInFolder(name: string): Promise<void> {
+    return this.api.showLogFileInFolder(name)
   }
 
   static async getContacts(network?: Network): Promise<Contact[]> {

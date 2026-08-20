@@ -12,6 +12,7 @@ import ShieldedPage from "./pages/Shielded"
 import IdentitiesPage from "./pages/Identities"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
+import LogsPage from "./pages/Logs"
 import { useAuth } from "./contexts/AuthContext"
 import { useDebugMode } from "./hooks/useDebugMode"
 import { ConnectionModeProvider } from "./contexts/ConnectionModeContext"
@@ -61,6 +62,7 @@ function App(): React.JSX.Element {
             <Route path={"/addresses"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />
+            <Route path={"/settings/logs"} element={<LogsPage />} />
           </Routes>
         </Layout>
       </div>
