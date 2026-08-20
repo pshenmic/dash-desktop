@@ -1,6 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {ADDRESS_LOOKAHEAD} from '../../src/main/src/constants'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('GetWalletAddressesHandler', () => {
@@ -13,13 +14,13 @@ describe('GetWalletAddressesHandler', () => {
     handler = new GetWalletAddressesHandler(wired.walletService)
   })
 
-  it('returns 20 receiving and 20 change addresses for a fresh wallet', async () => {
+  it('returns the initial lookahead window for a fresh wallet', async () => {
     const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
 
     const grouped = await handler.handle(null as never, walletId)
 
-    expect(grouped.receiving).toHaveLength(20)
-    expect(grouped.change).toHaveLength(20)
+    expect(grouped.receiving).toHaveLength(ADDRESS_LOOKAHEAD)
+    expect(grouped.change).toHaveLength(ADDRESS_LOOKAHEAD)
   })
 
   it('returns addresses scoped to the requested wallet', async () => {
