@@ -25,7 +25,7 @@ describe('send drafts', () => {
     })
   })
 
-  it('restores the complete form draft for the same wallet without applying new URL endpoints', () => {
+  it('restores the complete form draft while applying valid URL endpoints', () => {
     const draft = {
       ...createSendDraft(SourceKind.Identity, DestinationKind.PlatformAddress),
       fromAddress: 'platform-source',
@@ -43,7 +43,25 @@ describe('send drafts', () => {
     }
     saveSendDraft('wallet-a', draft)
 
-    expect(getOrCreateSendDraft('wallet-a', SourceKind.Core, DestinationKind.CoreAddress)).toEqual(draft)
+    expect(getOrCreateSendDraft('wallet-a', SourceKind.Core, DestinationKind.CoreAddress)).toEqual({
+      ...draft,
+      fromKind: SourceKind.Core,
+      toKind: DestinationKind.CoreAddress,
+    })
+  })
+
+  it('only applies URL endpoints that are explicitly provided and valid', () => {
+    const draft = createSendDraft(SourceKind.Identity, DestinationKind.PlatformAddress)
+    saveSendDraft('wallet-a', draft)
+
+    expect(getOrCreateSendDraft('wallet-a', null, DestinationKind.Shielded)).toMatchObject({
+      fromKind: SourceKind.Identity,
+      toKind: DestinationKind.Shielded,
+    })
+    expect(getOrCreateSendDraft('wallet-a', 'invalid', null)).toMatchObject({
+      fromKind: SourceKind.Identity,
+      toKind: DestinationKind.Shielded,
+    })
   })
 
   it('keeps drafts isolated by wallet and removes a cleared draft', () => {

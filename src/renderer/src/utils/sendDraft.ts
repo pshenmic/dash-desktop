@@ -5,10 +5,18 @@ import { initialSpecificSourcePreferences } from './specificSource'
 
 const sendDrafts = new Map<string, SendDraft>()
 
+function sourceKind(value: string | null): SourceKind | undefined {
+  return Object.values(SourceKind).find(kind => kind === value)
+}
+
+function destinationKind(value: string | null): DestinationKind | undefined {
+  return Object.values(DestinationKind).find(kind => kind === value)
+}
+
 export function createSendDraft(from: string | null = null, to: string | null = null): SendDraft {
   return {
-    fromKind: Object.values(SourceKind).some(kind => kind === from) ? from as SourceKind : SourceKind.Core,
-    toKind: Object.values(DestinationKind).some(kind => kind === to) ? to as DestinationKind : DestinationKind.CoreAddress,
+    fromKind: sourceKind(from) ?? SourceKind.Core,
+    toKind: destinationKind(to) ?? DestinationKind.CoreAddress,
     fromAddress: '',
     fromIdentity: '',
     toValue: '',
@@ -21,8 +29,15 @@ export function createSendDraft(from: string | null = null, to: string | null = 
 export function getOrCreateSendDraft(walletId: string | null, from: string | null, to: string | null): SendDraft {
   if (walletId == null) return createSendDraft(from, to)
   const existing = sendDrafts.get(walletId)
-  if (existing != null) return existing
-  const draft = createSendDraft(from, to)
+  const fromKind = sourceKind(from)
+  const toKind = destinationKind(to)
+  const draft = existing == null
+    ? createSendDraft(from, to)
+    : {
+        ...existing,
+        ...(fromKind != null && {fromKind}),
+        ...(toKind != null && {toKind}),
+      }
   sendDrafts.set(walletId, draft)
   return draft
 }
