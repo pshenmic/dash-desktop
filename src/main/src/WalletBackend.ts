@@ -106,7 +106,7 @@ export class WalletBackend {
   private contactService?: ContactService
   private identityRegistrationService?: IdentityRegistrationService
   private shieldedService?: ShieldedService
-  private readonly platformWorkerService = new PlatformWorkerService()
+  private platformWorkerService?: PlatformWorkerService
   private assetLockService?: AssetLockService
   private coreDiscoveryService?: CoreDiscoveryService
   private coreLockService?: CoreLockService
@@ -212,12 +212,14 @@ export class WalletBackend {
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
+    this.platformWorkerService = new PlatformWorkerService()
     this.platformWorkerService.start()
 
     // Consumers depend on the asset lock primitive, never the other way round:
     // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,
     // and each consumer settles that proof into its own transition.
-    const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService)
+    const prevOuts = new CorePrevOutService(walletDAO, transactionDAO)
+    const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService, prevOuts)
     const coreTransactionService = new CoreTransactionService()
     this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers)
@@ -236,14 +238,18 @@ export class WalletBackend {
 
     const discovery = this.coreDiscoveryService
     const walletSyncService = this.walletSyncService
-    const prevOuts = new CorePrevOutService(walletDAO, transactionDAO)
     const applicationService = this.applicationService
+    // A drain outlives the 3s activity debounce that triggers it, and every
+    // overlapping one would re-read the same parents from DAPI.
+    let resolvingPrevOuts = false
     // rpc mode reads whole transactions from the indexer, which already carries
     // what every input spends, and never displays the local rows this fills in.
     const resolvePrevOuts = (walletId: string): void => {
-      if (applicationService.preferences.general.connectionType !== 'p2p') return
-      prevOuts.resolvePrevOuts(walletId).catch(err =>
-        console.error('[prevout] input resolution failed:', err))
+      if (applicationService.preferences.general.connectionType !== 'p2p' || resolvingPrevOuts) return
+      resolvingPrevOuts = true
+      prevOuts.resolveBacklog(walletId)
+        .catch(err => console.error('[prevout] input resolution failed:', err))
+        .finally(() => { resolvingPrevOuts = false })
     }
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
@@ -292,6 +298,6 @@ export class WalletBackend {
 
   async shutdown(): Promise<void> {
     await this.walletSyncService?.shutdown()
-    await this.platformWorkerService.shutdown()
+    await this.platformWorkerService?.shutdown()
   }
 }

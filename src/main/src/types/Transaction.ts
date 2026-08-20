@@ -1,3 +1,4 @@
+import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {TransactionStatus} from "../enums/TransactionStatus";
 
 export interface TransactionInput {
@@ -27,6 +28,22 @@ export interface UnresolvedInput extends PrevOutRef {
 export interface ResolvedPrevOut extends PrevOutRef {
   address: string
   satoshis: string
+}
+
+// error carries the first failure of a pass, so an outage is reported once
+// instead of once per parent.
+export interface PrevOutPassResult {
+  resolved: number
+  unanswered: number
+  error: string | null
+}
+
+// One parent read, carrying the outpoints waiting on it: a failed read has to
+// stay attached to what it was for.
+export interface ParentRead {
+  spent: PrevOutRef[]
+  parent: SDKTransaction | null
+  error: string | null
 }
 
 export interface TransactionOutput {

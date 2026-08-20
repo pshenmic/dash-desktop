@@ -1,7 +1,7 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {AddressInfo} from '../types/AddressInfo'
-import type {ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
+import type {PrevOutRef, ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {Network} from '../types/Network'
 
@@ -433,24 +433,30 @@ export class TransactionDAO {
     }))
   }
 
-  // Inputs that neither the local output set nor an earlier resolution pass can
-  // describe. Grouped by spending transaction so a capped pass can take whole
-  // transactions.
-  getUnresolvedInputs = async (walletId: string): Promise<UnresolvedInput[]> => {
-    const rows = await this.knex('transaction_inputs as i')
-      .leftJoin('transaction_outputs as prev', function() {
-        this.on('prev.wallet_id', '=', 'i.wallet_id')
-          .andOn('prev.txid', '=', 'i.prev_txid')
-          .andOn('prev.vout', '=', 'i.prev_vout')
-      })
+  // Whole transactions only, so none is left with some inputs described and the
+  // rest blank. `afterTxid` walks past what a pass could not resolve.
+  getUnresolvedInputs = async (walletId: string, limit: number, afterTxid?: string): Promise<UnresolvedInput[]> => {
+    const page = this.unresolvedInputRows(walletId)
+      .distinct('i.txid')
+      .orderBy('i.txid')
+      .limit(limit)
+    if (afterTxid != null) page.where('i.txid', '>', afterTxid)
+
+    const rows = await this.unresolvedInputRows(walletId)
       .select('i.txid', 'i.prev_txid', 'i.prev_vout')
-      .where('i.wallet_id', walletId)
-      .whereNull('i.prev_address')
-      .whereNull('prev.txid')
-      .whereNot('i.prev_txid', COINBASE_PREV_TXID)
+      .whereIn('i.txid', page)
       .orderBy(['i.txid', 'i.vin'])
 
     return rows.map(row => ({txid: row.txid, prevTxid: row.prev_txid, prevVout: row.prev_vout}))
+  }
+
+  getUnresolvedInputsForTx = async (walletId: string, txid: string): Promise<PrevOutRef[]> => {
+    const rows = await this.unresolvedInputRows(walletId)
+      .select('i.prev_txid', 'i.prev_vout')
+      .where('i.txid', txid)
+      .orderBy('i.vin')
+
+    return rows.map(row => ({prevTxid: row.prev_txid, prevVout: row.prev_vout}))
   }
 
   // Cached on the input row rather than inserted as an output: transaction_outputs
@@ -466,6 +472,36 @@ export class TransactionDAO {
           .update({prev_address: prevOut.address, prev_satoshis: prevOut.satoshis})
       }
     })
+  }
+
+  // Written off on disk rather than remembered in the process, so a restart does
+  // not go asking for every dead parent again.
+  markPrevOutsMissing = async (walletId: string, refs: PrevOutRef[]): Promise<void> => {
+    if (refs.length === 0) return
+
+    await this.knex.transaction(async trx => {
+      for (const ref of refs) {
+        await trx('transaction_inputs')
+          .where({wallet_id: walletId, prev_txid: ref.prevTxid, prev_vout: ref.prevVout})
+          .update({prev_missing: true})
+      }
+    })
+  }
+
+  // Inputs neither the local output set nor an earlier pass can describe: only
+  // our own outputs are stored, so a stranger's has nothing to join to.
+  private unresolvedInputRows(walletId: string): Knex.QueryBuilder {
+    return this.knex('transaction_inputs as i')
+      .leftJoin('transaction_outputs as prev', function() {
+        this.on('prev.wallet_id', '=', 'i.wallet_id')
+          .andOn('prev.txid', '=', 'i.prev_txid')
+          .andOn('prev.vout', '=', 'i.prev_vout')
+      })
+      .where('i.wallet_id', walletId)
+      .whereNull('i.prev_address')
+      .where('i.prev_missing', false)
+      .whereNull('prev.txid')
+      .whereNot('i.prev_txid', COINBASE_PREV_TXID)
   }
 
   // One query returning the (tx × output × input × prev-output) product, pivoted

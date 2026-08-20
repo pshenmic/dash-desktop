@@ -117,9 +117,8 @@ export const PERSIST_RETRY_MS = 1_000
 export const PAYLOAD_CHUNK_SIZE = 100
 export const SELECT_CHUNK_SIZE = 500
 
-// Parent transactions read per prev-out resolution pass, and how many of those
-// DAPI reads run at once. A wallet restored from scratch can reference thousands
-// of them, and the pass repeats on the discovery tick until none are left.
+// Transactions per prev-out resolution page, and how many of the DAPI reads
+// behind a page run at once. A page is a step of the walk, not a cap on it.
 export const PREVOUT_RESOLVE_BATCH = 50
 export const PREVOUT_RESOLVE_CONCURRENCY = 5
 

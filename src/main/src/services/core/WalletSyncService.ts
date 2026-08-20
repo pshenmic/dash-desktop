@@ -604,7 +604,7 @@ export class WalletSyncService {
         if (ok) {
           resolve(result)
         } else {
-          console.error(`[walletSync] broadcast rejected ${txid ?? '(unparsed)'}: ${errorMessage}\n[walletSync] raw tx: ${txHex}`)
+          console.error(`[walletSync] broadcast rejected ${txid ?? '(unparsed)'}: ${errorMessage}`)
           const err = new Error(errorMessage ?? 'broadcastTransaction failed') as Error & {result: BroadcastResult}
           err.result = result
           reject(err)

@@ -7,6 +7,7 @@ import {COINBASE_PREV_TXID} from '../../src/main/src/constants'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const SENDER = 'yaJsLTUumcbPca64NNEPwXZUp6wp39rYWM'
+const PAGE = 50
 
 // A payment from somebody else: we own the output, and the two inputs spend
 // outputs the local store has never seen.
@@ -23,6 +24,20 @@ const incoming = (walletId: string, address: string): AppliedBlock => ({
       {vin: 1, prevTxid: 'parent-b', prevVout: 0, sequence: 0xffffffff},
     ],
     outputs: [{vout: 0, address, satoshis: '99999738', isMine: true}],
+  }],
+  spends: [],
+})
+
+const secondIncoming = (walletId: string, address: string): AppliedBlock => ({
+  walletId,
+  height: 1_537_830,
+  blockHash: 'hash-1537830',
+  blockTime: 1_700_000_400,
+  txs: [{
+    txid: 'later-tx',
+    raw: new Uint8Array([1]),
+    inputs: [{vin: 0, prevTxid: 'parent-d', prevVout: 2, sequence: 0xffffffff}],
+    outputs: [{vout: 0, address, satoshis: '1000', isMine: true}],
   }],
   spends: [],
 })
@@ -63,7 +78,7 @@ describe('prev-out resolution', () => {
     const {walletId, address} = await newWallet()
     await transactionDAO.applyBlock(incoming(walletId, address))
 
-    const pending = await transactionDAO.getUnresolvedInputs(walletId)
+    const pending = await transactionDAO.getUnresolvedInputs(walletId, PAGE)
 
     expect(pending).toEqual([
       {txid: 'incoming-tx', prevTxid: 'parent-a', prevVout: 1},
@@ -94,13 +109,62 @@ describe('prev-out resolution', () => {
       spends: [],
     })
 
-    const pending = await transactionDAO.getUnresolvedInputs(walletId)
+    const pending = await transactionDAO.getUnresolvedInputs(walletId, PAGE)
 
     expect(pending).toEqual([
       {txid: 'another-tx', prevTxid: 'parent-a', prevVout: 3},
       {txid: 'another-tx', prevTxid: 'parent-c', prevVout: 0},
       {txid: 'incoming-tx', prevTxid: 'parent-a', prevVout: 1},
       {txid: 'incoming-tx', prevTxid: 'parent-b', prevVout: 0},
+    ])
+  })
+
+  // The limit counts transactions, not rows: a page cutting between two inputs
+  // of one transaction is what the whole-transaction rule exists to prevent.
+  it('pages by transaction and walks past the page it already took', async () => {
+    const {walletId, address} = await newWallet()
+    await transactionDAO.applyBlock(incoming(walletId, address))
+    await transactionDAO.applyBlock(secondIncoming(walletId, address))
+
+    const first = await transactionDAO.getUnresolvedInputs(walletId, 1)
+    expect(first).toEqual([
+      {txid: 'incoming-tx', prevTxid: 'parent-a', prevVout: 1},
+      {txid: 'incoming-tx', prevTxid: 'parent-b', prevVout: 0},
+    ])
+
+    const second = await transactionDAO.getUnresolvedInputs(walletId, 1, 'incoming-tx')
+    expect(second).toEqual([{txid: 'later-tx', prevTxid: 'parent-d', prevVout: 2}])
+
+    expect(await transactionDAO.getUnresolvedInputs(walletId, 1, 'later-tx')).toEqual([])
+  })
+
+  it('answers for a single transaction, for the view that opened it', async () => {
+    const {walletId, address} = await newWallet()
+    await transactionDAO.applyBlock(incoming(walletId, address))
+    await transactionDAO.applyBlock(secondIncoming(walletId, address))
+
+    expect(await transactionDAO.getUnresolvedInputsForTx(walletId, 'later-tx')).toEqual([
+      {prevTxid: 'parent-d', prevVout: 2},
+    ])
+
+    await transactionDAO.recordPrevOuts(walletId, [
+      {prevTxid: 'parent-d', prevVout: 2, address: SENDER, satoshis: '1000'},
+    ])
+
+    expect(await transactionDAO.getUnresolvedInputsForTx(walletId, 'later-tx')).toEqual([])
+  })
+
+  it('leaves out inputs written off as missing', async () => {
+    const {walletId, address} = await newWallet()
+    await transactionDAO.applyBlock(incoming(walletId, address))
+
+    await transactionDAO.markPrevOutsMissing(walletId, [{prevTxid: 'parent-a', prevVout: 1}])
+
+    expect(await transactionDAO.getUnresolvedInputs(walletId, PAGE)).toEqual([
+      {txid: 'incoming-tx', prevTxid: 'parent-b', prevVout: 0},
+    ])
+    expect(await transactionDAO.getUnresolvedInputsForTx(walletId, 'incoming-tx')).toEqual([
+      {prevTxid: 'parent-b', prevVout: 0},
     ])
   })
 
@@ -121,7 +185,7 @@ describe('prev-out resolution', () => {
       spends: [{prevTxid: 'coinbase-tx', prevVout: 0, spentInTxid: 'our-spend'}],
     })
 
-    expect(await transactionDAO.getUnresolvedInputs(walletId)).toEqual([])
+    expect(await transactionDAO.getUnresolvedInputs(walletId, PAGE)).toEqual([])
   })
 
   it('fills the sender address and value into the transaction once recorded', async () => {
@@ -148,7 +212,7 @@ describe('prev-out resolution', () => {
     expect(after?.inAmount).toBe(0n)
     expect(after?.direction).toBe(1)
     expect(after?.transferAmount).toBe(99999738n)
-    expect(await transactionDAO.getUnresolvedInputs(walletId)).toEqual([])
+    expect(await transactionDAO.getUnresolvedInputs(walletId, PAGE)).toEqual([])
   })
 
   it('does not let a resolved sender output reach the balance or the utxo set', async () => {

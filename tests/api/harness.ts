@@ -11,6 +11,7 @@ import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
+import {CorePrevOutService} from '../../src/main/src/services/core/CorePrevOutService'
 import {WalletCredentialsService} from '../../src/main/src/services/wallet/WalletCredentialsService'
 import {IdentityService} from '../../src/main/src/services/platform/IdentityService'
 import {CoreLockService} from '../../src/main/src/services/core/CoreLockService'
@@ -34,6 +35,7 @@ export interface Harness {
   walletService: WalletService
   providers: WalletProviderFactory
   coreDiscoveryService: CoreDiscoveryService
+  prevOutService: CorePrevOutService
   coreLockService: CoreLockService
   walletCredentialsService: WalletCredentialsService
   identityService: IdentityService
@@ -65,7 +67,8 @@ export async function harness(): Promise<Harness> {
   const platform = {request} as unknown as PlatformWorkerService
   const shieldedService = {getAddresses: vi.fn().mockResolvedValue([])} as unknown as ShieldedService
 
-  const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService)
+  const prevOutService = new CorePrevOutService(walletDAO, transactionDAO)
+  const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService, prevOutService)
   const coreTransactionService = new CoreTransactionService()
   const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers)
@@ -87,6 +90,7 @@ export async function harness(): Promise<Harness> {
     walletService,
     providers,
     coreDiscoveryService,
+    prevOutService,
     coreLockService,
     walletCredentialsService,
     identityService,
