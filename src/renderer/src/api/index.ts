@@ -14,6 +14,10 @@ export class API {
     return this.api.setConnectionType(connectionType)
   }
 
+  static async getRpcStatus(network: Network): Promise<boolean> {
+    return this.api.getRpcStatus(network)
+  }
+
   static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
   }

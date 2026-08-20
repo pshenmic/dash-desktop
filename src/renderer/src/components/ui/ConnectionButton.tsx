@@ -5,6 +5,7 @@ import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeConte
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { WalletSyncPhase } from '@renderer/api/types'
 import { useRipple } from '@renderer/hooks/useRipple'
+import {useRpcStatus} from '@renderer/hooks/useRpcStatus'
 
 export default function ConnectionButton(): React.JSX.Element {
   const navigate = useNavigate()
@@ -12,17 +13,19 @@ export default function ConnectionButton(): React.JSX.Element {
   const { desired, syncIncomplete } = useConnectionModeContext()
   const { status } = useAuth()
   const phase = status?.walletSync.phase
+  const rpcStatus = useRpcStatus(status?.network ?? null, desired === 'rpc')
   const isSyncing = desired === 'p2p' && syncIncomplete
 
   const statusLabel = desired === 'rpc'
-    ? 'Connected'
+    ? rpcStatus === 'connected' ? 'Connected' : rpcStatus === 'unavailable' ? 'Unavailable' : 'Connecting'
     : phase === WalletSyncPhase.Synced
       ? 'Synced'
       : isSyncing
         ? 'Synchronizing'
         : 'Connected'
-  const statusColor = isSyncing ? 'text-dash-orange!' : 'text-dash-mint!'
-  const iconShadowColor = isSyncing ? 'var(--color-dash-orange)' : 'var(--color-dash-mint)'
+  const hasWarning = isSyncing || (desired === 'rpc' && rpcStatus !== 'connected')
+  const statusColor = hasWarning ? 'text-dash-orange!' : 'text-dash-mint!'
+  const iconShadowColor = hasWarning ? 'var(--color-dash-orange)' : 'var(--color-dash-mint)'
 
   return (
     <button

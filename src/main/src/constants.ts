@@ -135,6 +135,7 @@ export const XPUB_MAX_PAGES = 200
 // Chromium's own timeout runs into the tens of seconds — long enough that a
 // stalled read reads as a hung wallet.
 export const DASHSCAN_REQUEST_TIMEOUT_MS = 15_000
+export const RPC_STATUS_REQUEST_TIMEOUT_MS = 5_000
 export const DASHSCAN_RETRY_DELAYS_MS = [300, 1_200]
 
 export const DUFFS_PER_DASH = 100_000_000n

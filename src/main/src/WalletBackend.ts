@@ -99,6 +99,8 @@ import {LogService} from './services/app/LogService'
 import {ListLogFiles} from './api/logs/listLogFiles'
 import {GetLogFileHandler} from './api/logs/getLogFile'
 import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
+import {ConnectionService} from './services/app/ConnectionService'
+import {GetRpcStatusHandler} from './api/getRpcStatus'
 
 
 export class WalletBackend {
@@ -117,6 +119,7 @@ export class WalletBackend {
   private walletCredentialsService?: WalletCredentialsService
   private identityService?: IdentityService
   private logService?: LogService
+  private readonly connectionService = new ConnectionService()
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
@@ -169,6 +172,7 @@ export class WalletBackend {
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
     ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
+    ipcMain.handle('getRpcStatus', new GetRpcStatusHandler(this.connectionService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)

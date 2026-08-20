@@ -14,11 +14,6 @@ export const REFRESH_DATA_LABEL = 'Refresh data'
 
 export const REFRESH_FAILED_MESSAGE = '**Refresh incomplete** Some data could not be refreshed.'
 
-export const CONNECTION_SETTINGS_TABS = [
-  { value: 'core', label: 'Core' },
-  { value: 'platform', label: 'Platform' },
-] as const
-
 export const RPC_CONNECTION_NAME = 'dashscan.io'
 
 export const SYNC_PROGRESS_COMPLETE_HOLD_MS = 500

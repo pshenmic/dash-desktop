@@ -4,3 +4,5 @@ export interface SyncProgressPhaseInfo {
   current: number
   total: number
 }
+
+export type RpcHealthStatus = 'checking' | 'connected' | 'unavailable'
