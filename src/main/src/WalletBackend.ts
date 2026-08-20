@@ -1,7 +1,6 @@
-import {calibratePBKDF2Iterations, ensureHomeFolder, getKnex, migrateKnex} from './utils'
-import path from 'path'
-import os from 'os'
-import {HomeFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
+import {calibratePBKDF2Iterations, getKnex, migrateKnex} from './utils'
+import {dataPath, ensureDataFolder} from './utils/dataPath'
+import {PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
@@ -190,14 +189,14 @@ export class WalletBackend {
   }
 
   async start(): Promise<void> {
-    ensureHomeFolder()
+    ensureDataFolder()
 
     // calibrate only on start and then using until wallet running
     const calibratedIterations = calibratePBKDF2Iterations(PBKDF2_TARGET_MS)
 
-    const preferences = await Preferences.init(path.join(os.homedir(), HomeFolderName, PreferencesFilename))
+    const preferences = await Preferences.init(dataPath(PreferencesFilename))
 
-    const knex = getKnex(path.join(os.homedir(), HomeFolderName, StorageFilename))
+    const knex = getKnex(dataPath(StorageFilename))
 
     await migrateKnex(knex)
 
