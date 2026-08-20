@@ -75,6 +75,19 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     return <ListSkeleton rows={1} rowClassName="h-[2.5rem] rounded-[.875rem]" />
   }
 
+  if (addresses !== null && !synced) {
+    return (
+      <>
+        <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} required />
+        <ShieldedUnlockModal
+          isOpen={syncOpen}
+          onClose={() => setSyncOpen(false)}
+          walletId={walletId ?? null}
+        />
+      </>
+    )
+  }
+
   if (addresses !== null) {
     const receiveAddresses = receiveShieldedAddresses(addresses, balances)
     if (receiveAddresses.length === 0) {
