@@ -322,19 +322,6 @@ export default function SendConfirmModal({
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
-              {result?.txid && network && (
-                <Button
-                  type={"button"}
-                  onClick={() => openExternal(transactionUrl(result.txid, network))}
-                  variant={"outline"}
-                  colorScheme={"primary-light"}
-                  size={"sm"}
-                  className={"flex-1 rounded-[.9375rem] gap-2"}
-                >
-                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-                  View on explorer
-                </Button>
-              )}
               <Button
                 type={"button"}
                 onClick={onClose}

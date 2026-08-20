@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
+import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import { useTheme } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
-import { platformTransactionUrl, openExternal } from '@renderer/utils/explorer'
+import { platformTransactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
@@ -204,23 +204,10 @@ export default function TransferConfirmModal({
                   <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
                 </div>
               )}
-              {result?.stHash && <HashField hash={result.stHash} />}
+              {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
             </div>
 
             <div className={"mt-4.5 flex gap-2"}>
-              {result?.stHash && network && (
-                <Button
-                  type={"button"}
-                  onClick={() => openExternal(platformTransactionUrl(result.stHash, network))}
-                  variant={"outline"}
-                  colorScheme={"primary-light"}
-                  size={"sm"}
-                  className={"flex-1 rounded-[.9375rem] gap-2"}
-                >
-                  <ExternalLinkIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-                  View on explorer
-                </Button>
-              )}
               <Button
                 type={"button"}
                 onClick={onClose}
