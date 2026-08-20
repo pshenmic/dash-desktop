@@ -36,7 +36,7 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
-    <div className={"flex items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
+    <div className={"flex w-full min-w-260 items-center gap-8 rounded-4xl dash-block p-6"}>
       <QRCode
         value={selected.platformAddress}
         size={225}
@@ -45,13 +45,13 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
         className={"rounded-[.5625rem] shrink-0"}
       />
 
-      <div className={"flex flex-col w-full min-w-0"}>
+      <div className={"flex flex-1 flex-col"}>
         <div className={"flex flex-col gap-[.5rem]"}>
           <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
             Platform Address
           </Text>
           <div className={"flex items-center gap-[.625rem]"}>
-            <div className={"flex-1 min-w-0"}>
+            <div className={"flex-1"}>
               <PlatformAddressSelect
                 addresses={receiveAddresses}
                 selected={selected}

@@ -14,14 +14,12 @@ export default function PlatformAddressCard({
   const network = appStatus?.network ?? null
 
   return (
-    <div className={"flex items-center justify-between px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
-      <div className={"flex flex-col gap-1 min-w-0"}>
-        <div className={"flex items-center gap-[.3125rem] min-w-0"}>
-          <span title={platformAddress} className={"min-w-0 truncate"}>
-            <Text reset size={12} weight={"medium"} color={"brand"} className={"font-mono"}>
-              {platformAddress}
-            </Text>
-          </span>
+    <div className={"flex w-max min-w-full items-center justify-between px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
+      <div className={"flex flex-col gap-1"}>
+        <div className={"flex items-center gap-[.3125rem]"}>
+          <Text reset size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap"}>
+            {platformAddress}
+          </Text>
           <CopyButton text={platformAddress} className={"shrink-0"} />
           {network && (
             <button
