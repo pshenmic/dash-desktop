@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Text, FilterIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, FilterIcon, Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { transactionsPage } from '@renderer/constants'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { TxDirectionFilter } from '@renderer/enums/TxDirectionFilter'
@@ -79,7 +79,18 @@ export default function TransactionsFilter({ filter, onChange }: TransactionsFil
       </button>
 
       {open && (
-        <div className={"absolute right-0 top-[calc(100%+.375rem)] z-30 w-44 flex flex-col gap-2 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)]"}>
+        <div className={"absolute right-0 top-[calc(100%+.375rem)] z-30 w-64 flex flex-col gap-2 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)]"}>
+          <Input
+            type={"search"}
+            size={"sm"}
+            colorScheme={"light"}
+            variant={"filled"}
+            value={filter.search}
+            onChange={(event) => onChange({ ...filter, search: event.target.value })}
+            placeholder={filters.search.placeholder}
+            aria-label={filters.search.label}
+            prefix={<SearchIcon size={14} color={"currentColor"} className={"dash-text-default"} />}
+          />
           <FilterSection
             label={filters.direction.label}
             options={directionOptions}

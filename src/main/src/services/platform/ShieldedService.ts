@@ -473,24 +473,22 @@ export class ShieldedService {
   }
 
   // Locks L1 coins and shields the credits straight into the pool, so they
-  // never sit on a transparent platform address. An empty recipient shields to
-  // this wallet's own address.
+  // never sit on a transparent platform address.
   async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
     shieldAmountFromLockedDuffs(amountDuffs)
+    const destination = recipient.trim()
+    if (destination.length === 0) {
+      throw new Error('Shielded recipient address is required')
+    }
+    try {
+      OrchardAddressWASM.fromBech32m(destination)
+    } catch {
+      throw new Error('Invalid shielded recipient address')
+    }
+
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     const {wallet: {network}, seed} = unlocked
     try {
-      let destination = recipient
-      if (destination.length > 0) {
-        try {
-          OrchardAddressWASM.fromBech32m(destination)
-        } catch {
-          throw new Error('Invalid shielded recipient address')
-        }
-      } else {
-        destination = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT).toBech32m(network)
-      }
-
       const state = await this.assetLock.begin(walletId, 'shielded', destination, amountDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {

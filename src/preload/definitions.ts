@@ -39,6 +39,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => ipcRenderer.invoke('startAssetLockFunding', walletId, toPlatformAddress, amountDuffs, password, kind),
   getAssetLockFundingState: (walletId: string) => ipcRenderer.invoke('getAssetLockFundingState', walletId),
   resumeAssetLockFunding: (walletId: string, password: string) => ipcRenderer.invoke('resumeAssetLockFunding', walletId, password),
+  dismissAssetLockFunding: (walletId: string) => ipcRenderer.invoke('dismissAssetLockFunding', walletId),
   shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('shieldToPool', walletId, fromAddress, toAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),
@@ -57,6 +58,9 @@ export const apiDefinitions = (ipcRenderer) => ({
   getExchangeRates: () => ipcRenderer.invoke('getExchangeRates'),
 
   saveTextFile: (defaultFileName: string, content: string) => ipcRenderer.invoke('saveTextFile', defaultFileName, content),
+  listLogFiles: () => ipcRenderer.invoke('listLogFiles'),
+  getLogFile: (name: string) => ipcRenderer.invoke('getLogFile', name),
+  showLogFileInFolder: (name: string) => ipcRenderer.invoke('showLogFileInFolder', name),
 
   getContacts: (network?: Network) => ipcRenderer.invoke('getContacts', network),
   addContact: (label: string, address: string, network: Network) => ipcRenderer.invoke('addContact', label, address, network),

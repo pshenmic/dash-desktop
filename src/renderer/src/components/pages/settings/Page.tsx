@@ -15,6 +15,7 @@ import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
 import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
+import { useNavigate } from 'react-router-dom'
 
 interface SettingsRowProps {
   title: string
@@ -102,6 +103,7 @@ const DEBUG_OPTIONS = [
 ]
 
 export default function Settings(): React.JSX.Element {
+  const navigate = useNavigate()
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
@@ -260,16 +262,21 @@ export default function Settings(): React.JSX.Element {
               </div>
             }
           />
-        </div>
-
-        <SectionLabel>Security</SectionLabel>
-        <div className="flex flex-col">
           <SettingsRow
             title="Recovery phrase"
             description="Reveal this wallet's secret recovery phrase. Anyone with these words can access your funds."
             actionLabel="Reveal phrase"
             disabled={walletId === null}
             onClick={() => setIsMnemonicOpen(true)}
+          />
+          <SettingsRow
+            title="Export transactions"
+            description="Save this wallet's transaction history as a CSV file."
+            actionLabel="Export CSV"
+            pendingLabel="Exporting…"
+            pending={exportPending}
+            disabled={walletId === null}
+            onClick={handleExport}
           />
         </div>
 
@@ -297,10 +304,6 @@ export default function Settings(): React.JSX.Element {
               />
             }
           />
-        </div>
-
-        <SectionLabel>Currency</SectionLabel>
-        <div className="flex flex-col">
           <SettingsRow
             title="Display currency"
             description="Currency used for fiat values across the wallet."
@@ -314,7 +317,7 @@ export default function Settings(): React.JSX.Element {
           />
         </div>
 
-        <SectionLabel>Advanced</SectionLabel>
+        <SectionLabel>Maintenance</SectionLabel>
         <div className="flex flex-col">
           <SettingsRow
             title="Debug mode"
@@ -327,23 +330,12 @@ export default function Settings(): React.JSX.Element {
               />
             }
           />
-        </div>
-
-        <SectionLabel>Data</SectionLabel>
-        <div className="flex flex-col">
           <SettingsRow
-            title="Export transactions"
-            description="Save this wallet's transaction history as a CSV file."
-            actionLabel="Export CSV"
-            pendingLabel="Exporting…"
-            pending={exportPending}
-            disabled={walletId === null}
-            onClick={handleExport}
+            title="Application logs"
+            description="Review diagnostic logs and save a file to share with support."
+            actionLabel="View logs"
+            onClick={() => navigate('/settings/logs')}
           />
-        </div>
-
-        <SectionLabel>Sync</SectionLabel>
-        <div className="flex flex-col">
           <SettingsRow
             title="Restart sync"
             description="Stop and start the P2P sync for the current wallet."

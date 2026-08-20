@@ -7,7 +7,7 @@ import ListSkeleton from '@renderer/components/ui/Skeleton'
 import PlatformUnlockTab from '@renderer/components/pages/addresses/PlatformUnlockTab'
 import PlatformAddressSelect from '@renderer/components/pages/transfer/PlatformAddressSelect'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
-import { defaultReceivePlatformAddress } from '@renderer/utils/receiveDefaults'
+import { defaultReceivePlatformAddress, receivePlatformAddresses } from '@renderer/utils/receiveDefaults'
 
 export default function PlatformReceiveCard({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const { platformAddresses, loading, err } = usePlatformAddresses(walletId)
@@ -26,12 +26,17 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
     return <PlatformUnlockTab walletId={walletId} />
   }
 
-  const selected = platformAddresses.find(a => a.platformAddress === selectedAddress)
-    ?? defaultReceivePlatformAddress(platformAddresses)!
+  const receiveAddresses = receivePlatformAddresses(platformAddresses)
+  if (receiveAddresses.length === 0) {
+    return <Text size={12} weight={"medium"} color={"brand"} opacity={50}>No unused Platform addresses available.</Text>
+  }
+
+  const selected = receiveAddresses.find(a => a.platformAddress === selectedAddress)
+    ?? defaultReceivePlatformAddress(receiveAddresses)!
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
-    <div className={"flex items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
+    <div className={"flex w-full min-w-260 items-center gap-8 rounded-4xl dash-block p-6"}>
       <QRCode
         value={selected.platformAddress}
         size={225}
@@ -40,19 +45,17 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
         className={"rounded-[.5625rem] shrink-0"}
       />
 
-      <div className={"flex flex-col w-full min-w-0"}>
+      <div className={"flex flex-1 flex-col"}>
         <div className={"flex flex-col gap-[.5rem]"}>
           <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
             Platform Address
           </Text>
           <div className={"flex items-center gap-[.625rem]"}>
-            <div className={"flex-1 min-w-0"}>
-              <PlatformAddressSelect
-                addresses={platformAddresses}
-                selected={selected}
-                onSelect={setSelectedAddress}
-              />
-            </div>
+            <PlatformAddressSelect
+              addresses={receiveAddresses}
+              selected={selected}
+              onSelect={setSelectedAddress}
+            />
             <CopyButton text={selected.platformAddress} />
           </div>
         </div>

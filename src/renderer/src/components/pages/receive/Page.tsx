@@ -65,14 +65,14 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
           : <></>,
     },
     {
-      value: 'shielded',
-      label: pageData.tabs.shielded,
-      content: <ShieldedReceiveCard walletId={walletId} />,
-    },
-    {
       value: 'platform',
       label: pageData.tabs.platform,
       content: <PlatformReceiveCard walletId={walletId} />,
+    },
+    {
+      value: 'shielded',
+      label: pageData.tabs.shielded,
+      content: <ShieldedReceiveCard walletId={walletId} />,
     },
   ]
 

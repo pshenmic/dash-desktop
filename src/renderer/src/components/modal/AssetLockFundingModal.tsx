@@ -12,7 +12,8 @@ import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
-import { ASSET_LOCK_FUNDING_POLL_MS } from '@renderer/constants'
+import { ASSET_LOCK_FUNDING_POLL_MS, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { davToDash } from '@renderer/utils/balance'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
@@ -71,9 +72,9 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     resumeTitle: 'Resume shielding',
     doneTitle: 'Credits shielded',
     doneHeading: 'Credits shielded',
-    doneNote: 'The locked Dash is now a note in your shielded balance.',
+    doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
     toLabel: 'To (Shielded)',
-    emptyTo: 'Your shielded balance',
+    emptyTo: '',
     confirm: 'Confirm & Shield',
   },
   identity: {
@@ -138,6 +139,26 @@ export default function AssetLockFundingModal({
   }, [isOpen])
 
   useEffect(() => {
+    if (!isOpen || !resume || !walletId) return
+    let dead = false
+
+    API.getAssetLockFundingState(walletId)
+      .then((current) => {
+        if (
+          dead
+          || current.kind !== kind
+          || current.phase === AssetLockFundingPhase.Idle
+          || current.phase === AssetLockFundingPhase.Resumable
+        ) return
+        setState(current)
+        setStarted(true)
+      })
+      .catch(() => {})
+
+    return () => { dead = true }
+  }, [isOpen, resume, walletId, kind])
+
+  useEffect(() => {
     if (!started || !walletId) return
     let dead = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -177,7 +198,7 @@ export default function AssetLockFundingModal({
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setPreError('Incorrect password. Please try again.')
+        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
         setBusy(false)
         return
       }
@@ -199,7 +220,6 @@ export default function AssetLockFundingModal({
 
   const isDone = started && state?.phase === AssetLockFundingPhase.Done
   const doneTxid = state?.txid ?? null
-  const doneStHash = state?.stHash ?? null
   const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
   const texts = TEXTS[kind]
   const phases = PHASE_LABELS[kind]
@@ -229,7 +249,7 @@ export default function AssetLockFundingModal({
               {amountDuffs.length > 0 && (
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount to lock</Text>
-                  <Text size={14} weight={"extrabold"} color={"brand"}>{amountDuffs} duffs</Text>
+                  <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(BigInt(amountDuffs))} Dash</Text>
                 </div>
               )}
               <div className={"flex justify-between items-center gap-4"}>
@@ -298,7 +318,7 @@ export default function AssetLockFundingModal({
               </div>
             )}
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-              You can close this window — the funding keeps running and can be resumed from the Send page.
+              You can close this window — the funding keeps running and its progress remains available in the wallet.
             </Text>
           </div>
         )}
@@ -315,7 +335,7 @@ export default function AssetLockFundingModal({
             )}
             {state.phase === AssetLockFundingPhase.Resumable && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-                The locked Dash is safe — you can resume this funding from the Send page.
+                The locked Dash is safe — you can return to this flow and resume the funding.
               </Text>
             )}
             <div className={"mt-4.5 flex gap-2"}>
@@ -356,7 +376,7 @@ export default function AssetLockFundingModal({
                 </div>
               )}
               {doneTxid && <HashField hash={doneTxid} label={"L1 transaction hash"} explorerUrl={network ? transactionUrl(doneTxid, network) : null} />}
-              {doneStHash && <HashField hash={doneStHash} label={"L2 state transition hash"} explorerUrl={network ? platformTransactionUrl(doneStHash, network) : null} />}
+              {state.stHash && <HashField hash={state.stHash} label={"L2 state transition hash"} explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null} />}
             </div>
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>

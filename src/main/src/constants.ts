@@ -11,6 +11,7 @@ export const LogsFolderName = 'logs'
 // log files older than this many days on startup.
 export const LOG_FILE_MAX_SIZE = 5 * 1024 * 1024
 export const LOG_RETENTION_DAYS = 14
+export const LOG_FILE_NAME_PATTERN = /^wallet-\d{4}-\d{2}-\d{2}(?:\.old)?\.log$/
 
 export const PreferencesFilename = 'preferences.json'
 
@@ -205,6 +206,7 @@ export const MIN_BUNDLE_ACTIONS = 2
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
+export const ASSET_LOCK_DISMISSED_ERROR = 'Pending funding dismissed by user'
 export const CREDITS_PER_DUFF = 1_000n
 export const SHIELD_FUNDING_FEE_RESERVE_CREDITS = 300_000_000n
 

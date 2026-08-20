@@ -11,6 +11,7 @@ import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 interface ShieldConfirmModalProps {
   isOpen: boolean
@@ -63,6 +64,12 @@ export default function ShieldConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
+      const ok = await API.verifyWalletPassword(walletId, password)
+      if (!ok) {
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPhase(ConfirmModalPhase.Confirm)
+        return
+      }
       const res = await API.shieldToPool(walletId, fromAddress, toAddress, BigInt(amountCredits), password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)

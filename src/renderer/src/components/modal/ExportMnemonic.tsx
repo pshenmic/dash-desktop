@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import SeedPhraseWarning from '@renderer/components/pages/auth/SeedPhraseWarning'
 
 interface ExportMnemonicModalProps {
@@ -44,7 +45,7 @@ export default function ExportMnemonic({
       setWords(mnemonic.trim().split(/\s+/))
     } catch (e) {
       console.error('exportMnemonic failed', e)
-      setError('Incorrect password. Please try again.')
+      setError(INVALID_WALLET_PASSWORD_MESSAGE)
     } finally {
       setLoading(false)
     }

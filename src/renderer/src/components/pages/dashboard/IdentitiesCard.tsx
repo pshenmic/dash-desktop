@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Text, ArrowIcon, KeyIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ArrowIcon, KeyIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -16,7 +16,7 @@ export default function IdentitiesCard(): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? undefined
 
-  const { identities } = useIdentities(walletId)
+  const { identities, loading } = useIdentities(walletId)
   const { isBalanceVisible } = useBalanceVisibility()
   const labels = dashboardPage.identities
 
@@ -70,9 +70,22 @@ export default function IdentitiesCard(): React.JSX.Element {
       </div>
 
       {identities.length === 0 ? (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[150%]"}>
-          {labels.empty}
-        </Text>
+        <div className={"flex items-center justify-between gap-3"}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[150%]"}>
+            {loading ? 'Loading identities…' : labels.empty}
+          </Text>
+          {!loading && (
+            <Button
+              type={"button"}
+              colorScheme={"lightBlue-mint"}
+              size={"sm"}
+              className={"min-h-0! shrink-0 rounded-[.75rem] py-2!"}
+              onClick={() => navigate('/identities/register')}
+            >
+              Register identity
+            </Button>
+          )}
+        </div>
       ) : (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={`leading-[150%] ${blur}`}>
           {identities.length} {identities.length === 1 ? labels.one : labels.many}

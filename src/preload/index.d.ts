@@ -93,6 +93,7 @@ declare global {
       startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => Promise<unknown>
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
+      dismissAssetLockFunding: (walletId: string) => Promise<unknown>
       shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
@@ -107,6 +108,9 @@ declare global {
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
       saveTextFile: (defaultFileName: string, content: string) => Promise<QueryStatusDTO>
+      listLogFiles: () => Promise<{ name: string; size: number; modifiedAt: number; rotated: boolean }[]>
+      getLogFile: (name: string) => Promise<{ name: string; content: string; size: number; modifiedAt: number; rotated: boolean }>
+      showLogFileInFolder: (name: string) => Promise<void>
       getContacts: (network?: Network) => Promise<unknown>
       addContact: (label: string, address: string, network: Network) => Promise<QueryStatusDTO>
       deleteContact: (id: number) => Promise<QueryStatusDTO>

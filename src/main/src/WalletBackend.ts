@@ -1,6 +1,6 @@
 import {calibratePBKDF2Iterations, getKnex, migrateKnex} from './utils'
 import {dataPath, ensureDataFolder} from './utils/dataPath'
-import {PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
+import {LogsFolderName, PBKDF2_TARGET_MS, PreferencesFilename, SHIELDED_NOTES_CHECK_INTERVAL_MS, StorageFilename} from './constants'
 import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
@@ -43,6 +43,7 @@ import {CreateIdentityFromAddressesHandler} from "./api/wallet/createIdentityFro
 import {StartAssetLockFundingHandler} from "./api/wallet/startAssetLockFunding";
 import {GetAssetLockFundingStateHandler} from "./api/wallet/getAssetLockFundingState";
 import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding";
+import {DismissAssetLockFundingHandler} from './api/wallet/dismissAssetLockFunding'
 import {AssetLockDAO} from "./database/AssetLockDAO";
 import {AssetLockService} from "./services/platform/AssetLockService";
 import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
@@ -95,6 +96,10 @@ import {CoreTransactionService} from './services/core/CoreTransactionService'
 import {WalletProviderFactory} from './providers/WalletProviderFactory'
 import {HasSyncProgressHandler} from './api/walletSync/hasSyncProgress'
 import {BroadcastTransactionHandler} from './api/walletSync/broadcastTransaction'
+import {LogService} from './services/app/LogService'
+import {ListLogFiles} from './api/logs/listLogFiles'
+import {GetLogFileHandler} from './api/logs/getLogFile'
+import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
 
 
 export class WalletBackend {
@@ -112,13 +117,14 @@ export class WalletBackend {
   private coreLockService?: CoreLockService
   private walletCredentialsService?: WalletCredentialsService
   private identityService?: IdentityService
+  private logService?: LogService
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService) {
+    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -154,6 +160,7 @@ export class WalletBackend {
     ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
     ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
     ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformAddressService, this.shieldedService, this.identityRegistrationService).handle)
+    ipcMain.handle('dismissAssetLockFunding', new DismissAssetLockFundingHandler(this.assetLockService).handle)
     ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformAddressService).handle)
     ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletCredentialsService).handle)
     ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletCredentialsService).handle)
@@ -187,6 +194,9 @@ export class WalletBackend {
     ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
     ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
+    ipcMain.handle('listLogFiles', new ListLogFiles(this.logService).handle)
+    ipcMain.handle('getLogFile', new GetLogFileHandler(this.logService).handle)
+    ipcMain.handle('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
   }
 
   async start(): Promise<void> {
@@ -211,6 +221,7 @@ export class WalletBackend {
     this.walletSyncService = new WalletSyncService(walletDAO, addressDAO, transactionDAO, preferences)
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
+    this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.platformWorkerService = new PlatformWorkerService()
     this.platformWorkerService.start()

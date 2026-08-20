@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
 import { Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
@@ -25,7 +25,12 @@ import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import {
-  SOURCE_KINDS,
+  specificSourceKindForOperation,
+  updateSpecificSourceAddress,
+  updateSpecificSourceEnabled,
+} from "@renderer/utils/specificSource";
+import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
+import {
   DESTINATION_KINDS,
   resolveOperation,
   unsupportedReason,
@@ -43,6 +48,8 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
+import type { SendDraft } from "@renderer/types/SendDraft";
+import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
 import { CORE_FEE_DUFFS, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
@@ -58,36 +65,48 @@ import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
 
-function initialSourceKind(value: string | null): SourceKind {
-  return SOURCE_KINDS.some(k => k.kind === value) ? value as SourceKind : SourceKind.Core
-}
-
-function initialDestinationKind(value: string | null): DestinationKind {
-  return DESTINATION_KINDS.some(k => k.kind === value) ? value as DestinationKind : DestinationKind.CoreAddress
-}
-
 export default function TransferHub(): React.JSX.Element {
+  const { status } = useAuth()
+  return <WalletTransferHub key={status?.selectedWalletId ?? 'no-wallet'} />
+}
+
+function WalletTransferHub(): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
   const [searchParams] = useSearchParams()
-  const [fromKind, setFromKind] = useState<SourceKind>(() => initialSourceKind(searchParams.get('from')))
-  const [toKind, setToKind] = useState<DestinationKind>(() => initialDestinationKind(searchParams.get('to')))
-  const [fromAddress, setFromAddress] = useState('')
-  const [fromIdentity, setFromIdentity] = useState('')
-  const [toValue, setToValue] = useState('')
-  const [amount, setAmount] = useState('')
-  const [acked, setAcked] = useState(false)
-  const [useSpecificSource, setUseSpecificSource] = useState(false)
-  const [coreFromAddress, setCoreFromAddress] = useState<string | null>(null)
-  const [shieldedFromAddress, setShieldedFromAddress] = useState<string | null>(null)
+  const [draft, setDraftState] = useState<SendDraft>(() =>
+    getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
+  const draftRef = useRef(draft)
+  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, specificSourcePreferences } = draft
+  const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
+    const next = update(draftRef.current)
+    draftRef.current = next
+    setDraftState(next)
+    if (walletId != null) saveSendDraft(walletId, next)
+  }
+  const setFromKind = (fromKind: SourceKind): void => updateDraft(current => ({ ...current, fromKind }))
+  const setToKind = (toKind: DestinationKind): void => updateDraft(current => ({ ...current, toKind }))
+  const setFromAddress = (fromAddress: string): void => updateDraft(current => ({ ...current, fromAddress }))
+  const setFromIdentity = (fromIdentity: string): void => updateDraft(current => ({ ...current, fromIdentity }))
+  const setToValue = (toValue: string): void => updateDraft(current => ({ ...current, toValue }))
+  const setAmount = (amount: string): void => updateDraft(current => ({ ...current, amount }))
+  const setAcked = (acked: boolean): void => updateDraft(current => ({ ...current, acked }))
+  const setSpecificSourcePreferences = (
+    update: (current: SpecificSourcePreferences) => SpecificSourcePreferences,
+  ): void => updateDraft(current => ({
+    ...current,
+    specificSourcePreferences: update(current.specificSourcePreferences),
+  }))
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
   const [fundingRefresh, setFundingRefresh] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
+  const [dismissBusy, setDismissBusy] = useState(false)
+  const [dismissError, setDismissError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!walletId) return
@@ -95,12 +114,26 @@ export default function TransferHub(): React.JSX.Element {
     API.getAssetLockFundingState(walletId)
       .then(state => {
         if (dead) return
-        const resumable = state.phase !== AssetLockFundingPhase.Idle && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error
-        setResumableFunding(resumable ? state : null)
+        setResumableFunding(state.phase === AssetLockFundingPhase.Resumable ? state : null)
       })
       .catch(() => {})
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
+
+  const dismissFunding = async (): Promise<void> => {
+    if (!walletId || dismissBusy) return
+    setDismissBusy(true)
+    setDismissError(null)
+    try {
+      await API.dismissAssetLockFunding(walletId)
+      setResumableFunding(null)
+      setResumeOpen(false)
+    } catch (error) {
+      setDismissError(error instanceof Error ? error.message : 'Could not dismiss the pending funding.')
+    } finally {
+      setDismissBusy(false)
+    }
+  }
 
   const { syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
@@ -115,7 +148,8 @@ export default function TransferHub(): React.JSX.Element {
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
-  const optionalShieldRecipient = operation === TransferOperation.AssetLockShield
+  const specificSourceKind = specificSourceKindForOperation(operation)
+  const useSpecificSource = specificSourcePreferences.enabled
 
   const destinationKinds = useMemo(
     () => DESTINATION_KINDS.filter(d => d.kind !== DestinationKind.NewIdentity && resolveOperation(fromKind, d.kind) != null),
@@ -152,7 +186,7 @@ export default function TransferHub(): React.JSX.Element {
       .sort((a, b) => (a.balance < b.balance ? 1 : a.balance > b.balance ? -1 : 0)),
     [receiving, change],
   )
-  const selectedCoreAddress = coreAddresses.find(a => a.address === coreFromAddress) ?? coreAddresses[0]
+  const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences.addresses[SourceKind.Core]) ?? coreAddresses[0]
   const coreSpecificAddress = operation === TransferOperation.CoreSend && useSpecificSource ? selectedCoreAddress : undefined
 
   const spendableNotes = useMemo(
@@ -165,6 +199,7 @@ export default function TransferHub(): React.JSX.Element {
   const notesSyncing = shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering
   const shieldedAddressBalances = useMemo(() => shieldedBalancesByAddress(spendableNotes), [spendableNotes])
   const shieldedAddresses = useMemo(() => [...shieldedAddressBalances.keys()], [shieldedAddressBalances])
+  const shieldedFromAddress = specificSourcePreferences.addresses[SourceKind.Shielded]
   const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
     ? shieldedFromAddress
     : shieldedAddresses[0]
@@ -196,7 +231,7 @@ export default function TransferHub(): React.JSX.Element {
     : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
     : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
     : toKind === DestinationKind.NewIdentity ? true
-    : (optionalShieldRecipient && trimmedTo.length === 0) || isLikelyShieldedAddress(trimmedTo)
+    : isLikelyShieldedAddress(trimmedTo)
 
   const { feeCredits, maxPerTx, loading: feeLoading, err: feeErr } = useOperationFee(network, operation, {
     destinationValid,
@@ -309,9 +344,10 @@ export default function TransferHub(): React.JSX.Element {
   const fieldError = amountError ?? feeErr
 
   const resetForm = (): void => {
-    setToValue('')
-    setAmount('')
-    setAcked(false)
+    const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
+    draftRef.current = resetDraft
+    setDraftState(resetDraft)
+    if (walletId) clearSendDraft(walletId)
     setWizardKey(k => k + 1)
     if (walletId) {
       refreshPlatformAddresses(walletId)
@@ -332,18 +368,20 @@ export default function TransferHub(): React.JSX.Element {
         onIdentityChange={setFromIdentity}
       />
 
-      {(operation === TransferOperation.CoreSend || shieldedSpendOperation) && (
+      {specificSourceKind != null && (
         <div className={"flex flex-col gap-2"}>
           <Checkbox
             checked={useSpecificSource}
-            onChange={setUseSpecificSource}
+            onChange={enabled => setSpecificSourcePreferences(current =>
+              updateSpecificSourceEnabled(current, enabled))}
             label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
           />
           {useSpecificSource && operation === TransferOperation.CoreSend && (
             <CoreAddressSelect
               addresses={coreAddresses}
               selected={selectedCoreAddress}
-              onSelect={setCoreFromAddress}
+              onSelect={address => setSpecificSourcePreferences(current =>
+                updateSpecificSourceAddress(current, SourceKind.Core, address))}
             />
           )}
           {useSpecificSource && shieldedSpendOperation && (
@@ -352,7 +390,8 @@ export default function TransferHub(): React.JSX.Element {
                 addresses={shieldedAddresses}
                 balances={shieldedAddressBalances}
                 selected={selectedShieldedAddress}
-                onSelect={setShieldedFromAddress}
+                onSelect={address => setSpecificSourcePreferences(current =>
+                  updateSpecificSourceAddress(current, SourceKind.Shielded, address))}
               />
               <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
             </>
@@ -390,12 +429,6 @@ export default function TransferHub(): React.JSX.Element {
 
       {coreSourceGated && <P2pSyncAlert />}
 
-      {optionalShieldRecipient && (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
-          Leave the address empty to shield to this wallet's own shielded balance.
-        </Text>
-      )}
-
       {reason && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={60} className={"leading-[130%]"}>{reason}</Text>
@@ -421,7 +454,7 @@ export default function TransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Two-step shielding</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Locking Dash broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then shields the credits straight into your shielded balance. The L1 lock amount stays publicly visible; the process resumes automatically if interrupted.
+            Locking Dash broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then shields the credits straight into the recipient's shielded balance. The L1 lock amount stays publicly visible; the process resumes automatically if interrupted.
           </Text>
         </div>
       )}
@@ -555,9 +588,7 @@ export default function TransferHub(): React.JSX.Element {
     : fromKind === SourceKind.Identity ? (selectedIdentity?.identifier ?? '')
     : 'Your shielded balance'
 
-  const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity'
-    : optionalShieldRecipient && trimmedTo.length === 0 ? 'Your shielded balance'
-    : trimmedTo
+  const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
 
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
@@ -691,14 +722,29 @@ export default function TransferHub(): React.JSX.Element {
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
               {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === AssetLockFundingKind.Identity ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
             </Text>
+            {dismissError && <Text size={12} weight={"medium"} color={"red"}>{dismissError}</Text>}
           </div>
-          <button
-            type={"button"}
-            onClick={() => setResumeOpen(true)}
-            className={"shrink-0 px-4 py-2 rounded-[.75rem] dash-bg-inverse cursor-pointer hover:opacity-90 transition-opacity"}
-          >
-            <Text size={12} weight={"extrabold"} color={"blue-mint"}>Resume</Text>
-          </button>
+          <div className={"shrink-0 flex items-center gap-2"}>
+            <button
+              type={"button"}
+              onClick={dismissFunding}
+              disabled={dismissBusy}
+              className={"px-3 py-2 rounded-[.75rem] border border-red-300 dark:border-red-700 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-default"}
+            >
+              <span className={"flex items-center gap-1.5"}>
+                {dismissBusy && <Spinner size={12} className={"text-red-700 dark:text-red-400"} />}
+                <Text size={12} weight={"extrabold"} color={"red"}>{dismissBusy ? 'Dismissing…' : 'Dismiss'}</Text>
+              </span>
+            </button>
+            <button
+              type={"button"}
+              onClick={() => setResumeOpen(true)}
+              disabled={dismissBusy}
+              className={"px-4 py-2 rounded-[.75rem] dash-bg-inverse cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-default"}
+            >
+              <Text size={12} weight={"extrabold"} color={"blue-mint"}>Resume</Text>
+            </button>
+          </div>
         </div>
       )}
 

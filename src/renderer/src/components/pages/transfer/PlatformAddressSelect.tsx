@@ -20,17 +20,17 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
   useClickOutside(ref, () => setOpen(false))
 
   return (
-    <div className={"relative"} ref={ref}>
+    <div className={"relative w-fit self-start"} ref={ref}>
       <button
         type={"button"}
         onClick={() => addresses.length > 0 && setOpen(v => !v)}
-        className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
+        className={`w-max ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
       >
         {selected ? (
-          <div className={"flex items-center gap-2.5 min-w-0"}>
+          <div className={"flex items-center gap-2.5"}>
             <CreditsIcon size={18} className={"shrink-0"} />
-            <div className={"flex flex-col items-start min-w-0"}>
-              <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{selected.platformAddress}</Text>
+            <div className={"flex flex-col items-start"}>
+              <Text reset size={14} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap text-left"}>{selected.platformAddress}</Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 <CreditsAmount credits={selected.balanceCredits} />
               </Text>
@@ -43,7 +43,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
       </button>
 
       {open && (
-        <div className={"absolute left-0 right-0 top-[calc(100%+.375rem)] z-20 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
+        <div className={"absolute left-0 top-[calc(100%+.375rem)] z-20 w-max min-w-full p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
           {addresses.map(a => (
             <button
               key={a.platformAddress}
@@ -56,8 +56,8 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
               `}
             >
               <CreditsIcon size={18} className={"shrink-0"} />
-              <div className={"flex flex-col min-w-0"}>
-                <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>{a.platformAddress}</Text>
+              <div className={"flex flex-col"}>
+                <Text reset size={14} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap text-left"}>{a.platformAddress}</Text>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   <CreditsAmount credits={a.balanceCredits} />
                 </Text>

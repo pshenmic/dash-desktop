@@ -9,6 +9,7 @@ import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -51,7 +52,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError('Incorrect password. Please try again.')
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
         return
       }
       await action(password)
@@ -151,13 +152,13 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     <div className={"flex flex-col gap-[.625rem]"}>
       <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
       {addresses.map((address) => (
-        <div key={address} className={"flex items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
-          <div className={"flex items-center gap-2 min-w-0"}>
+        <div key={address} className={"flex w-max min-w-full items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
+          <div className={"flex items-center gap-2"}>
             <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-            <Text size={12} weight={"medium"} color={"brand"} className={"font-mono break-all"}>
+            <Text size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap"}>
               {address}
             </Text>
-            <CopyButton text={address} />
+            <CopyButton text={address} className={"shrink-0"} />
           </div>
           <div className={"flex items-center gap-2 shrink-0"}>
             {synced ? (

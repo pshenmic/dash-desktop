@@ -21,7 +21,7 @@ export default function TransferWizard({steps, onSubmit, submitLabel = 'Send', s
 
   return (
     <div className={"flex-1 min-h-0 flex justify-center px-12 py-2"}>
-      <div className={"w-130 flex flex-col mt-6"}>
+      <div className={"w-full max-w-200 flex flex-col mt-6"}>
         <div className={"flex items-center"}>
           {steps.map((s, i) => {
             const done = i < current

@@ -2,15 +2,18 @@ import { TxDirectionFilter } from '../enums/TxDirectionFilter'
 import { TxTypeFilter } from '../enums/TxTypeFilter'
 
 export interface FilterableTx {
+  id: string
   direction: 'in' | 'out'
   status: 'success' | 'failed' | 'pending'
   amount: bigint
+  vin: Array<{ addr?: string }>
   vout: Array<{ value: string; address?: string }>
 }
 
 export interface TxFilter {
   direction: TxDirectionFilter
   type: TxTypeFilter
+  search: string
 }
 
 export interface TxTotals {
@@ -21,6 +24,7 @@ export interface TxTotals {
 export const DEFAULT_TX_FILTER: TxFilter = {
   direction: TxDirectionFilter.All,
   type: TxTypeFilter.All,
+  search: '',
 }
 
 const DIRECTION_BY_FILTER: Record<Exclude<TxDirectionFilter, TxDirectionFilter.All>, 'in' | 'out'> = {
@@ -29,7 +33,7 @@ const DIRECTION_BY_FILTER: Record<Exclude<TxDirectionFilter, TxDirectionFilter.A
 }
 
 export function isDefaultTxFilter(filter: TxFilter): boolean {
-  return filter.direction === TxDirectionFilter.All && filter.type === TxTypeFilter.All
+  return filter.direction === TxDirectionFilter.All && filter.type === TxTypeFilter.All && filter.search.trim() === ''
 }
 
 export function txType(tx: Pick<FilterableTx, 'vout'>): TxTypeFilter {
@@ -41,6 +45,15 @@ export function matchesTxFilter(tx: FilterableTx, filter: TxFilter): boolean {
     return false
   }
   if (filter.type !== TxTypeFilter.All && txType(tx) !== filter.type) {
+    return false
+  }
+  const search = filter.search.trim().toLowerCase()
+  if (
+    search &&
+    !tx.id.toLowerCase().includes(search) &&
+    !tx.vin.some((input) => input.addr?.toLowerCase().includes(search)) &&
+    !tx.vout.some((output) => output.address?.toLowerCase().includes(search))
+  ) {
     return false
   }
   return true
