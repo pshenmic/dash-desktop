@@ -12,6 +12,7 @@ import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 interface SendConfirmModalProps {
   isOpen: boolean
@@ -104,6 +105,12 @@ export default function SendConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
+      const ok = await API.verifyWalletPassword(walletId, password)
+      if (!ok) {
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPhase(ConfirmModalPhase.Confirm)
+        return
+      }
       const res = await API.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)

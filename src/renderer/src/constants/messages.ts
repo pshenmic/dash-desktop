@@ -22,6 +22,8 @@ export interface Messages {
   }
 }
 
+export const INVALID_WALLET_PASSWORD_MESSAGE = 'Invalid wallet password'
+
 export const messages: Messages = {
   createWallet: {
     invalidPhrase: "**Invalid phrase** Word count does not match your recovery phrase.",

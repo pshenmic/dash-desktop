@@ -11,6 +11,8 @@ import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import { API } from '@renderer/api'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export interface TransferConfirmRow {
   label: string
@@ -43,6 +45,7 @@ export default function TransferConfirmModal({
   const { theme } = useTheme()
   const { status } = useAuth()
   const network = status?.network ?? null
+  const walletId = status?.selectedWalletId ?? null
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [error, setError] = useState<string | null>(null)
@@ -62,10 +65,16 @@ export default function TransferConfirmModal({
   const sending = phase === ConfirmModalPhase.Sending
 
   const handleConfirm = async (): Promise<void> => {
-    if (password.length === 0 || sending) return
+    if (!walletId || password.length === 0 || sending) return
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
+      const ok = await API.verifyWalletPassword(walletId, password)
+      if (!ok) {
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPhase(ConfirmModalPhase.Confirm)
+        return
+      }
       const res = await run(password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)

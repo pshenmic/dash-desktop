@@ -9,6 +9,7 @@ import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -51,7 +52,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError('Incorrect password. Please try again.')
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
         return
       }
       await action(password)

@@ -12,7 +12,7 @@ import { ShieldedSpendState } from '@renderer/api/types'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import Spinner from '@renderer/components/ui/Spinner'
-import { SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
+import { INVALID_WALLET_PASSWORD_MESSAGE, SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
 
 interface ShieldedSpendModalProps {
   isOpen: boolean
@@ -117,7 +117,7 @@ export default function ShieldedSpendModal({
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setPreError('Incorrect password. Please try again.')
+        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
         setBusy(false)
         return
       }

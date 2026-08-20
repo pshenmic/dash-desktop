@@ -10,6 +10,7 @@ import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { defaultReceiveShieldedAddress, receiveShieldedAddresses } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
@@ -55,7 +56,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError('Incorrect password. Please try again.')
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
         return
       }
       const nextAddresses = await API.addShieldedAddress(walletId, password)
@@ -194,7 +195,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError('Incorrect password. Please try again.')
+        setError(INVALID_WALLET_PASSWORD_MESSAGE)
         return
       }
       setAddresses(await API.getShieldedAddresses(walletId, password))
