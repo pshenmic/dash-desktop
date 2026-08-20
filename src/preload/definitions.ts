@@ -57,6 +57,9 @@ export const apiDefinitions = (ipcRenderer) => ({
   getExchangeRates: () => ipcRenderer.invoke('getExchangeRates'),
 
   saveTextFile: (defaultFileName: string, content: string) => ipcRenderer.invoke('saveTextFile', defaultFileName, content),
+  listLogFiles: () => ipcRenderer.invoke('listLogFiles'),
+  getLogFile: (name: string) => ipcRenderer.invoke('getLogFile', name),
+  showLogFileInFolder: (name: string) => ipcRenderer.invoke('showLogFileInFolder', name),
 
   getContacts: (network?: Network) => ipcRenderer.invoke('getContacts', network),
   addContact: (label: string, address: string, network: Network) => ipcRenderer.invoke('addContact', label, address, network),

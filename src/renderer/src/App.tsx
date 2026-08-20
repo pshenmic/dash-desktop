@@ -13,6 +13,7 @@ import IdentitiesPage from "./pages/Identities"
 import IdentityRegistrationPage from "./pages/IdentityRegistration"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
+import LogsPage from "./pages/Logs"
 import { useAuth } from "./contexts/AuthContext"
 import { useDebugMode } from "./hooks/useDebugMode"
 import { ConnectionModeProvider } from "./contexts/ConnectionModeContext"
@@ -63,6 +64,7 @@ function App(): React.JSX.Element {
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/identities/register"} element={<IdentityRegistrationPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />
+            <Route path={"/settings/logs"} element={<LogsPage />} />
           </Routes>
         </Layout>
       </div>
