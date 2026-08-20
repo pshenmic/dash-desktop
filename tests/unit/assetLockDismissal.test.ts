@@ -49,6 +49,7 @@ describe('asset lock funding dismissal', () => {
 
     await expect(service.dismiss(FUNDING.walletId)).resolves.toMatchObject({phase: 'idle'})
     expect(updateStatus).toHaveBeenCalledWith(
+      FUNDING.walletId,
       FUNDING.txid,
       AssetLockFundingStatus.Error,
       {error: ASSET_LOCK_DISMISSED_ERROR},

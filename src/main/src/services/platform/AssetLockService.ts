@@ -108,7 +108,7 @@ export class AssetLockService {
       throw new Error('Cannot dismiss funding while it is running')
     }
     if (row != null) {
-      await this.assetLockDAO.updateStatus(row.txid, AssetLockFundingStatus.Error, {error: ASSET_LOCK_DISMISSED_ERROR})
+      await this.assetLockDAO.updateStatus(walletId, row.txid, AssetLockFundingStatus.Error, {error: ASSET_LOCK_DISMISSED_ERROR})
     }
 
     const state = this.idleState()

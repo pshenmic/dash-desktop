@@ -1,5 +1,5 @@
 import { API } from '@renderer/api'
-import { TransactionGroup, WalletTxDto, WalletTxItem } from '@renderer/types/WalletTransaction'
+import type {TransactionGroup, WalletTxItem} from '@renderer/types/WalletTransaction'
 import { formatCreationDate } from '@renderer/utils/date'
 import { mapWalletTransaction } from '@renderer/utils/walletTransactions'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
