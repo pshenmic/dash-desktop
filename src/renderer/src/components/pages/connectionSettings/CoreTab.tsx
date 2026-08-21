@@ -12,6 +12,7 @@ import {WalletSyncPhase} from '@renderer/api/types'
 import {API} from '@renderer/api'
 import {toast} from '@renderer/components/ui/Toast'
 import {isWalletSyncInactive} from '@renderer/utils/walletSync'
+import {getErrorMessage} from '@renderer/utils/error'
 import type {WalletSyncAction} from '@renderer/types/connection'
 import {invalidateAllAsyncCaches} from '@renderer/hooks/useAsyncWithCache'
 
@@ -39,15 +40,11 @@ export default function CoreTab(): React.JSX.Element {
     if (!walletId || syncPending || !syncInactive) return
     setPendingSyncAction('start')
     try {
-      const result = await API.startWalletSync(walletId)
-      if (!result.success) {
-        setPendingSyncAction(null)
-        toast.error(`**Could not start synchronization** ${result.errorMessage ?? 'Please try again.'}`)
-      }
+      await API.startWalletSync(walletId)
     } catch (err) {
       setPendingSyncAction(null)
       console.error('start wallet sync failed', err)
-      toast.error('**Could not start synchronization** Please try again.')
+      toast.error(`**Could not start synchronization** ${getErrorMessage(err)}`)
     }
   }
 
@@ -59,7 +56,7 @@ export default function CoreTab(): React.JSX.Element {
     } catch (err) {
       setPendingSyncAction(null)
       console.error('stop wallet sync failed', err)
-      toast.error('**Could not stop synchronization** Please try again.')
+      toast.error(`**Could not stop synchronization** ${getErrorMessage(err)}`)
     }
   }
 
@@ -75,7 +72,7 @@ export default function CoreTab(): React.JSX.Element {
       invalidateAllAsyncCaches()
     } catch (err) {
       console.error('reset sync failed', err)
-      toast.error('**Could not clear synchronization data** Please try again.')
+      toast.error(`**Could not clear synchronization data** ${getErrorMessage(err)}`)
     } finally {
       setClearPending(false)
     }
