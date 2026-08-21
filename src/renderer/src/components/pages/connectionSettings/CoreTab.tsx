@@ -13,15 +13,18 @@ import {API} from '@renderer/api'
 import {toast} from '@renderer/components/ui/Toast'
 import {isWalletSyncInactive} from '@renderer/utils/walletSync'
 import type {WalletSyncAction} from '@renderer/types/connection'
+import {invalidateAllAsyncCaches} from '@renderer/hooks/useAsyncWithCache'
 
 export default function CoreTab(): React.JSX.Element {
   const {status} = useAuth()
   const {desired, ready, setDesired} = useConnectionModeContext()
   const sync = status?.walletSync
   const walletId = status?.selectedWalletId ?? null
+  const network = status?.network ?? null
   const phase = sync?.phase ?? WalletSyncPhase.Stopped
   const syncInactive = isWalletSyncInactive(phase)
   const [pendingSyncAction, setPendingSyncAction] = useState<WalletSyncAction | null>(null)
+  const [clearPending, setClearPending] = useState(false)
   const syncPending = pendingSyncAction !== null
 
   useEffect(() => {
@@ -57,6 +60,24 @@ export default function CoreTab(): React.JSX.Element {
       setPendingSyncAction(null)
       console.error('stop wallet sync failed', err)
       toast.error('**Could not stop synchronization** Please try again.')
+    }
+  }
+
+  const handleClearSyncData = async (): Promise<void> => {
+    if (!network || clearPending) return
+    const confirmed = window.confirm(
+      `Clear all sync cache for ${network}? This deletes downloaded headers, filters and wallet transaction history. The wallet itself is not affected.`,
+    )
+    if (!confirmed) return
+    setClearPending(true)
+    try {
+      await API.resetWalletSync(network)
+      invalidateAllAsyncCaches()
+    } catch (err) {
+      console.error('reset sync failed', err)
+      toast.error('**Could not clear synchronization data** Please try again.')
+    } finally {
+      setClearPending(false)
     }
   }
 
@@ -112,43 +133,63 @@ export default function CoreTab(): React.JSX.Element {
         <Text as="h2" size={14} weight="medium" color="brand" opacity={50} className="mb-3">
           P2P Wallet Synchronization
         </Text>
-        <div className="flex min-h-20 items-center justify-between gap-6 rounded-[1.25rem] dash-block px-5 py-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <Text size={14} weight="medium" color="brand">{WALLET_SYNC_PHASE_LABELS[phase]}</Text>
-              <span
-                className={`size-2 shrink-0 rounded-full ${syncInactive ? 'bg-dash-orange' : 'bg-dash-mint'}`}
-                aria-hidden="true"
-              />
+        <div className="overflow-hidden rounded-[1.25rem] dash-block">
+          <div className="flex min-h-20 items-center justify-between gap-6 px-5 py-3">
+            <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex items-center gap-3">
+                <Text size={14} weight="medium" color="brand">{WALLET_SYNC_PHASE_LABELS[phase]}</Text>
+                <span
+                  className={`size-2 shrink-0 rounded-full ${syncInactive ? 'bg-dash-orange' : 'bg-dash-mint'}`}
+                  aria-hidden="true"
+                />
+              </div>
+              <Text size={10} weight="medium" color="brand" opacity={40}>
+                Downloads and scans wallet data in the background, independently of the connection mode.
+              </Text>
             </div>
-            <Text size={10} weight="medium" color="brand" opacity={40}>
-              Downloads and scans wallet data in the background, independently of the connection mode.
-            </Text>
+            <div className="flex shrink-0 items-center gap-2">
+              {syncInactive ? (
+                <Button
+                  onClick={handleStartSync}
+                  disabled={walletId === null || syncPending}
+                  variant="solid"
+                  colorScheme="primary"
+                  size="sm"
+                  className="min-h-0! rounded-[.75rem] px-4! py-2!"
+                >
+                  {pendingSyncAction === 'start' ? 'Starting…' : SYNC_ACTION_LABELS.start}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleStopSync}
+                  disabled={syncPending}
+                  variant="outline"
+                  colorScheme="brand-mint"
+                  size="sm"
+                  className="min-h-0! rounded-[.75rem] px-4! py-2!"
+                >
+                  {pendingSyncAction === 'stop' ? 'Stopping…' : SYNC_ACTION_LABELS.stop}
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {syncInactive ? (
-              <Button
-                onClick={handleStartSync}
-                disabled={walletId === null || syncPending}
-                variant="solid"
-                colorScheme="primary"
-                size="sm"
-                className="min-h-0! rounded-[.75rem] px-4! py-2!"
-              >
-                {pendingSyncAction === 'start' ? 'Starting…' : SYNC_ACTION_LABELS.start}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleStopSync}
-                disabled={syncPending}
-                variant="outline"
-                colorScheme="brand-mint"
-                size="sm"
-                className="min-h-0! rounded-[.75rem] px-4! py-2!"
-              >
-                {pendingSyncAction === 'stop' ? 'Stopping…' : SYNC_ACTION_LABELS.stop}
-              </Button>
-            )}
+          <div className="flex min-h-20 items-center justify-between gap-6 border-t border-dash-primary-dark-blue/10 px-5 py-3 dark:border-white/10">
+            <div className="flex min-w-0 flex-col gap-1">
+              <Text size={14} weight="medium" color="brand">Clear sync data</Text>
+              <Text size={10} weight="medium" color="brand" opacity={40}>
+                Delete downloaded headers, filters, and transaction history for the current network.
+              </Text>
+            </div>
+            <Button
+              onClick={handleClearSyncData}
+              disabled={network === null || clearPending}
+              variant="outline"
+              colorScheme="red"
+              size="sm"
+              className="min-h-0! shrink-0 rounded-[.75rem] px-4! py-2!"
+            >
+              {clearPending ? 'Clearing…' : 'Clear sync data'}
+            </Button>
           </div>
         </div>
       </div>
