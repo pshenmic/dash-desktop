@@ -86,6 +86,15 @@ describe('CFilterSyncWorker rewind', () => {
     ;(worker as unknown as {phase: string}).phase = phase
   }
 
+  // Stands in for the cfheaders walk: the scan refuses any height whose filter
+  // header is unknown, because the filter that comes back could not be checked.
+  const seedFilterHeaders = (through: number): void => {
+    const index = (worker as unknown as {
+      heightToFilterHeader: {set: (h: number, v: Uint8Array) => void}
+    }).heightToFilterHeader
+    for (let h = 1; h <= through; h++) index.set(h, wireAt(h))
+  }
+
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -111,6 +120,7 @@ describe('CFilterSyncWorker rewind', () => {
 
     await worker.start()
     pool.sent = []
+    seedFilterHeaders(TIP + 20)
   })
 
   it('reports the rewind as a cursor reset at the fork height', () => {

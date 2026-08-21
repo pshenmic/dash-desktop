@@ -32,6 +32,19 @@ export class ChainStore {
   private db: ClassicLevel<string, Uint8Array>
   private opened = false
 
+  // Tip-moving writes run one at a time. LevelDB resolves concurrent batches in
+  // whatever order its threadpool finishes them, and HeaderSyncWorker emits
+  // 'chainExtended' after its write resolves — so without this a burst of
+  // tip-follow pushes can announce h+3 before h, and CFilterSyncWorker builds a
+  // filter batch over a height it has no hash for.
+  private tipWrites: Promise<void> = Promise.resolve()
+
+  private serializeTipWrite(write: () => Promise<void>): Promise<void> {
+    const next = this.tipWrites.then(write, write)
+    this.tipWrites = next.catch(() => {})
+    return next
+  }
+
   constructor(path: string, readonly network: Network) {
     this.db = new ClassicLevel<string, Uint8Array>(path, {
       keyEncoding: 'utf8',
@@ -78,42 +91,46 @@ export class ChainStore {
   // writes, so none of SQLite's 999-parameter chunking is needed.
   appendHeaders = async (headers: PersistedHeader[], nextState: ChainTipState): Promise<void> => {
     if (headers.length === 0) return
-    const batch = this.db.batch()
-    for (const h of headers) {
-      batch.put(headerKey(h.height), h.raw)
-      // Free here (processHeaders already computed h.hash) and saves cfilter
-      // sync x11-rehashing every header on launch — minutes for a full chain.
-      batch.put(hashKey(h.height), displayHexToWire(h.hash))
-    }
-    const stored: StoredState = {
-      tipHeight: nextState.tipHeight,
-      tipHash: nextState.tipHash,
-      updatedAt: Date.now(),
-    }
-    batch.put(stateKey(this.network), encodeJson(stored))
-    await batch.write()
+    await this.serializeTipWrite(async () => {
+      const batch = this.db.batch()
+      for (const h of headers) {
+        batch.put(headerKey(h.height), h.raw)
+        // Free here (processHeaders already computed h.hash) and saves cfilter
+        // sync x11-rehashing every header on launch — minutes for a full chain.
+        batch.put(hashKey(h.height), displayHexToWire(h.hash))
+      }
+      const stored: StoredState = {
+        tipHeight: nextState.tipHeight,
+        tipHash: nextState.tipHash,
+        updatedAt: Date.now(),
+      }
+      batch.put(stateKey(this.network), encodeJson(stored))
+      await batch.write()
+    })
   }
 
   // Reorg: drop the orphaned branch and re-point the tip in one batch, so a
   // crash mid-rewind cannot leave a tip marker addressing deleted headers.
   deleteHeadersFrom = async (fromHeight: number, nextState: ChainTipState): Promise<void> => {
-    const batch = this.db.batch()
-    // ; sorts immediately after :, capping each keyspace at its own prefix.
-    for (const [key, cap] of [[headerKey(fromHeight), 'h;'], [hashKey(fromHeight), 'n;']] as const) {
-      const iter = this.db.iterator({gte: key, lt: cap})
-      try {
-        for await (const [k] of iter) batch.del(k)
-      } finally {
-        await iter.close()
+    await this.serializeTipWrite(async () => {
+      const batch = this.db.batch()
+      // ; sorts immediately after :, capping each keyspace at its own prefix.
+      for (const [key, cap] of [[headerKey(fromHeight), 'h;'], [hashKey(fromHeight), 'n;']] as const) {
+        const iter = this.db.iterator({gte: key, lt: cap})
+        try {
+          for await (const [k] of iter) batch.del(k)
+        } finally {
+          await iter.close()
+        }
       }
-    }
-    const stored: StoredState = {
-      tipHeight: nextState.tipHeight,
-      tipHash: nextState.tipHash,
-      updatedAt: Date.now(),
-    }
-    batch.put(stateKey(this.network), encodeJson(stored))
-    await batch.write()
+      const stored: StoredState = {
+        tipHeight: nextState.tipHeight,
+        tipHash: nextState.tipHash,
+        updatedAt: Date.now(),
+      }
+      batch.put(stateKey(this.network), encodeJson(stored))
+      await batch.write()
+    })
   }
 
   getHeaderByHeight = async (height: number): Promise<Uint8Array | null> => {

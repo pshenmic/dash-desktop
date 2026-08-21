@@ -88,6 +88,15 @@ describe('cfilter batch fan-out', () => {
     ;(worker as unknown as {phase: string}).phase = phase
   }
 
+  // Stands in for the cfheaders walk: the scan refuses any height whose filter
+  // header is unknown, because the filter that comes back could not be checked.
+  const seedFilterHeaders = (through: number): void => {
+    const index = (worker as unknown as {
+      heightToFilterHeader: {set: (h: number, v: Uint8Array) => void}
+    }).heightToFilterHeader
+    for (let h = 1; h <= through; h++) index.set(h, wireAt(h))
+  }
+
   type Rotations = {rotation: PeerRotation; blockRotation: PeerRotation}
   const cfRotation = (): PeerRotation => (worker as unknown as Rotations).rotation
   const blockRotation = (): PeerRotation => (worker as unknown as Rotations).blockRotation
@@ -114,6 +123,7 @@ describe('cfilter batch fan-out', () => {
 
     await worker.start()
     pool.reset()
+    seedFilterHeaders(TIP + 20)
   })
 
   afterEach(() => {
