@@ -28,37 +28,15 @@ import {
   DASHSCAN_BASE_URLS,
   DASHSCAN_REQUEST_TIMEOUT_MS,
   DASHSCAN_STATUS_REQUEST_TIMEOUT_MS,
-  DASHSCAN_STATUS_TTL_MS,
   DASHSCAN_RETRY_DELAYS_MS,
   XPUB_MAX_PAGES,
   XPUB_PAGE_LIMIT,
 } from '../constants'
 
-export class DashscanConnectionStatus {
-  private readonly statuses = new Map<Network, ConnectionStatus>()
-  private readonly checkedAt = new Map<Network, number>()
-  private readonly inflight = new Map<Network, Promise<void>>()
-
-  get(network: Network, check: () => Promise<void>): ConnectionStatus {
-    const checkedAt = this.checkedAt.get(network)
-    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_STATUS_TTL_MS
-
-    if (!fresh && !this.inflight.has(network)) {
-      const refresh = Promise.resolve()
-        .then(check)
-        .then(() => this.statuses.set(network, 'connected'))
-        .catch(() => this.statuses.set(network, 'unavailable'))
-        .then(() => undefined)
-        .finally(() => {
-          this.checkedAt.set(network, Date.now())
-          this.inflight.delete(network)
-        })
-
-      this.inflight.set(network, refresh)
-    }
-
-    return this.statuses.get(network) ?? 'connecting'
-  }
+const dashscanConnectionStatusCache = {
+  statuses: new Map<Network, ConnectionStatus>(),
+  checkedAt: new Map<Network, number>(),
+  inflight: new Map<Network, Promise<void>>(),
 }
 
 export class DashscanWalletProvider implements WalletProvider {
@@ -69,7 +47,6 @@ export class DashscanWalletProvider implements WalletProvider {
     private readonly walletId: string,
     private readonly addressDAO: AddressDAO,
     private readonly walletDAO: WalletDAO,
-    private readonly connectionStatus = new DashscanConnectionStatus(),
   ) {
     this.baseUrl = DASHSCAN_BASE_URLS[network]
   }
@@ -254,7 +231,24 @@ export class DashscanWalletProvider implements WalletProvider {
   }
 
   async getConnectionStatus(): Promise<ConnectionStatus> {
-    return this.connectionStatus.get(this.network, () => this.ensureReady())
+    const checkedAt = dashscanConnectionStatusCache.checkedAt.get(this.network)
+    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_REQUEST_TIMEOUT_MS
+
+    if (!fresh && !dashscanConnectionStatusCache.inflight.has(this.network)) {
+      const refresh = Promise.resolve()
+        .then(() => this.ensureReady())
+        .then(() => dashscanConnectionStatusCache.statuses.set(this.network, 'connected'))
+        .catch(() => dashscanConnectionStatusCache.statuses.set(this.network, 'unavailable'))
+        .then(() => undefined)
+        .finally(() => {
+          dashscanConnectionStatusCache.checkedAt.set(this.network, Date.now())
+          dashscanConnectionStatusCache.inflight.delete(this.network)
+        })
+
+      dashscanConnectionStatusCache.inflight.set(this.network, refresh)
+    }
+
+    return dashscanConnectionStatusCache.statuses.get(this.network) ?? 'connecting'
   }
 
   async getTxLockStatus(txid: string): Promise<TxLockStatus> {

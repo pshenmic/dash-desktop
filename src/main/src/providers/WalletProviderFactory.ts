@@ -4,7 +4,7 @@ import {WalletDAO} from '../database/WalletDAO'
 import {ApplicationService} from '../services/app/ApplicationService'
 import {WalletSyncService} from '../services/core/WalletSyncService'
 import {Network} from '../types/Network'
-import {DashscanConnectionStatus, DashscanWalletProvider} from './DashscanWalletProvider'
+import {DashscanWalletProvider} from './DashscanWalletProvider'
 import {P2PWalletProvider} from './P2PWalletProvider'
 import {WalletProvider} from './WalletProvider'
 
@@ -16,7 +16,6 @@ export class WalletProviderFactory {
   private transactionDAO: TransactionDAO
   private applicationService: ApplicationService
   private walletSyncService: WalletSyncService
-  private dashscanConnectionStatus: DashscanConnectionStatus
 
   constructor(
     walletDAO: WalletDAO,
@@ -30,7 +29,6 @@ export class WalletProviderFactory {
     this.transactionDAO = transactionDAO
     this.applicationService = applicationService
     this.walletSyncService = walletSyncService
-    this.dashscanConnectionStatus = new DashscanConnectionStatus()
   }
 
   forWallet(walletId: string, network: Network): WalletProvider {
@@ -42,7 +40,6 @@ export class WalletProviderFactory {
       walletId,
       this.addressDAO,
       this.walletDAO,
-      this.dashscanConnectionStatus,
     )
   }
 }
