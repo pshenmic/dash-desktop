@@ -190,15 +190,9 @@ export class AssetLockService {
       createdAt: Math.floor(Date.now() / 1000),
     })
 
-    try {
-      await this.funder.broadcastAssetLock(built.tx.hex())
-    } catch (error) {
-      // Nothing reached the network, so the row describes a spend that never
-      // happened — keeping it would offer a resume that can only time out.
-      await this.assetLockDAO.deleteFunding(walletId, built.txid)
-      state.txid = null
-      throw error
-    }
+    // Losing the response does not prove peers missed the transaction: the
+    // transport can exit after delivery but before reporting propagation.
+    await this.funder.broadcastAssetLock(built.tx.hex())
     console.log(`[assetLock] ${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
 
     const row = await this.assetLockDAO.getActiveFunding(walletId)

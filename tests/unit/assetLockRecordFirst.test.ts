@@ -89,7 +89,6 @@ function wire(): {
 
   const dao: Funder = {
     insertFunding: vi.fn(async () => { calls.push('insert') }),
-    deleteFunding: vi.fn(async () => { calls.push('delete') }),
     getActiveFunding: vi.fn().mockResolvedValue(row()),
     updateStatus: vi.fn(),
     saveProof: vi.fn(),
@@ -117,6 +116,7 @@ describe('recording an asset lock before broadcasting it', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
     stub.fromHex.mockReturnValue(fundingTx)
     // DAPI has never heard of it unless a case says otherwise.
     stub.getTransaction.mockReset()
@@ -145,18 +145,19 @@ describe('recording an asset lock before broadcasting it', () => {
     expect(funder.broadcastAssetLock).not.toHaveBeenCalled()
   })
 
-  // A row for a transaction the network refused would offer a resume that can
-  // only time out.
-  it('drops the row when the broadcast fails', async () => {
-    const {service, funder, dao} = wire()
+  // A failed response is ambiguous: peers may have received the transaction
+  // before the transport disappeared, so the signed funding must stay resumable.
+  it('keeps the row when the broadcast result is unknown', async () => {
+    const {service, funder, calls} = wire()
     funder.broadcastAssetLock.mockRejectedValue(new Error('no peers'))
 
     await expect(acquire(service)).rejects.toThrow('no peers')
 
-    expect(dao.deleteFunding).toHaveBeenCalledWith(WALLET, TXID)
+    expect(calls).toEqual(['build', 'insert'])
+    expect(funder.broadcastAssetLock).toHaveBeenCalledTimes(1)
   })
 
-  it('clears the txid off the state so a dropped funding is not resumable', async () => {
+  it('retains the txid so a rejected broadcast can become resumable', async () => {
     const {service, funder} = wire()
     funder.broadcastAssetLock.mockRejectedValue(new Error('no peers'))
     const job = state()
@@ -165,15 +166,9 @@ describe('recording an asset lock before broadcasting it', () => {
       walletId: WALLET, kind: 'identity', destination: 'dest', amountDuffs: 200_000n, seed: new Uint8Array(64),
     })).rejects.toThrow('no peers')
 
-    expect(job.txid).toBeNull()
-  })
-
-  it('keeps the row once the broadcast succeeds', async () => {
-    const {service, dao} = wire()
-
-    await acquire(service).catch(() => undefined)
-
-    expect(dao.deleteFunding).not.toHaveBeenCalled()
+    expect(job.txid).toBe(TXID)
+    service.fail(job, new Error('no peers'))
+    expect(job.phase).toBe('resumable')
   })
 
   // A fresh acquire just put the transaction out; re-sending it would be noise.
