@@ -114,7 +114,6 @@ export default function Settings(): React.JSX.Element {
   const { currency, setCurrency } = useFiat()
   const debugMode = useDebugMode()
 
-  const [restartPending, setRestartPending] = useState(false)
   const [clearPending, setClearPending] = useState(false)
   const [exportPending, setExportPending] = useState(false)
 
@@ -154,20 +153,6 @@ export default function Settings(): React.JSX.Element {
       toast.error(`**Rename failed** Could not update wallet name. ${getErrorMessage(err)}`)
     } finally {
       setRenamePending(false)
-    }
-  }
-
-  const handleRestart = async (): Promise<void> => {
-    if (!walletId || restartPending) return
-    setRestartPending(true)
-    try {
-      await API.stopWalletSync()
-      await API.startWalletSync(walletId)
-    } catch (err) {
-      console.error('restart sync failed', err)
-      toast.error(`**Restart failed** Could not restart synchronization. ${getErrorMessage(err)}`)
-    } finally {
-      setRestartPending(false)
     }
   }
 
@@ -331,15 +316,6 @@ export default function Settings(): React.JSX.Element {
             description="Review diagnostic logs and save a file to share with support."
             actionLabel="View logs"
             onClick={() => navigate('/settings/logs')}
-          />
-          <SettingsRow
-            title="Restart sync"
-            description="Stop and start the P2P sync for the current wallet."
-            actionLabel="Restart"
-            pendingLabel="Restarting…"
-            pending={restartPending}
-            disabled={walletId === null}
-            onClick={handleRestart}
           />
           <SettingsRow
             title="Clear sync data"

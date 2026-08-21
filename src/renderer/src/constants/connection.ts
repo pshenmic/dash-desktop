@@ -1,4 +1,4 @@
-import { ConnectionType } from '@renderer/api/types'
+import { ConnectionType, WalletSyncPhase } from '@renderer/api/types'
 
 export const CONNECTION_LABELS: Record<ConnectionType, string> = {
   p2p: 'Dash P2P',
@@ -9,6 +9,18 @@ export const SYNC_ACTION_LABELS = {
   start: 'Start sync',
   stop: 'Stop sync',
 } as const
+
+export const WALLET_SYNC_PHASE_LABELS: Record<WalletSyncPhase, string> = {
+  [WalletSyncPhase.Idle]: 'Idle',
+  [WalletSyncPhase.Connecting]: 'Connecting',
+  [WalletSyncPhase.SyncingHeaders]: 'Synchronizing headers',
+  [WalletSyncPhase.SyncedHeaders]: 'Headers synchronized',
+  [WalletSyncPhase.SyncingCfcheckpt]: 'Synchronizing filter checkpoints',
+  [WalletSyncPhase.SyncingCfheaders]: 'Synchronizing filter headers',
+  [WalletSyncPhase.SyncingCfilters]: 'Scanning wallet data',
+  [WalletSyncPhase.Synced]: 'Synchronized',
+  [WalletSyncPhase.Stopped]: 'Stopped',
+}
 
 export const REFRESH_DATA_LABEL = 'Refresh data'
 

@@ -6,3 +6,5 @@ export interface SyncProgressPhaseInfo {
 }
 
 export type RpcHealthStatus = 'checking' | 'connected' | 'unavailable'
+
+export type WalletSyncAction = 'start' | 'stop'

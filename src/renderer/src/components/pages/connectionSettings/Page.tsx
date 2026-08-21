@@ -51,7 +51,7 @@ export default function ConnectionSettings(): React.JSX.Element {
           </Text>
         </div>
         <Text as="p" size={14} weight="medium" color="brand" opacity={50} className="max-w-[65rem] leading-[1.35]">
-          Choose how wallet data is synchronized. P2P keeps synchronization local, while RPC uses Dashscan and is available immediately.
+          Choose the wallet data source and manage background P2P synchronization independently.
         </Text>
       </div>
 

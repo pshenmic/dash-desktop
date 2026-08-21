@@ -1,13 +1,64 @@
+import {useEffect, useState} from 'react'
 import {PlusIcon} from '@renderer/components/dash-ui-kit-enxtended/icons'
-import {Text} from '@renderer/components/dash-ui-kit-enxtended'
+import {Button, Text} from '@renderer/components/dash-ui-kit-enxtended'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {useConnectionModeContext} from '@renderer/contexts/ConnectionModeContext'
-import {RPC_CONNECTION_NAME} from '@renderer/constants/connection'
+import {
+  RPC_CONNECTION_NAME,
+  SYNC_ACTION_LABELS,
+  WALLET_SYNC_PHASE_LABELS,
+} from '@renderer/constants/connection'
+import {WalletSyncPhase} from '@renderer/api/types'
+import {API} from '@renderer/api'
+import {toast} from '@renderer/components/ui/Toast'
+import {isWalletSyncInactive} from '@renderer/utils/walletSync'
+import type {WalletSyncAction} from '@renderer/types/connection'
 
 export default function CoreTab(): React.JSX.Element {
   const {status} = useAuth()
   const {desired, ready, setDesired} = useConnectionModeContext()
   const sync = status?.walletSync
+  const walletId = status?.selectedWalletId ?? null
+  const phase = sync?.phase ?? WalletSyncPhase.Stopped
+  const syncInactive = isWalletSyncInactive(phase)
+  const [pendingSyncAction, setPendingSyncAction] = useState<WalletSyncAction | null>(null)
+  const syncPending = pendingSyncAction !== null
+
+  useEffect(() => {
+    if (pendingSyncAction === 'start' && !syncInactive) {
+      setPendingSyncAction(null)
+    } else if (pendingSyncAction === 'stop' && syncInactive) {
+      setPendingSyncAction(null)
+    }
+  }, [pendingSyncAction, syncInactive])
+
+  const handleStartSync = async (): Promise<void> => {
+    if (!walletId || syncPending || !syncInactive) return
+    setPendingSyncAction('start')
+    try {
+      const result = await API.startWalletSync(walletId)
+      if (!result.success) {
+        setPendingSyncAction(null)
+        toast.error(`**Could not start synchronization** ${result.errorMessage ?? 'Please try again.'}`)
+      }
+    } catch (err) {
+      setPendingSyncAction(null)
+      console.error('start wallet sync failed', err)
+      toast.error('**Could not start synchronization** Please try again.')
+    }
+  }
+
+  const handleStopSync = async (): Promise<void> => {
+    if (syncPending || syncInactive) return
+    setPendingSyncAction('stop')
+    try {
+      await API.stopWalletSync()
+    } catch (err) {
+      setPendingSyncAction(null)
+      console.error('stop wallet sync failed', err)
+      toast.error('**Could not stop synchronization** Please try again.')
+    }
+  }
 
   return (
     <div className="px-2 pb-3">
@@ -54,6 +105,51 @@ export default function CoreTab(): React.JSX.Element {
           >
             <span className={`size-6 rounded-full shadow-sm ${desired === 'rpc' ? 'bg-dash-brand dark:bg-dash-mint' : 'bg-white'}`} />
           </button>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <Text as="h2" size={14} weight="medium" color="brand" opacity={50} className="mb-3">
+          P2P Wallet Synchronization
+        </Text>
+        <div className="flex min-h-20 items-center justify-between gap-6 rounded-[1.25rem] dash-block px-5 py-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <Text size={14} weight="medium" color="brand">{WALLET_SYNC_PHASE_LABELS[phase]}</Text>
+              <span
+                className={`size-2 shrink-0 rounded-full ${syncInactive ? 'bg-dash-orange' : 'bg-dash-mint'}`}
+                aria-hidden="true"
+              />
+            </div>
+            <Text size={10} weight="medium" color="brand" opacity={40}>
+              Downloads and scans wallet data in the background, independently of the connection mode.
+            </Text>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {syncInactive ? (
+              <Button
+                onClick={handleStartSync}
+                disabled={walletId === null || syncPending}
+                variant="solid"
+                colorScheme="primary"
+                size="sm"
+                className="min-h-0! rounded-[.75rem] px-4! py-2!"
+              >
+                {pendingSyncAction === 'start' ? 'Starting…' : SYNC_ACTION_LABELS.start}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleStopSync}
+                disabled={syncPending}
+                variant="outline"
+                colorScheme="brand-mint"
+                size="sm"
+                className="min-h-0! rounded-[.75rem] px-4! py-2!"
+              >
+                {pendingSyncAction === 'stop' ? 'Stopping…' : SYNC_ACTION_LABELS.stop}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
