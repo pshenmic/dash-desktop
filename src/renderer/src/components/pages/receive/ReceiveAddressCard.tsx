@@ -43,7 +43,7 @@ export default function ReceiveAddressCard({
         <div className={"flex flex-col w-full"}>
           <div className={"flex flex-col gap-[.5rem]"}>
             <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
-              {data.adressText}
+              {data.addressText}
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
               <CoreAddressSelect
