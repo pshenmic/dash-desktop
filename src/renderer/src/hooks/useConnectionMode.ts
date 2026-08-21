@@ -5,6 +5,11 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
 import { invalidateAllAsyncCaches } from './useAsyncWithCache'
+import {
+  isWalletSyncInactive,
+  isWalletSyncIncomplete,
+  shouldShowWalletSyncUI,
+} from '@renderer/utils/walletSync'
 
 const LS_DESIRED_KEY = 'wallet.connection.desired'
 const CONNECTION_TYPES: readonly ConnectionType[] = ['rpc', 'p2p']
@@ -12,10 +17,6 @@ const CONNECTION_TYPES: readonly ConnectionType[] = ['rpc', 'p2p']
 export function readDesired(): ConnectionType {
   const raw = localStorage.getItem(LS_DESIRED_KEY)
   return CONNECTION_TYPES.includes(raw as ConnectionType) ? (raw as ConnectionType) : 'rpc'
-}
-
-function isP2pInactive(phase: WalletSyncPhase | undefined): boolean {
-  return phase === undefined || phase === WalletSyncPhase.Stopped || phase === WalletSyncPhase.Idle
 }
 
 export interface UseConnectionMode {
@@ -60,37 +61,26 @@ export function useConnectionMode(): UseConnectionMode {
 
   const autoStartedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!walletId) return
+    if (!walletId || localStorage.getItem('wallet.sync.enabled') === 'false') return
 
     // A sync running for a different wallet than the selected one is stale
     // (e.g. the user switched networks). Its phase/data belong to the old
     // wallet — stop it. Once it reports 'stopped' this effect re-runs and the
     // logic below decides whether to auto-start the newly-selected wallet.
-    if (activeSyncWalletId && activeSyncWalletId !== walletId && !isP2pInactive(phaseRef.current)) {
+    if (activeSyncWalletId && activeSyncWalletId !== walletId && !isWalletSyncInactive(phaseRef.current)) {
       autoStartedFor.current = null
       API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
       return
     }
 
-    if (desired !== 'p2p') return
     if (autoStartedFor.current === walletId) return
-    if (!isP2pInactive(phaseRef.current)) {
+    if (!isWalletSyncInactive(phaseRef.current)) {
       autoStartedFor.current = walletId
       return
     }
-    let cancelled = false
-    API.hasSyncProgress(walletId)
-      .then(hasProgress => {
-        if (cancelled) return
-        if (!hasProgress) return
-        if (autoStartedFor.current === walletId) return
-        if (!isP2pInactive(phaseRef.current)) return
-        autoStartedFor.current = walletId
-        API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
-      })
-      .catch((error) => toast.error(`**Sync failed** Could not read synchronization progress. ${getErrorMessage(error)}`))
-    return () => { cancelled = true }
-  }, [walletId, desired, phase, activeSyncWalletId])
+    autoStartedFor.current = walletId
+    API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
+  }, [walletId, phase, activeSyncWalletId])
 
   const pendingMode = useRef<ConnectionType | null>(null)
   const setDesired = useCallback((next: ConnectionType) => {
@@ -101,22 +91,17 @@ export function useConnectionMode(): UseConnectionMode {
         invalidateAllAsyncCaches()
         localStorage.setItem(LS_DESIRED_KEY, next)
         setDesiredState(next)
-        if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
-          API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
-        } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
-          API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
-        }
       })
       .catch((error) => toast.error(`**Connection mode failed** Could not switch connection mode. ${getErrorMessage(error)}`))
       .finally(() => { pendingMode.current = null })
-  }, [desired, walletId])
+  }, [desired])
 
-  const syncIncomplete = desired === 'p2p' && phase !== WalletSyncPhase.Synced
+  const syncIncomplete = isWalletSyncIncomplete(desired, phase)
 
   return {
     desired,
     ready,
-    showSyncUI: desired === 'p2p',
+    showSyncUI: shouldShowWalletSyncUI(phase),
     syncIncomplete,
     setDesired,
   }

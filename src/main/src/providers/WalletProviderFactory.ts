@@ -35,6 +35,11 @@ export class WalletProviderFactory {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
       return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
     }
-    return new DashscanWalletProvider(network, walletId, this.addressDAO, this.walletDAO)
+    return new DashscanWalletProvider(
+      network,
+      walletId,
+      this.addressDAO,
+      this.walletDAO,
+    )
   }
 }

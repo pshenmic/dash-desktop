@@ -21,11 +21,15 @@ export class GetStatusHandler {
 
   handle = async (_event: IpcMainInvokeEvent): Promise<AppStatus> => {
     const selected = await this.walletService.getSelectedWallet()
+    const connectionStatus = selected == null
+      ? null
+      : await this.walletService.getConnectionStatus(selected)
 
     return {
       ready: this.applicationService.isReady(),
       selectedWalletId: selected?.walletId ?? null,
       network: selected?.network ?? null,
+      connectionStatus,
       walletSync: this.walletSyncService.getStatus(),
     }
   }

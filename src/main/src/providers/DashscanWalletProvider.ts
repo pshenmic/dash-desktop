@@ -21,21 +21,29 @@ import {
 import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
+import {ConnectionStatus} from '../types/ConnectionStatus'
 import {
   ADDRESS_LOOKAHEAD,
   DASHSCAN_ADDRESS_CHUNK,
   DASHSCAN_BASE_URLS,
   DASHSCAN_REQUEST_TIMEOUT_MS,
+  DASHSCAN_STATUS_INTERVAL_MS,
   DASHSCAN_RETRY_DELAYS_MS,
   XPUB_MAX_PAGES,
   XPUB_PAGE_LIMIT,
 } from '../constants'
 
+const dashscanConnectionStatusCache = {
+  statuses: new Map<Network, ConnectionStatus>(),
+  checkedAt: new Map<Network, number>(),
+  inflight: new Map<Network, Promise<void>>(),
+}
+
 export class DashscanWalletProvider implements WalletProvider {
   private baseUrl: string
 
   constructor(
-    network: Network,
+    private readonly network: Network,
     private readonly walletId: string,
     private readonly addressDAO: AddressDAO,
     private readonly walletDAO: WalletDAO,
@@ -216,7 +224,31 @@ export class DashscanWalletProvider implements WalletProvider {
   }
 
   async ensureReady(): Promise<void> {
-    // empty
+    const response = await net.fetch(`${this.baseUrl}/status`, {
+      signal: AbortSignal.timeout(DASHSCAN_REQUEST_TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`Dashscan status request failed (${response.status})`)
+  }
+
+  async getConnectionStatus(): Promise<ConnectionStatus> {
+    const checkedAt = dashscanConnectionStatusCache.checkedAt.get(this.network)
+    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_STATUS_INTERVAL_MS
+
+    if (!fresh && !dashscanConnectionStatusCache.inflight.has(this.network)) {
+      const refresh = Promise.resolve()
+        .then(() => this.ensureReady())
+        .then(() => dashscanConnectionStatusCache.statuses.set(this.network, 'online'))
+        .catch(() => dashscanConnectionStatusCache.statuses.set(this.network, 'unavailable'))
+        .then(() => undefined)
+        .finally(() => {
+          dashscanConnectionStatusCache.checkedAt.set(this.network, Date.now())
+          dashscanConnectionStatusCache.inflight.delete(this.network)
+        })
+
+      dashscanConnectionStatusCache.inflight.set(this.network, refresh)
+    }
+
+    return dashscanConnectionStatusCache.statuses.get(this.network) ?? 'connecting'
   }
 
   async getTxLockStatus(txid: string): Promise<TxLockStatus> {

@@ -6,6 +6,7 @@ export { Heading, type HeadingProps } from './heading'
 export { Tooltip, TooltipBubble, type TooltipProps } from './tooltip'
 export {
   ArrowIcon,
+  ConnectionIcon,
   CopyIcon,
   SuccessIcon,
   ErrorIcon,

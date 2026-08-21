@@ -13,7 +13,6 @@ import { ZoomPreference, ZOOM_PRESETS } from '@renderer/utils/zoom'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
-import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
 import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
 import { useNavigate } from 'react-router-dom'
@@ -114,8 +113,6 @@ export default function Settings(): React.JSX.Element {
   const { currency, setCurrency } = useFiat()
   const debugMode = useDebugMode()
 
-  const [restartPending, setRestartPending] = useState(false)
-  const [clearPending, setClearPending] = useState(false)
   const [exportPending, setExportPending] = useState(false)
 
   const wallets = useWallets()
@@ -154,38 +151,6 @@ export default function Settings(): React.JSX.Element {
       toast.error(`**Rename failed** Could not update wallet name. ${getErrorMessage(err)}`)
     } finally {
       setRenamePending(false)
-    }
-  }
-
-  const handleRestart = async (): Promise<void> => {
-    if (!walletId || restartPending) return
-    setRestartPending(true)
-    try {
-      await API.stopWalletSync()
-      await API.startWalletSync(walletId)
-    } catch (err) {
-      console.error('restart sync failed', err)
-      toast.error(`**Restart failed** Could not restart synchronization. ${getErrorMessage(err)}`)
-    } finally {
-      setRestartPending(false)
-    }
-  }
-
-  const handleClear = async (): Promise<void> => {
-    if (!network || clearPending) return
-    const ok = window.confirm(
-      `Clear all sync cache for ${network}? This deletes downloaded headers, filters and wallet transaction history. The wallet itself is not affected.`,
-    )
-    if (!ok) return
-    setClearPending(true)
-    try {
-      await API.resetWalletSync(network)
-      invalidateAllAsyncCaches()
-    } catch (err) {
-      console.error('reset sync failed', err)
-      toast.error(`**Clear failed** Could not clear synchronization data. ${getErrorMessage(err)}`)
-    } finally {
-      setClearPending(false)
     }
   }
 
@@ -332,24 +297,15 @@ export default function Settings(): React.JSX.Element {
             actionLabel="View logs"
             onClick={() => navigate('/settings/logs')}
           />
+        </div>
+
+        <SectionLabel>Connection</SectionLabel>
+        <div className="flex flex-col">
           <SettingsRow
-            title="Restart sync"
-            description="Stop and start the P2P sync for the current wallet."
-            actionLabel="Restart"
-            pendingLabel="Restarting…"
-            pending={restartPending}
-            disabled={walletId === null}
-            onClick={handleRestart}
-          />
-          <SettingsRow
-            title="Clear sync data"
-            description="Delete downloaded headers, filters, and transaction history for the current network. The wallet is preserved."
-            actionLabel="Clear sync data"
-            pendingLabel="Clearing…"
-            pending={clearPending}
-            disabled={network === null}
-            destructive
-            onClick={handleClear}
+            title="Connection settings"
+            description="Choose the wallet data source and manage P2P synchronization."
+            actionLabel="Open Connection Settings"
+            onClick={() => navigate('/connection-settings')}
           />
         </div>
 
