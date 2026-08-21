@@ -198,7 +198,7 @@ export default function CoreTab(): React.JSX.Element {
         </Text>
         <div
           className={`
-            flex h-16 w-full items-center rounded-[1.25rem]
+            flex h-16 w-full cursor-not-allowed items-center rounded-[1.25rem]
             border border-dash-primary-dark-blue/25 dark:border-white/25
             px-5
           `}
