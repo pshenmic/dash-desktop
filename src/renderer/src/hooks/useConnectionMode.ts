@@ -61,7 +61,7 @@ export function useConnectionMode(): UseConnectionMode {
 
   const autoStartedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!walletId) return
+    if (!walletId || localStorage.getItem('wallet.sync.enabled') === 'false') return
 
     // A sync running for a different wallet than the selected one is stale
     // (e.g. the user switched networks). Its phase/data belong to the old
@@ -78,18 +78,8 @@ export function useConnectionMode(): UseConnectionMode {
       autoStartedFor.current = walletId
       return
     }
-    let cancelled = false
-    API.hasSyncProgress(walletId)
-      .then(hasProgress => {
-        if (cancelled) return
-        if (!hasProgress) return
-        if (autoStartedFor.current === walletId) return
-        if (!isWalletSyncInactive(phaseRef.current)) return
-        autoStartedFor.current = walletId
-        API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
-      })
-      .catch((error) => toast.error(`**Sync failed** Could not read synchronization progress. ${getErrorMessage(error)}`))
-    return () => { cancelled = true }
+    autoStartedFor.current = walletId
+    API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
   }, [walletId, phase, activeSyncWalletId])
 
   const pendingMode = useRef<ConnectionType | null>(null)

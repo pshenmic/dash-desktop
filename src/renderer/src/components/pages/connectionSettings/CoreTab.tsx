@@ -40,6 +40,7 @@ export default function CoreTab(): React.JSX.Element {
     setPendingSyncAction('start')
     try {
       await API.startWalletSync(walletId)
+      localStorage.setItem('wallet.sync.enabled', 'true')
     } catch (err) {
       setPendingSyncAction(null)
       console.error('start wallet sync failed', err)
@@ -52,6 +53,7 @@ export default function CoreTab(): React.JSX.Element {
     setPendingSyncAction('stop')
     try {
       await API.stopWalletSync()
+      localStorage.setItem('wallet.sync.enabled', 'false')
     } catch (err) {
       setPendingSyncAction(null)
       console.error('stop wallet sync failed', err)
