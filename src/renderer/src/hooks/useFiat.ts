@@ -3,6 +3,7 @@ import { API } from '@renderer/api'
 import { useRates } from './useRates'
 import { formatDuffsAsFiat } from '@renderer/utils/fiat'
 import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 const LS_DISPLAY_CURRENCY = 'wallet.display.currency'
 const DEFAULT_CURRENCY = 'usd'
@@ -65,7 +66,9 @@ function setCurrencyGlobal(next: string): void {
   currency = next
   persist(next)
   emit()
-  API.setFiatCurrency(next).catch(() => toast.error('**Currency update failed** Could not save display currency.'))
+  API.setFiatCurrency(next).catch((error) => {
+    toast.error(`**Currency update failed** Could not save display currency. ${getErrorMessage(error)}`)
+  })
 }
 
 export interface UseFiat {

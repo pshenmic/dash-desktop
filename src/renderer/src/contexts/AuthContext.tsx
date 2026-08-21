@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { AppStatus, WalletSyncStatus } from '@renderer/api/types'
 import { APP_STATUS_POLL_MS, LOCK_FADE_MS } from '@renderer/constants'
 import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 function isSameSync(a: WalletSyncStatus, b: WalletSyncStatus): boolean {
   return a.phase === b.phase
@@ -83,8 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setPreselectedWalletId(walletId)
     try {
       await API.selectWallet(walletId)
-    } catch {
-      toast.error('**Could not switch wallet** Try again.')
+    } catch (error) {
+      toast.error(`**Could not switch wallet** Try again. ${getErrorMessage(error)}`)
       return
     }
     setUnlocked(true)

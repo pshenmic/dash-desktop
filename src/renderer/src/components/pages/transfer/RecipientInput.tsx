@@ -6,6 +6,7 @@ import { TransferPageType } from '@renderer/constants'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
 import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 interface RecipientInputProps {
   value: string
@@ -65,8 +66,7 @@ export default function RecipientInput({
       setAdding(false)
       setNewLabel('')
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      toast.error(`**Could not save contact** ${message}`)
+      toast.error(`**Could not save contact** ${getErrorMessage(err)}`)
     }
   }
 
@@ -74,8 +74,7 @@ export default function RecipientInput({
     try {
       await deleteContact(id)
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      toast.error(`**Could not remove contact** ${message}`)
+      toast.error(`**Could not remove contact** ${getErrorMessage(err)}`)
     }
   }
 

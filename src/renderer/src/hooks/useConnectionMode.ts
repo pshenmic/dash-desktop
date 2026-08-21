@@ -3,6 +3,7 @@ import { API } from '@renderer/api'
 import { ConnectionType, WalletSyncPhase } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 import { invalidateAllAsyncCaches } from './useAsyncWithCache'
 
 const LS_DESIRED_KEY = 'wallet.connection.desired'
@@ -45,15 +46,15 @@ export function useConnectionMode(): UseConnectionMode {
           try {
             await API.setConnectionType(desired)
             invalidateAllAsyncCaches()
-          } catch {
-            toast.error('**Connection mode failed** Could not apply the selected mode.')
+          } catch (error) {
+            toast.error(`**Connection mode failed** Could not apply the selected mode. ${getErrorMessage(error)}`)
             localStorage.setItem(LS_DESIRED_KEY, applied)
             if (!cancelled) setDesiredState(applied)
           }
         }
         if (!cancelled) setReady(true)
       })
-      .catch(() => toast.error('**Connection mode failed** Could not load connection settings.'))
+      .catch((error) => toast.error(`**Connection mode failed** Could not load connection settings. ${getErrorMessage(error)}`))
     return () => { cancelled = true }
   }, [desired])
 
@@ -67,7 +68,7 @@ export function useConnectionMode(): UseConnectionMode {
     // logic below decides whether to auto-start the newly-selected wallet.
     if (activeSyncWalletId && activeSyncWalletId !== walletId && !isP2pInactive(phaseRef.current)) {
       autoStartedFor.current = null
-      API.stopWalletSync().catch(() => toast.error('**Sync failed** Could not stop synchronization.'))
+      API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
       return
     }
 
@@ -85,9 +86,9 @@ export function useConnectionMode(): UseConnectionMode {
         if (autoStartedFor.current === walletId) return
         if (!isP2pInactive(phaseRef.current)) return
         autoStartedFor.current = walletId
-        API.startWalletSync(walletId).catch(() => toast.error('**Sync failed** Could not start synchronization.'))
+        API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
       })
-      .catch(() => toast.error('**Sync failed** Could not read synchronization progress.'))
+      .catch((error) => toast.error(`**Sync failed** Could not read synchronization progress. ${getErrorMessage(error)}`))
     return () => { cancelled = true }
   }, [walletId, desired, phase, activeSyncWalletId])
 
@@ -101,12 +102,12 @@ export function useConnectionMode(): UseConnectionMode {
         localStorage.setItem(LS_DESIRED_KEY, next)
         setDesiredState(next)
         if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
-          API.startWalletSync(walletId).catch(() => toast.error('**Sync failed** Could not start synchronization.'))
+          API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
         } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
-          API.stopWalletSync().catch(() => toast.error('**Sync failed** Could not stop synchronization.'))
+          API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
         }
       })
-      .catch(() => toast.error('**Connection mode failed** Could not switch connection mode.'))
+      .catch((error) => toast.error(`**Connection mode failed** Could not switch connection mode. ${getErrorMessage(error)}`))
       .finally(() => { pendingMode.current = null })
   }, [desired, walletId])
 

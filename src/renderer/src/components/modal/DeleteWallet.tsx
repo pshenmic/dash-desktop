@@ -6,6 +6,7 @@ import { Button, CrossIcon, Input, Text } from "../dash-ui-kit-enxtended"
 import { renderBoldText } from "@renderer/utils/renderBoldText"
 import { useTheme } from "dash-ui-kit/react"
 import { useAuth } from "@renderer/contexts/AuthContext"
+import { getErrorMessage } from "@renderer/utils/error"
 
 const DELETE_CONFIRM_TEXT = 'Delete'
 
@@ -34,7 +35,7 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
       toast.error('Wallet deleted')
     } catch (e) {
       console.error(e)
-      toast.error('Failed to delete wallet')
+      toast.error(`Failed to delete wallet. ${getErrorMessage(e)}`)
     }
   }
 
