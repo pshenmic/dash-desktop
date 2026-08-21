@@ -11,14 +11,14 @@ const fetchAddresses = (walletId: string): Promise<AddressesData> =>
     return { receiving: body.receiving ?? [], change: body.change ?? [] }
   })
 
-export function useAdresses(walletId: string | undefined) {
+export function useAdresses(walletId: string | undefined, refreshIntervalMs?: number) {
   const initial = useMemo<AddressesData>(() => ({ receiving: [], change: [] }), [])
   const { data, loading, err } = useAsyncWithCache<AddressesData>(
     'addresses',
     walletId,
     () => fetchAddresses(walletId!),
     initial,
-    { errorMessage: 'Failed to load addresses' }
+    { errorMessage: 'Failed to load addresses', refreshIntervalMs }
   )
   return { receiving: data.receiving, change: data.change, loading, err }
 }

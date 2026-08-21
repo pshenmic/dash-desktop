@@ -23,15 +23,14 @@ export default function ReceiveAddressCard({
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const { theme } = useTheme()
 
-  const selected = addresses.find(a => a.address === selectedAddress)
-    ?? defaultReceiveCoreAddress(addresses, defaultAddress)
+  const selected = defaultReceiveCoreAddress(addresses, selectedAddress ?? defaultAddress)
   const address = selected?.address ?? defaultAddress
   const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
 
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
-      <div className={"flex items-center gap-8 rounded-4xl dash-block p-6  max-w-190"}>
+      <div className={"flex w-min items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
         <QRCode
           value={qrValue}
           size={225}

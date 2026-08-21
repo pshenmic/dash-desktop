@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs } from "dash-ui-kit/react";
-import { ReceivePageType } from "@renderer/constants";
+import { RECEIVE_REFRESH_MS, ReceivePageType } from "@renderer/constants";
 import Header from "./Header";
 import ReceiveAddressCard from "./ReceiveAddressCard";
 import ShieldedReceiveCard from "./ShieldedReceiveCard";
@@ -10,6 +10,7 @@ import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeConte
 import { API } from "@renderer/api";
 import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
 import { useAdresses } from "@renderer/hooks/useAdresses";
+import { refreshBalance } from "@renderer/hooks/useWalletBalance";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
 const coreDescription = (
@@ -52,7 +53,18 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
     null,
     { errorMessage: 'Failed to load receive address' }
   )
-  const { receiving } = useAdresses(syncIncomplete ? undefined : walletId)
+  const { receiving } = useAdresses(
+    syncIncomplete ? undefined : walletId,
+    RECEIVE_REFRESH_MS,
+  )
+
+  useEffect(() => {
+    if (walletId === undefined || syncIncomplete) return
+    const timer = setInterval(() => {
+      refreshBalance(walletId)
+    }, RECEIVE_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [syncIncomplete, walletId])
 
   const tabItems = [
     {
