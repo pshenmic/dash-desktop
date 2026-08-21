@@ -27,7 +27,7 @@ import {
   DASHSCAN_ADDRESS_CHUNK,
   DASHSCAN_BASE_URLS,
   DASHSCAN_REQUEST_TIMEOUT_MS,
-  DASHSCAN_STATUS_REQUEST_TIMEOUT_MS,
+  DASHSCAN_STATUS_INTERVAL_MS,
   DASHSCAN_RETRY_DELAYS_MS,
   XPUB_MAX_PAGES,
   XPUB_PAGE_LIMIT,
@@ -225,14 +225,14 @@ export class DashscanWalletProvider implements WalletProvider {
 
   async ensureReady(): Promise<void> {
     const response = await net.fetch(`${this.baseUrl}/status`, {
-      signal: AbortSignal.timeout(DASHSCAN_STATUS_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(DASHSCAN_REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`Dashscan status request failed (${response.status})`)
   }
 
   async getConnectionStatus(): Promise<ConnectionStatus> {
     const checkedAt = dashscanConnectionStatusCache.checkedAt.get(this.network)
-    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_REQUEST_TIMEOUT_MS
+    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_STATUS_INTERVAL_MS
 
     if (!fresh && !dashscanConnectionStatusCache.inflight.has(this.network)) {
       const refresh = Promise.resolve()
