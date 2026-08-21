@@ -65,6 +65,7 @@ import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
 import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
+import DismissAssetLockFundingModal from "@renderer/components/modal/DismissAssetLockFundingModal";
 
 export default function TransferHub(): React.JSX.Element {
   const { status } = useAuth()
@@ -106,6 +107,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [fundingRefresh, setFundingRefresh] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
+  const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
   const [dismissBusy, setDismissBusy] = useState(false)
   const [dismissError, setDismissError] = useState<string | null>(null)
 
@@ -129,6 +131,7 @@ function WalletTransferHub(): React.JSX.Element {
       await API.dismissAssetLockFunding(walletId)
       setResumableFunding(null)
       setResumeOpen(false)
+      setDismissConfirmOpen(false)
     } catch (error) {
       setDismissError(error instanceof Error ? error.message : 'Could not dismiss the pending funding.')
     } finally {
@@ -729,7 +732,10 @@ function WalletTransferHub(): React.JSX.Element {
             {resumableFunding.phase === AssetLockFundingPhase.Resumable && (
               <button
                 type={"button"}
-                onClick={dismissFunding}
+                onClick={() => {
+                  setDismissError(null)
+                  setDismissConfirmOpen(true)
+                }}
                 disabled={dismissBusy}
                 className={"px-3 py-2 rounded-[.75rem] border border-red-300 dark:border-red-700 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-default"}
               >
@@ -847,6 +853,16 @@ function WalletTransferHub(): React.JSX.Element {
           setResumableFunding(null)
           resetForm()
         }}
+      />
+
+      <DismissAssetLockFundingModal
+        isOpen={dismissConfirmOpen}
+        busy={dismissBusy}
+        error={dismissError}
+        onClose={() => {
+          if (!dismissBusy) setDismissConfirmOpen(false)
+        }}
+        onConfirm={dismissFunding}
       />
 
       {isPlatformModalOperation && (
