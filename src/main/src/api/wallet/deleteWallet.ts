@@ -1,6 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
-import {QueryStatus} from "../../types/QueryStatus";
 
 export class DeleteWalletHandler {
   private walletService: WalletService
@@ -9,7 +8,7 @@ export class DeleteWalletHandler {
     this.walletService = walletService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<QueryStatus> => {
+  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<void> => {
     return this.walletService.deleteWallet(walletId)
   }
 }

@@ -1,7 +1,6 @@
 import {ContactDAO} from '../../database/ContactDAO'
 import {Contact} from '../../types/Contact'
 import {Network} from '../../types/Network'
-import {QueryStatus} from '../../types/QueryStatus'
 
 export class ContactService {
   private contactDAO: ContactDAO
@@ -14,24 +13,24 @@ export class ContactService {
     return this.contactDAO.getContacts(network)
   }
 
-  async addContact(label: string, address: string, network: Network): Promise<QueryStatus> {
+  async addContact(label: string, address: string, network: Network): Promise<void> {
     const trimmedLabel = label.trim()
     const trimmedAddress = address.trim()
 
     if (trimmedLabel.length === 0) {
-      return {success: false, errorMessage: 'Label is required'}
+      throw new Error('Label is required')
     }
     if (trimmedAddress.length === 0) {
-      return {success: false, errorMessage: 'Address is required'}
+      throw new Error('Address is required')
     }
     if (network !== 'mainnet' && network !== 'testnet') {
-      return {success: false, errorMessage: 'Invalid network'}
+      throw new Error('Invalid network')
     }
 
-    return this.contactDAO.insertContact(trimmedLabel, trimmedAddress, network, Date.now())
+    await this.contactDAO.insertContact(trimmedLabel, trimmedAddress, network, Date.now())
   }
 
-  async deleteContact(id: number): Promise<QueryStatus> {
+  async deleteContact(id: number): Promise<void> {
     return this.contactDAO.deleteContact(id)
   }
 }

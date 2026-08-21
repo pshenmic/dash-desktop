@@ -19,7 +19,6 @@ import {BroadcastPolicyOverrides, BroadcastResult} from '../../../p2p/types/broa
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from '../../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../../p2p/constants'
-import {QueryStatus} from '../../types/QueryStatus'
 import {ScanCursorGate} from '../../utils/scanCursorGate'
 import {Preferences} from '../../preferences'
 import {Network} from '../../types/Network'
@@ -265,10 +264,10 @@ export class WalletSyncService {
   // Ack only: returning a status snapshot here handed the renderer a stale
   // 'stopped', because the utility process had not yet emitted 'connecting'.
   // Phase progression streams via getStatus instead.
-  startSync = async (walletId: string): Promise<QueryStatus> => {
+  startSync = async (walletId: string): Promise<void> => {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (!wallet) {
-      return {success: false, errorMessage: `Wallet ${walletId} not found`}
+      throw new Error(`Wallet ${walletId} not found`)
     }
     const network = wallet.network as 'mainnet' | 'testnet'
 
@@ -297,7 +296,7 @@ export class WalletSyncService {
       fs.mkdirSync(chainDbPath, {recursive: true})
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      return {success: false, errorMessage: `Failed to create chain.db directory: ${message}`}
+      throw new Error(`Failed to create chain.db directory: ${message}`)
     }
 
     this.send({
@@ -314,8 +313,6 @@ export class WalletSyncService {
       // utility process. Replace with a per-wallet birthday once the wallet
       // schema captures it.
     })
-
-    return {success: true, errorMessage: null}
   }
 
   stopSync = (): void => {

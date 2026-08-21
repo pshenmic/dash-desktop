@@ -1,6 +1,5 @@
 import {Wallet} from '../types/Wallet'
 import {WALLET_SCOPED_TABLES} from '../constants'
-import {QueryStatus} from "../types/QueryStatus";
 
 function fromRow({wallet_id, label, network, encrypted_mnemonic, selected, platform_xpub, core_xpub}): Wallet {
   return {walletId: wallet_id, network, label, encryptedMnemonic: encrypted_mnemonic, selected: Boolean(selected), platformXpub: platform_xpub ?? null, coreXpub: core_xpub ?? null}
@@ -13,34 +12,14 @@ export class WalletDAO {
     this.knex = knex
   }
 
-  saveWallet = async (mnemonic, walletId, network, label): Promise<QueryStatus> => {
-    try {
-      await this.knex('wallet')
-        .insert({
-          network,
-          label,
-          encrypted_mnemonic: mnemonic,
-          wallet_id: walletId
-        })
-
-      return {
-        success: true,
-        errorMessage: null,
-      }
-    } catch (error) {
-      let message: string
-
-      if (error instanceof Error) {
-        message = error.message
-      } else {
-        message = String(error)
-      }
-
-      return {
-        success: false,
-        errorMessage: message
-      }
-    }
+  saveWallet = async (mnemonic, walletId, network, label): Promise<void> => {
+    await this.knex('wallet')
+      .insert({
+        network,
+        label,
+        encrypted_mnemonic: mnemonic,
+        wallet_id: walletId
+      })
   }
 
   getWalletById = async (walletId): Promise<Wallet | null> => {
@@ -78,7 +57,7 @@ export class WalletDAO {
     return fromRow(rows[0])
   }
 
-  setSelectedWallet = async (walletId: string): Promise<QueryStatus> => {
+  setSelectedWallet = async (walletId: string): Promise<void> => {
     await this.knex('wallet')
       .where('selected', true)
       .update({selected: false})
@@ -87,16 +66,8 @@ export class WalletDAO {
       .update({selected: true})
       .where('wallet_id', walletId)
 
-    if (result > 0) {
-      return {
-        success: true,
-        errorMessage: null,
-      }
-    } else {
-      return {
-        success: false,
-        errorMessage: "Wallet for select not found. No selected wallet at this moment",
-      }
+    if (result === 0) {
+      throw new Error('Wallet for select not found. No selected wallet at this moment')
     }
   }
 
@@ -177,30 +148,13 @@ export class WalletDAO {
       .where('wallet_id', walletId)
   }
 
-  updateLabel = async (walletId: string, label: string | null): Promise<QueryStatus> => {
-    try {
-      const result = await this.knex('wallet')
-        .update({label})
-        .where('wallet_id', walletId)
+  updateLabel = async (walletId: string, label: string | null): Promise<void> => {
+    const result = await this.knex('wallet')
+      .update({label})
+      .where('wallet_id', walletId)
 
-      if (result === 0) {
-        return {
-          success: false,
-          errorMessage: 'Wallet not found',
-        }
-      }
-
-      return {
-        success: true,
-        errorMessage: null,
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-
-      return {
-        success: false,
-        errorMessage: message,
-      }
+    if (result === 0) {
+      throw new Error('Wallet not found')
     }
   }
 
@@ -212,53 +166,33 @@ export class WalletDAO {
     return rows.map(fromRow)
   }
 
-  deleteWallet = async (walletId: string): Promise<QueryStatus> => {
-    try {
-      await this.knex.transaction(async trx => {
-        const target = await trx('wallet')
-          .select('selected')
-          .where('wallet_id', walletId)
+  deleteWallet = async (walletId: string): Promise<void> => {
+    await this.knex.transaction(async trx => {
+      const target = await trx('wallet')
+        .select('selected')
+        .where('wallet_id', walletId)
+        .first()
+      const wasSelected = Boolean(target?.selected)
+
+      for (const table of WALLET_SCOPED_TABLES) {
+        await trx(table).delete().where('wallet_id', walletId)
+      }
+
+      await trx('wallet')
+        .delete()
+        .where('wallet_id', walletId)
+
+      if (wasSelected) {
+        const survivor = await trx('wallet')
+          .select('wallet_id')
           .first()
-        const wasSelected = Boolean(target?.selected)
 
-        for (const table of WALLET_SCOPED_TABLES) {
-          await trx(table).delete().where('wallet_id', walletId)
+        if (survivor != null) {
+          await trx('wallet')
+            .where('wallet_id', survivor.wallet_id)
+            .update({selected: true})
         }
-
-        await trx('wallet')
-          .delete()
-          .where('wallet_id', walletId)
-
-        if (wasSelected) {
-          const survivor = await trx('wallet')
-            .select('wallet_id')
-            .first()
-
-          if (survivor != null) {
-            await trx('wallet')
-              .where('wallet_id', survivor.wallet_id)
-              .update({selected: true})
-          }
-        }
-      })
-
-      return {
-        success: true,
-        errorMessage: null,
       }
-    } catch (error) {
-      let message: string
-
-      if (error instanceof Error) {
-        message = error.message
-      } else {
-        message = String(error)
-      }
-
-      return {
-        success: false,
-        errorMessage: message
-      }
-    }
+    })
   }
 }

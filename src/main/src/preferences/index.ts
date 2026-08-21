@@ -129,10 +129,16 @@ export class Preferences {
    * @param value
    */
   async apply(value: unknown): Promise<void> {
-    const {general, network} = PreferencesSchema.parse(value)
+    const parsed = PreferencesSchema.safeParse(value)
 
-    this.general = GeneralPreferences.fromObject(general)
-    this.network = NetworkPreferences.fromObject(network)
+    // A ZodError crossing IPC arrives as its class name only, so the issues are
+    // flattened into the message here.
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues.map(issue => issue.message).join(', '))
+    }
+
+    this.general = GeneralPreferences.fromObject(parsed.data.general)
+    this.network = NetworkPreferences.fromObject(parsed.data.network)
 
     await this.update()
   }

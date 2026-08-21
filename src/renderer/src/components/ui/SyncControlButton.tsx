@@ -4,6 +4,8 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { WalletSyncPhase } from '@renderer/api/types'
 import { SYNC_ACTION_LABELS } from '@renderer/constants/connection'
+import { toast } from './Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 type Action = 'start' | 'stop'
 
@@ -66,8 +68,8 @@ export default function SyncControlButton(): React.JSX.Element | null {
     inFlight.current = true
     try {
       await spec.run(walletId)
-    } catch (err) {
-      console.error('sync control failed', err)
+    } catch (error) {
+      toast.error(`**Sync failed** Could not ${action} synchronization. ${getErrorMessage(error)}`)
     } finally {
       inFlight.current = false
     }

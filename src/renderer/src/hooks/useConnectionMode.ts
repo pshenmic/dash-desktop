@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { API } from '@renderer/api'
 import { ConnectionType, WalletSyncPhase } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 import { invalidateAllAsyncCaches } from './useAsyncWithCache'
 
 const LS_DESIRED_KEY = 'wallet.connection.desired'
@@ -41,19 +43,18 @@ export function useConnectionMode(): UseConnectionMode {
       .then(async (preferences) => {
         const applied = preferences.general.connectionType
         if (applied !== desired) {
-          const result = await API.setConnectionType(desired)
-          if (!result.success) {
+          try {
+            await API.setConnectionType(desired)
+            invalidateAllAsyncCaches()
+          } catch (error) {
+            toast.error(`**Connection mode failed** Could not apply the selected mode. ${getErrorMessage(error)}`)
             localStorage.setItem(LS_DESIRED_KEY, applied)
             if (!cancelled) setDesiredState(applied)
-          } else {
-            invalidateAllAsyncCaches()
           }
         }
         if (!cancelled) setReady(true)
       })
-      .catch((err) => {
-        console.error('initialize connection mode failed', err)
-      })
+      .catch((error) => toast.error(`**Connection mode failed** Could not load connection settings. ${getErrorMessage(error)}`))
     return () => { cancelled = true }
   }, [desired])
 
@@ -67,7 +68,7 @@ export function useConnectionMode(): UseConnectionMode {
     // logic below decides whether to auto-start the newly-selected wallet.
     if (activeSyncWalletId && activeSyncWalletId !== walletId && !isP2pInactive(phaseRef.current)) {
       autoStartedFor.current = null
-      API.stopWalletSync().catch(err => console.error('stale stopWalletSync failed', err))
+      API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
       return
     }
 
@@ -85,9 +86,9 @@ export function useConnectionMode(): UseConnectionMode {
         if (autoStartedFor.current === walletId) return
         if (!isP2pInactive(phaseRef.current)) return
         autoStartedFor.current = walletId
-        API.startWalletSync(walletId).catch(err => console.error('auto startWalletSync failed', err))
+        API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
       })
-      .catch(() => {})
+      .catch((error) => toast.error(`**Sync failed** Could not read synchronization progress. ${getErrorMessage(error)}`))
     return () => { cancelled = true }
   }, [walletId, desired, phase, activeSyncWalletId])
 
@@ -96,18 +97,17 @@ export function useConnectionMode(): UseConnectionMode {
     if (next === desired || pendingMode.current !== null) return
     pendingMode.current = next
     API.setConnectionType(next)
-      .then((result) => {
-        if (!result.success) throw new Error(result.errorMessage ?? 'Failed to set connection mode')
+      .then(() => {
         invalidateAllAsyncCaches()
         localStorage.setItem(LS_DESIRED_KEY, next)
         setDesiredState(next)
         if (next === 'p2p' && walletId && isP2pInactive(phaseRef.current)) {
-          API.startWalletSync(walletId).catch(err => console.error('startWalletSync failed', err))
+          API.startWalletSync(walletId).catch((error) => toast.error(`**Sync failed** Could not start synchronization. ${getErrorMessage(error)}`))
         } else if (next === 'rpc' && !isP2pInactive(phaseRef.current)) {
-          API.stopWalletSync().catch(err => console.error('stopWalletSync failed', err))
+          API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
         }
       })
-      .catch(err => console.error('setConnectionType failed', err))
+      .catch((error) => toast.error(`**Connection mode failed** Could not switch connection mode. ${getErrorMessage(error)}`))
       .finally(() => { pendingMode.current = null })
   }, [desired, walletId])
 

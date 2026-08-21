@@ -1,5 +1,5 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, QueryStatus, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -10,15 +10,15 @@ export class API {
     return this.api.getPreferences() as Promise<PreferencesJSON>
   }
 
-  static async setConnectionType(connectionType: ConnectionType): Promise<QueryStatus> {
+  static async setConnectionType(connectionType: ConnectionType): Promise<void> {
     return this.api.setConnectionType(connectionType)
   }
 
-  static async setFiatCurrency(currency: string): Promise<QueryStatus> {
+  static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
   }
 
-  static async startWalletSync(walletId: string): Promise<QueryStatus> {
+  static async startWalletSync(walletId: string): Promise<void> {
     return this.api.startWalletSync(walletId)
   }
 
@@ -58,7 +58,7 @@ export class API {
     return this.api.getAllWallets()
   }
 
-  static async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
+  static async setWalletLabel(walletId: string, label: string | null): Promise<void> {
     return this.api.setWalletLabel(walletId, label)
   }
 
@@ -86,11 +86,11 @@ export class API {
     return this.api.estimateTransitionFee(network, query) as Promise<TransitionFeeDto>
   }
 
-  static async deleteWallet(walletId: string): Promise<QueryStatus> {
+  static async deleteWallet(walletId: string): Promise<void> {
     return this.api.deleteWallet(walletId)
   }
 
-  static async selectWallet(walletId: string) {
+  static async selectWallet(walletId: string): Promise<void> {
     return this.api.selectWallet(walletId)
   }
 
@@ -118,7 +118,7 @@ export class API {
     return this.api.getExchangeRates() as Promise<ExchangeRatesResult>
   }
 
-  static async saveTextFile(defaultFileName: string, content: string): Promise<QueryStatus> {
+  static async saveTextFile(defaultFileName: string, content: string): Promise<boolean> {
     return this.api.saveTextFile(defaultFileName, content)
   }
 
@@ -138,11 +138,11 @@ export class API {
     return this.api.getContacts(network) as Promise<Contact[]>
   }
 
-  static async addContact(label: string, address: string, network: Network): Promise<QueryStatus> {
+  static async addContact(label: string, address: string, network: Network): Promise<void> {
     return this.api.addContact(label, address, network)
   }
 
-  static async deleteContact(id: number): Promise<QueryStatus> {
+  static async deleteContact(id: number): Promise<void> {
     return this.api.deleteContact(id)
   }
 

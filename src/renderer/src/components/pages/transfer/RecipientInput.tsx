@@ -6,6 +6,7 @@ import { TransferPageType } from '@renderer/constants'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
 import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 interface RecipientInputProps {
   value: string
@@ -60,12 +61,20 @@ export default function RecipientInput({
       toast.error('**Name required** Enter a name for this contact.')
       return
     }
-    const res = await addContact(label, trimmedValue)
-    if (res.success) {
+    try {
+      await addContact(label, trimmedValue)
       setAdding(false)
       setNewLabel('')
-    } else if (res.errorMessage) {
-      toast.error(`**Could not save contact** ${res.errorMessage}`)
+    } catch (err) {
+      toast.error(`**Could not save contact** ${getErrorMessage(err)}`)
+    }
+  }
+
+  const handleDeleteContact = async (id: number): Promise<void> => {
+    try {
+      await deleteContact(id)
+    } catch (err) {
+      toast.error(`**Could not remove contact** ${getErrorMessage(err)}`)
     }
   }
 
@@ -178,7 +187,7 @@ export default function RecipientInput({
                         </Identifier>
                       </button>
                       <button
-                        onClick={() => deleteContact(entry.id)}
+                        onClick={() => void handleDeleteContact(entry.id)}
                         className={"shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5 cursor-pointer"}
                         title={"Remove contact"}
                       >

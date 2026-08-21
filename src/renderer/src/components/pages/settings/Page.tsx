@@ -11,6 +11,7 @@ import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
 import { ThemePreference } from '@renderer/utils/theme'
 import { ZoomPreference, ZOOM_PRESETS } from '@renderer/utils/zoom'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
+import { getErrorMessage } from '@renderer/utils/error'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
@@ -146,15 +147,11 @@ export default function Settings(): React.JSX.Element {
     if (!walletId || renamePending || isUnchanged) return
     setRenamePending(true)
     try {
-      const res = await API.setWalletLabel(walletId, walletName.trim())
-      if (res.success) {
-        refreshWallets()
-      } else if (res.errorMessage) {
-        toast.error(`**Rename failed** ${res.errorMessage}`)
-      }
+      await API.setWalletLabel(walletId, walletName.trim())
+      refreshWallets()
     } catch (err) {
       console.error('rename failed', err)
-      toast.error('**Rename failed** Could not update wallet name.')
+      toast.error(`**Rename failed** Could not update wallet name. ${getErrorMessage(err)}`)
     } finally {
       setRenamePending(false)
     }
@@ -168,6 +165,7 @@ export default function Settings(): React.JSX.Element {
       await API.startWalletSync(walletId)
     } catch (err) {
       console.error('restart sync failed', err)
+      toast.error(`**Restart failed** Could not restart synchronization. ${getErrorMessage(err)}`)
     } finally {
       setRestartPending(false)
     }
@@ -185,6 +183,7 @@ export default function Settings(): React.JSX.Element {
       invalidateAllAsyncCaches()
     } catch (err) {
       console.error('reset sync failed', err)
+      toast.error(`**Clear failed** Could not clear synchronization data. ${getErrorMessage(err)}`)
     } finally {
       setClearPending(false)
     }
@@ -211,13 +210,10 @@ export default function Settings(): React.JSX.Element {
       }
       const stamp = new Date().toISOString().slice(0, 10)
       const csv = transactionsToCsv(rows)
-      const res = await API.saveTextFile(`dash-transactions-${network ?? 'wallet'}-${stamp}.csv`, csv)
-      if (!res.success && res.errorMessage) {
-        toast.error(`**Export failed** ${res.errorMessage}`)
-      }
+      await API.saveTextFile(`dash-transactions-${network ?? 'wallet'}-${stamp}.csv`, csv)
     } catch (err) {
       console.error('export failed', err)
-      toast.error('**Export failed** Could not read transactions.')
+      toast.error(`**Export failed** Could not export transactions. ${getErrorMessage(err)}`)
     } finally {
       setExportPending(false)
     }

@@ -1,6 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { ContactService } from '../../services/app/ContactService'
-import { QueryStatus } from '../../types/QueryStatus'
 
 export class DeleteContactHandler {
   private contactService: ContactService
@@ -9,7 +8,7 @@ export class DeleteContactHandler {
     this.contactService = contactService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, id: number): Promise<QueryStatus> => {
+  handle = async (_event: IpcMainInvokeEvent, id: number): Promise<void> => {
     return this.contactService.deleteContact(id)
   }
 }

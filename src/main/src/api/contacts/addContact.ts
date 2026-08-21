@@ -1,6 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { ContactService } from '../../services/app/ContactService'
-import { QueryStatus } from '../../types/QueryStatus'
 import { Network } from '../../types/Network'
 
 export class AddContactHandler {
@@ -15,7 +14,7 @@ export class AddContactHandler {
     label: string,
     address: string,
     network: Network,
-  ): Promise<QueryStatus> => {
+  ): Promise<void> => {
     return this.contactService.addContact(label, address, network)
   }
 }

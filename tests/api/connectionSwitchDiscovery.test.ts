@@ -32,9 +32,8 @@ describe('connection type switch', () => {
     const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
     await walletDAO.setSelectedWallet(walletId)
 
-    const result = await handler.handle(null as never, 'rpc')
+    await handler.handle(null as never, 'rpc')
 
-    expect(result).toEqual({success: true, errorMessage: null})
     expect(applicationService.preferences.general.connectionType).toBe('rpc')
     expect(rediscover).toHaveBeenCalledWith(walletId)
   })
@@ -49,9 +48,9 @@ describe('connection type switch', () => {
   })
 
   it('still applies the preference with no wallet selected', async () => {
-    const result = await handler.handle(null as never, 'rpc')
+    await handler.handle(null as never, 'rpc')
 
-    expect(result).toEqual({success: true, errorMessage: null})
+    expect(applicationService.preferences.general.connectionType).toBe('rpc')
     expect(rediscover).not.toHaveBeenCalled()
   })
 })
