@@ -27,19 +27,19 @@ function describePhase(sync: WalletSyncStatus): SyncProgressPhaseInfo {
       return { label: 'Connecting to Peers', caption: 'Discovering peers', progress: 0.02, current: 0, total: estimatedChainHeight }
     case WalletSyncPhase.SyncingHeaders:
       return {
-        label: 'Synchronizing Wallet Data',
+        label: 'Syncing Wallet Data',
         caption: `${tipHeight.toLocaleString('en-US')} / ${estimatedChainHeight.toLocaleString('en-US')} blocks`,
         progress: safeRatio(tipHeight, estimatedChainHeight) * 0.30,
         current: tipHeight,
         total: estimatedChainHeight,
       }
     case WalletSyncPhase.SyncedHeaders:
-      return { label: 'Synchronizing Wallet Data', caption: 'Preparing filter sync', progress: 0.30, current: tipHeight, total: tipHeight }
+      return { label: 'Syncing Wallet Data', caption: 'Preparing filter sync', progress: 0.30, current: tipHeight, total: tipHeight }
     case WalletSyncPhase.SyncingCfcheckpt:
-      return { label: 'Synchronizing Wallet Data', caption: 'Negotiating compact-filter peers', progress: 0.33, current: cfilterScanHeight, total: tipHeight }
+      return { label: 'Syncing Wallet Data', caption: 'Negotiating compact-filter peers', progress: 0.33, current: cfilterScanHeight, total: tipHeight }
     case WalletSyncPhase.SyncingCfheaders:
       return {
-        label: 'Synchronizing Wallet Data',
+        label: 'Syncing Wallet Data',
         caption: `${cfheadersHeight.toLocaleString('en-US')} / ${tipHeight.toLocaleString('en-US')} filter headers`,
         progress: 0.33 + safeRatio(cfheadersHeight, tipHeight) * 0.37,
         current: cfheadersHeight,
@@ -47,7 +47,7 @@ function describePhase(sync: WalletSyncStatus): SyncProgressPhaseInfo {
       }
     case WalletSyncPhase.SyncingCfilters:
       return {
-        label: 'Synchronizing Wallet Data',
+        label: 'Syncing Wallet Data',
         caption: `${cfilterScanHeight.toLocaleString('en-US')} / ${tipHeight.toLocaleString('en-US')} filters`,
         progress: 0.70 + safeRatio(cfilterScanHeight, tipHeight) * 0.30,
         current: cfilterScanHeight,
