@@ -5,7 +5,7 @@ export interface ReceivePageType {
     balance: string
   },
   tabs: {
-    dash: string
+    core: string
     shielded: string
     platform: string
   },
