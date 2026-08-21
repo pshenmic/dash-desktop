@@ -154,6 +154,10 @@ export const MEMPOOL_REPORT_INTERVAL_MS = 5 * 60_000
 
 export const FILTER_TYPE = 0
 
+// What the genesis filter header chains from — BIP 157 starts the chain on the
+// zero hash. Read-only; nothing derives from it but the height-1 header.
+export const NO_PREV_FILTER_HEADER = new Uint8Array(HASH_LEN)
+
 // Capped at 1000 per spec; smaller costs round-trips, larger spikes memory per
 // response.
 export const CFILTER_BATCH = 900
@@ -170,6 +174,12 @@ export const MAX_INFLIGHT_CFHEADERS = 10
 // the first duplicates the largest stream in the sync. Above 1 only to hedge a
 // peer that stalls mid-batch.
 export const CFILTER_BATCH_PEERS = 2
+
+// Timer ticks a batch may go without a single filter landing before it is
+// abandoned and its range rebuilt. A batch carrying a height whose hash the
+// chain index lacks can never complete, and re-racing it forever pins the drain
+// cursor — so restarting the range beats asking a 25th peer the same question.
+export const CFILTER_BATCH_MAX_STALLS = 6
 
 export const CFCHECKPT_RACE_PEERS = 5
 
