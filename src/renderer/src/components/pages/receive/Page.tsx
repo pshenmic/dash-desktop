@@ -12,8 +12,8 @@ import { useAsyncWithCache } from "@renderer/hooks/useAsyncWithCache";
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
-const dashDescription = (
-  <span>This is your <span className={"font-extrabold"}>Dash</span>{' '}
+const coreDescription = (
+  <span>This is your <span className={"font-extrabold"}>Dash Core</span>{' '}
     receival address. You can use this address to send funds to your wallet. It is{' '}
     <span className={"font-extrabold"}>highly suggested to not reuse the same address</span>{' '}
     for full privacy. You can also create a new address.
@@ -35,13 +35,13 @@ const platformDescription = (
 )
 
 const descriptions: Record<string, React.JSX.Element> = {
-  dash: dashDescription,
+  core: coreDescription,
   shielded: shieldedDescription,
   platform: platformDescription,
 }
 
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState('dash')
+  const [activeTab, setActiveTab] = useState('core')
   const { status } = useAuth()
   const { syncIncomplete } = useConnectionModeContext()
   const walletId = status?.selectedWalletId ?? undefined
@@ -78,7 +78,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
 
   return (
     <div className={`relative flex flex-col pb-12`}>
-        <Header data={{...pageData.header, description: descriptions[activeTab] ?? dashDescription}} />
+        <Header data={{...pageData.header, description: descriptions[activeTab] ?? coreDescription}} />
         <div className={"px-12 mt-8"}>
           <Tabs
             items={tabItems}

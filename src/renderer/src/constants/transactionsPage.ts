@@ -89,7 +89,7 @@ export const transactionsPage: TransactionsPage = {
     filters: {
       search: {
         label: 'Search transactions',
-        placeholder: 'TxID or address',
+        placeholder: 'txid or address',
       },
       direction: {
         label: 'Direction',
