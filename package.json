@@ -1,6 +1,6 @@
 {
   "name": "dash-desktop",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Desktop wallet (cross-platform) for Dash network",
   "main": "./out/main/index.js",
   "author": "pshenmic",
