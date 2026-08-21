@@ -1,7 +1,6 @@
 import type {Knex} from 'knex'
 import {Address} from '../types/Address'
 import {GroupedAddresses} from "../types/GroupedAddresses";
-import {QueryStatus} from "../types/QueryStatus";
 
 function fromRow({wallet_id, account_id, address, derivation_path, index, is_change, is_used, label}): Address {
   return {
@@ -68,7 +67,7 @@ export class AddressDAO {
       .update({is_used: true})
   }
 
-  setAddressLabel = async (walletId: string, address: string, label: string): Promise<QueryStatus> => {
+  setAddressLabel = async (walletId: string, address: string, label: string): Promise<void> => {
     const result = await this.knex('addresses')
       .where('address', address)
       .andWhere('wallet_id', walletId)
@@ -76,17 +75,8 @@ export class AddressDAO {
         label: label
       })
 
-    if (result > 0) {
-      return {
-        success: true,
-        errorMessage: null,
-      }
-    } else {
-      return {
-        success: false,
-        errorMessage: "address or wallet not found",
-      }
+    if (result === 0) {
+      throw new Error('address or wallet not found')
     }
-
   }
 }

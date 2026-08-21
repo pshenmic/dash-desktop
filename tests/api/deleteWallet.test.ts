@@ -55,8 +55,7 @@ describe('deleting a wallet', () => {
   it('leaves no row keyed to the deleted wallet', async () => {
     for (const [table, row] of Object.entries(rows(WALLET))) await knex(table).insert(row)
 
-    const result = await walletDAO.deleteWallet(WALLET)
-    expect(result.success, result.errorMessage ?? '').toBe(true)
+    await walletDAO.deleteWallet(WALLET)
 
     for (const table of Object.keys(rows(WALLET))) {
       const [{count}] = await knex(table).where('wallet_id', WALLET).count({count: '*'})
@@ -98,9 +97,8 @@ describe('deleting a wallet', () => {
     for (const [table, row] of Object.entries(rows(WALLET))) await knex(table).insert(row)
     await knex.schema.dropTable('shielded_notes')
 
-    const result = await walletDAO.deleteWallet(WALLET)
+    await expect(walletDAO.deleteWallet(WALLET)).rejects.toThrow()
 
-    expect(result.success).toBe(false)
     expect(await walletDAO.getWalletById(WALLET)).not.toBeNull()
     const [{count}] = await knex('transactions').where('wallet_id', WALLET).count({count: '*'})
     expect(Number(count)).toBe(1)
