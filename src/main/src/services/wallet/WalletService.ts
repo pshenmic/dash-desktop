@@ -29,7 +29,7 @@ import {
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath} from "../../utils/addressDiscovery";
 import {selectTransferInputs} from '../../utils/transferInputs'
-import {ConnectionStatus} from '../../types/Connection'
+import {ConnectionStatus} from '../../types/ConnectionStatus'
 
 export class WalletService {
   private walletDAO: WalletDAO

@@ -21,7 +21,7 @@ import {
 import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
-import {ConnectionStatus} from '../types/Connection'
+import {ConnectionStatus} from '../types/ConnectionStatus'
 import {
   ADDRESS_LOOKAHEAD,
   DASHSCAN_ADDRESS_CHUNK,

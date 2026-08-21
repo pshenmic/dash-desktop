@@ -9,7 +9,7 @@ import {WalletProvider} from './WalletProvider'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {AddressUsage} from '../types/AddressDiscovery'
-import {ConnectionStatus} from '../types/Connection'
+import {ConnectionStatus} from '../types/ConnectionStatus'
 
 const {addressToPublicKeyHash} = sdkUtils
 

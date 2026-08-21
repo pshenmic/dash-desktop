@@ -3,7 +3,7 @@ import {AddressInfo} from '../types/AddressInfo'
 import {Transaction} from '../types/Transaction'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
-import {ConnectionStatus} from '../types/Connection'
+import {ConnectionStatus} from '../types/ConnectionStatus'
 
 // Read side only: where a wallet's history, balances and UTXOs come from.
 // Putting a tx on the network and observing its lock belongs to

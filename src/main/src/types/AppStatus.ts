@@ -1,5 +1,5 @@
 import {WalletSyncStatus} from '../../p2p/types/walletSync'
-import {ConnectionStatus} from './Connection'
+import {ConnectionStatus} from './ConnectionStatus'
 import {Network} from './Network'
 
 // Aggregated app status. Wallet-sync progress is folded in rather than exposed
