@@ -5,4 +5,3 @@ export const ASSET_LOCK_FUNDING_POLL_MS = 1_500
 export const WALLET_CREATE_SLOW_NOTICE_MS = 5_000
 export const LOCK_FADE_MS = 300
 export const TRANSITION_FEE_DEBOUNCE_MS = 400
-export const RPC_STATUS_POLL_MS = 10_000

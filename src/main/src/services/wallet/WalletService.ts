@@ -29,6 +29,7 @@ import {
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath} from "../../utils/addressDiscovery";
 import {selectTransferInputs} from '../../utils/transferInputs'
+import {ConnectionStatus} from '../../types/Connection'
 
 export class WalletService {
   private walletDAO: WalletDAO
@@ -177,6 +178,16 @@ export class WalletService {
 
   async getSelectedWallet(): Promise<Wallet | null> {
     return this.walletDAO.getSelectedWallet()
+  }
+
+  async getConnectionStatus(wallet: Wallet): Promise<ConnectionStatus> {
+    try {
+      return await this.providers
+        .forWallet(wallet.walletId, wallet.network)
+        .getConnectionStatus()
+    } catch {
+      return 'unavailable'
+    }
   }
 
   async setSelectedWallet(walletId: string): Promise<void> {

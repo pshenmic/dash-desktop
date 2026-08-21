@@ -15,6 +15,4 @@ export interface SyncProgressTooltipProps {
   percent: number
 }
 
-export type RpcHealthStatus = 'checking' | 'connected' | 'unavailable'
-
 export type WalletSyncAction = 'start' | 'stop'

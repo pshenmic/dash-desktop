@@ -1,4 +1,7 @@
-export type RpcStatusFetcher = (
-  url: string,
-  init: {signal: AbortSignal},
-) => Promise<{ok: boolean}>
+export type ConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'unavailable'
+  | 'synced'
+  | 'syncing'
+  | 'sync-stopped'

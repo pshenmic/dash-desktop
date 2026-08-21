@@ -94,7 +94,6 @@ declare global {
       setLanguage: (language: string) => Promise<void>
       setFiatCurrency: (currency: string) => Promise<void>
       setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
-      getRpcStatus: (network: 'mainnet' | 'testnet') => Promise<boolean>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

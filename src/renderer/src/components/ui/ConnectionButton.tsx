@@ -1,34 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { ConnectionIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { WalletSyncPhase } from '@renderer/api/types'
 import { useRipple } from '@renderer/hooks/useRipple'
-import {useRpcStatus} from '@renderer/hooks/useRpcStatus'
-import {isWalletSyncInactive} from '@renderer/utils/walletSync'
+import {CONNECTION_STATUS_DISPLAY} from '@renderer/constants/connection'
 
 export default function ConnectionButton(): React.JSX.Element {
   const navigate = useNavigate()
   const hover = useRipple()
-  const { desired, syncIncomplete } = useConnectionModeContext()
   const { status } = useAuth()
-  const phase = status?.walletSync.phase
-  const rpcStatus = useRpcStatus(status?.network ?? null, desired === 'rpc')
-  const syncInactive = isWalletSyncInactive(phase)
-  const isSyncing = desired === 'p2p' && !syncInactive && syncIncomplete
-
-  const statusLabel = desired === 'rpc'
-    ? rpcStatus === 'connected' ? 'Connected' : rpcStatus === 'unavailable' ? 'Unavailable' : 'Connecting'
-    : phase === WalletSyncPhase.Synced
-      ? 'Synced'
-      : isSyncing
-        ? 'Synchronizing'
-        : 'Sync stopped'
-  const hasWarning = (desired === 'p2p' && phase !== WalletSyncPhase.Synced)
-    || (desired === 'rpc' && rpcStatus !== 'connected')
-  const statusColor = hasWarning ? 'text-dash-orange!' : 'text-dash-mint!'
-  const iconShadowColor = hasWarning ? 'var(--color-dash-orange)' : 'var(--color-dash-mint)'
+  const display = CONNECTION_STATUS_DISPLAY[status?.connectionStatus ?? 'unavailable']
 
   return (
     <button
@@ -49,16 +30,16 @@ export default function ConnectionButton(): React.JSX.Element {
       <ConnectionIcon
         width={10}
         height={10}
-        className={`${statusColor} shrink-0`}
-        style={{ filter: `drop-shadow(0 0 5px ${iconShadowColor})` }}
+        className={`${display.textColor} shrink-0`}
+        style={{ filter: `drop-shadow(0 0 5px ${display.shadowColor})` }}
         aria-hidden="true"
       />
       <span className="flex min-w-0 flex-col items-start">
         <Text size={14} weight="medium" color="brand" className="leading-4">
           Connection
         </Text>
-        <Text size={10} weight="medium" className={`leading-[.875rem] ${statusColor}`}>
-          {statusLabel}
+        <Text size={10} weight="medium" className={`leading-[.875rem] ${display.textColor}`}>
+          {display.label}
         </Text>
       </span>
     </button>
