@@ -14,20 +14,6 @@ export default function ConnectionSettings(): React.JSX.Element {
       label: 'Core',
       content: <CoreTab />,
     },
-    {
-      value: 'platform',
-      label: 'Platform',
-      content: (
-        <div className="flex min-h-[26rem] items-center justify-center px-6 pb-8">
-          <div className="flex max-w-md flex-col items-center gap-2 text-center">
-            <Text size={18} weight="medium" color="brand">Platform connection settings</Text>
-            <Text size={14} weight="medium" color="brand" opacity={40}>
-              Platform connection options are coming soon.
-            </Text>
-          </div>
-        </div>
-      ),
-    },
   ]
 
   return (
