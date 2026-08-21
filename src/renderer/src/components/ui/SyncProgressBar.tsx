@@ -129,10 +129,10 @@ export default function SyncProgressBar(): React.JSX.Element {
     <div
       className={`
         fixed bottom-6 left-[calc(16.125rem+3rem)] right-12 z-40 translate-x-3
-        group select-none rounded-[1.5rem] outline-none
+        group select-none rounded-[1.25rem] outline-none
         border border-dash-primary-dark-blue/12 dark:border-white/12
         bg-white/95 dark:bg-[#315c96]/95 backdrop-blur-xl
-        px-6 py-4
+        px-5 py-3
         cursor-help
         shadow-[0_16px_48px_rgba(12,28,51,0.2)]
         transition-opacity duration-300 ease-out
@@ -141,18 +141,18 @@ export default function SyncProgressBar(): React.JSX.Element {
       aria-describedby="sync-progress-tooltip"
       tabIndex={0}
     >
-      <div className="mb-3 flex items-center justify-between gap-6">
-        <Text size={16} weight="medium" color="brand">
+      <div className="mb-2 flex items-center justify-between gap-5">
+        <Text size={14} weight="medium" color="brand">
           {displayInfo.label} - <span className="opacity-[.48]">{percent}%</span>
         </Text>
-        <Text size={16} weight="medium" color="brand" className="shrink-0 tabular-nums">
+        <Text size={14} weight="medium" color="brand" className="shrink-0 tabular-nums">
           {displayInfo.current.toLocaleString('en-US')}
           <span className="opacity-40"> / {displayInfo.total.toLocaleString('en-US')}</span>
         </Text>
       </div>
 
       <div
-        className="relative h-1.5 w-full rounded-full bg-dash-primary-dark-blue/10 dark:bg-dash-mint/20"
+        className="relative h-1 w-full rounded-full bg-dash-primary-dark-blue/10 dark:bg-dash-mint/20"
         role="progressbar"
         aria-label={WALLET_SYNC_PHASE_LABELS[phase]}
         aria-valuemin={0}
