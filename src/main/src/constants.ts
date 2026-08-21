@@ -118,6 +118,14 @@ export const PERSIST_RETRY_MS = 1_000
 export const PAYLOAD_CHUNK_SIZE = 100
 export const SELECT_CHUNK_SIZE = 500
 
+// Transactions per prev-out resolution page, and how many of the DAPI reads
+// behind a page run at once. A page is a step of the walk, not a cap on it.
+export const PREVOUT_RESOLVE_BATCH = 50
+export const PREVOUT_RESOLVE_CONCURRENCY = 5
+
+// A coinbase input names no parent transaction.
+export const COINBASE_PREV_TXID = '0'.repeat(64)
+
 export const RATES_TTL_MS = 60_000
 export const RATES_REQUEST_TIMEOUT_MS = 8_000
 

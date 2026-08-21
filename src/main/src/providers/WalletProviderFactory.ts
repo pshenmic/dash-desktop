@@ -2,6 +2,7 @@ import {AddressDAO} from '../database/AddressDAO'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {WalletDAO} from '../database/WalletDAO'
 import {ApplicationService} from '../services/app/ApplicationService'
+import {CorePrevOutService} from '../services/core/CorePrevOutService'
 import {WalletSyncService} from '../services/core/WalletSyncService'
 import {Network} from '../types/Network'
 import {DashscanWalletProvider} from './DashscanWalletProvider'
@@ -16,6 +17,7 @@ export class WalletProviderFactory {
   private transactionDAO: TransactionDAO
   private applicationService: ApplicationService
   private walletSyncService: WalletSyncService
+  private prevOutService: CorePrevOutService
 
   constructor(
     walletDAO: WalletDAO,
@@ -23,17 +25,19 @@ export class WalletProviderFactory {
     transactionDAO: TransactionDAO,
     applicationService: ApplicationService,
     walletSyncService: WalletSyncService,
+    prevOutService: CorePrevOutService,
   ) {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.transactionDAO = transactionDAO
     this.applicationService = applicationService
     this.walletSyncService = walletSyncService
+    this.prevOutService = prevOutService
   }
 
   forWallet(walletId: string, network: Network): WalletProvider {
     if (this.applicationService.preferences.general.connectionType === 'p2p') {
-      return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO)
+      return new P2PWalletProvider(this.transactionDAO, walletId, this.walletSyncService, this.addressDAO, this.prevOutService)
     }
     return new DashscanWalletProvider(
       network,

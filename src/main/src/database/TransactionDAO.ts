@@ -1,12 +1,12 @@
 import type {Knex} from 'knex'
 import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {AddressInfo} from '../types/AddressInfo'
-import type {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
+import type {PrevOutRef, ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
-import {SELECT_CHUNK_SIZE} from '../constants'
+import {COINBASE_PREV_TXID, SELECT_CHUNK_SIZE} from '../constants'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 
@@ -433,10 +433,79 @@ export class TransactionDAO {
     }))
   }
 
+  // Whole transactions only, so none is left with some inputs described and the
+  // rest blank. `afterTxid` walks past what a pass could not resolve.
+  getUnresolvedInputs = async (walletId: string, limit: number, afterTxid?: string): Promise<UnresolvedInput[]> => {
+    const page = this.unresolvedInputRows(walletId)
+      .distinct('i.txid')
+      .orderBy('i.txid')
+      .limit(limit)
+    if (afterTxid != null) page.where('i.txid', '>', afterTxid)
+
+    const rows = await this.unresolvedInputRows(walletId)
+      .select('i.txid', 'i.prev_txid', 'i.prev_vout')
+      .whereIn('i.txid', page)
+      .orderBy(['i.txid', 'i.vin'])
+
+    return rows.map(row => ({txid: row.txid, prevTxid: row.prev_txid, prevVout: row.prev_vout}))
+  }
+
+  getUnresolvedInputsForTx = async (walletId: string, txid: string): Promise<PrevOutRef[]> => {
+    const rows = await this.unresolvedInputRows(walletId)
+      .select('i.prev_txid', 'i.prev_vout')
+      .where('i.txid', txid)
+      .orderBy('i.vin')
+
+    return rows.map(row => ({prevTxid: row.prev_txid, prevVout: row.prev_vout}))
+  }
+
+  // Cached on the input row rather than inserted as an output: transaction_outputs
+  // is what the UTXO set and every balance query read, and a stranger's output
+  // would have to be born spent to stay out of them.
+  recordPrevOuts = async (walletId: string, prevOuts: ResolvedPrevOut[]): Promise<void> => {
+    if (prevOuts.length === 0) return
+
+    await this.knex.transaction(async trx => {
+      for (const prevOut of prevOuts) {
+        await trx('transaction_inputs')
+          .where({wallet_id: walletId, prev_txid: prevOut.prevTxid, prev_vout: prevOut.prevVout})
+          .update({prev_address: prevOut.address, prev_satoshis: prevOut.satoshis})
+      }
+    })
+  }
+
+  // Written off on disk rather than remembered in the process, so a restart does
+  // not go asking for every dead parent again.
+  markPrevOutsMissing = async (walletId: string, refs: PrevOutRef[]): Promise<void> => {
+    if (refs.length === 0) return
+
+    await this.knex.transaction(async trx => {
+      for (const ref of refs) {
+        await trx('transaction_inputs')
+          .where({wallet_id: walletId, prev_txid: ref.prevTxid, prev_vout: ref.prevVout})
+          .update({prev_missing: true})
+      }
+    })
+  }
+
+  // Inputs neither the local output set nor an earlier pass can describe: only
+  // our own outputs are stored, so a stranger's has nothing to join to.
+  private unresolvedInputRows(walletId: string): Knex.QueryBuilder {
+    return this.knex('transaction_inputs as i')
+      .leftJoin('transaction_outputs as prev', function() {
+        this.on('prev.wallet_id', '=', 'i.wallet_id')
+          .andOn('prev.txid', '=', 'i.prev_txid')
+          .andOn('prev.vout', '=', 'i.prev_vout')
+      })
+      .where('i.wallet_id', walletId)
+      .whereNull('i.prev_address')
+      .where('i.prev_missing', false)
+      .whereNull('prev.txid')
+      .whereNot('i.prev_txid', COINBASE_PREV_TXID)
+  }
+
   // One query returning the (tx × output × input × prev-output) product, pivoted
   // in JS to one Transaction per txid.
-  // The prev join is what gives an input its address and value: only our own
-  // outputs are stored, so the input row itself carries just a reference.
   private transactionRows(walletId: string): Knex.QueryBuilder {
     return this.knex('transactions as t')
       .leftJoin('transaction_outputs as o', function() {
@@ -452,6 +521,11 @@ export class TransactionDAO {
       })
       .select(
         't.txid as t_txid',
+        // Our own output when there is one, otherwise what the parent
+        // transaction was read back as. is_mine deliberately stays on the join:
+        // an outpoint that needed resolving is by definition not ours.
+        this.knex.raw('COALESCE(prev.address, i.prev_address) as i_prev_address'),
+        this.knex.raw('COALESCE(prev.satoshis, i.prev_satoshis) as i_prev_satoshis'),
         't.block_height as t_block_height',
         't.block_time as t_block_time',
         't.instant_locked as t_instant_locked',
@@ -468,8 +542,6 @@ export class TransactionDAO {
         'i.prev_txid as i_prev_txid',
         'i.prev_vout as i_prev_vout',
         'i.sequence as i_sequence',
-        'prev.address as i_prev_address',
-        'prev.satoshis as i_prev_satoshis',
         'prev.is_mine as i_prev_is_mine',
       )
       .where('t.wallet_id', walletId)
