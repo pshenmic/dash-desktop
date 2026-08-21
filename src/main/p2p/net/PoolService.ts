@@ -2,7 +2,7 @@ import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../../src/types/Network'
 import {parsePeerAddress} from './peerAddress'
-import {FALLBACK_PEERS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from '../constants'
+import {FALLBACK_PEERS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from '../constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
@@ -47,6 +47,9 @@ export class PoolService extends EventEmitter {
   private stalledFills = 0
   private shortTicks = 0
   private emptyTicks = 0
+  private dialTicks = 0
+  private failedDials = 0
+  private seatedDials = 0
   private fallbackDialled = false
   private noDelayPeers = 0
   private noDelayUnavailable = false
@@ -99,6 +102,16 @@ export class PoolService extends EventEmitter {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pool = this.pool as any
+
+      if (++this.dialTicks >= POOL_DIAL_REPORT_TICKS) {
+        this.dialTicks = 0
+        console.log(
+          `[${this.label}] dials: ${this.seatedDials} seated, ${this.failedDials} never handshook ` +
+          `(ready=${ready} connected=${this.pool.numberConnected()} known=${pool._addrs.length})`,
+        )
+        this.failedDials = 0
+        this.seatedDials = 0
+      }
 
       // Nothing connected is a different failure from being under target: it
       // means discovery produced no usable address, which no amount of
@@ -225,17 +238,31 @@ export class PoolService extends EventEmitter {
     // filterCapablePeers is filled here rather than on `peerversion`, which
     // arrives mid-handshake: a request sent to a peer that has not finished one
     // is simply never answered, and costs a full race timeout to find out.
+    // Peer lifecycle is logged here rather than in the workers: this is the only
+    // place that knows whether a socket ever completed a handshake, and both
+    // workers subscribing meant two lines per event saying the same thing.
     this.pool.on('peerready', (peer: Peer) => {
       this.readyPeers.add(peer)
-      if (((this.peerServices.get(peer) ?? 0n) & BigInt(NODE_COMPACT_FILTERS)) !== 0n) {
-        this.filterCapablePeers.add(peer)
-      }
+      const cf = ((this.peerServices.get(peer) ?? 0n) & BigInt(NODE_COMPACT_FILTERS)) !== 0n
+      if (cf) this.filterCapablePeers.add(peer)
+      this.seatedDials++
+      console.log(
+        `[${this.label}] peerready ${peer.host}:${peer.port} v${peer.version} ` +
+        `bestHeight=${peer.bestHeight} ${cf ? '+CF' : '-CF'} ready=${this.readyPeers.size}`,
+      )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       peer.sendMessage((this.messages as any).GetAddr())
     })
     this.pool.on('peerdisconnect', (peer: Peer) => {
-      this.readyPeers.delete(peer)
+      const wasReady = this.readyPeers.delete(peer)
       this.filterCapablePeers.delete(peer)
+      // A dead gossip address dropping is the expected case and the bulk of the
+      // churn; only a peer we actually had is worth a line of its own.
+      if (wasReady) {
+        console.log(`[${this.label}] peerdisconnect ${peer.host}:${peer.port} ready=${this.readyPeers.size}`)
+      } else {
+        this.failedDials++
+      }
     })
 
     for (const evt of FORWARDED_EVENTS) {

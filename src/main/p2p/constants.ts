@@ -81,6 +81,12 @@ export const POOL_SHORT_REPORT_TICKS = 12
 // Spare addresses a pool keeps for itself before any surplus moves to another pool.
 export const POOL_ADDRESS_RESERVE = 100
 
+// Refill ticks between dial-churn reports. Most gossiped addresses are dead, so
+// a line per failed dial is ~19k lines a day that bury everything else — but the
+// rate is the signal that says whether discovery is healthy, so it is counted
+// and reported rather than dropped.
+export const POOL_DIAL_REPORT_TICKS = 60
+
 // Refill ticks with nothing connected before the built-in peers are dialled.
 export const POOL_FALLBACK_TICKS = 2
 

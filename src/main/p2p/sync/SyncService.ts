@@ -373,11 +373,15 @@ export class SyncService {
   }
 
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
+    const before = this.watchedTxids.size
     if (cmd.mode === 'replace') {
       this.watchedTxids = new Set(cmd.txids)
     } else {
       for (const txid of cmd.txids) this.watchedTxids.add(txid)
     }
+    // A wallet with nothing unconfirmed re-sends an empty replace on every
+    // refresh; only a change in what is armed says anything.
+    if (this.watchedTxids.size === 0 && before === 0) return
     console.log(`[locks] watchTxs ${cmd.mode} (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
   }
 

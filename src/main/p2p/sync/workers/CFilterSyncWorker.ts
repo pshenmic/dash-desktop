@@ -145,7 +145,7 @@ export class CFilterSyncWorker extends Worker {
   // Bound peer-event listeners. Stable references kept for stop()'s off().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly peerListeners: Array<[string, (...args: any[]) => void]> = [
-    ['peerready', (p: Peer) => this.handlePeerReady(p)],
+    ['peerready', () => this.handlePeerReady()],
     ['peerdisconnect', (p: Peer) => this.handlePeerDisconnect(p)],
     ['peercfcheckpt', (p: Peer, m: Message) => this.checkpoints.receive(m as Message & CFCheckptArgs, p)],
     ['peercfheaders', (p: Peer, m: Message) => this.onCFHeaders(m as Message & CFHeadersArgs, p)],
@@ -199,7 +199,7 @@ export class CFilterSyncWorker extends Worker {
 
     // Streamed for the same reason as forEachHashInRange.
     const loadedFilterHeaders = await this.chainStore.forEachFilterHeaderInRange(
-      1, this.chainTipHeight,
+      0, this.chainTipHeight,
       (height, header) => this.heightToFilterHeader.set(height, header),
     )
     if (loadedFilterHeaders > 0) {
@@ -414,10 +414,8 @@ export class CFilterSyncWorker extends Worker {
 
   // ── peer event handlers ───────────────────────────────────────────────────
 
-  private handlePeerReady(peer: Peer): void {
+  private handlePeerReady(): void {
     if (this.stopped) return
-    const cf = this.peerPool.filterCapablePeers.has(peer) ? '+CF' : '-CF'
-    console.log(`[cfilter] peerready ${peer.host}:${peer.port} ${cf} ready=${this.peerPool.readyPeers.size}`)
     if (this.phase === 'connecting' && this.peerPool.filterCapablePeers.size > 0) {
       this.requestCheckpoints()
     }
@@ -639,13 +637,15 @@ export class CFilterSyncWorker extends Worker {
       this.armCFHeadersTimer(pending)
       return
     }
+    const derived: Array<{height: number; header: Uint8Array}> = []
     // The base the walk chained from, kept so the scan can verify the lowest
     // height it reaches. Unverified on its own — the checkpoint at the top of
-    // the run is what validates everything derived from it.
-    if (prevExpected == null && pending.startHeight > 1) {
-      this.heightToFilterHeader.set(pending.startHeight - 1, prev)
+    // the run is what validates everything derived from it. Height 1 chains off
+    // a real block below it, so this covers height 0 too: without it a
+    // from-scratch scan can never verify its first filter.
+    if (prevExpected == null && pending.startHeight >= 1) {
+      derived.push({height: pending.startHeight - 1, header: prev})
     }
-    const derived: Array<{height: number; header: Uint8Array}> = []
     for (let i = 0; i < filterHashes.length; i++) {
       const next = deriveFilterHeader(filterHashes[i]!, prev)
       derived.push({height: pending.startHeight + i, header: next})
@@ -786,7 +786,7 @@ export class CFilterSyncWorker extends Worker {
       // during tip-follow the cfheaders walk is a round trip behind the block
       // headers, so the scan waits for it rather than running unverified.
       const remaining = new Set<number>()
-      let indexed = this.heightToFilterHeader.has(startHeight - 1) || startHeight <= 1
+      let indexed = this.heightToFilterHeader.has(startHeight - 1)
       for (let h = startHeight; indexed && h <= stopHeight; h++) {
         if (!this.blockHashIndex.has(h) || !this.heightToFilterHeader.has(h)) { indexed = false; break }
         remaining.add(h)
@@ -899,9 +899,7 @@ export class CFilterSyncWorker extends Worker {
   private filterMatchesHeaderChain(filter: Uint8Array, height: number): boolean {
     const expected = this.heightToFilterHeader.get(height)
     if (!expected) return false
-    const prev = height <= 1
-      ? NO_PREV_FILTER_HEADER
-      : this.heightToFilterHeader.get(height - 1)
+    const prev = this.heightToFilterHeader.get(height - 1)
     if (!prev) return false
     return equalBytes(deriveFilterHeader(hashFilter(filter), prev), expected)
   }

@@ -67,6 +67,11 @@ export function logChildOutput (scope: 'p2p' | 'platform', text: string, isError
   const trimmed = text.replace(/\r?\n$/, '')
   if (trimmed.length === 0) return
   const scoped = log.scope(scope)
-  if (isError) scoped.error(trimmed)
-  else scoped.info(trimmed)
+  // Per line, not per chunk: a child flushes several lines in one write, and
+  // logging the chunk whole stamps only the first — the rest land bare, so the
+  // file cannot be filtered by time or level.
+  for (const line of trimmed.split('\n')) {
+    if (isError) scoped.error(line)
+    else scoped.info(line)
+  }
 }
