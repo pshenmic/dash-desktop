@@ -23,8 +23,7 @@ export default function ReceiveAddressCard({
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const { theme } = useTheme()
 
-  const selected = addresses.find(a => a.address === selectedAddress)
-    ?? defaultReceiveCoreAddress(addresses, defaultAddress)
+  const selected = defaultReceiveCoreAddress(addresses, selectedAddress ?? defaultAddress)
   const address = selected?.address ?? defaultAddress
   const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
 
