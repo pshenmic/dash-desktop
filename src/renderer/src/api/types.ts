@@ -107,7 +107,7 @@ export interface AmountValidationParams {
 
 // getStatus
 export type Network = 'mainnet' | 'testnet'
-export type ConnectionStatus = 'connecting' | 'connected' | 'unavailable' | 'synced' | 'syncing' | 'sync-stopped'
+export type ConnectionStatus = 'connecting' | 'online' | 'unavailable' | 'synced' | 'syncing' | 'sync-stopped'
 
 export interface WalletSyncStatus {
   phase: WalletSyncPhase

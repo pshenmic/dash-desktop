@@ -1,6 +1,6 @@
 export type ConnectionStatus =
   | 'connecting'
-  | 'connected'
+  | 'online'
   | 'unavailable'
   | 'synced'
   | 'syncing'

@@ -15,8 +15,8 @@ export const CONNECTION_STATUS_DISPLAY: Record<ConnectionStatus, {
     textColor: 'text-dash-orange!',
     shadowColor: 'var(--color-dash-orange)',
   },
-  connected: {
-    label: 'Connected',
+  online: {
+    label: 'Online',
     textColor: 'text-dash-mint!',
     shadowColor: 'var(--color-dash-mint)',
   },
@@ -55,7 +55,7 @@ export const WALLET_SYNC_PHASE_LABELS: Record<WalletSyncPhase, string> = {
   [WalletSyncPhase.SyncingCfcheckpt]: 'Syncing filter checkpoints',
   [WalletSyncPhase.SyncingCfheaders]: 'Syncing filter headers',
   [WalletSyncPhase.SyncingCfilters]: 'Scanning wallet data',
-  [WalletSyncPhase.Synced]: 'Synchronized',
+  [WalletSyncPhase.Synced]: 'Synced',
   [WalletSyncPhase.Stopped]: 'Stopped',
 }
 

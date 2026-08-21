@@ -26,7 +26,7 @@ const providerStub = (scan: AddressUsage[] | null): WalletProvider => ({
   getWalletUtxos: async () => [],
   getTxLockStatus: async () => ({instantLocked: false, chainlocked: false, confirmed: false}),
   ensureReady: async () => undefined,
-  getConnectionStatus: async () => 'connected',
+  getConnectionStatus: async () => 'online',
   nextUnusedAddress: async () => '',
 })
 

@@ -237,7 +237,7 @@ export class DashscanWalletProvider implements WalletProvider {
     if (!fresh && !dashscanConnectionStatusCache.inflight.has(this.network)) {
       const refresh = Promise.resolve()
         .then(() => this.ensureReady())
-        .then(() => dashscanConnectionStatusCache.statuses.set(this.network, 'connected'))
+        .then(() => dashscanConnectionStatusCache.statuses.set(this.network, 'online'))
         .catch(() => dashscanConnectionStatusCache.statuses.set(this.network, 'unavailable'))
         .then(() => undefined)
         .finally(() => {

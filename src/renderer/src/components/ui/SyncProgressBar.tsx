@@ -54,7 +54,7 @@ function describePhase(sync: WalletSyncStatus): SyncProgressPhaseInfo {
         total: tipHeight,
       }
     case WalletSyncPhase.Synced:
-      return { label: 'Wallet Data Synchronized', caption: `Chain tip at ${tipHeight.toLocaleString('en-US')}`, progress: 1, current: tipHeight, total: tipHeight }
+      return { label: 'Wallet Data Synced', caption: `Chain tip at ${tipHeight.toLocaleString('en-US')}`, progress: 1, current: tipHeight, total: tipHeight }
   }
 }
 
