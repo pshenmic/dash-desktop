@@ -156,7 +156,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
 
     return (
       <>
-        <div className={"flex min-w-260 flex-col gap-4"}>
+        <div className={"flex w-min flex-col gap-4"}>
         <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
         <div className={"flex w-full items-center gap-8 rounded-4xl dash-block p-6"}>
           <QRCode
