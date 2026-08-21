@@ -76,10 +76,6 @@ export default function SyncProgressTooltip({
         </Text>
       )}
 
-      <Text size={10} weight="normal" color="brand" opacity={50}>
-        P2P synchronization downloads block headers and compact filters locally, independently
-        of the selected wallet data source. Manage it in Connection Settings.
-      </Text>
     </div>
   )
 }
