@@ -8,7 +8,7 @@ export interface UseAddressBook {
   loading: boolean
   network: Network | undefined
   reload: () => void
-  addContact: (label: string, address: string) => Promise<{ success: boolean; errorMessage: string | null }>
+  addContact: (label: string, address: string) => Promise<void>
   deleteContact: (id: number) => Promise<void>
 }
 
@@ -38,19 +38,18 @@ export function useAddressBook(): UseAddressBook {
   const addContact = useCallback(
     async (label: string, address: string) => {
       if (!network) {
-        return { success: false, errorMessage: 'No active network' }
+        throw new Error('No active network')
       }
-      const res = await API.addContact(label, address, network)
-      if (res.success) reload()
-      return res
+      await API.addContact(label, address, network)
+      reload()
     },
     [network, reload],
   )
 
   const deleteContact = useCallback(
     async (id: number) => {
-      const res = await API.deleteContact(id)
-      if (res.success) reload()
+      await API.deleteContact(id)
+      reload()
     },
     [reload],
   )

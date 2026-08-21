@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { API } from '@renderer/api'
 import { WalletDto } from '@renderer/api/types'
+import { toast } from '@renderer/components/ui/Toast'
 
 export interface UseLoginReturn {
   wallets: WalletDto[]
@@ -23,6 +24,7 @@ export function useLogin(): UseLoginReturn {
   useEffect(() => {
     if (!selectedWalletId) return
     API.selectWallet(selectedWalletId)
+      .catch(() => toast.error('**Could not select wallet** Try again.'))
   }, [selectedWalletId])
 
   useEffect(() => {

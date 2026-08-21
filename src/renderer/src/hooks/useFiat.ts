@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { API } from '@renderer/api'
 import { useRates } from './useRates'
 import { formatDuffsAsFiat } from '@renderer/utils/fiat'
+import { toast } from '@renderer/components/ui/Toast'
 
 const LS_DISPLAY_CURRENCY = 'wallet.display.currency'
 const DEFAULT_CURRENCY = 'usd'
@@ -64,7 +65,7 @@ function setCurrencyGlobal(next: string): void {
   currency = next
   persist(next)
   emit()
-  API.setFiatCurrency(next).catch((e) => console.error('setFiatCurrency failed', e))
+  API.setFiatCurrency(next).catch(() => toast.error('**Currency update failed** Could not save display currency.'))
 }
 
 export interface UseFiat {

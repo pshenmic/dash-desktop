@@ -60,12 +60,22 @@ export default function RecipientInput({
       toast.error('**Name required** Enter a name for this contact.')
       return
     }
-    const res = await addContact(label, trimmedValue)
-    if (res.success) {
+    try {
+      await addContact(label, trimmedValue)
       setAdding(false)
       setNewLabel('')
-    } else if (res.errorMessage) {
-      toast.error(`**Could not save contact** ${res.errorMessage}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`**Could not save contact** ${message}`)
+    }
+  }
+
+  const handleDeleteContact = async (id: number): Promise<void> => {
+    try {
+      await deleteContact(id)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(`**Could not remove contact** ${message}`)
     }
   }
 
@@ -178,7 +188,7 @@ export default function RecipientInput({
                         </Identifier>
                       </button>
                       <button
-                        onClick={() => deleteContact(entry.id)}
+                        onClick={() => void handleDeleteContact(entry.id)}
                         className={"shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5 cursor-pointer"}
                         title={"Remove contact"}
                       >

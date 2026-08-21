@@ -146,12 +146,8 @@ export default function Settings(): React.JSX.Element {
     if (!walletId || renamePending || isUnchanged) return
     setRenamePending(true)
     try {
-      const res = await API.setWalletLabel(walletId, walletName.trim())
-      if (res.success) {
-        refreshWallets()
-      } else if (res.errorMessage) {
-        toast.error(`**Rename failed** ${res.errorMessage}`)
-      }
+      await API.setWalletLabel(walletId, walletName.trim())
+      refreshWallets()
     } catch (err) {
       console.error('rename failed', err)
       toast.error('**Rename failed** Could not update wallet name.')
@@ -168,6 +164,7 @@ export default function Settings(): React.JSX.Element {
       await API.startWalletSync(walletId)
     } catch (err) {
       console.error('restart sync failed', err)
+      toast.error('**Restart failed** Could not restart synchronization.')
     } finally {
       setRestartPending(false)
     }
@@ -185,6 +182,7 @@ export default function Settings(): React.JSX.Element {
       invalidateAllAsyncCaches()
     } catch (err) {
       console.error('reset sync failed', err)
+      toast.error('**Clear failed** Could not clear synchronization data.')
     } finally {
       setClearPending(false)
     }
@@ -211,13 +209,10 @@ export default function Settings(): React.JSX.Element {
       }
       const stamp = new Date().toISOString().slice(0, 10)
       const csv = transactionsToCsv(rows)
-      const res = await API.saveTextFile(`dash-transactions-${network ?? 'wallet'}-${stamp}.csv`, csv)
-      if (!res.success && res.errorMessage) {
-        toast.error(`**Export failed** ${res.errorMessage}`)
-      }
+      await API.saveTextFile(`dash-transactions-${network ?? 'wallet'}-${stamp}.csv`, csv)
     } catch (err) {
       console.error('export failed', err)
-      toast.error('**Export failed** Could not read transactions.')
+      toast.error('**Export failed** Could not export transactions.')
     } finally {
       setExportPending(false)
     }

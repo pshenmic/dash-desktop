@@ -27,10 +27,7 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
     if (!walletToDelete) return
 
     try {
-      const result = await API.deleteWallet(walletToDelete)
-      if (!result.success) {
-        throw new Error(result.errorMessage ?? 'Failed to delete wallet')
-      }
+      await API.deleteWallet(walletToDelete)
       refreshWallets()
       closeDeleteModal()
       lock()

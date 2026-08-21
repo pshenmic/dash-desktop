@@ -167,11 +167,6 @@ export interface PreferencesJSON {
   network: NetworkPreferencesJSON
 }
 
-export interface QueryStatus {
-  success: boolean
-  errorMessage: string | null
-}
-
 export type ExchangeRates = Record<string, number>
 
 export interface ExchangeRatesResult {
