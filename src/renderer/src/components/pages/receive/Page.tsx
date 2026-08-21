@@ -56,8 +56,8 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
 
   const tabItems = [
     {
-      value: 'dash',
-      label: pageData.tabs.dash,
+      value: 'core',
+      label: pageData.tabs.core,
       content: syncIncomplete
         ? <SyncGateNotice />
         : address

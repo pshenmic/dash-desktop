@@ -23,7 +23,7 @@ export const receivePage = {
     balance: 'Balance',
   },
   tabs: {
-    dash: 'Dash',
+    core: 'Core',
     shielded: 'Shielded',
     platform: 'Platform',
   },
