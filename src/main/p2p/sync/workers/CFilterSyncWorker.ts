@@ -335,7 +335,6 @@ export class CFilterSyncWorker extends Worker {
       cfilterScanHeight: Math.max(0, this.cfilter.cursor - 1),
       matchedBlocksPending: this.matchedBlocks.size + this.blockFetcher.size,
       peerCount: this.peerPool.readyPeers.size,
-      filterCapablePeerCount: this.peerPool.filterCapablePeers.size,
     } satisfies CFilterSyncWorkerStatus)
   }
 
@@ -696,9 +695,12 @@ export class CFilterSyncWorker extends Worker {
     this.pumpCFilters()
   }
 
-  private dispatchCFilterBatch(batch: CFilterBatch): void {
+  // False when there was nobody to ask: with no +CF peer the request is never
+  // sent, and a caller reporting a re-race it did not make is what makes a stuck
+  // batch indistinguishable from a slow one.
+  private dispatchCFilterBatch(batch: CFilterBatch): boolean {
     const picks = this.rotation.pick(CFILTER_BATCH_PEERS, batch.triedPeers)
-    if (picks.length === 0) return
+    if (picks.length === 0) return false
     // Rebuilt rather than carried: a height the chain index gained since the
     // batch was built is only resolvable once its hash is registered, and a
     // height already answered must not resolve a duplicate response.
@@ -718,6 +720,7 @@ export class CFilterSyncWorker extends Worker {
       batch.inflightPeers.add(p)
       p.sendMessage(msg)
     }
+    return true
   }
 
   private armCFilterBatchTimer(batch: CFilterBatch): void {
@@ -741,9 +744,16 @@ export class CFilterSyncWorker extends Worker {
         return
       }
 
-      console.warn(`[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stalled (${batch.remaining.size}) — re-racing`)
       this.rotation.markSilent(batch.inflightPeers)
-      this.dispatchCFilterBatch(batch)
+      const sent = this.dispatchCFilterBatch(batch)
+      // Names the owed heights and who there was to ask: a batch stuck one
+      // filter short at the tip looks identical whether nobody answered, nobody
+      // was asked, or the answer failed its header check.
+      console.warn(
+        `[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stalled, owed ` +
+        `h=${[...batch.remaining].join(',')} (+CF peers=${this.peerPool.filterCapablePeers.size}, ` +
+        `tried=${batch.triedPeers.size}) — ${sent ? 're-racing' : 'no peer to ask'}`,
+      )
       this.armCFilterBatchTimer(batch)
     }, CFILTER_BATCH_TIMEOUT_MS)
   }
@@ -756,10 +766,13 @@ export class CFilterSyncWorker extends Worker {
     let restartAt = batch.startHeight
     for (const b of this.cfilter.inflightBatches.values()) restartAt = Math.min(restartAt, b.startHeight)
 
-    const unresolvable = [...batch.remaining].filter(h => !this.blockHashIndex.has(h))
+    const noHash = [...batch.remaining].filter(h => !this.blockHashIndex.has(h))
+    const noFilterHeader = [...batch.remaining].filter(h => !this.heightToFilterHeader.has(h))
     console.warn(
       `[cfilter] batch ${batch.startHeight}..${batch.stopHeight} unanswered after ${batch.stalls} stalls ` +
-      `(${batch.remaining.size} missing${unresolvable.length > 0 ? `, no chain hash for ${unresolvable.slice(0, 5).join(',')}` : ''}) — ` +
+      `(owed h=${[...batch.remaining].slice(0, 5).join(',')}` +
+      `${noHash.length > 0 ? `, no chain hash for ${noHash.slice(0, 5).join(',')}` : ''}` +
+      `${noFilterHeader.length > 0 ? `, no filter header for ${noFilterHeader.slice(0, 5).join(',')}` : ''}) — ` +
       `restarting scan at h=${restartAt}`,
     )
 

@@ -85,6 +85,15 @@ describe('sharing addresses between pools', () => {
     expect(service.takeAddresses()).toHaveLength(0)
   })
 
+  // Teardown hands the bulk pool's whole book back rather than dropping it with
+  // the pool: addresses moved when it was fed, so this is the only copy.
+  it('hands over everything spare when asked with no reserve', () => {
+    const service = withAddresses(POOL_ADDRESS_RESERVE + 25)
+
+    expect(service.takeAddresses(0)).toHaveLength(POOL_ADDRESS_RESERVE + 25)
+    expect(raw(service)._addrs).toHaveLength(0)
+  })
+
   it('shares again once gossip pushes it back above the reserve', () => {
     const service = withAddresses(POOL_ADDRESS_RESERVE)
     expect(service.takeAddresses()).toEqual([])

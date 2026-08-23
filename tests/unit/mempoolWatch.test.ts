@@ -8,6 +8,7 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
     PoolService: class extends EventEmitter {
       network: string
       readyPeers = new Set()
+      filterCapablePeers = new Set()
       messages = {GetData: (items: unknown) => ({command: 'getdata', items})}
       constructor(network: string) {
         super()

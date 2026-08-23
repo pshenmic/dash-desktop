@@ -148,6 +148,14 @@ export class HeaderSyncWorker extends Worker {
         this.currentRace.racers.add(peer)
         peer.sendMessage(this.getHeadersMsg(this.currentRace.locator))
       }
+      return
+    }
+
+    // A fresh peer arriving while the tip is stale is the pool having replaced
+    // peers that died with the link. Without this the tip waits out the rest of
+    // HEADER_STALL_TIMEOUT_MS before anyone is asked again.
+    if (this.phase === 'synced' && Date.now() - this.lastHeaderAt > HEADER_STALL_CHECK_MS) {
+      this.requestTipHeaders([peer])
     }
   }
 

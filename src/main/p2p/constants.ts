@@ -90,6 +90,18 @@ export const POOL_DIAL_REPORT_TICKS = 60
 // Refill ticks with nothing connected before the built-in peers are dialled.
 export const POOL_FALLBACK_TICKS = 2
 
+// Nothing else probes a peer: dash-core-p2p answers ping but never sends one,
+// and node sets no socket timeout — so a peer that vanished with the link (a
+// VPN dropping, a laptop sleeping) never closes, never fires peerdisconnect, and
+// holds its slot until the process restarts. This hands the OS the job.
+export const PEER_KEEPALIVE_DELAY_MS = 60_000
+
+// Total silence across every peer in a pool, after which they are assumed dead
+// with the link rather than merely quiet. Peers gossip inv continuously, so this
+// only trips when the path to all of them broke at once — and it is the only
+// signal that arrives before the keepalive probes above conclude.
+export const POOL_SILENCE_TIMEOUT_MS = 90_000
+
 // Dialled when a pool has produced no live peer at all: a resolver that cannot
 // answer the single mainnet DNS seed — or answers it with rewritten records —
 // and the bulk pool, which runs no DNS of its own and lives off the lock pool's

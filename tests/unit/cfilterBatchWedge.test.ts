@@ -161,6 +161,29 @@ describe('cfilter batch wedge', () => {
     expect(rebuilt!.stalls).toBe(0)
   })
 
+  // A batch stuck one filter short at the tip looks identical whether nobody
+  // answered or nobody was asked; only the second is a peer-supply problem.
+  it('reports a stall it could not dispatch as such', () => {
+    worker.onChainExtended([header(TIP + 1), header(TIP + 2)])
+    pool.filterCapablePeers.clear()
+    const before = pool.countOf('getcfilters')
+
+    vi.advanceTimersByTime(CFILTER_BATCH_TIMEOUT_MS)
+
+    const warned = vi.mocked(console.warn).mock.calls.map(call => String(call[0]))
+    expect(warned.some(line => line.includes(`owed h=${TIP + 1}`) && line.includes('no peer to ask'))).toBe(true)
+    expect(pool.countOf('getcfilters')).toBe(before)
+  })
+
+  it('reports a stall it did dispatch as a re-race', () => {
+    worker.onChainExtended([header(TIP + 1), header(TIP + 2)])
+
+    vi.advanceTimersByTime(CFILTER_BATCH_TIMEOUT_MS)
+
+    const warned = vi.mocked(console.warn).mock.calls.map(call => String(call[0]))
+    expect(warned.some(line => line.includes(`owed h=${TIP + 1}`) && line.includes('re-racing'))).toBe(true)
+  })
+
   // settledHeight() is the lowest inflight batch minus one, so a batch that
   // never clears pins the persisted cursor — which is what made every restart
   // rescan from a height hours behind the tip.

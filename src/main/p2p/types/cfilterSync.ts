@@ -75,7 +75,6 @@ export interface CFilterSyncWorkerStatus {
   cfilterScanHeight: number
   matchedBlocksPending: number
   peerCount: number
-  filterCapablePeerCount: number
 }
 
 export interface CFilterSyncWorkerOptions {
