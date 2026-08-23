@@ -508,9 +508,7 @@ export class SyncService {
     }
     if (this.bulkPool) {
       // Addresses move rather than copy, so by now the lock pool's whole surplus
-      // lives here. Dropping it with the pool is what leaves the next start with
-      // known=0 against a lock pool long past gossiping, and nothing to dial for
-      // the POOL_FALLBACK_TICKS it takes to reach the built-in list.
+      // lives here, and a lock pool long past gossiping has no other source.
       if (this.lockPool && this.lockPool.network === this.bulkPool.network) {
         this.lockPool.addAddresses(this.bulkPool.takeAddresses(0))
       }
@@ -537,10 +535,8 @@ export class SyncService {
 
   private emit(next: Partial<WalletSyncStatus>): void {
     const merged = {...this.status, ...next, updatedAt: Date.now()}
-    // Owned here rather than by the workers: the lock pool outlives them, and
-    // the filter-capable count was reported only by CFilterSyncWorker — so
-    // during header sync it read a hardcoded 0 rather than the pool, which is
-    // filling with +CF peers the whole time.
+    // Owned here rather than by the workers: the pools outlive them, and fill
+    // with peers through phases no worker is running in.
     merged.lockPeerCount = this.lockPool?.readyPeers.size ?? 0
     merged.filterCapablePeerCount = this.bulkPool?.filterCapablePeers.size ?? 0
     merged.phaseEtaMs = this.computePhaseEta(merged)

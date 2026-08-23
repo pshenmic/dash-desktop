@@ -9,7 +9,7 @@ import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONN
 // coordination (who serves filters, who leads a race) impossible.
 
 import {PoolServiceEventMap, PoolServiceOptions} from '../types/pool'
-import {FORWARDED_EVENTS} from '../constants'
+import {DIAL_LIFECYCLE_EVENTS, FORWARDED_EVENTS} from '../constants'
 
 export class PoolService extends EventEmitter {
   readonly network: Network
@@ -93,8 +93,7 @@ export class PoolService extends EventEmitter {
 
     // Capacity opens at the ready target and only widens on a refill tick a full
     // interval later, by which time dead gossip addresses hold every slot and no
-    // further dial is possible. Measured as a flat 5s between the first peers
-    // seating and the first header batch landing. The tick clamps it back.
+    // further dial is possible. The tick clamps it back.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const initialFill = this.pool as any
     initialFill.maxSize = this.maxConnections
@@ -190,8 +189,7 @@ export class PoolService extends EventEmitter {
   }
 
   // peer.disconnect() emits 'disconnect' synchronously, so the pool's own
-  // bookkeeping (deprioritise, remove, refill) runs for each one — which is
-  // exactly what never happened while they sat there silently.
+  // bookkeeping (deprioritise, remove, refill) runs for each one.
   private dropStalePeers(ready: number): void {
     const quietFor = Math.round((Date.now() - this.lastMessageAt) / 1000)
     console.warn(`[${this.label}] nothing heard from any of ${ready} peer(s) for ${quietFor}s — dropping them and redialling`)
@@ -311,8 +309,9 @@ export class PoolService extends EventEmitter {
     })
 
     for (const evt of FORWARDED_EVENTS) {
+      const speaks = !DIAL_LIFECYCLE_EVENTS.has(evt)
       this.pool.on(evt as string, (...args: unknown[]) => {
-        this.lastMessageAt = Date.now()
+        if (speaks) this.lastMessageAt = Date.now()
         super.emit(evt as string, ...args)
       })
     }

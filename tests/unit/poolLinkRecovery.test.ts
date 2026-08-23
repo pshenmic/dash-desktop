@@ -100,6 +100,22 @@ describe('pool recovery from a dead link', () => {
     expect(service.readyPeers.size).toBe(1)
   })
 
+  // Every failed dial emits peerdisconnect, so counting those as evidence lets a
+  // pool below its minimum churn dials against a dead link forever.
+  it('still drops silent peers while failed dials churn', () => {
+    const peer = fakePeer('1.1.1.1')
+    seat(service, peer)
+
+    for (let elapsed = 0; elapsed < POOL_SILENCE_TIMEOUT_MS + POOL_REFILL_INTERVAL_MS; elapsed += POOL_REFILL_INTERVAL_MS) {
+      vi.advanceTimersByTime(POOL_REFILL_INTERVAL_MS)
+      raw(service).emit('peerconnect', fakePeer('2.2.2.2'))
+      raw(service).emit('peerdisconnect', fakePeer('2.2.2.2'))
+    }
+
+    expect(peer.disconnects).toBe(1)
+    expect(service.readyPeers.size).toBe(0)
+  })
+
   // dash-core-p2p answers ping but never sends one, so without this the OS never
   // probes and a half-dead socket is indistinguishable from an idle peer.
   it('asks the OS to probe peer sockets', () => {

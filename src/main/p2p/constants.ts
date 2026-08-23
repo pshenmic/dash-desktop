@@ -25,6 +25,12 @@ export const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
   'seederror',
 ]
 
+// Forwarded events that say nothing about whether the far end is reachable: a
+// dial that never completes emits peerdisconnect just as a live peer leaving does.
+export const DIAL_LIFECYCLE_EVENTS: ReadonlySet<keyof PoolServiceEventMap> = new Set([
+  'peerconnect', 'peerdisconnect', 'seederror',
+])
+
 export const GENESIS: Record<Network, ChainAnchor> = {
   mainnet: {
     height: 1,
@@ -98,8 +104,7 @@ export const PEER_KEEPALIVE_DELAY_MS = 60_000
 
 // Total silence across every peer in a pool, after which they are assumed dead
 // with the link rather than merely quiet. Peers gossip inv continuously, so this
-// only trips when the path to all of them broke at once — and it is the only
-// signal that arrives before the keepalive probes above conclude.
+// only trips when the path to all of them broke at once.
 export const POOL_SILENCE_TIMEOUT_MS = 90_000
 
 // Dialled when a pool has produced no live peer at all: a resolver that cannot

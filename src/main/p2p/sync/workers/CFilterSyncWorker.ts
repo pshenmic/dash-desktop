@@ -695,9 +695,7 @@ export class CFilterSyncWorker extends Worker {
     this.pumpCFilters()
   }
 
-  // False when there was nobody to ask: with no +CF peer the request is never
-  // sent, and a caller reporting a re-race it did not make is what makes a stuck
-  // batch indistinguishable from a slow one.
+  // False when there was nobody to ask: with no +CF peer the request is never sent.
   private dispatchCFilterBatch(batch: CFilterBatch): boolean {
     const picks = this.rotation.pick(CFILTER_BATCH_PEERS, batch.triedPeers)
     if (picks.length === 0) return false

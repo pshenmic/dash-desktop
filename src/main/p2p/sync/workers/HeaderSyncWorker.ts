@@ -152,8 +152,7 @@ export class HeaderSyncWorker extends Worker {
     }
 
     // A fresh peer arriving while the tip is stale is the pool having replaced
-    // peers that died with the link. Without this the tip waits out the rest of
-    // HEADER_STALL_TIMEOUT_MS before anyone is asked again.
+    // peers that died with the link, and no stall check is due for minutes yet.
     if (this.phase === 'synced' && Date.now() - this.lastHeaderAt > HEADER_STALL_CHECK_MS) {
       this.requestTipHeaders([peer])
     }
