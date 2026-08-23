@@ -1,7 +1,6 @@
 import type {Knex} from 'knex'
 import {Contact} from '../types/Contact'
 import {Network} from '../types/Network'
-import {QueryStatus} from '../types/QueryStatus'
 import {isConstraintViolation} from './errors'
 
 function fromRow({id, label, address, network, created_at}): Contact {
@@ -33,27 +32,24 @@ export class ContactDAO {
     address: string,
     network: Network,
     createdAt: number,
-  ): Promise<QueryStatus> => {
+  ): Promise<void> => {
     try {
       await this.knex('contacts').insert({label, address, network, created_at: createdAt})
-      return {success: true, errorMessage: null}
     } catch (error) {
       // The only constraint a well-formed insert can violate is the
       // (address, network) unique index — the rest are NOT NULL columns the
       // signature always supplies and a CHECK on a typed union.
       if (isConstraintViolation(error)) {
-        return {success: false, errorMessage: 'This address is already in your address book'}
+        throw new Error('This address is already in your address book')
       }
-      console.error('[contacts] failed to add contact:', error)
-      return {success: false, errorMessage: 'Failed to add contact'}
+      throw error
     }
   }
 
-  deleteContact = async (id: number): Promise<QueryStatus> => {
+  deleteContact = async (id: number): Promise<void> => {
     const result = await this.knex('contacts').where('id', id).delete()
-    if (result > 0) {
-      return {success: true, errorMessage: null}
+    if (result === 0) {
+      throw new Error('Contact not found')
     }
-    return {success: false, errorMessage: 'Contact not found'}
   }
 }

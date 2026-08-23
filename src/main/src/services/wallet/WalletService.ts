@@ -9,7 +9,6 @@ import {Network} from '../../types/Network'
 import {Address} from '../../types/Address'
 import {GroupedAddresses} from '../../types/GroupedAddresses'
 import {Wallet} from '../../types/Wallet'
-import {QueryStatus} from "../../types/QueryStatus";
 import {WalletBalance} from "../../types/WalletBalance";
 import {Transaction} from "../../types/Transaction";
 import {SendResult} from "../../types/SendResult";
@@ -30,6 +29,7 @@ import {
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath} from "../../utils/addressDiscovery";
 import {selectTransferInputs} from '../../utils/transferInputs'
+import {ConnectionStatus} from '../../types/ConnectionStatus'
 
 export class WalletService {
   private walletDAO: WalletDAO
@@ -164,7 +164,7 @@ export class WalletService {
     return walletId
   }
 
-  async deleteWallet(walletId: string): Promise<QueryStatus> {
+  async deleteWallet(walletId: string): Promise<void> {
     return this.walletDAO.deleteWallet(walletId)
   }
 
@@ -180,23 +180,31 @@ export class WalletService {
     return this.walletDAO.getSelectedWallet()
   }
 
-  async setSelectedWallet(walletId: string): Promise<QueryStatus> {
-    const result = await this.walletDAO.setSelectedWallet(walletId)
-    if (result.success) {
-      const wallet = await this.walletDAO.getWalletById(walletId)
-      if (wallet != null) {
-        await this.walletSyncService.startLockListen(wallet.network, walletId)
-          .catch(err => console.error('[locks] failed to start lock listener:', err))
-      }
+  async getConnectionStatus(wallet: Wallet): Promise<ConnectionStatus> {
+    try {
+      return await this.providers
+        .forWallet(wallet.walletId, wallet.network)
+        .getConnectionStatus()
+    } catch {
+      return 'unavailable'
     }
-    return result
   }
 
-  async setAddressLabel(walletId: string, address: string, label: string): Promise<QueryStatus> {
+  async setSelectedWallet(walletId: string): Promise<void> {
+    await this.walletDAO.setSelectedWallet(walletId)
+
+    const wallet = await this.walletDAO.getWalletById(walletId)
+    if (wallet != null) {
+      await this.walletSyncService.startLockListen(wallet.network, walletId)
+        .catch(err => console.error('[locks] failed to start lock listener:', err))
+    }
+  }
+
+  async setAddressLabel(walletId: string, address: string, label: string): Promise<void> {
     return this.addressDAO.setAddressLabel(walletId, address, label)
   }
 
-  async setWalletLabel(walletId: string, label: string | null): Promise<QueryStatus> {
+  async setWalletLabel(walletId: string, label: string | null): Promise<void> {
     return this.walletDAO.updateLabel(walletId, label)
   }
 

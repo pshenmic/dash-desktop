@@ -4,11 +4,13 @@ import {AddressInfo} from '../types/AddressInfo'
 import {Transaction} from '../types/Transaction'
 import {TransactionDAO} from '../database/TransactionDAO'
 import {AddressDAO} from '../database/AddressDAO'
+import {CorePrevOutService} from '../services/core/CorePrevOutService'
 import {WalletSyncService} from '../services/core/WalletSyncService'
 import {WalletProvider} from './WalletProvider'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {AddressUsage} from '../types/AddressDiscovery'
+import {ConnectionStatus} from '../types/ConnectionStatus'
 
 const {addressToPublicKeyHash} = sdkUtils
 
@@ -20,6 +22,7 @@ export class P2PWalletProvider implements WalletProvider {
     private readonly walletId: string,
     private readonly walletSyncService: WalletSyncService,
     private readonly addressDAO: AddressDAO,
+    private readonly prevOutService: CorePrevOutService,
   ) {}
 
   async getWalletTransactions(): Promise<Transaction[]> {
@@ -41,6 +44,11 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async getTransactionByHash(txId: string): Promise<Transaction> {
+    // The list view can live with blank senders until the sweep reaches them;
+    // this is the view that cannot.
+    await this.prevOutService.resolveTransaction(this.walletId, txId).catch(err =>
+      console.warn(`[prevout] on-demand resolution for ${txId} failed:`, err))
+
     const tx = await this.transactionDAO.getTransactionByTxid(this.walletId, txId)
     if (!tx) throw new Error(`Tx ${txId} not found in p2p store`)
     return tx
@@ -68,6 +76,14 @@ export class P2PWalletProvider implements WalletProvider {
     if (status.phase !== 'synced' || status.walletId !== this.walletId) {
       throw new Error('Wallet sync is not complete — wait for sync to finish before sending')
     }
+  }
+
+  async getConnectionStatus(): Promise<ConnectionStatus> {
+    const status = this.walletSyncService.getStatus()
+    if (status.walletId !== this.walletId || status.phase === 'idle' || status.phase === 'stopped') {
+      return 'sync-stopped'
+    }
+    return status.phase === 'synced' ? 'synced' : 'syncing'
   }
 
   async nextUnusedAddress(): Promise<string> {

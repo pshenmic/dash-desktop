@@ -5,7 +5,7 @@ import AmountSummary from "@renderer/components/ui/AmountSummary";
 import CopyButton from "@renderer/components/ui/CopyButton";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { useAuth } from "@renderer/contexts/AuthContext";
-import { transactionUrl, identityUrl, openExternal } from "@renderer/utils/explorer";
+import { identityUrl, openExternal } from "@renderer/utils/explorer";
 
 export default function IdentityCard({identity}: {identity: Identity}): React.JSX.Element {
   const { status } = useAuth()
@@ -33,23 +33,6 @@ export default function IdentityCard({identity}: {identity: Identity}): React.JS
           )}
         </div>
         {identity.name && <Text size={10} weight={"medium"} color={"default"} opacity={50}>Username: <span className={"font-bold"}>{identity.name}</span></Text>}
-        {identity.assetLockTxid && (
-          <div className={"flex items-center gap-[.3125rem]"}>
-            <Text size={10} weight={"medium"} color={"default"} opacity={50}>
-              Funded by L1 tx: <span className={"font-mono"}>{identity.assetLockTxid.slice(0, 8)}…{identity.assetLockTxid.slice(-8)}</span>
-            </Text>
-            <CopyButton text={identity.assetLockTxid} />
-            {network && (
-              <button
-                onClick={() => openExternal(transactionUrl(identity.assetLockTxid!, network))}
-                title={"Open in explorer"}
-                className={"cursor-pointer hover:opacity-60"}
-              >
-                <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-70"} />
-              </button>
-            )}
-          </div>
-        )}
       </div>
       <AmountSummary total={<CreditsAmount credits={identity.balance.total} compact unit={identity.balance.currency} align={"end"} amountClassName={"gap-[.125rem]!"} unitClassName={"font-medium"} />}
         currency={""}

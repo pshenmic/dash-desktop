@@ -1,6 +1,4 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import {QueryStatus} from "../types/QueryStatus";
-import {ZodError} from "zod";
 import {ApplicationService} from "../services/app/ApplicationService";
 
 export class SetLanguageHandler {
@@ -10,26 +8,15 @@ export class SetLanguageHandler {
     this.applicationService = applicationService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, language: string): Promise<QueryStatus> => {
-    try {
-      const preferences = this.applicationService.preferences
-      await preferences.apply({
-        ...preferences,
-        general: {
-          ...preferences.general,
-          language,
-        }
-      })
+  handle = async (_event: IpcMainInvokeEvent, language: string): Promise<void> => {
+    const preferences = this.applicationService.preferences
 
-
-      return {success: true, errorMessage: null}
-    } catch (err) {
-      let message: string = (err as Error).message
-
-      if (err instanceof ZodError) {
-        message = err.issues.map(issue => issue.message).join(', ')
+    await preferences.apply({
+      ...preferences,
+      general: {
+        ...preferences.general,
+        language,
       }
-      return {success: false, errorMessage: message}
-    }
+    })
   }
 }

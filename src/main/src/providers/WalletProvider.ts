@@ -3,6 +3,7 @@ import {AddressInfo} from '../types/AddressInfo'
 import {Transaction} from '../types/Transaction'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
+import {ConnectionStatus} from '../types/ConnectionStatus'
 
 // Read side only: where a wallet's history, balances and UTXOs come from.
 // Putting a tx on the network and observing its lock belongs to
@@ -21,6 +22,7 @@ export interface WalletProvider {
   getWalletUtxos(): Promise<UTXO[]>
   getTxLockStatus(txid: string): Promise<TxLockStatus>
   ensureReady(): Promise<void>
+  getConnectionStatus(): Promise<ConnectionStatus>
   // "Unused" is whatever the provider's own source of truth says: chain state
   // over the API, or the local SPV store.
   nextUnusedAddress(): Promise<string>

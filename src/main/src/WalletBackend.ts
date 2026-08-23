@@ -88,6 +88,7 @@ import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
 import {GetUtxosHandler} from './api/walletSync/getUtxos'
 import {DISCOVERY_INTERVAL_MS} from './constants'
 import {CoreDiscoveryService} from './services/core/CoreDiscoveryService'
+import {CorePrevOutService} from './services/core/CorePrevOutService'
 import {WalletCredentialsService} from './services/wallet/WalletCredentialsService'
 import {IdentityService} from './services/platform/IdentityService'
 import {CoreLockService} from './services/core/CoreLockService'
@@ -110,7 +111,7 @@ export class WalletBackend {
   private contactService?: ContactService
   private identityRegistrationService?: IdentityRegistrationService
   private shieldedService?: ShieldedService
-  private readonly platformWorkerService = new PlatformWorkerService()
+  private platformWorkerService?: PlatformWorkerService
   private assetLockService?: AssetLockService
   private coreDiscoveryService?: CoreDiscoveryService
   private coreLockService?: CoreLockService
@@ -222,12 +223,14 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
+    this.platformWorkerService = new PlatformWorkerService()
     this.platformWorkerService.start()
 
     // Consumers depend on the asset lock primitive, never the other way round:
     // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,
     // and each consumer settles that proof into its own transition.
-    const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService)
+    const prevOuts = new CorePrevOutService(walletDAO, transactionDAO)
+    const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService, prevOuts)
     const coreTransactionService = new CoreTransactionService()
     this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers)
@@ -246,6 +249,19 @@ export class WalletBackend {
 
     const discovery = this.coreDiscoveryService
     const walletSyncService = this.walletSyncService
+    const applicationService = this.applicationService
+    // A drain outlives the 3s activity debounce that triggers it, and every
+    // overlapping one would re-read the same parents from DAPI.
+    let resolvingPrevOuts = false
+    // rpc mode reads whole transactions from the indexer, which already carries
+    // what every input spends, and never displays the local rows this fills in.
+    const resolvePrevOuts = (walletId: string): void => {
+      if (applicationService.preferences.general.connectionType !== 'p2p' || resolvingPrevOuts) return
+      resolvingPrevOuts = true
+      prevOuts.resolveBacklog(walletId)
+        .catch(err => console.error('[prevout] input resolution failed:', err))
+        .finally(() => { resolvingPrevOuts = false })
+    }
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
       if (selected == null) return
@@ -258,10 +274,12 @@ export class WalletBackend {
         console.error('[locks] failed to start lock listener:', err)
       }
       await discovery.discoverCoreAddresses(selected.walletId)
+      resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
       discovery.discoverCoreAddresses(walletId).catch(err =>
         console.error('[discovery] post-sync address discovery failed:', err))
+      resolvePrevOuts(walletId)
     }
     // The scan is stopped until this answers, so it must not join a discovery
     // run that started before the block that exhausted the gap was persisted.
@@ -291,6 +309,6 @@ export class WalletBackend {
 
   async shutdown(): Promise<void> {
     await this.walletSyncService?.shutdown()
-    await this.platformWorkerService.shutdown()
+    await this.platformWorkerService?.shutdown()
   }
 }

@@ -1,7 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
 import { CoreDiscoveryService } from '../../services/core/CoreDiscoveryService'
-import {QueryStatus} from "../../types/QueryStatus";
 
 export class SelectWallet {
   private walletService: WalletService
@@ -12,12 +11,10 @@ export class SelectWallet {
     this.discovery = discovery
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<QueryStatus> => {
-    const result = await this.walletService.setSelectedWallet(walletId)
-    if (result.success) {
-      this.discovery.discoverCoreAddresses(walletId).catch(err =>
-        console.error('[discovery] address discovery on wallet select failed:', err))
-    }
-    return result
+  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<void> => {
+    await this.walletService.setSelectedWallet(walletId)
+
+    this.discovery.discoverCoreAddresses(walletId).catch(err =>
+      console.error('[discovery] address discovery on wallet select failed:', err))
   }
 }

@@ -80,28 +80,26 @@ nativeTheme.on('updated', () => {
   }
 })
 
-ipcMain.handle('saveTextFile', async (_event, defaultFileName: string, content: string) => {
-  try {
-    const options = {
-      defaultPath: defaultFileName,
-      filters: [
-        { name: 'CSV', extensions: ['csv'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    }
-    const result = mainWindow
-      ? await dialog.showSaveDialog(mainWindow, options)
-      : await dialog.showSaveDialog(options)
-
-    if (result.canceled || !result.filePath) {
-      return { success: false, errorMessage: null }
-    }
-
-    await writeFile(result.filePath, content, 'utf-8')
-    return { success: true, errorMessage: null }
-  } catch (err) {
-    return { success: false, errorMessage: err instanceof Error ? err.message : String(err) }
+// false means the user dismissed the save dialog, which is not a failure — a
+// failed write throws instead.
+ipcMain.handle('saveTextFile', async (_event, defaultFileName: string, content: string): Promise<boolean> => {
+  const options = {
+    defaultPath: defaultFileName,
+    filters: [
+      { name: 'CSV', extensions: ['csv'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
   }
+  const result = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, options)
+    : await dialog.showSaveDialog(options)
+
+  if (result.canceled || !result.filePath) {
+    return false
+  }
+
+  await writeFile(result.filePath, content, 'utf-8')
+  return true
 })
 
 app.whenReady().then(() => {

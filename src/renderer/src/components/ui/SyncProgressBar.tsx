@@ -1,188 +1,191 @@
-import React, { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { WalletSyncPhase, WalletSyncStatus } from '@renderer/api/types'
+import { SyncProgressPhaseInfo } from '@renderer/types/connection'
+import {
+  SYNC_PROGRESS_COMPLETE_HOLD_MS,
+  SYNC_PROGRESS_FADE_MS,
+  WALLET_SYNC_PHASE_LABELS,
+} from '@renderer/constants/connection'
+import SyncProgressTooltip from './SyncProgressTooltip'
 
-interface PhaseInfo {
-  label: string
-  progress: number
-  caption: string
+function safeRatio(current: number, total: number): number {
+  if (total <= 0) return 0
+  return Math.max(0, Math.min(1, current / total))
 }
 
-function safeRatio(num: number, denom: number): number {
-  if (!denom || denom <= 0) return 0
-  return Math.max(0, Math.min(1, num / denom))
-}
+function describePhase(sync: WalletSyncStatus): SyncProgressPhaseInfo {
+  const { phase, tipHeight, estimatedChainHeight, cfheadersHeight, cfilterScanHeight } = sync
 
-function describePhase(s: WalletSyncStatus): PhaseInfo {
-  const { phase, tipHeight, estimatedChainHeight, cfheadersHeight, cfilterScanHeight } = s
   switch (phase) {
     case WalletSyncPhase.Stopped:
-      return { label: 'Sync stopped', progress: 0, caption: 'No sync running' }
+      return { label: 'Sync stopped', caption: 'No sync running', progress: 0, current: 0, total: estimatedChainHeight }
     case WalletSyncPhase.Idle:
-      return { label: 'Idle', progress: 0, caption: 'Waiting to start' }
+      return { label: 'Waiting to Synchronize Wallet Data', caption: 'Waiting to start', progress: 0, current: 0, total: estimatedChainHeight }
     case WalletSyncPhase.Connecting:
-      return { label: 'Connecting', progress: 0.02, caption: 'Discovering peers' }
+      return { label: 'Connecting to Peers', caption: 'Discovering peers', progress: 0.02, current: 0, total: estimatedChainHeight }
     case WalletSyncPhase.SyncingHeaders:
       return {
-        label: 'Syncing headers',
+        label: 'Syncing Wallet Data',
+        caption: `${tipHeight.toLocaleString('en-US')} / ${estimatedChainHeight.toLocaleString('en-US')} blocks`,
         progress: safeRatio(tipHeight, estimatedChainHeight) * 0.30,
-        caption: `${tipHeight.toLocaleString()} / ${estimatedChainHeight.toLocaleString()} blocks`,
+        current: tipHeight,
+        total: estimatedChainHeight,
       }
     case WalletSyncPhase.SyncedHeaders:
-      return { label: 'Headers synced', progress: 0.30, caption: 'Preparing filter sync' }
+      return { label: 'Syncing Wallet Data', caption: 'Preparing filter sync', progress: 0.30, current: tipHeight, total: tipHeight }
     case WalletSyncPhase.SyncingCfcheckpt:
-      return { label: 'Syncing filter checkpoints', progress: 0.33, caption: 'Negotiating cfilter peers' }
+      return { label: 'Syncing Wallet Data', caption: 'Negotiating compact-filter peers', progress: 0.33, current: cfilterScanHeight, total: tipHeight }
     case WalletSyncPhase.SyncingCfheaders:
       return {
-        label: 'Syncing filter headers',
+        label: 'Syncing Wallet Data',
+        caption: `${cfheadersHeight.toLocaleString('en-US')} / ${tipHeight.toLocaleString('en-US')} filter headers`,
         progress: 0.33 + safeRatio(cfheadersHeight, tipHeight) * 0.37,
-        caption: `${cfheadersHeight.toLocaleString()} / ${tipHeight.toLocaleString()}`,
+        current: cfheadersHeight,
+        total: tipHeight,
       }
     case WalletSyncPhase.SyncingCfilters:
       return {
-        label: 'Scanning filters',
+        label: 'Syncing Wallet Data',
+        caption: `${cfilterScanHeight.toLocaleString('en-US')} / ${tipHeight.toLocaleString('en-US')} filters`,
         progress: 0.70 + safeRatio(cfilterScanHeight, tipHeight) * 0.30,
-        caption: `${cfilterScanHeight.toLocaleString()} / ${tipHeight.toLocaleString()}`,
+        current: cfilterScanHeight,
+        total: tipHeight,
       }
     case WalletSyncPhase.Synced:
-      return { label: 'Synced', progress: 1, caption: `Chain tip at ${tipHeight.toLocaleString()}` }
+      return { label: 'Wallet Data Synced', caption: `Chain tip at ${tipHeight.toLocaleString('en-US')}`, progress: 1, current: tipHeight, total: tipHeight }
   }
-}
-
-function formatEta(ms: number | null | undefined): string {
-  if (ms == null || !Number.isFinite(ms) || ms <= 0) return '—'
-  const totalSec = Math.round(ms / 1000)
-  if (totalSec < 60) return `${totalSec}s`
-  const min = Math.floor(totalSec / 60)
-  const sec = totalSec % 60
-  if (min < 60) return `${min}m ${sec}s`
-  const hr = Math.floor(min / 60)
-  return `${hr}h ${min % 60}m`
-}
-
-interface RowProps {
-  label: string
-  value: React.ReactNode
-}
-
-function Row({ label, value }: RowProps): React.JSX.Element {
-  return (
-    <>
-      <Text size={10} weight="medium" color="brand" opacity={50}>{label}</Text>
-      <Text size={10} weight="medium" color="brand">{value}</Text>
-    </>
-  )
 }
 
 export default function SyncProgressBar(): React.JSX.Element {
   const { status } = useAuth()
   const sync = status?.walletSync
+  const phase = sync?.phase ?? WalletSyncPhase.Stopped
+  const info = useMemo<SyncProgressPhaseInfo>(
+    () => sync
+      ? describePhase(sync)
+      : { label: 'Sync stopped', caption: 'No sync running', progress: 0, current: 0, total: 0 },
+    [sync],
+  )
+  const lastWalletId = useRef(sync?.walletId ?? null)
+  const lastCfilterInfo = useRef<SyncProgressPhaseInfo | null>(null)
 
-  const info = useMemo<PhaseInfo>(() => {
-    if (!sync) return { label: 'Sync stopped', progress: 0, caption: 'No sync running' }
-    return describePhase(sync)
-  }, [sync])
+  if (lastWalletId.current !== (sync?.walletId ?? null)) {
+    lastWalletId.current = sync?.walletId ?? null
+    lastCfilterInfo.current = null
+  }
 
-  const pct = Math.round(info.progress * 100)
-  const phase: WalletSyncPhase = sync?.phase ?? WalletSyncPhase.Stopped
+  if (phase === WalletSyncPhase.SyncingCfilters && info.current > 0) {
+    lastCfilterInfo.current = info
+  }
+
+  const displayInfo = (
+    (phase === WalletSyncPhase.SyncingCfilters || phase === WalletSyncPhase.Synced)
+    && info.current === 0
+    && lastCfilterInfo.current !== null
+  )
+    ? {
+        ...info,
+        progress: phase === WalletSyncPhase.Synced ? 1 : lastCfilterInfo.current.progress,
+        current: lastCfilterInfo.current.current,
+        total: lastCfilterInfo.current.total,
+      }
+    : info
+
   const isComplete = phase === WalletSyncPhase.Synced
-  const isError = Boolean(sync?.lastError)
-  const isActive = !isComplete && phase !== WalletSyncPhase.Stopped
-  const isIndeterminate = phase === WalletSyncPhase.Connecting || phase === WalletSyncPhase.SyncedHeaders || phase === WalletSyncPhase.SyncingCfcheckpt
+  const [visible, setVisible] = useState(!isComplete)
+  const [fading, setFading] = useState(false)
 
-  const fillClass = isError ? 'bg-red-500' : isComplete ? 'bg-dash-mint' : 'bg-dash-brand'
+  useEffect(() => {
+    if (!isComplete) {
+      setVisible(true)
+      setFading(false)
+      return
+    }
+    if (!visible) return
+
+    const fadeTimer = setTimeout(() => setFading(true), SYNC_PROGRESS_COMPLETE_HOLD_MS)
+    const hideTimer = setTimeout(
+      () => setVisible(false),
+      SYNC_PROGRESS_COMPLETE_HOLD_MS + SYNC_PROGRESS_FADE_MS,
+    )
+
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(hideTimer)
+    }
+  }, [isComplete, visible])
+
+  if (!visible) return <></>
+
+  const percent = Math.round(displayInfo.progress * 100)
+  const isIndeterminate = phase === WalletSyncPhase.Connecting
+    || phase === WalletSyncPhase.SyncedHeaders
+    || phase === WalletSyncPhase.SyncingCfcheckpt
+  const fillClass = sync?.lastError ? 'bg-red-500' : 'bg-dash-brand dark:bg-dash-mint'
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] select-none group">
-      <div className="h-1.5 w-full bg-dash-primary-dark-blue/8 dark:bg-white/8 cursor-help overflow-hidden">
-        <div
-          className={`
-            relative h-full ${fillClass}
-            transition-[width] duration-1000 ease-linear
-            ${isActive ? 'shadow-[0_0_8px_var(--color-dash-brand)]' : ''}
-            overflow-hidden
-          `}
-          style={{ width: `${pct}%` }}
-        >
-          {isIndeterminate && (
-            <div
-              className="absolute inset-0 sync-shimmer"
-              style={{
-                background:
-                  'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)',
-              }}
-            />
-          )}
-        </div>
+    <div
+      className={`
+        fixed bottom-6 left-[calc(16.125rem+3rem)] right-12 z-40 translate-x-3
+        group select-none rounded-[1.25rem] outline-none
+        border border-dash-primary-dark-blue/12 dark:border-white/12
+        bg-white/95 dark:bg-[#315c96]/95 backdrop-blur-xl
+        px-5 py-3
+        cursor-help
+        shadow-[0_16px_48px_rgba(12,28,51,0.2)]
+        transition-opacity duration-300 ease-out
+        ${fading ? 'opacity-0' : 'opacity-100'}
+      `}
+      aria-describedby="sync-progress-tooltip"
+      tabIndex={0}
+    >
+      <div className="mb-2 flex items-center justify-between gap-5">
+        <Text size={14} weight="medium" color="brand">
+          {displayInfo.label} - <span className="opacity-[.48]">{percent}%</span>
+        </Text>
+        <Text size={14} weight="medium" color="brand" className="shrink-0 tabular-nums">
+          {displayInfo.current.toLocaleString('en-US')}
+          <span className="opacity-40"> / {displayInfo.total.toLocaleString('en-US')}</span>
+        </Text>
       </div>
 
       <div
-        className={`
-          hidden group-hover:block
-          absolute z-50 left-1/2 top-full mt-2 -translate-x-1/2
-          min-w-[20rem] max-w-[24rem]
-          rounded-[.9375rem]
-          dash-card-base dash-black-border
-          shadow-[0_0_32px_0_rgba(0,0,0,0.12)]
-          dark:backdrop-blur-xl
-          px-4 py-3
-        `}
+        className="relative h-1 w-full rounded-full bg-dash-primary-dark-blue/10 dark:bg-dash-mint/20"
+        role="progressbar"
+        aria-label={WALLET_SYNC_PHASE_LABELS[phase]}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
       >
-        <div className="flex flex-col gap-[.125rem] mb-2">
-          <Text size={14} weight="medium" color="brand">
-            {info.label}{isComplete ? '' : ` — ${pct}%`}
-          </Text>
-          <Text size={10} weight="medium" color="brand" opacity={50}>
-            {info.caption}
-          </Text>
-        </div>
-
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3">
-          <Row
-            label="Peers"
-            value={(
-              <>
-                {sync?.peerCount ?? 0}
-                {sync && sync.filterCapablePeerCount !== sync.peerCount
-                  ? ` (${sync.filterCapablePeerCount} filter-capable)`
-                  : ''}
-              </>
+        <div className="h-full w-full overflow-hidden rounded-full">
+          <div
+            className={`
+              relative h-full overflow-hidden rounded-full ${fillClass}
+              transition-[width] duration-1000 ease-linear
+            `}
+            style={{ width: `${percent}%` }}
+          >
+            {isIndeterminate && (
+              <div
+                className="absolute inset-0 sync-shimmer"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)',
+                }}
+              />
             )}
-          />
-          <Row
-            label="Lock peers"
-            value={`${sync?.lockPeerCount ?? 0}`}
-          />
-          <Row
-            label="Chain tip"
-            value={`${(sync?.tipHeight ?? 0).toLocaleString()} / ${(sync?.estimatedChainHeight ?? 0).toLocaleString()}`}
-          />
-          {phase === WalletSyncPhase.SyncingCfheaders && (
-            <Row label="Filter headers" value={(sync?.cfheadersHeight ?? 0).toLocaleString()} />
-          )}
-          {phase === WalletSyncPhase.SyncingCfilters && (
-            <Row label="Scanned filters" value={(sync?.cfilterScanHeight ?? 0).toLocaleString()} />
-          )}
-          {sync?.matchedBlocksPending ? (
-            <Row label="Pending blocks" value={sync.matchedBlocksPending} />
-          ) : null}
-          <Row label="ETA" value={formatEta(sync?.phaseEtaMs)} />
+          </div>
         </div>
 
-        {isError && (
-          <div className="mb-2">
-            <Text size={10} weight="medium" color="red">{sync?.lastError}</Text>
-          </div>
-        )}
-
-        <Text size={10} weight="normal" color="brand" opacity={50}>
-          Local node downloads block headers and compact filters to scan your wallet without
-          trusting a third party. Balances and transactions remain local while syncing and
-          may be incomplete until the scan finishes. Use the Start / Stop / Restart button
-          in the header to control sync manually.
-        </Text>
+        <SyncProgressTooltip sync={sync} phase={phase} info={displayInfo} percent={percent} />
       </div>
+
+      {sync?.lastError && (
+        <Text as="div" size={10} weight="medium" color="red" className="mt-2">
+          {sync.lastError}
+        </Text>
+      )}
     </div>
   )
 }

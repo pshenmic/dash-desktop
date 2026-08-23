@@ -36,7 +36,7 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
-    <div className={"flex w-full min-w-260 items-center gap-8 rounded-4xl dash-block p-6"}>
+    <div className={"flex w-min items-center gap-8 rounded-4xl dash-block p-6"}>
       <QRCode
         value={selected.platformAddress}
         size={225}

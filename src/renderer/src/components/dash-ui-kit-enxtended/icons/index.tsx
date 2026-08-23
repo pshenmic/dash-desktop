@@ -7,6 +7,39 @@ export interface IconProps {
   onClick?: () => void
 }
 
+export const ConnectionIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({
+  width = 10,
+  height = 10,
+  className = '',
+  ...props
+}) => (
+  <svg
+    {...props}
+    width={width}
+    height={height}
+    viewBox="0 0 12 12"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path
+      d="M0.75 5.19434C2.22342 5.19434 3.6365 5.77967 4.67833 6.82156C5.72022 7.86334 6.30555 9.27645 6.30555 10.7499M1.30556 10.1943H1.31667M1.86111 10.1943C1.86111 10.5011 1.61238 10.7499 1.30556 10.7499C0.998734 10.7499 0.75 10.5011 0.75 10.1943C0.75 9.88756 0.998734 9.63878 1.30556 9.63878C1.61238 9.63878 1.86111 9.88756 1.86111 10.1943Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M0.75 0.75C3.40217 0.75 5.94567 1.80357 7.82111 3.67889C9.69644 5.55433 10.75 8.09789 10.75 10.75"
+      stroke="currentColor"
+      strokeOpacity="0.32"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 export const ArrowIcon: React.FC<IconProps> = ({
   color = 'white',
   size = 14,

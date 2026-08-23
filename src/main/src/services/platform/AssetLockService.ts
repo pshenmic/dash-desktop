@@ -1,5 +1,4 @@
 import {
-  DashCoreSDK,
   InstantLock,
   Transaction as SDKTransaction,
   utils as coreUtils,
@@ -26,19 +25,7 @@ import {
   IDENTITY_LOCK_TIMEOUT_MS,
 } from '../../constants'
 import {requireWallet} from '../../utils/requireWallet'
-const coreSDKs = new Map<Network, DashCoreSDK>()
-
-// The constructor starts evonode discovery in the background, so one is kept per
-// network — a fresh instance answers its first request against an empty DAPI
-// url list.
-function coreSDK(network: Network): DashCoreSDK {
-  let sdk = coreSDKs.get(network)
-  if (sdk == null) {
-    sdk = new DashCoreSDK({network})
-    coreSDKs.set(network, sdk)
-  }
-  return sdk
-}
+import {coreSDK} from '../../utils/coreSDK'
 
 // Locks L1 coins and produces the proof that funds a platform state transition.
 // Deliberately knows nothing about what the proof is spent on — identities,
@@ -190,15 +177,9 @@ export class AssetLockService {
       createdAt: Math.floor(Date.now() / 1000),
     })
 
-    try {
-      await this.funder.broadcastAssetLock(built.tx.hex())
-    } catch (error) {
-      // Nothing reached the network, so the row describes a spend that never
-      // happened — keeping it would offer a resume that can only time out.
-      await this.assetLockDAO.deleteFunding(walletId, built.txid)
-      state.txid = null
-      throw error
-    }
+    // Losing the response does not prove peers missed the transaction: the
+    // transport can exit after delivery but before reporting propagation.
+    await this.funder.broadcastAssetLock(built.tx.hex())
     console.log(`[assetLock] ${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
 
     const row = await this.assetLockDAO.getActiveFunding(walletId)

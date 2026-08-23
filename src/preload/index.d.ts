@@ -4,12 +4,6 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 // share types, so each spells the two networks out for itself.
 type Network = 'mainnet' | 'testnet'
 
-// Every handler that reports an outcome rather than a value returns this.
-interface QueryStatusDTO {
-  success: boolean
-  errorMessage: string | null
-}
-
 // Hand-maintained alongside definitions.ts, and deliberately a second
 // declaration of src/main/src/types/Transaction: the three bundles do not share
 // types. Amounts stay bigint — structured clone carries them as themselves.
@@ -75,11 +69,11 @@ declare global {
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>
       addPlatformAddress: (walletId: string) => Promise<unknown>
-      deleteWallet: (walletId: string) => Promise<QueryStatusDTO>
-      selectWallet: (walletId: string) => Promise<unknown>
+      deleteWallet: (walletId: string) => Promise<void>
+      selectWallet: (walletId: string) => Promise<void>
       getWalletBalance: (walletId: string) => Promise<unknown>
-      setAddressLabel: (walletId: string, address: string, label: string) => Promise<unknown>
-      setWalletLabel: (walletId: string, label: string | null) => Promise<QueryStatusDTO>
+      setAddressLabel: (walletId: string, address: string, label: string) => Promise<void>
+      setWalletLabel: (walletId: string, label: string | null) => Promise<void>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateTransitionFee: (network: Network, query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
@@ -97,23 +91,23 @@ declare global {
       shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
-      setLanguage: (language: string) => Promise<unknown>
-      setFiatCurrency: (currency: string) => Promise<QueryStatusDTO>
-      setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<QueryStatusDTO>
-      resetPreferences: () => Promise<unknown>
-      startWalletSync: (walletId: string) => Promise<QueryStatusDTO>
+      setLanguage: (language: string) => Promise<void>
+      setFiatCurrency: (currency: string) => Promise<void>
+      setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
+      resetPreferences: () => Promise<void>
+      startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>
-      resetWalletSync: (network: Network) => Promise<unknown>
+      resetWalletSync: (network: Network) => Promise<void>
       getUtxos: () => Promise<unknown>
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
-      saveTextFile: (defaultFileName: string, content: string) => Promise<QueryStatusDTO>
+      saveTextFile: (defaultFileName: string, content: string) => Promise<boolean>
       listLogFiles: () => Promise<{ name: string; size: number; modifiedAt: number; rotated: boolean }[]>
       getLogFile: (name: string) => Promise<{ name: string; content: string; size: number; modifiedAt: number; rotated: boolean }>
       showLogFileInFolder: (name: string) => Promise<void>
       getContacts: (network?: Network) => Promise<unknown>
-      addContact: (label: string, address: string, network: Network) => Promise<QueryStatusDTO>
-      deleteContact: (id: number) => Promise<QueryStatusDTO>
+      addContact: (label: string, address: string, network: Network) => Promise<void>
+      deleteContact: (id: number) => Promise<void>
       getShieldedStatus: () => Promise<{ prover: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
       getShieldedPoolInfo: (network: Network) => Promise<{ poolState: bigint | null; notesCount: bigint | null }>
       getShieldedNotesInfo: (walletId: string) => Promise<{ undecodedCount: number }>
