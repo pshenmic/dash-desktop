@@ -25,8 +25,9 @@ export const PLATFORM_ADDRESS_BYTES = 21
 
 export const FEE_QUOTE_INPUT_CREDITS = 1_000_000n
 
-// An address transfer pays exactly one recipient.
-export const SHIELD_RECIPIENT_COUNT = 1
+// Stands in for the identity's real nonce while pricing. quoteInputs does the
+// same for input nonces: neither changes the fee beyond a varint width.
+export const FEE_QUOTE_NONCE = 1n
 
 export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
   {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},

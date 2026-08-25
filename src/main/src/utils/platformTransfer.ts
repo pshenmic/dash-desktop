@@ -1,4 +1,9 @@
-import {PlatformInputPlan, PlatformInputSelection, PlatformSourceCandidate} from '../types/PlatformTransfer'
+import {
+  PlatformInputOutcome,
+  PlatformInputPlan,
+  PlatformInputSelection,
+  PlatformSourceCandidate,
+} from '../types/PlatformTransfer'
 import {AddressInput} from '../../platform/types/messages'
 import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../constants'
 
@@ -18,20 +23,20 @@ export function selectPlatformInputs(
   amountCredits: bigint,
   feeCredits: bigint,
   preferredAddress?: string,
-): PlatformInputPlan {
+): PlatformInputOutcome {
   if (amountCredits < MIN_INPUT_CREDITS) {
-    throw new Error(`Minimum amount is ${MIN_INPUT_CREDITS.toString()} credits`)
+    return refuse(`Minimum amount is ${MIN_INPUT_CREDITS.toString()} credits`)
   }
 
   if (preferredAddress != null) {
     const chosen = candidates.find(candidate => candidate.platformAddress === preferredAddress)
     if (chosen == null) {
-      throw new Error('Source address not found in this wallet')
+      return refuse('Source address not found in this wallet')
     }
     if (chosen.balanceCredits < amountCredits + feeCredits) {
-      throw new Error('Source address has insufficient credits for this amount plus fee')
+      return refuse('Source address has insufficient credits for this amount plus fee')
     }
-    return {inputs: [{candidate: chosen, credits: amountCredits}], feeCredits}
+    return {plan: {inputs: [{candidate: chosen, credits: amountCredits}], feeCredits}, error: null}
   }
 
   const sorted = [...candidates]
@@ -49,16 +54,20 @@ export function selectPlatformInputs(
     if (accumulated < amountCredits + feeCredits) continue
 
     const plan = planAroundFeeTarget(prefix, accumulated, amountCredits, feeCredits)
-    if (plan !== null) return plan
+    if (plan !== null) return {plan, error: null}
   }
 
   if (accumulated < amountCredits + feeCredits) {
-    throw new Error('Platform addresses do not hold enough credits for this amount plus fee')
+    return refuse('Platform addresses do not hold enough credits for this amount plus fee')
   }
-  throw new Error(
+  return refuse(
     'No combination of addresses leaves the fee-paying address enough remaining credits; '
     + 'consolidate funds into fewer addresses and try again',
   )
+}
+
+function refuse(error: string): PlatformInputOutcome {
+  return {plan: null, error}
 }
 
 // The fee scales with the input count, and covering a larger fee can pull in
@@ -68,14 +77,15 @@ export async function selectPlatformInputsWithFee(
   amountCredits: bigint,
   feeForInputCount: (inputCount: number) => Promise<bigint>,
   preferredAddress?: string,
-): Promise<PlatformInputPlan> {
+): Promise<PlatformInputOutcome> {
   let inputCount = 1
   for (;;) {
-    const plan = selectPlatformInputs(candidates, amountCredits, await feeForInputCount(inputCount), preferredAddress)
-    if (plan.inputs.length <= inputCount) {
-      return plan
+    const outcome = selectPlatformInputs(
+      candidates, amountCredits, await feeForInputCount(inputCount), preferredAddress)
+    if (outcome.plan === null || outcome.plan.inputs.length <= inputCount) {
+      return outcome
     }
-    inputCount = plan.inputs.length
+    inputCount = outcome.plan.inputs.length
   }
 }
 

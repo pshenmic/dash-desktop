@@ -42,7 +42,6 @@ export interface EncryptedNotePayload {
   cvNet: Uint8Array
 }
 
-export type SpendKind = 'transfer' | 'unshield' | 'withdrawal' | 'identityCreate'
 
 export interface NoteSnapshot {
   index: number
@@ -78,17 +77,62 @@ export interface Recipient {
   amountCredits: bigint
 }
 
-// Kinds without a static estimator in dpp carry what their operation builds
-// with, because the quote has to build the transition to price it.
-export type FeeQuery =
-  | {kind: 'addressTransfer'; inputCount: number}
-  | {kind: 'addressWithdrawal'; inputCount: number}
-  | {kind: 'shield'}
-  | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
-  | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
-  | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string; coreFeePerByte: number}
-  | {kind: 'identityCreateFromAddresses'; inputCount: number}
-  | {kind: 'identityTopUpFromAddresses'; identityId: string; inputCount: number}
+// Every operation the wallet can price, in the three groups that decide how.
+// The groups are the whole fee model: Dash-paid operations pay a flat rate,
+// pool spends are priced by the pool, and the rest are priced from the
+// transition they would build.
+export type FeeOperation = CoreFeeOperation | PoolSpendOperation | TransitionFeeOperation
+
+export type CoreFeeOperation =
+  | 'coreSend'
+  | 'assetLockFunding'
+  | 'assetLockShield'
+  | 'identityRegister'
+  | 'identityTopUpL1'
+
+export type PoolSpendOperation =
+  | 'shieldedTransfer'
+  | 'unshield'
+  | 'shieldedWithdrawal'
+  | 'identityCreateFromPool'
+
+export type TransitionFeeOperation =
+  | 'addressFundsTransfer'
+  | 'addressWithdrawal'
+  | 'shield'
+  | 'identityToAddress'
+  | 'identityToIdentity'
+  | 'identityWithdrawal'
+  | SelectionFeeOperation
+
+// Funded by platform addresses, so the fee scales with the inputs the selection
+// takes and the two have to resolve together.
+export type SelectionFeeOperation =
+  | 'addressWithdrawal'
+  | 'identityCreate'
+  | 'identityTopUp'
+
+// What the user chose. Which fields an operation reads is the pricing switch's
+// business — `recipient` is a platform address, an identity or a Core address
+// depending on which one is being priced.
+export interface FeeParams {
+  amountCredits: bigint
+  // Whatever kind of address this operation pays — a platform address, an
+  // identity or a Core address. A list only where an operation pays several,
+  // because each extra output costs the same again.
+  recipient: string | string[]
+  sourceAddress: string | null
+  identityId: string | null
+  // Pool spends only: restricts the spend to one shielded address's notes.
+  noteIndexes: number[] | null
+}
+
+// The same params, plus the two numbers only main can supply: how many inputs
+// the selection settled on, and the Core rate the user's multiplier snapped to.
+export interface FeeQuoteParams extends FeeParams {
+  inputCount: number
+  coreFeePerByte: number
+}
 
 // metered means consensus prices the transition at execution and feeCredits is
 // only the floor. A shielded fee is exact, so nothing may be added to it.
@@ -129,7 +173,7 @@ export interface PlatformOperations {
   spend: {
     payload: {
       seed: Uint8Array
-      kind: SpendKind
+      kind: PoolSpendOperation
       recipient: string
       amountCredits: bigint
       notes: EncryptedNotePayload[]
@@ -168,13 +212,13 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   transitionFee: {
-    payload: {query: FeeQuery}
+    payload: {operation: TransitionFeeOperation; params: FeeQuoteParams}
     result: FeeQuote
   }
   // Every note count a spend may settle on, so the caller can resolve the fee
   // and the count together without a round trip per candidate count.
   spendFeeCurve: {
-    payload: {kind: SpendKind}
+    payload: {kind: PoolSpendOperation}
     result: {feeCredits: bigint[]}
   }
   addressInfos: {

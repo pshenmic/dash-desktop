@@ -4,8 +4,9 @@ import {ShieldedService} from '../../src/main/src/services/platform/ShieldedServ
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {Preferences} from '../../src/main/src/preferences'
-import {FeeOperation, FeeParams} from '../../src/main/src/types/Fee'
+import {FeeOperation, FeeParams} from '../../src/main/platform/types/messages'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
+import {FeeQuoteParams} from '../../src/main/platform/types/messages'
 import {CORE_TRANSFER_FEE_DUFFS, DEFAULT_CORE_FEE_MULTIPLIER, DEFAULT_PLATFORM_FEE_MULTIPLIER, MIN_INPUT_CREDITS} from '../../src/main/src/constants'
 
 const WALLET = 'w1'
@@ -47,27 +48,35 @@ function params(overrides: Partial<FeeParams> = {}): FeeParams {
   return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', sourceAddress: null, identityId: IDENTITY, noteIndexes: null, ...overrides}
 }
 
-function feeCalls(request: ReturnType<typeof vi.fn>): Array<{kind: string; inputCount?: number}> {
+function feeCalls(request: ReturnType<typeof vi.fn>): Array<{operation: string; params: FeeQuoteParams}> {
   return request.mock.calls
     .filter(call => call[0] === 'transitionFee')
-    .map(call => (call[2] as {query: {kind: string; inputCount?: number}}).query)
-}
-
-function queryOf(request: ReturnType<typeof vi.fn>, call = 0): unknown {
-  return feeCalls(request)[call]
+    .map(call => call[2] as {operation: string; params: FeeQuoteParams})
 }
 
 describe('estimateFee', () => {
-  it('prices an address transfer as one input to one recipient', async () => {
+  // Main decides which operations the worker prices and at what input count;
+  // what each one costs is the worker's switch, tested through it.
+  it('sends the operation and the params straight through, with no query in between', async () => {
     const {service: svc, request} = service()
     await svc.estimateFee(WALLET, 'addressFundsTransfer', params())
-    expect(queryOf(request)).toEqual({kind: 'addressTransfer', inputCount: 1})
+    expect(feeCalls(request)[0]).toEqual({
+      operation: 'addressFundsTransfer',
+      params: {...params(), inputCount: 1, coreFeePerByte: 1},
+    })
   })
 
-  it('prices a withdrawal without a change output', async () => {
-    const {service: svc, request} = service()
-    await svc.estimateFee(WALLET, 'addressWithdrawal', params())
-    expect(queryOf(request)).toEqual({kind: 'addressWithdrawal', inputCount: 1})
+  it('asks the worker under the same name the renderer used', async () => {
+    const operations: FeeOperation[] = [
+      'addressFundsTransfer', 'addressWithdrawal', 'shield',
+      'identityToAddress', 'identityToIdentity', 'identityWithdrawal',
+      'identityCreate', 'identityTopUp',
+    ]
+    for (const operation of operations) {
+      const {service: svc, request} = service()
+      await svc.estimateFee(WALLET, operation, params())
+      expect(feeCalls(request)[0].operation).toBe(operation)
+    }
   })
 
   // The whole point of routing this through the backend: the fee scales with
@@ -76,38 +85,29 @@ describe('estimateFee', () => {
     const spread = [candidate('a', 9_000_000n, 1), candidate('b', 5_000_000n, 2)]
     const {service: svc, request} = service(spread)
     await svc.estimateFee(WALLET, 'identityCreate', params({amountCredits: 6_000_000n}))
-    expect(feeCalls(request).map(query => query.inputCount)).toEqual([1, 2])
+    expect(feeCalls(request).map(call => call.params.inputCount)).toEqual([1, 2])
   })
 
   it('falls back to the one-input floor when no selection can be funded', async () => {
     const {service: svc, request} = service([candidate('a', MIN_INPUT_CREDITS, 1)])
     const fee = await svc.estimateFee(WALLET, 'addressWithdrawal', params({amountCredits: 900_000_000n}))
     expect(fee.feeCredits).toBe(BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER))
-    expect(queryOf(request, feeCalls(request).length - 1)).toEqual({kind: 'addressWithdrawal', inputCount: 1})
+    expect(feeCalls(request).at(-1)!.params.inputCount).toBe(1)
   })
 
-  it('carries the identity a top-up funds', async () => {
+  // Each extra output costs the same again, so a send paying several must not
+  // be priced as if it paid one.
+  it('passes every recipient an operation pays, not just the first', async () => {
     const {service: svc, request} = service()
-    await svc.estimateFee(WALLET, 'identityTopUp', params({recipient: IDENTITY}))
-    expect(queryOf(request)).toEqual({kind: 'identityTopUpFromAddresses', identityId: IDENTITY, inputCount: 1})
+    const addresses = ['a', 'b', 'c']
+    await svc.estimateFee(WALLET, 'identityToAddress', params({recipient: addresses}))
+    expect(feeCalls(request)[0].params.recipient).toEqual(addresses)
   })
 
-  it('prices a shield as a single pool note', async () => {
+  it('supplies the Core rate the multiplier snapped to, which the worker cannot read', async () => {
     const {service: svc, request} = service()
-    await svc.estimateFee(WALLET, 'shield', params())
-    expect(queryOf(request)).toEqual({kind: 'shield'})
-  })
-
-  it('prices the three identity-funded transitions from the identity', async () => {
-    for (const [operation, expected] of [
-      ['identityToAddress', {kind: 'identityCreditsToAddresses', identityId: IDENTITY, recipients: [{address: 'tdash1qrecipient', amountCredits: 1_000_000n}]}],
-      ['identityToIdentity', {kind: 'identityCreditTransfer', identityId: IDENTITY, recipientId: 'tdash1qrecipient', amountCredits: 1_000_000n}],
-      ['identityWithdrawal', {kind: 'identityWithdrawal', identityId: IDENTITY, amountCredits: 1_000_000n, coreAddress: 'tdash1qrecipient', coreFeePerByte: 1}],
-    ] as Array<[FeeOperation, unknown]>) {
-      const {service: svc, request} = service()
-      await svc.estimateFee(WALLET, operation, params())
-      expect(queryOf(request)).toEqual(expected)
-    }
+    await svc.estimateFee(WALLET, 'identityWithdrawal', params())
+    expect(feeCalls(request)[0].params.coreFeePerByte).toBe(1)
   })
 
   it('cannot price an identity transition before the identity or amount is known', async () => {
@@ -121,17 +121,14 @@ describe('estimateFee', () => {
     }
   })
 
-  it('hands every pool spend to the shielded service with its spend kind', async () => {
-    const kinds: Array<[FeeOperation, string]> = [
-      ['shieldedTransfer', 'transfer'],
-      ['unshield', 'unshield'],
-      ['shieldedWithdrawal', 'withdrawal'],
-      ['identityCreateFromPool', 'identityCreate'],
-    ]
-    for (const [operation, spendKind] of kinds) {
+  // The operation name and the spend kind are the same word, so there is no
+  // translation table left to get wrong.
+  it('hands every pool spend to the shielded service under its own name', async () => {
+    const operations: FeeOperation[] = ['shieldedTransfer', 'unshield', 'shieldedWithdrawal', 'identityCreateFromPool']
+    for (const operation of operations) {
       const {service: svc, estimateSpendFee} = service()
       const fee = await svc.estimateFee(WALLET, operation, params({noteIndexes: [2, 5]}))
-      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, spendKind, 1_000_000n, [2, 5])
+      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, [2, 5])
       expect(fee).toEqual({feeCredits: 7n, feeDuffs: null, maxPerTx: 90n, noteLimit: 6})
     }
   })
@@ -154,5 +151,13 @@ describe('estimateFee', () => {
     const {service: svc} = service()
     const fee = await svc.estimateFee(WALLET, 'addressFundsTransfer', params())
     expect(fee.feeCredits).toBe(BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER))
+  })
+
+  // requireFee is what the send paths call, so it must refuse what a quote may
+  // legitimately answer.
+  it('refuses to hand a send an unpriced fee', async () => {
+    const {service: svc} = service()
+    await expect(svc.requireFee(WALLET, 'identityToIdentity', params({identityId: null})))
+      .rejects.toThrow(/Could not price/)
   })
 })

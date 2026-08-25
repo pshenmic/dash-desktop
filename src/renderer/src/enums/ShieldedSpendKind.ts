@@ -1,6 +1,6 @@
 export enum ShieldedSpendKind {
-  Transfer = 'transfer',
+  Transfer = 'shieldedTransfer',
   Unshield = 'unshield',
-  Withdrawal = 'withdrawal',
-  IdentityCreate = 'identityCreate',
+  Withdrawal = 'shieldedWithdrawal',
+  IdentityCreate = 'identityCreateFromPool',
 }

@@ -55,7 +55,7 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   throwIfAborted(signal)
 
   const stHash = stateTransition.hash(false)
-  const identityId = kind === 'identityCreate'
+  const identityId = kind === 'identityCreateFromPool'
     ? IdentityCreateFromShieldedPoolTransitionWASM.fromStateTransition(stateTransition).identityId.base58()
     : null
 

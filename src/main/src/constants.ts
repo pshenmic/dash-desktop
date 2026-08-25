@@ -1,6 +1,5 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
-import type {OperationFee, PoolSpendOperation} from './types/Fee'
-import type {SpendKind} from '../platform/types/messages'
+import type {OperationFee} from './types/Fee'
 
 export const HomeFolderName = '.dash-desktop'
 export const DevFolderName = 'dev'
@@ -202,12 +201,6 @@ export const CREDIT_FEE_UNPRICED: OperationFee = {
   feeCredits: null, feeDuffs: null, maxPerTx: null, noteLimit: null,
 }
 
-export const SPEND_KIND_BY_OPERATION: Record<PoolSpendOperation, SpendKind> = {
-  shieldedTransfer: 'transfer',
-  unshield: 'unshield',
-  shieldedWithdrawal: 'withdrawal',
-  identityCreateFromPool: 'identityCreate',
-}
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0

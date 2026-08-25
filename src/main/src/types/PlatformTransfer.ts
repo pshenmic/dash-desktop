@@ -17,3 +17,9 @@ export interface PlatformInputPlan {
   inputs: PlatformInputSelection[]
   feeCredits: bigint
 }
+
+// Either the inputs that fund an amount, or why none can. A quote asks before
+// the amount is affordable, so "cannot fund" is an answer, not a failure.
+export type PlatformInputOutcome =
+  | {plan: PlatformInputPlan; error: null}
+  | {plan: null; error: string}

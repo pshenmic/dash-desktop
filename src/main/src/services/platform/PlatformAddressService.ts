@@ -115,7 +115,10 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.fee.loadCandidates(wallet)
-    const feeCredits = await this.fee.protocolFee(network, {kind: 'addressTransfer', inputCount: 1})
+    const feeCredits = await this.fee.requireFee(walletId, 'addressFundsTransfer', {
+      amountCredits, recipient: toPlatformAddress, sourceAddress: fromPlatformAddress || null,
+      identityId: null, noteIndexes: null,
+    })
     const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
@@ -154,10 +157,10 @@ export class PlatformAddressService {
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
     const totalCredits = recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
-    const feeCredits = await this.fee.protocolFee(network, {
-      kind: 'identityCreditsToAddresses',
-      identityId: identityIdentifier,
-      recipients,
+    const feeCredits = await this.fee.requireFee(walletId, 'identityToAddress', {
+      amountCredits: recipients[0].amountCredits,
+      recipient: recipients.map(entry => entry.address),
+      sourceAddress: null, identityId: identityIdentifier, noteIndexes: null,
     })
     await this.requireIdentityBalance(network, identityIdentifier, totalCredits + feeCredits, 'transfer')
 
@@ -195,11 +198,9 @@ export class PlatformAddressService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, fromIdentityIdentifier)
 
-    const feeCredits = await this.fee.protocolFee(network, {
-      kind: 'identityCreditTransfer',
-      identityId: fromIdentityIdentifier,
-      recipientId: toIdentityIdentifier,
-      amountCredits,
+    const feeCredits = await this.fee.requireFee(walletId, 'identityToIdentity', {
+      amountCredits, recipient: toIdentityIdentifier, sourceAddress: null,
+      identityId: fromIdentityIdentifier, noteIndexes: null,
     })
     await this.requireIdentityBalance(network, fromIdentityIdentifier, amountCredits + feeCredits, 'transfer')
 
@@ -236,7 +237,10 @@ export class PlatformAddressService {
     const existing = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
 
-    const plan = await this.fee.planInputs(wallet, amountCredits, fromPlatformAddress, {kind: 'identityCreateFromAddresses'})
+    const {plan, error} = await this.fee.planInputs(wallet, 'identityCreate', {
+      amountCredits, recipient: '', sourceAddress: fromPlatformAddress, identityId: null, noteIndexes: null,
+    })
+    if (plan === null) throw new Error(error)
 
     const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
       seed,
@@ -278,8 +282,10 @@ export class PlatformAddressService {
     const {exists} = await this.platform.request('identityExists', network, {identifier: identityId})
     if (!exists) throw new Error('Identity not found on Platform')
 
-    const plan = await this.fee.planInputs(
-      wallet, amountCredits, fromPlatformAddress, {kind: 'identityTopUpFromAddresses', identityId})
+    const {plan, error} = await this.fee.planInputs(wallet, 'identityTopUp', {
+      amountCredits, recipient: identityId, sourceAddress: fromPlatformAddress, identityId: null, noteIndexes: null,
+    })
+    if (plan === null) throw new Error(error)
 
     const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
       seed,
@@ -310,13 +316,16 @@ export class PlatformAddressService {
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const plan = await this.fee.planInputs(wallet, amountCredits, fromPlatformAddress, {kind: 'addressWithdrawal'})
+    const {plan, error} = await this.fee.planInputs(wallet, 'addressWithdrawal', {
+      amountCredits, recipient: toCoreAddress, sourceAddress: fromPlatformAddress, identityId: null, noteIndexes: null,
+    })
+    if (plan === null) throw new Error(error)
 
     const {stHash} = await this.platform.request('addressWithdrawal', network, {
       seed,
       inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
       coreAddress: toCoreAddress,
-      coreFeePerByte: this.fee.coreRate(),
+      coreFeePerByte: this.fee.coreFeePerByte(),
     })
 
     return {
@@ -343,12 +352,9 @@ export class PlatformAddressService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
-    const feeCredits = await this.fee.protocolFee(network, {
-      kind: 'identityWithdrawal',
-      identityId: identityIdentifier,
-      amountCredits,
-      coreAddress: toCoreAddress,
-      coreFeePerByte: this.fee.coreRate(),
+    const feeCredits = await this.fee.requireFee(walletId, 'identityWithdrawal', {
+      amountCredits, recipient: toCoreAddress, sourceAddress: null,
+      identityId: identityIdentifier, noteIndexes: null,
     })
     await this.requireIdentityBalance(network, identityIdentifier, amountCredits + feeCredits, 'withdrawal')
 
@@ -358,7 +364,7 @@ export class PlatformAddressService {
       identityIndex: identity.identityIndex,
       amountCredits,
       coreAddress: toCoreAddress,
-      coreFeePerByte: this.fee.coreRate(),
+      coreFeePerByte: this.fee.coreFeePerByte(),
     })
 
     return {
@@ -388,7 +394,10 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const candidates = await this.fee.loadCandidates(wallet)
-    const feeCredits = await this.fee.protocolFee(network, {kind: 'shield'})
+    const feeCredits = await this.fee.requireFee(walletId, 'shield', {
+      amountCredits, recipient: toShieldedAddress, sourceAddress: fromPlatformAddress || null,
+      identityId: null, noteIndexes: null,
+    })
     const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('shield', network, {

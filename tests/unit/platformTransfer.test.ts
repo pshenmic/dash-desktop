@@ -28,8 +28,8 @@ const REQUIRED = AMOUNT + FEE
 
 const INPUT_FEE = 1_000_000n
 
-function consumed(plan: PlatformInputPlan, platformAddress: string): bigint {
-  return plan.inputs
+function consumed(plan: PlatformInputPlan | null, platformAddress: string): bigint {
+  return (plan?.inputs ?? [])
     .filter(input => input.candidate.platformAddress === platformAddress)
     .reduce((sum, input) => sum + input.credits, 0n)
 }
@@ -85,45 +85,45 @@ describe('toAddressInput', () => {
 
 describe('selectPlatformInputs', () => {
   it('uses a single input when the largest balance covers amount + fee', () => {
-    const plan = selectPlatformInputs([candidate('a', 10_000_000n), candidate('b', 1_000_000n)], 5_000_000n, INPUT_FEE)
-    expect(plan.inputs).toHaveLength(1)
-    expect(plan.inputs[0].candidate.platformAddress).toBe('a')
-    expect(plan.inputs[0].credits).toBe(5_000_000n)
-    expect(plan.feeCredits).toBe(INPUT_FEE)
+    const {plan} = selectPlatformInputs([candidate('a', 10_000_000n), candidate('b', 1_000_000n)], 5_000_000n, INPUT_FEE)
+    expect(plan!.inputs).toHaveLength(1)
+    expect(plan!.inputs[0].candidate.platformAddress).toBe('a')
+    expect(plan!.inputs[0].credits).toBe(5_000_000n)
+    expect(plan!.feeCredits).toBe(INPUT_FEE)
   })
 
   it('splits across inputs largest-first, charging the fee to input 0', () => {
-    const plan = selectPlatformInputs([candidate('b', 3_000_000n), candidate('a', 5_000_000n)], 7_000_000n, INPUT_FEE)
-    expect(plan.inputs.map(input => input.candidate.platformAddress)).toEqual(['a', 'b'])
-    expect(plan.inputs[0].credits).toBe(4_000_000n)
-    expect(plan.inputs[1].credits).toBe(3_000_000n)
+    const {plan} = selectPlatformInputs([candidate('b', 3_000_000n), candidate('a', 5_000_000n)], 7_000_000n, INPUT_FEE)
+    expect(plan!.inputs.map(input => input.candidate.platformAddress)).toEqual(['a', 'b'])
+    expect(plan!.inputs[0].credits).toBe(4_000_000n)
+    expect(plan!.inputs[1].credits).toBe(3_000_000n)
   })
 
   it('keeps every input at or above the per-input minimum', () => {
-    const plan = selectPlatformInputs([candidate('a', 5_000_000n), candidate('b', 200_000n)], 4_050_000n, INPUT_FEE)
-    expect(plan.inputs[0].credits).toBe(3_850_000n)
-    expect(plan.inputs[1].credits).toBe(200_000n)
-    for (const input of plan.inputs) {
+    const {plan} = selectPlatformInputs([candidate('a', 5_000_000n), candidate('b', 200_000n)], 4_050_000n, INPUT_FEE)
+    expect(plan!.inputs[0].credits).toBe(3_850_000n)
+    expect(plan!.inputs[1].credits).toBe(200_000n)
+    for (const input of plan!.inputs) {
       expect(input.credits).toBeGreaterThanOrEqual(MIN_INPUT_CREDITS)
     }
   })
 
   it('skips candidates whose usable balance is below the per-input minimum', () => {
     const candidates = [candidate('a', 1_000_000n), candidate('dust', 50_000n)]
-    expect(() => selectPlatformInputs(candidates, 1_500_000n, 0n)).toThrow(/enough credits/)
+    expect(selectPlatformInputs(candidates, 1_500_000n, 0n).error).toMatch(/enough credits/)
   })
 
   it('stops at the maximum input count', () => {
     const candidates = Array.from({length: MAX_ADDRESS_INPUTS + 1}, (_, i) => candidate(`a${i}`, MIN_INPUT_CREDITS, 0, i))
     const amount = MIN_INPUT_CREDITS * BigInt(MAX_ADDRESS_INPUTS + 1)
-    expect(() => selectPlatformInputs(candidates, amount, 0n)).toThrow(/enough credits/)
+    expect(selectPlatformInputs(candidates, amount, 0n).error).toMatch(/enough credits/)
   })
 
   it('selects exactly the maximum input count when that suffices', () => {
     const candidates = Array.from({length: MAX_ADDRESS_INPUTS}, (_, i) => candidate(`a${i}`, MIN_INPUT_CREDITS, 0, i))
     const amount = MIN_INPUT_CREDITS * BigInt(MAX_ADDRESS_INPUTS)
-    const plan = selectPlatformInputs(candidates, amount, 0n)
-    expect(plan.inputs).toHaveLength(MAX_ADDRESS_INPUTS)
+    const {plan} = selectPlatformInputs(candidates, amount, 0n)
+    expect(plan!.inputs).toHaveLength(MAX_ADDRESS_INPUTS)
   })
 
   // Consensus resolves DeductFromInput(0) through the inputs' address order and
@@ -133,21 +133,21 @@ describe('selectPlatformInputs', () => {
     const feePayer = candidate('small-but-first', 3_000_000n, 0, 0x01)
     const peer = candidate('large-but-second', 9_000_000n, 0, 0x02)
 
-    const plan = selectPlatformInputs([peer, feePayer], 11_000_000n, INPUT_FEE)
+    const {plan} = selectPlatformInputs([peer, feePayer], 11_000_000n, INPUT_FEE)
 
     expect(feePayer.balanceCredits - consumed(plan, 'small-but-first')).toBeGreaterThanOrEqual(INPUT_FEE)
     expect(consumed(plan, 'large-but-second')).toBe(9_000_000n)
-    expect(plan.inputs.reduce((sum, input) => sum + input.credits, 0n)).toBe(11_000_000n)
+    expect(plan!.inputs.reduce((sum, input) => sum + input.credits, 0n)).toBe(11_000_000n)
   })
 
   it('orders inputs the way consensus does, so DeductFromInput(0) is inputs[0]', () => {
-    const plan = selectPlatformInputs(
+    const {plan} = selectPlatformInputs(
       [candidate('largest', 9_000_000n, 0, 0x03), candidate('first-by-address', 3_000_000n, 0, 0x01)],
       11_000_000n,
       INPUT_FEE,
     )
 
-    expect(plan.inputs.map(input => input.candidate.platformAddress)).toEqual(['first-by-address', 'largest'])
+    expect(plan!.inputs.map(input => input.candidate.platformAddress)).toEqual(['first-by-address', 'largest'])
   })
 
   it('refuses when the first-sorting address cannot both fund and cover the fee', () => {
@@ -157,35 +157,35 @@ describe('selectPlatformInputs', () => {
       candidate('c', 4_000_000n, 0, 0x03),
     ]
 
-    expect(() => selectPlatformInputs(candidates, 8_000_000n, INPUT_FEE)).toThrow(/consolidate/)
+    expect(selectPlatformInputs(candidates, 8_000_000n, INPUT_FEE).error).toMatch(/consolidate/)
   })
 
   it('keeps the fee out of an explicitly chosen source address', () => {
     const chosen = candidate('a', 5_000_000n)
-    const plan = selectPlatformInputs([chosen], 4_000_000n, INPUT_FEE, 'a')
+    const {plan} = selectPlatformInputs([chosen], 4_000_000n, INPUT_FEE, 'a')
 
-    expect(chosen.balanceCredits - plan.inputs[0].credits).toBeGreaterThanOrEqual(INPUT_FEE)
+    expect(chosen.balanceCredits - plan!.inputs[0].credits).toBeGreaterThanOrEqual(INPUT_FEE)
   })
 
   it('honors the preferred source address', () => {
-    const plan = selectPlatformInputs([candidate('a', 10_000_000n), candidate('b', 7_000_000n)], 5_000_000n, INPUT_FEE, 'b')
-    expect(plan.inputs).toHaveLength(1)
-    expect(plan.inputs[0].candidate.platformAddress).toBe('b')
+    const {plan} = selectPlatformInputs([candidate('a', 10_000_000n), candidate('b', 7_000_000n)], 5_000_000n, INPUT_FEE, 'b')
+    expect(plan!.inputs).toHaveLength(1)
+    expect(plan!.inputs[0].candidate.platformAddress).toBe('b')
   })
 
   it('throws when the preferred address is unknown', () => {
-    expect(() => selectPlatformInputs([candidate('a', 10_000_000n)], 5_000_000n, INPUT_FEE, 'zzz')).toThrow(/not found/)
+    expect(selectPlatformInputs([candidate('a', 10_000_000n)], 5_000_000n, INPUT_FEE, 'zzz').error).toMatch(/not found/)
   })
 
   it('throws when the preferred address cannot cover amount + fee', () => {
-    expect(() => selectPlatformInputs([candidate('a', 5_999_999n)], 5_000_000n, INPUT_FEE, 'a')).toThrow(/insufficient/)
+    expect(selectPlatformInputs([candidate('a', 5_999_999n)], 5_000_000n, INPUT_FEE, 'a').error).toMatch(/insufficient/)
   })
 
   it('throws when the amount is below the per-input minimum', () => {
-    expect(() => selectPlatformInputs([candidate('a', 10_000_000n)], MIN_INPUT_CREDITS - 1n, INPUT_FEE)).toThrow(/Minimum/)
+    expect(selectPlatformInputs([candidate('a', 10_000_000n)], MIN_INPUT_CREDITS - 1n, INPUT_FEE).error).toMatch(/Minimum/)
   })
 
   it('throws when the total balance cannot cover the amount', () => {
-    expect(() => selectPlatformInputs([candidate('a', 1_000_000n)], 5_000_000n, INPUT_FEE)).toThrow(/enough credits/)
+    expect(selectPlatformInputs([candidate('a', 1_000_000n)], 5_000_000n, INPUT_FEE).error).toMatch(/enough credits/)
   })
 })

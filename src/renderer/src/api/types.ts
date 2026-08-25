@@ -50,7 +50,9 @@ export interface PlatformAddressDto {
 // the backend's business; this carries only what the user chose.
 export interface FeeParams {
   amountCredits: bigint
-  recipient: string
+  // Whatever kind of address this operation pays. The transfer screens pay one,
+  // so they never need the list form.
+  recipient: string | string[]
   sourceAddress: string | null
   identityId: string | null
   // Restricts a pool spend to one shielded address's notes.

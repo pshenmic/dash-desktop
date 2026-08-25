@@ -1,6 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { FeeService } from '../../services/wallet/FeeService'
-import { FeeOperation, FeeParams, OperationFee } from '../../types/Fee'
+import { OperationFee } from '../../types/Fee'
+import { FeeOperation, FeeParams } from '../../../platform/types/messages'
 
 export class EstimateFeeHandler {
   private feeService: FeeService

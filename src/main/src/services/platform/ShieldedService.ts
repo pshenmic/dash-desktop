@@ -34,7 +34,7 @@ import {
   EncryptedNotePayload,
   PlatformPayload,
   PlatformPhase,
-  SpendKind,
+  PoolSpendOperation,
 } from '../../../platform/types/messages'
 import {AssetLockFundingRow, AcquiredAssetLock} from '../../types/AssetLock'
 
@@ -359,7 +359,7 @@ export class ShieldedService {
   }
 
   startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'transfer', recipient, amountCredits, noteIndexes)
+    return this.startSpend(walletId, password, 'shieldedTransfer', recipient, amountCredits, noteIndexes)
   }
 
   startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
@@ -367,7 +367,7 @@ export class ShieldedService {
   }
 
   startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'withdrawal', coreAddress, amountCredits, noteIndexes)
+    return this.startSpend(walletId, password, 'shieldedWithdrawal', coreAddress, amountCredits, noteIndexes)
   }
 
   // Returns the in-flight state when a spend is already running for this
@@ -382,7 +382,7 @@ export class ShieldedService {
     return {state, running: false}
   }
 
-  private async startSpend(walletId: string, password: string, kind: SpendKind, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+  private async startSpend(walletId: string, password: string, kind: PoolSpendOperation, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
     const {state, running} = this.beginSpend(walletId)
     if (running) return state
 
@@ -466,7 +466,7 @@ export class ShieldedService {
 
       this.runSpend(walletId, network, state, {
         seed,
-        kind: 'identityCreate',
+        kind: 'identityCreateFromPool',
         recipient: '',
         amountCredits: denominationCredits,
         notes,
@@ -564,7 +564,7 @@ export class ShieldedService {
   // quoting it anywhere else would be a second implementation of the answer.
   async estimateSpendFee(
     walletId: string,
-    kind: SpendKind,
+    kind: PoolSpendOperation,
     amountCredits: bigint,
     noteIndexes: number[] | null,
   ): Promise<OperationFee> {
@@ -589,7 +589,7 @@ export class ShieldedService {
   }
 
   // Fixed per network and spend kind: the protocol minimum for each note count.
-  private async spendFeeCurve(network: Network, kind: SpendKind): Promise<bigint[]> {
+  private async spendFeeCurve(network: Network, kind: PoolSpendOperation): Promise<bigint[]> {
     const key = `${network}:${kind}`
     const cached = this.feeCurves.get(key)
     if (cached != null) return cached
