@@ -32,7 +32,8 @@ function coreAddress(): string {
 }
 
 // `recipient` is whatever kind of address the operation pays, which is the one
-// thing about FeeParams a reader has to know.
+// thing about FeeParams a reader has to know. Exhaustive, so it doubles as the
+// list of everything the worker prices and a new operation cannot slip past.
 const RECIPIENT: Record<TransitionFeeOperation, string> = {
   addressFundsTransfer: PLATFORM_ADDRESS,
   addressWithdrawal: CORE_ADDRESS,
@@ -93,20 +94,7 @@ function params(overrides: Partial<FeeQuoteParams> = {}): FeeQuoteParams {
   }
 }
 
-const ALL: TransitionFeeOperation[] = [
-  'addressFundsTransfer',
-  'addressWithdrawal',
-  'shield',
-  'identityToAddress',
-  'identityToIdentity',
-  'identityWithdrawal',
-  'identityCreate',
-  'identityTopUp',
-  'assetLockFunding',
-  'assetLockShield',
-  'identityRegister',
-  'identityTopUpL1',
-]
+const ALL = Object.keys(RECIPIENT) as TransitionFeeOperation[]
 
 describe('transitionFee', () => {
   it('prices every operation main can send it', () => {
