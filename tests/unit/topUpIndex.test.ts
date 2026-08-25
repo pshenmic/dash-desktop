@@ -15,7 +15,7 @@ function service(usedIndexes: number[]): {
 
   const funder = {getUsedAddresses} as unknown as AssetLockFunder
   const svc = new IdentityRegistrationService(
-    {} as never, {} as never, {} as never, {} as never, funder,
+    {} as never, {} as never, {} as never, {} as never, funder, {} as never,
   )
 
   // Stand in for the BIP32 + WASM derivation the real path runs per index.

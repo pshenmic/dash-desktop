@@ -134,16 +134,30 @@ describe('estimateFee', () => {
   })
 
   // The L1 fee used to bypass this method and ride the status poll instead.
-  it('prices the operations paid in Dash in duffs, from the same method', async () => {
-    for (const operation of ['coreSend', 'assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as FeeOperation[]) {
+  it('prices a Core send in duffs, from the same method', async () => {
+    const {service: svc, request} = service()
+    expect(await svc.estimateFee(WALLET, 'coreSend', params())).toEqual({
+      feeCredits: null,
+      feeDuffs: CORE_TRANSFER_FEE_DUFFS * BigInt(DEFAULT_CORE_FEE_MULTIPLIER),
+      maxPerTx: null,
+      noteLimit: null,
+    })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  // An L1 -> L2 transfer is two transactions, and quoting only the lock left the
+  // transition its proof funds unpriced.
+  it('prices both halves of a transfer that locks on L1 and settles on L2', async () => {
+    for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as FeeOperation[]) {
       const {service: svc, request} = service()
       expect(await svc.estimateFee(WALLET, operation, params())).toEqual({
-        feeCredits: null,
+        feeCredits: BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER),
         feeDuffs: CORE_TRANSFER_FEE_DUFFS * BigInt(DEFAULT_CORE_FEE_MULTIPLIER),
         maxPerTx: null,
         noteLimit: null,
       })
-      expect(request).not.toHaveBeenCalled()
+      expect(feeCalls(request)[0].operation, operation).toBe(operation)
+      expect(feeCalls(request)[0].params.inputCount, operation).toBe(1)
     }
   })
 

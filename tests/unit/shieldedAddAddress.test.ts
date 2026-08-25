@@ -26,7 +26,7 @@ function service(usedIndexes: number[], storedCount = 0): {
 
   const svc = new ShieldedService(
     walletDAO as never, {} as never, shieldedNoteDAO as never, {} as never,
-    shieldedAddressDAO as never, {} as never, {} as never, {} as never,
+    shieldedAddressDAO as never, {} as never, {} as never,
     Preferences.default(),
   )
 

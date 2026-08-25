@@ -11,7 +11,6 @@ function service(): ShieldedService {
     null as never,
     null as never,
     null as never,
-    null as never,
     Preferences.default(),
   )
 }

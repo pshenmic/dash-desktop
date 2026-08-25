@@ -77,14 +77,16 @@ export interface Recipient {
   amountCredits: bigint
 }
 
-// Every operation the wallet can price, in the three groups that decide how.
-// The groups are the whole fee model: Dash-paid operations pay a flat rate,
+// Every operation the wallet can price, in the four groups that decide how.
+// The groups are the whole fee model: a Core send pays a flat Dash rate, an
+// asset lock pays that rate and again on L2 for the transition its proof funds,
 // pool spends are priced by the pool, and the rest are priced from the
 // transition they would build.
-export type FeeOperation = CoreFeeOperation | PoolSpendOperation | TransitionFeeOperation
+export type FeeOperation = 'coreSend' | PoolSpendOperation | TransitionFeeOperation
 
-export type CoreFeeOperation =
-  | 'coreSend'
+// Two transactions, so two fees: the L1 lock, then the L2 transition that
+// spends its proof out of the credits the lock created.
+export type AssetLockFeeOperation =
   | 'assetLockFunding'
   | 'assetLockShield'
   | 'identityRegister'
@@ -103,6 +105,7 @@ export type TransitionFeeOperation =
   | 'identityToAddress'
   | 'identityToIdentity'
   | 'identityWithdrawal'
+  | AssetLockFeeOperation
   | SelectionFeeOperation
 
 // Funded by platform addresses, so the fee scales with the inputs the selection

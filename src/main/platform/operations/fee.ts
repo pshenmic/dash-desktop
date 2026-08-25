@@ -5,24 +5,27 @@ import {
   ShieldedTransferTransitionWASM,
 } from 'pshenmic-dpp'
 import {
+  AddressFundsFeeStrategyStepWASM,
   IdentityPublicKeyInCreationWASM,
   InputAddressWASM,
+  OutputAddressNullableCreditsWASM,
   OutputAddressWASM,
   StateTransitionWASM,
 } from 'dash-platform-sdk/types.js'
 import {coreAddressToScript} from '../../src/utils/coreScript'
 import {
-  FEE_QUOTE_INPUT_CREDITS,
-  FEE_QUOTE_NONCE,
   FEE_QUOTE_PUBLIC_KEY,
   KEY_SPECS,
   PLATFORM_ADDRESS_BYTES,
 } from '../constants'
-import {FeeQuoteParams, PlatformOperations, TransitionFeeOperation} from '../types/messages'
+import type {ChainAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
+import {AssetLockFeeOperation, FeeQuoteParams, PlatformOperations, TransitionFeeOperation} from '../types/messages'
 import {OperationContext} from './types'
+import {buildAssetLockProof} from './assetLockProof'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
 import {MAX_SPEND_NOTES, MIN_BUNDLE_ACTIONS} from './shielded/constants'
+import {IDENTITY_KEY_DEFINITIONS, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../src/constants'
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
@@ -47,7 +50,7 @@ export function transitionFee(payload: Payload, ctx: OperationContext): Result {
   const {operation, params} = payload
   return {
     feeCredits: protocolFee(operation, params, ctx),
-    metered: operation !== 'shield',
+    metered: operation !== 'shield' && operation !== 'assetLockShield',
   }
 }
 
@@ -73,12 +76,67 @@ function protocolFee(operation: TransitionFeeOperation, params: FeeQuoteParams, 
     case 'identityCreate':
     case 'identityTopUp':
       return addressFundedTransition(operation, params, ctx).calculateMinRequiredFee()
+
+    // Reserved out of the locked credits before the bundle is proven; the
+    // surplus returns to a transparent platform address.
+    case 'assetLockShield':
+      return SHIELD_FUNDING_FEE_RESERVE_CREDITS
+
+    case 'assetLockFunding':
+    case 'identityRegister':
+    case 'identityTopUpL1':
+      return assetLockFundedTransition(operation, params, ctx).calculateMinRequiredFee()
   }
 }
 
-// Unsigned, and priced against a placeholder nonce: the real one costs a proved
-// gRPC round trip per quote and, measured across the u64 range, does not move
-// the fee of any of these three transitions at all.
+// The L2 half of a funding: what the proof will be spent on once the lock
+// settles. Priced against a placeholder proof, which is what makes it
+// answerable before any coins are committed.
+function assetLockFundedTransition(
+  operation: Exclude<AssetLockFeeOperation, 'assetLockShield'>,
+  params: FeeQuoteParams,
+  ctx: OperationContext,
+): StateTransitionWASM {
+  const {sdk} = ctx
+
+  const proof = quoteAssetLockProof()
+
+  switch (operation) {
+    case 'assetLockFunding':
+      return sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
+        assetLockProof: buildAssetLockProof(proof, proof.txid, proof.outputIndex),
+        inputs: [],
+        feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
+        inputWitness: [],
+        outputs: [new OutputAddressNullableCreditsWASM(paid(params)[0])],
+        userFeeIncrease: 0,
+      })
+    case 'identityRegister':
+      return sdk.identities.createStateTransition('create', {
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) => ({
+          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY,
+        })),
+        assetLockProof: proof,
+      })
+    case 'identityTopUpL1':
+      return sdk.identities.createStateTransition('topUp', {
+        identityId: paid(params)[0],
+        assetLockProof: proof,
+      })
+  }
+}
+
+// A transition cannot be built without a proof, and a quote is asked for before
+// any coins are locked, so it is priced against a proof of zeroes. Measured
+// against real instant proofs over one-, two- and five-input fundings: the fee
+// is identical either way, so the stand-in costs nothing in accuracy.
+function quoteAssetLockProof(): ChainAssetLockProofParams {
+  return {type: 'chainLock', txid: '0'.repeat(64), coreChainLockedHeight: 1, outputIndex: 0}
+}
+
+// Unsigned, and priced against a nonce of 1: the real one costs a proved gRPC
+// round trip per quote and, measured across the u64 range, does not move the
+// fee of any of these three transitions at all.
 function identityTransition(
   operation: 'identityToAddress' | 'identityToIdentity' | 'identityWithdrawal',
   params: FeeQuoteParams,
@@ -92,7 +150,7 @@ function identityTransition(
       return sdk.platformAddresses.createStateTransition('identityCreditTransferToAddresses', {
         identityId,
         recipients: paid(params).map(address => new OutputAddressWASM(address, params.amountCredits)),
-        nonce: FEE_QUOTE_NONCE,
+        nonce: 1n,
         userFeeIncrease: 0,
       })
     case 'identityToIdentity':
@@ -100,7 +158,7 @@ function identityTransition(
         identityId,
         recipientId: paid(params)[0],
         amount: params.amountCredits,
-        identityNonce: FEE_QUOTE_NONCE,
+        identityNonce: 1n,
       })
     case 'identityWithdrawal':
       return sdk.identities.createStateTransition('withdrawal', {
@@ -108,7 +166,7 @@ function identityTransition(
         amount: params.amountCredits,
         coreFeePerByte: params.coreFeePerByte,
         pooling: 'Never',
-        identityNonce: FEE_QUOTE_NONCE,
+        identityNonce: 1n,
         outputScript: coreAddressToScript(paid(params)[0], network),
       })
   }
@@ -152,10 +210,12 @@ function paid(params: FeeQuoteParams): string[] {
 
 // The minimum scales with the input count and inputs are keyed by address, so
 // a quote needs no real address, only as many distinct ones as it will carry.
+// Nonce and credits are stood in for the same way: measured across the u64
+// range, neither moves the fee.
 function quoteInputs(inputCount: number): InputAddressWASM[] {
   return Array.from({length: inputCount}, (_, index) => {
     const bytes = new Uint8Array(PLATFORM_ADDRESS_BYTES)
     bytes[1] = index
-    return new InputAddressWASM(PlatformAddressWASM.fromBytes(bytes), 1, FEE_QUOTE_INPUT_CREDITS)
+    return new InputAddressWASM(PlatformAddressWASM.fromBytes(bytes), 1, 1_000_000n)
   })
 }

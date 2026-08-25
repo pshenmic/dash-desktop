@@ -18,9 +18,9 @@ describe('identityRegistrationAmountError', () => {
       .toBe('Minimum identity funding is 0.1 Dash.')
   })
 
-  it('rejects an amount that leaves no room for the Core fee', () => {
+  it('rejects an amount that leaves no room for the fees', () => {
     expect(identityRegistrationAmountError('1', 100_000_000n, 100_000_000n, FEE))
-      .toBe('Max available is 0.9999 Dash after the Core network fee.')
+      .toBe('Max available is 0.9999 Dash after fees.')
   })
 
   it('rejects malformed and over-precision amounts', () => {

@@ -137,8 +137,10 @@ export default function IdentityRegistration(): React.JSX.Element {
     noteIndexes: null,
   })
 
-  const coreFeeDuffs = feeDuffs ?? 0n
-  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs, coreFeeDuffs)
+  // The Core fee is paid on top of the amount, and an L1 registration locks the
+  // identity-create fee on top of that so the amount typed is what is credited.
+  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
+  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs, totalFeeDuffs)
   const platformMaxDuffs = maxPerTx !== null
     ? creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     : feeCredits !== null && availableCredits !== null
@@ -146,11 +148,11 @@ export default function IdentityRegistration(): React.JSX.Element {
       : null
   const maxDuffs = fromKind === SourceKind.Core ? coreMaxDuffs : platformMaxDuffs
   const amountError = fromKind === SourceKind.Core
-    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs, coreFeeDuffs)
+    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs, totalFeeDuffs)
     : amountErrorFor({
         isCoreOperation: false,
         amount,
-        coreFeeDuffs,
+        totalFeeDuffs,
         operation,
         amountDuffs,
         balanceDuffs,
@@ -172,7 +174,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     && (fromKind === SourceKind.Core || feeCredits !== null)
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : null
   const totalDuffs = fromKind === SourceKind.Core
-    ? amountDuffs + coreFeeDuffs
+    ? amountDuffs + totalFeeDuffs
     : creditsToDuffs(amountCredits + (feeCredits ?? 0n))
   const unfinishedFunding = fundingState != null && isUnfinishedAssetLockFunding(fundingState.phase)
     ? fundingState
@@ -497,10 +499,10 @@ export default function IdentityRegistration(): React.JSX.Element {
         </div>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            {fromKind === SourceKind.Core ? 'Reserved Core fee' : 'Reserved for Platform fee'}
+            {fromKind === SourceKind.Core ? 'Reserved for fees' : 'Reserved for Platform fee'}
           </Text>
           {fromKind === SourceKind.Core ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(coreFeeDuffs)} Dash</Text>
+            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
           ) : feeError === null && feeCredits !== null ? (
             <Text size={12} weight={"medium"} color={"brand"}>{davToDash(creditsToDuffs(feeCredits))} Dash</Text>
           ) : feeError === null && feeLoading ? (
@@ -565,16 +567,16 @@ export default function IdentityRegistration(): React.JSX.Element {
         </div>
         {fromKind === SourceKind.Core && (
           <div className={"flex items-center justify-between gap-4"}>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Credits before Platform fee</Text>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Identity is credited</Text>
             <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits)} credits</Text>
           </div>
         )}
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            {fromKind === SourceKind.Core ? 'Core network fee' : 'Reserved for Platform fee'}
+            {fromKind === SourceKind.Core ? 'Network fees' : 'Reserved for Platform fee'}
           </Text>
           {fromKind === SourceKind.Core ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(coreFeeDuffs)} Dash</Text>
+            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
           ) : feeCredits !== null ? (
             <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
           ) : (

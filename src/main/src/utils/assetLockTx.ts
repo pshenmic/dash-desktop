@@ -7,6 +7,14 @@ import {
   SHIELD_FUNDING_FEE_RESERVE_CREDITS,
 } from '../constants'
 
+// The L2 transition takes its fee out of the credits the lock creates, so the
+// lock has to carry that fee on top of the amount for the amount the user asked
+// for to be the amount that arrives. Rounded up: a lock a credit short strands
+// the whole funding.
+export function lockedDuffsFor(amountDuffs: bigint, feeCredits: bigint): bigint {
+  return amountDuffs + (feeCredits + CREDITS_PER_DUFF - 1n) / CREDITS_PER_DUFF
+}
+
 export function shieldAmountFromLockedDuffs(amountDuffs: bigint): bigint {
   const totalCredits = amountDuffs * CREDITS_PER_DUFF
   if (totalCredits <= SHIELD_FUNDING_FEE_RESERVE_CREDITS) {

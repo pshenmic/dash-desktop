@@ -246,10 +246,12 @@ function WalletTransferHub(): React.JSX.Element {
     noteIndexes: shieldedSpecificNotes?.map(note => note.index) ?? null,
   })
 
-  const coreFeeDuffs = feeDuffs ?? 0n
+  // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
+  // L2 fee on top of that, so the amount typed is the amount that arrives.
+  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
 
   const sliderMaxAmount = useMemo((): bigint | null => {
-    if (isCoreOperation) return balanceDuffs > coreFeeDuffs ? balanceDuffs - coreFeeDuffs : 0n
+    if (isCoreOperation) return balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n
     if (maxPerTx !== null) return creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     if (availableCredits === null || feeCredits === null) return null
     const spendable = availableCredits - feeCredits
@@ -296,7 +298,7 @@ function WalletTransferHub(): React.JSX.Element {
   const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
 
   const amountReady = isCoreOperation
-    ? amountDuffs > 0n && amountDuffs + coreFeeDuffs <= balanceDuffs
+    ? amountDuffs > 0n && amountDuffs + totalFeeDuffs <= balanceDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
@@ -317,7 +319,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const handleMax = (): void => {
     if (isCoreOperation) {
-      setAmount(davToDash(balanceDuffs > coreFeeDuffs ? balanceDuffs - coreFeeDuffs : 0n))
+      setAmount(davToDash(balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n))
       return
     }
     if (maxPerTx !== null) {
@@ -338,7 +340,7 @@ function WalletTransferHub(): React.JSX.Element {
   const amountError = amountErrorFor({
     isCoreOperation,
     amount,
-    coreFeeDuffs,
+    totalFeeDuffs,
     operation,
     amountDuffs,
     balanceDuffs,
@@ -573,7 +575,7 @@ function WalletTransferHub(): React.JSX.Element {
       {isCoreOperation ? (
         <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(coreFeeDuffs)} Dash</Text>
+          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
         </div>
       ) : (
         <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
@@ -627,12 +629,12 @@ function WalletTransferHub(): React.JSX.Element {
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(coreFeeDuffs)} Dash</Text>
+              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + coreFeeDuffs)} Dash</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + totalFeeDuffs)} Dash</Text>
             </div>
           </>
         ) : feeCredits !== null && (

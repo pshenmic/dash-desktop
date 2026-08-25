@@ -14,6 +14,7 @@ import {IdentityCreateResult} from '../../types/IdentityCreateResult'
 import {ShieldResult} from '../../types/ShieldResult'
 import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {
+  CREDITS_PER_DUFF,
   MAX_DISCOVERY_BATCHES,
   MAX_RECIPIENTS,
   MIN_OUTPUT_CREDITS,
@@ -23,6 +24,7 @@ import {
 import {identityPath} from '../../utils/identityKeys'
 import {requireWallet} from '../../utils/requireWallet'
 import {selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
+import {lockedDuffsFor} from '../../utils/assetLockTx'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
 import {FeeService} from '../wallet/FeeService'
 
@@ -422,15 +424,26 @@ export class PlatformAddressService {
   }
 
   // Locks L1 coins and credits them to one of this wallet's platform addresses.
+  // amountDuffs is what arrives, so the lock also carries the funding
+  // transition's fee.
   async startFundingFromL1(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
     const unlocked = await this.unlock(walletId, password)
     const {wallet, seed} = unlocked
 
     try {
-      const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, amountDuffs)
+      const feeCredits = await this.fee.requireFee(walletId, 'assetLockFunding', {
+        amountCredits: amountDuffs * CREDITS_PER_DUFF,
+        recipient: toPlatformAddress,
+        sourceAddress: null,
+        identityId: null,
+        noteIndexes: null,
+      })
+      const lockDuffs = lockedDuffsFor(amountDuffs, feeCredits)
+
+      const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs, seed,
+          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs: lockDuffs, seed,
         })
         await this.settleFunding(seed, wallet.network, state, acquired)
       })

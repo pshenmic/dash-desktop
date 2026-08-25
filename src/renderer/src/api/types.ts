@@ -59,9 +59,11 @@ export interface FeeParams {
   noteIndexes: number[] | null
 }
 
-// An operation is priced in credits (L2) or duffs (L1), never both, and both
-// are null while it cannot be priced yet. maxPerTx and noteLimit are pool-spend
-// facts: nothing else is capped by anything but the balance.
+// feeDuffs is what L1 charges on top of the amount, feeCredits what L2 takes
+// out of it. An L1 -> L2 transfer is two transactions and carries both; every
+// other operation carries one, and null means it cannot be priced yet.
+// maxPerTx and noteLimit are pool-spend facts: nothing else is capped by
+// anything but the balance.
 export interface OperationFee {
   feeCredits: bigint | null
   feeDuffs: bigint | null
@@ -76,7 +78,9 @@ export interface OperationFeeParams extends FeeParams {
 export interface AmountValidationParams {
   isCoreOperation: boolean
   amount: string
-  coreFeeDuffs: bigint
+  // Every fee the send pays in Dash. An L1 -> L2 transfer locks the L2 fee too,
+  // so the amount asked for is the amount that arrives.
+  totalFeeDuffs: bigint
   operation: TransferOperation | null
   amountDuffs: bigint
   balanceDuffs: bigint

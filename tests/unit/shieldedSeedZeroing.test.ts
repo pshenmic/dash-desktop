@@ -29,7 +29,6 @@ import {ShieldedPoolDAO} from '../../src/main/src/database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from '../../src/main/src/database/ShieldedAddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
-import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
 import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
 import {Preferences} from '../../src/main/src/preferences'
 
@@ -78,7 +77,6 @@ function wire(): {service: ShieldedService; request: ReturnType<typeof vi.fn>; n
     noteDAO as unknown as ShieldedNoteDAO,
     poolDAO as unknown as ShieldedPoolDAO,
     {saveAddresses: vi.fn(), getAddresses: vi.fn().mockResolvedValue([])} as unknown as ShieldedAddressDAO,
-    {findNextIdentityIndex: vi.fn().mockResolvedValue(0)} as unknown as IdentityRegistrationService,
     {request} as unknown as PlatformWorkerService,
     {} as unknown as AssetLockService,
     Preferences.default(),

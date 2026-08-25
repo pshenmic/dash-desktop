@@ -44,7 +44,7 @@ export class FeeService {
     this.preferences = preferences
   }
 
-  // The whole fee model, in five groups. Which group an operation is in decides
+  // The whole fee model, in six groups. Which group an operation is in decides
   // how it is priced; what that price is belongs to the worker, not here.
   async estimateFee(walletId: string, operation: FeeOperation, params: FeeParams): Promise<OperationFee> {
     const wallet = await requireWallet(this.walletDAO, walletId)
@@ -52,11 +52,21 @@ export class FeeService {
     switch (operation) {
       // Paid in Dash on L1: a flat per-transaction rate.
       case 'coreSend':
+        return {feeCredits: null, feeDuffs: this.coreFeeDuffs(), maxPerTx: null, noteLimit: null}
+
+      // Two transactions, so two fees. The L1 lock is paid in Dash on top of the
+      // amount; the transition its proof funds is paid in credits out of what
+      // the lock created, so it never reaches the quote as one number.
       case 'assetLockFunding':
       case 'assetLockShield':
       case 'identityRegister':
       case 'identityTopUpL1':
-        return {feeCredits: null, feeDuffs: this.coreFeeDuffs(), maxPerTx: null, noteLimit: null}
+        return {
+          feeCredits: await this.protocolFee(wallet, operation, params, 1),
+          feeDuffs: this.coreFeeDuffs(),
+          maxPerTx: null,
+          noteLimit: null,
+        }
 
       // Priced by the pool, which carves the fee to the credit.
       case 'shieldedTransfer':

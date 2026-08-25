@@ -8,7 +8,7 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
   return {
     isCoreOperation: false,
     amount: '0.00001',
-    coreFeeDuffs: 10_000n,
+    totalFeeDuffs: 10_000n,
     operation: TransferOperation.AddressFundsTransfer,
     amountDuffs: 1_000n,
     balanceDuffs: 0n,
@@ -33,6 +33,21 @@ describe('amountErrorFor', () => {
     }))).toBeNull()
   })
 
+  // An L1 -> L2 transfer locks the L2 fee alongside the amount, so both fees
+  // reach here already summed into one Dash figure.
+  it('reports the max after both fees on an L1 -> L2 transfer', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      operation: TransferOperation.AssetLockFunding,
+      amount: '1',
+      amountDuffs: 100_000_000n,
+      balanceDuffs: 100_000_000n,
+      totalFeeDuffs: 66_000n,
+      amountCredits: 0n,
+      feeCredits: 56_000_000n,
+    }))).toBe('Max sendable is 0.99934 Dash after fees.')
+  })
+
   it('reports the max Dash amount after the fixed network fee', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,
@@ -40,7 +55,7 @@ describe('amountErrorFor', () => {
       amountDuffs: 100_000_000n,
       balanceDuffs: 100_000_000n,
       amountCredits: 0n,
-    }))).toBe('Max sendable is 0.9999 Dash after the network fee.')
+    }))).toBe('Max sendable is 0.9999 Dash after fees.')
   })
 
   it('is silent while nothing has been typed', () => {

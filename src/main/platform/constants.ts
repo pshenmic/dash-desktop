@@ -15,19 +15,14 @@ export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
-// Dummy public key for fee calculation
+// Stands in for a key a quote will not derive. The secp256k1 generator, so the
+// bytes are certainly a valid point; which point it is moves no fee.
 export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
   Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex'),
 )
 
 // bincode encoding of PlatformAddress::P2pkh: one variant byte, then the hash.
 export const PLATFORM_ADDRESS_BYTES = 21
-
-export const FEE_QUOTE_INPUT_CREDITS = 1_000_000n
-
-// Stands in for the identity's real nonce while pricing. quoteInputs does the
-// same for input nonces: neither changes the fee beyond a varint width.
-export const FEE_QUOTE_NONCE = 1n
 
 export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
   {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},

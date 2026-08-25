@@ -5,14 +5,14 @@ import { creditsToDuffs, davToDash } from './balance'
 import { isPoolIdentityDenomination } from './transferMatrix'
 
 export function amountErrorFor(params: AmountValidationParams): string | null {
-  const { isCoreOperation, amount, operation, amountDuffs, balanceDuffs, coreFeeDuffs, amountCredits, minCredits, availableCredits, feeCredits, maxPerTx, noteLimit } = params
+  const { isCoreOperation, amount, operation, amountDuffs, balanceDuffs, totalFeeDuffs, amountCredits, minCredits, availableCredits, feeCredits, maxPerTx, noteLimit } = params
 
   if (amount.length === 0) return null
 
   if (isCoreOperation) {
-    if (amountDuffs <= 0n || amountDuffs + coreFeeDuffs <= balanceDuffs) return null
-    const maxSendableDuffs = balanceDuffs > coreFeeDuffs ? balanceDuffs - coreFeeDuffs : 0n
-    return `Max sendable is ${davToDash(maxSendableDuffs)} Dash after the network fee.`
+    if (amountDuffs <= 0n || amountDuffs + totalFeeDuffs <= balanceDuffs) return null
+    const maxSendableDuffs = balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n
+    return `Max sendable is ${davToDash(maxSendableDuffs)} Dash after fees.`
   }
 
   if (operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)) {
