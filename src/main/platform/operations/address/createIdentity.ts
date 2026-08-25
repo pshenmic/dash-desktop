@@ -3,15 +3,11 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {DEDUCT_FROM_FIRST, signInputs, toInputAddresses} from './signInputs'
-import {IDENTITY_CREATE_KEY_COUNT} from '../../../src/constants'
 import {KEY_SPECS} from '../../constants'
 
 type Payload = PlatformOperations['identityCreateFromAddresses']['payload']
 type Result = PlatformOperations['identityCreateFromAddresses']['result']
 
-if (KEY_SPECS.length !== IDENTITY_CREATE_KEY_COUNT) {
-  throw new Error('identityCreate key specs and the fee constant disagree')
-}
 
 export async function identityCreateFromAddresses(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {sdk, network} = ctx

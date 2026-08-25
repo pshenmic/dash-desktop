@@ -5,7 +5,6 @@ import { WalletSyncPhase } from '../enums/WalletSyncPhase'
 import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
-import { ShieldedSpendKind } from '../enums/ShieldedSpendKind'
 import { TransferOperation } from '../enums/TransferOperation'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
@@ -47,54 +46,35 @@ export interface PlatformAddressDto {
   nonce: number
 }
 
-// estimateTransitionFee
-export interface TransitionFeeInput {
-  platformAddress: string
-  index: number
-  nonce: number
-  credits: bigint
-}
-
-export type TransitionFeeQuery =
-  | { kind: 'addressTransfer'; inputCount: number; recipients: string[] }
-  | { kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean }
-  | { kind: 'shieldedSpend'; spendKind: ShieldedSpendKind; noteCount: number; recipients: string[] }
-  | { kind: 'shield'; noteCount: number; inputCount: number; fromAssetLock: boolean; surplusAddress: string | null }
-  | { kind: 'identityCreditsToAddresses'; identityId: string; recipients: { address: string; amountCredits: bigint }[] }
-  | { kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint }
-  | { kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string }
-  | { kind: 'identityCreateFromAddresses'; inputs: TransitionFeeInput[] }
-  | { kind: 'identityTopUpFromAddresses'; identityId: string; inputs: TransitionFeeInput[] }
-  | {
-      kind: 'addressFundingFromAssetLock'
-      assetLockProof: { type: 'chainLock'; coreChainLockedHeight: number } | { type: 'instantLock'; instantLock: string; transaction: string }
-      txid: string
-      outputIndex: number
-      recipient: string
-    }
-
-export interface TransitionFeeDto {
-  minFeeCredits: bigint
-  storageFeeCredits: bigint
-  totalFeeCredits: bigint
-  newAddresses: string[]
-}
-
-export interface TransitionFeeParams {
-  destinationValid: boolean
-  recipient: string
+// estimateFee — the one fee endpoint. What gets priced for each operation is
+// the backend's business; this carries only what the user chose.
+export interface FeeParams {
   amountCredits: bigint
-  source: PlatformAddressDto | null
+  recipient: string
+  sourceAddress: string | null
   identityId: string | null
+  // Restricts a pool spend to one shielded address's notes.
+  noteIndexes: number[] | null
 }
 
-export interface OperationFeeParams extends TransitionFeeParams {
-  notes: ShieldedNoteInfo[] | null
+// An operation is priced in credits (L2) or duffs (L1), never both, and both
+// are null while it cannot be priced yet. maxPerTx and noteLimit are pool-spend
+// facts: nothing else is capped by anything but the balance.
+export interface OperationFee {
+  feeCredits: bigint | null
+  feeDuffs: bigint | null
+  maxPerTx: bigint | null
+  noteLimit: number | null
+}
+
+export interface OperationFeeParams extends FeeParams {
+  destinationValid: boolean
 }
 
 export interface AmountValidationParams {
   isCoreOperation: boolean
   amount: string
+  coreFeeDuffs: bigint
   operation: TransferOperation | null
   amountDuffs: bigint
   balanceDuffs: bigint
@@ -103,6 +83,7 @@ export interface AmountValidationParams {
   availableCredits: bigint | null
   feeCredits: bigint | null
   maxPerTx: bigint | null
+  noteLimit: number | null
 }
 
 // getStatus
@@ -151,6 +132,8 @@ export interface GeneralPreferencesJSON {
   language: string
   currency: string
   connectionType: ConnectionType
+  platformFeeMultiplier: number
+  coreFeeMultiplier: number
 }
 
 export interface PeerOverridesJSON {

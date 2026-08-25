@@ -20,6 +20,14 @@ export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
   Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex'),
 )
 
+// bincode encoding of PlatformAddress::P2pkh: one variant byte, then the hash.
+export const PLATFORM_ADDRESS_BYTES = 21
+
+export const FEE_QUOTE_INPUT_CREDITS = 1_000_000n
+
+// An address transfer pays exactly one recipient.
+export const SHIELD_RECIPIENT_COUNT = 1
+
 export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
   {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
   {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
@@ -64,6 +72,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
       return `${request.network}:identity:${request.payload.identifier}`
 
     case 'transitionFee':
+    case 'spendFeeCurve':
     case 'addressInfos':
     case 'identityExists':
     case 'identityBalance':

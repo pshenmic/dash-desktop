@@ -2,6 +2,7 @@ import {describe, it, expect, vi} from 'vitest'
 import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
+import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 
 const WALLET = 'w1'
 const XPUB = 'xpub-test'
@@ -31,11 +32,9 @@ function service(): {
   const svc = new PlatformAddressService(
     walletDAO as unknown as WalletDAO, {} as never, {} as never,
     {request} as unknown as PlatformWorkerService, {} as never,
+    {loadCandidates: async () => []} as unknown as FeeService,
   )
 
-  // The window walk is what this guards; the rest of getPlatformAddresses is
-  // not under test.
-  ;(svc as unknown as {loadPlatformCandidates: unknown}).loadPlatformCandidates = async () => []
   ;(svc as unknown as {keyPair: unknown}).keyPair = {
     derivePlatformAddressFromXpub: (_x: string, _n: string, i: number) => ({toBech32m: () => `addr-${i}`}),
   }

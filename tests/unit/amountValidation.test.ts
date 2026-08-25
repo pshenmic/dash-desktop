@@ -8,6 +8,7 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
   return {
     isCoreOperation: false,
     amount: '0.00001',
+    coreFeeDuffs: 10_000n,
     operation: TransferOperation.AddressFundsTransfer,
     amountDuffs: 1_000n,
     balanceDuffs: 0n,
@@ -16,6 +17,7 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
     availableCredits: 900_000_000n,
     feeCredits: 100_000n,
     maxPerTx: null,
+    noteLimit: null,
     ...overrides,
   }
 }
@@ -82,7 +84,7 @@ describe('amountErrorFor', () => {
   })
 
   it('reports the per-transaction cap', () => {
-    const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n}))
+    const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n, noteLimit: 6}))
     expect(error).toBe('Max per transaction right now is 0.007 Dash (network fee + 6-note limit).')
   })
 

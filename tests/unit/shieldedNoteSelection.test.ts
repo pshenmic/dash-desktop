@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import * as mainSelection from '../../src/main/src/utils/shieldedNoteSelection'
-import * as rendererSelection from '../../src/renderer/src/utils/shieldedNoteSelection'
+import {maxSpendableCredits, selectSpendNotes} from '../../src/main/src/utils/shieldedNoteSelection'
 import {SelectableNote} from '../../src/main/src/types/ShieldedNoteSelection'
 function note(index: number, value: bigint): SelectableNote {
   return { index, value }
@@ -8,12 +7,7 @@ function note(index: number, value: bigint): SelectableNote {
 
 const noFee = (): bigint => 0n
 
-const IMPLEMENTATIONS = [
-  {name: 'main', selectSpendNotes: mainSelection.selectSpendNotes, maxSpendableCredits: mainSelection.maxSpendableCredits},
-  {name: 'renderer', selectSpendNotes: rendererSelection.selectSpendNotes, maxSpendableCredits: rendererSelection.maxSpendableCredits},
-]
-
-describe.each(IMPLEMENTATIONS)('$name selectSpendNotes', ({selectSpendNotes}) => {
+describe('selectSpendNotes', () => {
   it('selects a single note covering the target', () => {
     const res = selectSpendNotes([note(0, 100n), note(1, 10n)], 50n, 6, noFee)
     expect(res).not.toBeNull()
@@ -76,7 +70,7 @@ describe.each(IMPLEMENTATIONS)('$name selectSpendNotes', ({selectSpendNotes}) =>
   })
 })
 
-describe.each(IMPLEMENTATIONS)('$name maxSpendableCredits', ({maxSpendableCredits}) => {
+describe('maxSpendableCredits', () => {
   it('sums the top maxNotes values minus the fee', () => {
     const notes = [note(0, 10n), note(1, 50n), note(2, 30n), note(3, 20n), note(4, 5n), note(5, 5n), note(6, 5n)]
     expect(maxSpendableCredits(notes, 6, () => 20n)).toBe(100n)

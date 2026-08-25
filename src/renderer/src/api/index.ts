@@ -1,5 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, Transaction, TransitionFeeDto, TransitionFeeQuery, TxLockStatus } from './types'
+import { TransferOperation } from '../enums/TransferOperation'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -16,6 +17,14 @@ export class API {
 
   static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
+  }
+
+  static async setPlatformFeeMultiplier(platformFeeMultiplier: number): Promise<void> {
+    return this.api.setPlatformFeeMultiplier(platformFeeMultiplier)
+  }
+
+  static async setCoreFeeMultiplier(coreFeeMultiplier: number): Promise<void> {
+    return this.api.setCoreFeeMultiplier(coreFeeMultiplier)
   }
 
   static async startWalletSync(walletId: string): Promise<void> {
@@ -82,8 +91,12 @@ export class API {
     return this.api.addPlatformAddress(walletId) as Promise<PlatformAddressDto[]>
   }
 
-  static async estimateTransitionFee(network: Network, query: TransitionFeeQuery): Promise<TransitionFeeDto> {
-    return this.api.estimateTransitionFee(network, query) as Promise<TransitionFeeDto>
+  static async estimateFee(
+    walletId: string,
+    operation: TransferOperation,
+    params: FeeParams,
+  ): Promise<OperationFee> {
+    return this.api.estimateFee(walletId, operation, params) as Promise<OperationFee>
   }
 
   static async deleteWallet(walletId: string): Promise<void> {

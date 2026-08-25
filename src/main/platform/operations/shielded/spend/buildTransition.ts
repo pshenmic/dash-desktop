@@ -3,7 +3,6 @@ import {OrchardAddressWASM, ShieldedMemoWASM, SpendableNoteWASM, StateTransition
 import {Network} from '../../../../src/types/Network'
 import {coreAddressToScript} from '../../../../src/utils/coreScript'
 import {PlatformOperations} from '../../../types/messages'
-import {WITHDRAWAL_CORE_FEE_PER_BYTE} from '../constants'
 import {COIN_TYPE, SHIELDED_ACCOUNT} from '../../../../src/constants'
 import {identityKeys} from './identityKeys'
 
@@ -64,7 +63,7 @@ export async function buildTransition(
         ...base,
         withdrawalAmount: amount,
         outputScript: coreAddressToScript(recipient, network),
-        coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
+        coreFeePerByte: payload.coreFeePerByte,
         pooling: 'Never',
       })
   }

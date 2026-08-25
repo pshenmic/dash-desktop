@@ -1,3 +1,5 @@
+import { OperationFee } from '../api/types'
+
 export interface TransferPageType {
   header: {
     title: string
@@ -25,7 +27,9 @@ export const SHIELDED_BALANCE_UNKNOWN_ERROR = 'Shielded balance is unknown — s
 
 export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
 
-export const CORE_FEE_DUFFS = 10_000n
+// What an operation reads as before its fee is known.
+export const NO_OPERATION_FEE: OperationFee = { feeCredits: null, feeDuffs: null, maxPerTx: null, noteLimit: null }
+
 
 export const sendPageData: TransferPageType = {
   header: {

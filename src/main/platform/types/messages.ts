@@ -81,37 +81,20 @@ export interface Recipient {
 // Kinds without a static estimator in dpp carry what their operation builds
 // with, because the quote has to build the transition to price it.
 export type FeeQuery =
-  | {kind: 'addressTransfer'; inputCount: number; recipients: string[]}
-  | {kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean}
-  | {kind: 'shieldedSpend'; spendKind: SpendKind; noteCount: number; recipients: string[]}
-  // Only the asset-lock shield has a transparent destination besides the pool.
-  | {
-      kind: 'shield'
-      noteCount: number
-      inputCount: number
-      fromAssetLock: boolean
-      surplusAddress: string | null
-    }
+  | {kind: 'addressTransfer'; inputCount: number}
+  | {kind: 'addressWithdrawal'; inputCount: number}
+  | {kind: 'shield'}
   | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
   | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
-  | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string}
-  | {kind: 'identityCreateFromAddresses'; inputs: AddressInput[]}
-  | {kind: 'identityTopUpFromAddresses'; identityId: string; inputs: AddressInput[]}
-  | {
-      kind: 'addressFundingFromAssetLock'
-      assetLockProof: AssetLockProofParams
-      txid: string
-      outputIndex: number
-      recipient: string
-    }
+  | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string; coreFeePerByte: number}
+  | {kind: 'identityCreateFromAddresses'; inputCount: number}
+  | {kind: 'identityTopUpFromAddresses'; identityId: string; inputCount: number}
 
-// storageFeeCredits is what creating newAddresses' balance entries costs, which
-// is why a first payment to an address is dearer than every later one.
+// metered means consensus prices the transition at execution and feeCredits is
+// only the floor. A shielded fee is exact, so nothing may be added to it.
 export interface FeeQuote {
-  minFeeCredits: bigint
-  storageFeeCredits: bigint
-  totalFeeCredits: bigint
-  newAddresses: string[]
+  feeCredits: bigint
+  metered: boolean
 }
 
 export type AssetLockProofParams =
@@ -155,6 +138,8 @@ export interface PlatformOperations {
       // identityCreate only.
       identityIndex: number | null
       failureAddress: string | null
+      // withdrawal only; consensus requires a non-zero Fibonacci rate.
+      coreFeePerByte: number
     }
     result: {stHash: string; identityId: string | null; feeCredits: bigint | null}
   }
@@ -186,6 +171,12 @@ export interface PlatformOperations {
     payload: {query: FeeQuery}
     result: FeeQuote
   }
+  // Every note count a spend may settle on, so the caller can resolve the fee
+  // and the count together without a round trip per candidate count.
+  spendFeeCurve: {
+    payload: {kind: SpendKind}
+    result: {feeCredits: bigint[]}
+  }
   addressInfos: {
     payload: {addresses: string[]}
     // An address absent from `infos` is unused. A failed lookup rejects rather
@@ -197,7 +188,7 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   addressWithdrawal: {
-    payload: {seed: Uint8Array; inputs: AddressInput[]; coreAddress: string}
+    payload: {seed: Uint8Array; inputs: AddressInput[]; coreAddress: string; coreFeePerByte: number}
     result: {stHash: string}
   }
   identityCreateFromAddresses: {
@@ -217,7 +208,14 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   identityWithdrawal: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; amountCredits: bigint; coreAddress: string}
+    payload: {
+      seed: Uint8Array
+      identifier: string
+      identityIndex: number
+      amountCredits: bigint
+      coreAddress: string
+      coreFeePerByte: number
+    }
     result: {stHash: string}
   }
   identityExists: {

@@ -1,4 +1,3 @@
-export const WITHDRAWAL_CORE_FEE_PER_BYTE = 1
 export const SHIELD_FUNDING_DUMMY_OUTPUTS = 1
 
 // Platform caps state transitions at ~20KB and the Halo2 proof grows with the

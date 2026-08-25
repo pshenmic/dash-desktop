@@ -76,7 +76,7 @@ declare global {
       setWalletLabel: (walletId: string, label: string | null) => Promise<void>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
-      estimateTransitionFee: (network: Network, query: unknown) => Promise<{ minFeeCredits: bigint; storageFeeCredits: bigint; totalFeeCredits: bigint; newAddresses: string[] }>
+      estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
@@ -94,6 +94,8 @@ declare global {
       setLanguage: (language: string) => Promise<void>
       setFiatCurrency: (currency: string) => Promise<void>
       setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
+      setPlatformFeeMultiplier: (platformFeeMultiplier: number) => Promise<void>
+      setCoreFeeMultiplier: (coreFeeMultiplier: number) => Promise<void>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

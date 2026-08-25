@@ -6,7 +6,8 @@ import {
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
 import {SpendKind} from '../../../types/messages'
-import {IDENTITY_KEY_DEFINITIONS, MIN_BUNDLE_ACTIONS} from '../../../../src/constants'
+import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/constants'
+import {MIN_BUNDLE_ACTIONS} from '../constants'
 // What consensus will charge, from the protocol implementation itself. Never
 // reimplement this: it is versioned (`platformVersion`) and scales with the
 // action count, which is why a constant table cannot track it.

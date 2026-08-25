@@ -6,6 +6,8 @@ import {Network} from '../../types/Network'
 import {Transaction} from '../../types/Transaction'
 import {TxLockStatus} from '../../types/TxLockStatus'
 import {pickCreditChangeAddress, selectTransferInputs} from '../../utils/transferInputs'
+import {coreFeeDuffs} from '../../utils/coreFeeRate'
+import {Preferences} from '../../preferences'
 import {requireWallet} from '../../utils/requireWallet'
 import {CoreTransactionService} from './CoreTransactionService'
 import {WalletSyncService} from './WalletSyncService'
@@ -16,6 +18,7 @@ export class CoreLockService implements AssetLockFunder {
   private walletSyncService: WalletSyncService
   private coreTransactionService: CoreTransactionService
   private providers: WalletProviderFactory
+  private preferences: Preferences
 
   constructor(
     walletDAO: WalletDAO,
@@ -23,12 +26,14 @@ export class CoreLockService implements AssetLockFunder {
     walletSyncService: WalletSyncService,
     coreTransactionService: CoreTransactionService,
     providers: WalletProviderFactory,
+    preferences: Preferences,
   ) {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.walletSyncService = walletSyncService
     this.coreTransactionService = coreTransactionService
     this.providers = providers
+    this.preferences = preferences
   }
 
   async buildAssetLock(
@@ -47,7 +52,12 @@ export class CoreLockService implements AssetLockFunder {
     const provider = this.providers.forWallet(walletId, network)
     await provider.ensureReady()
     const {transferInputs, inputTotal, changeAddress} =
-      selectTransferInputs(grouped, await provider.getWalletUtxos(), amountDuffs)
+      selectTransferInputs(
+        grouped,
+        await provider.getWalletUtxos(),
+        amountDuffs,
+        coreFeeDuffs(this.preferences.general.coreFeeMultiplier),
+      )
 
     const creditTarget = credit ?? pickCreditChangeAddress(grouped, changeAddress)
 

@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
+import {Preferences} from '../../src/main/src/preferences'
 
 function service(): ShieldedService {
   return new ShieldedService(
@@ -11,6 +12,7 @@ function service(): ShieldedService {
     null as never,
     null as never,
     null as never,
+    Preferences.default(),
   )
 }
 

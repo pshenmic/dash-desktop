@@ -16,7 +16,7 @@ import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import { API } from '@renderer/api'
 import { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
-import { CORE_FEE_DUFFS, IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
+import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { AssetLockFundingKind } from '@renderer/enums/AssetLockFundingKind'
@@ -49,7 +49,6 @@ export default function IdentityRegistration(): React.JSX.Element {
   const navigate = useNavigate()
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
-  const network = status?.network ?? null
   const { syncIncomplete } = useConnectionModeContext()
   const { balance, loading: balanceLoading, err: balanceError } = useWalletBalance(walletId ?? undefined)
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
@@ -120,12 +119,6 @@ export default function IdentityRegistration(): React.JSX.Element {
     [fundedAddresses],
   )
   const selectedSource = fundedAddresses.find(address => address.platformAddress === fromAddress) ?? defaultSource
-  const spendableNotes = useMemo(
-    () => shieldedSync.phase === ShieldedSyncPhase.Done
-      ? shieldedSync.notes.filter(note => !note.spent)
-      : [],
-    [shieldedSync.phase, shieldedSync.notes],
-  )
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? BigInt(shieldedSync.balance)
     : null
@@ -135,16 +128,17 @@ export default function IdentityRegistration(): React.JSX.Element {
       ? shieldedBalance
       : null
 
-  const { feeCredits, maxPerTx, loading: feeLoading, err: feeError } = useOperationFee(network, operation, {
+  const { feeCredits, feeDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
     destinationValid: true,
     recipient: '',
     amountCredits,
-    source: selectedSource ?? null,
+    sourceAddress: selectedSource?.platformAddress ?? null,
     identityId: null,
-    notes: fromKind === SourceKind.Shielded && shieldedSync.phase === ShieldedSyncPhase.Done ? spendableNotes : null,
+    noteIndexes: null,
   })
 
-  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs)
+  const coreFeeDuffs = feeDuffs ?? 0n
+  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs, coreFeeDuffs)
   const platformMaxDuffs = maxPerTx !== null
     ? creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     : feeCredits !== null && availableCredits !== null
@@ -152,10 +146,11 @@ export default function IdentityRegistration(): React.JSX.Element {
       : null
   const maxDuffs = fromKind === SourceKind.Core ? coreMaxDuffs : platformMaxDuffs
   const amountError = fromKind === SourceKind.Core
-    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs)
+    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs, coreFeeDuffs)
     : amountErrorFor({
         isCoreOperation: false,
         amount,
+        coreFeeDuffs,
         operation,
         amountDuffs,
         balanceDuffs,
@@ -164,6 +159,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         availableCredits,
         feeCredits,
         maxPerTx,
+        noteLimit,
       })
   const sourceReady = fromKind === SourceKind.Core
     ? !balanceLoading && !balanceError
@@ -176,7 +172,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     && (fromKind === SourceKind.Core || feeCredits !== null)
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : null
   const totalDuffs = fromKind === SourceKind.Core
-    ? amountDuffs + CORE_FEE_DUFFS
+    ? amountDuffs + coreFeeDuffs
     : creditsToDuffs(amountCredits + (feeCredits ?? 0n))
   const unfinishedFunding = fundingState != null && isUnfinishedAssetLockFunding(fundingState.phase)
     ? fundingState
@@ -504,7 +500,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             {fromKind === SourceKind.Core ? 'Reserved Core fee' : 'Reserved for Platform fee'}
           </Text>
           {fromKind === SourceKind.Core ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(CORE_FEE_DUFFS)} Dash</Text>
+            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(coreFeeDuffs)} Dash</Text>
           ) : feeError === null && feeCredits !== null ? (
             <Text size={12} weight={"medium"} color={"brand"}>{davToDash(creditsToDuffs(feeCredits))} Dash</Text>
           ) : feeError === null && feeLoading ? (
@@ -578,7 +574,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             {fromKind === SourceKind.Core ? 'Core network fee' : 'Reserved for Platform fee'}
           </Text>
           {fromKind === SourceKind.Core ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(CORE_FEE_DUFFS)} Dash</Text>
+            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(coreFeeDuffs)} Dash</Text>
           ) : feeCredits !== null ? (
             <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
           ) : (

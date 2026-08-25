@@ -11,18 +11,8 @@ export function toAddressInput(candidate: PlatformSourceCandidate, credits: bigi
   }
 }
 
-export function identityTransferFeeCredits(recipientCount: number): bigint {
-  return 500_000n + 6_000_000n * BigInt(recipientCount)
-}
-
-export function identityCreateFeeCredits(publicKeyCount: number): bigint {
-  return 2_000_000n + 6_500_000n * BigInt(publicKeyCount)
-}
-
-export function topUpFeeCredits(inputCount: number): bigint {
-  return 500_000n + 500_000n * BigInt(inputCount)
-}
-
+// Consensus takes the fee from the remaining balance of the input its
+// DeductFromInput(0) resolves to, which is whichever address sorts first.
 export function selectPlatformInputs(
   candidates: PlatformSourceCandidate[],
   amountCredits: bigint,
@@ -44,52 +34,100 @@ export function selectPlatformInputs(
     return {inputs: [{candidate: chosen, credits: amountCredits}], feeCredits}
   }
 
-  const sorted = [...candidates].sort((a, b) =>
-    a.balanceCredits === b.balanceCredits ? 0 : a.balanceCredits > b.balanceCredits ? -1 : 1,
-  )
+  const sorted = [...candidates]
+    .filter(candidate => candidate.balanceCredits >= MIN_INPUT_CREDITS)
+    .sort((a, b) => (a.balanceCredits === b.balanceCredits ? 0 : a.balanceCredits > b.balanceCredits ? -1 : 1))
 
-  const inputs: PlatformInputSelection[] = []
-  let remaining = amountCredits
+  const prefix: PlatformSourceCandidate[] = []
+  let accumulated = 0n
 
   for (const candidate of sorted) {
-    if (remaining === 0n || inputs.length === MAX_ADDRESS_INPUTS) break
+    if (prefix.length === MAX_ADDRESS_INPUTS) break
 
-    const usable = inputs.length === 0
-      ? candidate.balanceCredits - feeCredits
-      : candidate.balanceCredits
-    if (usable < MIN_INPUT_CREDITS) continue
+    prefix.push(candidate)
+    accumulated += candidate.balanceCredits
+    if (accumulated < amountCredits + feeCredits) continue
 
-    let credits = usable < remaining ? usable : remaining
-    if (credits < remaining && remaining - credits < MIN_INPUT_CREDITS) {
-      credits = remaining - MIN_INPUT_CREDITS
-    }
-    if (credits < MIN_INPUT_CREDITS) continue
-
-    inputs.push({candidate, credits})
-    remaining -= credits
+    const plan = planAroundFeeTarget(prefix, accumulated, amountCredits, feeCredits)
+    if (plan !== null) return plan
   }
 
-  if (remaining > 0n) {
+  if (accumulated < amountCredits + feeCredits) {
     throw new Error('Platform addresses do not hold enough credits for this amount plus fee')
   }
-
-  return {inputs, feeCredits}
+  throw new Error(
+    'No combination of addresses leaves the fee-paying address enough remaining credits; '
+    + 'consolidate funds into fewer addresses and try again',
+  )
 }
 
-export function selectPlatformInputsWithFee(
+// The fee scales with the input count, and covering a larger fee can pull in
+// another input, so re-select until the count the fee was quoted for holds.
+export async function selectPlatformInputsWithFee(
   candidates: PlatformSourceCandidate[],
   amountCredits: bigint,
-  feeForInputCount: (inputCount: number) => bigint,
+  feeForInputCount: (inputCount: number) => Promise<bigint>,
   preferredAddress?: string,
-): PlatformInputPlan {
+): Promise<PlatformInputPlan> {
   let inputCount = 1
   for (;;) {
-    const plan = selectPlatformInputs(candidates, amountCredits, feeForInputCount(inputCount), preferredAddress)
+    const plan = selectPlatformInputs(candidates, amountCredits, await feeForInputCount(inputCount), preferredAddress)
     if (plan.inputs.length <= inputCount) {
       return plan
     }
     inputCount = plan.inputs.length
   }
+}
+
+// Loads the fee-paying address as lightly as its peers allow, so what it keeps
+// back covers the fee. Null means this prefix cannot, so widen it.
+function planAroundFeeTarget(
+  prefix: PlatformSourceCandidate[],
+  accumulated: bigint,
+  amountCredits: bigint,
+  feeCredits: bigint,
+): PlatformInputPlan | null {
+  const feeTarget = prefix.reduce((first, candidate) =>
+    compareAddresses(candidate, first) < 0 ? candidate : first,
+  )
+
+  const feeTargetMax = feeTarget.balanceCredits - feeCredits
+  if (feeTargetMax < MIN_INPUT_CREDITS) return null
+
+  const peersTotal = accumulated - feeTarget.balanceCredits
+  const shortfall = amountCredits - peersTotal
+  const feeTargetMin = shortfall > MIN_INPUT_CREDITS ? shortfall : MIN_INPUT_CREDITS
+  if (feeTargetMin > feeTargetMax) return null
+
+  const inputs: PlatformInputSelection[] = []
+  let remaining = amountCredits - feeTargetMin
+
+  for (const candidate of prefix) {
+    if (candidate === feeTarget || remaining === 0n) continue
+    const credits = candidate.balanceCredits < remaining ? candidate.balanceCredits : remaining
+    // A share below the protocol minimum cannot be its own input; the fee
+    // target carries it instead.
+    if (credits < MIN_INPUT_CREDITS) continue
+    inputs.push({candidate, credits})
+    remaining -= credits
+  }
+
+  const feeTargetCredits = feeTargetMin + remaining
+  if (feeTargetCredits > feeTargetMax) return null
+
+  inputs.push({candidate: feeTarget, credits: feeTargetCredits})
+  inputs.sort((a, b) => compareAddresses(a.candidate, b.candidate))
+  return {inputs, feeCredits}
+}
+
+function compareAddresses(a: PlatformSourceCandidate, b: PlatformSourceCandidate): number {
+  const left = a.addressBytes
+  const right = b.addressBytes
+  const shared = Math.min(left.length, right.length)
+  for (let i = 0; i < shared; i++) {
+    if (left[i] !== right[i]) return left[i] - right[i]
+  }
+  return left.length - right.length
 }
 
 export function selectPlatformSource(

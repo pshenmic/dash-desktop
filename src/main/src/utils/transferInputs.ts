@@ -33,6 +33,7 @@ export function selectTransferInputs(
   grouped: GroupedAddresses,
   utxos: UTXO[],
   amountDuffs: bigint,
+  feeDuffs: bigint,
   fromAddress?: string,
 ): TransferInputSelection {
   const pathByAddress = new Map(
@@ -56,7 +57,7 @@ export function selectTransferInputs(
     address: utxo.address,
   }))
 
-  const selection = selectCoins(selectable, amountDuffs)
+  const selection = selectCoins(selectable, amountDuffs, {fee: feeDuffs})
   const utxoByKey = new Map(ownedUtxos.map(u => [`${u.txId}:${u.vOut}`, u]))
 
   const transferInputs: TransferInput[] = selection.inputs.map(input => {

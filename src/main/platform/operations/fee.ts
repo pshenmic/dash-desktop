@@ -2,33 +2,26 @@ import {
   AddressCreditWithdrawalTransitionWASM,
   AddressFundsTransferTransitionWASM,
   PlatformAddressWASM,
-  ShieldFromAssetLockTransitionWASM,
-  ShieldTransitionWASM,
+  ShieldedTransferTransitionWASM,
 } from 'pshenmic-dpp'
 import {
-  AddressFundsFeeStrategyStepWASM,
   IdentityPublicKeyInCreationWASM,
-  OutputAddressNullableCreditsWASM,
+  InputAddressWASM,
   OutputAddressWASM,
   StateTransitionWASM,
 } from 'dash-platform-sdk/types.js'
 import {coreAddressToScript} from '../../src/utils/coreScript'
-import {
-  CORE_FEE_PER_BYTE,
-  SHIELDED_STORAGE_BYTES_PER_ACTION,
-  SHIELDED_STORAGE_CREDIT_PER_BYTE,
-} from '../../src/constants'
-import {FEE_QUOTE_PUBLIC_KEY, KEY_SPECS} from '../constants'
+import {FEE_QUOTE_INPUT_CREDITS, FEE_QUOTE_PUBLIC_KEY, KEY_SPECS, PLATFORM_ADDRESS_BYTES, SHIELD_RECIPIENT_COUNT} from '../constants'
 import {FeeQuery, PlatformOperations} from '../types/messages'
 import {OperationContext} from './types'
-import {addressInfos} from './address/infos'
-import {DEDUCT_FROM_FIRST, toInputAddresses} from './address/signInputs'
-import {buildAssetLockProof} from './assetLockProof'
+import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
-import {MIN_BUNDLE_ACTIONS} from './shielded/constants'
+import {MAX_SPEND_NOTES, MIN_BUNDLE_ACTIONS} from './shielded/constants'
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
+type CurvePayload = PlatformOperations['spendFeeCurve']['payload']
+type CurveResult = PlatformOperations['spendFeeCurve']['result']
 
 type IdentityQuery = Extract<
   FeeQuery,
@@ -37,59 +30,44 @@ type IdentityQuery = Extract<
 
 type AddressFundedQuery = Extract<
   FeeQuery,
-  {kind: 'identityCreateFromAddresses' | 'identityTopUpFromAddresses' | 'addressFundingFromAssetLock'}
+  {kind: 'identityCreateFromAddresses' | 'identityTopUpFromAddresses'}
 >
 
-export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
-  const {query} = payload
-
-  const minFeeCredits = await minimumFeeCredits(query, ctx)
-  // Deduped for storage only: two outputs to one address create one entry.
-  const recipients = [...new Set(paidAddresses(query))]
-  const newAddresses = await addressesNotInState(recipients, ctx)
-  // multiply by 3 because most time fee is more than min storage fee
-  const storageFeeCredits = PlatformAddressWASM.estimateStorageFeeForNewAddresses(newAddresses.length) * 3n
-
-  console.log(
-    {
-      minFeeCredits,
-      storageFeeCredits,
-      totalFeeCredits: minFeeCredits + storageFeeCredits,
-      newAddresses,
-    }
-  )
-
+// A spend's fee and its note count define each other, so the caller needs the
+// whole curve to resolve them rather than one point on it.
+export function spendFeeCurve(payload: CurvePayload): CurveResult {
   return {
-    minFeeCredits,
-    storageFeeCredits,
-    totalFeeCredits: minFeeCredits + storageFeeCredits,
-    newAddresses,
+    feeCredits: Array.from({length: MAX_SPEND_NOTES}, (_, index) => minimumFee(payload.kind, index + 1)),
   }
 }
 
-async function minimumFeeCredits(query: FeeQuery, ctx: OperationContext): Promise<bigint> {
+export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
+  const {query} = payload
+  return {
+    feeCredits: await protocolFee(query, ctx),
+    metered: query.kind !== 'shield',
+  }
+}
+
+// The address and identity transitions return a floor, with the metered fee
+// coming out of the fee input's remaining balance; the shielded ones are exact.
+async function protocolFee(query: FeeQuery, ctx: OperationContext): Promise<bigint> {
   switch (query.kind) {
     case 'addressTransfer':
-      return AddressFundsTransferTransitionWASM.estimateMinFee(query.inputCount, query.recipients.length) * 4n
+      return AddressFundsTransferTransitionWASM.estimateMinFee(query.inputCount, SHIELD_RECIPIENT_COUNT)
     case 'addressWithdrawal':
-      return AddressCreditWithdrawalTransitionWASM.estimateMinFee(query.inputCount, query.hasChange)
-    case 'shieldedSpend':
-      return minimumFee(query.spendKind, query.noteCount)
-    case 'shield': {
-      const actions = Math.max(query.noteCount, MIN_BUNDLE_ACTIONS)
-      if (query.fromAssetLock) return ShieldFromAssetLockTransitionWASM.computeMinimumFee(actions)
-      return ShieldTransitionWASM.computeMinimumFee(actions)
-        + BigInt(actions) * SHIELDED_STORAGE_BYTES_PER_ACTION * SHIELDED_STORAGE_CREDIT_PER_BYTE
-        + inputProcessingFee(query.inputCount)
-    }
+      // What a withdrawal does not spend stays on the address, so no change output.
+      return AddressCreditWithdrawalTransitionWASM.estimateMinFee(query.inputCount, false)
+    case 'shield':
+      // Shield's own minimum omits note storage, but consensus checks its
+      // inputs against the full pool carve, which ShieldedTransfer carries.
+      return ShieldedTransferTransitionWASM.computeMinimumFee(MIN_BUNDLE_ACTIONS)
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
-      // multiply by 4 for transition because in most scenarios this types of transition require a lot more fee
-      return (await identityTransition(query, ctx)).calculateMinRequiredFee() * 4n
+      return (await identityTransition(query, ctx)).calculateMinRequiredFee()
     case 'identityCreateFromAddresses':
     case 'identityTopUpFromAddresses':
-    case 'addressFundingFromAssetLock':
       return addressFundedTransition(query, ctx).calculateMinRequiredFee()
   }
 }
@@ -120,7 +98,7 @@ async function identityTransition(query: IdentityQuery, ctx: OperationContext): 
       return sdk.identities.createStateTransition('withdrawal', {
         identityId: query.identityId,
         amount: query.amountCredits,
-        coreFeePerByte: CORE_FEE_PER_BYTE,
+        coreFeePerByte: query.coreFeePerByte,
         pooling: 'Never',
         identityNonce,
         outputScript: coreAddressToScript(query.coreAddress, network),
@@ -138,7 +116,7 @@ function addressFundedTransition(query: AddressFundedQuery, ctx: OperationContex
         publicKeys: KEY_SPECS.map((spec, keyId) =>
           new IdentityPublicKeyInCreationWASM(
             keyId, spec.purpose, spec.securityLevel, 'ECDSA_SECP256K1', false, FEE_QUOTE_PUBLIC_KEY)),
-        inputs: toInputAddresses(query.inputs),
+        inputs: quoteInputs(query.inputCount),
         feeStrategy: DEDUCT_FROM_FIRST,
         inputWitness: [],
         userFeeIncrease: 0,
@@ -146,61 +124,20 @@ function addressFundedTransition(query: AddressFundedQuery, ctx: OperationContex
     case 'identityTopUpFromAddresses':
       return sdk.platformAddresses.createStateTransition('identityTopUpFromAddresses', {
         identityId: query.identityId,
-        inputs: toInputAddresses(query.inputs),
+        inputs: quoteInputs(query.inputCount),
         feeStrategy: DEDUCT_FROM_FIRST,
         inputWitness: [],
         userFeeIncrease: 0,
       })
-    case 'addressFundingFromAssetLock':
-      return sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
-        assetLockProof: buildAssetLockProof(query.assetLockProof, query.txid, query.outputIndex),
-        inputs: [],
-        feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
-        inputWitness: [],
-        outputs: [new OutputAddressNullableCreditsWASM(query.recipient)],
-        userFeeIncrease: 0,
-      })
   }
 }
 
-// What consensus charges to spend N platform addresses, isolated from the
-// address transfer minimum, which is 6_000_000 per output plus this per input.
-function inputProcessingFee(inputCount: number): bigint {
-  return AddressFundsTransferTransitionWASM.estimateMinFee(inputCount, 0)
-    - AddressFundsTransferTransitionWASM.estimateMinFee(0, 0)
-}
-
-// A payout to a Core address, the pool or an identity balance creates no entry.
-// surplusOutput is counted as a payout — dpp states no amount for it.
-function paidAddresses(query: FeeQuery): string[] {
-  switch (query.kind) {
-    case 'addressTransfer':
-    case 'shieldedSpend':
-      return query.recipients
-    case 'identityCreditsToAddresses':
-      return query.recipients.map(recipient => recipient.address)
-    case 'shield':
-      return query.surplusAddress != null ? [query.surplusAddress] : []
-    case 'addressFundingFromAssetLock':
-      return [query.recipient]
-    case 'addressWithdrawal':
-    case 'identityCreditTransfer':
-    case 'identityWithdrawal':
-    case 'identityCreateFromAddresses':
-    case 'identityTopUpFromAddresses':
-      return []
-  }
-}
-
-// dash-platform-sdk reports an address missing from state as a zero balance
-// with a zero nonce, so that pair is the only signal a client gets.
-async function addressesNotInState(addresses: string[], ctx: OperationContext): Promise<string[]> {
-  if (addresses.length === 0) return []
-
-  const {infos} = await addressInfos({addresses}, ctx)
-  const inState = new Set(
-    infos.filter(info => info.balance > 0n || info.nonce > 0).map(info => info.address),
-  )
-
-  return addresses.filter(address => !inState.has(address))
+// The minimum scales with the input count and inputs are keyed by address, so
+// a quote needs no real address, only as many distinct ones as it will carry.
+function quoteInputs(inputCount: number): InputAddressWASM[] {
+  return Array.from({length: inputCount}, (_, index) => {
+    const bytes = new Uint8Array(PLATFORM_ADDRESS_BYTES)
+    bytes[1] = index
+    return new InputAddressWASM(PlatformAddressWASM.fromBytes(bytes), 1, FEE_QUOTE_INPUT_CREDITS)
+  })
 }

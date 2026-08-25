@@ -13,6 +13,8 @@ import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSe
 import { UnlockedWallet } from '../../types/UnlockedWallet'
 import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH } from '../../constants'
 import { identityPath } from '../../utils/identityKeys'
+import {coreFeePerByte} from '../../utils/coreFeeRate'
+import {Preferences} from '../../preferences'
 import { shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
@@ -25,6 +27,9 @@ import {
   ShieldedSyncPhase,
   ShieldedSyncState,
 } from '../../types/Shielded'
+import {OperationFee} from '../../types/Fee'
+import {maxSpendableCredits, selectSpendNotes} from '../../utils/shieldedNoteSelection'
+import {requireWallet} from '../../utils/requireWallet'
 import {
   EncryptedNotePayload,
   PlatformPayload,
@@ -61,15 +66,17 @@ export class ShieldedService {
   private identityRegistrationService: IdentityRegistrationService
   private platform: PlatformWorkerService
   private assetLock: AssetLockService
+  private preferences: Preferences
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string[]>()
   private noteFetches = new Map<Network, Promise<void>>()
+  private feeCurves = new Map<string, bigint[]>()
   // Derivation only. A DashPlatformSDK would build a gRPC pool and fetch the
   // evonode list to do local maths.
   private keyPair = new KeyPairController()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService, assetLock: AssetLockService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, identityRegistrationService: IdentityRegistrationService, platform: PlatformWorkerService, assetLock: AssetLockService, preferences: Preferences) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
@@ -78,6 +85,7 @@ export class ShieldedService {
     this.identityRegistrationService = identityRegistrationService
     this.platform = platform
     this.assetLock = assetLock
+    this.preferences = preferences
   }
 
   private async persistCreatedIdentity(context: {walletId: string; identityIndex: number; network: Network}, identifier: string): Promise<void> {
@@ -398,6 +406,7 @@ export class ShieldedService {
         noteIndexes: noteIndexes ?? null,
         identityIndex: null,
         failureAddress: null,
+        coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
       })
     } catch (e) {
       if (unlocked != null) zeroSeed(unlocked)
@@ -464,6 +473,7 @@ export class ShieldedService {
         noteIndexes: null,
         identityIndex,
         failureAddress,
+        coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
       }, {identityIndex})
     } catch (e) {
       if (unlocked != null) zeroSeed(unlocked)
@@ -546,6 +556,47 @@ export class ShieldedService {
     await this.assetLock.done(state, row, stHash)
     // Awaited: runFunding zeroes the seed the moment this settles.
     await this.refreshNotes(walletId, network, seed)
+  }
+
+  // The fee and the note count define each other: the fee scales with how many
+  // notes are spent, and covering a larger fee can pull in another note. The
+  // spend resolves that with these same two helpers over these same values, so
+  // quoting it anywhere else would be a second implementation of the answer.
+  async estimateSpendFee(
+    walletId: string,
+    kind: SpendKind,
+    amountCredits: bigint,
+    noteIndexes: number[] | null,
+  ): Promise<OperationFee> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const curve = await this.spendFeeCurve(wallet.network, kind)
+    const feeForCount = (numSpends: number): bigint => curve[Math.min(numSpends, curve.length) - 1]
+
+    const candidates = (this.syncStates.get(walletId)?.notes ?? [])
+      .filter(note => !note.spent && (noteIndexes == null || noteIndexes.includes(note.index)))
+      .map(note => ({index: note.index, value: note.amount}))
+
+    const selection = amountCredits > 0n
+      ? selectSpendNotes(candidates, amountCredits, curve.length, feeForCount)
+      : null
+
+    return {
+      feeCredits: selection?.feeCredits ?? feeForCount(1),
+      feeDuffs: null,
+      maxPerTx: maxSpendableCredits(candidates, curve.length, feeForCount),
+      noteLimit: curve.length,
+    }
+  }
+
+  // Fixed per network and spend kind: the protocol minimum for each note count.
+  private async spendFeeCurve(network: Network, kind: SpendKind): Promise<bigint[]> {
+    const key = `${network}:${kind}`
+    const cached = this.feeCurves.get(key)
+    if (cached != null) return cached
+
+    const {feeCredits} = await this.platform.request('spendFeeCurve', network, {kind})
+    this.feeCurves.set(key, feeCredits)
+    return feeCredits
   }
 
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {

@@ -9,4 +9,3 @@ export const SHIELDED_SPEND_POLL_MS = 700
 
 export const SHIELDED_BALANCE_UNKNOWN_TOOLTIP = 'Sync shielded notes to load this balance.'
 export const SHIELDED_SPEND_RETRY_MS = 1_000
-export const MAX_SPEND_NOTES = 6
