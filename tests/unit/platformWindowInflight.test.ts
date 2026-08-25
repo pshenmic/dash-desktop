@@ -2,6 +2,7 @@ import {describe, it, expect, vi} from 'vitest'
 import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
+import {Preferences} from '../../src/main/src/preferences'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 
 const WALLET = 'w1'
@@ -33,6 +34,7 @@ function service(): {
     walletDAO as unknown as WalletDAO, {} as never, {} as never,
     {request} as unknown as PlatformWorkerService, {} as never,
     {loadCandidates: async () => []} as unknown as FeeService,
+    Preferences.default(),
   )
 
   ;(svc as unknown as {keyPair: unknown}).keyPair = {

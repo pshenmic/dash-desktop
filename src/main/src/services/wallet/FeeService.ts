@@ -14,10 +14,10 @@ import {
 } from '../../../platform/types/messages'
 import {requireWallet} from '../../utils/requireWallet'
 import {selectPlatformInputsWithFee} from '../../utils/platformTransfer'
-import * as coreFee from '../../utils/coreFeeRate'
-import {CREDIT_FEE_UNPRICED, PLATFORM_ADDRESS_LOOKAHEAD} from '../../constants'
+import {coreFeeDuffs, coreFeePerByte} from '../../utils/coreFeeRate'
+import {PLATFORM_ADDRESS_LOOKAHEAD} from '../../constants'
 
-// Every fee in the wallet, L1 and L2, is decided here and nowhere else.
+// Every fee a quote can be asked for, L1 and L2, is answered here.
 //
 // It is an aggregate for the same reason WalletService is one: a fee spans core
 // sends, platform transitions and shielded spends, and no single service group
@@ -25,6 +25,11 @@ import {CREDIT_FEE_UNPRICED, PLATFORM_ADDRESS_LOOKAHEAD} from '../../constants'
 // for an address-funded transition scales with the inputs the selection takes
 // — pricing it and choosing them is one computation, and splitting them is what
 // let a quote and its send disagree.
+//
+// The L1 rate is the one thing that does not route through here: core/ may not
+// import platform/, and this service does. It stays a pure function of the
+// multiplier in coreFeeRate.ts, called with the preference wherever it is
+// charged, so there is still only one place it is computed.
 export class FeeService {
   private walletDAO: WalletDAO
   private platform: PlatformWorkerService
@@ -48,11 +53,12 @@ export class FeeService {
   // how it is priced; what that price is belongs to the worker, not here.
   async estimateFee(walletId: string, operation: FeeOperation, params: FeeParams): Promise<OperationFee> {
     const wallet = await requireWallet(this.walletDAO, walletId)
+    const {coreFeeMultiplier} = this.preferences.general
 
     switch (operation) {
       // Paid in Dash on L1: a flat per-transaction rate.
       case 'coreSend':
-        return {feeCredits: null, feeDuffs: this.coreFeeDuffs(), maxPerTx: null, noteLimit: null}
+        return {feeCredits: null, feeDuffs: coreFeeDuffs(coreFeeMultiplier), maxPerTx: null, noteLimit: null}
 
       // Two transactions, so two fees. The L1 lock is paid in Dash on top of the
       // amount; the transition its proof funds is paid in credits out of what
@@ -63,7 +69,7 @@ export class FeeService {
       case 'identityTopUpL1':
         return {
           feeCredits: await this.protocolFee(wallet, operation, params, 1),
-          feeDuffs: this.coreFeeDuffs(),
+          feeDuffs: coreFeeDuffs(coreFeeMultiplier),
           maxPerTx: null,
           noteLimit: null,
         }
@@ -73,7 +79,7 @@ export class FeeService {
       case 'unshield':
       case 'shieldedWithdrawal':
       case 'identityCreateFromPool':
-        return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.noteIndexes)
+        return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.noteIndexes ?? null)
 
       // Funded by platform addresses: the fee scales with the inputs, so the
       // selection has to run before the price is known.
@@ -83,20 +89,18 @@ export class FeeService {
         return this.credits(await this.selectionFee(wallet, operation, params))
 
       // Spends an identity's balance, so there is no price until one is picked.
+      // null rather than zero: nothing charges zero.
       case 'identityToAddress':
       case 'identityToIdentity':
       case 'identityWithdrawal':
-        return params.identityId === null || params.amountCredits <= 0n
-          ? CREDIT_FEE_UNPRICED
-          : this.credits(await this.protocolFee(wallet, operation, params, 1))
+        return this.credits(params.identityId == null || params.amountCredits <= 0n
+          ? null
+          : await this.protocolFee(wallet, operation, params, 1))
 
       // One input by construction: neither send ever splits its source.
       case 'addressFundsTransfer':
       case 'shield':
         return this.credits(await this.protocolFee(wallet, operation, params, 1))
-
-      default:
-        throw new Error(`Unknown fee operation: ${String(operation)}`)
     }
   }
 
@@ -148,15 +152,6 @@ export class FeeService {
     }))
   }
 
-  coreFeeDuffs(): bigint {
-    return coreFee.coreFeeDuffs(this.preferences.general.coreFeeMultiplier)
-  }
-
-  // Consensus rejects a withdrawal whose rate is not a non-zero Fibonacci number.
-  coreFeePerByte(): number {
-    return coreFee.coreFeePerByte(this.preferences.general.coreFeeMultiplier)
-  }
-
   // What consensus charges for this transition, plus the user's headroom. The
   // multiplier never touches a shielded fee, which the pool carves to the
   // credit, so only a metered quote is scaled.
@@ -166,9 +161,10 @@ export class FeeService {
     params: FeeParams,
     inputCount: number,
   ): Promise<bigint> {
+    const rate = coreFeePerByte(this.preferences.general.coreFeeMultiplier)
     const quote = await this.platform.request('transitionFee', wallet.network, {
       operation,
-      params: {...params, inputCount, coreFeePerByte: this.coreFeePerByte()},
+      params: {...params, inputCount, coreFeePerByte: rate},
     })
     if (!quote.metered) return quote.feeCredits
     return quote.feeCredits * BigInt(this.preferences.general.platformFeeMultiplier)
@@ -185,7 +181,7 @@ export class FeeService {
     return plan?.feeCredits ?? this.protocolFee(wallet, operation, params, 1)
   }
 
-  private credits(feeCredits: bigint): OperationFee {
+  private credits(feeCredits: bigint | null): OperationFee {
     return {feeCredits, feeDuffs: null, maxPerTx: null, noteLimit: null}
   }
 }

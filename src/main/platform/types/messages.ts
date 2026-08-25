@@ -100,13 +100,20 @@ export type PoolSpendOperation =
 
 export type TransitionFeeOperation =
   | 'addressFundsTransfer'
-  | 'addressWithdrawal'
   | 'shield'
   | 'identityToAddress'
   | 'identityToIdentity'
   | 'identityWithdrawal'
   | AssetLockFeeOperation
   | SelectionFeeOperation
+
+// Priced by building the transition and asking it, rather than by estimating
+// over counts. Everything an asset lock funds is here: a proof cannot be
+// estimated, only built.
+export type BuiltTransitionOperation = Exclude<
+  TransitionFeeOperation,
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield'
+>
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
 // takes and the two have to resolve together.
@@ -124,10 +131,12 @@ export interface FeeParams {
   // identity or a Core address. A list only where an operation pays several,
   // because each extra output costs the same again.
   recipient: string | string[]
-  sourceAddress: string | null
-  identityId: string | null
+  // Optional because most operations read none of them, and a caller spelling
+  // out which fields it does not use says nothing about the fee.
+  sourceAddress?: string | null
+  identityId?: string | null
   // Pool spends only: restricts the spend to one shielded address's notes.
-  noteIndexes: number[] | null
+  noteIndexes?: number[] | null
 }
 
 // The same params, plus the two numbers only main can supply: how many inputs

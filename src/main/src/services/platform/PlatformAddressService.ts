@@ -25,6 +25,8 @@ import {identityPath} from '../../utils/identityKeys'
 import {requireWallet} from '../../utils/requireWallet'
 import {selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
 import {lockedDuffsFor} from '../../utils/assetLockTx'
+import {coreFeePerByte} from '../../utils/coreFeeRate'
+import {Preferences} from '../../preferences'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
 import {FeeService} from '../wallet/FeeService'
 
@@ -44,6 +46,7 @@ export class PlatformAddressService {
   private platform: PlatformWorkerService
   private shielded: ShieldedService
   private fee: FeeService
+  private preferences: Preferences
   private keyPair = new KeyPairController()
 
   constructor(
@@ -53,6 +56,7 @@ export class PlatformAddressService {
     platform: PlatformWorkerService,
     shielded: ShieldedService,
     fee: FeeService,
+    preferences: Preferences,
   ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
@@ -60,6 +64,7 @@ export class PlatformAddressService {
     this.platform = platform
     this.shielded = shielded
     this.fee = fee
+    this.preferences = preferences
   }
 
   // Up to MAX_DISCOVERY_BATCHES sequential worker round trips, on a channel the
@@ -119,7 +124,6 @@ export class PlatformAddressService {
     const candidates = await this.fee.loadCandidates(wallet)
     const feeCredits = await this.fee.requireFee(walletId, 'addressFundsTransfer', {
       amountCredits, recipient: toPlatformAddress, sourceAddress: fromPlatformAddress || null,
-      identityId: null, noteIndexes: null,
     })
     const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
@@ -162,7 +166,7 @@ export class PlatformAddressService {
     const feeCredits = await this.fee.requireFee(walletId, 'identityToAddress', {
       amountCredits: recipients[0].amountCredits,
       recipient: recipients.map(entry => entry.address),
-      sourceAddress: null, identityId: identityIdentifier, noteIndexes: null,
+      identityId: identityIdentifier,
     })
     await this.requireIdentityBalance(network, identityIdentifier, totalCredits + feeCredits, 'transfer')
 
@@ -201,8 +205,7 @@ export class PlatformAddressService {
     const identity = await this.requireIdentity(walletId, fromIdentityIdentifier)
 
     const feeCredits = await this.fee.requireFee(walletId, 'identityToIdentity', {
-      amountCredits, recipient: toIdentityIdentifier, sourceAddress: null,
-      identityId: fromIdentityIdentifier, noteIndexes: null,
+      amountCredits, recipient: toIdentityIdentifier, identityId: fromIdentityIdentifier,
     })
     await this.requireIdentityBalance(network, fromIdentityIdentifier, amountCredits + feeCredits, 'transfer')
 
@@ -240,7 +243,7 @@ export class PlatformAddressService {
     const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
 
     const {plan, error} = await this.fee.planInputs(wallet, 'identityCreate', {
-      amountCredits, recipient: '', sourceAddress: fromPlatformAddress, identityId: null, noteIndexes: null,
+      amountCredits, recipient: '', sourceAddress: fromPlatformAddress,
     })
     if (plan === null) throw new Error(error)
 
@@ -285,7 +288,7 @@ export class PlatformAddressService {
     if (!exists) throw new Error('Identity not found on Platform')
 
     const {plan, error} = await this.fee.planInputs(wallet, 'identityTopUp', {
-      amountCredits, recipient: identityId, sourceAddress: fromPlatformAddress, identityId: null, noteIndexes: null,
+      amountCredits, recipient: identityId, sourceAddress: fromPlatformAddress,
     })
     if (plan === null) throw new Error(error)
 
@@ -319,7 +322,7 @@ export class PlatformAddressService {
     const network = wallet.network
 
     const {plan, error} = await this.fee.planInputs(wallet, 'addressWithdrawal', {
-      amountCredits, recipient: toCoreAddress, sourceAddress: fromPlatformAddress, identityId: null, noteIndexes: null,
+      amountCredits, recipient: toCoreAddress, sourceAddress: fromPlatformAddress,
     })
     if (plan === null) throw new Error(error)
 
@@ -327,7 +330,7 @@ export class PlatformAddressService {
       seed,
       inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
       coreAddress: toCoreAddress,
-      coreFeePerByte: this.fee.coreFeePerByte(),
+      coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
     })
 
     return {
@@ -355,8 +358,7 @@ export class PlatformAddressService {
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
     const feeCredits = await this.fee.requireFee(walletId, 'identityWithdrawal', {
-      amountCredits, recipient: toCoreAddress, sourceAddress: null,
-      identityId: identityIdentifier, noteIndexes: null,
+      amountCredits, recipient: toCoreAddress, identityId: identityIdentifier,
     })
     await this.requireIdentityBalance(network, identityIdentifier, amountCredits + feeCredits, 'withdrawal')
 
@@ -366,7 +368,7 @@ export class PlatformAddressService {
       identityIndex: identity.identityIndex,
       amountCredits,
       coreAddress: toCoreAddress,
-      coreFeePerByte: this.fee.coreFeePerByte(),
+      coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
     })
 
     return {
@@ -398,7 +400,6 @@ export class PlatformAddressService {
     const candidates = await this.fee.loadCandidates(wallet)
     const feeCredits = await this.fee.requireFee(walletId, 'shield', {
       amountCredits, recipient: toShieldedAddress, sourceAddress: fromPlatformAddress || null,
-      identityId: null, noteIndexes: null,
     })
     const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
@@ -434,9 +435,6 @@ export class PlatformAddressService {
       const feeCredits = await this.fee.requireFee(walletId, 'assetLockFunding', {
         amountCredits: amountDuffs * CREDITS_PER_DUFF,
         recipient: toPlatformAddress,
-        sourceAddress: null,
-        identityId: null,
-        noteIndexes: null,
       })
       const lockDuffs = lockedDuffsFor(amountDuffs, feeCredits)
 

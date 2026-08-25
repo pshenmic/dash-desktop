@@ -121,9 +121,6 @@ export class IdentityRegistrationService {
     return lockedDuffsFor(amountDuffs, await this.fee.requireFee(walletId, operation, {
       amountCredits: amountDuffs * CREDITS_PER_DUFF,
       recipient,
-      sourceAddress: null,
-      identityId: null,
-      noteIndexes: null,
     }))
   }
 

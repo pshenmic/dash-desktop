@@ -19,7 +19,7 @@ import {
   PLATFORM_ADDRESS_BYTES,
 } from '../constants'
 import type {ChainAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
-import {AssetLockFeeOperation, FeeQuoteParams, PlatformOperations, TransitionFeeOperation} from '../types/messages'
+import {BuiltTransitionOperation, FeeQuoteParams, PlatformOperations, TransitionFeeOperation} from '../types/messages'
 import {OperationContext} from './types'
 import {buildAssetLockProof} from './assetLockProof'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
@@ -68,82 +68,31 @@ function protocolFee(operation: TransitionFeeOperation, params: FeeQuoteParams, 
     case 'shield':
       return ShieldedTransferTransitionWASM.computeMinimumFee(MIN_BUNDLE_ACTIONS)
 
-    case 'identityToAddress':
-    case 'identityToIdentity':
-    case 'identityWithdrawal':
-      return identityTransition(operation, params, ctx).calculateMinRequiredFee()
-
-    case 'identityCreate':
-    case 'identityTopUp':
-      return addressFundedTransition(operation, params, ctx).calculateMinRequiredFee()
-
     // Reserved out of the locked credits before the bundle is proven; the
     // surplus returns to a transparent platform address.
     case 'assetLockShield':
       return SHIELD_FUNDING_FEE_RESERVE_CREDITS
 
-    case 'assetLockFunding':
-    case 'identityRegister':
-    case 'identityTopUpL1':
-      return assetLockFundedTransition(operation, params, ctx).calculateMinRequiredFee()
+    default:
+      return builtTransition(operation, params, ctx).calculateMinRequiredFee()
   }
 }
 
-// The L2 half of a funding: what the proof will be spent on once the lock
-// settles. Priced against a placeholder proof, which is what makes it
-// answerable before any coins are committed.
-function assetLockFundedTransition(
-  operation: Exclude<AssetLockFeeOperation, 'assetLockShield'>,
-  params: FeeQuoteParams,
-  ctx: OperationContext,
-): StateTransitionWASM {
-  const {sdk} = ctx
-
-  const proof = quoteAssetLockProof()
-
-  switch (operation) {
-    case 'assetLockFunding':
-      return sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
-        assetLockProof: buildAssetLockProof(proof, proof.txid, proof.outputIndex),
-        inputs: [],
-        feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
-        inputWitness: [],
-        outputs: [new OutputAddressNullableCreditsWASM(paid(params)[0])],
-        userFeeIncrease: 0,
-      })
-    case 'identityRegister':
-      return sdk.identities.createStateTransition('create', {
-        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) => ({
-          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY,
-        })),
-        assetLockProof: proof,
-      })
-    case 'identityTopUpL1':
-      return sdk.identities.createStateTransition('topUp', {
-        identityId: paid(params)[0],
-        assetLockProof: proof,
-      })
-  }
-}
-
-// A transition cannot be built without a proof, and a quote is asked for before
-// any coins are locked, so it is priced against a proof of zeroes. Measured
-// against real instant proofs over one-, two- and five-input fundings: the fee
-// is identical either way, so the stand-in costs nothing in accuracy.
-function quoteAssetLockProof(): ChainAssetLockProofParams {
-  return {type: 'chainLock', txid: '0'.repeat(64), coreChainLockedHeight: 1, outputIndex: 0}
-}
-
-// Unsigned, and priced against a nonce of 1: the real one costs a proved gRPC
-// round trip per quote and, measured across the u64 range, does not move the
-// fee of any of these three transitions at all.
-function identityTransition(
-  operation: 'identityToAddress' | 'identityToIdentity' | 'identityWithdrawal',
+// The transitions that price themselves. All unsigned, and built against
+// stand-ins wherever the real value is not knowable when a quote is asked for:
+// a nonce of 1, which otherwise costs a proved gRPC round trip per keystroke,
+// and a proof of zeroes, because nothing is locked yet. Both are measured —
+// across the u64 range, and against real instant proofs — and neither moves a
+// fee. The four L1 -> L2 cases are the L2 half of a funding: what the proof
+// will be spent on once the lock settles.
+function builtTransition(
+  operation: BuiltTransitionOperation,
   params: FeeQuoteParams,
   ctx: OperationContext,
 ): StateTransitionWASM {
   const {sdk, network} = ctx
   const identityId = params.identityId ?? ''
+  const proof: ChainAssetLockProofParams = {type: 'chainLock', txid: '0'.repeat(64), coreChainLockedHeight: 1, outputIndex: 0}
 
   switch (operation) {
     case 'identityToAddress':
@@ -169,18 +118,8 @@ function identityTransition(
         identityNonce: 1n,
         outputScript: coreAddressToScript(paid(params)[0], network),
       })
-  }
-}
 
-// The inputs carry their own nonces, so neither of these reads the network.
-function addressFundedTransition(
-  operation: 'identityCreate' | 'identityTopUp',
-  params: FeeQuoteParams,
-  ctx: OperationContext,
-): StateTransitionWASM {
-  const {sdk} = ctx
-
-  switch (operation) {
+    // The inputs carry their own nonces, so neither of these reads the network.
     case 'identityCreate':
       return sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
         publicKeys: KEY_SPECS.map((spec, keyId) =>
@@ -198,6 +137,28 @@ function addressFundedTransition(
         feeStrategy: DEDUCT_FROM_FIRST,
         inputWitness: [],
         userFeeIncrease: 0,
+      })
+
+    case 'assetLockFunding':
+      return sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
+        assetLockProof: buildAssetLockProof(proof, proof.txid, proof.outputIndex),
+        inputs: [],
+        feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
+        inputWitness: [],
+        outputs: [new OutputAddressNullableCreditsWASM(paid(params)[0])],
+        userFeeIncrease: 0,
+      })
+    case 'identityRegister':
+      return sdk.identities.createStateTransition('create', {
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) => ({
+          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY,
+        })),
+        assetLockProof: proof,
+      })
+    case 'identityTopUpL1':
+      return sdk.identities.createStateTransition('topUp', {
+        identityId: paid(params)[0],
+        assetLockProof: proof,
       })
   }
 }

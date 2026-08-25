@@ -53,10 +53,11 @@ export interface FeeParams {
   // Whatever kind of address this operation pays. The transfer screens pay one,
   // so they never need the list form.
   recipient: string | string[]
-  sourceAddress: string | null
-  identityId: string | null
+  // Optional because most operations read none of them.
+  sourceAddress?: string | null
+  identityId?: string | null
   // Restricts a pool spend to one shielded address's notes.
-  noteIndexes: number[] | null
+  noteIndexes?: number[] | null
 }
 
 // feeDuffs is what L1 charges on top of the amount, feeCredits what L2 takes

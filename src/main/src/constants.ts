@@ -1,5 +1,4 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
-import type {OperationFee} from './types/Fee'
 
 export const HomeFolderName = '.dash-desktop'
 export const DevFolderName = 'dev'
@@ -179,8 +178,8 @@ export const CORE_TRANSFER_FEE_DUFFS = 10_000n
 
 export const DEFAULT_PLATFORM_FEE_MULTIPLIER = 6
 export const DEFAULT_CORE_FEE_MULTIPLIER = 1
-// Below 1 the reserve falls under what consensus requires, which is a
-// guaranteed rejection rather than a cheaper transaction.
+// A metered fee is already the consensus minimum, so below 1 the wallet would
+// underpay its own transitions — a guaranteed rejection, not a cheaper send.
 export const MIN_FEE_MULTIPLIER = 1
 export const MAX_FEE_MULTIPLIER = 20
 
@@ -189,18 +188,6 @@ export const MIN_INPUT_CREDITS = 100_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
 export const CORE_FEE_PER_BYTE = 1
-
-
-
-// A shield writes one note into the pool.
-export const SHIELD_NOTE_COUNT = 1
-
-// An operation whose price is not knowable yet — no identity picked, no amount
-// entered. Distinct from a fee of zero, which nothing charges.
-export const CREDIT_FEE_UNPRICED: OperationFee = {
-  feeCredits: null, feeDuffs: null, maxPerTx: null, noteLimit: null,
-}
-
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
