@@ -520,9 +520,10 @@ export class PlatformAddressService {
   }
 
   private async extendPlatformWindow(walletId: string, xpub: string, network: Network): Promise<void> {
-    const stored = await this.walletDAO.getPlatformAddressCount(walletId)
-    const windowEnd = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, stored)
-    let probeStart = windowEnd
+    const stored = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, await this.walletDAO.getPlatformAddressCount(walletId))
+    // Check the last 20 saved addresses again. If the last one was just used,
+    // we need to add a new group of addresses.
+    let probeStart = Math.max(0, stored - PLATFORM_ADDRESS_LOOKAHEAD)
     let lastUsed = -1
 
     for (let batch = 0; batch < MAX_DISCOVERY_BATCHES; batch++) {
@@ -540,14 +541,20 @@ export class PlatformAddressService {
           usedInBatch = probeStart + i
         }
       })
+      // Stop when we find 20 unused addresses in a row.
       if (usedInBatch === -1) break
 
       lastUsed = usedInBatch
       probeStart += PLATFORM_ADDRESS_LOOKAHEAD
     }
 
-    if (lastUsed >= windowEnd) {
-      await this.walletDAO.setPlatformAddressCount(walletId, lastUsed + 1)
+    // Always keep 20 unused addresses after the last used one. Do not remove
+    // addresses that the user added manually.
+    const required = lastUsed < 0
+      ? stored
+      : Math.max(stored, lastUsed + 1 + PLATFORM_ADDRESS_LOOKAHEAD)
+    if (required > stored) {
+      await this.walletDAO.setPlatformAddressCount(walletId, required)
     }
   }
 }

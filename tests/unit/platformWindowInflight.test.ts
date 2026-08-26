@@ -10,24 +10,32 @@ const XPUB = 'xpub-test'
 
 // addressInfos is the per-batch worker round trip the window walk repeats, so
 // counting it counts the work a second concurrent run would duplicate.
-function service(): {
+function service(used = new Set<number>()): {
   service: PlatformAddressService
   request: ReturnType<typeof vi.fn>
+  setPlatformAddressCount: ReturnType<typeof vi.fn>
   release: () => void
 } {
   let release = (): void => undefined
   const gate = new Promise<void>(resolve => { release = resolve })
 
-  const request = vi.fn(async (op: string) => {
+  const request = vi.fn(async (op: string, _network: string, payload: {addresses: string[]}) => {
     if (op !== 'addressInfos') return {infos: []}
     await gate
-    return {infos: []}
+    return {
+      infos: payload.addresses
+        .map(address => ({address, index: Number(address.slice('addr-'.length))}))
+        .filter(({index}) => used.has(index))
+        .map(({address}) => ({address, balance: 1n, nonce: 0})),
+    }
   })
+
+  const setPlatformAddressCount = vi.fn().mockResolvedValue(undefined)
 
   const walletDAO = {
     getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet', platformXpub: XPUB}),
     getPlatformAddressCount: vi.fn().mockResolvedValue(20),
-    setPlatformAddressCount: vi.fn().mockResolvedValue(undefined),
+    setPlatformAddressCount,
   }
 
   const svc = new PlatformAddressService(
@@ -41,7 +49,7 @@ function service(): {
     derivePlatformAddressFromXpub: (_x: string, _n: string, i: number) => ({toBech32m: () => `addr-${i}`}),
   }
 
-  return {service: svc, request, release}
+  return {service: svc, request, setPlatformAddressCount, release}
 }
 
 describe('platform window extension', () => {
@@ -86,5 +94,14 @@ describe('platform window extension', () => {
     await both
 
     expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a fresh lookahead after the last stored address becomes used', async () => {
+    const {service: svc, setPlatformAddressCount, release} = service(new Set([19]))
+
+    release()
+    await svc.getPlatformAddresses(WALLET)
+
+    expect(setPlatformAddressCount).toHaveBeenCalledWith(WALLET, 40)
   })
 })
