@@ -1,4 +1,3 @@
-import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {AddressDAO} from '../../database/AddressDAO'
 import {TransactionDAO} from '../../database/TransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
@@ -6,9 +5,10 @@ import {WalletProvider} from '../../providers/WalletProvider'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Address} from '../../types/Address'
 import {AddressUsage} from '../../types/AddressDiscovery'
-import {Network} from '../../types/Network'
-import {ADDRESS_GAP_BATCH, ADDRESS_LOOKAHEAD, COIN_TYPE, MAX_DISCOVERY_ROUNDS} from '../../constants'
-import {deriveCorePublicKey, planGapExtension} from '../../utils/addressDiscovery'
+import {DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
+import {CORE_ADDRESS_WINDOW} from '../../constants'
+import {coreAddressDeriver} from '../../utils/addressDiscovery'
+import {runAddressWindow} from '../../utils/addressWindow'
 import {WalletSyncService} from './WalletSyncService'
 
 export class CoreDiscoveryService {
@@ -17,9 +17,6 @@ export class CoreDiscoveryService {
   private transactionDAO: TransactionDAO
   private walletSyncService: WalletSyncService
   private providers: WalletProviderFactory
-  // Derivation only — a DashPlatformSDK would build a gRPC pool and fetch the
-  // evonode list to do local maths.
-  private keyPair = new KeyPairController()
   private discoveryInflight = new Map<string, Promise<void>>()
   // Wallets whose initial scan + gap-limit discovery has converged this process.
   // Avoids re-issuing the (idempotent) latch write on every discovery tick.
@@ -60,14 +57,28 @@ export class CoreDiscoveryService {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null || wallet.coreXpub == null) return
 
-    const coreXpub = wallet.coreXpub
     const network = wallet.network
     const provider = this.providers.forWallet(walletId, network)
+    // Both chains read one scan: the endpoint walks the whole account, and
+    // asking twice would run the gap walk twice.
+    const scanned = provider.scanAddressUsage(CORE_ADDRESS_WINDOW.gapLimit)
 
-    const scan = await provider.scanAddressUsage(ADDRESS_LOOKAHEAD)
-    const added = scan != null
-      ? await this.applyAddressScan(walletId, coreXpub, network, scan)
-      : await this.widenAddressWindow(walletId, coreXpub, network, provider)
+    const added: Address[] = []
+    for (const isChange of [false, true]) {
+      const revealed = await runAddressWindow(
+        coreAddressDeriver(wallet.coreXpub, network, isChange),
+        this.coreOracle(provider, scanned, isChange),
+        this.coreStore(walletId, isChange),
+        CORE_ADDRESS_WINDOW,
+      )
+      if (revealed.length === 0) continue
+
+      added.push(...revealed.map(derived => this.coreAddressRow(walletId, isChange, derived)))
+      console.log(
+        `[discovery] ${isChange ? 'change' : 'receiving'} — derived ${revealed.length} ` +
+        `address(es) at index ${revealed[0].index}..${revealed[revealed.length - 1].index}`,
+      )
+    }
 
     if (added.length > 0) {
       await this.walletSyncService.addWatchAddresses(walletId, added)
@@ -91,114 +102,50 @@ export class CoreDiscoveryService {
     }
   }
 
-  private coreAddressRows(
-    walletId: string,
-    coreXpub: string,
-    network: Network,
+  private coreOracle(
+    provider: WalletProvider,
+    scanned: Promise<AddressUsage[] | null>,
     isChange: boolean,
-    indexes: number[],
-  ): Address[] {
-    const coinType = COIN_TYPE[network]
-    return indexes.map(index => ({
+  ): UsageOracle {
+    return {
+      scan: async () => {
+        const usage = await scanned
+        return usage == null
+          ? null
+          : usage.filter(entry => entry.isChange === isChange)
+            .map(({index, isUsed}) => ({index, isUsed}))
+      },
+      probe: async addresses => {
+        const used = new Set(await provider.getUsedAddresses(addresses.map(entry => entry.address)))
+        return addresses.map(entry => ({index: entry.index, isUsed: used.has(entry.address)}))
+      },
+    }
+  }
+
+  private coreStore(walletId: string, isChange: boolean): AddressWindowStore {
+    return {
+      known: async () => {
+        const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+        const chain = isChange ? grouped.change : grouped.receiving
+        return chain.map(address => ({index: address.index, isUsed: address.isUsed}))
+      },
+      reveal: addresses => this.addressDAO.insertAddresses(
+        addresses.map(derived => this.coreAddressRow(walletId, isChange, derived)),
+      ),
+      markUsed: indexes => this.addressDAO.markAddressesUsed(walletId, isChange, indexes),
+    }
+  }
+
+  private coreAddressRow(walletId: string, isChange: boolean, derived: DerivedAddress): Address {
+    return {
       walletId,
       accountId: 0,
-      address: this.keyPair.p2pkhAddress(deriveCorePublicKey(coreXpub, network, isChange, index), network),
-      derivationPath: `m/44'/${coinType}'/0'/${isChange ? 1 : 0}/${index}`,
-      index,
+      address: derived.address,
+      derivationPath: derived.derivationPath,
+      index: derived.index,
       isChange,
       isUsed: false,
       label: null,
-    }))
-  }
-
-  // The scan already walked the gap to the frontier, so one pass replaces the
-  // widening rounds.
-  private async applyAddressScan(
-    walletId: string,
-    coreXpub: string,
-    network: Network,
-    scan: AddressUsage[],
-  ): Promise<Address[]> {
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const added: Address[] = []
-
-    for (const isChange of [false, true]) {
-      const chain = isChange ? grouped.change : grouped.receiving
-      const scanned = scan.filter(entry => entry.isChange === isChange)
-      const known = new Map(chain.map(a => [a.index, a]))
-
-      const usedIndexes = scanned.filter(entry => entry.isUsed).map(entry => entry.index)
-      const lastUsed = usedIndexes.reduce((max, index) => Math.max(max, index), -1)
-      const highestKnown = chain.reduce((max, a) => Math.max(max, a.index), -1)
-
-      // The window must stay contiguous from zero: a used index the scan found
-      // past the old frontier is otherwise never derived.
-      const frontier = Math.max(highestKnown, lastUsed + ADDRESS_LOOKAHEAD)
-      const missing: number[] = []
-      for (let index = 0; index <= frontier; index++) {
-        if (!known.has(index)) missing.push(index)
-      }
-
-      const rows = missing.length > 0
-        ? this.coreAddressRows(walletId, coreXpub, network, isChange, missing)
-        : []
-      if (rows.length > 0) {
-        await this.addressDAO.insertAddresses(rows)
-        added.push(...rows)
-        console.log(
-          `[discovery] ${isChange ? 'change' : 'receiving'} scan — derived ` +
-          `${rows.length} address(es) at index ${missing[0]}..${missing[missing.length - 1]}`,
-        )
-      }
-
-      const addressAt = new Map([...known].map(([index, a]) => [index, a.address]))
-      for (const row of rows) addressAt.set(row.index, row.address)
-
-      const newlyUsed = usedIndexes
-        .filter(index => known.get(index)?.isUsed !== true)
-        .map(index => addressAt.get(index))
-        .filter((address): address is string => address != null)
-      if (newlyUsed.length > 0) {
-        await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
-      }
     }
-
-    return added
-  }
-
-  private async widenAddressWindow(
-    walletId: string,
-    coreXpub: string,
-    network: Network,
-    provider: WalletProvider,
-  ): Promise<Address[]> {
-    const added: Address[] = []
-
-    for (const isChange of [false, true]) {
-      for (let round = 0; round < MAX_DISCOVERY_ROUNDS; round++) {
-        const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-        const chain = isChange ? grouped.change : grouped.receiving
-        const unused = chain.filter(a => !a.isUsed)
-        const newlyUsed = unused.length > 0 ? await provider.getUsedAddresses(unused.map(a => a.address)) : []
-        if (newlyUsed.length > 0) {
-          await this.addressDAO.markAddressesUsed(walletId, newlyUsed)
-        }
-
-        const usedSet = new Set(newlyUsed)
-        const entries = chain.map(a => ({index: a.index, isUsed: a.isUsed || usedSet.has(a.address)}))
-        const indexes = planGapExtension(entries, ADDRESS_LOOKAHEAD, ADDRESS_GAP_BATCH)
-        if (indexes.length === 0) break
-
-        const rows = this.coreAddressRows(walletId, coreXpub, network, isChange, indexes)
-        await this.addressDAO.insertAddresses(rows)
-        added.push(...rows)
-        console.log(
-          `[discovery] ${isChange ? 'change' : 'receiving'} gap exhausted — derived ` +
-          `${rows.length} address(es) at index ${indexes[0]}..${indexes[indexes.length - 1]}`,
-        )
-      }
-    }
-
-    return added
   }
 }

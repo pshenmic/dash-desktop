@@ -10,7 +10,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   verifyWalletMnemonic: (walletId: string, mnemonic: string) => ipcRenderer.invoke('verifyWalletMnemonic', walletId, mnemonic),
   resetWalletPassword: (walletId: string, mnemonic: string, newPassword: string) => ipcRenderer.invoke('resetWalletPassword', walletId, mnemonic, newPassword),
   getAddresses: (walletId: string) => ipcRenderer.invoke('getAddresses', walletId),
-  addWalletAddress: (walletId: string, password: string, isChange: boolean) => ipcRenderer.invoke('addWalletAddress', walletId, password, isChange),
+  addWalletAddress: (walletId: string, isChange: boolean) => ipcRenderer.invoke('addWalletAddress', walletId, isChange),
   getReceiveAddress: (walletId: string) => ipcRenderer.invoke('getReceiveAddress', walletId),
   getStatus: () => ipcRenderer.invoke('getStatus'),
   selectWallet: (walletId: string) => ipcRenderer.invoke('selectWallet', walletId),

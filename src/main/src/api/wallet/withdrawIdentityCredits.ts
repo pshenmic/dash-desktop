@@ -1,12 +1,12 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
+import { PlatformTransferService } from '../../services/platform/PlatformTransferService'
 import { PlatformSendResult } from '../../types/PlatformSendResult'
 
 export class WithdrawIdentityCreditsHandler {
-  private platformAddressService: PlatformAddressService
+  private platformTransferService: PlatformTransferService
 
-  constructor(platformAddressService: PlatformAddressService) {
-    this.platformAddressService = platformAddressService
+  constructor(platformTransferService: PlatformTransferService) {
+    this.platformTransferService = platformTransferService
   }
 
   handle = async (
@@ -17,7 +17,7 @@ export class WithdrawIdentityCreditsHandler {
     amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
-    return this.platformAddressService.withdrawIdentityToCore(
+    return this.platformTransferService.withdrawIdentityToCore(
       walletId,
       identityId,
       toCoreAddress,

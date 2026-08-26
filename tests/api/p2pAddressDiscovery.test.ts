@@ -3,7 +3,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
-import {ADDRESS_LOOKAHEAD} from '../../src/main/src/constants'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
@@ -69,27 +69,27 @@ describe('p2p address discovery', () => {
   it('extends the receiving chain past a used address at the gap edge', async () => {
     const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
     const before = await addressDAO.getAddressesByWalletId(walletId)
-    expect(before.receiving).toHaveLength(ADDRESS_LOOKAHEAD)
+    expect(before.receiving).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
 
-    const last = before.receiving[ADDRESS_LOOKAHEAD - 1]
+    const last = before.receiving[CORE_ADDRESS_WINDOW.gapLimit - 1]
     await transactionDAO.applyBlock(receiveTo(walletId, 100, last.address))
 
     await discovery.discoverCoreAddresses(walletId)
 
     const after = await addressDAO.getAddressesByWalletId(walletId)
-    expect(after.receiving).toHaveLength(last.index + 1 + ADDRESS_LOOKAHEAD)
+    expect(after.receiving).toHaveLength(last.index + 1 + CORE_ADDRESS_WINDOW.gapLimit)
     expect(after.receiving.find(a => a.address === last.address)?.isUsed).toBe(true)
-    expect(after.change).toHaveLength(ADDRESS_LOOKAHEAD)
+    expect(after.change).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
   })
 
   it('extends past an address whose only output was stored is_mine=false', async () => {
     const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
     const before = await addressDAO.getAddressesByWalletId(walletId)
-    await transactionDAO.applyBlock(receiveTo(walletId, 100, before.receiving[ADDRESS_LOOKAHEAD - 1].address))
+    await transactionDAO.applyBlock(receiveTo(walletId, 100, before.receiving[CORE_ADDRESS_WINDOW.gapLimit - 1].address))
     await discovery.discoverCoreAddresses(walletId)
 
     const extended = await addressDAO.getAddressesByWalletId(walletId)
-    const missed = extended.receiving[ADDRESS_LOOKAHEAD + 5]
+    const missed = extended.receiving[CORE_ADDRESS_WINDOW.gapLimit + 5]
     expect(missed.isUsed).toBe(false)
 
     await transactionDAO.applyBlock({
@@ -115,7 +115,7 @@ describe('p2p address discovery', () => {
     expect(after.receiving.find(a => a.address === missed.address)?.isUsed).toBe(true)
     // At least a full gap above the used index — the extension rounds up to a
     // batch, so the exact count is not the contract.
-    expect(after.receiving.length).toBeGreaterThanOrEqual(missed.index + 1 + ADDRESS_LOOKAHEAD)
+    expect(after.receiving.length).toBeGreaterThanOrEqual(missed.index + 1 + CORE_ADDRESS_WINDOW.gapLimit)
   })
 
   it('adds nothing when no address has been paid', async () => {
@@ -124,7 +124,7 @@ describe('p2p address discovery', () => {
     await discovery.discoverCoreAddresses(walletId)
 
     const after = await addressDAO.getAddressesByWalletId(walletId)
-    expect(after.receiving).toHaveLength(ADDRESS_LOOKAHEAD)
-    expect(after.change).toHaveLength(ADDRESS_LOOKAHEAD)
+    expect(after.receiving).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
+    expect(after.change).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
   })
 })

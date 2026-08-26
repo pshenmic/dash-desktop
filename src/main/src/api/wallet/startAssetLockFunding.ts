@@ -1,13 +1,13 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
 import { IdentityRegistrationService } from '../../services/platform/IdentityRegistrationService'
-import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
+import { PlatformTransferService } from '../../services/platform/PlatformTransferService'
 import { ShieldedService } from '../../services/platform/ShieldedService'
 import {AssetLockFundingKind} from '../../types/AssetLock'
 
 export class StartAssetLockFundingHandler {
   constructor(
-    private readonly platformAddressService: PlatformAddressService,
+    private readonly platformTransferService: PlatformTransferService,
     private readonly shieldedService: ShieldedService,
     private readonly identityRegistrationService: IdentityRegistrationService,
   ) {}
@@ -28,7 +28,7 @@ export class StartAssetLockFundingHandler {
       case 'identityTopUp':
         return this.identityRegistrationService.startIdentityTopUp(walletId, toPlatformAddress, amountDuffs, password)
       case 'address':
-        return this.platformAddressService.startFundingFromL1(walletId, toPlatformAddress, amountDuffs, password)
+        return this.platformTransferService.startFundingFromL1(walletId, toPlatformAddress, amountDuffs, password)
     }
   }
 }

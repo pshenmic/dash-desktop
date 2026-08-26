@@ -16,6 +16,7 @@ const rows = (walletId: string): Record<string, Record<string, unknown>> => ({
   transaction_inputs: {wallet_id: walletId, txid: `tx-${walletId}`, vin: 0, prev_txid: 'p', prev_vout: 0, sequence: 0},
   wallet_sync_state: {wallet_id: walletId},
   asset_lock_fundings: {wallet_id: walletId, txid: `al-${walletId}`, output_index: 0, credit_derivation_path: "m/9'/1'/5'/2'/0", amount_duffs: '1000', to_platform_address: 'dest', status: 'l1_broadcast'},
+  platform_addresses: {wallet_id: walletId, address_index: 0, address: `pa-${walletId}`, derivation_path: "m/9'/1'/17'/0'/0'/0"},
   shielded_addresses: {wallet_id: walletId, address_index: 0, address: `sh-${walletId}`},
   shielded_notes: {wallet_id: walletId, note_index: 0, amount: '1', address: `sh-${walletId}`},
 })

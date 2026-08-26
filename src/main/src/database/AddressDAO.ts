@@ -59,11 +59,12 @@ export class AddressDAO {
     }, {receiving: [], change: []})
   }
 
-  markAddressesUsed = async (walletId: string, addresses: string[]): Promise<void> => {
-    if (addresses.length === 0) return
+  markAddressesUsed = async (walletId: string, isChange: boolean, indexes: number[]): Promise<void> => {
+    if (indexes.length === 0) return
     await this.knex('addresses')
       .where('wallet_id', walletId)
-      .whereIn('address', addresses)
+      .andWhere('is_change', isChange)
+      .whereIn('index', indexes)
       .update({is_used: true})
   }
 

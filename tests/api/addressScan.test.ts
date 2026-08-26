@@ -7,8 +7,8 @@ import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletProvider} from '../../src/main/src/providers/WalletProvider'
 import {AddressUsage} from '../../src/main/src/types/AddressDiscovery'
-import {deriveCorePublicKey} from '../../src/main/src/utils/addressDiscovery'
-import {ADDRESS_LOOKAHEAD} from '../../src/main/src/constants'
+import {coreAddressDeriver} from '../../src/main/src/utils/addressDiscovery'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const usage = (isChange: boolean, index: number, isUsed: boolean): AddressUsage =>
@@ -72,7 +72,7 @@ describe('address discovery from an xpub scan', () => {
 
     const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
     const highest = Math.max(...receiving.map(a => a.index))
-    expect(highest).toBe(60 + ADDRESS_LOOKAHEAD)
+    expect(highest).toBe(60 + CORE_ADDRESS_WINDOW.gapLimit)
   })
 
   // The endpoint returns every index it walked, not just the used ones.
@@ -95,8 +95,8 @@ describe('address discovery from an xpub scan', () => {
     const {receiving} = await addressDAO.getAddressesByWalletId(walletId)
     const derived = receiving.find(a => a.index === 75)!
 
-    const publicKey = deriveCorePublicKey(wallet!.coreXpub!, 'testnet', false, 75)
-    expect(derived.address).toBe(discovery['keyPair'].p2pkhAddress(publicKey, 'testnet'))
+    const expected = coreAddressDeriver(wallet!.coreXpub!, 'testnet', false).derive(75)
+    expect(derived.address).toBe(expected.address)
     expect(derived.derivationPath).toBe("m/44'/1'/0'/0/75")
   })
 
@@ -111,8 +111,7 @@ describe('address discovery from an xpub scan', () => {
 
     expect(restored).toBeDefined()
     const wallet = await walletDAO.getWalletById(walletId)
-    const publicKey = deriveCorePublicKey(wallet!.coreXpub!, 'testnet', false, 7)
-    expect(restored!.address).toBe(discovery['keyPair'].p2pkhAddress(publicKey, 'testnet'))
+    expect(restored!.address).toBe(coreAddressDeriver(wallet!.coreXpub!, 'testnet', false).derive(7).address)
   })
 
   it('leaves the window alone when nothing in the scan is used', async () => {

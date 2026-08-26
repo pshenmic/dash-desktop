@@ -26,10 +26,10 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   // Before proving, not after: a proof costs seconds and the nullifier query
   // one round trip.
   const checked = await checkSpent(sdk, recovered)
-  const stale = checked.filter(({spent}) => spent).map(({note}) => note.index)
+  const stale = checked.filter(({spent}) => spent).map(({recoveredNote}) => recoveredNote.index)
   if (stale.length > 0) ctx.notesSpent(stale)
 
-  const unspent = checked.filter(({spent}) => !spent).map(({note}) => note)
+  const unspent = checked.filter(({spent}) => !spent).map(({recoveredNote}) => recoveredNote)
   const available = payload.noteIndexes != null
     ? unspent.filter(note => payload.noteIndexes!.includes(note.index))
     : unspent

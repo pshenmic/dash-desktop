@@ -1,5 +1,5 @@
 import {Wallet} from '../types/Wallet'
-import {WALLET_SCOPED_TABLES} from '../constants'
+import {SHIELDED_ADDRESS_COUNT_DEFAULT, WALLET_SCOPED_TABLES} from '../constants'
 
 function fromRow({wallet_id, label, network, encrypted_mnemonic, selected, platform_xpub, core_xpub}): Wallet {
   return {walletId: wallet_id, network, label, encryptedMnemonic: encrypted_mnemonic, selected: Boolean(selected), platformXpub: platform_xpub ?? null, coreXpub: core_xpub ?? null}
@@ -78,7 +78,7 @@ export class WalletDAO {
       .limit(1)
 
     if (rows.length === 0) {
-      return 1
+      return SHIELDED_ADDRESS_COUNT_DEFAULT
     }
 
     return rows[0].shielded_address_count
@@ -111,6 +111,8 @@ export class WalletDAO {
       .where('wallet_id', walletId)
   }
 
+  // Legacy: how many platform addresses were revealed before they became rows.
+  // Read once per wallet, by PlatformAddressService.seedLegacyWindow.
   getPlatformAddressCount = async (walletId: string): Promise<number> => {
     const rows = await this.knex('wallet')
       .select('platform_address_count')
@@ -122,12 +124,6 @@ export class WalletDAO {
     }
 
     return rows[0].platform_address_count ?? 20
-  }
-
-  setPlatformAddressCount = async (walletId: string, count: number): Promise<void> => {
-    await this.knex('wallet')
-      .update({platform_address_count: count})
-      .where('wallet_id', walletId)
   }
 
   updateEncryptedMnemonic = async (walletId: string, encryptedMnemonic: string): Promise<void> => {

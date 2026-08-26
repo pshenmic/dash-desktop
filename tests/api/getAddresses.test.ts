@@ -1,7 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {ADDRESS_LOOKAHEAD} from '../../src/main/src/constants'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('GetWalletAddressesHandler', () => {
@@ -19,8 +19,8 @@ describe('GetWalletAddressesHandler', () => {
 
     const grouped = await handler.handle(null as never, walletId)
 
-    expect(grouped.receiving).toHaveLength(ADDRESS_LOOKAHEAD)
-    expect(grouped.change).toHaveLength(ADDRESS_LOOKAHEAD)
+    expect(grouped.receiving).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
+    expect(grouped.change).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
   })
 
   it('returns addresses scoped to the requested wallet', async () => {

@@ -57,7 +57,7 @@ declare global {
       verifyWalletMnemonic: (walletId: string, mnemonic: string) => Promise<boolean>
       resetWalletPassword: (walletId: string, mnemonic: string, newPassword: string) => Promise<boolean>
       getAddresses: (walletId: string) => Promise<unknown>
-      addWalletAddress: (walletId: string, password: string, isChange: boolean) => Promise<string>
+      addWalletAddress: (walletId: string, isChange: boolean) => Promise<string>
       getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>

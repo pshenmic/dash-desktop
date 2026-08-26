@@ -7,7 +7,7 @@ const PASSWORD = 'password'
 
 // Diversified addresses share one incoming viewing key, so a synced wallet can
 // already hold notes on indexes it never displayed. addAddress walks past those.
-function service(usedIndexes: number[], storedCount = 0): {
+function service(usedIndexes: number[], storedCount = 0, {poolCount = 0, decoded = 0} = {}): {
   service: ShieldedService
   setCount: ReturnType<typeof vi.fn>
   derived: () => number[]
@@ -20,12 +20,14 @@ function service(usedIndexes: number[], storedCount = 0): {
     getWalletById: vi.fn().mockResolvedValue({walletId: 'w1', network: 'testnet', encryptedMnemonic: 'x'}),
     getShieldedAddressCount: vi.fn().mockResolvedValue(storedCount),
     setShieldedAddressCount: setCount,
+    getShieldedDecodedCount: vi.fn().mockResolvedValue(decoded),
   }
   const shieldedNoteDAO = {getUsedAddresses: vi.fn().mockResolvedValue(used)}
   const shieldedAddressDAO = {saveAddresses: vi.fn().mockResolvedValue(undefined)}
+  const shieldedPoolDAO = {getCount: vi.fn().mockResolvedValue(poolCount)}
 
   const svc = new ShieldedService(
-    walletDAO as never, {} as never, shieldedNoteDAO as never, {} as never,
+    walletDAO as never, {} as never, shieldedNoteDAO as never, shieldedPoolDAO as never,
     shieldedAddressDAO as never, {} as never, {} as never,
     Preferences.default(),
   )
@@ -92,5 +94,49 @@ describe('adding a shielded address', () => {
     await svc.addAddress('w1', PASSWORD).catch(() => undefined)
 
     expect(derived()).toHaveLength(NEW_ADDRESS_LOOKAHEAD_LIMIT)
+  })
+})
+
+// Diversified addresses are only known to be used once their notes have been
+// trial-decrypted, so a wallet behind the pool has no basis to call one fresh.
+describe('revealing before the pool is decoded', () => {
+  beforeEach(() => vi.spyOn(console, 'log').mockImplementation(() => undefined))
+  afterEach(() => vi.restoreAllMocks())
+
+  it('refuses while notes are still undecoded', async () => {
+    const {service: svc, setCount} = service([], 1, {poolCount: 12, decoded: 4})
+
+    await expect(svc.addAddress('w1', PASSWORD)).rejects.toThrow(/Sync the shielded pool/)
+    expect(setCount).not.toHaveBeenCalled()
+  })
+
+  it('allows it once the wallet has caught up', async () => {
+    const {service: svc, setCount} = service([], 1, {poolCount: 12, decoded: 12})
+
+    await svc.addAddress('w1', PASSWORD)
+
+    expect(setCount).toHaveBeenCalledWith('w1', 2)
+  })
+
+  // An empty pool cannot have paid anyone, so a genuinely new wallet is not
+  // held behind a sync it has no reason to run.
+  it('allows it when the pool is empty', async () => {
+    const {service: svc, setCount} = service([], 1)
+
+    await svc.addAddress('w1', PASSWORD)
+
+    expect(setCount).toHaveBeenCalledWith('w1', 2)
+  })
+
+  it('serialises concurrent reveals so neither is lost', async () => {
+    const {service: svc, setCount} = service([], 1)
+    let count = 1
+    ;(svc as unknown as {walletDAO: {getShieldedAddressCount: () => Promise<number>}}).walletDAO
+      .getShieldedAddressCount = async () => count
+    setCount.mockImplementation(async (_id: string, next: number) => { count = next })
+
+    await Promise.all([svc.addAddress('w1', PASSWORD), svc.addAddress('w1', PASSWORD)])
+
+    expect(setCount.mock.calls.map(([, next]) => next)).toEqual([2, 3])
   })
 })

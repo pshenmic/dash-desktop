@@ -6,6 +6,6 @@ export interface InFlight {
 }
 
 export interface CheckedNote {
-  note: RecoveredNoteWASM
+  recoveredNote: RecoveredNoteWASM
   spent: boolean
 }

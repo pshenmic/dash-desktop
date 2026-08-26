@@ -18,6 +18,7 @@ import * as migration0013 from '../../migrations/0013_shielded_pool_split'
 import * as migration0014 from '../../migrations/0014_asset_lock_proof'
 import * as migration0015 from '../../migrations/0015_transaction_origin'
 import * as migration0016 from '../../migrations/0016_input_prevout'
+import * as migration0017 from '../../migrations/0017_platform_addresses'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -37,6 +38,7 @@ const migrations = [
   { name: '0014_asset_lock_proof.ts', migration: migration0014 },
   { name: '0015_transaction_origin.ts', migration: migration0015 },
   { name: '0016_input_prevout.ts', migration: migration0016 },
+  { name: '0017_platform_addresses.ts', migration: migration0017 },
 ]
 
 const inlineMigrationSource = {

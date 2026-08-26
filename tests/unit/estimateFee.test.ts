@@ -1,5 +1,6 @@
 import {describe, it, expect, vi} from 'vitest'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
+import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
@@ -35,11 +36,11 @@ function service(candidates: PlatformSourceCandidate[] = []): {
 
   const svc = new FeeService(
     walletDAO as unknown as WalletDAO,
+    {loadCandidates: async () => candidates} as unknown as PlatformAddressService,
     {request} as unknown as PlatformWorkerService,
     {estimateSpendFee} as unknown as ShieldedService,
     Preferences.default(),
   )
-  ;(svc as unknown as {loadCandidates: unknown}).loadCandidates = async () => candidates
 
   return {service: svc, request, estimateSpendFee}
 }

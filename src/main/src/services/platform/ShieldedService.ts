@@ -10,9 +10,11 @@ import { AssetLockFundingState } from '../../types/AssetLockFunding'
 import {AssetLockService} from './AssetLockService'
 import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSeed'
 import { UnlockedWallet } from '../../types/UnlockedWallet'
-import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS } from '../../constants'
+import { Wallet } from '../../types/Wallet'
+import { NEW_ADDRESS_LOOKAHEAD_LIMIT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS } from '../../constants'
 import { findNextIdentityIndex, identityPath } from '../../utils/identityKeys'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
+import {platformAccountXpub, platformAddressDeriver} from '../../utils/platformAddress'
 import {Preferences} from '../../preferences'
 import { lockedDuffsFor, shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
@@ -70,6 +72,7 @@ export class ShieldedService {
   private addresses = new Map<string, string[]>()
   private noteFetches = new Map<Network, Promise<void>>()
   private feeCurves = new Map<string, bigint[]>()
+  private addQueue = new Map<string, Promise<unknown>>()
   // Derivation only. A DashPlatformSDK would build a gRPC pool and fetch the
   // evonode list to do local maths.
   private keyPair = new KeyPairController()
@@ -127,11 +130,32 @@ export class ShieldedService {
     return this.cacheAddresses(walletId, seed, network)
   }
 
+  // Serialised per wallet rather than joined: two clicks should reveal two
+  // addresses, but the second has to read the count the first wrote or one of
+  // them is silently lost.
+  async addAddress(walletId: string, password: string): Promise<string[]> {
+    const prior = this.addQueue.get(walletId) ?? Promise.resolve()
+    const run = prior.catch(() => {}).then(() => this.revealNextAddress(walletId, password))
+    this.addQueue.set(walletId, run)
+    try {
+      return await run
+    } finally {
+      if (this.addQueue.get(walletId) === run) this.addQueue.delete(walletId)
+    }
+  }
+
   // Grows the derived list so its newest address is unused: diversified
   // addresses share one viewing key, so a synced wallet can hold notes on
   // indexes never shown yet — those are skipped (but become visible).
-  async addAddress(walletId: string, password: string): Promise<string[]> {
+  private revealNextAddress(walletId: string, password: string): Promise<string[]> {
     return withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet: {network}, seed}) => {
+      // The used set is built from decrypted notes, so a wallet behind the pool
+      // cannot tell a fresh diversifier from one that already received. Revealing
+      // on that answer is how a restored wallet hands out an address twice.
+      if (await this.undecodedCount(walletId, network) > 0) {
+        throw new Error('Sync the shielded pool before revealing a new address')
+      }
+
       const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
       let count = await this.walletDAO.getShieldedAddressCount(walletId)
       const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
@@ -222,9 +246,15 @@ export class ShieldedService {
   async getNotesInfo(walletId: string): Promise<ShieldedNotesInfo> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) return {undecodedCount: 0}
-    const stored = await this.shieldedPoolDAO.getCount(wallet.network)
+    return {undecodedCount: await this.undecodedCount(walletId, wallet.network)}
+  }
+
+  // How far this wallet is behind the pool. Decoding always runs as a prefix, so
+  // anything above the cursor is a note it has never trial-decrypted.
+  private async undecodedCount(walletId: string, network: Network): Promise<number> {
+    const stored = await this.shieldedPoolDAO.getCount(network)
     const decoded = await this.walletDAO.getShieldedDecodedCount(walletId)
-    return {undecodedCount: Math.max(stored - decoded, 0)}
+    return Math.max(stored - decoded, 0)
   }
 
   private idleSyncState(): ShieldedSyncState {
@@ -451,7 +481,8 @@ export class ShieldedService {
       if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
 
       unlocked = await unlockWallet(this.walletDAO, walletId, password)
-      const {wallet: {network}, seed} = unlocked
+      const {wallet, seed} = unlocked
+      const network = wallet.network
       await this.cacheAddresses(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
@@ -459,7 +490,8 @@ export class ShieldedService {
       const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
       const identityIndex = await findNextIdentityIndex(this.platform, seed, startIndex, network)
 
-      const failureAddress = (await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
+      const xpub = await platformAccountXpub(this.walletDAO, wallet, seed)
+      const failureAddress = platformAddressDeriver(xpub, network).derive(0).address
 
       this.runSpend(walletId, network, state, {
         seed,
@@ -493,7 +525,7 @@ export class ShieldedService {
     }
 
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
-    const {wallet: {network}, seed} = unlocked
+    const {wallet, seed} = unlocked
     try {
       // The reserve is what settleShield subtracts again, so the amount asked for
       // is the amount that reaches the pool.
@@ -503,7 +535,7 @@ export class ShieldedService {
         const acquired = await this.assetLock.acquire(state, {
           walletId, kind: 'shielded', destination, amountDuffs: lockDuffs, seed,
         })
-        await this.settleShield(walletId, seed, network, state, acquired)
+        await this.settleShield(wallet, seed, state, acquired)
       })
     } catch (error) {
       zeroSeed(unlocked)
@@ -513,12 +545,12 @@ export class ShieldedService {
 
   async resumeShieldFromL1(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
-    const {wallet: {network}, seed} = unlocked
+    const {wallet, seed} = unlocked
 
     const state = this.assetLock.resume(walletId, row)
     return this.runFunding(state, unlocked, async () => {
       const acquired = await this.assetLock.reacquire(state, row)
-      await this.settleShield(walletId, seed, network, state, acquired)
+      await this.settleShield(wallet, seed, state, acquired)
     })
   }
 
@@ -532,16 +564,16 @@ export class ShieldedService {
   }
 
   private async settleShield(
-    walletId: string,
+    wallet: Wallet,
     seed: Uint8Array,
-    network: Network,
     state: AssetLockFundingState,
     {row, proof}: AcquiredAssetLock,
   ): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const surplus = await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
-    const {stHash} = await this.platform.request('shieldFromAssetLock', network, {
+    const xpub = await platformAccountXpub(this.walletDAO, wallet, seed)
+    const surplus = platformAddressDeriver(xpub, wallet.network).derive(0)
+    const {stHash} = await this.platform.request('shieldFromAssetLock', wallet.network, {
       seed,
       txid: row.txid,
       outputIndex: row.outputIndex,
@@ -549,12 +581,12 @@ export class ShieldedService {
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
       shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs),
-      surplusAddress: surplus.toBech32m(network),
+      surplusAddress: surplus.address,
     })
 
     await this.assetLock.done(state, row, stHash)
     // Awaited: runFunding zeroes the seed the moment this settles.
-    await this.refreshNotes(walletId, network, seed)
+    await this.refreshNotes(wallet.walletId, wallet.network, seed)
   }
 
   // The fee and the note count define each other: the fee scales with how many

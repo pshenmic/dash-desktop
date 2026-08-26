@@ -1,12 +1,12 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
+import { PlatformTransferService } from '../../services/platform/PlatformTransferService'
 import { PlatformSendResult } from '../../types/PlatformSendResult'
 
 export class TopUpIdentityFromAddressesHandler {
-  private platformAddressService: PlatformAddressService
+  private platformTransferService: PlatformTransferService
 
-  constructor(platformAddressService: PlatformAddressService) {
-    this.platformAddressService = platformAddressService
+  constructor(platformTransferService: PlatformTransferService) {
+    this.platformTransferService = platformTransferService
   }
 
   handle = async (
@@ -17,6 +17,6 @@ export class TopUpIdentityFromAddressesHandler {
     amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
-    return this.platformAddressService.topUpIdentityFromAddresses(walletId, identityId, fromAddress, amountCredits, password)
+    return this.platformTransferService.topUpIdentityFromAddresses(walletId, identityId, fromAddress, amountCredits, password)
   }
 }

@@ -1,4 +1,5 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import {AddressWindowPolicy} from './types/AddressWindow'
 
 export const HomeFolderName = '.dash-desktop'
 export const DevFolderName = 'dev'
@@ -43,6 +44,10 @@ export const COIN_TYPE: Record<'mainnet' | 'testnet', number> = {mainnet: 5, tes
 export const PLATFORM_ACCOUNT = 0
 export const SHIELDED_ACCOUNT = 0
 
+// Shielded addresses shown before the user reveals any. Must match the
+// shielded_address_count default in migration 0008, which is frozen.
+export const SHIELDED_ADDRESS_COUNT_DEFAULT = 5
+
 // Background prefetch only keeps the ciphertext cache warm — detecting incoming
 // notes needs trial-decryption, so a password. The batch size is fixed: the dpp
 // proof verifier requires getShieldedEncryptedNotes startIndex to be a multiple
@@ -70,20 +75,28 @@ export const LOCK_WATCH_SWEEP_INTERVAL_MS = 5 * 60 * 1000
 // fetch isdlock objects it will discard.
 export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 
-// BIP-44 gap limits and the ceiling on each discovery walk. Without a ceiling
-// only the gap can stop the loop.
-export const ADDRESS_LOOKAHEAD = 50
-
-// Addresses derived at once when the gap runs short. Extending to exactly the
-// gap limit re-exhausts on the very next used address, and a wallet with a run
-// of them makes the cfilter scan rewind once per address.
-export const ADDRESS_GAP_BATCH = 20
-
 export const IDENTITY_LOOKAHEAD = 10
-export const MAX_DISCOVERY_ROUNDS = 50
 export const IDENTITY_SCAN_LIMIT = 100
-export const PLATFORM_ADDRESS_LOOKAHEAD = 20
-export const MAX_DISCOVERY_BATCHES = 50
+
+// The BIP-44 gap walk over L1 addresses, and the one place its limit is written.
+//
+// `batch` is how many are derived once the gap runs short: extending to exactly
+// the limit re-exhausts on the very next used address, and a wallet with a run
+// of them makes the cfilter scan rewind once per address. Without `maxRounds`
+// only the gap can stop the walk.
+export const CORE_ADDRESS_WINDOW: AddressWindowPolicy = {
+  gapLimit: 50,
+  batch: 20,
+  maxRounds: 50,
+}
+
+// The DIP-17 gap walk. Every round is a worker round trip that probes a whole
+// batch at once, so there is nothing to gain from a batch below the limit.
+export const PLATFORM_ADDRESS_WINDOW: AddressWindowPolicy = {
+  gapLimit: 20,
+  batch: 20,
+  maxRounds: 50,
+}
 
 // Consecutive unused indexes that end the top-up funding-key scan. A top-up's
 // credit address receives the asset lock output, so the chain records every
@@ -170,6 +183,7 @@ export const WALLET_SCOPED_TABLES = [
   'asset_lock_fundings',
   'shielded_addresses',
   'shielded_notes',
+  'platform_addresses',
 ] as const
 
 export const ALREADY_IN_CHAIN = 'state transition already in chain'

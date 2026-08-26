@@ -1,27 +1,11 @@
 import {HDKey} from '@scure/bip32'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {Network} from '../types/Network'
 
-import {GapEntry} from '../types/AddressDiscovery'
-import {HD_VERSIONS} from '../constants'
+import {AddressDeriver} from '../types/AddressWindow'
+import {COIN_TYPE, HD_VERSIONS} from '../constants'
 
-// `minBatch` widens an extension past the gap limit once one is needed at all.
-// The limit is a floor on how far to look, so overshooting it only widens the
-// watch set — but landing exactly on it means the next used address exhausts the
-// gap again, and for the cfilter scan each of those costs a rewind.
-export function planGapExtension(entries: GapEntry[], gapLimit: number, minBatch = 1): number[] {
-  let lastUsed = -1
-  let maxIndex = -1
-  for (const entry of entries) {
-    if (entry.index > maxIndex) maxIndex = entry.index
-    if (entry.isUsed && entry.index > lastUsed) lastUsed = entry.index
-  }
-  if (maxIndex >= lastUsed + gapLimit) return []
-
-  const indexes: number[] = []
-  const target = Math.max(lastUsed + gapLimit, maxIndex + minBatch)
-  for (let i = maxIndex + 1; i <= target; i++) indexes.push(i)
-  return indexes
-}
+const keyPair = new KeyPairController()
 
 export function coreAccountPath(coinType: number, accountId: number): string {
   return `m/44'/${coinType}'/${accountId}'`
@@ -34,4 +18,17 @@ export function deriveCorePublicKey(coreXpub: string, network: Network, isChange
     throw new Error(`Could not derive core public key at index ${index}`)
   }
   return child.publicKey
+}
+
+// One BIP-44 chain of the account xpub. Account 0 is the only account this
+// wallet has, so the path is fixed once the chain is chosen.
+export function coreAddressDeriver(coreXpub: string, network: Network, isChange: boolean): AddressDeriver {
+  const chainPath = `${coreAccountPath(COIN_TYPE[network], 0)}/${isChange ? 1 : 0}`
+  return {
+    derive: index => ({
+      index,
+      address: keyPair.p2pkhAddress(deriveCorePublicKey(coreXpub, network, isChange, index), network),
+      derivationPath: `${chainPath}/${index}`,
+    }),
+  }
 }

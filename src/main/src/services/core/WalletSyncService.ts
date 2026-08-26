@@ -1,7 +1,7 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import fs from 'fs'
-import {ADDRESS_LOOKAHEAD, ChainStorageFilename, LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants'
+import {CORE_ADDRESS_WINDOW, ChainStorageFilename, LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {logChildOutput} from '../../logger'
@@ -305,7 +305,7 @@ export class WalletSyncService {
       walletId,
       chainDbPath,
       watchAddresses,
-      gapLimit: ADDRESS_LOOKAHEAD,
+      gapLimit: CORE_ADDRESS_WINDOW.gapLimit,
       seedUtxos,
       cfilterCursor,
       peerOverrides: this.preferences.network[network],

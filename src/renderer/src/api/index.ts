@@ -51,8 +51,8 @@ export class API {
     return this.api.getAddresses(walletId)
   }
 
-  static async addWalletAddress(walletId: string, password: string, isChange: boolean): Promise<string> {
-    return this.api.addWalletAddress(walletId, password, isChange)
+  static async addWalletAddress(walletId: string, isChange: boolean): Promise<string> {
+    return this.api.addWalletAddress(walletId, isChange)
   }
 
   static async getReceiveAddress(walletId: string): Promise<string | null> {

@@ -23,7 +23,7 @@ import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
 import {ConnectionStatus} from '../types/ConnectionStatus'
 import {
-  ADDRESS_LOOKAHEAD,
+  CORE_ADDRESS_WINDOW,
   DASHSCAN_ADDRESS_CHUNK,
   DASHSCAN_BASE_URLS,
   DASHSCAN_REQUEST_TIMEOUT_MS,
@@ -126,7 +126,7 @@ export class DashscanWalletProvider implements WalletProvider {
       const {resultSet, pagination}: DashscanCursorPage<DashscanTransaction> =
         await this.sendRequest<DashscanCursorPage<DashscanTransaction>>('/xpub/transactions', {
           xpub,
-          gap_limit: ADDRESS_LOOKAHEAD,
+          gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
           limit: XPUB_PAGE_LIMIT,
           ...(cursor != null ? {cursor} : {}),
         })
@@ -172,7 +172,7 @@ export class DashscanWalletProvider implements WalletProvider {
     const xpub = await this.requireXpub()
     const {balance} = await this.sendRequest<DashscanXpubSummary>('/xpub', {
       xpub,
-      gap_limit: ADDRESS_LOOKAHEAD,
+      gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
     })
 
     return BigInt(balance)
@@ -203,7 +203,7 @@ export class DashscanWalletProvider implements WalletProvider {
     for (let page = 1; ; page++) {
       const {resultSet, pagination} = await this.sendRequest<DashscanPage<DashscanUTXO>>('/xpub/utxo', {
         xpub,
-        gap_limit: ADDRESS_LOOKAHEAD,
+        gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
         page,
         limit: XPUB_PAGE_LIMIT,
       })
