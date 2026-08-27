@@ -42,7 +42,6 @@ export interface EncryptedNotePayload {
   cvNet: Uint8Array
 }
 
-export type SpendKind = 'transfer' | 'unshield' | 'withdrawal' | 'identityCreate'
 
 export interface NoteSnapshot {
   index: number
@@ -78,40 +77,80 @@ export interface Recipient {
   amountCredits: bigint
 }
 
-// Kinds without a static estimator in dpp carry what their operation builds
-// with, because the quote has to build the transition to price it.
-export type FeeQuery =
-  | {kind: 'addressTransfer'; inputCount: number; recipients: string[]}
-  | {kind: 'addressWithdrawal'; inputCount: number; hasChange: boolean}
-  | {kind: 'shieldedSpend'; spendKind: SpendKind; noteCount: number; recipients: string[]}
-  // Only the asset-lock shield has a transparent destination besides the pool.
-  | {
-      kind: 'shield'
-      noteCount: number
-      inputCount: number
-      fromAssetLock: boolean
-      surplusAddress: string | null
-    }
-  | {kind: 'identityCreditsToAddresses'; identityId: string; recipients: Recipient[]}
-  | {kind: 'identityCreditTransfer'; identityId: string; recipientId: string; amountCredits: bigint}
-  | {kind: 'identityWithdrawal'; identityId: string; amountCredits: bigint; coreAddress: string}
-  | {kind: 'identityCreateFromAddresses'; inputs: AddressInput[]}
-  | {kind: 'identityTopUpFromAddresses'; identityId: string; inputs: AddressInput[]}
-  | {
-      kind: 'addressFundingFromAssetLock'
-      assetLockProof: AssetLockProofParams
-      txid: string
-      outputIndex: number
-      recipient: string
-    }
+// Every operation the wallet can price, in the four groups that decide how.
+// The groups are the whole fee model: a Core send pays a flat Dash rate, an
+// asset lock pays that rate and again on L2 for the transition its proof funds,
+// pool spends are priced by the pool, and the rest are priced from the
+// transition they would build.
+export type FeeOperation = 'coreSend' | PoolSpendOperation | TransitionFeeOperation
 
-// storageFeeCredits is what creating newAddresses' balance entries costs, which
-// is why a first payment to an address is dearer than every later one.
+// Two transactions, so two fees: the L1 lock, then the L2 transition that
+// spends its proof out of the credits the lock created.
+export type AssetLockFeeOperation =
+  | 'assetLockFunding'
+  | 'assetLockShield'
+  | 'identityRegister'
+  | 'identityTopUpL1'
+
+export type PoolSpendOperation =
+  | 'shieldedTransfer'
+  | 'unshield'
+  | 'shieldedWithdrawal'
+  | 'identityCreateFromShielded'
+
+export type TransitionFeeOperation =
+  | 'addressFundsTransfer'
+  | 'shield'
+  | 'identityToAddress'
+  | 'identityToIdentity'
+  | 'identityWithdrawal'
+  | AssetLockFeeOperation
+  | SelectionFeeOperation
+
+// Priced by building the transition and asking it, rather than by estimating
+// over counts. Everything an asset lock funds is here: a proof cannot be
+// estimated, only built.
+export type BuiltTransitionOperation = Exclude<
+  TransitionFeeOperation,
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield'
+>
+
+// Funded by platform addresses, so the fee scales with the inputs the selection
+// takes and the two have to resolve together.
+export type SelectionFeeOperation =
+  | 'addressWithdrawal'
+  | 'identityCreate'
+  | 'identityTopUp'
+
+// What the user chose. Which fields an operation reads is the pricing switch's
+// business — `recipient` is a platform address, an identity or a Core address
+// depending on which one is being priced.
+export interface FeeParams {
+  amountCredits: bigint
+  // Whatever kind of address this operation pays — a platform address, an
+  // identity or a Core address. A list only where an operation pays several,
+  // because each extra output costs the same again.
+  recipient: string | string[]
+  // Optional because most operations read none of them, and a caller spelling
+  // out which fields it does not use says nothing about the fee.
+  sourceAddress?: string | null
+  identityId?: string | null
+  // Pool spends only: restricts the spend to one shielded address's notes.
+  noteIndexes?: number[] | null
+}
+
+// The same params, plus the two numbers only main can supply: how many inputs
+// the selection settled on, and the Core rate the user's multiplier snapped to.
+export interface FeeQuoteParams extends FeeParams {
+  inputCount: number
+  coreFeePerByte: number
+}
+
+// metered means consensus prices the transition at execution and feeCredits is
+// only the floor. A shielded fee is exact, so nothing may be added to it.
 export interface FeeQuote {
-  minFeeCredits: bigint
-  storageFeeCredits: bigint
-  totalFeeCredits: bigint
-  newAddresses: string[]
+  feeCredits: bigint
+  metered: boolean
 }
 
 export type AssetLockProofParams =
@@ -146,7 +185,7 @@ export interface PlatformOperations {
   spend: {
     payload: {
       seed: Uint8Array
-      kind: SpendKind
+      kind: PoolSpendOperation
       recipient: string
       amountCredits: bigint
       notes: EncryptedNotePayload[]
@@ -155,6 +194,8 @@ export interface PlatformOperations {
       // identityCreate only.
       identityIndex: number | null
       failureAddress: string | null
+      // withdrawal only; consensus requires a non-zero Fibonacci rate.
+      coreFeePerByte: number
     }
     result: {stHash: string; identityId: string | null; feeCredits: bigint | null}
   }
@@ -183,8 +224,14 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   transitionFee: {
-    payload: {query: FeeQuery}
+    payload: {operation: TransitionFeeOperation; params: FeeQuoteParams}
     result: FeeQuote
+  }
+  // Every note count a spend may settle on, so the caller can resolve the fee
+  // and the count together without a round trip per candidate count.
+  spendFeeCurve: {
+    payload: {kind: PoolSpendOperation}
+    result: {feeCredits: bigint[]}
   }
   addressInfos: {
     payload: {addresses: string[]}
@@ -197,7 +244,7 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   addressWithdrawal: {
-    payload: {seed: Uint8Array; inputs: AddressInput[]; coreAddress: string}
+    payload: {seed: Uint8Array; inputs: AddressInput[]; coreAddress: string; coreFeePerByte: number}
     result: {stHash: string}
   }
   identityCreateFromAddresses: {
@@ -217,7 +264,14 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   identityWithdrawal: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; amountCredits: bigint; coreAddress: string}
+    payload: {
+      seed: Uint8Array
+      identifier: string
+      identityIndex: number
+      amountCredits: bigint
+      coreAddress: string
+      coreFeePerByte: number
+    }
     result: {stHash: string}
   }
   identityExists: {

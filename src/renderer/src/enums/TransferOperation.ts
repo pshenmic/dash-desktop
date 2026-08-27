@@ -15,5 +15,5 @@ export enum TransferOperation {
   ShieldedTransfer = 'shieldedTransfer',
   Unshield = 'unshield',
   ShieldedWithdrawal = 'shieldedWithdrawal',
-  IdentityCreateFromPool = 'identityCreateFromPool',
+  IdentityCreateFromShielded = 'identityCreateFromShielded',
 }

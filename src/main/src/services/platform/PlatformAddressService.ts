@@ -14,22 +14,21 @@ import {IdentityCreateResult} from '../../types/IdentityCreateResult'
 import {ShieldResult} from '../../types/ShieldResult'
 import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {
-  IDENTITY_CREATE_KEY_COUNT,
-  IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
+  CREDITS_PER_DUFF,
   MAX_DISCOVERY_BATCHES,
   MAX_RECIPIENTS,
   MIN_OUTPUT_CREDITS,
   PLATFORM_ACCOUNT,
   PLATFORM_ADDRESS_LOOKAHEAD,
-  TRANSFER_FEE_CREDITS,
-  WITHDRAWAL_FEE_CREDITS,
 } from '../../constants'
 import {identityPath} from '../../utils/identityKeys'
 import {requireWallet} from '../../utils/requireWallet'
-import {FeeQuery, FeeQuote} from '../../../platform/types/messages'
-import {selectPlatformSource, selectPlatformInputsWithFee, topUpFeeCredits, identityTransferFeeCredits, identityCreateFeeCredits, toAddressInput} from '../../utils/platformTransfer'
+import {selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
+import {lockedDuffsFor} from '../../utils/assetLockTx'
+import {coreFeePerByte} from '../../utils/coreFeeRate'
+import {Preferences} from '../../preferences'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
-import {PlatformSourceCandidate} from '../../types/PlatformTransfer'
+import {FeeService} from '../wallet/FeeService'
 
 
 // Platform (L2) addresses follow DIP-17: m/9'/coinType'/17'/account'/0'/index.
@@ -46,6 +45,8 @@ export class PlatformAddressService {
   private assetLock: AssetLockService
   private platform: PlatformWorkerService
   private shielded: ShieldedService
+  private fee: FeeService
+  private preferences: Preferences
   private keyPair = new KeyPairController()
 
   constructor(
@@ -54,12 +55,16 @@ export class PlatformAddressService {
     assetLock: AssetLockService,
     platform: PlatformWorkerService,
     shielded: ShieldedService,
+    fee: FeeService,
+    preferences: Preferences,
   ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.assetLock = assetLock
     this.platform = platform
     this.shielded = shielded
+    this.fee = fee
+    this.preferences = preferences
   }
 
   // Up to MAX_DISCOVERY_BATCHES sequential worker round trips, on a channel the
@@ -82,7 +87,7 @@ export class PlatformAddressService {
 
     await this.extendPlatformWindowOnce(walletId, wallet.platformXpub, wallet.network)
 
-    const candidates = await this.loadPlatformCandidates(walletId, wallet.platformXpub, wallet.network)
+    const candidates = await this.fee.loadCandidates(wallet)
     return candidates.map(candidate => ({
       platformAddress: candidate.platformAddress,
       balanceCredits: candidate.balanceCredits,
@@ -102,10 +107,6 @@ export class PlatformAddressService {
     return this.getPlatformAddresses(walletId)
   }
 
-  async estimateTransitionFee(network: Network, query: FeeQuery): Promise<FeeQuote> {
-    return this.platform.request('transitionFee', network, {query})
-  }
-
   async sendPlatformTransfer(
     walletId: string,
     fromPlatformAddress: string,
@@ -117,16 +118,14 @@ export class PlatformAddressService {
       throw new Error('Send amount must be greater than zero')
     }
 
-    const {wallet, seed, xpub} = await this.unlock(walletId, password)
+    const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const {totalFeeCredits} = await this.estimateTransitionFee(network, {
-      kind: 'addressTransfer',
-      inputCount: 1,
-      recipients: [toPlatformAddress],
+    const candidates = await this.fee.loadCandidates(wallet)
+    const feeCredits = await this.fee.requireFee(walletId, 'addressFundsTransfer', {
+      amountCredits, recipient: toPlatformAddress, sourceAddress: fromPlatformAddress || null,
     })
-    const source = selectPlatformSource(candidates, amountCredits, totalFeeCredits, fromPlatformAddress || undefined)
+    const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
       seed,
@@ -138,7 +137,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits,
-      feeCredits: totalFeeCredits,
+      feeCredits,
       fromAddress: source.platformAddress,
       toAddress: toPlatformAddress,
     }
@@ -164,7 +163,11 @@ export class PlatformAddressService {
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
     const totalCredits = recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
-    const feeCredits = identityTransferFeeCredits(recipients.length)
+    const feeCredits = await this.fee.requireFee(walletId, 'identityToAddress', {
+      amountCredits: recipients[0].amountCredits,
+      recipient: recipients.map(entry => entry.address),
+      identityId: identityIdentifier,
+    })
     await this.requireIdentityBalance(network, identityIdentifier, totalCredits + feeCredits, 'transfer')
 
     const {stHash} = await this.platform.request('identityCreditsToAddresses', network, {
@@ -201,12 +204,10 @@ export class PlatformAddressService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, fromIdentityIdentifier)
 
-    await this.requireIdentityBalance(
-      network,
-      fromIdentityIdentifier,
-      amountCredits + IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
-      'transfer',
-    )
+    const feeCredits = await this.fee.requireFee(walletId, 'identityToIdentity', {
+      amountCredits, recipient: toIdentityIdentifier, identityId: fromIdentityIdentifier,
+    })
+    await this.requireIdentityBalance(network, fromIdentityIdentifier, amountCredits + feeCredits, 'transfer')
 
     const {stHash} = await this.platform.request('identityCreditTransfer', network, {
       seed,
@@ -219,7 +220,7 @@ export class PlatformAddressService {
     return {
       stHash,
       amountCredits,
-      feeCredits: IDENTITY_CREDIT_TRANSFER_FEE_CREDITS,
+      feeCredits,
       fromAddress: fromIdentityIdentifier,
       toAddress: toIdentityIdentifier,
     }
@@ -235,19 +236,16 @@ export class PlatformAddressService {
       throw new Error(`Minimum identity funding is ${MIN_OUTPUT_CREDITS.toString()} credits`)
     }
 
-    const {wallet, seed, xpub} = await this.unlock(walletId, password)
+    const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
     const existing = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const plan = selectPlatformInputsWithFee(
-      candidates,
-      amountCredits,
-      () => identityCreateFeeCredits(IDENTITY_CREATE_KEY_COUNT),
-      fromPlatformAddress ?? undefined,
-    )
+    const {plan, error} = await this.fee.planInputs(wallet, 'identityCreate', {
+      amountCredits, recipient: '', sourceAddress: fromPlatformAddress,
+    })
+    if (plan === null) throw new Error(error)
 
     const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
       seed,
@@ -283,14 +281,16 @@ export class PlatformAddressService {
       throw new Error('Top-up amount must be greater than zero')
     }
 
-    const {wallet, seed, xpub} = await this.unlock(walletId, password)
+    const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
     const {exists} = await this.platform.request('identityExists', network, {identifier: identityId})
     if (!exists) throw new Error('Identity not found on Platform')
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const plan = selectPlatformInputsWithFee(candidates, amountCredits, topUpFeeCredits, fromPlatformAddress ?? undefined)
+    const {plan, error} = await this.fee.planInputs(wallet, 'identityTopUp', {
+      amountCredits, recipient: identityId, sourceAddress: fromPlatformAddress,
+    })
+    if (plan === null) throw new Error(error)
 
     const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
       seed,
@@ -318,21 +318,19 @@ export class PlatformAddressService {
       throw new Error('Withdrawal amount must be greater than zero')
     }
 
-    const {wallet, seed, xpub} = await this.unlock(walletId, password)
+    const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const plan = selectPlatformInputsWithFee(
-      candidates,
-      amountCredits,
-      () => WITHDRAWAL_FEE_CREDITS,
-      fromPlatformAddress ?? undefined,
-    )
+    const {plan, error} = await this.fee.planInputs(wallet, 'addressWithdrawal', {
+      amountCredits, recipient: toCoreAddress, sourceAddress: fromPlatformAddress,
+    })
+    if (plan === null) throw new Error(error)
 
     const {stHash} = await this.platform.request('addressWithdrawal', network, {
       seed,
       inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
       coreAddress: toCoreAddress,
+      coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
     })
 
     return {
@@ -359,12 +357,10 @@ export class PlatformAddressService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, identityIdentifier)
 
-    await this.requireIdentityBalance(
-      network,
-      identityIdentifier,
-      amountCredits + WITHDRAWAL_FEE_CREDITS,
-      'withdrawal',
-    )
+    const feeCredits = await this.fee.requireFee(walletId, 'identityWithdrawal', {
+      amountCredits, recipient: toCoreAddress, identityId: identityIdentifier,
+    })
+    await this.requireIdentityBalance(network, identityIdentifier, amountCredits + feeCredits, 'withdrawal')
 
     const {stHash} = await this.platform.request('identityWithdrawal', network, {
       seed,
@@ -372,12 +368,13 @@ export class PlatformAddressService {
       identityIndex: identity.identityIndex,
       amountCredits,
       coreAddress: toCoreAddress,
+      coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
     })
 
     return {
       stHash,
       amountCredits,
-      feeCredits: WITHDRAWAL_FEE_CREDITS,
+      feeCredits,
       fromAddress: identityIdentifier,
       toAddress: toCoreAddress,
     }
@@ -397,11 +394,14 @@ export class PlatformAddressService {
       throw new Error('Shielded recipient address is required')
     }
 
-    const {wallet, seed, xpub} = await this.unlock(walletId, password)
+    const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.loadPlatformCandidates(walletId, xpub, network)
-    const source = selectPlatformSource(candidates, amountCredits, TRANSFER_FEE_CREDITS, fromPlatformAddress || undefined)
+    const candidates = await this.fee.loadCandidates(wallet)
+    const feeCredits = await this.fee.requireFee(walletId, 'shield', {
+      amountCredits, recipient: toShieldedAddress, sourceAddress: fromPlatformAddress || null,
+    })
+    const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
     const {stHash} = await this.platform.request('shield', network, {
       seed,
@@ -425,15 +425,23 @@ export class PlatformAddressService {
   }
 
   // Locks L1 coins and credits them to one of this wallet's platform addresses.
+  // amountDuffs is what arrives, so the lock also carries the funding
+  // transition's fee.
   async startFundingFromL1(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
     const unlocked = await this.unlock(walletId, password)
     const {wallet, seed} = unlocked
 
     try {
-      const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, amountDuffs)
+      const feeCredits = await this.fee.requireFee(walletId, 'assetLockFunding', {
+        amountCredits: amountDuffs * CREDITS_PER_DUFF,
+        recipient: toPlatformAddress,
+      })
+      const lockDuffs = lockedDuffsFor(amountDuffs, feeCredits)
+
+      const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs, seed,
+          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs: lockDuffs, seed,
         })
         await this.settleFunding(seed, wallet.network, state, acquired)
       })
@@ -502,22 +510,20 @@ export class PlatformAddressService {
 
   // Decrypts the mnemonic, derives the seed, and backfills the persisted
   // DIP-17 account xpub for wallets created before the column existed.
-  private async unlock(walletId: string, password: string): Promise<{wallet: Wallet; seed: Uint8Array; xpub: string}> {
+  private async unlock(walletId: string, password: string): Promise<{wallet: Wallet; seed: Uint8Array}> {
     const {wallet, seed} = await unlockWallet(this.walletDAO, walletId, password)
+    if (wallet.platformXpub != null) return {wallet, seed}
 
-    let xpub = wallet.platformXpub
-    if (xpub == null) {
-      xpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
-      await this.walletDAO.setPlatformXpub(walletId, xpub)
-    }
-
-    return {wallet, seed, xpub}
+    const platformXpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)
+    await this.walletDAO.setPlatformXpub(walletId, platformXpub)
+    return {wallet: {...wallet, platformXpub}, seed}
   }
 
   private async extendPlatformWindow(walletId: string, xpub: string, network: Network): Promise<void> {
-    const stored = await this.walletDAO.getPlatformAddressCount(walletId)
-    const windowEnd = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, stored)
-    let probeStart = windowEnd
+    const stored = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, await this.walletDAO.getPlatformAddressCount(walletId))
+    // Check the last 20 saved addresses again. If the last one was just used,
+    // we need to add a new group of addresses.
+    let probeStart = Math.max(0, stored - PLATFORM_ADDRESS_LOOKAHEAD)
     let lastUsed = -1
 
     for (let batch = 0; batch < MAX_DISCOVERY_BATCHES; batch++) {
@@ -535,36 +541,20 @@ export class PlatformAddressService {
           usedInBatch = probeStart + i
         }
       })
+      // Stop when we find 20 unused addresses in a row.
       if (usedInBatch === -1) break
 
       lastUsed = usedInBatch
       probeStart += PLATFORM_ADDRESS_LOOKAHEAD
     }
 
-    if (lastUsed >= windowEnd) {
-      await this.walletDAO.setPlatformAddressCount(walletId, lastUsed + 1)
+    // Always keep 20 unused addresses after the last used one. Do not remove
+    // addresses that the user added manually.
+    const required = lastUsed < 0
+      ? stored
+      : Math.max(stored, lastUsed + 1 + PLATFORM_ADDRESS_LOOKAHEAD)
+    if (required > stored) {
+      await this.walletDAO.setPlatformAddressCount(walletId, required)
     }
-  }
-
-  private async loadPlatformCandidates(walletId: string, xpub: string, network: Network): Promise<PlatformSourceCandidate[]> {
-    const count = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, await this.walletDAO.getPlatformAddressCount(walletId))
-    const owned = Array.from({length: count}, (_, index) => ({
-      platformAddress: this.keyPair.derivePlatformAddressFromXpub(xpub, network, index).toBech32m(network),
-      index,
-    }))
-
-    const {infos} = await this.platform.request('addressInfos', network, {
-      addresses: owned.map(entry => entry.platformAddress),
-    })
-
-    const byAddress = new Map(infos.map(info => [info.address, info]))
-    return owned.map(entry => {
-      const info = byAddress.get(entry.platformAddress)
-      return {
-        ...entry,
-        balanceCredits: info?.balance ?? 0n,
-        nonce: info?.nonce ?? 0,
-      }
-    })
   }
 }

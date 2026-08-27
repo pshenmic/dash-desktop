@@ -7,6 +7,8 @@ import {AssetLockService} from '../../src/main/src/services/platform/AssetLockSe
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {AssetLockFunder} from '../../src/main/src/types/AssetLock'
 import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
+import {FeeService} from '../../src/main/src/services/wallet/FeeService'
+import {findNextIdentityIndex} from '../../src/main/src/utils/identityKeys'
 import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const SEED = new KeyPairController().mnemonicToSeed(MNEMONIC)
@@ -18,6 +20,7 @@ function serviceWith(request = vi.fn()): IdentityRegistrationService {
     {} as AssetLockService,
     {request} as unknown as PlatformWorkerService,
     {} as unknown as AssetLockFunder,
+    {} as unknown as FeeService,
   )
 }
 
@@ -83,7 +86,7 @@ describe('IdentityRegistrationService', () => {
     it('asks the worker to stop at the first free index', async () => {
       const request = vi.fn().mockResolvedValue({identities: [], nextFreeIndex: 4})
 
-      const index = await serviceWith(request).findNextIdentityIndex(SEED, 2, 'testnet')
+      const index = await findNextIdentityIndex({request} as unknown as PlatformWorkerService, SEED, 2, 'testnet')
 
       expect(index).toBe(4)
       expect(request).toHaveBeenCalledWith('identityScan', 'testnet', expect.objectContaining({

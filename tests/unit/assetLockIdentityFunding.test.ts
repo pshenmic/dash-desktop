@@ -4,6 +4,7 @@ import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
+import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
@@ -13,7 +14,11 @@ import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingS
 const WALLET_ID = 'wallet-1'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const PASSWORD = 'password123'
-const LOCK_AMOUNT = 200_000n
+// What the user asks the identity to end up with, and what the lock therefore
+// has to carry: the transition takes its fee out of the credits the lock makes.
+const AMOUNT = 200_000n
+const L2_FEE_CREDITS = 50_000_000n
+const LOCKED_AMOUNT = AMOUNT + L2_FEE_CREDITS / 1_000n
 const REGISTRATION_PATH = "m/9'/1'/5'/1'/0"
 const TOP_UP_PATH = "m/9'/1'/5'/2'/0"
 const TARGET_IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
@@ -25,7 +30,7 @@ const row = (overrides: Partial<AssetLockFundingRow> = {}): AssetLockFundingRow 
   txid: 'assetlock-txid',
   outputIndex: 0,
   creditDerivationPath: REGISTRATION_PATH,
-  amountDuffs: LOCK_AMOUNT,
+  amountDuffs: LOCKED_AMOUNT,
   toPlatformAddress: '',
   kind: 'identity',
   status: AssetLockFundingStatus.L1Broadcast,
@@ -104,17 +109,18 @@ describe('identity funding from an asset lock', () => {
       {request} as unknown as PlatformWorkerService,
       // Nothing on chain, so the top-up scan settles on index 0.
       {getUsedAddresses: vi.fn().mockResolvedValue([])} as unknown as AssetLockFunder,
+      {requireFee: vi.fn().mockResolvedValue(L2_FEE_CREDITS)} as unknown as FeeService,
     )
   })
 
   it('funds the lock with the registration key and settles the identity create', async () => {
-    await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
+    await service.startIdentityCreate(WALLET_ID, AMOUNT, PASSWORD)
     await settled(done)
 
     expect(acquire).toHaveBeenCalledWith(state, expect.objectContaining({
       walletId: WALLET_ID,
       kind: 'identity',
-      amountDuffs: LOCK_AMOUNT,
+      amountDuffs: LOCKED_AMOUNT,
       identityIndex: 0,
       credit: expect.objectContaining({derivationPath: REGISTRATION_PATH}),
     }))
@@ -137,7 +143,7 @@ describe('identity funding from an asset lock', () => {
   // The seed is live for as long as the lock takes to confirm, so nothing may
   // still be able to read it once the job is over.
   it('zeroes the seed once the funding settles', async () => {
-    await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
+    await service.startIdentityCreate(WALLET_ID, AMOUNT, PASSWORD)
     const {seed} = acquire.mock.calls[0][1] as {seed: Uint8Array}
     expect(seed.some(byte => byte !== 0)).toBe(true)
 
@@ -152,7 +158,7 @@ describe('identity funding from an asset lock', () => {
       throw new Error('network down')
     })
 
-    await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
+    await service.startIdentityCreate(WALLET_ID, AMOUNT, PASSWORD)
     const {seed} = acquire.mock.calls[0][1] as {seed: Uint8Array}
 
     await vi.waitFor(() => {
@@ -162,7 +168,7 @@ describe('identity funding from an asset lock', () => {
 
   it('throws a user-facing error for an invalid password', async () => {
     await expect(
-      service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, 'wrong-password'),
+      service.startIdentityCreate(WALLET_ID, AMOUNT, 'wrong-password'),
     ).rejects.toThrow('Invalid wallet password')
 
     expect(acquire).not.toHaveBeenCalled()
@@ -176,7 +182,7 @@ describe('identity funding from an asset lock', () => {
       throw new Error('network down')
     })
 
-    await service.startIdentityCreate(WALLET_ID, LOCK_AMOUNT, PASSWORD)
+    await service.startIdentityCreate(WALLET_ID, AMOUNT, PASSWORD)
     await settled(fail)
 
     expect(fail.mock.calls[0][0]).toBe(state)
@@ -189,7 +195,7 @@ describe('identity funding from an asset lock', () => {
     request.mockResolvedValue({stHash: 'topup-sthash'})
     acquire.mockResolvedValue({row: row({kind: 'identityTopUp', toPlatformAddress: TARGET_IDENTITY, creditDerivationPath: TOP_UP_PATH}), proof: PROOF})
 
-    await service.startIdentityTopUp(WALLET_ID, TARGET_IDENTITY, LOCK_AMOUNT, PASSWORD)
+    await service.startIdentityTopUp(WALLET_ID, TARGET_IDENTITY, AMOUNT, PASSWORD)
     await settled(done)
 
     expect(acquire).toHaveBeenCalledWith(state, expect.objectContaining({
@@ -208,7 +214,7 @@ describe('identity funding from an asset lock', () => {
 
   it('rejects a top-up without an identity identifier', async () => {
     await expect(
-      service.startIdentityTopUp(WALLET_ID, '', LOCK_AMOUNT, PASSWORD),
+      service.startIdentityTopUp(WALLET_ID, '', AMOUNT, PASSWORD),
     ).rejects.toThrow('Identity identifier is required')
 
     expect(acquire).not.toHaveBeenCalled()

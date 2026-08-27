@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 import {NEW_ADDRESS_LOOKAHEAD_LIMIT} from '../../src/main/src/constants'
+import {Preferences} from '../../src/main/src/preferences'
 
 const PASSWORD = 'password'
 
@@ -25,7 +26,8 @@ function service(usedIndexes: number[], storedCount = 0): {
 
   const svc = new ShieldedService(
     walletDAO as never, {} as never, shieldedNoteDAO as never, {} as never,
-    shieldedAddressDAO as never, {} as never, {} as never, {} as never,
+    shieldedAddressDAO as never, {} as never, {} as never,
+    Preferences.default(),
   )
 
   // Stand in for the WASM derivation, which is 5.2 ms a call.

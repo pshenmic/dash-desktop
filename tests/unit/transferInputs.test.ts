@@ -8,6 +8,7 @@ import {
   pickCreditChangeAddress,
   selectTransferInputs,
 } from '../../src/main/src/utils/transferInputs'
+import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants'
 
 const SCRIPT_HEX = '76a9143a2d4145a4f098523b3e8127f1da87cfc55b8e7988ac'
 // No derivation path in the wallet, so nothing here can be signed.
@@ -34,6 +35,8 @@ const wallet = grouped(
   [address('chg-0', 0, true), address('chg-1', 1, true)],
 )
 
+const FEE = CORE_TRANSFER_FEE_DUFFS
+
 describe('selecting transfer inputs from a wallet-wide utxo set', () => {
   // Selecting one would fail at signing time, after the spend was built.
   it('ignores outputs on addresses the wallet cannot sign for', () => {
@@ -41,13 +44,14 @@ describe('selecting transfer inputs from a wallet-wide utxo set', () => {
       wallet,
       [utxo(FOREIGN, 900_000_000n, 'aa'), utxo('recv-0', 50_000_000n, 'bb')],
       1_000_000n,
+      FEE,
     )
 
     expect(transferInputs.map(i => i.txId)).toEqual(['bb'])
   })
 
   it('refuses the spend when every output is unsignable', () => {
-    expect(() => selectTransferInputs(wallet, [utxo(FOREIGN, 900_000_000n, 'aa')], 1_000_000n))
+    expect(() => selectTransferInputs(wallet, [utxo(FOREIGN, 900_000_000n, 'aa')], 1_000_000n, FEE))
       .toThrow('No spendable funds')
   })
 
@@ -56,6 +60,7 @@ describe('selecting transfer inputs from a wallet-wide utxo set', () => {
       wallet,
       [utxo('recv-0', 50_000_000n, 'aa'), utxo('recv-1', 50_000_000n, 'bb')],
       1_000_000n,
+      FEE,
       'recv-1',
     )
 
@@ -63,7 +68,7 @@ describe('selecting transfer inputs from a wallet-wide utxo set', () => {
   })
 
   it('carries the derivation path of the address each input pays', () => {
-    const {transferInputs} = selectTransferInputs(wallet, [utxo('recv-1', 50_000_000n, 'aa')], 1_000_000n)
+    const {transferInputs} = selectTransferInputs(wallet, [utxo('recv-1', 50_000_000n, 'aa')], 1_000_000n, FEE)
 
     expect(transferInputs[0].derivationPath).toBe("m/44'/1'/0'/0/1")
   })

@@ -7,10 +7,12 @@ import {Network} from '../../types/Network'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
-import {identityPath} from '../../utils/identityKeys'
-import {COIN_TYPE, IDENTITY_SCAN_LIMIT, TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../../constants'
+import {findNextIdentityIndex, identityPath} from '../../utils/identityKeys'
+import {COIN_TYPE, CREDITS_PER_DUFF, TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../../constants'
 import {AssetLockFundingRow, AcquiredAssetLock, AssetLockFunder} from '../../types/AssetLock'
 import {UnlockedWallet} from '../../types/UnlockedWallet'
+import {FeeService} from '../wallet/FeeService'
+import {lockedDuffsFor} from '../../utils/assetLockTx'
 
 
 // Owns identity registration and top-up funded from L1: derives the funding
@@ -27,6 +29,7 @@ export class IdentityRegistrationService {
     private readonly assetLock: AssetLockService,
     private readonly platform: PlatformWorkerService,
     private readonly funder: AssetLockFunder,
+    private readonly fee: FeeService,
   ) {}
 
   registrationKeyPath(identityIndex: number, network: Network): string {
@@ -65,25 +68,18 @@ export class IdentityRegistrationService {
 
   // First index at/after startIndex whose auth key #0 is not already registered
   // on Platform — skips indices taken by the same seed used elsewhere.
-  async findNextIdentityIndex(seed: Uint8Array, startIndex: number, network: Network): Promise<number> {
-    const {nextFreeIndex} = await this.platform.request('identityScan', network, {
-      seed,
-      startIndex,
-      gapLimit: 1,
-      scanLimit: IDENTITY_SCAN_LIMIT,
-    })
-    return nextFreeIndex
-  }
-
+  // amountDuffs is what the identity ends up with, so the lock also carries the
+  // fee the IdentityCreateTransition takes out of it.
   async startIdentityCreate(walletId: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
       const {identityIndex, credit} = await this.prepareRegistration(walletId, unlocked)
+      const lockDuffs = await this.lockedDuffs(walletId, 'identityRegister', '', amountDuffs)
 
-      const state = await this.assetLock.begin(walletId, 'identity', '', amountDuffs)
+      const state = await this.assetLock.begin(walletId, 'identity', '', lockDuffs)
       return this.run(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'identity', destination: '', amountDuffs, seed: unlocked.seed, credit, identityIndex,
+          walletId, kind: 'identity', destination: '', amountDuffs: lockDuffs, seed: unlocked.seed, credit, identityIndex,
         })
         await this.settleCreate(walletId, unlocked, state, acquired, identityIndex)
       })
@@ -100,11 +96,12 @@ export class IdentityRegistrationService {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
       const {topUpIndex, credit} = await this.prepareTopUp(walletId, unlocked)
+      const lockDuffs = await this.lockedDuffs(walletId, 'identityTopUpL1', identityId, amountDuffs)
 
-      const state = await this.assetLock.begin(walletId, 'identityTopUp', identityId, amountDuffs)
+      const state = await this.assetLock.begin(walletId, 'identityTopUp', identityId, lockDuffs)
       return this.run(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'identityTopUp', destination: identityId, amountDuffs, seed: unlocked.seed,
+          walletId, kind: 'identityTopUp', destination: identityId, amountDuffs: lockDuffs, seed: unlocked.seed,
           credit, identityIndex: topUpIndex,
         })
         await this.settleTopUp(unlocked, state, acquired)
@@ -113,6 +110,18 @@ export class IdentityRegistrationService {
       zeroSeed(unlocked)
       throw error
     }
+  }
+
+  private async lockedDuffs(
+    walletId: string,
+    operation: 'identityRegister' | 'identityTopUpL1',
+    recipient: string,
+    amountDuffs: bigint,
+  ): Promise<bigint> {
+    return lockedDuffsFor(amountDuffs, await this.fee.requireFee(walletId, operation, {
+      amountCredits: amountDuffs * CREDITS_PER_DUFF,
+      recipient,
+    }))
   }
 
   // Resumes a funding whose L1 lock already landed. Both identity kinds route
@@ -201,7 +210,7 @@ export class IdentityRegistrationService {
     const {wallet: {network}, seed} = unlocked
     const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
     const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
-    const identityIndex = await this.findNextIdentityIndex(seed, startIndex, network)
+    const identityIndex = await findNextIdentityIndex(this.platform, seed, startIndex, network)
 
     const registrationKey = await this.deriveRegistrationKey(seed, identityIndex, network)
 

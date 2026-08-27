@@ -1,5 +1,4 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
-import type {CoinSelectionParams} from './types/CoinSelection'
 
 export const HomeFolderName = '.dash-desktop'
 export const DevFolderName = 'dev'
@@ -175,35 +174,20 @@ export const WALLET_SCOPED_TABLES = [
 
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
 
-export const DEFAULT_SELECTION_PARAMS: CoinSelectionParams = {
-  fee: 10_000n,
-}
+export const CORE_TRANSFER_FEE_DUFFS = 10_000n
+
+export const DEFAULT_PLATFORM_FEE_MULTIPLIER = 6
+export const DEFAULT_CORE_FEE_MULTIPLIER = 1
+// A metered fee is already the consensus minimum, so below 1 the wallet would
+// underpay its own transitions — a guaranteed rejection, not a cheaper send.
+export const MIN_FEE_MULTIPLIER = 1
+export const MAX_FEE_MULTIPLIER = 20
 
 export const MIN_OUTPUT_CREDITS = 500_000n
-export const TRANSFER_FEE_CREDITS = 6_500_000n
 export const MIN_INPUT_CREDITS = 100_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
-export const WITHDRAWAL_FEE_CREDITS = 400_000_000n
 export const CORE_FEE_PER_BYTE = 1
-export const IDENTITY_CREDIT_TRANSFER_FEE_CREDITS = 1_000_000n
-
-// The key set identityCreateFromAddresses builds; the fee scales with it, so
-// the worker that creates the keys and main that reserves the fee read the
-// same number.
-export const IDENTITY_CREATE_KEY_COUNT = 4
-
-// Mirrors compute_minimum_shielded_fee in rs-dpp (pshenmic/platform@1ba1ca5):
-// consensus pins a pool-paid spend's value_balance to exactly this minimum, so
-// note selection must reserve it. num_actions = max(spends, 2). Keep in sync
-// with src/renderer/src/utils/shieldedFee.ts (pinned by tests/unit/shieldedFee.test.ts).
-export const SHIELDED_PROOF_VERIFICATION_FEE_CREDITS = 100_000_000n
-export const SHIELDED_PER_ACTION_PROCESSING_FEE_CREDITS = 22_000_000n
-export const SHIELDED_STORAGE_BYTES_PER_ACTION = 344n
-export const SHIELDED_UNSHIELD_ADDRESS_STORAGE_BYTES = 222n
-export const SHIELDED_WITHDRAWAL_DOCUMENT_STORAGE_BYTES = 4_100n
-export const SHIELDED_STORAGE_CREDIT_PER_BYTE = 27_400n
-export const MIN_BUNDLE_ACTIONS = 2
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0

@@ -32,7 +32,8 @@ import {SetAddressLabel} from "./api/wallet/setAddressLabel";
 import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
 import {GetTxLockStatusHandler} from "./api/wallet/getTxLockStatus";
-import {EstimateTransitionFeeHandler} from "./api/wallet/estimateTransitionFee";
+import {EstimateFeeHandler} from "./api/wallet/estimateFee";
+import {FeeService} from './services/wallet/FeeService'
 import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
 import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromAddresses";
 import {WithdrawPlatformCreditsHandler} from "./api/wallet/withdrawPlatformCredits";
@@ -56,6 +57,8 @@ import {SetLanguageHandler} from "./api/setLanguage";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
+import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
+import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
 import {SetConnectionTypeHandler} from "./api/setConnectionType";
 import {WalletSyncService} from './services/core/WalletSyncService'
 import {ShieldedService} from './services/platform/ShieldedService'
@@ -105,6 +108,7 @@ import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
 export class WalletBackend {
   private walletService?: WalletService
   private platformAddressService?: PlatformAddressService
+  private feeService?: FeeService
   private applicationService?: ApplicationService
   private walletSyncService?: WalletSyncService
   private ratesService?: RatesService
@@ -124,7 +128,7 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService) {
+    if (!this.walletService || !this.platformAddressService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -149,7 +153,7 @@ export class WalletBackend {
     ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
     ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
     ipcMain.handle('getTxLockStatus', new GetTxLockStatusHandler(this.coreLockService).handle)
-    ipcMain.handle('estimateTransitionFee', new EstimateTransitionFeeHandler(this.platformAddressService).handle)
+    ipcMain.handle('estimateFee', new EstimateFeeHandler(this.feeService).handle)
     ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformAddressService).handle)
     ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformAddressService).handle)
     ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformAddressService).handle)
@@ -169,6 +173,8 @@ export class WalletBackend {
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
+    ipcMain.handle('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
+    ipcMain.handle('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
     ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
@@ -233,14 +239,15 @@ export class WalletBackend {
     const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService, prevOuts)
     const coreTransactionService = new CoreTransactionService()
     this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
-    this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers)
+    this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
     this.identityService = new IdentityService(walletDAO, identityDAO, this.platformWorkerService)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, this.identityService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, calibratedIterations)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, this.identityService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
-    this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService)
-    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.identityRegistrationService, this.platformWorkerService, this.assetLockService)
-    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.shieldedService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
+    this.feeService = new FeeService(walletDAO, this.platformWorkerService, this.shieldedService, preferences)
+    this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
+    this.platformAddressService = new PlatformAddressService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.shieldedService, this.feeService, preferences)
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO

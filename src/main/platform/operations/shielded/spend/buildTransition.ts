@@ -3,7 +3,6 @@ import {OrchardAddressWASM, ShieldedMemoWASM, SpendableNoteWASM, StateTransition
 import {Network} from '../../../../src/types/Network'
 import {coreAddressToScript} from '../../../../src/utils/coreScript'
 import {PlatformOperations} from '../../../types/messages'
-import {WITHDRAWAL_CORE_FEE_PER_BYTE} from '../constants'
 import {COIN_TYPE, SHIELDED_ACCOUNT} from '../../../../src/constants'
 import {identityKeys} from './identityKeys'
 
@@ -31,7 +30,7 @@ export async function buildTransition(
   }
 
   switch (payload.kind) {
-    case 'transfer':
+    case 'shieldedTransfer':
       return sdk.shielded.createStateTransition('shieldedTransfer', {
         ...base,
         recipient: OrchardAddressWASM.fromBech32m(recipient),
@@ -45,7 +44,7 @@ export async function buildTransition(
         unshieldAmount: amount,
       })
 
-    case 'identityCreate': {
+    case 'identityCreateFromShielded': {
       if (payload.identityIndex == null || payload.failureAddress == null) {
         throw new Error('Identity creation needs an identity index and a failure refund address')
       }
@@ -59,12 +58,12 @@ export async function buildTransition(
       })
     }
 
-    case 'withdrawal':
+    case 'shieldedWithdrawal':
       return sdk.shielded.createStateTransition('shieldedWithdrawal', {
         ...base,
         withdrawalAmount: amount,
         outputScript: coreAddressToScript(recipient, network),
-        coreFeePerByte: WITHDRAWAL_CORE_FEE_PER_BYTE,
+        coreFeePerByte: payload.coreFeePerByte,
         pooling: 'Never',
       })
   }

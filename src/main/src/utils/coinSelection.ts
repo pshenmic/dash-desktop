@@ -1,10 +1,9 @@
 import {CoinSelectionParams, CoinSelectionResult, SelectableUtxo} from '../types/CoinSelection'
-import {DEFAULT_SELECTION_PARAMS} from '../constants'
 
 export function selectCoins(
   utxos: SelectableUtxo[],
   target: bigint,
-  params: CoinSelectionParams = DEFAULT_SELECTION_PARAMS,
+  params: CoinSelectionParams,
 ): CoinSelectionResult {
   if (target <= 0n) {
     throw new Error('Send amount must be greater than zero')

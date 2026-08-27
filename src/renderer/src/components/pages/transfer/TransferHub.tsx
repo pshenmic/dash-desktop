@@ -51,7 +51,7 @@ import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import type { SendDraft } from "@renderer/types/SendDraft";
 import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
-import { CORE_FEE_DUFFS, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
+import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
@@ -237,17 +237,21 @@ function WalletTransferHub(): React.JSX.Element {
     : toKind === DestinationKind.NewIdentity ? true
     : isLikelyShieldedAddress(trimmedTo)
 
-  const { feeCredits, maxPerTx, loading: feeLoading, err: feeErr } = useOperationFee(network, operation, {
+  const { feeCredits, feeDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr } = useOperationFee(walletId, operation, {
     destinationValid,
     recipient: trimmedTo,
     amountCredits,
-    source: selectedSource ?? null,
+    sourceAddress: selectedSource?.platformAddress ?? null,
     identityId: selectedIdentity?.identifier ?? null,
-    notes: shieldedSync.phase === ShieldedSyncPhase.Done ? (shieldedSpecificNotes ?? spendableNotes) : null,
+    noteIndexes: shieldedSpecificNotes?.map(note => note.index) ?? null,
   })
 
+  // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
+  // L2 fee on top of that, so the amount typed is the amount that arrives.
+  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
+
   const sliderMaxAmount = useMemo((): bigint | null => {
-    if (isCoreOperation) return balanceDuffs > CORE_FEE_DUFFS ? balanceDuffs - CORE_FEE_DUFFS : 0n
+    if (isCoreOperation) return balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n
     if (maxPerTx !== null) return creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     if (availableCredits === null || feeCredits === null) return null
     const spendable = availableCredits - feeCredits
@@ -294,12 +298,12 @@ function WalletTransferHub(): React.JSX.Element {
   const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
 
   const amountReady = isCoreOperation
-    ? amountDuffs > 0n && amountDuffs + CORE_FEE_DUFFS <= balanceDuffs
+    ? amountDuffs > 0n && amountDuffs + totalFeeDuffs <= balanceDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
       && (maxPerTx === null || amountCredits <= maxPerTx)
-      && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
+      && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
   const canSubmit = routeReady && amountReady
 
@@ -315,7 +319,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const handleMax = (): void => {
     if (isCoreOperation) {
-      setAmount(davToDash(balanceDuffs > CORE_FEE_DUFFS ? balanceDuffs - CORE_FEE_DUFFS : 0n))
+      setAmount(davToDash(balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n))
       return
     }
     if (maxPerTx !== null) {
@@ -336,6 +340,7 @@ function WalletTransferHub(): React.JSX.Element {
   const amountError = amountErrorFor({
     isCoreOperation,
     amount,
+    totalFeeDuffs,
     operation,
     amountDuffs,
     balanceDuffs,
@@ -344,6 +349,7 @@ function WalletTransferHub(): React.JSX.Element {
     availableCredits,
     feeCredits,
     maxPerTx,
+    noteLimit,
   })
   const fieldError = amountError ?? feeErr
 
@@ -490,7 +496,7 @@ function WalletTransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === TransferOperation.IdentityCreateFromPool && (
+      {operation === TransferOperation.IdentityCreateFromShielded && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>New identity from the pool</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -518,7 +524,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const amountStep = (
     <div>
-      {operation === TransferOperation.IdentityCreateFromPool && (
+      {operation === TransferOperation.IdentityCreateFromShielded && (
         <div className={"mb-3 flex flex-wrap gap-2"}>
           {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
             <button
@@ -540,7 +546,7 @@ function WalletTransferHub(): React.JSX.Element {
         onMax={handleMax}
         unit={<DashLogo size={20} />}
       />
-      {operation !== TransferOperation.IdentityCreateFromPool && sliderMaxAmount !== null && (
+      {operation !== TransferOperation.IdentityCreateFromShielded && sliderMaxAmount !== null && (
         <AmountSlider
           percent={sliderPercent}
           onPercentChange={handleSliderPercent}
@@ -569,7 +575,7 @@ function WalletTransferHub(): React.JSX.Element {
       {isCoreOperation ? (
         <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(CORE_FEE_DUFFS)} Dash</Text>
+          <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
         </div>
       ) : (
         <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
@@ -623,12 +629,12 @@ function WalletTransferHub(): React.JSX.Element {
           <>
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(CORE_FEE_DUFFS)} Dash</Text>
+              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
             </div>
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + CORE_FEE_DUFFS)} Dash</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + totalFeeDuffs)} Dash</Text>
             </div>
           </>
         ) : feeCredits !== null && (
@@ -659,10 +665,10 @@ function WalletTransferHub(): React.JSX.Element {
     if (!walletId) {
       return Promise.resolve<ShieldedSpendState>({ phase: ShieldedSpendPhase.Error, fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
-    const noteIndexes = shieldedSpecificNotes?.map(n => n.index)
+    const noteIndexes = shieldedSpecificNotes?.map(note => note.index)
     if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits, password, noteIndexes)
     if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits, password, noteIndexes)
-    if (operation === TransferOperation.IdentityCreateFromPool) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
+    if (operation === TransferOperation.IdentityCreateFromShielded) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
     return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits, password, noteIndexes)
   }
 
@@ -811,8 +817,8 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           title={info?.title ?? 'Send'}
-          toLabel={operation === TransferOperation.ShieldedTransfer ? 'To (shielded)' : operation === TransferOperation.Unshield ? 'To (Platform)' : operation === TransferOperation.IdentityCreateFromPool ? 'Creates' : 'To (Core L1)'}
-          toValue={operation === TransferOperation.IdentityCreateFromPool ? 'New Platform identity with 6 keys' : trimmedTo}
+          toLabel={operation === TransferOperation.ShieldedTransfer ? 'To (shielded)' : operation === TransferOperation.Unshield ? 'To (Platform)' : operation === TransferOperation.IdentityCreateFromShielded ? 'Creates' : 'To (Core L1)'}
+          toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
           amountCredits={amountCredits.toString()}
           feeCredits={feeCredits}
           proverReady={prover.ready}

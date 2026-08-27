@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { AssetLockTx } from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
-import {buildAssetLockOutputs, shieldAmountFromLockedDuffs} from '../../src/main/src/utils/assetLockTx'
+import {buildAssetLockOutputs, lockedDuffsFor, shieldAmountFromLockedDuffs} from '../../src/main/src/utils/assetLockTx'
 import {ASSET_LOCK_PAYLOAD_VERSION, ASSET_LOCK_CREDIT_OUTPUT_INDEX, CREDITS_PER_DUFF, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../src/main/src/constants'
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')
@@ -44,5 +44,24 @@ describe('shieldAmountFromLockedDuffs', () => {
   it('rejects amounts that do not exceed the fee reserve', () => {
     const atReserve = SHIELD_FUNDING_FEE_RESERVE_CREDITS / CREDITS_PER_DUFF
     expect(() => shieldAmountFromLockedDuffs(atReserve)).toThrow('too small to shield')
+  })
+})
+
+describe('lockedDuffsFor', () => {
+  // The whole point: the user asks for 1.5 and gets at least 1.5, so the fee
+  // rides on top of the lock rather than coming out of what arrives.
+  it('locks the amount plus the fee the L2 transition will take', () => {
+    expect(lockedDuffsFor(150_000_000n, 56_000_000n)).toBe(150_056_000n)
+  })
+
+  it('rounds a sub-duff fee up, since a lock a credit short strands the funding', () => {
+    expect(lockedDuffsFor(1_000n, 1n)).toBe(1_001n)
+    expect(lockedDuffsFor(1_000n, CREDITS_PER_DUFF + 1n)).toBe(1_002n)
+  })
+
+  // What settleShield subtracts is exactly what startShieldFromL1 added.
+  it('is the inverse of shieldAmountFromLockedDuffs', () => {
+    const locked = lockedDuffsFor(AMOUNT, SHIELD_FUNDING_FEE_RESERVE_CREDITS)
+    expect(shieldAmountFromLockedDuffs(locked)).toBe(AMOUNT * CREDITS_PER_DUFF)
   })
 })

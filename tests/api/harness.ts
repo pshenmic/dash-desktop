@@ -71,14 +71,14 @@ export async function harness(): Promise<Harness> {
   const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService, prevOutService)
   const coreTransactionService = new CoreTransactionService()
   const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
-  const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers)
+  const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers, preferences)
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
   const identityService = new IdentityService(walletDAO, identityDAO, platform)
 
   const walletService = new WalletService(
     walletDAO, addressDAO, identityDAO, identityService, walletSyncService, platform,
-    providers, coreDiscoveryService, coreTransactionService, TEST_PBKDF2_ITERATIONS,
+    providers, coreDiscoveryService, coreTransactionService, preferences, TEST_PBKDF2_ITERATIONS,
   )
 
   return {

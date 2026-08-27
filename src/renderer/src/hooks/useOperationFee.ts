@@ -1,56 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API } from '@renderer/api'
-import { Network, OperationFeeParams } from '@renderer/api/types'
+import { OperationFee, OperationFeeParams } from '@renderer/api/types'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
-import {
-  SelectableNote,
-  SpendFeeForCount,
-  maxSpendableCredits,
-  selectSpendNotes,
-} from '@renderer/utils/shieldedNoteSelection'
-import { feeQueryFor, feeQueryKey } from '@renderer/utils/transitionFeeQuery'
-import { operationInfo } from '@renderer/utils/transferMatrix'
-import {
-  FEE_QUOTE_MIN_NOTE_COUNT,
-  MAX_SPEND_NOTES,
-  TRANSITION_FEE_DEBOUNCE_MS,
-  TRANSITION_FEE_ERROR,
-} from '@renderer/constants'
+import { NO_OPERATION_FEE, TRANSITION_FEE_DEBOUNCE_MS, TRANSITION_FEE_ERROR } from '@renderer/constants'
 import { useAsyncWithCache } from './useAsyncWithCache'
 
+// Every fee comes from the backend. This only decides when to ask: not before
+// the destination parses, and not on every keystroke.
 export function useOperationFee(
-  network: Network | null,
+  walletId: string | null,
   operation: TransferOperation | null,
   params: OperationFeeParams,
-): {
-  feeCredits: bigint | null
-  maxPerTx: bigint | null
-  loading: boolean
-  err: string | null
-} {
-  const { notes, amountCredits, destinationValid, recipient, source, identityId } = params
-  const spendKind = operation === null ? null : operationInfo(operation).spendKind
+): OperationFee & { loading: boolean; err: string | null } {
+  const { destinationValid, amountCredits, recipient, sourceAddress, identityId, noteIndexes } = params
 
-  const minimums = useAsyncWithCache<bigint[] | null>(
-    'transition-fee-minimums',
-    network !== null && spendKind !== null ? `${network}:${spendKind}` : undefined,
-    () => Promise.all(Array.from({ length: MAX_SPEND_NOTES }, (_, i) =>
-      API.estimateTransitionFee(network!, {
-        kind: 'shieldedSpend',
-        spendKind: spendKind!,
-        noteCount: i + FEE_QUOTE_MIN_NOTE_COUNT,
-        recipients: [],
-      }).then(quote => BigInt(quote.minFeeCredits)))),
-    null,
-    { errorMessage: TRANSITION_FEE_ERROR },
-  )
+  const noteKey = noteIndexes?.join(',') ?? ''
 
   const pending = useMemo(
     () => {
-      const query = feeQueryFor(operation, { destinationValid, recipient, amountCredits, source, identityId })
-      return network === null || query === null ? null : { query, key: `${network}:${feeQueryKey(query)}` }
+      if (walletId === null || operation === null || !destinationValid) return null
+      const feeParams = { amountCredits, recipient, sourceAddress, identityId, noteIndexes }
+      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${recipient}:${sourceAddress}:${identityId}:${noteKey}` }
     },
-    [network, operation, destinationValid, recipient, amountCredits, source?.platformAddress, source?.nonce, identityId],
+    // noteIndexes is keyed by noteKey: a fresh array of the same indexes is the
+    // same quote, and re-running on identity would re-ask on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walletId, operation, destinationValid, amountCredits, recipient, sourceAddress, identityId, noteKey],
   )
 
   const [settled, setSettled] = useState<typeof pending>(null)
@@ -64,50 +39,15 @@ export function useOperationFee(
     return () => clearTimeout(timer)
   }, [pending])
 
-  const quote = useAsyncWithCache<bigint | null>(
-    'transition-fee-quote',
+  const quote = useAsyncWithCache<OperationFee>(
+    'operation-fee',
     settled?.key,
-    () => API.estimateTransitionFee(network!, settled!.query).then(q => BigInt(q.totalFeeCredits)),
-    null,
+    () => API.estimateFee(walletId!, operation!, settled!.feeParams),
+    NO_OPERATION_FEE,
     { errorMessage: TRANSITION_FEE_ERROR },
   )
 
-  const feeForCount = useMemo<SpendFeeForCount | null>(
-    () => {
-      const minByCount = minimums.data
-      if (minByCount === null) return null
-      return numSpends => minByCount[Math.max(numSpends, FEE_QUOTE_MIN_NOTE_COUNT) - FEE_QUOTE_MIN_NOTE_COUNT]
-    },
-    [minimums.data],
-  )
-
-  const candidates = useMemo<SelectableNote[] | null>(
-    () => (spendKind === null || notes === null
-      ? null
-      : notes.map(note => ({ index: note.index, value: BigInt(note.amount) }))),
-    [spendKind, notes],
-  )
-
-  const selection = useMemo(
-    () => (candidates === null || feeForCount === null || amountCredits <= 0n
-      ? null
-      : selectSpendNotes(candidates, amountCredits, MAX_SPEND_NOTES, feeForCount)),
-    [candidates, feeForCount, amountCredits],
-  )
-
-  const maxPerTx = useMemo(
-    () => (candidates === null || feeForCount === null ? null : maxSpendableCredits(candidates, MAX_SPEND_NOTES, feeForCount)),
-    [candidates, feeForCount],
-  )
-
-  const spendFee = feeForCount === null ? null : (selection?.feeCredits ?? feeForCount(FEE_QUOTE_MIN_NOTE_COUNT))
-  const feeCredits = spendKind === null ? quote.data : spendFee
   const debouncing = pending !== null && pending.key !== settled?.key
 
-  return {
-    feeCredits,
-    maxPerTx,
-    loading: minimums.loading || quote.loading || debouncing,
-    err: minimums.err ?? quote.err,
-  }
+  return { ...quote.data, loading: quote.loading || debouncing, err: quote.err }
 }

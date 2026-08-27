@@ -3,7 +3,6 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
 import {applySignature, signingKey} from './signingKey'
-import {CORE_FEE_PER_BYTE} from '../../../src/constants'
 
 type Payload = PlatformOperations['identityWithdrawal']['payload']
 type Result = PlatformOperations['identityWithdrawal']['result']
@@ -19,7 +18,7 @@ export async function identityWithdrawal(payload: Payload, ctx: OperationContext
   const st = sdk.identities.createStateTransition('withdrawal', {
     identityId: identifier,
     amount: amountCredits,
-    coreFeePerByte: CORE_FEE_PER_BYTE,
+    coreFeePerByte: payload.coreFeePerByte,
     pooling: 'Never',
     identityNonce,
     outputScript: coreAddressToScript(coreAddress, network),

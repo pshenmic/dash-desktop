@@ -1,5 +1,24 @@
-import {COIN_TYPE} from '../constants'
+import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants'
+import {Network} from '../types/Network'
 import {DerivedKeyHash, IdentityKeyDescriptor} from '../types/IdentityKeys'
+import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
+
+// The first index Platform does not already know an identity at. Registration
+// and the pool spend both need it, and neither may own the other.
+export async function findNextIdentityIndex(
+  platform: PlatformWorkerService,
+  seed: Uint8Array,
+  startIndex: number,
+  network: Network,
+): Promise<number> {
+  const {nextFreeIndex} = await platform.request('identityScan', network, {
+    seed,
+    startIndex,
+    gapLimit: 1,
+    scanLimit: IDENTITY_SCAN_LIMIT,
+  })
+  return nextFreeIndex
+}
 
 // The path recorded on every identity row. Four services wrote this literal;
 // they must agree or the same identity gets two different recorded paths.

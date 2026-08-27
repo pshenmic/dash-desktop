@@ -8,6 +8,7 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
   return {
     isCoreOperation: false,
     amount: '0.00001',
+    totalFeeDuffs: 10_000n,
     operation: TransferOperation.AddressFundsTransfer,
     amountDuffs: 1_000n,
     balanceDuffs: 0n,
@@ -16,6 +17,7 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
     availableCredits: 900_000_000n,
     feeCredits: 100_000n,
     maxPerTx: null,
+    noteLimit: null,
     ...overrides,
   }
 }
@@ -31,6 +33,21 @@ describe('amountErrorFor', () => {
     }))).toBeNull()
   })
 
+  // An L1 -> L2 transfer locks the L2 fee alongside the amount, so both fees
+  // reach here already summed into one Dash figure.
+  it('reports the max after both fees on an L1 -> L2 transfer', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      operation: TransferOperation.AssetLockFunding,
+      amount: '1',
+      amountDuffs: 100_000_000n,
+      balanceDuffs: 100_000_000n,
+      totalFeeDuffs: 66_000n,
+      amountCredits: 0n,
+      feeCredits: 56_000_000n,
+    }))).toBe('Max sendable is 0.99934 Dash after fees.')
+  })
+
   it('reports the max Dash amount after the fixed network fee', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,
@@ -38,7 +55,7 @@ describe('amountErrorFor', () => {
       amountDuffs: 100_000_000n,
       balanceDuffs: 100_000_000n,
       amountCredits: 0n,
-    }))).toBe('Max sendable is 0.9999 Dash after the network fee.')
+    }))).toBe('Max sendable is 0.9999 Dash after fees.')
   })
 
   it('is silent while nothing has been typed', () => {
@@ -47,7 +64,7 @@ describe('amountErrorFor', () => {
 
   it('rejects a pool identity amount that is not a fixed denomination', () => {
     const error = amountErrorFor(params({
-      operation: TransferOperation.IdentityCreateFromPool,
+      operation: TransferOperation.IdentityCreateFromShielded,
       amountCredits: 10_000_000_001n,
       minCredits: 10_000_000_000n,
     }))
@@ -56,7 +73,7 @@ describe('amountErrorFor', () => {
 
   it('accepts a fixed pool identity denomination', () => {
     const error = amountErrorFor(params({
-      operation: TransferOperation.IdentityCreateFromPool,
+      operation: TransferOperation.IdentityCreateFromShielded,
       amountCredits: 10_000_000_000n,
       minCredits: 10_000_000_000n,
       availableCredits: 90_000_000_000n,
@@ -82,7 +99,7 @@ describe('amountErrorFor', () => {
   })
 
   it('reports the per-transaction cap', () => {
-    const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n}))
+    const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n, noteLimit: 6}))
     expect(error).toBe('Max per transaction right now is 0.007 Dash (network fee + 6-note limit).')
   })
 

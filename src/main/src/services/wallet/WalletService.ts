@@ -26,9 +26,11 @@ import {
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
 } from '../../constants'
+import {coreFeeDuffs} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath} from "../../utils/addressDiscovery";
 import {selectTransferInputs} from '../../utils/transferInputs'
+import {Preferences} from '../../preferences'
 import {ConnectionStatus} from '../../types/ConnectionStatus'
 
 export class WalletService {
@@ -41,6 +43,7 @@ export class WalletService {
   private providers: WalletProviderFactory
   private discovery: CoreDiscoveryService
   private coreTransactionService: CoreTransactionService
+  private preferences: Preferences
   private pbkdf2Iterations: number
   // Derivation only — a DashPlatformSDK would build a gRPC pool and fetch the
   // evonode list to do local maths.
@@ -56,6 +59,7 @@ export class WalletService {
     providers: WalletProviderFactory,
     discovery: CoreDiscoveryService,
     coreTransactionService: CoreTransactionService,
+    preferences: Preferences,
     pbkdf2Iterations: number,
   ) {
     this.walletDAO = walletDAO
@@ -67,6 +71,7 @@ export class WalletService {
     this.providers = providers
     this.discovery = discovery
     this.coreTransactionService = coreTransactionService
+    this.preferences = preferences
     this.pbkdf2Iterations = pbkdf2Iterations
   }
 
@@ -345,7 +350,13 @@ export class WalletService {
       const provider = this.providers.forWallet(walletId, network)
       await provider.ensureReady()
       const {transferInputs, inputTotal, changeAddress} =
-        selectTransferInputs(grouped, await provider.getWalletUtxos(), amountDuffs, fromAddress)
+        selectTransferInputs(
+          grouped,
+          await provider.getWalletUtxos(),
+          amountDuffs,
+          coreFeeDuffs(this.preferences.general.coreFeeMultiplier),
+          fromAddress,
+        )
 
       const tx = await this.coreTransactionService.buildSignedTransfer({
         inputs: transferInputs,
