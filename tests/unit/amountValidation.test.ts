@@ -64,7 +64,7 @@ describe('amountErrorFor', () => {
 
   it('rejects a pool identity amount that is not a fixed denomination', () => {
     const error = amountErrorFor(params({
-      operation: TransferOperation.IdentityCreateFromPool,
+      operation: TransferOperation.IdentityCreateFromShielded,
       amountCredits: 10_000_000_001n,
       minCredits: 10_000_000_000n,
     }))
@@ -73,7 +73,7 @@ describe('amountErrorFor', () => {
 
   it('accepts a fixed pool identity denomination', () => {
     const error = amountErrorFor(params({
-      operation: TransferOperation.IdentityCreateFromPool,
+      operation: TransferOperation.IdentityCreateFromShielded,
       amountCredits: 10_000_000_000n,
       minCredits: 10_000_000_000n,
       availableCredits: 90_000_000_000n,

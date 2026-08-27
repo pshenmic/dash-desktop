@@ -20,7 +20,7 @@ export function minimumFee(kind: PoolSpendOperation, numSpends: number): bigint 
       return UnshieldTransitionWASM.computeMinimumFee(actions)
     case 'shieldedWithdrawal':
       return ShieldedWithdrawalTransitionWASM.computeMinimumFee(actions)
-    case 'identityCreateFromPool':
+    case 'identityCreateFromShielded':
       return IdentityCreateFromShieldedPoolTransitionWASM.computeMinimumFee(
         actions,
         IDENTITY_KEY_DEFINITIONS.length,
@@ -39,7 +39,7 @@ export function actualFee(st: StateTransitionWASM, kind: PoolSpendOperation, pay
       return UnshieldTransitionWASM.fromStateTransition(st).unshieldingAmount - payout
     case 'shieldedWithdrawal':
       return ShieldedWithdrawalTransitionWASM.fromStateTransition(st).unshieldingAmount - payout
-    case 'identityCreateFromPool':
+    case 'identityCreateFromShielded':
       // Funded by the denomination; the transition carries no value_balance.
       return null
   }

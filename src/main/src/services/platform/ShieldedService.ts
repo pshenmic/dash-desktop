@@ -463,7 +463,7 @@ export class ShieldedService {
 
       this.runSpend(walletId, network, state, {
         seed,
-        kind: 'identityCreateFromPool',
+        kind: 'identityCreateFromShielded',
         recipient: '',
         amountCredits: denominationCredits,
         notes,

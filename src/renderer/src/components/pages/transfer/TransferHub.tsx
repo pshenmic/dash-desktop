@@ -303,7 +303,7 @@ function WalletTransferHub(): React.JSX.Element {
       && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
       && (maxPerTx === null || amountCredits <= maxPerTx)
-      && (operation !== TransferOperation.IdentityCreateFromPool || isPoolIdentityDenomination(amountCredits))
+      && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
   const canSubmit = routeReady && amountReady
 
@@ -496,7 +496,7 @@ function WalletTransferHub(): React.JSX.Element {
         </div>
       )}
 
-      {operation === TransferOperation.IdentityCreateFromPool && (
+      {operation === TransferOperation.IdentityCreateFromShielded && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>New identity from the pool</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
@@ -524,7 +524,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const amountStep = (
     <div>
-      {operation === TransferOperation.IdentityCreateFromPool && (
+      {operation === TransferOperation.IdentityCreateFromShielded && (
         <div className={"mb-3 flex flex-wrap gap-2"}>
           {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
             <button
@@ -546,7 +546,7 @@ function WalletTransferHub(): React.JSX.Element {
         onMax={handleMax}
         unit={<DashLogo size={20} />}
       />
-      {operation !== TransferOperation.IdentityCreateFromPool && sliderMaxAmount !== null && (
+      {operation !== TransferOperation.IdentityCreateFromShielded && sliderMaxAmount !== null && (
         <AmountSlider
           percent={sliderPercent}
           onPercentChange={handleSliderPercent}
@@ -668,7 +668,7 @@ function WalletTransferHub(): React.JSX.Element {
     const noteIndexes = shieldedSpecificNotes?.map(note => note.index)
     if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits, password, noteIndexes)
     if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits, password, noteIndexes)
-    if (operation === TransferOperation.IdentityCreateFromPool) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
+    if (operation === TransferOperation.IdentityCreateFromShielded) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
     return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits, password, noteIndexes)
   }
 
@@ -817,8 +817,8 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           title={info?.title ?? 'Send'}
-          toLabel={operation === TransferOperation.ShieldedTransfer ? 'To (shielded)' : operation === TransferOperation.Unshield ? 'To (Platform)' : operation === TransferOperation.IdentityCreateFromPool ? 'Creates' : 'To (Core L1)'}
-          toValue={operation === TransferOperation.IdentityCreateFromPool ? 'New Platform identity with 6 keys' : trimmedTo}
+          toLabel={operation === TransferOperation.ShieldedTransfer ? 'To (shielded)' : operation === TransferOperation.Unshield ? 'To (Platform)' : operation === TransferOperation.IdentityCreateFromShielded ? 'Creates' : 'To (Core L1)'}
+          toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
           amountCredits={amountCredits.toString()}
           feeCredits={feeCredits}
           proverReady={prover.ready}

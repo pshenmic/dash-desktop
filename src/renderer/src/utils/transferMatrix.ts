@@ -26,7 +26,7 @@ const MATRIX: Record<SourceKind, Partial<Record<DestinationKind, TransferOperati
   [SourceKind.Shielded]: {
     [DestinationKind.CoreAddress]: TransferOperation.ShieldedWithdrawal,
     [DestinationKind.PlatformAddress]: TransferOperation.Unshield,
-    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreateFromPool,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreateFromShielded,
     [DestinationKind.Shielded]: TransferOperation.ShieldedTransfer,
   },
 }
@@ -72,7 +72,7 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.ShieldedTransfer]: {title: 'Shielded send', submitLabel: 'Send', minCredits: 500_000n, spendKind: ShieldedSpendKind.Transfer},
   [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', minCredits: 500_000n, spendKind: ShieldedSpendKind.Unshield},
   [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', minCredits: 500_000n, spendKind: ShieldedSpendKind.Withdrawal},
-  [TransferOperation.IdentityCreateFromPool]: {title: 'Create identity from pool', submitLabel: 'Create', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
+  [TransferOperation.IdentityCreateFromShielded]: {title: 'Create identity from pool', submitLabel: 'Create', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {

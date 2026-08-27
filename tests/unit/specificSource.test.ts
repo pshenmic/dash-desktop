@@ -39,7 +39,7 @@ describe('specific source preferences', () => {
     [TransferOperation.ShieldedTransfer, SourceKind.Shielded],
     [TransferOperation.Unshield, SourceKind.Shielded],
     [TransferOperation.ShieldedWithdrawal, SourceKind.Shielded],
-    [TransferOperation.IdentityCreateFromPool, null],
+    [TransferOperation.IdentityCreateFromShielded, null],
     [TransferOperation.AssetLockFunding, null],
   ])('maps %s to its applicable preference', (operation, expected) => {
     expect(specificSourceKindForOperation(operation)).toBe(expected)

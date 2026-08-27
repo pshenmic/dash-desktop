@@ -78,7 +78,7 @@ export class FeeService {
       case 'shieldedTransfer':
       case 'unshield':
       case 'shieldedWithdrawal':
-      case 'identityCreateFromPool':
+      case 'identityCreateFromShielded':
         return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.noteIndexes ?? null)
 
       // Funded by platform addresses: the fee scales with the inputs, so the

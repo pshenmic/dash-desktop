@@ -104,7 +104,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     ? TransferOperation.IdentityRegister
     : fromKind === SourceKind.PlatformAddress
       ? TransferOperation.IdentityCreate
-      : TransferOperation.IdentityCreateFromPool
+      : TransferOperation.IdentityCreateFromShielded
   const info = operationInfo(operation)
 
   const fundedAddresses = useMemo(
