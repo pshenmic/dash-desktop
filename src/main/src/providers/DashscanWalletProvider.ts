@@ -230,25 +230,28 @@ export class DashscanWalletProvider implements WalletProvider {
     if (!response.ok) throw new Error(`Dashscan status request failed (${response.status})`)
   }
 
+  private async refreshConnectionStatus(): Promise<void> {
+    try {
+      await this.ensureReady()
+      dashscanConnectionStatusCache.statuses.set(this.network, 'online')
+    } catch {
+      dashscanConnectionStatusCache.statuses.set(this.network, 'unavailable')
+    } finally {
+      dashscanConnectionStatusCache.checkedAt.set(this.network, Date.now())
+      dashscanConnectionStatusCache.inflight.delete(this.network)
+    }
+  }
+
   async getConnectionStatus(): Promise<ConnectionStatus> {
-    const checkedAt = dashscanConnectionStatusCache.checkedAt.get(this.network)
-    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_STATUS_INTERVAL_MS
+    const {statuses, checkedAt, inflight} = dashscanConnectionStatusCache
+    const lastCheckedAt = checkedAt.get(this.network)
+    const isFresh = lastCheckedAt != null && Date.now() - lastCheckedAt < DASHSCAN_STATUS_INTERVAL_MS
 
-    if (!fresh && !dashscanConnectionStatusCache.inflight.has(this.network)) {
-      const refresh = Promise.resolve()
-        .then(() => this.ensureReady())
-        .then(() => dashscanConnectionStatusCache.statuses.set(this.network, 'online'))
-        .catch(() => dashscanConnectionStatusCache.statuses.set(this.network, 'unavailable'))
-        .then(() => undefined)
-        .finally(() => {
-          dashscanConnectionStatusCache.checkedAt.set(this.network, Date.now())
-          dashscanConnectionStatusCache.inflight.delete(this.network)
-        })
-
-      dashscanConnectionStatusCache.inflight.set(this.network, refresh)
+    if (!isFresh && !inflight.has(this.network)) {
+      inflight.set(this.network, this.refreshConnectionStatus())
     }
 
-    return dashscanConnectionStatusCache.statuses.get(this.network) ?? 'connecting'
+    return statuses.get(this.network) ?? 'connecting'
   }
 
   async getTxLockStatus(txid: string): Promise<TxLockStatus> {
