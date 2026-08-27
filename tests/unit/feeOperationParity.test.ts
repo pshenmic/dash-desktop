@@ -24,14 +24,14 @@ const FEE_OPERATIONS: Record<FeeOperation, TransferOperation> = {
   shieldedTransfer: TransferOperation.ShieldedTransfer,
   unshield: TransferOperation.Unshield,
   shieldedWithdrawal: TransferOperation.ShieldedWithdrawal,
-  identityCreateFromPool: TransferOperation.IdentityCreateFromPool,
+  identityCreateFromShielded: TransferOperation.IdentityCreateFromShielded,
 }
 
 const SPEND_KINDS: Record<PoolSpendOperation, ShieldedSpendKind> = {
   shieldedTransfer: ShieldedSpendKind.Transfer,
   unshield: ShieldedSpendKind.Unshield,
   shieldedWithdrawal: ShieldedSpendKind.Withdrawal,
-  identityCreateFromPool: ShieldedSpendKind.IdentityCreate,
+  identityCreateFromShielded: ShieldedSpendKind.IdentityCreate,
 }
 
 describe('fee operation parity', () => {

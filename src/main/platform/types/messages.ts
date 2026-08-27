@@ -96,7 +96,7 @@ export type PoolSpendOperation =
   | 'shieldedTransfer'
   | 'unshield'
   | 'shieldedWithdrawal'
-  | 'identityCreateFromPool'
+  | 'identityCreateFromShielded'
 
 export type TransitionFeeOperation =
   | 'addressFundsTransfer'

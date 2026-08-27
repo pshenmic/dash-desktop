@@ -43,7 +43,7 @@ const EXPECTED: Record<SourceKind, Partial<Record<DestinationKind, TransferOpera
     [DestinationKind.CoreAddress]: TransferOperation.ShieldedWithdrawal,
     [DestinationKind.PlatformAddress]: TransferOperation.Unshield,
     [DestinationKind.Identity]: null,
-    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreateFromPool,
+    [DestinationKind.NewIdentity]: TransferOperation.IdentityCreateFromShielded,
     [DestinationKind.Shielded]: TransferOperation.ShieldedTransfer,
   },
 }
@@ -104,7 +104,7 @@ describe('operationInfo', () => {
     expect(operationInfo(TransferOperation.ShieldedTransfer).spendKind).toBe(ShieldedSpendKind.Transfer)
     expect(operationInfo(TransferOperation.Unshield).spendKind).toBe(ShieldedSpendKind.Unshield)
     expect(operationInfo(TransferOperation.ShieldedWithdrawal).spendKind).toBe(ShieldedSpendKind.Withdrawal)
-    expect(operationInfo(TransferOperation.IdentityCreateFromPool).spendKind).toBe(ShieldedSpendKind.IdentityCreate)
+    expect(operationInfo(TransferOperation.IdentityCreateFromShielded).spendKind).toBe(ShieldedSpendKind.IdentityCreate)
   })
 
   it('has no spend kind for operations the pool does not pay for', () => {
@@ -133,7 +133,7 @@ describe('isPoolIdentityDenomination', () => {
   })
 
   it('matches the pool minimum in operationInfo', () => {
-    expect(operationInfo(TransferOperation.IdentityCreateFromPool)).toMatchObject({minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
+    expect(operationInfo(TransferOperation.IdentityCreateFromShielded)).toMatchObject({minCredits: POOL_IDENTITY_DENOMINATIONS[0]})
   })
 
   it('represents every denomination exactly as a DASH input', () => {

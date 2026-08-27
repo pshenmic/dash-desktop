@@ -44,7 +44,7 @@ export async function buildTransition(
         unshieldAmount: amount,
       })
 
-    case 'identityCreateFromPool': {
+    case 'identityCreateFromShielded': {
       if (payload.identityIndex == null || payload.failureAddress == null) {
         throw new Error('Identity creation needs an identity index and a failure refund address')
       }

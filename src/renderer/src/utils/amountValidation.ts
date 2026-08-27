@@ -15,7 +15,7 @@ export function amountErrorFor(params: AmountValidationParams): string | null {
     return `Max sendable is ${davToDash(maxSendableDuffs)} Dash after fees.`
   }
 
-  if (operation === TransferOperation.IdentityCreateFromPool && !isPoolIdentityDenomination(amountCredits)) {
+  if (operation === TransferOperation.IdentityCreateFromShielded && !isPoolIdentityDenomination(amountCredits)) {
     return 'Pick one of the fixed denominations above.'
   }
 

@@ -125,7 +125,7 @@ describe('estimateFee', () => {
   // The operation name and the spend kind are the same word, so there is no
   // translation table left to get wrong.
   it('hands every pool spend to the shielded service under its own name', async () => {
-    const operations: FeeOperation[] = ['shieldedTransfer', 'unshield', 'shieldedWithdrawal', 'identityCreateFromPool']
+    const operations: FeeOperation[] = ['shieldedTransfer', 'unshield', 'shieldedWithdrawal', 'identityCreateFromShielded']
     for (const operation of operations) {
       const {service: svc, estimateSpendFee} = service()
       const fee = await svc.estimateFee(WALLET, operation, params({noteIndexes: [2, 5]}))
