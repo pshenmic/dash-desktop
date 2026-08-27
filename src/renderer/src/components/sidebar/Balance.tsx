@@ -2,6 +2,7 @@ import { DashLogo, useTheme } from "dash-ui-kit/react";
 import { CreditsIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
 import DashBigNumber from "../ui/DashBigNumber";
+import SensitiveValue from "../ui/SensitiveValue";
 import { davToDash } from "@renderer/utils/balance";
 import { SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from "@renderer/constants";
 import { cva } from "class-variance-authority";
@@ -52,22 +53,30 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
       </div>
       <div className={"flex flex-col gap-[.125rem]"}>
         <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Balance:'}</Text>
-        <Text size={16} weight="extrabold" color="brand" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>
+        <Text size={16} weight="extrabold" color="brand" className={"leading-[120%]"}>
           {variant === 'shielded' && credits == null ? (
             <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
               <span className={"text-dash-orange"}>— Credits</span>
             </Tooltip>
-          ) : (variant === 'credits' || variant === 'shielded') && credits != null ? (
-            <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
           ) : (
-            <>
-              <DashBigNumber className={"gap-[.125rem]!"}>{davToDash(balance ?? 0n)}</DashBigNumber>
-              {variant === 'dash' ? ' Dash' : ' Credits'}
-            </>
+            <SensitiveValue hidden={!isVisible} size={"sidebar"} tone={"accent"}>
+              {(variant === 'credits' || variant === 'shielded') && credits != null ? (
+                <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
+              ) : (
+                <>
+                  <DashBigNumber className={"gap-[.125rem]!"}>{davToDash(balance ?? 0n)}</DashBigNumber>
+                  {variant === 'dash' ? ' Dash' : ' Credits'}
+                </>
+              )}
+            </SensitiveValue>
           )}
         </Text>
-        { fiat &&
-          <Text size={10} weight="medium" color="blue-mint" className={`${!isVisible ? 'blur-sm select-none pointer-events-none' : ''} leading-[120%]`}>~ {fiat}</Text>
+        {variant === 'dash' && (fiat !== undefined || !isVisible) &&
+          <Text size={10} weight="medium" color="blue-mint" className={"leading-[120%]"}>
+            <SensitiveValue hidden={!isVisible} size={"subtext"} tone={"accent"} label={"Fiat balance hidden"}>
+              ~ {fiat}
+            </SensitiveValue>
+          </Text>
         }
       </div>
     </div>

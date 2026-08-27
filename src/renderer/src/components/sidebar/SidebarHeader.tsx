@@ -45,6 +45,8 @@ export default function SidebarHeader(): React.JSX.Element {
           </button>
           <button
             onClick={toggleBalanceVisibility}
+            aria-label={isBalanceVisible ? 'Hide balances' : 'Show balances'}
+            title={isBalanceVisible ? 'Hide balances' : 'Show balances'}
             className={`
               size-6
               dash-block
