@@ -1,136 +1,160 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## Commands
 
-```bash
-yarn dev          # Start in development mode (electron-vite dev)
-yarn build        # Typecheck + build (outputs to out/)
-yarn typecheck    # tsc --noEmit on tsconfig.node.json AND tsconfig.web.json
-yarn start        # Preview built app
-yarn test         # vitest run
-yarn test:watch   # vitest watch
-
-yarn build:mac    # Build macOS distributable
-yarn build:win    # Build Windows distributable
-yarn build:linux  # Build Linux distributable
-```
-
-**Package manager: yarn** (`yarn.lock` is the source of truth). A stray
-`pnpm-lock.yaml` may appear in the tree — ignore it; do NOT run `pnpm install`,
-it relocates the yarn-installed `node_modules` and breaks the install. Use
-`yarn install`.
+`yarn` is the package manager (`yarn.lock` is the source of truth); scripts are
+in `package.json`. A stray `pnpm-lock.yaml` may appear in the tree — ignore it,
+and **never run `pnpm install`**: it relocates the yarn-installed `node_modules`
+and breaks the install.
 
 ### Verifying a change (the green gate)
 
-There is no single "is it good" command. A change is verified only when ALL of:
+No single command says "is it good". A change is verified only when ALL of:
 
-1. `npx tsc --noEmit -p tsconfig.node.json` (main + preload) passes
-2. `npx tsc --noEmit -p tsconfig.web.json` (renderer) passes
-3. `npx tsc --noEmit -p tests/tsconfig.json` (`tests/`) passes
-4. `npx vitest run` passes
-5. `npx electron-vite build` succeeds
+1. `npx tsc --noEmit -p tsconfig.node.json` (main + preload)
+2. `npx tsc --noEmit -p tsconfig.web.json` (renderer)
+3. `npx tsc --noEmit -p tests/tsconfig.json` (`tests/`)
+4. `npx vitest run`
+5. `npx electron-vite build`
 
-> `electron-vite build` emits many `@fontsource/manrope ... didn't resolve at
-> build time` warnings — these are pre-existing and harmless. Only non-font
-> errors matter.
+`electron-vite build` emits many `@fontsource/manrope … didn't resolve at build
+time` warnings — pre-existing and harmless. Only non-font errors matter.
 
-**Step 3 exists because `tests/` is in neither of the two app projects.** A
-test that passes at runtime can still be type-broken — a string literal where a
-string enum is required, an object literal missing a field the interface gained
-— and vitest will not notice, because it strips types rather than checking
-them. `tests/tsconfig.json` covers `tests/` plus both `src` trees. Being a
-`tsconfig.json` (not a differently-named config) also means editors resolve it
-for test files, so the IDE stops falling back to an ES5 target and reporting
-phantom "BigInt literals are not available" errors.
-
+**Step 3 exists because `tests/` is in neither app project.** vitest strips
+types rather than checking them, so a test can pass at runtime while being
+type-broken. `tests/tsconfig.json` covers `tests/` plus both `src` trees; being
+named `tsconfig.json` also makes editors resolve it, which stops phantom "BigInt
+literals are not available" errors.
 
 ## Architecture
 
-An **Electron desktop wallet** for Dash, built with electron-vite, React 19,
-and TypeScript. Three processes:
+An Electron desktop wallet for Dash: electron-vite, React 19, TypeScript.
 
 ### Main process (`src/main/`)
 
-- Entry point: `src/main/index.ts` — creates the `BrowserWindow`, registers
-  `dark-mode:*` and `saveTextFile` IPC handlers, then calls
-  `WalletBackend.start()`.
-- `src/main/src/WalletBackend.ts` — the real backend. `start()` runs
-  migrations, constructs DAOs/services, and **registers every wallet IPC
-  handler directly** via `ipcMain.handle(...)` in `initHandlers()`. There is
-  **no** `routes.ts`, `handlers.ts`, or `backend.ts` (older docs lied).
-- `src/main/p2p/` — the SPV P2P subsystem runs in a separate **Electron
-  utility process** (forked from `WalletSyncService`). It owns two peer pools —
-  a lock pool that is up in **both** connection modes and a bulk pool that is
-  not, see "Connection modes" below — plus header/cfilter sync and transaction
-  broadcast. Communicates with the main process by message passing
-  (`p2p/types/messages.ts`). See "p2p invariants" before changing it.
-- `src/main/shielded/` — the shielded (Orchard) subsystem runs in its own
-  **Electron utility process** (forked from `ShieldedService`): Halo2 prover,
-  note trial-decryption, proof building, ST broadcast. The main-process
-  `ShieldedService` is a facade that forwards commands and persists spent-note
-  bookkeeping (`shielded/types/messages.ts`). New utility-process entries must
-  be added to the `input` map in `electron.vite.config.ts`.
+`src/main/index.ts` creates the `BrowserWindow`, registers the `dark-mode:*` and
+`saveTextFile` handlers, then calls `WalletBackend.start()`.
+`src/main/src/WalletBackend.ts` is the real backend: `start()` runs migrations,
+constructs DAOs/services, and **registers every wallet IPC handler directly**
+via `ipcMain.handle(...)` in `initHandlers()`. There is no `routes.ts`,
+`handlers.ts`, or `backend.ts`.
 
-**Layer structure (`src/main/src/`):**
-- `api/` — one IPC handler class per channel, each with
-  `handle = async (event, ...args) => ...`. Construct in `WalletBackend` and
-  register with `ipcMain.handle('channelName', new Handler(deps).handle)`.
-- `database/` — Knex DAO classes (`WalletDAO`, `AddressDAO`, `TransactionDAO`,
-  `IdentityDAO`, `ContactDAO`). Plain SQL against SQLite.
-- `services/` — business logic only, in four subdirectories:
-  - `services/wallet/` — the wallet record and the aggregate over it:
-    `WalletService`, `WalletCredentialsService`.
-  - `services/core/` — L1: `CoreDiscoveryService`, `CoreLockService`,
-    `CoreTransactionService`, `WalletSyncService`.
-  - `services/platform/` — L2: `PlatformWorkerService`, `IdentityService`,
-    `IdentityRegistrationService`, `PlatformAddressService`, `ShieldedService`,
-    `AssetLockService`.
-  - `services/app/` — process-wide, wallet-agnostic: `ApplicationService`,
-    `ContactService`, `RatesService`.
+Two subsystems run in their own **Electron utility process**, talking to main by
+message passing. A new utility-process entry must be added to the `input` map in
+`electron.vite.config.ts`.
 
-  **`core/` imports nothing from `platform/`, and `WalletService` is the only
-  service that crosses groups at all.** It is an aggregate — `getWalletBalance`
-  is the L1 address total plus the L2 identity credits, which no single layer
-  can answer — so composing both is its job and nothing else may copy it.
+- `src/main/p2p/` — SPV, forked from `WalletSyncService`: two peer pools (see
+  "Connection modes"), header/cfilter sync, broadcast. `p2p/types/messages.ts`.
+  Read "p2p invariants" before changing it.
+- `src/main/platform/` — all L2 work off the main thread: identity, asset lock,
+  address, fee, broadcast, and the Orchard shielded engine (Halo2 prover, note
+  trial-decryption, proof building, ST broadcast) under `operations/`. The
+  main-process `ShieldedService` and `PlatformWorkerService` are facades that
+  forward commands; `ShieldedService` also persists spent-note bookkeeping.
+  `platform/types/messages.ts`.
 
-  `WalletCredentialsService` owns the mnemonic and the password and touches no
+**Layers (`src/main/src/`):** `api/` (one handler class per channel, each
+`handle = async (event, ...args) => …`, constructed and registered in
+`WalletBackend`) → `services/` (business logic only) → `database/` (Knex DAOs,
+plain SQL). Alongside: `utils/` (pure, unit-tested helpers — a helper-only
+module goes here, NOT in `services/`), `providers/`, `types/` (domain types with
+`fromRow` factories).
+
+`services/` has four groups: `wallet/` (the wallet record and the aggregate over
+it), `core/` (L1), `platform/` (L2), `app/` (process-wide, wallet-agnostic).
+
+- **`core/` imports nothing from `platform/`.** That direction is the hard rule;
+  keep it.
+- `WalletService` is the only service that reaches across L1 and L2 to *answer*
+  something: `getWalletBalance` is the L1 address total plus the L2 identity
+  credits, which no single layer can answer. Nothing else may copy that.
+  (`FeeService` also spans `wallet/` and `platform/`, in both directions — it
+  quotes fees for L2 operations. That is the one other crossing.)
+- `WalletCredentialsService` owns the mnemonic and password and touches no
   chain, which is why it is not in `core/`. `IdentityService` reads identities;
   `IdentityRegistrationService` creates them by funding an asset lock.
-
-  Three kinds also share the `Service` suffix and fail differently: **process
+  `PlatformAddressService` reads — which addresses exist and what they hold;
+  `PlatformTransferService` is every way credits move on L2, the counterpart to
+  `CoreTransactionService`.
+- Three kinds share the `Service` suffix and fail differently: **process
   supervisors** (`WalletSyncService`, `PlatformWorkerService`) own a
   `UtilityProcess`; **job runners** (`AssetLockService`, `ShieldedService`) own
   keyed state that outlives the method that started it; the rest are
   request/response.
-- `utils/` — pure, unit-tested helpers (`coinSelection`, `transferInputs`,
-  `dedupeTransactions`, `platformTransfer`, `shieldedNoteSelection`,
-  `coreScript`, `identityKeys`, `assetLockTx`) + `utils/index.ts`
-  (crypto/knex/migrations). Helper-only modules go here, NOT in `services/`.
-  `requireWallet`/`requireSelectedWallet` and `walletSeed` take a `WalletDAO`
-  rather than being pure — that is the one exception, so a guard or an unlock
-  is written once instead of at every call site.
-- `providers/` — the two `WalletProvider` implementations and
-  `WalletProviderFactory`, which picks between them. See "Connection modes".
-- `types/` — domain types with `fromRow` factories.
+- `requireWallet`/`requireSelectedWallet` and `walletSeed` sit in `utils/` but
+  take a `WalletDAO` — the one impure exception, so a guard or an unlock is
+  written once instead of at every call site.
 
 **Platform (L2) addresses are DIP-17** (`m/9'/coinType'/17'/account'/0'/index`,
-account 0, lookahead 20). The account-level xpub is persisted in
-`wallet.platform_xpub` (backfilled on login/create in `WalletService`);
-`PlatformAddressService` derives the address list from the xpub without a
-password and derives per-index keys from the seed for signing. Platform
-addresses are NOT mirrors of L1 addresses anymore.
+account 0): rows in `platform_addresses` — not a count, never re-derived on
+read, and NOT mirrors of L1 addresses. The account xpub is persisted in
+`wallet.platform_xpub`; `platformAccountXpub()` in `utils/platformAddress.ts` is
+the only place it is derived or backfilled, and every address comes from
+`platformAddressDeriver(xpub, network)`, so no code path derives a platform
+address from the seed. Signing keys still come from the seed, in the worker.
+
+`wallet.platform_address_count` is legacy: it survives only so
+`PlatformAddressService.seedLegacyWindow` can recover an address revealed by hand
+before the table existed. Nothing writes it. `wallet.shielded_address_count` is
+fully dead. Both can be dropped once every wallet has grown rows.
+
+### Address windows (`utils/addressWindow.ts`)
+
+All three key classes run the same gap walk. `runAddressWindow` knows nothing
+about a key class and takes three collaborators:
+
+- `AddressDeriver` — index → address + path (`coreAddressDeriver`,
+  `platformAddressDeriver`, `shieldedAddressDeriver`)
+- `UsageOracle` — `scan(gapLimit)` for a source that can walk the gap itself
+  (returns `null` when it cannot, and the walk then widens round by round
+  through `probe`)
+- `AddressWindowStore` — what has been materialised, and how to reveal more
+
+`planWindow` is the pure half and takes `known` (materialised) separately from
+`usage` (just observed, and allowed to reach past it). Everything keys on the
+**index**, never on the address string. Gap numbers live only in the three
+policy constants in `constants/addresses.ts`.
+
+Shielded is included because `shielded_notes.address` is our own diversified
+address, which makes it a genuine per-index usage oracle (local rather than a
+chain query, which `UsageOracle` does not care about). Note *discovery* is
+separate and IVK-based — one viewing key finds every note whether or not its
+diversifier was revealed; the window only governs which indexes are known and
+flagged.
+
+Shielded differs in two ways that are protocol, not design:
+
+- **The deriver needs the seed.** ZIP-32 has no watch-only equivalent to an
+  xpub, so the walk runs only inside an already-unlocked operation, on the seed
+  that operation is holding. It must NOT be scheduled at boot or on a timer like
+  core and platform, and **nothing may cache a seed, IVK or FVK** to make that
+  possible. Its triggers are the end of `syncNotes` (after the notes are
+  written — that is what the used flags are read from) and the spend paths,
+  which already hold a seed.
+- **There is no per-index derivation path.** A diversifier is not a path
+  element, so `shielded_addresses` has no `derivation_path` column — it would
+  hold `m/32'/coinType'/account'` on every row. The account is implied by the
+  wallet and `address_index` carries the diversifier.
+
+`ShieldedService.addAddress` refuses while the wallet is behind the pool (an
+undecoded note may already own the diversifier it is about to hand out), and is
+serialised per wallet rather than deduped, because two reveals must produce two
+addresses.
+
+**Revealing an address never needs the password on L1 or platform.** Both derive
+from a persisted account xpub, so `addAddress`/`addPlatformAddress` take none
+and the UI shows no form. Only shielded unlocks, for the reason above.
 
 ### p2p invariants (`src/main/p2p/`)
 
 Four directories, split by what a thing *is*, not what it is about. `utils/` is
 pure functions (byte order, x11, pow, header validation, locators) and `store/`
-is chain.db plus the in-memory structures over it (`HashIndex`, `ChainWindow`);
-neither knows a peer exists. `net/` (pools, broadcast, peer selection) imports
-nothing. `sync/` (`SyncService`, `WatchSet`, `sync/workers/`) is the only layer
-that touches the others, and the only one holding timers and retry state.
-`index.ts` is the IPC adapter and holds no logic.
+is chain.db plus the in-memory structures over it; neither knows a peer exists. `net/` (pools,
+broadcast, peer selection) imports nothing. `sync/` is the only layer that
+touches the others, and the only one holding timers and retry state. `index.ts`
+is the IPC adapter and holds no logic.
 
 Things the code cannot tell you, and that a plausible-looking change breaks:
 
@@ -153,86 +177,96 @@ Things the code cannot tell you, and that a plausible-looking change breaks:
 
 ### Preload (`src/preload/`)
 
-- `index.ts` — exposes via `contextBridge`: `window.electron`
-  (`@electron-toolkit/preload`), `window.electronAPI` (app IPC, from
-  `definitions.ts`), `window.darkMode` (theme bridge).
-- `definitions.ts` — typed `ipcRenderer.invoke(channel, ...)` wrappers.
-- `index.d.ts` — the `Window.electronAPI` type. **Keep in sync with
-  `definitions.ts`** — it is hand-maintained, not generated.
+`index.ts` exposes via `contextBridge`: `window.electron`
+(`@electron-toolkit/preload`), `window.electronAPI` (from `definitions.ts`),
+`window.darkMode`. `definitions.ts` holds typed `ipcRenderer.invoke(channel,
+...)` wrappers. `index.d.ts` is the `Window.electronAPI` type and is
+**hand-maintained, not generated — keep it in sync with `definitions.ts`**.
 
 ### Renderer (`src/renderer/src/`)
 
-React SPA, React Router v7 (`HashRouter`). `@renderer` → `src/renderer/src/`.
-UI: `dash-ui-kit` + Tailwind v4. Extended kit wrappers/icons live in
+React SPA, React Router v7 (`HashRouter`), `@renderer` → `src/renderer/src/`.
+UI is `dash-ui-kit` + Tailwind v4; extended kit wrappers/icons live in
 `components/dash-ui-kit-enxtended/`.
 
 - **Auth/app state lives in `contexts/AuthContext.tsx`** (`useAuth()`), NOT in
   `App.tsx`. It polls `getStatus` every 1s and exposes `status` (which holds
   `selectedWalletId`, `network`, `walletSync`), `isAuthenticated`,
-  `switchWallet`, etc. **Read `network`/`selectedWalletId` from `useAuth()` at
-  the component that needs them — do not prop-drill them down the tree.**
-- Routes (`App.tsx`): authenticated `/` Transactions, `/send`, `/receive`,
-  `/addresses`, `/identities`, `/settings`; unauthenticated `/` Login and
-  `/create-wallet`. Sidebar nav items are in `constants/navigation.ts` — a
-  route without a matching `navGroups` entry is reachable only by URL.
+  `switchWallet`. **Read `network`/`selectedWalletId` from `useAuth()` at the
+  component that needs them — do not prop-drill them down the tree.**
+- Routes are declared in `App.tsx`; sidebar nav items in
+  `constants/navigation.ts`. A route with no matching `navGroups` entry is
+  reachable only by URL.
+- **CSP blocks external fetch.** `src/renderer/index.html` sets
+  `default-src 'self'`, so the renderer CANNOT fetch external URLs or do `blob:`
+  downloads. Any outbound HTTP or file write goes through the **main process**
+  (`net.fetch` / `dialog`+`fs`) and an IPC channel — see `RatesService` and the
+  `saveTextFile` handler.
+- **External links:** `window.open(url, '_blank')` is intercepted by
+  `setWindowOpenHandler` in `main/index.ts` → `shell.openExternal`. Use the
+  `utils/explorer.ts` helpers for dashscan links.
+- **Theme:** preference (`light`/`dark`/`system`) is persisted in localStorage
+  and applied by `hooks/useThemeController.ts` (`ThemeController` mounted in
+  `main.tsx`); `system` tracks the OS via `matchMedia`. Use
+  `useThemePreference`/`setThemePreference`, not dash-ui-kit's `toggleTheme`.
+- **Fiat:** `useFiat()` gives `format(duffs)`, `rateReady`, `currency`,
+  `setCurrency`; live rates via the shared `useRates()` store. Amounts are in
+  **duffs** (1 DASH = 1e8) — format with `utils/balance.ts`.
 
 ## Adding a new IPC endpoint (all 5 layers — miss one and it silently breaks)
 
-1. Handler class in `src/main/src/api/...` with `handle = async (event, ...args)`.
+1. Handler class in `src/main/src/api/…` with `handle = async (event, ...args)`.
 2. Construct + register it in `src/main/src/WalletBackend.ts` (`initHandlers`
    for the `ipcMain.handle`, and `start()` to build its service).
 3. Wrapper in `src/preload/definitions.ts`.
 4. Type entry in `src/preload/index.d.ts` (`Window.electronAPI`).
-5. Renderer wrapper in `src/renderer/src/api/index.ts` (`API` class) + any
-   DTO in `src/renderer/src/api/types.ts`.
+5. Renderer wrapper in `src/renderer/src/api/index.ts` (`API` class) + any DTO
+   in `src/renderer/src/api/types.ts`.
 
 ### `bigint` and `Uint8Array` cross as themselves
 
-Both transports are **structured clone**: `ipcRenderer.invoke`/`ipcMain.handle`
-and the utility-process ports (`postMessage` to `p2p`/`platform`). Structured
-clone carries `bigint` and `Uint8Array` natively.
+Both transports are **structured clone** — `ipcRenderer.invoke`/`ipcMain.handle`
+and the utility-process ports (`postMessage` to `p2p`/`platform`) — and
+structured clone carries `bigint` and `Uint8Array` natively.
 
 So do NOT stringify credits/duffs or hex-encode bytes on the way out and parse
-them back on the way in. Pass the value as is, and type it `bigint` /
-`Uint8Array` all the way through — handler, `definitions.ts`, `index.d.ts`, and
-the renderer DTO. A `.toString()` on a credits field is a bug to remove, not a
-convention.
-
-Older DTOs still carry `string` credits (`PlatformAddressEntry.balanceCredits`,
-`ShieldedPoolInfo`, `PlatformSendResult`). That is history, not a pattern to
-copy — new endpoints use the real types.
+them back on the way in. Type the value `bigint` / `Uint8Array` through all five
+layers. A `.toString()` on a credits field is a bug to remove, not a convention;
+a `string` credits field in an older DTO is history to fix, not a pattern.
 
 ## Database & migrations
 
-SQLite via Knex, at `~/.dash-desktop/storage.db`. Tables: `wallet`,
-`addresses`, `identities`, `transactions` (+ `transaction_inputs/_outputs`,
-`wallet_sync_state`), `contacts`.
+SQLite via Knex, at `~/.dash-desktop/storage.db`.
+
+**A new wallet-scoped table must be added to `WALLET_SCOPED_TABLES`** in
+`constants/database.ts`, or `deleteWallet` orphans its rows.
+`tests/api/deleteWallet.test.ts` compares that list against the live schema and
+fails when one is missing.
 
 **Never build a path under the data folder by hand.** Everything on disk —
 `storage.db`, `preferences.json`, `logs/`, `ChainStorage/` — goes through
-`dataPath(...segments)` in `src/main/src/utils/dataPath.ts`, which roots an
-unpackaged run at `~/.dash-desktop/dev/` and a packaged one at
-`~/.dash-desktop/`. The switch is `import.meta.env.DEV`, so electron-vite
-folds it away at build time and the shipped bundle has no dev branch. A
-`path.join(os.homedir(), HomeFolderName, ...)` written at a call site silently
-opts that file out of the split.
+`dataPath(...segments)` in `utils/dataPath.ts`, which roots an unpackaged run at
+`~/.dash-desktop/dev/` and a packaged one at `~/.dash-desktop/`. The switch is
+`import.meta.env.DEV`, so electron-vite folds it away at build time and the
+shipped bundle has no dev branch. A hand-written
+`path.join(os.homedir(), ...)` silently opts that file out of the split.
 
 **Migrations are registered BY HAND, not auto-discovered.** Adding a file under
-`src/main/migrations/` does nothing on its own — `migrateKnex()` in
-`src/main/src/utils.ts` builds an inline `migrations` array. You MUST:
+`src/main/migrations/` does nothing on its own — `src/main/src/utils/index.ts`
+holds a hand-built `migrations` array that `migrateKnex()` feeds to Knex. You
+MUST:
 1. `import * as migrationNNNN from '../migrations/NNNN_name'`
 2. append `{ name: 'NNNN_name.ts', migration: migrationNNNN }` to the array.
 
 Forgetting this means the table is never created and DAO calls fail at runtime
 (`no such table: ...`) even though everything typechecks and builds.
 
-- **Number migrations against the latest on `master`**, not just local files.
-  master and a feature branch both adding `0004_*` will collide; renumber yours
-  to the next free index.
+- **Number migrations against the latest on `master`**, not just local files —
+  master and a feature branch both adding `0019_*` will collide.
 - **Renumbering a migration that already ran on a dev DB** corrupts the
-  `knex_migrations` bookkeeping (`directory is corrupt: NNNN_x.ts missing`).
-  Fix by remapping the row name in `knex_migrations` and applying any skipped
-  migration's columns by hand — back up `storage.db` first.
+  `knex_migrations` bookkeeping (`directory is corrupt: NNNN_x.ts missing`). Fix
+  by remapping the row name and applying any skipped columns by hand — back up
+  `storage.db` first.
 
 ## Connection modes (p2p vs rpc) — important for any wallet data feature
 
@@ -241,22 +275,20 @@ implementations based on the `connectionType` preference. It is resolved per
 call, never cached on a service, because the preference changes at runtime:
 
 - **`rpc`** (default) → `DashscanWalletProvider`: hits the Dashscan REST API
-  (`DASHSCAN_BASE_URLS`). Batch endpoints (`/addresses/info`,
-  `/addresses/utxo`) take 100 addresses per call; `/address/:a/transactions` is
-  paginated and the provider walks every page. Wire shapes live in
-  `types/Dashscan.ts`, the mapping to our `Transaction` in
-  `utils/dashscanTransactions.ts`.
-- **`p2p`** → `P2PWalletProvider`: reads the local SPV SQLite store; broadcast
-  routes through the p2p utility process (`WalletSyncService.broadcastTransaction`).
-
-Neither provider broadcasts — both modes send over the p2p lock pool, see below.
-`vin[].value` / `vout[].value` are **DASH decimal strings** in both providers;
-duffs live in `inAmount` / `outAmount` / `transferAmount` as `bigint`.
+  (`DASHSCAN_BASE_URLS`). Mostly xpub-scoped and cursor-paginated —
+  `/xpub/transactions`, `/xpub/utxo`, `/xpub/addresses` — and the provider walks
+  every page. `/addresses/info` is the one address-batch endpoint, chunked by
+  `DASHSCAN_ADDRESS_CHUNK` (100). Wire shapes live in `types/Dashscan.ts`, the
+  mapping to our `Transaction` in `utils/dashscanTransactions.ts`.
+- **`p2p`** → `P2PWalletProvider`: reads the local SPV store.
 
 Write wallet features against the `WalletProvider` interface so they work in
-both modes. Note `getTransactions` fetches per-address and is de-duped by txid
-inside each provider (one tx touches several owned addresses: spent inputs +
-change) — see `dedupeTransactions`.
+both modes. **The source decides the address set, not the caller** — that is why
+the method is `getWalletTransactions()` and takes no addresses: Dashscan
+resolves the xpub server-side, P2P reads by wallet. Both de-dupe by txid, since
+one tx touches several owned addresses — see `dedupeTransactions`.
+`vin[].value` / `vout[].value` are **DASH decimal strings** in both providers;
+duffs live in `inAmount` / `outAmount` / `transferAmount` as `bigint`.
 
 ### The lock pool runs in BOTH modes — `connectionType` does not gate it
 
@@ -268,31 +300,28 @@ The p2p utility process owns **two pools**, and only one of them is a mode:
 | `bulkPool` | relay=false, dnsSeed=false | headers, cfilters, blocks | `p2p` mode only, via `startWalletSync` |
 
 `startLockListen(network, walletId)` is called from `WalletBackend` at boot and
-`WalletService` on wallet select, with **no `connectionType` check**. So the
-child process exists and hears locks even in the default `rpc` mode.
+`WalletService` on wallet select with **no `connectionType` check**, so the child
+process hears locks even in the default `rpc` mode.
 
-Two consequences that are easy to get wrong:
-
-- **Locally-signed transactions never go out over Dashscan.** `forWallet()`
-  covers *reads* and third-party broadcast; asset locks bypass it —
-  `CoreLockService.broadcastAssetLock` calls
+- **Neither provider broadcasts, and locally-signed transactions never go out
+  over Dashscan.** `forWallet()` covers *reads* and third-party broadcast; asset
+  locks bypass it — `CoreLockService.broadcastAssetLock` calls
   `walletSyncService.broadcastTransaction` directly, in both modes, because the
   lock pool is the only pool that can hear the resulting `isdlock`.
 - **A tx must be armed before its lock can arrive.** An ISDLOCK inv requires an
   explicit `getdata`, so `broadcastTransaction` calls `watchForInstantLock(txid)`
   before sending. A tx nobody armed gets its lock seen and dropped.
-
-Corollary: **never reach for `coreSDK.subscribeToTransactions` for a transaction
-this wallet broadcast.** DAPI is a different network path and does not deliver
-that lock in either mode. Use `CoreLockService.waitForInstantLock(txid, timeoutMs)`.
-Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have no
-waiter yet — they only feed `markChainlockedUpTo`.
+- **Never reach for `coreSDK.subscribeToTransactions` for a transaction this
+  wallet broadcast.** DAPI is a different network path and does not deliver that
+  lock in either mode. Use `CoreLockService.waitForInstantLock(txid, timeoutMs)`.
+  Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have
+  no waiter yet — they only feed `markChainlockedUpTo`.
 
 ### Incoming mempool txs (lock pool)
 
 Payments are spotted before any block carries them: `SyncService` matches TX invs
-on the lock pool against the addresses shipped in the `listen` command, emits
-`incomingTx`, and `WalletSyncService.recordIncomingTx` writes the tx at
+on the lock pool against the addresses shipped in the `listen` command and emits
+`incomingTx`; `WalletSyncService.recordIncomingTx` writes the tx at
 `block_height = 0` with `is_local = false`, then arms `watchForInstantLock`.
 
 - **An `isdlock` cannot tell you a tx pays you.** It carries `inputs`, `txid`,
@@ -302,37 +331,18 @@ on the lock pool against the addresses shipped in the `listen` command, emits
   mempool never crosses the process boundary.
 - **`is_local` is why the migration exists.** `rebroadcastPending` re-pushes
   every unconfirmed tx on a timer; without the filter the wallet would relay a
-  stranger's transaction for as long as it stayed unconfirmed. `refreshWatchedTxids`
-  deliberately does *not* filter — arming incoming txs is what captures their lock.
-- Every peer announces the same tx (~9x measured), so `mempoolSeen` dedupes the
-  `getdata`. `[locks] mempool watch: …` reports counts every 5 min; `watching 0
-  address(es)` is what a wallet that never supplied its addresses looks like.
-
-**In `rpc` mode the row is written but never displayed.** `forWallet()` returns
-`DashscanWalletProvider`, which does not read local SQL, and nothing merges
-pending rows into its result — so `getTransactions`/`getWalletBalance` omit them,
-and `is_local` never comes back `false` in the renderer. Nothing moves those rows
-off `block_height = 0` in that mode either (no cfilter scan), so they accumulate
-in `getPendingTxs` and the isdlock watch set. Both are open.
-
-## Renderer conventions worth knowing
-
-- **CSP blocks external fetch.** `src/renderer/index.html` sets
-  `default-src 'self'`. The renderer CANNOT fetch external URLs or do `blob:`
-  downloads. Any outbound HTTP or file write must go through the **main
-  process** (`net.fetch` / `dialog`+`fs`) and an IPC channel — see
-  `RatesService` (CoinGecko) and the `saveTextFile` handler.
-- **External links:** `window.open(url, '_blank')` is intercepted by
-  `setWindowOpenHandler` in `main/index.ts` → `shell.openExternal` (system
-  browser). Use the `utils/explorer.ts` helpers for dashscan links.
-- **Theme:** preference (`light`/`dark`/`system`) is persisted in localStorage
-  and applied by `hooks/useThemeController.ts` (`ThemeController` mounted in
-  `main.tsx`); `system` tracks the OS via `matchMedia`. Use
-  `useThemePreference`/`setThemePreference`, not the dash-ui-kit `toggleTheme`.
-- **Fiat:** `useFiat()` gives `format(duffs)`, `rateReady`, `currency`,
-  `setCurrency`; live rates via the shared `useRates()` store. Amounts are in
-  **duffs** (1 DASH = 1e8 duffs) — format with `utils/balance.ts`
-  (`davToDash`/`dashToDuffs`).
+  stranger's transaction for as long as it stayed unconfirmed.
+  `refreshWatchedTxids` deliberately does *not* filter — arming incoming txs is
+  what captures their lock. Every peer announces the same tx (~9x measured), so
+  `mempoolSeen` dedupes the `getdata`. `[locks] mempool watch: …` reports counts
+  every 5 min; `watching 0 address(es)` is what a wallet that never supplied its
+  addresses looks like, and is otherwise silent.
+- **In `rpc` mode the row is written but never displayed.**
+  `DashscanWalletProvider` does not read local SQL and nothing merges pending
+  rows into its result, so `getWalletTransactions`/`getWalletBalance` omit them.
+  Nothing moves those rows off `block_height = 0` in that mode either (no
+  cfilter scan), so they accumulate in `getPendingTxs` and the isdlock watch
+  set. Both are open.
 
 ## House style
 
@@ -346,46 +356,33 @@ in `getPendingTxs` and the isdlock watch set. Both are open.
   wrote it ("as discussed", "we decided", "per the review") or invent an
   example scenario to justify itself.
 - Pure, branch-free logic (coin selection, formatting, validation, dedup, CSV)
-  is extracted into `utils/` helpers and unit-tested in `tests/unit/`. Prefer
-  that over inlining testable logic into components or services.
+  is extracted into `utils/` helpers and unit-tested in `tests/unit/`, not
+  inlined into components or services.
 - **No private method that only forwards.** A one-line `private foo(x) { return
   this.bar.foo(x) }` renames a call for no gain and hides where the work
-  happens — inline it at the two or three call sites instead. Same for a
-  private wrapper that only reshapes what it forwards (`{wallet, seed}` →
-  `{network, seed}`): pass the original type through and read the field where
-  it is used. A method earns its place by adding a branch, a default, a
-  validation, or a name the call site cannot spell itself. This does **not**
-  apply to the `api/` → `services/` → `database/` layering: a service method
-  that forwards to a DAO is the boundary that keeps handlers off the DAOs, and
-  a method implementing a declared interface stays even when its body is one
-  line.
-- **Constants and types never live in the file that uses them.** Every
-  module-level `const` goes in its bundle's `constants.ts`; every `interface` /
-  `type` goes in its bundle's `types/` directory, one file per domain. Do not
-  declare either next to the code that consumes it, however local it looks.
-- **Edit files directly; do not script bulk rewrites.** Reach for a script only
-  when the same mechanical change has to land in more than ~15 files, and then
-  think twice about what it will actually touch before running it — see below.
+  happens — inline it at the two or three call sites. Same for a private wrapper
+  that only reshapes what it forwards (`{wallet, seed}` → `{network, seed}`):
+  pass the original type through and read the field where it is used. A method
+  earns its place by adding a branch, a default, a validation, or a name the
+  call site cannot spell itself. This does **not** apply to the `api/` →
+  `services/` → `database/` layering — a service method forwarding to a DAO is
+  the boundary that keeps handlers off the DAOs — nor to a method implementing a
+  declared interface.
+- **Constants and types never live in the file that uses them**, however local
+  they look — see "Where constants and types live".
+- **Edit files directly; do not script bulk rewrites.**
 
-## Scripted edits
+### Scripted edits
 
-A `perl -pi` / python pass over the tree is a last resort, not a shortcut. It
-edits files nobody read, so its mistakes are invisible until the typechecker
-happens to catch them — and it will not catch a wrong string that still
-compiles. Real failures from one such pass in this repo:
-
-- A regex that moved imports rewrote **`src/renderer`** too, repointing the
-  renderer's own `ShieldedSyncPhase` / `ShieldedProverState` at the
-  main-process copies. `tsconfig.web.json` rejected it, but only because those
-  bundles are separate projects — a same-bundle version of that mistake would
-  have compiled silently.
-- A script that both wrote new files and stripped old ones was re-run after a
-  partial failure, **overwriting hand-corrected files with the original
-  guesses**.
-- Blanket `s/OLD/NEW/g` renames double-prefixed the lines a previous pass had
-  already fixed (`INSIGHT_INSIGHT_BASE_URLS`).
-
-If you do script one:
+A `perl -pi` / python pass over the tree is a last resort past ~15 files, not a
+shortcut. It edits files nobody read, so its mistakes are invisible until the
+typechecker happens to catch them — and it will not catch a wrong string that
+still compiles. Real failures from such passes in this repo: a regex scoped to
+`src/` rewrote the renderer's own types to point at main-process copies, caught
+only because those bundles are separate tsconfig projects — the same mistake
+inside one bundle would have compiled silently; a script re-run after a partial
+failure overwrote hand-corrected files with its original guesses; a blanket rename double-prefixed lines an earlier pass had
+already fixed. If you do script one:
 
 1. **Scope it to a path** you have actually inspected. Never `src/` when you
    mean `src/main/src/`.
@@ -398,29 +395,34 @@ If you do script one:
 
 ## Where constants and types live
 
-Three bundles, each self-contained — **never import constants or types across
-these boundaries** except the existing `platform/` → `src/constants` fee
-constants, which are shared protocol numbers:
+Three bundles. A bundle's own domain types and constants are **private to it —
+never import them across these boundaries.** Three things are shared on purpose
+and do cross: `src/types/Network`, and the protocol numbers in
+`src/constants/credits` (fees) and `src/constants/addresses` (`COIN_TYPE`,
+`PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`), both read by `platform/` — plus
+`src/types/IdentityKeys`, which one signing-key operation reads. Nothing else
+crosses.
 
 | Bundle | Constants | Types |
 |---|---|---|
-| `src/main/src/**` | `src/main/src/constants.ts` | `src/main/src/types/*.ts` |
+| `src/main/src/**` | `src/main/src/constants/*.ts` | `src/main/src/types/*.ts` |
 | `src/main/p2p/**` | `src/main/p2p/constants.ts` | `src/main/p2p/types/*.ts` |
 | `src/main/platform/**` | `src/main/platform/constants.ts` | `src/main/platform/types/*.ts` |
 
-Type files are named for the domain, not the type (`AssetLock.ts` holds
-`AssetLockFundingRow`, `AssetLockFunder`, `AcquireParams`…). A DAO's row type,
-a service's params, a worker's event map — all of them go here, not beside the
-class.
+`src/main/src/constants/` is split by domain (`addresses`, `app`, `chain`,
+`credits`, `dashscan`, `database`) with **no barrel** — import the domain file
+directly (`from '../constants/addresses'`), and a name may be exported by only
+one of them. Type files are named for the domain, not the type (`AssetLock.ts`
+holds `AssetLockFundingRow`, `AssetLockFunder`, `AcquireParams`…). A DAO's row
+type, a service's params, a worker's event map all go here, not beside the class.
 
-Four kinds of declaration legitimately stay put, because moving them would
-break something rather than tidy it:
+Four kinds of declaration legitimately stay put, because moving them would break
+something rather than tidy it:
 
 1. **Local aliases into a central type** — `type Payload =
-   PlatformOperations['spend']['payload']` in each operation file. The type is
-   already central; the alias is just shorthand.
-2. **Types inferred from a value in the same file** — `z.infer<typeof Schema>`
-   in `preferences/`, `ReturnType<...>` aliases.
+   PlatformOperations['spend']['payload']`. The type is already central.
+2. **Types inferred from a value in the same file** — `z.infer<typeof Schema>`,
+   `ReturnType<...>` aliases.
 3. **A type that is the file's whole purpose** — `providers/WalletProvider.ts`.
 4. **Values computed at module load, not literals** — `POW_LIMIT_TARGET =
    bitsToTarget(POW_LIMIT_BITS)` in `p2p/utils/pow.ts` (moving it makes
