@@ -3,7 +3,7 @@ import {OrchardAddressWASM, ShieldedMemoWASM} from 'pshenmic-dpp'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
-import {PLATFORM_ACCOUNT, SHIELDED_ACCOUNT} from '../../../src/constants'
+import {PLATFORM_ACCOUNT, SHIELDED_ACCOUNT} from '../../../src/constants/addresses'
 
 type Payload = PlatformOperations['shield']['payload']
 type Result = PlatformOperations['shield']['result']

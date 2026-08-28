@@ -1,17 +1,16 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import fs from 'fs'
-import {CORE_ADDRESS_WINDOW, ChainStorageFilename, LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants'
+import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
+import {ChainStorageFilename} from '../../constants/app'
+import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {logChildOutput} from '../../logger'
 import {WalletDAO} from '../../database/WalletDAO'
-import {
-  CHILD_OUTPUT_TAIL_LIMIT,
-  PERSIST_ATTEMPTS,
-  PERSIST_RETRY_MS,
-  REBROADCAST_INTERVAL_MS,
-} from '../../constants'
+import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
+import {REBROADCAST_INTERVAL_MS} from '../../constants/chain'
+import {PERSIST_ATTEMPTS, PERSIST_RETRY_MS} from '../../constants/database'
 import {AddressDAO} from '../../database/AddressDAO'
 import {TransactionDAO} from '../../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../../p2p/types/messages'

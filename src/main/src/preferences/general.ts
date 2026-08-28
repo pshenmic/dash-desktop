@@ -1,12 +1,11 @@
 import {z} from 'zod'
+import {SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES} from '../constants/app'
 import {
   DEFAULT_CORE_FEE_MULTIPLIER,
   DEFAULT_PLATFORM_FEE_MULTIPLIER,
   MAX_FEE_MULTIPLIER,
   MIN_FEE_MULTIPLIER,
-  SUPPORTED_CURRENCIES,
-  SUPPORTED_LANGUAGES,
-} from "../constants";
+} from '../constants/credits'
 
 export const ConnectionTypeSchema = z.enum(['p2p', 'rpc'])
 export type ConnectionType = z.infer<typeof ConnectionTypeSchema>

@@ -1,4 +1,4 @@
-import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants'
+import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants/addresses'
 import {Network} from '../types/Network'
 import {DerivedKeyHash, IdentityKeyDescriptor} from '../types/IdentityKeys'
 import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'

@@ -20,12 +20,12 @@ import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {
-  CORE_ADDRESS_WINDOW,
   COIN_TYPE,
+  CORE_ADDRESS_WINDOW,
   IDENTITY_LOOKAHEAD,
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
-} from '../../constants'
+} from '../../constants/addresses'
 import {coreFeeDuffs} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";

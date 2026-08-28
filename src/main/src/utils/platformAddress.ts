@@ -3,7 +3,7 @@ import {WalletDAO} from '../database/WalletDAO'
 import {Network} from '../types/Network'
 import {Wallet} from '../types/Wallet'
 import {AddressDeriver} from '../types/AddressWindow'
-import {COIN_TYPE, PLATFORM_ACCOUNT} from '../constants'
+import {COIN_TYPE, PLATFORM_ACCOUNT} from '../constants/addresses'
 
 const keyPair = new KeyPairController()
 

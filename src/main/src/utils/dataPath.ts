@@ -1,7 +1,7 @@
 import os from 'os'
 import path from 'path'
 import fs from 'fs'
-import {DevFolderName, HomeFolderName} from '../constants'
+import {DevFolderName, HomeFolderName} from '../constants/app'
 
 // A dev run nests one level deeper so it cannot corrupt — or be migrated
 // against — the installed wallet's data. electron-vite replaces this at build

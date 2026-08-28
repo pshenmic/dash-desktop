@@ -3,7 +3,7 @@ import path from 'path'
 import {randomUUID} from 'crypto'
 import {logChildOutput} from '../../logger'
 import {PendingRequest, PlatformRequestOptions} from '../../types/PlatformWorker'
-import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants'
+import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
 import {Network} from '../../types/Network'
 import {
   emptyPlatformStatus,

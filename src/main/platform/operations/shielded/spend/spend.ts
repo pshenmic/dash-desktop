@@ -7,7 +7,7 @@ import {buildTransition} from './buildTransition'
 import {checkSpent} from '../checkSpent'
 import {actualFee, minimumFee} from './fee'
 import {MAX_SPEND_NOTES} from '../constants'
-import {SHIELDED_ACCOUNT} from '../../../../src/constants'
+import {SHIELDED_ACCOUNT} from '../../../../src/constants/addresses'
 import {waitForResult} from './waitForResult'
 
 type Payload = PlatformOperations['spend']['payload']

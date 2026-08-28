@@ -22,16 +22,16 @@ import {TxLockStatus} from '../types/TxLockStatus'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
 import {ConnectionStatus} from '../types/ConnectionStatus'
+import {CORE_ADDRESS_WINDOW} from '../constants/addresses'
 import {
-  CORE_ADDRESS_WINDOW,
   DASHSCAN_ADDRESS_CHUNK,
   DASHSCAN_BASE_URLS,
   DASHSCAN_REQUEST_TIMEOUT_MS,
-  DASHSCAN_STATUS_INTERVAL_MS,
   DASHSCAN_RETRY_DELAYS_MS,
+  DASHSCAN_STATUS_INTERVAL_MS,
   XPUB_MAX_PAGES,
   XPUB_PAGE_LIMIT,
-} from '../constants'
+} from '../constants/dashscan'
 
 const dashscanConnectionStatusCache = {
   statuses: new Map<Network, ConnectionStatus>(),

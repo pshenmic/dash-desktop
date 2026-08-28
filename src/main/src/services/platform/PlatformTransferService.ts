@@ -13,11 +13,7 @@ import {IdentityCreateResult} from '../../types/IdentityCreateResult'
 import {ShieldResult} from '../../types/ShieldResult'
 import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {platformAccountXpub} from '../../utils/platformAddress'
-import {
-  CREDITS_PER_DUFF,
-  MAX_RECIPIENTS,
-  MIN_OUTPUT_CREDITS,
-} from '../../constants'
+import {CREDITS_PER_DUFF, MAX_RECIPIENTS, MIN_OUTPUT_CREDITS} from '../../constants/credits'
 import {identityPath} from '../../utils/identityKeys'
 import {selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
 import {lockedDuffsFor} from '../../utils/assetLockTx'

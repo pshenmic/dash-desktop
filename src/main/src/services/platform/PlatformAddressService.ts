@@ -8,7 +8,7 @@ import {PlatformAddressEntry, PlatformAddressRow} from '../../types/PlatformAddr
 import {PlatformSourceCandidate} from '../../types/PlatformTransfer'
 import {DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
 import {AddressInfo} from '../../../platform/types/messages'
-import {PLATFORM_ADDRESS_WINDOW} from '../../constants'
+import {PLATFORM_ADDRESS_WINDOW} from '../../constants/addresses'
 import {platformAddressDeriver} from '../../utils/platformAddress'
 import {runAddressWindow} from '../../utils/addressWindow'
 import {requireWallet} from '../../utils/requireWallet'

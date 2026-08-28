@@ -1,6 +1,6 @@
 import {Transaction, TransactionInput, TransactionOutput} from '../types/Transaction'
 import {DashscanTransaction, DashscanVOut} from '../types/Dashscan'
-import {DUFFS_PER_DASH} from '../constants'
+import {DUFFS_PER_DASH} from '../constants/chain'
 
 const duffs = (value: string | number | null): bigint => {
   if (value == null) return 0n

@@ -3,7 +3,7 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {assetLockProofParams} from '../assetLockProof'
-import {IDENTITY_KEY_DEFINITIONS} from '../../../src/constants'
+import {IDENTITY_KEY_DEFINITIONS} from '../../../src/constants/credits'
 
 type Payload = PlatformOperations['identityCreateFromAssetLock']['payload']
 type Result = PlatformOperations['identityCreateFromAssetLock']['result']

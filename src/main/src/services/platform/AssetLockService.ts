@@ -18,12 +18,8 @@ import {
   AssetLockFundingKind,
   AssetLockFundingRow,
 } from '../../types/AssetLock'
-import {
-  ASSET_LOCK_CREDIT_OUTPUT_INDEX,
-  ASSET_LOCK_DISMISSED_ERROR,
-  CHAIN_LOCK_BACKSTOP_MS,
-  IDENTITY_LOCK_TIMEOUT_MS,
-} from '../../constants'
+import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../../constants/chain'
+import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, ASSET_LOCK_DISMISSED_ERROR} from '../../constants/credits'
 import {requireWallet} from '../../utils/requireWallet'
 import {coreSDK} from '../../utils/coreSDK'
 

@@ -3,7 +3,7 @@ import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {Network} from '../types/Network'
 
 import {AddressDeriver} from '../types/AddressWindow'
-import {COIN_TYPE, HD_VERSIONS} from '../constants'
+import {COIN_TYPE, HD_VERSIONS} from '../constants/addresses'
 
 const keyPair = new KeyPairController()
 

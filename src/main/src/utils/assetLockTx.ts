@@ -5,7 +5,7 @@ import {
   ASSET_LOCK_PAYLOAD_VERSION,
   CREDITS_PER_DUFF,
   SHIELD_FUNDING_FEE_RESERVE_CREDITS,
-} from '../constants'
+} from '../constants/credits'
 
 // The L2 transition takes its fee out of the credits the lock creates, so the
 // lock has to carry that fee on top of the amount for the amount the user asked
