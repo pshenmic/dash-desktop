@@ -1,7 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {GetWalletAddressesHandler} from '../../src/main/src/api/wallet/getAddresses'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('GetWalletAddressesHandler', () => {

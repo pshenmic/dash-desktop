@@ -8,7 +8,7 @@ import {
   pickCreditChangeAddress,
   selectTransferInputs,
 } from '../../src/main/src/utils/transferInputs'
-import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants'
+import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants/chain'
 
 const SCRIPT_HEX = '76a9143a2d4145a4f098523b3e8127f1da87cfc55b8e7988ac'
 // No derivation path in the wallet, so nothing here can be signed.

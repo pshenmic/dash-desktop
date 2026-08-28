@@ -3,7 +3,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 describe('CreateWalletHandler', () => {

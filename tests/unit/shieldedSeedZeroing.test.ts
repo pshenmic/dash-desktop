@@ -63,6 +63,12 @@ function wire(): {service: ShieldedService; request: ReturnType<typeof vi.fn>; n
     upsertNotes: vi.fn(),
   }
 
+  const addressDAO: Fns = {
+    getAddresses: vi.fn().mockResolvedValue([]),
+    insertAddresses: vi.fn(),
+    markAddressesUsed: vi.fn(),
+  }
+
   const poolDAO: Fns = {
     getAllEncryptedNotes: vi.fn().mockResolvedValue([]),
     getEncryptedNotes: vi.fn().mockResolvedValue([]),
@@ -76,7 +82,7 @@ function wire(): {service: ShieldedService; request: ReturnType<typeof vi.fn>; n
     {getIdentitiesByWalletId: vi.fn().mockResolvedValue([])} as unknown as IdentityDAO,
     noteDAO as unknown as ShieldedNoteDAO,
     poolDAO as unknown as ShieldedPoolDAO,
-    {saveAddresses: vi.fn(), getAddresses: vi.fn().mockResolvedValue([])} as unknown as ShieldedAddressDAO,
+    addressDAO as unknown as ShieldedAddressDAO,
     {request} as unknown as PlatformWorkerService,
     {} as unknown as AssetLockService,
     Preferences.default(),
@@ -95,8 +101,8 @@ describe('the seed a shielded job holds', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  // NEW_ADDRESS_LOOKAHEAD_LIMIT is 2000 at ~5ms per derivation, so this loop can
-  // hold the seed for seconds.
+  // The window walk derives a gap of addresses at ~5ms each, so this holds the
+  // seed well past the method that unlocked it.
   it('is zeroed once a new address is derived', async () => {
     const {service} = wire()
 
@@ -105,11 +111,11 @@ describe('the seed a shielded job holds', () => {
     expect(zeroed()).toBe(true)
   })
 
-  it('is zeroed when address derivation gives up', async () => {
-    const {service, noteDAO} = wire()
-    noteDAO.getUsedAddresses.mockResolvedValue(new Set(['shielded-addr']))
+  it('is zeroed when the reveal is refused', async () => {
+    const {service, poolDAO} = wire()
+    poolDAO.getCount.mockResolvedValue(9)
 
-    await expect(service.addAddress(WALLET, PASSWORD)).rejects.toThrow(/No unused shielded address/)
+    await expect(service.addAddress(WALLET, PASSWORD)).rejects.toThrow(/Sync the shielded pool/)
 
     expect(zeroed()).toBe(true)
   })

@@ -3,7 +3,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
-import {COINBASE_PREV_TXID} from '../../src/main/src/constants'
+import {COINBASE_PREV_TXID} from '../../src/main/src/constants/chain'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const SENDER = 'yaJsLTUumcbPca64NNEPwXZUp6wp39rYWM'

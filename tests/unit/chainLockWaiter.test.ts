@@ -10,7 +10,7 @@ vi.mock('fs', () => {
 import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {Preferences} from '../../src/main/src/preferences'
 import {Network} from '../../src/main/src/types/Network'
-import {LOCK_WATCH_SWEEP_INTERVAL_MS} from '../../src/main/src/constants'
+import {LOCK_WATCH_SWEEP_INTERVAL_MS} from '../../src/main/src/constants/chain'
 
 // The p2p event handler is what the utility process drives; calling it
 // directly avoids forking a real utility process.

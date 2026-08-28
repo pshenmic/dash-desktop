@@ -9,7 +9,7 @@ import {AssetLockFunder} from '../../src/main/src/types/AssetLock'
 import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 import {findNextIdentityIndex} from '../../src/main/src/utils/identityKeys'
-import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants'
+import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants/credits'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const SEED = new KeyPairController().mnemonicToSeed(MNEMONIC)
 

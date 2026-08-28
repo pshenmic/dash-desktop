@@ -1,6 +1,6 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
-import {WALLET_SCOPED_TABLES} from '../../src/main/src/constants'
+import {WALLET_SCOPED_TABLES} from '../../src/main/src/constants/database'
 import {getKnex, migrateKnex} from '../../src/main/src/utils'
 import type {Knex} from 'knex'
 

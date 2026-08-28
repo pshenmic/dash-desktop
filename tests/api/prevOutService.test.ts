@@ -6,7 +6,7 @@ import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
-import {PREVOUT_RESOLVE_BATCH} from '../../src/main/src/constants'
+import {PREVOUT_RESOLVE_BATCH} from '../../src/main/src/constants/chain'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const {getTransaction} = vi.hoisted(() => ({getTransaction: vi.fn()}))

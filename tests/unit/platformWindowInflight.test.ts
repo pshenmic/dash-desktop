@@ -7,7 +7,7 @@ import {PlatformAddressDAO} from '../../src/main/src/database/PlatformAddressDAO
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {PlatformAddressRow} from '../../src/main/src/types/PlatformAddress'
 import {platformAddressDeriver} from '../../src/main/src/utils/platformAddress'
-import {PLATFORM_ACCOUNT} from '../../src/main/src/constants'
+import {PLATFORM_ACCOUNT} from '../../src/main/src/constants/addresses'
 
 const WALLET = 'w1'
 const SEEDPHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'

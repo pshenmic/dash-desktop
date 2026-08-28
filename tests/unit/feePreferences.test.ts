@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {GeneralPreferencesSchema} from '../../src/main/src/preferences/general'
-import {MAX_FEE_MULTIPLIER} from '../../src/main/src/constants'
+import {MAX_FEE_MULTIPLIER} from '../../src/main/src/constants/credits'
 
 function accepts(multiplier: number): boolean {
   return GeneralPreferencesSchema.safeParse({

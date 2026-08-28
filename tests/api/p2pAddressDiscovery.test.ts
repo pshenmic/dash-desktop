@@ -3,7 +3,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
-import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 

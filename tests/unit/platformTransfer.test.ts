@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {selectPlatformInputs, selectPlatformSource, toAddressInput} from '../../src/main/src/utils/platformTransfer'
 import {PlatformInputPlan, PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
-import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../../src/main/src/constants'
+import {MAX_ADDRESS_INPUTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../../src/main/src/constants/credits'
 
 // hashByte drives consensus ordering; platformAddress is only a label, so the
 // two can disagree exactly as bech32m and address bytes do on chain.

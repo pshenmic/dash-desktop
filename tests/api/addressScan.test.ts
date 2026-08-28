@@ -8,7 +8,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletProvider} from '../../src/main/src/providers/WalletProvider'
 import {AddressUsage} from '../../src/main/src/types/AddressDiscovery'
 import {coreAddressDeriver} from '../../src/main/src/utils/addressDiscovery'
-import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants'
+import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const usage = (isChange: boolean, index: number, isUsed: boolean): AddressUsage =>
