@@ -15,7 +15,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [addresses, setAddresses] = useState<string[] | null>(null)
   const [checking, setChecking] = useState(true)
   const [password, setPassword] = useState('')
-  const [unlockedPassword, setUnlockedPassword] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
@@ -29,7 +28,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   useEffect(() => {
     setAddresses(null)
     setPassword('')
-    setUnlockedPassword(null)
     setError(null)
     setShowPasswordForm(false)
     if (!walletId) {
@@ -56,7 +54,6 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
         return
       }
       await action(password)
-      setUnlockedPassword(password)
       setPassword('')
       setShowPasswordForm(false)
     } catch {
@@ -77,21 +74,13 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     setAddresses(await API.addShieldedAddress(walletId!, pwd))
   })
 
-  const handleNewAddress = async (): Promise<void> => {
+  // Every reveal derives from the seed, so every reveal asks. Nothing holds the
+  // password between clicks — L1 and platform addresses need no password at all,
+  // and shielded is the one class that cannot borrow that.
+  const handleNewAddress = (): void => {
     if (!walletId || busy) return
-    if (unlockedPassword == null) {
-      setShowPasswordForm(true)
-      return
-    }
-    setBusy(true)
     setError(null)
-    try {
-      setAddresses(await API.addShieldedAddress(walletId, unlockedPassword))
-    } catch {
-      setError('Could not derive a new shielded address. Please try again.')
-    } finally {
-      setBusy(false)
-    }
+    setShowPasswordForm(true)
   }
 
   const passwordInput = (onSubmit: () => void, id: string): React.JSX.Element => (

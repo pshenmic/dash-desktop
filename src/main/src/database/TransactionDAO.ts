@@ -6,7 +6,8 @@ import type {TxLockStatus} from '../types/TxLockStatus'
 import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
-import {COINBASE_PREV_TXID, SELECT_CHUNK_SIZE} from '../constants'
+import {COINBASE_PREV_TXID} from '../constants/chain'
+import {SELECT_CHUNK_SIZE} from '../constants/database'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 
