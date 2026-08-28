@@ -97,8 +97,9 @@ address from the seed. Signing keys still come from the seed, in the worker.
 
 `wallet.platform_address_count` is legacy: it survives only so
 `PlatformAddressService.seedLegacyWindow` can recover an address revealed by hand
-before the table existed. Nothing writes it. `wallet.shielded_address_count` is
-fully dead. Both can be dropped once every wallet has grown rows.
+before the table existed. Nothing writes it, and it can be dropped once every
+wallet has grown rows. `wallet.shielded_address_count` is fully dead — nothing
+reads or writes it — and can be dropped whenever.
 
 ### Address windows (`utils/addressWindow.ts`)
 
@@ -114,8 +115,10 @@ about a key class and takes three collaborators:
 
 `planWindow` is the pure half and takes `known` (materialised) separately from
 `usage` (just observed, and allowed to reach past it). Everything keys on the
-**index**, never on the address string. Gap numbers live only in the three
-policy constants in `constants/addresses.ts`.
+**index**, never on the address string. Every address-window gap number lives in
+the three policy constants in `constants/addresses.ts` — and nowhere else, though
+that file also holds unrelated gap numbers (`IDENTITY_LOOKAHEAD`,
+`TOPUP_KEY_GAP_LIMIT`).
 
 Shielded is included because `shielded_notes.address` is our own diversified
 address, which makes it a genuine per-index usage oracle (local rather than a
@@ -255,7 +258,7 @@ shipped bundle has no dev branch. A hand-written
 `src/main/migrations/` does nothing on its own — `src/main/src/utils/index.ts`
 holds a hand-built `migrations` array that `migrateKnex()` feeds to Knex. You
 MUST:
-1. `import * as migrationNNNN from '../migrations/NNNN_name'`
+1. `import * as migrationNNNN from '../../migrations/NNNN_name'`
 2. append `{ name: 'NNNN_name.ts', migration: migrationNNNN }` to the array.
 
 Forgetting this means the table is never created and DAO calls fail at runtime
@@ -314,8 +317,10 @@ process hears locks even in the default `rpc` mode.
 - **Never reach for `coreSDK.subscribeToTransactions` for a transaction this
   wallet broadcast.** DAPI is a different network path and does not deliver that
   lock in either mode. Use `CoreLockService.waitForInstantLock(txid, timeoutMs)`.
-  Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) but have
-  no waiter yet — they only feed `markChainlockedUpTo`.
+  Chainlocks arrive the same way (`peerclsig` → `chainLocked` message) and have
+  their own waiter, `CoreLockService.waitForChainLock(network, minHeight,
+  timeoutMs)`, which `AssetLockService` uses as a backstop; they also feed
+  `markChainlockedUpTo`.
 
 ### Incoming mempool txs (lock pool)
 
@@ -399,9 +404,11 @@ Three bundles. A bundle's own domain types and constants are **private to it —
 never import them across these boundaries.** Three things are shared on purpose
 and do cross: `src/types/Network`, and the protocol numbers in
 `src/constants/credits` (fees) and `src/constants/addresses` (`COIN_TYPE`,
-`PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`), both read by `platform/` — plus
-`src/types/IdentityKeys`, which one signing-key operation reads. Nothing else
-crosses.
+`PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`), both read by `platform/`, plus
+`src/types/IdentityKeys` in one signing-key operation. (Separately, `platform/`
+reaches into a few `src/utils/` helpers — `coreScript`, `identityKeys`,
+`sdkErrors`, `shieldedNoteSelection`. That is pure shared logic, not this rule's
+subject, but do not read the rule as "nothing crosses".)
 
 | Bundle | Constants | Types |
 |---|---|---|
