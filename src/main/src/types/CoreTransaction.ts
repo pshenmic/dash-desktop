@@ -15,6 +15,7 @@ export interface TransferInputSelection {
   transferInputs: TransferInput[]
   inputTotal: bigint
   changeAddress: string
+  feeDuffs: bigint
 }
 
 export interface BuildSignedTransferParams {
@@ -24,6 +25,7 @@ export interface BuildSignedTransferParams {
   amount: bigint
   changeAddress: string
   inputTotal: bigint
+  feeDuffs: bigint
   seed: Uint8Array
   network: Network
 }

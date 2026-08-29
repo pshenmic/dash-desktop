@@ -131,6 +131,8 @@ export interface FeeParams {
   // identity or a Core address. A list only where an operation pays several,
   // because each extra output costs the same again.
   recipient: string | string[]
+  // L1 quotes only: the fee scales with the inputs the amount takes.
+  amountDuffs?: bigint | null
   // Optional because most operations read none of them, and a caller spelling
   // out which fields it does not use says nothing about the fee.
   sourceAddress?: string | null

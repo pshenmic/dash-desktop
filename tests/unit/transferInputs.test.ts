@@ -8,7 +8,7 @@ import {
   pickCreditChangeAddress,
   selectTransferInputs,
 } from '../../src/main/src/utils/transferInputs'
-import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants/chain'
+import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
 
 const SCRIPT_HEX = '76a9143a2d4145a4f098523b3e8127f1da87cfc55b8e7988ac'
 // No derivation path in the wallet, so nothing here can be signed.
@@ -35,7 +35,7 @@ const wallet = grouped(
   [address('chg-0', 0, true), address('chg-1', 1, true)],
 )
 
-const FEE = CORE_TRANSFER_FEE_DUFFS
+const FEE = (inputsCount: number): bigint => coreFeeDuffsFor(1, inputsCount, 1, true)
 
 describe('selecting transfer inputs from a wallet-wide utxo set', () => {
   // Selecting one would fail at signing time, after the spend was built.

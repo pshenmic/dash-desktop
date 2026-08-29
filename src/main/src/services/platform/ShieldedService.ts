@@ -651,6 +651,7 @@ export class ShieldedService {
     return {
       feeCredits: selection?.feeCredits ?? feeForCount(1),
       feeDuffs: null,
+      maxDuffs: null,
       maxPerTx: maxSpendableCredits(candidates, curve.length, feeForCount),
       noteLimit: curve.length,
     }

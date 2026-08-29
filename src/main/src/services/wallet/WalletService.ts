@@ -26,7 +26,7 @@ import {
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
 } from '../../constants/addresses'
-import {coreFeeDuffs} from '../../utils/coreFeeRate'
+import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";
 import {selectTransferInputs} from '../../utils/transferInputs'
@@ -320,12 +320,13 @@ export class WalletService {
       const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
       const provider = this.providers.forWallet(walletId, network)
       await provider.ensureReady()
-      const {transferInputs, inputTotal, changeAddress} =
+      const {coreFeeMultiplier} = this.preferences.general
+      const {transferInputs, inputTotal, changeAddress, feeDuffs} =
         selectTransferInputs(
           grouped,
           await provider.getWalletUtxos(),
           amountDuffs,
-          coreFeeDuffs(this.preferences.general.coreFeeMultiplier),
+          inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true),
           fromAddress,
         )
 
@@ -336,6 +337,7 @@ export class WalletService {
         amount: amountDuffs,
         changeAddress,
         inputTotal,
+        feeDuffs,
         seed,
         network,
       })

@@ -1,5 +1,5 @@
 import {GroupedAddresses} from '../types/GroupedAddresses'
-import {SelectableUtxo} from '../types/CoinSelection'
+import {CoreFeeForInputs, SelectableUtxo} from '../types/CoinSelection'
 import {TransferInput, TransferInputSelection} from '../types/CoreTransaction'
 import {UTXO} from '../types/UTXO'
 import {selectCoins} from './coinSelection'
@@ -29,36 +29,45 @@ export function pickCreditChangeAddress(
   return {address: credit.address, derivationPath: credit.derivationPath}
 }
 
+// The provider answers for the whole wallet, including indexes discovery has
+// not derived — those have no derivation path and cannot be signed.
+export function selectableTransferUtxos(
+  grouped: GroupedAddresses,
+  utxos: UTXO[],
+  fromAddress?: string,
+): SelectableUtxo[] {
+  const owned = new Set([...grouped.receiving, ...grouped.change].map(a => a.address))
+
+  return utxos
+    .filter(utxo => owned.has(utxo.address))
+    .filter(utxo => fromAddress == null || utxo.address === fromAddress)
+    .map(utxo => ({
+      txid: utxo.txId,
+      vout: utxo.vOut,
+      satoshis: utxo.satoshis,
+      address: utxo.address,
+    }))
+}
+
 export function selectTransferInputs(
   grouped: GroupedAddresses,
   utxos: UTXO[],
   amountDuffs: bigint,
-  feeDuffs: bigint,
+  feeForInputs: CoreFeeForInputs,
   fromAddress?: string,
 ): TransferInputSelection {
   const pathByAddress = new Map(
     [...grouped.receiving, ...grouped.change].map(a => [a.address, a.derivationPath]),
   )
 
-  // The provider answers for the whole wallet, including indexes discovery has
-  // not derived — those have no derivation path and cannot be signed.
-  const ownedUtxos = utxos
-    .filter(utxo => pathByAddress.has(utxo.address))
-    .filter(utxo => fromAddress == null || utxo.address === fromAddress)
+  const selectable = selectableTransferUtxos(grouped, utxos, fromAddress)
 
-  if (ownedUtxos.length === 0) {
+  if (selectable.length === 0) {
     throw new Error('No spendable funds in this wallet')
   }
 
-  const selectable: SelectableUtxo[] = ownedUtxos.map(utxo => ({
-    txid: utxo.txId,
-    vout: utxo.vOut,
-    satoshis: utxo.satoshis,
-    address: utxo.address,
-  }))
-
-  const selection = selectCoins(selectable, amountDuffs, {fee: feeDuffs})
-  const utxoByKey = new Map(ownedUtxos.map(u => [`${u.txId}:${u.vOut}`, u]))
+  const selection = selectCoins(selectable, amountDuffs, feeForInputs)
+  const utxoByKey = new Map(utxos.map(u => [`${u.txId}:${u.vOut}`, u]))
 
   const transferInputs: TransferInput[] = selection.inputs.map(input => {
     const owned = utxoByKey.get(`${input.txid}:${input.vout}`)
@@ -76,5 +85,5 @@ export function selectTransferInputs(
     }
   })
 
-  return {transferInputs, inputTotal: selection.inputTotal, changeAddress: pickChangeAddress(grouped)}
+  return {transferInputs, inputTotal: selection.inputTotal, changeAddress: pickChangeAddress(grouped), feeDuffs: selection.fee}
 }

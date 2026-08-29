@@ -1,8 +1,9 @@
 export const SEQUENCE_FINAL = 0xffffffff
 
 export const DUFFS_PER_DASH = 100_000_000n
-export const CORE_TRANSFER_FEE_DUFFS = 10_000n
 export const CORE_FEE_PER_BYTE = 1
+
+export const DUST_THRESHOLD_DUFFS = 546n
 
 // A coinbase input names no parent transaction.
 export const COINBASE_PREV_TXID = '0'.repeat(64)

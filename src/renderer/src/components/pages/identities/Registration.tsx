@@ -128,10 +128,11 @@ export default function IdentityRegistration(): React.JSX.Element {
       ? shieldedBalance
       : null
 
-  const { feeCredits, feeDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
+  const { feeCredits, feeDuffs, maxDuffs: coreSelectableDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
     destinationValid: true,
     recipient: '',
     amountCredits,
+    amountDuffs: fromKind === SourceKind.Core ? amountDuffs : null,
     sourceAddress: selectedSource?.platformAddress ?? null,
     identityId: null,
     noteIndexes: null,
@@ -140,7 +141,9 @@ export default function IdentityRegistration(): React.JSX.Element {
   // The Core fee is paid on top of the amount, and an L1 registration locks the
   // identity-create fee on top of that so the amount typed is what is credited.
   const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
-  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs, totalFeeDuffs)
+  const coreMaxDuffs = coreSelectableDuffs === null
+    ? null
+    : identityRegistrationMaxDuffs(coreSelectableDuffs, creditsToDuffs(feeCredits ?? 0n))
   const platformMaxDuffs = maxPerTx !== null
     ? creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     : feeCredits !== null && availableCredits !== null
@@ -148,14 +151,13 @@ export default function IdentityRegistration(): React.JSX.Element {
       : null
   const maxDuffs = fromKind === SourceKind.Core ? coreMaxDuffs : platformMaxDuffs
   const amountError = fromKind === SourceKind.Core
-    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs, totalFeeDuffs)
+    ? identityRegistrationAmountError(amount, amountDuffs, coreMaxDuffs)
     : amountErrorFor({
         isCoreOperation: false,
         amount,
-        totalFeeDuffs,
+        coreMaxDuffs,
         operation,
         amountDuffs,
-        balanceDuffs,
         amountCredits,
         minCredits: info.minCredits ?? 0n,
         availableCredits,

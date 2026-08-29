@@ -237,11 +237,12 @@ function WalletTransferHub(): React.JSX.Element {
     : toKind === DestinationKind.NewIdentity ? true
     : isLikelyShieldedAddress(trimmedTo)
 
-  const { feeCredits, feeDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr } = useOperationFee(walletId, operation, {
+  const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr } = useOperationFee(walletId, operation, {
     destinationValid,
     recipient: trimmedTo,
     amountCredits,
-    sourceAddress: selectedSource?.platformAddress ?? null,
+    amountDuffs: isCoreOperation ? amountDuffs : null,
+    sourceAddress: coreSpecificAddress?.address ?? selectedSource?.platformAddress ?? null,
     identityId: selectedIdentity?.identifier ?? null,
     noteIndexes: shieldedSpecificNotes?.map(note => note.index) ?? null,
   })
@@ -250,13 +251,20 @@ function WalletTransferHub(): React.JSX.Element {
   // L2 fee on top of that, so the amount typed is the amount that arrives.
   const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
 
+  // What the L1 selection can fund, less whatever the operation locks on L2.
+  const coreMaxDuffs = useMemo((): bigint | null => {
+    if (maxDuffs === null) return null
+    const spendable = maxDuffs - creditsToDuffs(feeCredits ?? 0n)
+    return spendable > 0n ? spendable : 0n
+  }, [maxDuffs, feeCredits])
+
   const sliderMaxAmount = useMemo((): bigint | null => {
-    if (isCoreOperation) return balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n
+    if (isCoreOperation) return coreMaxDuffs
     if (maxPerTx !== null) return creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     if (availableCredits === null || feeCredits === null) return null
     const spendable = availableCredits - feeCredits
     return creditsToDuffs(spendable > 0n ? spendable : 0n)
-  }, [isCoreOperation, balanceDuffs, maxPerTx, availableCredits, feeCredits])
+  }, [isCoreOperation, coreMaxDuffs, maxPerTx, availableCredits, feeCredits])
 
   const sliderPercent = useMemo(() => {
     if (sliderMaxAmount === null || sliderMaxAmount === 0n) return 0
@@ -298,7 +306,7 @@ function WalletTransferHub(): React.JSX.Element {
   const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
 
   const amountReady = isCoreOperation
-    ? amountDuffs > 0n && amountDuffs + totalFeeDuffs <= balanceDuffs
+    ? amountDuffs > 0n && coreMaxDuffs !== null && amountDuffs <= coreMaxDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
       && availableCredits !== null && amountCredits + feeCredits <= availableCredits
@@ -319,7 +327,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const handleMax = (): void => {
     if (isCoreOperation) {
-      setAmount(davToDash(balanceDuffs > totalFeeDuffs ? balanceDuffs - totalFeeDuffs : 0n))
+      if (coreMaxDuffs !== null) setAmount(davToDash(coreMaxDuffs))
       return
     }
     if (maxPerTx !== null) {
@@ -340,10 +348,9 @@ function WalletTransferHub(): React.JSX.Element {
   const amountError = amountErrorFor({
     isCoreOperation,
     amount,
-    totalFeeDuffs,
+    coreMaxDuffs,
     operation,
     amountDuffs,
-    balanceDuffs,
     amountCredits,
     minCredits,
     availableCredits,

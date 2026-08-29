@@ -12,6 +12,6 @@ export interface CoinSelectionResult {
   change: bigint
 }
 
-export interface CoinSelectionParams {
-  fee: bigint
-}
+// The count is only known once the selection stops, so what crosses is the
+// price of a count rather than a price.
+export type CoreFeeForInputs = (inputsCount: number) => bigint

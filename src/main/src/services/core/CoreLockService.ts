@@ -6,7 +6,7 @@ import {Network} from '../../types/Network'
 import {Transaction} from '../../types/Transaction'
 import {TxLockStatus} from '../../types/TxLockStatus'
 import {pickCreditChangeAddress, selectTransferInputs} from '../../utils/transferInputs'
-import {coreFeeDuffs} from '../../utils/coreFeeRate'
+import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
 import {requireWallet} from '../../utils/requireWallet'
 import {CoreTransactionService} from './CoreTransactionService'
@@ -51,12 +51,13 @@ export class CoreLockService implements AssetLockFunder {
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const provider = this.providers.forWallet(walletId, network)
     await provider.ensureReady()
-    const {transferInputs, inputTotal, changeAddress} =
+    const {coreFeeMultiplier} = this.preferences.general
+    const {transferInputs, inputTotal, changeAddress, feeDuffs} =
       selectTransferInputs(
         grouped,
         await provider.getWalletUtxos(),
         amountDuffs,
-        coreFeeDuffs(this.preferences.general.coreFeeMultiplier),
+        inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true),
       )
 
     const creditTarget = credit ?? pickCreditChangeAddress(grouped, changeAddress)
@@ -67,6 +68,7 @@ export class CoreLockService implements AssetLockFunder {
       creditAddress: creditTarget.address,
       changeAddress,
       inputTotal,
+      feeDuffs,
       seed,
       network,
     })

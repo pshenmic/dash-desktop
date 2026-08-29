@@ -1,4 +1,6 @@
+import {AddressDAO} from '../../database/AddressDAO'
 import {WalletDAO} from '../../database/WalletDAO'
+import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {PlatformAddressService} from '../platform/PlatformAddressService'
 import {PlatformWorkerService} from '../platform/PlatformWorkerService'
 import {ShieldedService} from '../platform/ShieldedService'
@@ -13,8 +15,10 @@ import {
   TransitionFeeOperation,
 } from '../../../platform/types/messages'
 import {requireWallet} from '../../utils/requireWallet'
+import {maxSelectableAmount, selectCoins} from '../../utils/coinSelection'
 import {selectPlatformInputsWithFee} from '../../utils/platformTransfer'
-import {coreFeeDuffs, coreFeePerByte} from '../../utils/coreFeeRate'
+import {coreFeeDuffsFor, coreFeePerByte} from '../../utils/coreFeeRate'
+import {selectableTransferUtxos} from '../../utils/transferInputs'
 
 // Every fee a quote can be asked for, L1 and L2, is answered here.
 //
@@ -31,22 +35,28 @@ import {coreFeeDuffs, coreFeePerByte} from '../../utils/coreFeeRate'
 // charged, so there is still only one place it is computed.
 export class FeeService {
   private walletDAO: WalletDAO
+  private addressDAO: AddressDAO
   private addresses: PlatformAddressService
   private platform: PlatformWorkerService
   private shielded: ShieldedService
+  private providers: WalletProviderFactory
   private preferences: Preferences
 
   constructor(
     walletDAO: WalletDAO,
+    addressDAO: AddressDAO,
     addresses: PlatformAddressService,
     platform: PlatformWorkerService,
     shielded: ShieldedService,
+    providers: WalletProviderFactory,
     preferences: Preferences,
   ) {
     this.walletDAO = walletDAO
+    this.addressDAO = addressDAO
     this.addresses = addresses
     this.platform = platform
     this.shielded = shielded
+    this.providers = providers
     this.preferences = preferences
   }
 
@@ -54,12 +64,12 @@ export class FeeService {
   // how it is priced; what that price is belongs to the worker, not here.
   async estimateFee(walletId: string, operation: FeeOperation, params: FeeParams): Promise<OperationFee> {
     const wallet = await requireWallet(this.walletDAO, walletId)
-    const {coreFeeMultiplier} = this.preferences.general
 
     switch (operation) {
-      // Paid in Dash on L1: a flat per-transaction rate.
+      // Paid in Dash on L1, per byte, so the quote runs the selection the send
+      // will run rather than a floor the send is free to exceed.
       case 'coreSend':
-        return {feeCredits: null, feeDuffs: coreFeeDuffs(coreFeeMultiplier), maxPerTx: null, noteLimit: null}
+        return {feeCredits: null, ...await this.coreQuote(wallet, params), maxPerTx: null, noteLimit: null}
 
       // Two transactions, so two fees. The L1 lock is paid in Dash on top of the
       // amount; the transition its proof funds is paid in credits out of what
@@ -70,7 +80,7 @@ export class FeeService {
       case 'identityTopUpL1':
         return {
           feeCredits: await this.protocolFee(wallet, operation, params, 1),
-          feeDuffs: coreFeeDuffs(coreFeeMultiplier),
+          ...await this.coreQuote(wallet, params),
           maxPerTx: null,
           noteLimit: null,
         }
@@ -158,7 +168,31 @@ export class FeeService {
     return plan?.feeCredits ?? this.protocolFee(wallet, operation, params, 1)
   }
 
+  // The fee scales with the inputs the selection takes, so the quote runs that
+  // selection over the same coins the send will. maxDuffs is what those coins
+  // can fund at their own price, which is the only amount a Max can offer
+  // without the send refusing it.
+  private async coreQuote(wallet: Wallet, params: FeeParams): Promise<{feeDuffs: bigint; maxDuffs: bigint}> {
+    const feeForInputs = (inputsCount: number): bigint =>
+      coreFeeDuffsFor(this.preferences.general.coreFeeMultiplier, inputsCount, 1, true)
+
+    const grouped = await this.addressDAO.getAddressesByWalletId(wallet.walletId)
+    const utxos = await this.providers.forWallet(wallet.walletId, wallet.network).getWalletUtxos()
+    const selectable = selectableTransferUtxos(grouped, utxos, params.sourceAddress ?? undefined)
+
+    const maxDuffs = maxSelectableAmount(selectable, feeForInputs)
+    const amountDuffs = params.amountDuffs ?? 0n
+
+    // A quote is asked for before the amount is affordable, so one the selection
+    // would refuse answers with the one-input floor rather than failing.
+    const feeDuffs = amountDuffs > 0n && amountDuffs <= maxDuffs
+      ? selectCoins(selectable, amountDuffs, feeForInputs).fee
+      : feeForInputs(1)
+
+    return {feeDuffs, maxDuffs}
+  }
+
   private credits(feeCredits: bigint | null): OperationFee {
-    return {feeCredits, feeDuffs: null, maxPerTx: null, noteLimit: null}
+    return {feeCredits, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null}
   }
 }

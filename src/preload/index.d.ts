@@ -76,7 +76,7 @@ declare global {
       setWalletLabel: (walletId: string, label: string | null) => Promise<void>
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
-      estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
+      estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>

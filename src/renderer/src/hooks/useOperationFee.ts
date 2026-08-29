@@ -12,20 +12,20 @@ export function useOperationFee(
   operation: TransferOperation | null,
   params: OperationFeeParams,
 ): OperationFee & { loading: boolean; err: string | null } {
-  const { destinationValid, amountCredits, recipient, sourceAddress, identityId, noteIndexes } = params
+  const { destinationValid, amountCredits, amountDuffs, recipient, sourceAddress, identityId, noteIndexes } = params
 
   const noteKey = noteIndexes?.join(',') ?? ''
 
   const pending = useMemo(
     () => {
       if (walletId === null || operation === null || !destinationValid) return null
-      const feeParams = { amountCredits, recipient, sourceAddress, identityId, noteIndexes }
-      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${recipient}:${sourceAddress}:${identityId}:${noteKey}` }
+      const feeParams = { amountCredits, amountDuffs, recipient, sourceAddress, identityId, noteIndexes }
+      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${sourceAddress}:${identityId}:${noteKey}` }
     },
     // noteIndexes is keyed by noteKey: a fresh array of the same indexes is the
     // same quote, and re-running on identity would re-ask on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletId, operation, destinationValid, amountCredits, recipient, sourceAddress, identityId, noteKey],
+    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipient, sourceAddress, identityId, noteKey],
   )
 
   const [settled, setSettled] = useState<typeof pending>(null)

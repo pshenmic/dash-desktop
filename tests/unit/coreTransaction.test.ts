@@ -39,6 +39,8 @@ describe('CoreTransactionService.buildSignedAssetLock', () => {
     address: CHANGE_ADDRESS,
   }
 
+  const FEE = 10_000n
+
   it('builds an asset-lock tx with OP_RETURN lock output, change, and credit payload', async () => {
     const lockAmount = 100_000n
     const inputTotal = 200_000n
@@ -49,6 +51,7 @@ describe('CoreTransactionService.buildSignedAssetLock', () => {
       creditAddress: CREDIT_ADDRESS,
       changeAddress: CHANGE_ADDRESS,
       inputTotal,
+      feeDuffs: FEE,
       seed: SEED,
       network: 'testnet',
     })
@@ -69,5 +72,80 @@ describe('CoreTransactionService.buildSignedAssetLock', () => {
     expect(tx.inputs).toHaveLength(1)
     expect(typeof tx.hex()).toBe('string')
     expect(tx.hex().length).toBeGreaterThan(0)
+  })
+
+  // The fee is the gap the transaction leaves; any other gap was never quoted.
+  it('leaves exactly the quoted fee between its inputs and its outputs', async () => {
+    const lockAmount = 100_000n
+    const inputTotal = 200_000n
+
+    const tx = await service.buildSignedAssetLock({
+      inputs: [input],
+      amountDuffs: lockAmount,
+      creditAddress: CREDIT_ADDRESS,
+      changeAddress: CHANGE_ADDRESS,
+      inputTotal,
+      feeDuffs: FEE,
+      seed: SEED,
+      network: 'testnet',
+    })
+
+    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
+    expect(inputTotal - outputTotal).toBe(FEE)
+  })
+
+  // generateChange used to invent a change output worth more than the inputs.
+  it('emits no change output when the send consumes the whole balance', async () => {
+    const inputTotal = 200_000n
+    const lockAmount = inputTotal - FEE
+
+    const tx = await service.buildSignedAssetLock({
+      inputs: [input],
+      amountDuffs: lockAmount,
+      creditAddress: CREDIT_ADDRESS,
+      changeAddress: CHANGE_ADDRESS,
+      inputTotal,
+      feeDuffs: FEE,
+      seed: SEED,
+      network: 'testnet',
+    })
+
+    expect(tx.outputs).toHaveLength(1)
+    const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
+    expect(outputTotal).toBeLessThanOrEqual(inputTotal)
+    expect(inputTotal - outputTotal).toBe(FEE)
+  })
+
+  // Core rejects an output below the dust threshold outright.
+  it('gives change below the dust threshold to the fee instead of an output', async () => {
+    const inputTotal = 200_000n
+    const lockAmount = inputTotal - FEE - 500n
+
+    const tx = await service.buildSignedAssetLock({
+      inputs: [input],
+      amountDuffs: lockAmount,
+      creditAddress: CREDIT_ADDRESS,
+      changeAddress: CHANGE_ADDRESS,
+      inputTotal,
+      feeDuffs: FEE,
+      seed: SEED,
+      network: 'testnet',
+    })
+
+    expect(tx.outputs).toHaveLength(1)
+    expect(inputTotal - tx.outputs[0].satoshis).toBe(FEE + 500n)
+  })
+
+  it('refuses inputs that cannot cover the amount and the fee', async () => {
+    await expect(service.buildSignedAssetLock({
+      inputs: [input],
+      amountDuffs: 200_000n,
+      creditAddress: CREDIT_ADDRESS,
+      changeAddress: CHANGE_ADDRESS,
+      inputTotal: 200_000n,
+      feeDuffs: FEE,
+      seed: SEED,
+      network: 'testnet',
+    })).rejects.toThrow('do not cover')
   })
 })

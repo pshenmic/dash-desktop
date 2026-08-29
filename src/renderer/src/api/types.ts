@@ -53,6 +53,8 @@ export interface FeeParams {
   // Whatever kind of address this operation pays. The transfer screens pay one,
   // so they never need the list form.
   recipient: string | string[]
+  // L1 quotes only: the fee scales with the inputs the amount takes.
+  amountDuffs?: bigint | null
   // Optional because most operations read none of them.
   sourceAddress?: string | null
   identityId?: string | null
@@ -63,11 +65,14 @@ export interface FeeParams {
 // feeDuffs is what L1 charges on top of the amount, feeCredits what L2 takes
 // out of it. An L1 -> L2 transfer is two transactions and carries both; every
 // other operation carries one, and null means it cannot be priced yet.
-// maxPerTx and noteLimit are pool-spend facts: nothing else is capped by
-// anything but the balance.
+// maxDuffs is the largest amount the L1 selection can fund, which is not the
+// balance minus feeDuffs: the fee grows with every input it takes. maxPerTx and
+// noteLimit are pool-spend facts: nothing else is capped by anything but the
+// balance.
 export interface OperationFee {
   feeCredits: bigint | null
   feeDuffs: bigint | null
+  maxDuffs: bigint | null
   maxPerTx: bigint | null
   noteLimit: number | null
 }
@@ -79,12 +84,10 @@ export interface OperationFeeParams extends FeeParams {
 export interface AmountValidationParams {
   isCoreOperation: boolean
   amount: string
-  // Every fee the send pays in Dash. An L1 -> L2 transfer locks the L2 fee too,
-  // so the amount asked for is the amount that arrives.
-  totalFeeDuffs: bigint
+  // Null while the quote that knows it is in flight.
+  coreMaxDuffs: bigint | null
   operation: TransferOperation | null
   amountDuffs: bigint
-  balanceDuffs: bigint
   amountCredits: bigint
   minCredits: bigint
   availableCredits: bigint | null
