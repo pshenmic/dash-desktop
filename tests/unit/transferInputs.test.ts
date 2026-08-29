@@ -26,7 +26,7 @@ const address = (name: string, index: number, isChange: boolean, isUsed = false)
 })
 
 const utxo = (owner: string, satoshis: bigint, txId: string): UTXO =>
-  ({address: owner, satoshis, txId, vOut: 0, script: Script.fromHex(SCRIPT_HEX)})
+  ({address: owner, satoshis, txId, vOut: 0, script: Script.fromHex(SCRIPT_HEX), height: 1})
 
 const grouped = (receiving: Address[], change: Address[]): GroupedAddresses => ({receiving, change})
 
@@ -55,16 +55,62 @@ describe('selecting transfer inputs from a wallet-wide utxo set', () => {
       .toThrow('No spendable funds')
   })
 
-  it('honours fromAddress against the wallet-wide set', () => {
+  it('honours an address source against the wallet-wide set', () => {
     const {transferInputs} = selectTransferInputs(
       wallet,
       [utxo('recv-0', 50_000_000n, 'aa'), utxo('recv-1', 50_000_000n, 'bb')],
       1_000_000n,
       FEE,
-      'recv-1',
+      {kind: 'address', address: 'recv-1'},
     )
 
     expect(transferInputs.map(i => i.txId)).toEqual(['bb'])
+  })
+
+  // The automatic selection would have stopped at the first coin that covered
+  // the amount, which is the one thing a picked set must not do.
+  it('spends every picked coin even when one of them would have covered the amount', () => {
+    const {transferInputs, inputTotal, feeDuffs} = selectTransferInputs(
+      wallet,
+      [utxo('recv-0', 50_000_000n, 'aa'), utxo('recv-1', 50_000_000n, 'bb')],
+      1_000_000n,
+      FEE,
+      {kind: 'outpoints', outpoints: [{txid: 'aa', vout: 0}, {txid: 'bb', vout: 0}]},
+    )
+
+    expect(transferInputs.map(i => i.txId)).toEqual(['aa', 'bb'])
+    expect(inputTotal).toBe(100_000_000n)
+    expect(feeDuffs).toBe(FEE(2))
+  })
+
+  it('leaves a picked coin the wallet cannot sign for out of the spend', () => {
+    expect(() => selectTransferInputs(
+      wallet,
+      [utxo('recv-0', 50_000_000n, 'aa'), utxo(FOREIGN, 50_000_000n, 'bb')],
+      1_000_000n,
+      FEE,
+      {kind: 'outpoints', outpoints: [{txid: 'aa', vout: 0}, {txid: 'bb', vout: 0}]},
+    )).toThrow('Selected UTXO no longer available')
+  })
+
+  it('refuses the spend when a picked coin was spent since it was picked', () => {
+    expect(() => selectTransferInputs(
+      wallet,
+      [utxo('recv-0', 50_000_000n, 'aa')],
+      1_000_000n,
+      FEE,
+      {kind: 'outpoints', outpoints: [{txid: 'aa', vout: 0}, {txid: 'bb', vout: 0}]},
+    )).toThrow('Selected UTXO no longer available')
+  })
+
+  it('refuses a picked set that cannot cover the amount and its fee', () => {
+    expect(() => selectTransferInputs(
+      wallet,
+      [utxo('recv-0', 10_000n, 'aa'), utxo('recv-1', 900_000_000n, 'bb')],
+      1_000_000n,
+      FEE,
+      {kind: 'outpoints', outpoints: [{txid: 'aa', vout: 0}]},
+    )).toThrow('Insufficient funds')
   })
 
   it('carries the derivation path of the address each input pays', () => {

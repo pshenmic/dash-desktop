@@ -1,4 +1,5 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
+import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {Network} from '../../src/types/Network'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
@@ -133,6 +134,10 @@ export interface FeeParams {
   recipient: string | string[]
   // L1 quotes only: the fee scales with the inputs the amount takes.
   amountDuffs?: bigint | null
+  // L1 quotes only: narrows the funding to one Core address, or to coins the
+  // user picked. Kept apart from sourceAddress, which names a platform address
+  // and so matches no L1 coin at all.
+  coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them, and a caller spelling
   // out which fields it does not use says nothing about the fee.
   sourceAddress?: string | null

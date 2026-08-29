@@ -15,7 +15,7 @@ import {AddressDAO} from '../../database/AddressDAO'
 import {TransactionDAO} from '../../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../../p2p/types/messages'
 import {BroadcastPolicyOverrides, BroadcastResult} from '../../../p2p/types/broadcast'
-import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from '../../../p2p/types/walletSync'
+import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from '../../../p2p/types/walletSync'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../../p2p/constants'
 import {ScanCursorGate} from '../../utils/scanCursorGate'
@@ -719,13 +719,6 @@ export class WalletSyncService {
     console.log(`[walletSync] incoming tx ${tx.txid} recorded unconfirmed (+${received} duffs)`)
     this.watchForInstantLock(tx.txid)
     this.notifyWalletActivity(walletId)
-  }
-
-  // Always sourced from SQL — no main-process cache. Returns [] when no
-  // wallet is active.
-  getUtxos = async (): Promise<WalletSyncUtxo[]> => {
-    if (!this.activeWalletId) return []
-    return this.transactionDAO.getUtxos(this.activeWalletId)
   }
 
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {

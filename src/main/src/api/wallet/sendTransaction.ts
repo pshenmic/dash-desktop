@@ -1,5 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
+import { CoreSpendSource } from '../../types/CoinSelection'
 import { SendResult } from '../../types/SendResult'
 
 export class SendTransactionHandler {
@@ -15,8 +16,8 @@ export class SendTransactionHandler {
     toAddress: string,
     amountDuffs: bigint,
     password: string,
-    fromAddress?: string,
+    source?: CoreSpendSource,
   ): Promise<SendResult> => {
-    return this.walletService.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress)
+    return this.walletService.sendTransaction(walletId, toAddress, amountDuffs, password, source)
   }
 }

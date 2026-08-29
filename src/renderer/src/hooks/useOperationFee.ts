@@ -12,20 +12,26 @@ export function useOperationFee(
   operation: TransferOperation | null,
   params: OperationFeeParams,
 ): OperationFee & { loading: boolean; err: string | null } {
-  const { destinationValid, amountCredits, amountDuffs, recipient, sourceAddress, identityId, noteIndexes } = params
+  const { destinationValid, amountCredits, amountDuffs, recipient, coreSource, sourceAddress, identityId, noteIndexes } = params
 
   const noteKey = noteIndexes?.join(',') ?? ''
+  const coreSourceKey = coreSource == null
+    ? ''
+    : coreSource.kind === 'address'
+      ? coreSource.address
+      : coreSource.outpoints.map(outpoint => `${outpoint.txid}:${outpoint.vout}`).join(',')
 
   const pending = useMemo(
     () => {
       if (walletId === null || operation === null || !destinationValid) return null
-      const feeParams = { amountCredits, amountDuffs, recipient, sourceAddress, identityId, noteIndexes }
-      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${sourceAddress}:${identityId}:${noteKey}` }
+      const feeParams = { amountCredits, amountDuffs, recipient, coreSource, sourceAddress, identityId, noteIndexes }
+      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${coreSourceKey}:${sourceAddress}:${identityId}:${noteKey}` }
     },
-    // noteIndexes is keyed by noteKey: a fresh array of the same indexes is the
-    // same quote, and re-running on identity would re-ask on every render.
+    // noteIndexes and coreSource are keyed by their string forms: a fresh array
+    // or object holding the same pick is the same quote, and re-running on
+    // identity would re-ask on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipient, sourceAddress, identityId, noteKey],
+    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipient, coreSourceKey, sourceAddress, identityId, noteKey],
   )
 
   const [settled, setSettled] = useState<typeof pending>(null)

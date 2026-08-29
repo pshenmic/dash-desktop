@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
-import { Network, SendResult, TxLockStatus } from '@renderer/api/types'
+import { CoreSpendSource, Network, SendResult, TxLockStatus } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
@@ -22,7 +22,7 @@ interface SendConfirmModalProps {
   toAddress: string
   amountDuffs: bigint
   amountFiat?: string
-  fromAddress?: string
+  source?: CoreSpendSource
   onSuccess: () => void
 }
 
@@ -46,7 +46,7 @@ export default function SendConfirmModal({
   toAddress,
   amountDuffs,
   amountFiat,
-  fromAddress,
+  source,
   onSuccess,
 }: SendConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
@@ -111,7 +111,7 @@ export default function SendConfirmModal({
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
-      const res = await API.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress)
+      const res = await API.sendTransaction(walletId, toAddress, amountDuffs, password, source)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()

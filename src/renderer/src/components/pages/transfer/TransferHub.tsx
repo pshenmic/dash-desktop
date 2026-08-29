@@ -48,7 +48,7 @@ import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
 import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
-import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
+import { AssetLockFundingState, CoreSpendSource, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import type { SendDraft } from "@renderer/types/SendDraft";
 import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
@@ -192,6 +192,9 @@ function WalletTransferHub(): React.JSX.Element {
   )
   const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences.addresses[SourceKind.Core]) ?? coreAddresses[0]
   const coreSpecificAddress = operation === TransferOperation.CoreSend && useSpecificSource ? selectedCoreAddress : undefined
+  const coreSpendSource: CoreSpendSource | undefined = coreSpecificAddress
+    ? { kind: 'address', address: coreSpecificAddress.address }
+    : undefined
 
   const spendableNotes = useMemo(
     () => (shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes.filter(n => !n.spent) : [])
@@ -242,7 +245,8 @@ function WalletTransferHub(): React.JSX.Element {
     recipient: trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
-    sourceAddress: coreSpecificAddress?.address ?? selectedSource?.platformAddress ?? null,
+    coreSource: coreSpendSource ?? null,
+    sourceAddress: selectedSource?.platformAddress ?? null,
     identityId: selectedIdentity?.identifier ?? null,
     noteIndexes: shieldedSpecificNotes?.map(note => note.index) ?? null,
   })
@@ -793,7 +797,7 @@ function WalletTransferHub(): React.JSX.Element {
           toAddress={trimmedTo}
           amountDuffs={amountDuffs}
           amountFiat={amountFiat}
-          fromAddress={coreSpecificAddress?.address}
+          source={coreSpendSource}
           onSuccess={() => {
             resetForm()
             if (walletId) {

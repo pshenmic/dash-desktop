@@ -177,18 +177,22 @@ export class FeeService {
     const feeForInputs = (inputsCount: number): bigint =>
       coreFeeDuffsFor(this.preferences.general.coreFeeMultiplier, inputsCount, 1, true, payloadBytes)
 
+    const source = params.coreSource ?? undefined
     const grouped = await this.addressDAO.getAddressesByWalletId(wallet.walletId)
     const utxos = await this.providers.forWallet(wallet.walletId, wallet.network).getWalletUtxos()
-    const selectable = selectableTransferUtxos(grouped, utxos, params.sourceAddress ?? undefined)
+    const selectable = selectableTransferUtxos(grouped, utxos, source)
 
-    const maxDuffs = maxSelectableAmount(selectable, feeForInputs)
+    const maxDuffs = maxSelectableAmount(selectable, feeForInputs, source)
     const amountDuffs = params.amountDuffs ?? 0n
 
     // A quote is asked for before the amount is affordable, so one the selection
-    // would refuse answers with the one-input floor rather than failing.
+    // would refuse answers with a floor rather than failing. A picked set has no
+    // floor to guess at: its count is the count the send will charge for.
+    const floorInputs = source?.kind === 'outpoints' ? Math.max(selectable.length, 1) : 1
+
     const feeDuffs = amountDuffs > 0n && amountDuffs <= maxDuffs
-      ? selectCoins(selectable, amountDuffs, feeForInputs).fee
-      : feeForInputs(1)
+      ? selectCoins(selectable, amountDuffs, feeForInputs, source).fee
+      : feeForInputs(floorInputs)
 
     return {feeDuffs, maxDuffs}
   }

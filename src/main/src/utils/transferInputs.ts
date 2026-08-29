@@ -1,8 +1,15 @@
 import {GroupedAddresses} from '../types/GroupedAddresses'
-import {CoreFeeForInputs, SelectableUtxo} from '../types/CoinSelection'
+import {CoreFeeForInputs, CoreSpendSource, SelectableUtxo} from '../types/CoinSelection'
 import {TransferInput, TransferInputSelection} from '../types/CoreTransaction'
 import {UTXO} from '../types/UTXO'
 import {selectCoins} from './coinSelection'
+
+const outpointKey = (txid: string, vout: number): string => `${txid}:${vout}`
+
+const pickedOutpointKeys = (source?: CoreSpendSource): Set<string> | null =>
+  source?.kind === 'outpoints'
+    ? new Set(source.outpoints.map(outpoint => outpointKey(outpoint.txid, outpoint.vout)))
+    : null
 
 // Falls back to the last change address, then to a receiving one, so change
 // never leaves the wallet.
@@ -34,18 +41,21 @@ export function pickCreditChangeAddress(
 export function selectableTransferUtxos(
   grouped: GroupedAddresses,
   utxos: UTXO[],
-  fromAddress?: string,
+  source?: CoreSpendSource,
 ): SelectableUtxo[] {
   const owned = new Set([...grouped.receiving, ...grouped.change].map(a => a.address))
+  const picked = pickedOutpointKeys(source)
 
   return utxos
     .filter(utxo => owned.has(utxo.address))
-    .filter(utxo => fromAddress == null || utxo.address === fromAddress)
+    .filter(utxo => source?.kind !== 'address' || utxo.address === source.address)
+    .filter(utxo => picked == null || picked.has(outpointKey(utxo.txId, utxo.vOut)))
     .map(utxo => ({
       txid: utxo.txId,
       vout: utxo.vOut,
       satoshis: utxo.satoshis,
       address: utxo.address,
+      height: utxo.height,
     }))
 }
 
@@ -54,23 +64,30 @@ export function selectTransferInputs(
   utxos: UTXO[],
   amountDuffs: bigint,
   feeForInputs: CoreFeeForInputs,
-  fromAddress?: string,
+  source?: CoreSpendSource,
 ): TransferInputSelection {
   const pathByAddress = new Map(
     [...grouped.receiving, ...grouped.change].map(a => [a.address, a.derivationPath]),
   )
 
-  const selectable = selectableTransferUtxos(grouped, utxos, fromAddress)
+  const selectable = selectableTransferUtxos(grouped, utxos, source)
 
   if (selectable.length === 0) {
     throw new Error('No spendable funds in this wallet')
   }
 
-  const selection = selectCoins(selectable, amountDuffs, feeForInputs)
-  const utxoByKey = new Map(utxos.map(u => [`${u.txId}:${u.vOut}`, u]))
+  // A quote prices whatever survived, but a send that quietly spent fewer coins
+  // than were picked would break the one promise picking them makes.
+  const picked = pickedOutpointKeys(source)
+  if (picked != null && selectable.length !== picked.size) {
+    throw new Error('Selected UTXO no longer available')
+  }
+
+  const selection = selectCoins(selectable, amountDuffs, feeForInputs, source)
+  const utxoByKey = new Map(utxos.map(u => [outpointKey(u.txId, u.vOut), u]))
 
   const transferInputs: TransferInput[] = selection.inputs.map(input => {
-    const owned = utxoByKey.get(`${input.txid}:${input.vout}`)
+    const owned = utxoByKey.get(outpointKey(input.txid, input.vout))
     if (!owned) throw new Error('Selected UTXO no longer available')
 
     const derivationPath = pathByAddress.get(input.address)

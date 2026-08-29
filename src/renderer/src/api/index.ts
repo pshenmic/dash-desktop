@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreSpendSource, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SelectableUtxo, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -73,6 +73,10 @@ export class API {
 
   static async getTransactions(walletId: string): Promise<Transaction[]> {
     return this.api.getTransactions(walletId)
+  }
+
+  static async getUtxos(walletId: string): Promise<SelectableUtxo[]> {
+    return this.api.getUtxos(walletId)
   }
 
   static async getTransactionByHash(hash: string, network: Network): Promise<WalletTxDto> {
@@ -159,8 +163,8 @@ export class API {
     return this.api.deleteContact(id)
   }
 
-  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress) as Promise<SendResult>
+  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password, source) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {

@@ -47,6 +47,28 @@ export interface PlatformAddressDto {
 }
 
 // estimateFee — the one fee endpoint. What gets priced for each operation is
+export interface Outpoint {
+  txid: string
+  vout: number
+}
+
+// An address narrows the automatic coin selection; a picked outpoint list is
+// the input set itself, spent whole.
+export type CoreSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'outpoints'; outpoints: Outpoint[] }
+
+// getUtxos — every coin a send can draw on, which is also everything an
+// outpoints source may pick from.
+export interface SelectableUtxo {
+  txid: string
+  vout: number
+  satoshis: bigint
+  address: string
+  // 0 while the output is still in the mempool.
+  height: number
+}
+
 // the backend's business; this carries only what the user chose.
 export interface FeeParams {
   amountCredits: bigint
@@ -55,6 +77,9 @@ export interface FeeParams {
   recipient: string | string[]
   // L1 quotes only: the fee scales with the inputs the amount takes.
   amountDuffs?: bigint | null
+  // L1 quotes only: narrows the funding to one Core address, or to coins the
+  // user picked. Kept apart from sourceAddress, which names a platform address.
+  coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them.
   sourceAddress?: string | null
   identityId?: string | null

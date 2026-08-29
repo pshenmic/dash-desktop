@@ -91,7 +91,7 @@ import {DeleteContactHandler} from './api/contacts/deleteContact'
 import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
-import {GetUtxosHandler} from './api/walletSync/getUtxos'
+import {GetUtxosHandler} from './api/wallet/getUtxos'
 import {DISCOVERY_INTERVAL_MS} from './constants/addresses'
 import {CoreDiscoveryService} from './services/core/CoreDiscoveryService'
 import {CorePrevOutService} from './services/core/CorePrevOutService'
@@ -184,7 +184,7 @@ export class WalletBackend {
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
-    ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletSyncService).handle)
+    ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletService).handle)
     ipcMain.handle('hasSyncProgress', new HasSyncProgressHandler(this.walletSyncService).handle)
     ipcMain.handle('broadcastTransaction', new BroadcastTransactionHandler(this.walletSyncService).handle)
     ipcMain.handle('getExchangeRates', new GetExchangeRatesHandler(this.ratesService).handle)

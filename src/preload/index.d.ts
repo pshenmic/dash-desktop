@@ -4,6 +4,22 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 // share types, so each spells the two networks out for itself.
 type Network = 'mainnet' | 'testnet'
 
+// Mirrors src/main/src/types/CoinSelection, which the bundles do not share: an
+// address narrows the automatic selection, a picked outpoint list is spent whole.
+type CoreSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
+
+// Every coin a send can draw on: what getUtxos lists and what an outpoints
+// source picks from.
+interface SelectableUtxoDTO {
+  txid: string
+  vout: number
+  satoshis: bigint
+  address: string
+  height: number
+}
+
 // Hand-maintained alongside definitions.ts, and deliberately a second
 // declaration of src/main/src/types/Transaction: the three bundles do not share
 // types. Amounts stay bigint — structured clone carries them as themselves.
@@ -74,7 +90,7 @@ declare global {
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<void>
       setWalletLabel: (walletId: string, label: string | null) => Promise<void>
-      sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
+      sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
       sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
@@ -100,7 +116,7 @@ declare global {
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>
       resetWalletSync: (network: Network) => Promise<void>
-      getUtxos: () => Promise<unknown>
+      getUtxos: (walletId: string) => Promise<SelectableUtxoDTO[]>
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
       saveTextFile: (defaultFileName: string, content: string) => Promise<boolean>

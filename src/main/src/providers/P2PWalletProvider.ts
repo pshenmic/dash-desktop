@@ -64,6 +64,7 @@ export class P2PWalletProvider implements WalletProvider {
       vOut: u.vout,
       satoshis: BigInt(u.satoshis),
       script: this.p2pkhScript(u.address),
+      height: u.height,
     }))
   }
 

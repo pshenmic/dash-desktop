@@ -32,8 +32,11 @@ const ASSET_LOCK_FEE = (inputsCount: number): bigint =>
   coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true, ASSET_LOCK_PAYLOAD_BYTES)
 
 function utxo(satoshis: bigint, index: number): UTXO {
-  return {address: CORE_ADDRESS, txId: `${index}`.padStart(64, '0'), vOut: 0, satoshis, script: new Script()}
+  return {address: CORE_ADDRESS, txId: `${index}`.padStart(64, '0'), vOut: 0, satoshis, script: new Script(), height: 1}
 }
+
+const outpoint = (index: number): {txid: string; vout: number} =>
+  ({txid: `${index}`.padStart(64, '0'), vout: 0})
 
 function candidate(platformAddress: string, balanceCredits: bigint, hashByte: number): PlatformSourceCandidate {
   const addressBytes = new Uint8Array(21)
@@ -208,6 +211,60 @@ describe('estimateFee', () => {
 
     expect(fee.feeDuffs).toBe(CORE_FEE(1))
     expect(fee.maxDuffs).toBe(20_000n - CORE_FEE(1))
+  })
+
+  // A picked set is spent whole, so the quote cannot price the prefix the
+  // automatic selection would have stopped at.
+  it('prices a Core send for every coin the user picked', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2), utxo(20_000n, 3)]
+    const {service: svc} = service([], utxos)
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 1_000n,
+      coreSource: {kind: 'outpoints', outpoints: [outpoint(1), outpoint(2)]},
+    }))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE(2))
+    expect(fee.maxDuffs).toBe(40_000n - CORE_FEE(2))
+  })
+
+  // The same amount over the same wallet, priced for one input, is what the
+  // automatic selection answers — the pick is what makes the difference.
+  it('prices a picked set apart from what the automatic selection would take', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2), utxo(20_000n, 3)]
+    const {service: svc} = service([], utxos)
+
+    const auto = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 1_000n}))
+
+    expect(auto.feeDuffs).toBe(CORE_FEE(1))
+    expect(auto.maxDuffs).toBe(60_000n - CORE_FEE(3))
+  })
+
+  // The pick decides the input count, so an amount nothing can fund is still
+  // priced for the coins that would go in rather than a one-input floor.
+  it('holds the picked count for an amount the pick cannot cover', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2)]
+    const {service: svc} = service([], utxos)
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 900_000n,
+      coreSource: {kind: 'outpoints', outpoints: [outpoint(1), outpoint(2)]},
+    }))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE(2))
+  })
+
+  // sourceAddress names a platform address on these operations, and reading it
+  // as an L1 filter matched no coin at all, so Max offered nothing.
+  it('funds an asset lock from the whole wallet while a platform source is named', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const fee = await svc.estimateFee(WALLET, 'identityRegister', params({
+      amountDuffs: 1_000n,
+      sourceAddress: 'tdash1qsourceplatformaddress',
+    }))
+
+    expect(fee.maxDuffs).toBe(ONE_DASH - ASSET_LOCK_FEE(1))
   })
 
   // An L1 -> L2 transfer is two transactions, and quoting only the lock left the

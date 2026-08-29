@@ -29,7 +29,8 @@ import {
 import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";
-import {selectTransferInputs} from '../../utils/transferInputs'
+import {CoreSpendSource, SelectableUtxo} from '../../types/CoinSelection'
+import {selectableTransferUtxos, selectTransferInputs} from '../../utils/transferInputs'
 import {Preferences} from '../../preferences'
 import {ConnectionStatus} from '../../types/ConnectionStatus'
 
@@ -260,6 +261,15 @@ export class WalletService {
     return provider.getWalletTransactions()
   }
 
+  async getUtxos(walletId: string): Promise<SelectableUtxo[]> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+
+    const provider = this.providers.forWallet(wallet.walletId, wallet.network)
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+
+    return selectableTransferUtxos(grouped, await provider.getWalletUtxos())
+  }
+
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
     if (network !== 'mainnet' && network !== 'testnet') {
       throw new Error('Invalid network ("mainnet", "testnet")')
@@ -308,7 +318,7 @@ export class WalletService {
     toAddress: string,
     amountDuffs: bigint,
     password: string,
-    fromAddress?: string,
+    source?: CoreSpendSource,
   ): Promise<SendResult> {
     if (amountDuffs <= 0n) {
       throw new Error('Send amount must be greater than zero')
@@ -327,7 +337,7 @@ export class WalletService {
           await provider.getWalletUtxos(),
           amountDuffs,
           inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true),
-          fromAddress,
+          source,
         )
 
       const tx = await this.coreTransactionService.buildSignedTransfer({

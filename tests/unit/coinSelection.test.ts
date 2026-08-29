@@ -1,14 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import {maxSelectableAmount, selectCoins} from '../../src/main/src/utils/coinSelection'
-import {SelectableUtxo} from '../../src/main/src/types/CoinSelection'
+import {CoreSpendSource, SelectableUtxo} from '../../src/main/src/types/CoinSelection'
 import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
 
 const FEE = (inputsCount: number): bigint => coreFeeDuffsFor(1, inputsCount, 1, true)
 const ONE_DASH = 100_000_000n
 
 function utxo(satoshis: bigint, n = 0): SelectableUtxo {
-  return { txid: `tx${n}`, vout: n, satoshis, address: `addr${n}` }
+  return { txid: `tx${n}`, vout: n, satoshis, address: `addr${n}`, height: 1 }
 }
+
+const picked = (utxos: SelectableUtxo[]): CoreSpendSource =>
+  ({kind: 'outpoints', outpoints: utxos.map(u => ({txid: u.txid, vout: u.vout}))})
 
 describe('selectCoins', () => {
   it('selects a single sufficient utxo and returns change', () => {
@@ -111,5 +114,57 @@ describe('maxSelectableAmount', () => {
 
     expect(res.change).toBe(0n)
     expect(res.inputTotal).toBe(max + res.fee)
+  })
+})
+
+describe('spending a picked set of coins', () => {
+  // The greedy walk would have stopped at the first coin that covered the
+  // amount; a pick that dropped coins would not be a pick.
+  it('spends every coin picked, at the price that count carries', () => {
+    const utxos = Array.from({length: 4}, (_, index) => utxo(ONE_DASH, index))
+    const res = selectCoins(utxos, ONE_DASH / 2n, FEE, picked(utxos))
+
+    expect(res.inputs).toHaveLength(4)
+    expect(res.inputTotal).toBe(4n * ONE_DASH)
+    expect(res.fee).toBe(FEE(4))
+    expect(res.change).toBe(4n * ONE_DASH - ONE_DASH / 2n - FEE(4))
+  })
+
+  it('refuses a pick that cannot cover the amount and its fee', () => {
+    const utxos = [utxo(10_000n, 0), utxo(20_000n, 1)]
+
+    expect(() => selectCoins(utxos, 50_000n, FEE, picked(utxos))).toThrow('Insufficient funds')
+  })
+
+  it('refuses a pick with nothing left in it', () => {
+    expect(() => selectCoins([], ONE_DASH, FEE, {kind: 'outpoints', outpoints: []}))
+      .toThrow('Insufficient funds')
+  })
+
+  // Consolidating dust is the reason to pick coins by hand, so the coins the
+  // prefix walk skips as not worth their bytes still have to be spendable.
+  it('prices the whole pick, including coins the automatic walk would skip', () => {
+    const utxos = [utxo(ONE_DASH, 0), ...Array.from({length: 20}, (_, index) => utxo(10n, index + 1))]
+    const max = maxSelectableAmount(utxos, FEE, picked(utxos))
+
+    expect(max).toBe(ONE_DASH + 200n - FEE(21))
+    expect(max).toBeLessThan(maxSelectableAmount(utxos, FEE))
+  })
+
+  it('answers zero for a pick worth less than its own fee', () => {
+    const utxos = [utxo(100n, 0)]
+
+    expect(maxSelectableAmount([], FEE, {kind: 'outpoints', outpoints: []})).toBe(0n)
+    expect(maxSelectableAmount(utxos, FEE, picked(utxos))).toBe(0n)
+  })
+
+  it('offers an amount the pick funds with nothing left over', () => {
+    const utxos = Array.from({length: 6}, (_, index) => utxo(20_000n, index))
+    const max = maxSelectableAmount(utxos, FEE, picked(utxos))
+
+    const res = selectCoins(utxos, max, FEE, picked(utxos))
+
+    expect(res.change).toBe(0n)
+    expect(res.inputs).toHaveLength(6)
   })
 })
