@@ -191,7 +191,7 @@ function WalletTransferHub(): React.JSX.Element {
     [receiving, change],
   )
   const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences.addresses[SourceKind.Core]) ?? coreAddresses[0]
-  const coreSpecificAddress = operation === TransferOperation.CoreSend && useSpecificSource ? selectedCoreAddress : undefined
+  const coreSpecificAddress = specificSourceKind === SourceKind.Core && useSpecificSource ? selectedCoreAddress : undefined
   const coreSpendSource: CoreSpendSource | undefined = coreSpecificAddress
     ? { kind: 'address', address: coreSpecificAddress.address }
     : undefined
@@ -397,7 +397,7 @@ function WalletTransferHub(): React.JSX.Element {
               updateSpecificSourceEnabled(current, enabled))}
             label={<Text size={12} weight={"medium"} color={"brand"}>Send from a specific address</Text>}
           />
-          {useSpecificSource && operation === TransferOperation.CoreSend && (
+          {useSpecificSource && specificSourceKind === SourceKind.Core && (
             <CoreAddressSelect
               addresses={coreAddresses}
               selected={selectedCoreAddress}
@@ -848,6 +848,7 @@ function WalletTransferHub(): React.JSX.Element {
           amountDuffs={amountDuffs.toString()}
           resume={false}
           kind={operation === TransferOperation.AssetLockShield ? AssetLockFundingKind.Shielded : operation === TransferOperation.IdentityRegister ? AssetLockFundingKind.Identity : operation === TransferOperation.IdentityTopUpL1 ? AssetLockFundingKind.IdentityTopUp : AssetLockFundingKind.Address}
+          source={coreSpendSource}
           onSuccess={() => {
             resetForm()
             if (walletId) {

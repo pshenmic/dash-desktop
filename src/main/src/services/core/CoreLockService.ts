@@ -7,6 +7,7 @@ import {Transaction} from '../../types/Transaction'
 import {TxLockStatus} from '../../types/TxLockStatus'
 import {pickCreditChangeAddress, selectTransferInputs} from '../../utils/transferInputs'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
+import {CoreSpendSource} from '../../types/CoinSelection'
 import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
 import {requireWallet} from '../../utils/requireWallet'
@@ -42,6 +43,7 @@ export class CoreLockService implements AssetLockFunder {
     amountDuffs: bigint,
     seed: Uint8Array,
     credit?: {address: string; derivationPath: string},
+    source?: CoreSpendSource,
   ): Promise<BuiltAssetLock> {
     if (amountDuffs <= 0n) {
       throw new Error('Amount must be greater than zero')
@@ -59,6 +61,7 @@ export class CoreLockService implements AssetLockFunder {
         await provider.getWalletUtxos(),
         amountDuffs,
         inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true, ASSET_LOCK_PAYLOAD_BYTES),
+        source,
       )
 
     const creditTarget = credit ?? pickCreditChangeAddress(grouped, changeAddress)

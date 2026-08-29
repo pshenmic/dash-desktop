@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
-import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
+import { AssetLockFundingKind, AssetLockFundingState, CoreSpendSource } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
 import { LockKind } from '@renderer/enums/LockKind'
 import Spinner from '@renderer/components/ui/Spinner'
@@ -23,6 +23,7 @@ interface AssetLockFundingModalProps {
   amountDuffs: string
   resume: boolean
   kind: AssetLockFundingKind
+  source?: CoreSpendSource
   onSuccess: () => void
 }
 
@@ -115,6 +116,7 @@ export default function AssetLockFundingModal({
   amountDuffs,
   resume,
   kind,
+  source,
   onSuccess,
 }: AssetLockFundingModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
@@ -204,7 +206,7 @@ export default function AssetLockFundingModal({
       }
       const initial = resume
         ? await API.resumeAssetLockFunding(walletId, password)
-        : await API.startAssetLockFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind)
+        : await API.startAssetLockFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind, source)
       setState(initial)
       setStarted(true)
       setBusy(false)

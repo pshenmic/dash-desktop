@@ -40,7 +40,14 @@ describe('specific source preferences', () => {
     [TransferOperation.Unshield, SourceKind.Shielded],
     [TransferOperation.ShieldedWithdrawal, SourceKind.Shielded],
     [TransferOperation.IdentityCreateFromShielded, null],
-    [TransferOperation.AssetLockFunding, null],
+    // Funded by L1 coins like a plain send, so the same picker applies.
+    [TransferOperation.AssetLockFunding, SourceKind.Core],
+    [TransferOperation.AssetLockShield, SourceKind.Core],
+    [TransferOperation.IdentityRegister, SourceKind.Core],
+    [TransferOperation.IdentityTopUpL1, SourceKind.Core],
+    // Funded by platform credits, so there is no L1 coin to pick.
+    [TransferOperation.IdentityCreate, null],
+    [TransferOperation.AddressWithdrawal, null],
   ])('maps %s to its applicable preference', (operation, expected) => {
     expect(specificSourceKindForOperation(operation)).toBe(expected)
   })

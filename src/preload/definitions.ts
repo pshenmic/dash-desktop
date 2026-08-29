@@ -42,7 +42,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   transferIdentityCredits: (walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('transferIdentityCredits', walletId, fromIdentityId, toIdentityId, amountCredits, password),
   withdrawIdentityCredits: (walletId: string, identityId: string, toCoreAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('withdrawIdentityCredits', walletId, identityId, toCoreAddress, amountCredits, password),
   createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('createIdentityFromAddresses', walletId, fromAddress, amountCredits, password),
-  startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => ipcRenderer.invoke('startAssetLockFunding', walletId, toPlatformAddress, amountDuffs, password, kind),
+  startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string, source?: CoreSpendSource) => ipcRenderer.invoke('startAssetLockFunding', walletId, toPlatformAddress, amountDuffs, password, kind, source),
   getAssetLockFundingState: (walletId: string) => ipcRenderer.invoke('getAssetLockFundingState', walletId),
   resumeAssetLockFunding: (walletId: string, password: string) => ipcRenderer.invoke('resumeAssetLockFunding', walletId, password),
   dismissAssetLockFunding: (walletId: string) => ipcRenderer.invoke('dismissAssetLockFunding', walletId),

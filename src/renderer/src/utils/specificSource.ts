@@ -16,7 +16,17 @@ export function initialSpecificSourcePreferences(): SpecificSourcePreferences {
 }
 
 export function specificSourceKindForOperation(operation: TransferOperation | null): SpecificSourceKind | null {
-  if (operation === TransferOperation.CoreSend) return SourceKind.Core
+  // Every operation funded by L1 coins, not just the plain send: an asset lock
+  // binds the coins it spends to its L2 destination for good.
+  if (
+    operation === TransferOperation.CoreSend
+    || operation === TransferOperation.AssetLockFunding
+    || operation === TransferOperation.AssetLockShield
+    || operation === TransferOperation.IdentityRegister
+    || operation === TransferOperation.IdentityTopUpL1
+  ) {
+    return SourceKind.Core
+  }
   if (
     operation === TransferOperation.ShieldedTransfer
     || operation === TransferOperation.Unshield

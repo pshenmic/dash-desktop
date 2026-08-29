@@ -6,6 +6,15 @@ const bySatoshisDesc = (a: SelectableUtxo, b: SelectableUtxo): number =>
 const totalOf = (utxos: SelectableUtxo[]): bigint =>
   utxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
 
+// A pick names L1 coins, so it says nothing about an operation funded by
+// platform credits, an identity balance or the pool. Refused rather than
+// ignored: silently dropping it is what lets a quote and its send disagree.
+export function requireAutomaticSelection(source?: CoreSpendSource | null): void {
+  if (source != null) {
+    throw new Error('Coin control applies to L1-funded operations only')
+  }
+}
+
 export function selectCoins(
   utxos: SelectableUtxo[],
   target: bigint,

@@ -1,4 +1,5 @@
 import { OrchardAddressWASM } from 'pshenmic-dpp'
+import { CoreSpendSource } from '../../types/CoinSelection'
 import { Network } from '../../types/Network'
 import { WalletDAO } from '../../database/WalletDAO'
 import { IdentityDAO } from '../../database/IdentityDAO'
@@ -550,7 +551,7 @@ export class ShieldedService {
 
   // Locks L1 coins and shields the credits straight into the pool, so they
   // never sit on a transparent platform address.
-  async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+  async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<AssetLockFundingState> {
     const destination = recipient.trim()
     if (destination.length === 0) {
       throw new Error('Shielded recipient address is required')
@@ -570,7 +571,7 @@ export class ShieldedService {
       const state = await this.assetLock.begin(walletId, 'shielded', destination, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'shielded', destination, amountDuffs: lockDuffs, seed,
+          walletId, kind: 'shielded', destination, amountDuffs: lockDuffs, seed, source,
         })
         await this.settleShield(wallet, seed, state, acquired)
       })

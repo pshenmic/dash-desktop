@@ -5,6 +5,7 @@ import {PlatformWorkerService} from './PlatformWorkerService'
 import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {AssetLockFundingState} from '../../types/AssetLockFunding'
+import {CoreSpendSource} from '../../types/CoinSelection'
 import {Network} from '../../types/Network'
 import {Wallet} from '../../types/Wallet'
 import {Identity} from '../../types/Identity'
@@ -382,7 +383,7 @@ export class PlatformTransferService {
   // Locks L1 coins and credits them to one of this wallet's platform addresses.
   // amountDuffs is what arrives, so the lock also carries the funding
   // transition's fee.
-  async startFundingFromL1(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+  async startFundingFromL1(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<AssetLockFundingState> {
     const unlocked = await this.unlock(walletId, password)
     const {wallet, seed} = unlocked
 
@@ -396,7 +397,7 @@ export class PlatformTransferService {
       const state = await this.assetLock.begin(walletId, 'address', toPlatformAddress, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs: lockDuffs, seed,
+          walletId, kind: 'address', destination: toPlatformAddress, amountDuffs: lockDuffs, seed, source,
         })
         await this.settleFunding(seed, wallet.network, state, acquired)
       })

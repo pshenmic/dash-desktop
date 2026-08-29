@@ -100,7 +100,7 @@ declare global {
       transferIdentityCredits: (walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawIdentityCredits: (walletId: string, identityId: string, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
-      startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => Promise<unknown>
+      startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string, source?: CoreSpendSource) => Promise<unknown>
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
       dismissAssetLockFunding: (walletId: string) => Promise<unknown>

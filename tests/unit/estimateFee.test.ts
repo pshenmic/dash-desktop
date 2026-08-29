@@ -267,6 +267,35 @@ describe('estimateFee', () => {
     expect(fee.maxDuffs).toBe(ONE_DASH - ASSET_LOCK_FEE(1))
   })
 
+  // An asset lock is funded by L1 coins like any other send, and the link it
+  // writes between them and its L2 destination is the reason to choose them.
+  it('prices an asset lock for the coins the user picked', async () => {
+    for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as FeeOperation[]) {
+      const utxos = [utxo(20_000_000n, 1), utxo(20_000_000n, 2), utxo(20_000_000n, 3)]
+      const {service: svc} = service([], utxos)
+
+      const fee = await svc.estimateFee(WALLET, operation, params({
+        amountDuffs: 1_000n,
+        coreSource: {kind: 'outpoints', outpoints: [outpoint(1), outpoint(2)]},
+      }))
+
+      expect(fee.feeDuffs).toBe(ASSET_LOCK_FEE(2))
+      expect(fee.maxDuffs).toBe(40_000_000n - ASSET_LOCK_FEE(2))
+    }
+  })
+
+  // A pick names L1 coins, so an operation funded by platform credits, an
+  // identity balance or the pool has nothing to apply it to.
+  it('refuses to price an L2-funded operation from a picked set', async () => {
+    for (const operation of ['identityCreate', 'identityWithdrawal', 'shield', 'shieldedTransfer'] as FeeOperation[]) {
+      const {service: svc} = service([candidate('tdash1qsource', 10_000_000n, 1)], [utxo(ONE_DASH, 1)])
+
+      await expect(svc.estimateFee(WALLET, operation, params({
+        coreSource: {kind: 'outpoints', outpoints: [outpoint(1)]},
+      }))).rejects.toThrow('L1-funded operations only')
+    }
+  })
+
   // An L1 -> L2 transfer is two transactions, and quoting only the lock left the
   // transition its proof funds unpriced.
   it('prices both halves of a transfer that locks on L1 and settles on L2', async () => {

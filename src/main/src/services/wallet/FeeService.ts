@@ -16,7 +16,7 @@ import {
 } from '../../../platform/types/messages'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
 import {requireWallet} from '../../utils/requireWallet'
-import {maxSelectableAmount, selectCoins} from '../../utils/coinSelection'
+import {maxSelectableAmount, requireAutomaticSelection, selectCoins} from '../../utils/coinSelection'
 import {selectPlatformInputsWithFee} from '../../utils/platformTransfer'
 import {coreFeeDuffsFor, coreFeePerByte} from '../../utils/coreFeeRate'
 import {selectableTransferUtxos} from '../../utils/transferInputs'
@@ -91,6 +91,7 @@ export class FeeService {
       case 'unshield':
       case 'shieldedWithdrawal':
       case 'identityCreateFromShielded':
+        requireAutomaticSelection(params.coreSource)
         return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.noteIndexes ?? null)
 
       // Funded by platform addresses: the fee scales with the inputs, so the
@@ -98,6 +99,7 @@ export class FeeService {
       case 'addressWithdrawal':
       case 'identityCreate':
       case 'identityTopUp':
+        requireAutomaticSelection(params.coreSource)
         return this.credits(await this.selectionFee(wallet, operation, params))
 
       // Spends an identity's balance, so there is no price until one is picked.
@@ -105,6 +107,7 @@ export class FeeService {
       case 'identityToAddress':
       case 'identityToIdentity':
       case 'identityWithdrawal':
+        requireAutomaticSelection(params.coreSource)
         return this.credits(params.identityId == null || params.amountCredits <= 0n
           ? null
           : await this.protocolFee(wallet, operation, params, 1))
@@ -112,6 +115,7 @@ export class FeeService {
       // One input by construction: neither send ever splits its source.
       case 'addressFundsTransfer':
       case 'shield':
+        requireAutomaticSelection(params.coreSource)
         return this.credits(await this.protocolFee(wallet, operation, params, 1))
     }
   }
