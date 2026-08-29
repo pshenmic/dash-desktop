@@ -1,6 +1,6 @@
 import {Input, Output, Script, Transaction} from 'dash-core-sdk'
 import {CORE_FEE_PER_BYTE} from '../constants/chain'
-import {getCompactVariableSize} from "dash-core-sdk/src/utils";
+import {getCompactVariableSize} from "dash-core-sdk/src/utils.js";
 
 // Consensus rejects a withdrawal whose coreFeePerByte is not a non-zero
 // Fibonacci number, so a multiplied rate has to be snapped onto the sequence.
