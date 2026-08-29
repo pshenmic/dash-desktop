@@ -12,6 +12,7 @@ import {Script} from 'dash-core-sdk'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
 import {UTXO} from '../../src/main/src/types/UTXO'
+import {ASSET_LOCK_PAYLOAD_BYTES} from '../../src/main/src/constants/chain'
 import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
 import {
   DEFAULT_CORE_FEE_MULTIPLIER,
@@ -27,6 +28,8 @@ const ONE_DASH = 100_000_000n
 
 const CORE_FEE = (inputsCount: number): bigint =>
   coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true)
+const ASSET_LOCK_FEE = (inputsCount: number): bigint =>
+  coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true, ASSET_LOCK_PAYLOAD_BYTES)
 
 function utxo(satoshis: bigint, index: number): UTXO {
   return {address: CORE_ADDRESS, txId: `${index}`.padStart(64, '0'), vOut: 0, satoshis, script: new Script()}
@@ -214,8 +217,8 @@ describe('estimateFee', () => {
       const {service: svc, request} = service([], [utxo(ONE_DASH, 1)])
       expect(await svc.estimateFee(WALLET, operation, params({amountDuffs: 1_000n}))).toEqual({
         feeCredits: BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER),
-        feeDuffs: CORE_FEE(1),
-        maxDuffs: ONE_DASH - CORE_FEE(1),
+        feeDuffs: ASSET_LOCK_FEE(1),
+        maxDuffs: ONE_DASH - ASSET_LOCK_FEE(1),
         maxPerTx: null,
         noteLimit: null,
       })

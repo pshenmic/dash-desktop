@@ -14,6 +14,7 @@ import {
   SelectionFeeOperation,
   TransitionFeeOperation,
 } from '../../../platform/types/messages'
+import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
 import {requireWallet} from '../../utils/requireWallet'
 import {maxSelectableAmount, selectCoins} from '../../utils/coinSelection'
 import {selectPlatformInputsWithFee} from '../../utils/platformTransfer'
@@ -69,7 +70,7 @@ export class FeeService {
       // Paid in Dash on L1, per byte, so the quote runs the selection the send
       // will run rather than a floor the send is free to exceed.
       case 'coreSend':
-        return {feeCredits: null, ...await this.coreQuote(wallet, params), maxPerTx: null, noteLimit: null}
+        return {feeCredits: null, ...await this.coreQuote(wallet, params, 0), maxPerTx: null, noteLimit: null}
 
       // Two transactions, so two fees. The L1 lock is paid in Dash on top of the
       // amount; the transition its proof funds is paid in credits out of what
@@ -80,7 +81,7 @@ export class FeeService {
       case 'identityTopUpL1':
         return {
           feeCredits: await this.protocolFee(wallet, operation, params, 1),
-          ...await this.coreQuote(wallet, params),
+          ...await this.coreQuote(wallet, params, ASSET_LOCK_PAYLOAD_BYTES),
           maxPerTx: null,
           noteLimit: null,
         }
@@ -172,9 +173,9 @@ export class FeeService {
   // selection over the same coins the send will. maxDuffs is what those coins
   // can fund at their own price, which is the only amount a Max can offer
   // without the send refusing it.
-  private async coreQuote(wallet: Wallet, params: FeeParams): Promise<{feeDuffs: bigint; maxDuffs: bigint}> {
+  private async coreQuote(wallet: Wallet, params: FeeParams, payloadBytes: number): Promise<{feeDuffs: bigint; maxDuffs: bigint}> {
     const feeForInputs = (inputsCount: number): bigint =>
-      coreFeeDuffsFor(this.preferences.general.coreFeeMultiplier, inputsCount, 1, true)
+      coreFeeDuffsFor(this.preferences.general.coreFeeMultiplier, inputsCount, 1, true, payloadBytes)
 
     const grouped = await this.addressDAO.getAddressesByWalletId(wallet.walletId)
     const utxos = await this.providers.forWallet(wallet.walletId, wallet.network).getWalletUtxos()

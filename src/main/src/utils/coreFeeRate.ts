@@ -17,7 +17,7 @@ export function coreFeePerByte(multiplier: number): number {
   return rate
 }
 
-export function coreFeeDuffsFor(multiplier: number, inputsCount: number, outputsCount: number, withChange: boolean): bigint {
+export function coreFeeDuffsFor(multiplier: number, inputsCount: number, outputsCount: number, withChange: boolean, payloadBytes = 0): bigint {
   const feePerByte = coreFeePerByte(multiplier)
 
   // dummy script which bigger than 99% of sigs
@@ -45,5 +45,5 @@ export function coreFeeDuffsFor(multiplier: number, inputsCount: number, outputs
     tx.generateChange('111111111111111111111111133izVn', BigInt(tx.bytes().length)*4n)
   }
 
-  return BigInt(tx.bytes().length * feePerByte)
+  return BigInt((tx.bytes().length + payloadBytes) * feePerByte)
 }

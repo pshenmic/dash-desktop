@@ -6,6 +6,7 @@ import {Network} from '../../types/Network'
 import {Transaction} from '../../types/Transaction'
 import {TxLockStatus} from '../../types/TxLockStatus'
 import {pickCreditChangeAddress, selectTransferInputs} from '../../utils/transferInputs'
+import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
 import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
 import {requireWallet} from '../../utils/requireWallet'
@@ -57,7 +58,7 @@ export class CoreLockService implements AssetLockFunder {
         grouped,
         await provider.getWalletUtxos(),
         amountDuffs,
-        inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true),
+        inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true, ASSET_LOCK_PAYLOAD_BYTES),
       )
 
     const creditTarget = credit ?? pickCreditChangeAddress(grouped, changeAddress)
