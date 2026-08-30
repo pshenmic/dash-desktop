@@ -92,7 +92,7 @@ export class FeeService {
       case 'shieldedWithdrawal':
       case 'identityCreateFromShielded':
         requireAutomaticSelection(params.coreSource)
-        return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.noteIndexes ?? null)
+        return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.shieldedSource ?? null)
 
       // Funded by platform addresses: the fee scales with the inputs, so the
       // selection has to run before the price is known.

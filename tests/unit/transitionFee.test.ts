@@ -87,7 +87,7 @@ function params(overrides: Partial<FeeQuoteParams> = {}): FeeQuoteParams {
     recipient: IDENTITY,
     sourceAddress: null,
     identityId: IDENTITY,
-    noteIndexes: null,
+    shieldedSource: null,
     inputCount: 1,
     coreFeePerByte: 1,
     ...overrides,

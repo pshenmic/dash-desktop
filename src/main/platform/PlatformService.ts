@@ -19,6 +19,7 @@ import {identityInfos} from './operations/identity/infos'
 import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
+import {checkNullifiers} from './operations/shielded/reads/checkNullifiers'
 import {encryptedNotes} from './operations/shielded/reads/encryptedNotes'
 import {notesCount} from './operations/shielded/reads/notesCount'
 import {poolInfo} from './operations/shielded/reads/poolInfo'
@@ -217,6 +218,7 @@ export class PlatformService {
       case 'poolInfo': return poolInfo(ctx)
       case 'notesCount': return notesCount(ctx)
       case 'encryptedNotes': return encryptedNotes(request.payload, ctx)
+      case 'checkNullifiers': return checkNullifiers(request.payload, ctx)
     }
   }
 

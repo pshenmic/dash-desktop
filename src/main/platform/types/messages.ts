@@ -1,6 +1,7 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {Network} from '../../src/types/Network'
+import {ShieldedSpendSource} from '../../src/types/ShieldedNoteSelection'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
 // shapes live with their operations. Every terminal event echoes back the
@@ -49,6 +50,9 @@ export interface NoteSnapshot {
   amount: bigint
   spent: boolean
   address: string
+  // Derived from the seed, so only a sync can produce it. Persisted so that a
+  // locked wallet can still ask the chain whether the note is still spendable.
+  nullifier: Uint8Array
 }
 
 export interface ShieldSource {
@@ -142,8 +146,9 @@ export interface FeeParams {
   // out which fields it does not use says nothing about the fee.
   sourceAddress?: string | null
   identityId?: string | null
-  // Pool spends only: restricts the spend to one shielded address's notes.
-  noteIndexes?: number[] | null
+  // Pool spends only: narrows the spend to one shielded address's notes, or
+  // names the notes themselves.
+  shieldedSource?: ShieldedSpendSource | null
 }
 
 // The same params, plus the two numbers only main can supply: how many inputs
@@ -196,8 +201,7 @@ export interface PlatformOperations {
       recipient: string
       amountCredits: bigint
       notes: EncryptedNotePayload[]
-      // Restricts selection to specific pool indexes when the user picked notes.
-      noteIndexes: number[] | null
+      source: ShieldedSpendSource | null
       // identityCreate only.
       identityIndex: number | null
       failureAddress: string | null
@@ -319,6 +323,12 @@ export interface PlatformOperations {
   encryptedNotes: {
     payload: {startIndex: number; count: number}
     result: {notes: EncryptedNotePayload[]}
+  }
+  // Which of these notes have since been spent. Takes no seed: the nullifiers
+  // were derived at sync time, and checking one needs no key.
+  checkNullifiers: {
+    payload: {nullifiers: Uint8Array[]}
+    result: {spent: Uint8Array[]}
   }
 }
 

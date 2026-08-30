@@ -74,6 +74,7 @@ import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
 import {GetShieldedNotesInfoHandler} from './api/shielded/getShieldedNotesInfo'
 import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
 import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
+import {RefreshShieldedSpentNotesHandler} from './api/shielded/refreshShieldedSpentNotes'
 import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
 import {StartShieldedUnshieldHandler} from './api/shielded/startShieldedUnshield'
 import {StartShieldedWithdrawalHandler} from './api/shielded/startShieldedWithdrawal'
@@ -196,6 +197,7 @@ export class WalletBackend {
     ipcMain.handle('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
+    ipcMain.handle('refreshShieldedSpentNotes', new RefreshShieldedSpentNotesHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)

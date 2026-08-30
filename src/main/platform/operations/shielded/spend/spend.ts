@@ -1,5 +1,5 @@
-import {IdentityCreateFromShieldedPoolTransitionWASM} from 'pshenmic-dpp'
-import {maxSpendableCredits, selectSpendNotes} from '../../../../src/utils/shieldedNoteSelection'
+import {IdentityCreateFromShieldedPoolTransitionWASM, RecoveredNoteWASM} from 'pshenmic-dpp'
+import {maxSpendableCredits, selectableNotes, selectSpendNotes} from '../../../../src/utils/shieldedNoteSelection'
 import {PlatformOperations} from '../../../types/messages'
 import {OperationContext, OperationError, throwIfAborted} from '../../types'
 import {consensusMessage} from '../../consensusMessage'
@@ -20,25 +20,27 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
 
   if (amount <= 0n) throw new OperationError('Amount must be greater than zero', 'internal')
 
+  // recoverNotes keys by array position; every index leaving this operation is
+  // a pool index, which is what the note tables and the user's pick key on.
+  const poolIndex = (note: RecoveredNoteWASM): number => all[note.index]?.index ?? note.index
+
   const recovered = sdk.shielded.recoverNotes(all, seed, SHIELDED_ACCOUNT)
   throwIfAborted(signal)
 
   // Before proving, not after: a proof costs seconds and the nullifier query
   // one round trip.
   const checked = await checkSpent(sdk, recovered)
-  const stale = checked.filter(({spent}) => spent).map(({recoveredNote}) => recoveredNote.index)
+  const stale = checked.filter(({spent}) => spent).map(({recoveredNote}) => poolIndex(recoveredNote))
   if (stale.length > 0) ctx.notesSpent(stale)
 
-  const unspent = checked.filter(({spent}) => !spent).map(({recoveredNote}) => recoveredNote)
-  const available = payload.noteIndexes != null
-    ? unspent.filter(note => payload.noteIndexes!.includes(note.index))
-    : unspent
-
   const fee = (numSpends: number): bigint => minimumFee(kind, numSpends)
-  const selectable = available.map(note => ({index: note.index, value: note.note.value}))
-  const selection = selectSpendNotes(selectable, amount, MAX_SPEND_NOTES, fee)
+  const selectable = selectableNotes(
+    checked.map(({recoveredNote, spent}) => ({index: poolIndex(recoveredNote), value: recoveredNote.note.value, spent})),
+    payload.source,
+  )
+  const selection = selectSpendNotes(selectable, amount, MAX_SPEND_NOTES, fee, payload.source)
   if (selection == null) {
-    const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, fee)
+    const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, fee, payload.source)
     throw new OperationError(
       `Amount plus the network fee exceeds what ${MAX_SPEND_NOTES} notes can cover; the most spendable now is ${max} credits`,
       'insufficientFunds',
@@ -46,7 +48,9 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   }
 
   const selected = new Set(selection.selected.map(note => note.index))
-  const toSpend = available.filter(note => selected.has(note.index))
+  const toSpend = checked
+    .filter(({recoveredNote}) => selected.has(poolIndex(recoveredNote)))
+    .map(({recoveredNote}) => recoveredNote)
   const {spends, anchor} = sdk.shielded.buildSpendableNotes(all, toSpend)
   const changeAddress = sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
 
@@ -73,7 +77,7 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
     throw new OperationError(consensusMessage(e), 'network', stHash)
   }
 
-  ctx.notesSpent(toSpend.map(note => note.index))
+  ctx.notesSpent(toSpend.map(poolIndex))
 
   return {stHash, identityId, feeCredits: actualFee(stateTransition, kind, amount)}
 }

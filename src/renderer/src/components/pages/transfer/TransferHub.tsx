@@ -48,7 +48,7 @@ import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
 import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
-import { AssetLockFundingState, CoreSpendSource, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
+import { AssetLockFundingState, CoreSpendSource, PlatformAddressDto, ShieldedSpendSource, ShieldedSpendState } from "@renderer/api/types";
 import type { SendDraft } from "@renderer/types/SendDraft";
 import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
@@ -216,6 +216,12 @@ function WalletTransferHub(): React.JSX.Element {
       : undefined,
     [shieldedSpendOperation, useSpecificSource, selectedShieldedAddress, spendableNotes],
   )
+  const shieldedSpendSource = useMemo(
+    (): ShieldedSpendSource | undefined => shieldedSpecificNotes == null
+      ? undefined
+      : {kind: 'address', noteIndexes: shieldedSpecificNotes.map(note => note.index)},
+    [shieldedSpecificNotes],
+  )
 
   const balanceDuffs = coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
@@ -248,7 +254,7 @@ function WalletTransferHub(): React.JSX.Element {
     coreSource: coreSpendSource ?? null,
     sourceAddress: selectedSource?.platformAddress ?? null,
     identityId: selectedIdentity?.identifier ?? null,
-    noteIndexes: shieldedSpecificNotes?.map(note => note.index) ?? null,
+    shieldedSource: shieldedSpendSource ?? null,
   })
 
   // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
@@ -676,11 +682,10 @@ function WalletTransferHub(): React.JSX.Element {
     if (!walletId) {
       return Promise.resolve<ShieldedSpendState>({ phase: ShieldedSpendPhase.Error, fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
-    const noteIndexes = shieldedSpecificNotes?.map(note => note.index)
-    if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits, password, noteIndexes)
-    if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits, password, noteIndexes)
+    if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits, password, shieldedSpendSource)
+    if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits, password, shieldedSpendSource)
     if (operation === TransferOperation.IdentityCreateFromShielded) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
-    return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits, password, noteIndexes)
+    return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits, password, shieldedSpendSource)
   }
 
   const runPlatformOperation = (password: string) => {

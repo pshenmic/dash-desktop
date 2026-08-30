@@ -58,6 +58,12 @@ export type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: Outpoint[] }
 
+// An address narrows the automatic note selection; a picked note list is the
+// spend set itself, spent whole.
+export type ShieldedSpendSource =
+  | { kind: 'address'; noteIndexes: number[] }
+  | { kind: 'notes'; noteIndexes: number[] }
+
 // getUtxos — every coin a send can draw on, which is also everything an
 // outpoints source may pick from.
 export interface SelectableUtxo {
@@ -83,8 +89,8 @@ export interface FeeParams {
   // Optional because most operations read none of them.
   sourceAddress?: string | null
   identityId?: string | null
-  // Restricts a pool spend to one shielded address's notes.
-  noteIndexes?: number[] | null
+  // Narrows a pool spend to one shielded address's notes, or names the notes.
+  shieldedSource?: ShieldedSpendSource | null
 }
 
 // feeDuffs is what L1 charges on top of the amount, feeCredits what L2 takes

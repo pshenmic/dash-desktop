@@ -12,9 +12,9 @@ export function useOperationFee(
   operation: TransferOperation | null,
   params: OperationFeeParams,
 ): OperationFee & { loading: boolean; err: string | null } {
-  const { destinationValid, amountCredits, amountDuffs, recipient, coreSource, sourceAddress, identityId, noteIndexes } = params
+  const { destinationValid, amountCredits, amountDuffs, recipient, coreSource, sourceAddress, identityId, shieldedSource } = params
 
-  const noteKey = noteIndexes?.join(',') ?? ''
+  const noteKey = shieldedSource == null ? '' : `${shieldedSource.kind}:${shieldedSource.noteIndexes.join(',')}`
   const coreSourceKey = coreSource == null
     ? ''
     : coreSource.kind === 'address'
@@ -24,10 +24,10 @@ export function useOperationFee(
   const pending = useMemo(
     () => {
       if (walletId === null || operation === null || !destinationValid) return null
-      const feeParams = { amountCredits, amountDuffs, recipient, coreSource, sourceAddress, identityId, noteIndexes }
+      const feeParams = { amountCredits, amountDuffs, recipient, coreSource, sourceAddress, identityId, shieldedSource }
       return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${coreSourceKey}:${sourceAddress}:${identityId}:${noteKey}` }
     },
-    // noteIndexes and coreSource are keyed by their string forms: a fresh array
+    // shieldedSource and coreSource are keyed by their string forms: a fresh array
     // or object holding the same pick is the same quote, and re-running on
     // identity would re-ask on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps

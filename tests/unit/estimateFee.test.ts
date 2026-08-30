@@ -7,6 +7,7 @@ import {PlatformWorkerService} from '../../src/main/src/services/platform/Platfo
 import {Preferences} from '../../src/main/src/preferences'
 import {FeeOperation, FeeParams} from '../../src/main/platform/types/messages'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
+import {ShieldedSpendSource} from '../../src/main/src/types/ShieldedNoteSelection'
 import {FeeQuoteParams} from '../../src/main/platform/types/messages'
 import {Script} from 'dash-core-sdk'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
@@ -77,7 +78,7 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
 }
 
 function params(overrides: Partial<FeeParams> = {}): FeeParams {
-  return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', sourceAddress: null, identityId: IDENTITY, noteIndexes: null, ...overrides}
+  return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', sourceAddress: null, identityId: IDENTITY, shieldedSource: null, ...overrides}
 }
 
 function feeCalls(request: ReturnType<typeof vi.fn>): Array<{operation: string; params: FeeQuoteParams}> {
@@ -159,8 +160,9 @@ describe('estimateFee', () => {
     const operations: FeeOperation[] = ['shieldedTransfer', 'unshield', 'shieldedWithdrawal', 'identityCreateFromShielded']
     for (const operation of operations) {
       const {service: svc, estimateSpendFee} = service()
-      const fee = await svc.estimateFee(WALLET, operation, params({noteIndexes: [2, 5]}))
-      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, [2, 5])
+      const source: ShieldedSpendSource = {kind: 'address', noteIndexes: [2, 5]}
+      const fee = await svc.estimateFee(WALLET, operation, params({shieldedSource: source}))
+      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, source)
       expect(fee).toEqual({feeCredits: 7n, feeDuffs: null, maxDuffs: null, maxPerTx: 90n, noteLimit: 6})
     }
   })

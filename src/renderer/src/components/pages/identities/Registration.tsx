@@ -135,7 +135,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     amountDuffs: fromKind === SourceKind.Core ? amountDuffs : null,
     sourceAddress: selectedSource?.platformAddress ?? null,
     identityId: null,
-    noteIndexes: null,
+    shieldedSource: null,
   })
 
   // The Core fee is paid on top of the amount, and an L1 registration locks the

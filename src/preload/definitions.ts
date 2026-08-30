@@ -8,6 +8,12 @@ type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
 
+// Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
+// automatic note selection, a picked note list is spent whole.
+type ShieldedSpendSource =
+  | { kind: 'address'; noteIndexes: number[] }
+  | { kind: 'notes'; noteIndexes: number[] }
+
 export const apiDefinitions = (ipcRenderer) => ({
   createWallet: (seedphrase: string, network: Network, password: string) => ipcRenderer.invoke('createWallet', seedphrase, network, password),
   deleteWallet: (walletId: string) => ipcRenderer.invoke('deleteWallet', walletId),
@@ -79,9 +85,10 @@ export const apiDefinitions = (ipcRenderer) => ({
   getShieldedNotesInfo: (walletId: string) => ipcRenderer.invoke('getShieldedNotesInfo', walletId),
   startShieldedSync: (walletId: string, password: string) => ipcRenderer.invoke('startShieldedSync', walletId, password),
   getShieldedSyncState: (walletId: string) => ipcRenderer.invoke('getShieldedSyncState', walletId),
-  startShieldedTransfer: (walletId: string, recipient: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipient, amountCredits, password, noteIndexes),
-  startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedUnshield', walletId, outputAddress, amountCredits, password, noteIndexes),
-  startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedWithdrawal', walletId, coreAddress, amountCredits, password, noteIndexes),
+  refreshShieldedSpentNotes: (walletId: string) => ipcRenderer.invoke('refreshShieldedSpentNotes', walletId),
+  startShieldedTransfer: (walletId: string, recipient: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipient, amountCredits, password, source),
+  startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedUnshield', walletId, outputAddress, amountCredits, password, source),
+  startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedWithdrawal', walletId, coreAddress, amountCredits, password, source),
   startShieldedIdentityCreate: (walletId: string, denominationCredits: bigint, password: string) => ipcRenderer.invoke('startShieldedIdentityCreate', walletId, denominationCredits, password),
   getShieldedSpendState: (walletId: string) => ipcRenderer.invoke('getShieldedSpendState', walletId),
   getShieldedAddress: (walletId: string, password?: string) => ipcRenderer.invoke('getShieldedAddress', walletId, password),

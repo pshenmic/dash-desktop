@@ -79,6 +79,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'poolInfo':
     case 'notesCount':
     case 'encryptedNotes':
+    case 'checkNullifiers':
       return null
   }
 }
