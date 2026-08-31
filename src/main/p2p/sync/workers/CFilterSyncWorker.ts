@@ -28,7 +28,8 @@ import {CheckpointAnchors} from '../checkpointAnchors'
 import {HashIndex} from '../../store/hashIndex'
 import {PeerRotation} from '../../net/peerRotation'
 import {x11Wire} from '../../utils/x11'
-import {GENESIS, MB} from '../../constants'
+import {deriveFilterHeader, hashFilter} from '../../utils/filterHeader'
+import {GENESIS, MB, NO_PREV_FILTER_HEADER} from '../../constants'
 import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../../types/walletSync'
 import type {
   CFilterBatch,
@@ -41,6 +42,7 @@ import {
   CFHEADERS_RACE_PEERS,
   CFHEADERS_RACE_TIMEOUT_MS,
   CFILTER_BATCH,
+  CFILTER_BATCH_MAX_STALLS,
   CFILTER_BATCH_PEERS,
   CFILTER_BATCH_TIMEOUT_MS,
   FILTER_TYPE,
@@ -51,7 +53,7 @@ import {
 import {Worker} from './Worker'
 import {PersistedHeader} from '../../types/chainStore'
 
-const {doubleSHA256, bytesToHex} = sdkUtils
+const {bytesToHex} = sdkUtils
 
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
@@ -100,7 +102,6 @@ export class CFilterSyncWorker extends Worker {
   // fetches carry their height, cfilter batches register their hashes, cfheaders
   // match the few pending stop-hashes — dropping a ~250MB full-chain map.
   private readonly blockHashIndex: HashIndex
-  private cfilterInflightHeights = new Map<string, number>()
 
   // cf* requests race the filter-capable subset; blocks come from any ready
   // peer, but the sockets that go silent are the same ones, so blockRotation
@@ -144,11 +145,11 @@ export class CFilterSyncWorker extends Worker {
   // Bound peer-event listeners. Stable references kept for stop()'s off().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly peerListeners: Array<[string, (...args: any[]) => void]> = [
-    ['peerready', (p: Peer) => this.handlePeerReady(p)],
+    ['peerready', () => this.handlePeerReady()],
     ['peerdisconnect', (p: Peer) => this.handlePeerDisconnect(p)],
     ['peercfcheckpt', (p: Peer, m: Message) => this.checkpoints.receive(m as Message & CFCheckptArgs, p)],
     ['peercfheaders', (p: Peer, m: Message) => this.onCFHeaders(m as Message & CFHeadersArgs, p)],
-    ['peercfilter', (_p: Peer, m: Message) => this.onCFilter(m as Message & CFilterArgs)],
+    ['peercfilter', (p: Peer, m: Message) => this.onCFilter(m as Message & CFilterArgs, p)],
     ['peerblock', (p: Peer, m: Message & {block?: unknown}) => this.handlePeerBlock(p, m)],
   ]
 
@@ -198,7 +199,7 @@ export class CFilterSyncWorker extends Worker {
 
     // Streamed for the same reason as forEachHashInRange.
     const loadedFilterHeaders = await this.chainStore.forEachFilterHeaderInRange(
-      1, this.chainTipHeight,
+      0, this.chainTipHeight,
       (height, header) => this.heightToFilterHeader.set(height, header),
     )
     if (loadedFilterHeaders > 0) {
@@ -235,6 +236,10 @@ export class CFilterSyncWorker extends Worker {
       this.chainTipWire = displayHexToWire(last.hash)
     }
     if (this.phase !== 'synced' && this.phase !== 'cfilters') return
+    // Without this the filter-header chain stops at whatever the initial walk
+    // reached and every block after it is scanned against no header at all —
+    // then the next launch re-anchors below the gap and walks it again.
+    this.walkCFHeadersNext()
     if (this.cfilter.cursor <= this.effectiveScanTipHeight()) {
       if (this.phase === 'synced') this.emitStatus('cfilters')
       this.pumpCFilters()
@@ -270,6 +275,9 @@ export class CFilterSyncWorker extends Worker {
     this.awaitingReseed = false
     console.log(`[cfilter] reseeded ${utxos.length} utxo(s) after rewind — resuming at h=${this.cfilter.cursor}`)
     if (this.phase === 'synced') this.emitStatus('cfilters')
+    // The rewind cleared the pending chunks along with the batch timers, so the
+    // walk restarts here rather than waiting for the next tip extension.
+    this.walkCFHeadersNext()
     this.pumpCFilters()
   }
 
@@ -300,9 +308,7 @@ export class CFilterSyncWorker extends Worker {
     if (rewindToHeight != null) {
       const target = Math.max(this.birthdayHeight, rewindToHeight)
       console.log(`[cfilter] addWatchAddresses +${added} (total ${this.watchSet.size}); rewinding cursor to h=${target}`)
-      for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
-      this.cfilter.inflightBatches.clear()
-      this.cfilterInflightHeights.clear()
+      this.clearInflightBatches()
       this.matchedBlocks.clear()
       this.cfilter.cursor = target
       this.emit('cursorReset', {walletId: this.walletId, height: target})
@@ -329,7 +335,6 @@ export class CFilterSyncWorker extends Worker {
       cfilterScanHeight: Math.max(0, this.cfilter.cursor - 1),
       matchedBlocksPending: this.matchedBlocks.size + this.blockFetcher.size,
       peerCount: this.peerPool.readyPeers.size,
-      filterCapablePeerCount: this.peerPool.filterCapablePeers.size,
     } satisfies CFilterSyncWorkerStatus)
   }
 
@@ -340,11 +345,14 @@ export class CFilterSyncWorker extends Worker {
   private clearTimers(): void {
     this.checkpoints.reset()
     for (const p of this.cfHeaders.pending.values()) if (p.raceTimer) clearTimeout(p.raceTimer)
-    for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
+    this.clearInflightBatches()
     this.blockFetcher.reset()
     this.cfHeaders.pending.clear()
+  }
+
+  private clearInflightBatches(): void {
+    for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
     this.cfilter.inflightBatches.clear()
-    this.cfilterInflightHeights.clear()
   }
 
   private effectiveScanTipHeight(): number {
@@ -355,8 +363,11 @@ export class CFilterSyncWorker extends Worker {
 
   private async buildChainIndex(): Promise<void> {
     // Full chain, not a narrow resume window: that would break cfcheckpt's
-    // stop-hash lookup and addWatchAddresses' re-scan from birthday.
-    const from = 1
+    // stop-hash lookup and addWatchAddresses' re-scan from birthday. Genesis is
+    // excluded because HeaderSync starts WITH it and never writes it — counting
+    // it as expected leaves the cache one short forever, so every launch takes
+    // the rehash path and materialises the whole header set to find nothing.
+    const from = 2
     const to = this.chainTipHeight
     const expected = to - from + 1
     console.log(`[cfilter] building chain index ${from}..${to}`)
@@ -402,10 +413,8 @@ export class CFilterSyncWorker extends Worker {
 
   // ── peer event handlers ───────────────────────────────────────────────────
 
-  private handlePeerReady(peer: Peer): void {
+  private handlePeerReady(): void {
     if (this.stopped) return
-    const cf = this.peerPool.filterCapablePeers.has(peer) ? '+CF' : '-CF'
-    console.log(`[cfilter] peerready ${peer.host}:${peer.port} ${cf} ready=${this.peerPool.readyPeers.size}`)
     if (this.phase === 'connecting' && this.peerPool.filterCapablePeers.size > 0) {
       this.requestCheckpoints()
     }
@@ -511,6 +520,12 @@ export class CFilterSyncWorker extends Worker {
 
   private walkCFHeadersNext(): void {
     if (this.stopped) return
+    // A rewind drops filter headers above the fork through a write we have not
+    // awaited, so headers derived now could be persisted and then deleted.
+    if (this.awaitingReseed) return
+    // Past the initial walk this runs on every tip extension, where the scan
+    // owns the phase and the completion branch has already fired.
+    const followingTip = this.phase === 'cfilters' || this.phase === 'synced'
     const effectiveTip = this.effectiveScanTipHeight()
 
     while (this.cfHeaders.walkStart <= effectiveTip) {
@@ -527,17 +542,17 @@ export class CFilterSyncWorker extends Worker {
 
     if (this.cfHeaders.walkStart > effectiveTip) {
       // Everything is requested; the last chunk to land starts the scan.
-      if (this.cfHeaders.pending.size === 0) {
+      if (this.cfHeaders.pending.size === 0 && !followingTip) {
         console.log('[cfilter] cfheaders complete; starting cfilter scan')
         this.startCFilterScan()
       }
       return
     }
     if (this.peerPool.filterCapablePeers.size === 0) {
-      console.warn('[cfilter] cfheaders: no +CF peers — waiting')
+      if (!followingTip) console.warn('[cfilter] cfheaders: no +CF peers — waiting')
       return
     }
-    this.emitStatus('cfheaders')
+    if (!followingTip) this.emitStatus('cfheaders')
 
     // Requested in parallel: each chunk sits between two cfcheckpt anchors, so
     // it is verified on arrival without the chunk below it.
@@ -609,7 +624,7 @@ export class CFilterSyncWorker extends Worker {
       return
     }
 
-    let prev = msg.previousFilterHeader ?? new Uint8Array(32)
+    let prev = msg.previousFilterHeader ?? NO_PREV_FILTER_HEADER
     // Chunks break on checkpoint boundaries, so the height below a chunk is
     // itself a checkpoint for all but the first. Anchoring there rather than on
     // the derived chain is what lets chunks verify in any order.
@@ -622,11 +637,16 @@ export class CFilterSyncWorker extends Worker {
       return
     }
     const derived: Array<{height: number; header: Uint8Array}> = []
+    // The base the walk chained from, kept so the scan can verify the lowest
+    // height it reaches. Unverified on its own — the checkpoint at the top of
+    // the run is what validates everything derived from it. Height 1 chains off
+    // a real block below it, so this covers height 0 too: without it a
+    // from-scratch scan can never verify its first filter.
+    if (prevExpected == null && pending.startHeight >= 1) {
+      derived.push({height: pending.startHeight - 1, header: prev})
+    }
     for (let i = 0; i < filterHashes.length; i++) {
-      const concat = new Uint8Array(64)
-      concat.set(filterHashes[i]!, 0)
-      concat.set(prev, 32)
-      const next = doubleSHA256(concat)
+      const next = deriveFilterHeader(filterHashes[i]!, prev)
       derived.push({height: pending.startHeight + i, header: next})
       prev = next
     }
@@ -649,10 +669,14 @@ export class CFilterSyncWorker extends Worker {
       this.reportError(formatChainDbError(err), false)
     })
 
-    console.log(`[cfheaders] processed checkpoint until: ${pending.startHeight}`)
-
-    this.emitStatus('cfheaders')
+    if (this.phase === 'cfheaders') {
+      console.log(`[cfheaders] processed checkpoint until: ${pending.startHeight}`)
+      this.emitStatus('cfheaders')
+    }
     this.walkCFHeadersNext()
+    // The scan holds at any height whose filter header is still missing, so
+    // filling one in is what releases it — otherwise it waits for a block.
+    if (this.phase === 'cfilters' || this.phase === 'synced') this.pumpCFilters()
   }
 
   // ── cfilter scan ──────────────────────────────────────────────────────────
@@ -671,9 +695,18 @@ export class CFilterSyncWorker extends Worker {
     this.pumpCFilters()
   }
 
-  private dispatchCFilterBatch(batch: CFilterBatch): void {
+  // False when there was nobody to ask: with no +CF peer the request is never sent.
+  private dispatchCFilterBatch(batch: CFilterBatch): boolean {
     const picks = this.rotation.pick(CFILTER_BATCH_PEERS, batch.triedPeers)
-    if (picks.length === 0) return
+    if (picks.length === 0) return false
+    // Rebuilt rather than carried: a height the chain index gained since the
+    // batch was built is only resolvable once its hash is registered, and a
+    // height already answered must not resolve a duplicate response.
+    batch.hashToHeight.clear()
+    for (const h of batch.remaining) {
+      const wire = this.blockHashIndex.get(h)
+      if (wire) batch.hashToHeight.set(bytesToHex(wire), h)
+    }
     const msg = this.M.GetCFilters({
       filterType: FILTER_TYPE,
       startHeight: batch.startHeight,
@@ -685,6 +718,7 @@ export class CFilterSyncWorker extends Worker {
       batch.inflightPeers.add(p)
       p.sendMessage(msg)
     }
+    return true
   }
 
   private armCFilterBatchTimer(batch: CFilterBatch): void {
@@ -698,15 +732,53 @@ export class CFilterSyncWorker extends Worker {
       // needs longer. Re-racing here asks a second peer for the whole batch to
       // re-send what is already arriving.
       if (batch.remaining.size < batch.remainingAtArm) {
+        batch.stalls = 0
         this.armCFilterBatchTimer(batch)
         return
       }
 
-      console.warn(`[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stalled (${batch.remaining.size}) — re-racing`)
+      if (++batch.stalls >= CFILTER_BATCH_MAX_STALLS) {
+        this.restartScanAfterStall(batch)
+        return
+      }
+
       this.rotation.markSilent(batch.inflightPeers)
-      this.dispatchCFilterBatch(batch)
+      const sent = this.dispatchCFilterBatch(batch)
+      // Names the owed heights and who there was to ask: a batch stuck one
+      // filter short at the tip looks identical whether nobody answered, nobody
+      // was asked, or the answer failed its header check.
+      console.warn(
+        `[cfilter] batch ${batch.startHeight}..${batch.stopHeight} stalled, owed ` +
+        `h=${[...batch.remaining].join(',')} (+CF peers=${this.peerPool.filterCapablePeers.size}, ` +
+        `tried=${batch.triedPeers.size}) — ${sent ? 're-racing' : 'no peer to ask'}`,
+      )
       this.armCFilterBatchTimer(batch)
     }, CFILTER_BATCH_TIMEOUT_MS)
+  }
+
+  // A batch no peer can complete — typically one carrying a height whose hash
+  // the chain index still lacks. Everything from the lowest inflight batch is
+  // rebuilt: those ranges are exactly what settledHeight held back, so nothing
+  // already drained is rescanned and nothing pending is lost.
+  private restartScanAfterStall(batch: CFilterBatch): void {
+    let restartAt = batch.startHeight
+    for (const b of this.cfilter.inflightBatches.values()) restartAt = Math.min(restartAt, b.startHeight)
+
+    const noHash = [...batch.remaining].filter(h => !this.blockHashIndex.has(h))
+    const noFilterHeader = [...batch.remaining].filter(h => !this.heightToFilterHeader.has(h))
+    console.warn(
+      `[cfilter] batch ${batch.startHeight}..${batch.stopHeight} unanswered after ${batch.stalls} stalls ` +
+      `(owed h=${[...batch.remaining].slice(0, 5).join(',')}` +
+      `${noHash.length > 0 ? `, no chain hash for ${noHash.slice(0, 5).join(',')}` : ''}` +
+      `${noFilterHeader.length > 0 ? `, no filter header for ${noFilterHeader.slice(0, 5).join(',')}` : ''}) — ` +
+      `restarting scan at h=${restartAt}`,
+    )
+
+    this.clearInflightBatches()
+    this.blockFetcher.reset()
+    this.matchedBlocks.clear()
+    this.cfilter.cursor = restartAt
+    this.pumpCFilters()
   }
 
   private pumpCFilters(): void {
@@ -717,15 +789,23 @@ export class CFilterSyncWorker extends Worker {
       const stopHeight = Math.min(startHeight + CFILTER_BATCH - 1, effectiveTip)
       const stopHashWire = this.blockHashIndex.get(stopHeight)
       if (!stopHashWire) break
+      // Every height, not just the stop hash: a filter is addressed by block
+      // hash, so one interior height missing from the index is a batch that can
+      // never complete. Waiting for the header that fills the hole costs a beat;
+      // building over it costs the scan. The filter header has to be there too,
+      // or the filter that comes back cannot be checked against anything —
+      // during tip-follow the cfheaders walk is a round trip behind the block
+      // headers, so the scan waits for it rather than running unverified.
       const remaining = new Set<number>()
-      for (let h = startHeight; h <= stopHeight; h++) {
+      let indexed = this.heightToFilterHeader.has(startHeight - 1)
+      for (let h = startHeight; indexed && h <= stopHeight; h++) {
+        if (!this.blockHashIndex.has(h) || !this.heightToFilterHeader.has(h)) { indexed = false; break }
         remaining.add(h)
-        const wire = this.blockHashIndex.get(h)
-        if (wire) this.cfilterInflightHeights.set(bytesToHex(wire), h)
       }
+      if (!indexed) break
       const batch: CFilterBatch = {
-        startHeight, stopHeight, stopHashWire, remaining,
-        triedPeers: new Set(), inflightPeers: new Set(), remainingAtArm: 0, timer: null,
+        startHeight, stopHeight, stopHashWire, remaining, hashToHeight: new Map(),
+        triedPeers: new Set(), inflightPeers: new Set(), remainingAtArm: 0, stalls: 0, timer: null,
       }
       this.cfilter.inflightBatches.set(startHeight, batch)
       this.dispatchCFilterBatch(batch)
@@ -781,10 +861,8 @@ export class CFilterSyncWorker extends Worker {
   private holdForGap(chainName: 'receiving' | 'change', height: number): void {
     const chain = this.watchSet.gapState(chainName)
     this.gapPausedAt = height
-    for (const b of this.cfilter.inflightBatches.values()) if (b.timer) clearTimeout(b.timer)
+    this.clearInflightBatches()
     this.blockFetcher.reset()
-    this.cfilter.inflightBatches.clear()
-    this.cfilterInflightHeights.clear()
     this.matchedBlocks.clear()
     this.cfilter.cursor = height + 1
     console.log(
@@ -825,21 +903,46 @@ export class CFilterSyncWorker extends Worker {
     return this.matcher
   }
 
-  private onCFilter(msg: CFilterArgs): void {
+  // A cfilter is only evidence about a block once it hashes into the filter
+  // header the cfcheckpt anchors committed to. Unchecked, a peer can serve a
+  // filter that matches nothing and the block funding this wallet is never
+  // fetched — the payment simply never appears.
+  private filterMatchesHeaderChain(filter: Uint8Array, height: number): boolean {
+    const expected = this.heightToFilterHeader.get(height)
+    if (!expected) return false
+    const prev = this.heightToFilterHeader.get(height - 1)
+    if (!prev) return false
+    return equalBytes(deriveFilterHeader(hashFilter(filter), prev), expected)
+  }
+
+  private onCFilter(msg: CFilterArgs, fromPeer: Peer): void {
     if (this.stopped) return
     const blockHashWire = msg.blockHash ?? new Uint8Array(32)
     const hashKey = bytesToHex(blockHashWire)
-    const height = this.cfilterInflightHeights.get(hashKey) ?? -1
-    if (height < 0) return
     let owner: CFilterBatch | undefined
+    let height = -1
     for (const b of this.cfilter.inflightBatches.values()) {
-      if (b.remaining.has(height)) { owner = b; break }
+      const h = b.hashToHeight.get(hashKey)
+      if (h != null) { owner = b; height = h; break }
     }
     if (!owner) return
-    owner.remaining.delete(height)
-    this.cfilterInflightHeights.delete(hashKey)
 
-    if (this.filterMatcher().matchBlock(msg.filter ?? new Uint8Array(0), blockHashWire)) {
+    const filter = msg.filter ?? new Uint8Array(0)
+    // Left in `remaining` deliberately: the height is still owed, and the
+    // re-race prefers peers this batch has not already asked.
+    if (!this.filterMatchesHeaderChain(filter, height)) {
+      console.warn(`[cfilter] filter h=${height} from ${fromPeer.host} does not hash to its filter header — re-racing`)
+      this.dispatchCFilterBatch(owner)
+      this.armCFilterBatchTimer(owner)
+      return
+    }
+
+    owner.remaining.delete(height)
+    owner.hashToHeight.delete(hashKey)
+    owner.stalls = 0
+    this.rotation.markResponsive(fromPeer)
+
+    if (this.filterMatcher().matchBlock(filter, blockHashWire)) {
       console.log(`[cfilter] match h=${height} block=${wireToDisplayHex(blockHashWire).slice(0, 16)}…`)
       this.blockFetcher.request(height, blockHashWire)
     }

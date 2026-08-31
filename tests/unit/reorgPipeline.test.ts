@@ -24,6 +24,7 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
     PoolService: class extends EventEmitter {
       network: string
       readyPeers = new Set()
+      filterCapablePeers = new Set()
       messages = {}
       constructor(network: string) {
         super()

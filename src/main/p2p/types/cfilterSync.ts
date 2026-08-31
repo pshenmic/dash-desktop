@@ -26,6 +26,11 @@ export interface CFilterBatch {
   stopHeight: number
   stopHashWire: Uint8Array
   remaining: Set<number>
+  // Wire-byte block hash → height, for the heights still in `remaining`. A
+  // cfilter identifies its block by hash and nothing else, so a height absent
+  // here can never be resolved; it is rebuilt on every dispatch rather than
+  // filled once, so a hash that arrived late still lands.
+  hashToHeight: Map<string, number>
   // Rotation memory, so a re-race reaches peers that have not been asked.
   triedPeers: Set<Peer>
   // The peers currently expected to answer. Emptied by disconnects, which is
@@ -35,6 +40,9 @@ export interface CFilterBatch {
   // separate messages, so the question at each tick is whether any landed — not
   // whether the batch is done.
   remainingAtArm: number
+  // Consecutive timer ticks that saw no filter land. Bounded, because a batch
+  // nothing can complete otherwise re-races for the life of the process.
+  stalls: number
   timer: ReturnType<typeof setTimeout> | null
 }
 
@@ -67,7 +75,6 @@ export interface CFilterSyncWorkerStatus {
   cfilterScanHeight: number
   matchedBlocksPending: number
   peerCount: number
-  filterCapablePeerCount: number
 }
 
 export interface CFilterSyncWorkerOptions {
