@@ -2,7 +2,7 @@ import type {Knex} from 'knex'
 import {Network} from '../types/Network'
 
 import {EncryptedNoteRecord} from '../types/ShieldedNote'
-import {PAYLOAD_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants'
+import {PAYLOAD_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 // The Orchard pool: network state, shared by every wallet on that network.
 // Trial-decryption is what makes a note a wallet's own, and that lives in
 // ShieldedNoteDAO.

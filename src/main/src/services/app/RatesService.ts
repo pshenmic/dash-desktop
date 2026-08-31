@@ -1,5 +1,5 @@
 import { net } from 'electron'
-import {RATES_REQUEST_TIMEOUT_MS, RATES_TTL_MS, SUPPORTED_CURRENCIES} from '../../constants'
+import {RATES_REQUEST_TIMEOUT_MS, RATES_TTL_MS, SUPPORTED_CURRENCIES} from '../../constants/app'
 import {ExchangeRates, ExchangeRatesResult, ProviderRates, RateProvider} from '../../types/Rates'
 
 function zeroRates(): ExchangeRates {

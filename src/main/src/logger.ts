@@ -1,11 +1,7 @@
 import log from 'electron-log/main'
 import fs from 'fs'
 import path from 'path'
-import {
-  LogsFolderName,
-  LOG_FILE_MAX_SIZE,
-  LOG_RETENTION_DAYS
-} from './constants'
+import {LOG_FILE_MAX_SIZE, LOG_RETENTION_DAYS, LogsFolderName} from './constants/app'
 import {dataPath} from './utils/dataPath'
 
 const logsDir = dataPath(LogsFolderName)

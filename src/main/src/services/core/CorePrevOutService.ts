@@ -3,7 +3,7 @@ import {TransactionDAO} from '../../database/TransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {Network} from '../../types/Network'
 import {ParentRead, PrevOutPassResult, PrevOutRef, ResolvedPrevOut} from '../../types/Transaction'
-import {PREVOUT_RESOLVE_BATCH, PREVOUT_RESOLVE_CONCURRENCY} from '../../constants'
+import {PREVOUT_RESOLVE_BATCH, PREVOUT_RESOLVE_CONCURRENCY} from '../../constants/chain'
 import {chunk} from '../../utils/chunk'
 import {coreSDK} from '../../utils/coreSDK'
 

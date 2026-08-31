@@ -1,5 +1,6 @@
 import {describe, it, expect, vi} from 'vitest'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
+import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
@@ -7,7 +8,12 @@ import {Preferences} from '../../src/main/src/preferences'
 import {FeeOperation, FeeParams} from '../../src/main/platform/types/messages'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {FeeQuoteParams} from '../../src/main/platform/types/messages'
-import {CORE_TRANSFER_FEE_DUFFS, DEFAULT_CORE_FEE_MULTIPLIER, DEFAULT_PLATFORM_FEE_MULTIPLIER, MIN_INPUT_CREDITS} from '../../src/main/src/constants'
+import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants/chain'
+import {
+  DEFAULT_CORE_FEE_MULTIPLIER,
+  DEFAULT_PLATFORM_FEE_MULTIPLIER,
+  MIN_INPUT_CREDITS,
+} from '../../src/main/src/constants/credits'
 
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
@@ -35,11 +41,11 @@ function service(candidates: PlatformSourceCandidate[] = []): {
 
   const svc = new FeeService(
     walletDAO as unknown as WalletDAO,
+    {loadCandidates: async () => candidates} as unknown as PlatformAddressService,
     {request} as unknown as PlatformWorkerService,
     {estimateSpendFee} as unknown as ShieldedService,
     Preferences.default(),
   )
-  ;(svc as unknown as {loadCandidates: unknown}).loadCandidates = async () => candidates
 
   return {service: svc, request, estimateSpendFee}
 }

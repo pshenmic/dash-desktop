@@ -1,7 +1,7 @@
 import {describe, it, expect, vi} from 'vitest'
 import {IdentityRegistrationService} from '../../src/main/src/services/platform/IdentityRegistrationService'
 import {AssetLockFunder} from '../../src/main/src/types/AssetLock'
-import {TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../../src/main/src/constants'
+import {TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../../src/main/src/constants/addresses'
 
 // The credit address at m/9'/coin'/5'/2'/i receives the asset lock output, so a
 // used index is one the chain has history for.

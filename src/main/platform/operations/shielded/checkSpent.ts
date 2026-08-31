@@ -17,5 +17,5 @@ export async function checkSpent(
   const statuses = await sdk.shielded.getShieldedNullifiers(recovered.map(note => note.nullifier))
   const byNullifier = new Map(statuses.map(status => [hex(status.nullifier), status.isSpent]))
 
-  return recovered.map(note => ({note, spent: byNullifier.get(hex(note.nullifier)) === true}))
+  return recovered.map(recoveredNote => ({recoveredNote, spent: byNullifier.get(hex(recoveredNote.nullifier)) === true}))
 }

@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { LOG_FILE_NAME_PATTERN } from '../../constants'
+import {LOG_FILE_NAME_PATTERN} from '../../constants/app'
 import { LogFileContent, LogFileInfo } from '../../types/Log'
 
 export class LogService {

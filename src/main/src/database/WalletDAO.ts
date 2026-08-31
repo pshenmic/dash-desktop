@@ -1,5 +1,5 @@
 import {Wallet} from '../types/Wallet'
-import {WALLET_SCOPED_TABLES} from '../constants'
+import {WALLET_SCOPED_TABLES} from '../constants/database'
 
 function fromRow({wallet_id, label, network, encrypted_mnemonic, selected, platform_xpub, core_xpub}): Wallet {
   return {walletId: wallet_id, network, label, encryptedMnemonic: encrypted_mnemonic, selected: Boolean(selected), platformXpub: platform_xpub ?? null, coreXpub: core_xpub ?? null}
@@ -71,25 +71,6 @@ export class WalletDAO {
     }
   }
 
-  getShieldedAddressCount = async (walletId: string): Promise<number> => {
-    const rows = await this.knex('wallet')
-      .select('shielded_address_count')
-      .where('wallet_id', walletId)
-      .limit(1)
-
-    if (rows.length === 0) {
-      return 1
-    }
-
-    return rows[0].shielded_address_count
-  }
-
-  setShieldedAddressCount = async (walletId: string, count: number): Promise<void> => {
-    await this.knex('wallet')
-      .update({shielded_address_count: count})
-      .where('wallet_id', walletId)
-  }
-
   // How far into the pool this wallet has trial-decrypted. Decoding always runs
   // as a prefix, so one cursor replaces a per-note flag.
   getShieldedDecodedCount = async (walletId: string): Promise<number> => {
@@ -111,6 +92,8 @@ export class WalletDAO {
       .where('wallet_id', walletId)
   }
 
+  // Legacy: how many platform addresses were revealed before they became rows.
+  // Read once per wallet, by PlatformAddressService.seedLegacyWindow.
   getPlatformAddressCount = async (walletId: string): Promise<number> => {
     const rows = await this.knex('wallet')
       .select('platform_address_count')
@@ -122,12 +105,6 @@ export class WalletDAO {
     }
 
     return rows[0].platform_address_count ?? 20
-  }
-
-  setPlatformAddressCount = async (walletId: string, count: number): Promise<void> => {
-    await this.knex('wallet')
-      .update({platform_address_count: count})
-      .where('wallet_id', walletId)
   }
 
   updateEncryptedMnemonic = async (walletId: string, encryptedMnemonic: string): Promise<void> => {

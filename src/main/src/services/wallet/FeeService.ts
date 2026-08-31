@@ -1,11 +1,11 @@
-import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../../database/WalletDAO'
+import {PlatformAddressService} from '../platform/PlatformAddressService'
 import {PlatformWorkerService} from '../platform/PlatformWorkerService'
 import {ShieldedService} from '../platform/ShieldedService'
 import {Preferences} from '../../preferences'
 import {Wallet} from '../../types/Wallet'
 import {OperationFee} from '../../types/Fee'
-import {PlatformInputOutcome, PlatformSourceCandidate} from '../../types/PlatformTransfer'
+import {PlatformInputOutcome} from '../../types/PlatformTransfer'
 import {
   FeeOperation,
   FeeParams,
@@ -15,7 +15,6 @@ import {
 import {requireWallet} from '../../utils/requireWallet'
 import {selectPlatformInputsWithFee} from '../../utils/platformTransfer'
 import {coreFeeDuffs, coreFeePerByte} from '../../utils/coreFeeRate'
-import {PLATFORM_ADDRESS_LOOKAHEAD} from '../../constants'
 
 // Every fee a quote can be asked for, L1 and L2, is answered here.
 //
@@ -32,18 +31,20 @@ import {PLATFORM_ADDRESS_LOOKAHEAD} from '../../constants'
 // charged, so there is still only one place it is computed.
 export class FeeService {
   private walletDAO: WalletDAO
+  private addresses: PlatformAddressService
   private platform: PlatformWorkerService
   private shielded: ShieldedService
   private preferences: Preferences
-  private keyPair = new KeyPairController()
 
   constructor(
     walletDAO: WalletDAO,
+    addresses: PlatformAddressService,
     platform: PlatformWorkerService,
     shielded: ShieldedService,
     preferences: Preferences,
   ) {
     this.walletDAO = walletDAO
+    this.addresses = addresses
     this.platform = platform
     this.shielded = shielded
     this.preferences = preferences
@@ -119,37 +120,13 @@ export class FeeService {
     operation: SelectionFeeOperation,
     params: FeeParams,
   ): Promise<PlatformInputOutcome> {
-    const candidates = await this.loadCandidates(wallet)
+    const candidates = await this.addresses.loadCandidates(wallet)
     return selectPlatformInputsWithFee(
       candidates,
       params.amountCredits,
       inputCount => this.protocolFee(wallet, operation, params, inputCount),
       params.sourceAddress ?? undefined,
     )
-  }
-
-  // Every platform address this wallet owns, with the balance and nonce that
-  // decide whether it can fund anything.
-  async loadCandidates(wallet: Wallet): Promise<PlatformSourceCandidate[]> {
-    if (wallet.platformXpub == null) return []
-
-    const stored = await this.walletDAO.getPlatformAddressCount(wallet.walletId)
-    const count = Math.max(PLATFORM_ADDRESS_LOOKAHEAD, stored)
-    const owned = Array.from({length: count}, (_, index) => {
-      const address = this.keyPair.derivePlatformAddressFromXpub(wallet.platformXpub!, wallet.network, index)
-      return {platformAddress: address.toBech32m(wallet.network), addressBytes: address.bytes(), index}
-    })
-
-    const {infos} = await this.platform.request('addressInfos', wallet.network, {
-      addresses: owned.map(entry => entry.platformAddress),
-    })
-
-    const byAddress = new Map(infos.map(info => [info.address, info]))
-    return owned.map(entry => ({
-      ...entry,
-      balanceCredits: byAddress.get(entry.platformAddress)?.balance ?? 0n,
-      nonce: byAddress.get(entry.platformAddress)?.nonce ?? 0,
-    }))
   }
 
   // What consensus charges for this transition, plus the user's headroom. The

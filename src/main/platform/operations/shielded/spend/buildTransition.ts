@@ -3,7 +3,7 @@ import {OrchardAddressWASM, ShieldedMemoWASM, SpendableNoteWASM, StateTransition
 import {Network} from '../../../../src/types/Network'
 import {coreAddressToScript} from '../../../../src/utils/coreScript'
 import {PlatformOperations} from '../../../types/messages'
-import {COIN_TYPE, SHIELDED_ACCOUNT} from '../../../../src/constants'
+import {COIN_TYPE, SHIELDED_ACCOUNT} from '../../../../src/constants/addresses'
 import {identityKeys} from './identityKeys'
 
 type Payload = PlatformOperations['spend']['payload']

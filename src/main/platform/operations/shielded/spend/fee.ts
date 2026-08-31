@@ -6,7 +6,7 @@ import {
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
 import {PoolSpendOperation} from '../../../types/messages'
-import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/constants'
+import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/constants/credits'
 import {MIN_BUNDLE_ACTIONS} from '../constants'
 // What consensus will charge, from the protocol implementation itself. Never
 // reimplement this: it is versioned (`platformVersion`) and scales with the

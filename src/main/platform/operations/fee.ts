@@ -25,7 +25,7 @@ import {buildAssetLockProof} from './assetLockProof'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
 import {MAX_SPEND_NOTES, MIN_BUNDLE_ACTIONS} from './shielded/constants'
-import {IDENTITY_KEY_DEFINITIONS, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../src/constants'
+import {IDENTITY_KEY_DEFINITIONS, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../src/constants/credits'
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']

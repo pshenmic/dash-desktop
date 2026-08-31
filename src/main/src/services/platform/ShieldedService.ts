@@ -1,4 +1,3 @@
-import { KeyPairController } from 'dash-platform-sdk/src/keyPair/index.js'
 import { OrchardAddressWASM } from 'pshenmic-dpp'
 import { Network } from '../../types/Network'
 import { WalletDAO } from '../../database/WalletDAO'
@@ -10,9 +9,16 @@ import { AssetLockFundingState } from '../../types/AssetLockFunding'
 import {AssetLockService} from './AssetLockService'
 import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSeed'
 import { UnlockedWallet } from '../../types/UnlockedWallet'
-import { NEW_ADDRESS_LOOKAHEAD_LIMIT, PLATFORM_ACCOUNT, SHIELDED_ACCOUNT, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS } from '../../constants'
+import { Wallet } from '../../types/Wallet'
+import {SHIELDED_ADDRESS_WINDOW} from '../../constants/addresses'
+import {SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
 import { findNextIdentityIndex, identityPath } from '../../utils/identityKeys'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
+import {platformAccountXpub, platformAddressDeriver} from '../../utils/platformAddress'
+import {shieldedAddressDeriver} from '../../utils/shieldedAddress'
+import {runAddressWindow} from '../../utils/addressWindow'
+import {AddressWindowStore, DerivedAddress, UsageOracle} from '../../types/AddressWindow'
+import {ShieldedAddressRow} from '../../types/ShieldedAddress'
 import {Preferences} from '../../preferences'
 import { lockedDuffsFor, shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
@@ -70,9 +76,7 @@ export class ShieldedService {
   private addresses = new Map<string, string[]>()
   private noteFetches = new Map<Network, Promise<void>>()
   private feeCurves = new Map<string, bigint[]>()
-  // Derivation only. A DashPlatformSDK would build a gRPC pool and fetch the
-  // evonode list to do local maths.
-  private keyPair = new KeyPairController()
+  private addQueue = new Map<string, Promise<unknown>>()
 
   constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, platform: PlatformWorkerService, assetLock: AssetLockService, preferences: Preferences) {
     this.walletDAO = walletDAO
@@ -116,50 +120,102 @@ export class ShieldedService {
     if (cached != null) return cached
 
     const persisted = await this.shieldedAddressDAO.getAddresses(walletId)
-    if (persisted.length > 0) {
-      this.addresses.set(walletId, persisted)
-      return persisted
-    }
+    if (persisted.length > 0) return this.cacheList(walletId, persisted)
 
     if (password == null || password.length === 0) return null
 
-    const {wallet: {network}, seed} = await unlockWallet(this.walletDAO, walletId, password)
-    return this.cacheAddresses(walletId, seed, network)
+    return withUnlockedWallet(this.walletDAO, walletId, password, ({wallet: {network}, seed}) =>
+      this.revealWindow(walletId, seed, network))
   }
 
-  // Grows the derived list so its newest address is unused: diversified
-  // addresses share one viewing key, so a synced wallet can hold notes on
-  // indexes never shown yet — those are skipped (but become visible).
+  // Serialised per wallet rather than joined: two clicks should reveal two
+  // addresses, but the second has to read the count the first wrote or one of
+  // them is silently lost.
   async addAddress(walletId: string, password: string): Promise<string[]> {
-    return withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet: {network}, seed}) => {
-      const used = await this.shieldedNoteDAO.getUsedAddresses(walletId)
-      let count = await this.walletDAO.getShieldedAddressCount(walletId)
-      const limit = count + NEW_ADDRESS_LOOKAHEAD_LIMIT
-      let address: string
-      do {
-        count++
-        address = this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, count - 1).toBech32m(network)
-      } while (used.has(address) && count < limit)
+    const prior = this.addQueue.get(walletId) ?? Promise.resolve()
+    const run = prior.catch(() => {}).then(() => this.revealNextAddress(walletId, password))
+    this.addQueue.set(walletId, run)
+    try {
+      return await run
+    } finally {
+      if (this.addQueue.get(walletId) === run) this.addQueue.delete(walletId)
+    }
+  }
 
-      if (used.has(address)) {
-        throw new Error(`No unused shielded address within ${NEW_ADDRESS_LOOKAHEAD_LIMIT} indexes of ${count - NEW_ADDRESS_LOOKAHEAD_LIMIT}`)
+  // One index past the frontier. The walk already extended the window so a full
+  // gap of unused diversifiers follows the last used one, which is what makes
+  // the next index safe to hand out without re-checking it.
+  private revealNextAddress(walletId: string, password: string): Promise<string[]> {
+    return withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet: {network}, seed}) => {
+      // The used flags come from decrypted notes, so a wallet behind the pool
+      // cannot tell a fresh diversifier from one that already received. Revealing
+      // on that answer is how a restored wallet hands out an address twice.
+      if (await this.undecodedCount(walletId, network) > 0) {
+        throw new Error('Sync the shielded pool before revealing a new address')
       }
 
-      await this.walletDAO.setShieldedAddressCount(walletId, count)
-      return this.cacheAddresses(walletId, seed, network)
+      const rows = await this.shieldedAddressDAO.getAddresses(walletId)
+      const next = rows.reduce((max, row) => Math.max(max, row.index), -1) + 1
+      const derived = shieldedAddressDeriver(seed, network).derive(next)
+      await this.shieldedAddressDAO.insertAddresses([this.addressRow(walletId, derived)])
+
+      return this.revealWindow(walletId, seed, network)
     })
   }
 
-  // Display only: all diversified addresses of the account share one incoming
-  // viewing key, so how many exist never reaches the worker's sync/spend.
-  private async cacheAddresses(walletId: string, seed: Uint8Array, network: Network): Promise<string[]> {
-    const count = await this.walletDAO.getShieldedAddressCount(walletId)
-    const list: string[] = []
-    for (let i = 0; i < count; i++) {
-      list.push(this.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT, i).toBech32m(network))
+  // The same gap walk L1 and platform run. The oracle is the decrypted-note set
+  // rather than a chain query, and the deriver needs the seed — ZIP-32 has no
+  // watch-only key — so this only ever runs inside an already-unlocked
+  // operation, on the seed that operation is holding anyway.
+  private async revealWindow(walletId: string, seed: Uint8Array, network: Network): Promise<string[]> {
+    await runAddressWindow(
+      shieldedAddressDeriver(seed, network),
+      this.shieldedOracle(walletId),
+      this.shieldedStore(walletId),
+      SHIELDED_ADDRESS_WINDOW,
+    )
+    return this.cacheList(walletId, await this.shieldedAddressDAO.getAddresses(walletId))
+  }
+
+  // Every diversified address of the account shares one incoming viewing key, so
+  // a note proves its own address was used and nothing has to be asked of the
+  // network.
+  private shieldedOracle(walletId: string): UsageOracle {
+    let used: Set<string> | null = null
+    return {
+      scan: async () => null,
+      probe: async addresses => {
+        used ??= await this.shieldedNoteDAO.getUsedAddresses(walletId)
+        return addresses.map(entry => ({index: entry.index, isUsed: used!.has(entry.address)}))
+      },
     }
+  }
+
+  private shieldedStore(walletId: string): AddressWindowStore {
+    return {
+      known: async () => {
+        const rows = await this.shieldedAddressDAO.getAddresses(walletId)
+        return rows.map(row => ({index: row.index, isUsed: row.isUsed}))
+      },
+      reveal: addresses => this.shieldedAddressDAO.insertAddresses(
+        addresses.map(derived => this.addressRow(walletId, derived)),
+      ),
+      markUsed: indexes => this.shieldedAddressDAO.markAddressesUsed(walletId, indexes),
+    }
+  }
+
+  private addressRow(walletId: string, derived: DerivedAddress): ShieldedAddressRow {
+    return {
+      walletId,
+      index: derived.index,
+      address: derived.address,
+      isUsed: false,
+    }
+  }
+
+  private cacheList(walletId: string, rows: ShieldedAddressRow[]): string[] {
+    const list = rows.map(row => row.address)
     this.addresses.set(walletId, list)
-    await this.shieldedAddressDAO.saveAddresses(walletId, list)
     return list
   }
 
@@ -222,9 +278,15 @@ export class ShieldedService {
   async getNotesInfo(walletId: string): Promise<ShieldedNotesInfo> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null) return {undecodedCount: 0}
-    const stored = await this.shieldedPoolDAO.getCount(wallet.network)
+    return {undecodedCount: await this.undecodedCount(walletId, wallet.network)}
+  }
+
+  // How far this wallet is behind the pool. Decoding always runs as a prefix, so
+  // anything above the cursor is a note it has never trial-decrypted.
+  private async undecodedCount(walletId: string, network: Network): Promise<number> {
+    const stored = await this.shieldedPoolDAO.getCount(network)
     const decoded = await this.walletDAO.getShieldedDecodedCount(walletId)
-    return {undecodedCount: Math.max(stored - decoded, 0)}
+    return Math.max(stored - decoded, 0)
   }
 
   private idleSyncState(): ShieldedSyncState {
@@ -257,7 +319,6 @@ export class ShieldedService {
     try {
       unlocked = await unlockWallet(this.walletDAO, walletId, password)
       const {wallet: {network}, seed} = unlocked
-      await this.cacheAddresses(walletId, seed, network)
 
       // The scan outlives this method, so it owns the seed and zeroes it however
       // it settles.
@@ -316,6 +377,7 @@ export class ShieldedService {
 
     if (fresh.length === 0) {
       this.settleSync(state, priorNotes)
+      await this.revealWindow(walletId, seed, network)
       return
     }
 
@@ -334,6 +396,11 @@ export class ShieldedService {
     this.settleSync(state, all)
     await this.shieldedNoteDAO.upsertNotes(walletId, all)
     await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
+
+    // Only now can the window be judged: it reads used flags off the notes this
+    // sync just wrote. Runs on the seed the sync is already holding, and is done
+    // with it before the caller zeroes it.
+    await this.revealWindow(walletId, seed, network)
   }
 
   private idleSpendState(): ShieldedSpendState {
@@ -389,7 +456,7 @@ export class ShieldedService {
 
       unlocked = await unlockWallet(this.walletDAO, walletId, password)
       const {wallet: {network}, seed} = unlocked
-      await this.cacheAddresses(walletId, seed, network)
+      await this.revealWindow(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
       // runSpend owns the seed from here — proving runs for minutes past this
@@ -451,15 +518,17 @@ export class ShieldedService {
       if (denominationCredits <= 0n) throw new Error('Amount must be greater than zero')
 
       unlocked = await unlockWallet(this.walletDAO, walletId, password)
-      const {wallet: {network}, seed} = unlocked
-      await this.cacheAddresses(walletId, seed, network)
+      const {wallet, seed} = unlocked
+      const network = wallet.network
+      await this.revealWindow(walletId, seed, network)
       const notes = await this.loadSpendNotes(network, state)
 
       const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
       const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
       const identityIndex = await findNextIdentityIndex(this.platform, seed, startIndex, network)
 
-      const failureAddress = (await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)).toBech32m(network)
+      const xpub = await platformAccountXpub(this.walletDAO, wallet, seed)
+      const failureAddress = platformAddressDeriver(xpub, network).derive(0).address
 
       this.runSpend(walletId, network, state, {
         seed,
@@ -493,7 +562,7 @@ export class ShieldedService {
     }
 
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
-    const {wallet: {network}, seed} = unlocked
+    const {wallet, seed} = unlocked
     try {
       // The reserve is what settleShield subtracts again, so the amount asked for
       // is the amount that reaches the pool.
@@ -503,7 +572,7 @@ export class ShieldedService {
         const acquired = await this.assetLock.acquire(state, {
           walletId, kind: 'shielded', destination, amountDuffs: lockDuffs, seed,
         })
-        await this.settleShield(walletId, seed, network, state, acquired)
+        await this.settleShield(wallet, seed, state, acquired)
       })
     } catch (error) {
       zeroSeed(unlocked)
@@ -513,12 +582,12 @@ export class ShieldedService {
 
   async resumeShieldFromL1(walletId: string, row: AssetLockFundingRow, password: string): Promise<AssetLockFundingState> {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
-    const {wallet: {network}, seed} = unlocked
+    const {wallet, seed} = unlocked
 
     const state = this.assetLock.resume(walletId, row)
     return this.runFunding(state, unlocked, async () => {
       const acquired = await this.assetLock.reacquire(state, row)
-      await this.settleShield(walletId, seed, network, state, acquired)
+      await this.settleShield(wallet, seed, state, acquired)
     })
   }
 
@@ -532,16 +601,16 @@ export class ShieldedService {
   }
 
   private async settleShield(
-    walletId: string,
+    wallet: Wallet,
     seed: Uint8Array,
-    network: Network,
     state: AssetLockFundingState,
     {row, proof}: AcquiredAssetLock,
   ): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const surplus = await this.keyPair.derivePlatformAddress(seed, network, PLATFORM_ACCOUNT, 0)
-    const {stHash} = await this.platform.request('shieldFromAssetLock', network, {
+    const xpub = await platformAccountXpub(this.walletDAO, wallet, seed)
+    const surplus = platformAddressDeriver(xpub, wallet.network).derive(0)
+    const {stHash} = await this.platform.request('shieldFromAssetLock', wallet.network, {
       seed,
       txid: row.txid,
       outputIndex: row.outputIndex,
@@ -549,12 +618,12 @@ export class ShieldedService {
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
       shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs),
-      surplusAddress: surplus.toBech32m(network),
+      surplusAddress: surplus.address,
     })
 
     await this.assetLock.done(state, row, stHash)
     // Awaited: runFunding zeroes the seed the moment this settles.
-    await this.refreshNotes(walletId, network, seed)
+    await this.refreshNotes(wallet.walletId, wallet.network, seed)
   }
 
   // The fee and the note count define each other: the fee scales with how many

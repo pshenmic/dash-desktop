@@ -4,7 +4,7 @@ import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {buildAssetLockProof} from '../assetLockProof'
 import {SHIELD_FUNDING_DUMMY_OUTPUTS} from '../shielded/constants'
-import {SHIELDED_ACCOUNT} from '../../../src/constants'
+import {SHIELDED_ACCOUNT} from '../../../src/constants/addresses'
 
 type Payload = PlatformOperations['shieldFromAssetLock']['payload']
 type Result = PlatformOperations['shieldFromAssetLock']['result']

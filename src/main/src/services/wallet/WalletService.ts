@@ -20,15 +20,15 @@ import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {
-  ADDRESS_LOOKAHEAD,
   COIN_TYPE,
+  CORE_ADDRESS_WINDOW,
   IDENTITY_LOOKAHEAD,
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
-} from '../../constants'
+} from '../../constants/addresses'
 import {coreFeeDuffs} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
-import {coreAccountPath} from "../../utils/addressDiscovery";
+import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";
 import {selectTransferInputs} from '../../utils/transferInputs'
 import {Preferences} from '../../preferences'
 import {ConnectionStatus} from '../../types/ConnectionStatus'
@@ -101,38 +101,15 @@ export class WalletService {
     const coreAccountNode = await this.keyPair.derivePath(hdKey, coreAccountPath(coinType, accountId))
     await this.walletDAO.setCoreXpub(walletId, coreAccountNode.publicExtendedKey)
 
+    const coreXpub = coreAccountNode.publicExtendedKey
     const addresses: Address[] = []
 
-    for (let i = 0; i < ADDRESS_LOOKAHEAD; i++) {
-      const key = await this.keyPair.derivePath(hdKey, `m/44'/${coinType}'/${accountId}'/0/${i}`)
-      if (!key.publicKey) throw new Error(`Failed to derive public key at index ${i}`)
-      const address = this.keyPair.p2pkhAddress(key.publicKey, network)
-      addresses.push({
-        walletId,
-        accountId,
-        address,
-        derivationPath: `m/44'/${coinType}'/${accountId}'/0/${i}`,
-        index: i,
-        isChange: false,
-        isUsed: false,
-        label: null
-      })
-    }
-
-    for (let i = 0; i < ADDRESS_LOOKAHEAD; i++) {
-      const key = await this.keyPair.derivePath(hdKey, `m/44'/${coinType}'/${accountId}'/1/${i}`)
-      if (!key.publicKey) throw new Error(`Failed to derive public key at index ${i}`)
-      const address = this.keyPair.p2pkhAddress(key.publicKey, network)
-      addresses.push({
-        walletId,
-        accountId,
-        address,
-        derivationPath: `m/44'/${coinType}'/${accountId}'/1/${i}`,
-        index: i,
-        isChange: true,
-        isUsed: false,
-        label: null
-      })
+    for (const isChange of [false, true]) {
+      const deriver = coreAddressDeriver(coreXpub, network, isChange)
+      for (let index = 0; index < CORE_ADDRESS_WINDOW.gapLimit; index++) {
+        const {address, derivationPath} = deriver.derive(index)
+        addresses.push({walletId, accountId, address, derivationPath, index, isChange, isUsed: false, label: null})
+      }
     }
 
     await this.addressDAO.insertAddresses(addresses)
@@ -213,28 +190,22 @@ export class WalletService {
     return this.walletDAO.updateLabel(walletId, label)
   }
 
-  async addAddress(walletId: string, password: string, isChange: boolean): Promise<string> {
-    return withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.deriveNextAddress(walletId, wallet, seed, isChange))
-  }
-
-  private async deriveNextAddress(walletId: string, wallet: Wallet, seed: Uint8Array, isChange: boolean): Promise<string> {
-    const hdKey = this.keyPair.seedToHdKey(seed, wallet.network)
-    const coinType = COIN_TYPE[wallet.network]
-    const accountId = 0
+  // No password: the account xpub is persisted, and a receive address is public
+  // derivation off it. Only signing needs the seed.
+  async addAddress(walletId: string, isChange: boolean): Promise<string> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    if (wallet.coreXpub == null) {
+      throw new Error('Wallet addresses are not derived yet')
+    }
 
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const chain = isChange ? grouped.change : grouped.receiving
     const index = chain.reduce((max, a) => Math.max(max, a.index), -1) + 1
-
-    const derivationPath = `m/44'/${coinType}'/${accountId}'/${isChange ? 1 : 0}/${index}`
-    const key = await this.keyPair.derivePath(hdKey, derivationPath)
-    if (!key.publicKey) throw new Error(`Failed to derive public key at index ${index}`)
-    const address = this.keyPair.p2pkhAddress(key.publicKey, wallet.network)
+    const {address, derivationPath} = coreAddressDeriver(wallet.coreXpub, wallet.network, isChange).derive(index)
 
     const row: Address = {
       walletId,
-      accountId,
+      accountId: 0,
       address,
       derivationPath,
       index,

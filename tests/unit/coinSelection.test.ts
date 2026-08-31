@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {selectCoins} from '../../src/main/src/utils/coinSelection'
 import {SelectableUtxo} from '../../src/main/src/types/CoinSelection'
-import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants'
+import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants/chain'
 
 const PARAMS = {fee: CORE_TRANSFER_FEE_DUFFS}
 const ONE_DASH = 100_000_000n

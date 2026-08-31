@@ -8,7 +8,7 @@ export class AddWalletAddressHandler {
     this.walletService = walletService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string, password: string, isChange: boolean): Promise<string> => {
-    return this.walletService.addAddress(walletId, password, isChange)
+  handle = async (_event: IpcMainInvokeEvent, walletId: string, isChange: boolean): Promise<string> => {
+    return this.walletService.addAddress(walletId, isChange)
   }
 }

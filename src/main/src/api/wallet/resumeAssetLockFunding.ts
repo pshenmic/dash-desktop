@@ -2,13 +2,13 @@ import { IpcMainInvokeEvent } from 'electron/utility'
 import { AssetLockService } from '../../services/platform/AssetLockService'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
 import { IdentityRegistrationService } from '../../services/platform/IdentityRegistrationService'
-import { PlatformAddressService } from '../../services/platform/PlatformAddressService'
+import { PlatformTransferService } from '../../services/platform/PlatformTransferService'
 import { ShieldedService } from '../../services/platform/ShieldedService'
 
 export class ResumeAssetLockFundingHandler {
   constructor(
     private readonly assetLockService: AssetLockService,
-    private readonly platformAddressService: PlatformAddressService,
+    private readonly platformTransferService: PlatformTransferService,
     private readonly shieldedService: ShieldedService,
     private readonly identityRegistrationService: IdentityRegistrationService,
   ) {}
@@ -31,7 +31,7 @@ export class ResumeAssetLockFundingHandler {
       case 'identityTopUp':
         return this.identityRegistrationService.resume(walletId, row, password)
       case 'address':
-        return this.platformAddressService.resumeFundingFromL1(walletId, row, password)
+        return this.platformTransferService.resumeFundingFromL1(walletId, row, password)
     }
   }
 }

@@ -5,7 +5,7 @@ import {AssetLockService} from '../../src/main/src/services/platform/AssetLockSe
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {AssetLockFunder, AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
 import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
-import {ASSET_LOCK_DISMISSED_ERROR} from '../../src/main/src/constants'
+import {ASSET_LOCK_DISMISSED_ERROR} from '../../src/main/src/constants/credits'
 
 const FUNDING: AssetLockFundingRow = {
   id: 1,
