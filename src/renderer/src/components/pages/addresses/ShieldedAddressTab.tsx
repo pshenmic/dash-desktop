@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
@@ -10,6 +11,7 @@ import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
@@ -22,6 +24,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [syncOpen, setSyncOpen] = useState(false)
 
   const sync = useShieldedSyncState(walletId)
+  const { isBalanceVisible } = useBalanceVisibility()
   const synced = sync.phase === ShieldedSyncPhase.Done
   const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
@@ -162,9 +165,11 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
           </div>
           <div className={"flex items-center gap-2 shrink-0"}>
             {synced ? (
-              <Text size={14} weight={"medium"} color={"brand"}>
-                <CreditsAmount credits={balances.get(address) ?? 0n} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
-              </Text>
+              <SensitiveValue hidden={!isBalanceVisible} size={"card"} tone={"accent"}>
+                <Text size={14} weight={"medium"} color={"brand"}>
+                  <CreditsAmount credits={balances.get(address) ?? 0n} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
+                </Text>
+              </SensitiveValue>
             ) : (
               <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
             )}

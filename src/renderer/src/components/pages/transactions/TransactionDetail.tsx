@@ -12,6 +12,7 @@ import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { transactionsPage } from '@renderer/constants'
 import { WalletTxItem } from '@renderer/hooks/useWalletTransactions'
@@ -19,6 +20,7 @@ import { formatCreationDate, timePart } from '@renderer/utils/date'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { davToDash } from '@renderer/utils/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { transactionUrl, addressUrl, openExternal } from '@renderer/utils/explorer'
 import { ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -114,6 +116,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
   const isIncoming = resolvedTransaction.direction === 'in'
   const hoverNotification = useRipple()
   const { format: formatFiat, rateReady } = useFiat()
+  const { isBalanceVisible } = useBalanceVisibility()
 
   useEffect(() => {
     setResolvedTransaction(transaction)
@@ -236,15 +239,21 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
               icon={<DashLogo size={14} color={theme === 'light' ? 'var(--color-dash-brand)' : 'var(--color-dash-mint)'} className={"dash-text-primary"} />}
               label={`${detail.fields.amount}:`}
               value={
-                <Text size={14} weight={"medium"} color={"brand"}>
-                  <span className={`font-extrabold ${isIncoming ? 'dash-text-primary' : ''}`}>
-                    {isIncoming ? '+ ' : '- '}
-                    <DashBigNumber>{davToDash(resolvedTransaction.amount).toString()}</DashBigNumber>
-                  </span>
-                  {' Dash'}
-                </Text>
+                <SensitiveValue hidden={!isBalanceVisible} size={"card"} tone={isIncoming ? 'accent' : 'default'}>
+                  <Text size={14} weight={"medium"} color={"brand"}>
+                    <span className={`font-extrabold ${isIncoming ? 'dash-text-primary' : ''}`}>
+                      {isIncoming ? '+ ' : '- '}
+                      <DashBigNumber>{davToDash(resolvedTransaction.amount).toString()}</DashBigNumber>
+                    </span>
+                    {' Dash'}
+                  </Text>
+                </SensitiveValue>
               }
-              subValue={rateReady ? `~ ${formatFiat(resolvedTransaction.amount)}` : undefined}
+              subValue={rateReady || !isBalanceVisible ? (
+                <SensitiveValue hidden={!isBalanceVisible} size={"subtext"} label={"Fiat amount hidden"}>
+                  {rateReady ? `~ ${formatFiat(resolvedTransaction.amount)}` : null}
+                </SensitiveValue>
+              ) : undefined}
             />
           </div>
           <div className={"flex gap-3 min-h-17"}>
@@ -291,12 +300,14 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                   <AddressActions address={input.addr} network={network} onShowQr={setQrAddress} />
                 )}
               </div>
-              <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
-                <span className={"font-extrabold"}>
-                  <DashBigNumber>{input.value}</DashBigNumber>
-                </span>
-                {' Dash'}
-              </Text>
+              <SensitiveValue hidden={!isBalanceVisible} size={"compact"}>
+                <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
+                  <span className={"font-extrabold"}>
+                    <DashBigNumber>{input.value}</DashBigNumber>
+                  </span>
+                  {' Dash'}
+                </Text>
+              </SensitiveValue>
             </div>
           ))}
         </div>
@@ -326,12 +337,14 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                   )
                 }
               </div>
-              <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
-                <span className={"font-extrabold"}>
-                  <DashBigNumber>{trimTrailingZeros(output.value)}</DashBigNumber>
-                </span>
-                {' Dash'}
-              </Text>
+              <SensitiveValue hidden={!isBalanceVisible} size={"compact"}>
+                <Text size={14} weight={"medium"} color={"brand"} className={"shrink-0"}>
+                  <span className={"font-extrabold"}>
+                    <DashBigNumber>{trimTrailingZeros(output.value)}</DashBigNumber>
+                  </span>
+                  {' Dash'}
+                </Text>
+              </SensitiveValue>
             </div>
           ))}
         </div>

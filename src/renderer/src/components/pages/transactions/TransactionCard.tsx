@@ -1,4 +1,5 @@
 import AmountSummary from "@renderer/components/ui/AmountSummary"
+import SensitiveValue from "@renderer/components/ui/SensitiveValue"
 import TransactionCardIcons from "./TransactionCardIcons"
 import CustomBadge from "@renderer/components/ui/CustomBadge"
 import { formatCreationDate, timePart } from "@renderer/utils/date"
@@ -9,6 +10,7 @@ import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtend
 import { WalletTxItem } from "@renderer/hooks/useWalletTransactions"
 import { davToDash } from "@renderer/utils/balance"
 import { useFiat } from "@renderer/hooks/useFiat"
+import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
 import { useAuth } from "@renderer/contexts/AuthContext"
 import { transactionUrl, openExternal } from "@renderer/utils/explorer"
 import { transactionsPage } from "@renderer/constants"
@@ -50,6 +52,7 @@ export default function TransactionCard({
   const variantAmountSummary = status === 'failed' ? 'error' : kind === 'core' ? 'default' : 'muted'
   const isIncoming = direction === 'in'
   const { format: formatFiat, rateReady } = useFiat()
+  const { isBalanceVisible } = useBalanceVisibility()
   const { status: appStatus } = useAuth()
   const network = appStatus?.network ?? null
 
@@ -90,12 +93,15 @@ export default function TransactionCard({
 
       <AmountSummary
         total={
-          <span className={isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
-            {isIncoming ? '+' : '-'}<DashBigNumber>{davToDash(amount).toString()}</DashBigNumber>
-          </span>
+          <SensitiveValue hidden={!isBalanceVisible} size={"card"}>
+            <span className={isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
+              {isIncoming ? '+' : '-'}<DashBigNumber>{davToDash(amount).toString()}</DashBigNumber>
+            </span>
+          </SensitiveValue>
         }
-        textBadge={rateReady ? `~ ${formatFiat(amount)}` : ''}
+        textBadge={isBalanceVisible && rateReady ? `~ ${formatFiat(amount)}` : ''}
         variant={variantAmountSummary}
+        currency={isBalanceVisible ? 'Dash' : ''}
         date={
           <>
             {formatCreationDate(new Date(date))} {timePart(new Date(date))} (<TimeDelta endDate={new Date(date)}/>)

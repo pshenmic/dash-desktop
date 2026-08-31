@@ -1,6 +1,7 @@
 import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { dashboardPage, SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
@@ -32,7 +33,6 @@ export default function HeroBalance(): React.JSX.Element {
   const totalReady = shieldedCredits !== null
   const totalDuffs = balance.dash.amount + creditsToDuffs(platformCredits + (shieldedCredits ?? 0n))
 
-  const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
   const priceRate = rates[currency] ?? 0
   const change = changes24h?.[currency]
   const fiatBadge = (duffs: bigint): string | null =>
@@ -54,20 +54,24 @@ export default function HeroBalance(): React.JSX.Element {
           ) : (
             <div className={"flex items-center gap-3.5 flex-wrap"}>
               {totalReady ? (
-                <Text size={40} weight={"extrabold"} color={"blue-mint"} className={`leading-[110%] ${blur}`}>
-                  <DashBigNumber className={"gap-[.1875rem]!"}>{davToDash(totalDuffs)}</DashBigNumber>
-                  {' Dash'}
+                <Text size={40} weight={"extrabold"} color={"blue-mint"} className={"leading-[110%]"}>
+                  <SensitiveValue hidden={!isBalanceVisible} size={"hero"} tone={"accent"}>
+                    <DashBigNumber className={"gap-[.1875rem]!"}>{davToDash(totalDuffs)}</DashBigNumber>
+                    {' Dash'}
+                  </SensitiveValue>
                 </Text>
               ) : (
                 <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
-                  <span className={`text-[2.5rem] font-extrabold leading-[110%] text-dash-orange ${blur}`}>— Dash</span>
+                  <span className={"text-[2.5rem] font-extrabold leading-[110%] text-dash-orange"}>— Dash</span>
                 </Tooltip>
               )}
-              {totalReady && rateReady && (
-                <span className={`flex items-center rounded-full px-3.5 py-1.5 bg-dash-brand/10 dark:bg-dash-mint/10 ${blur}`}>
-                  <Text size={14} weight={"medium"} color={"blue-mint"} className={"whitespace-nowrap"}>
-                    ~ {formatFiat(totalDuffs)} {currency.toUpperCase()}
-                  </Text>
+              {totalReady && (rateReady || !isBalanceVisible) && (
+                <span className={"flex items-center rounded-full px-3.5 py-1.5 bg-dash-brand/10 dark:bg-dash-mint/10"}>
+                  <SensitiveValue hidden={!isBalanceVisible} size={"compact"} tone={"accent"} label={"Fiat balance hidden"}>
+                    <Text size={14} weight={"medium"} color={"blue-mint"} className={"whitespace-nowrap"}>
+                      ~ {formatFiat(totalDuffs)} {currency.toUpperCase()}
+                    </Text>
+                  </SensitiveValue>
                 </span>
               )}
             </div>
