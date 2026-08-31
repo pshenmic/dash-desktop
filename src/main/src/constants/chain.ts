@@ -5,6 +5,10 @@ export const CORE_FEE_PER_BYTE = 1
 
 export const DUST_THRESHOLD_DUFFS = 546n
 
+// Not consensus: a standard transaction may not exceed 100 kB, and at 34 bytes
+// per output this keeps a send well inside what peers relay.
+export const MAX_CORE_RECIPIENTS = 1_000
+
 export const ASSET_LOCK_PAYLOAD_BYTES = 37
 
 // A coinbase input names no parent transaction.

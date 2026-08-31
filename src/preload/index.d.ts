@@ -10,6 +10,10 @@ type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
 
+// Mirrors the CoreRecipient in src/main/src/types/CoreTransaction: one
+// transaction can pay many addresses, each its own amount.
+type CoreRecipient = { address: string; amountDuffs: bigint }
+
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
 type ShieldedSpendSource =
@@ -109,7 +113,7 @@ declare global {
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<void>
       setWalletLabel: (walletId: string, label: string | null) => Promise<void>
-      sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource) => Promise<unknown>
+      sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
       sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => Promise<unknown>

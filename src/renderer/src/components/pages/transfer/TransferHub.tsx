@@ -8,7 +8,10 @@ import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
 import PlatformInputPicker from "./PlatformInputPicker";
 import PlatformRecipientsTest from "./PlatformRecipientsTest";
+import CoreRecipientsTest from "./CoreRecipientsTest";
+import CoreUtxoPicker, { outpointKey } from "./CoreUtxoPicker";
 import { PLATFORM_INPUT_LIMIT, PLATFORM_RECIPIENT_LIMIT } from "@renderer/constants/platform";
+import { CORE_RECIPIENT_LIMIT } from "@renderer/constants/core";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
 import { useAuth } from "@renderer/contexts/AuthContext";
@@ -51,7 +54,7 @@ import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
 import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
-import { AssetLockFundingState, CoreSpendSource, PlatformAddressDto, PlatformSpendSource, ShieldedSpendSource, ShieldedSpendState } from "@renderer/api/types";
+import { AssetLockFundingState, CoreSpendSource, PlatformAddressDto, PlatformSpendSource, SelectableUtxo, ShieldedSpendSource, ShieldedSpendState } from "@renderer/api/types";
 import type { SendDraft } from "@renderer/types/SendDraft";
 import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
@@ -105,6 +108,9 @@ function WalletTransferHub(): React.JSX.Element {
     specificSourcePreferences: update(current.specificSourcePreferences),
   }))
   const [testRecipients, setTestRecipients] = useState<string[]>([])
+  const [testCoreRecipients, setTestCoreRecipients] = useState<string[]>([])
+  const [utxos, setUtxos] = useState<SelectableUtxo[]>([])
+  const [pickedOutpoints, setPickedOutpoints] = useState<string[]>([])
   const [pickedPlatformInputs, setPickedPlatformInputs] = useState<string[]>([])
   const [platformFeeAddress, setPlatformFeeAddress] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -128,6 +134,15 @@ function WalletTransferHub(): React.JSX.Element {
       .catch(() => {})
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
+
+  useEffect(() => {
+    if (!walletId) return
+    let dead = false
+    API.getUtxos(walletId)
+      .then(loaded => { if (!dead) setUtxos(loaded) })
+      .catch(() => {})
+    return () => { dead = true }
+  }, [walletId, wizardKey])
 
   const dismissFunding = async (): Promise<void> => {
     if (!walletId || dismissBusy) return
@@ -198,9 +213,18 @@ function WalletTransferHub(): React.JSX.Element {
   )
   const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences.addresses[SourceKind.Core]) ?? coreAddresses[0]
   const coreSpecificAddress = specificSourceKind === SourceKind.Core && useSpecificSource ? selectedCoreAddress : undefined
-  const coreSpendSource: CoreSpendSource | undefined = coreSpecificAddress
-    ? { kind: 'address', address: coreSpecificAddress.address }
-    : undefined
+  const corePicking = specificSourceKind === SourceKind.Core && useSpecificSource
+  const pickedUtxos = useMemo(
+    () => (corePicking ? utxos.filter(utxo => pickedOutpoints.includes(outpointKey(utxo))) : []),
+    [corePicking, utxos, pickedOutpoints],
+  )
+  // A pick names the coins themselves, which is the only way a send reaches for
+  // ones an amount would have stopped short of.
+  const coreSpendSource: CoreSpendSource | undefined = pickedUtxos.length > 0
+    ? { kind: 'outpoints', outpoints: pickedUtxos.map(utxo => ({ txid: utxo.txid, vout: utxo.vout })) }
+    : coreSpecificAddress
+      ? { kind: 'address', address: coreSpecificAddress.address }
+      : undefined
 
   const spendableNotes = useMemo(
     () => (shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes.filter(n => !n.spent) : [])
@@ -268,7 +292,9 @@ function WalletTransferHub(): React.JSX.Element {
     [specificSourceKind, platformPicking, pickedPlatformAddresses, platformFeePayer, selectedSource?.platformAddress],
   )
 
-  const balanceDuffs = coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
+  const balanceDuffs = pickedUtxos.length > 0
+    ? pickedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
+    : coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
 
   const availableCredits: bigint | null =
@@ -301,9 +327,27 @@ function WalletTransferHub(): React.JSX.Element {
     [trimmedTo, testRecipients, amountCredits],
   )
 
+  // TEST ONLY. The same split on L1, where each extra address is another output
+  // paid by the same transaction.
+  const manyCoreRecipients = operation === TransferOperation.CoreSend && testCoreRecipients.length > 0
+  const coreRecipientList = useMemo(
+    () => {
+      const addresses = [trimmedTo, ...testCoreRecipients.map(entry => entry.trim())].filter(entry => entry.length > 0)
+      const share = addresses.length === 0 ? 0n : amountDuffs / BigInt(addresses.length)
+      return addresses.map((address, index) => ({
+        address,
+        amountDuffs: index === 0 ? amountDuffs - share * BigInt(addresses.length - 1) : share,
+      }))
+    },
+    [trimmedTo, testCoreRecipients, amountDuffs],
+  )
+
   const destinationValid = manyRecipients
     ? recipientList.length === testRecipients.length + 1
       && recipientList.every(entry => isValidPlatformAddress(entry.address, network ?? undefined))
+    : manyCoreRecipients
+    ? coreRecipientList.length === testCoreRecipients.length + 1
+      && coreRecipientList.every(entry => isValidDashAddress(entry.address, network ?? undefined))
     : toKind === DestinationKind.CoreAddress ? isValidDashAddress(trimmedTo, network ?? undefined)
     : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
     : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
@@ -312,7 +356,9 @@ function WalletTransferHub(): React.JSX.Element {
 
   const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr } = useOperationFee(walletId, operation, {
     destinationValid,
-    recipient: manyRecipients ? recipientList.map(entry => entry.address) : trimmedTo,
+    recipient: manyRecipients ? recipientList.map(entry => entry.address)
+      : manyCoreRecipients ? coreRecipientList.map(entry => entry.address)
+      : trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
@@ -439,6 +485,8 @@ function WalletTransferHub(): React.JSX.Element {
     setPickedPlatformInputs([])
     setPlatformFeeAddress(null)
     setTestRecipients([])
+    setTestCoreRecipients([])
+    setPickedOutpoints([])
     const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
     draftRef.current = resetDraft
     setDraftState(resetDraft)
@@ -479,11 +527,27 @@ function WalletTransferHub(): React.JSX.Element {
             }
           />
           {useSpecificSource && specificSourceKind === SourceKind.Core && (
-            <CoreAddressSelect
-              addresses={coreAddresses}
-              selected={selectedCoreAddress}
-              onSelect={address => setSpecificSourcePreferences(current =>
-                updateSpecificSourceAddress(current, SourceKind.Core, address))}
+            <>
+              <CoreAddressSelect
+                addresses={coreAddresses}
+                selected={selectedCoreAddress}
+                onSelect={address => setSpecificSourcePreferences(current =>
+                  updateSpecificSourceAddress(current, SourceKind.Core, address))}
+              />
+              <CoreUtxoPicker
+                utxos={utxos}
+                picked={pickedOutpoints}
+                onToggle={(key, checked) => setPickedOutpoints(current =>
+                  checked ? [...current, key] : current.filter(entry => entry !== key))}
+                onClear={() => setPickedOutpoints([])}
+              />
+            </>
+          )}
+          {operation === TransferOperation.CoreSend && (
+            <CoreRecipientsTest
+              addresses={testCoreRecipients}
+              onChange={setTestCoreRecipients}
+              maxRecipients={CORE_RECIPIENT_LIMIT - 1}
             />
           )}
           {operation === TransferOperation.AddressFundsTransfer && (
@@ -898,8 +962,7 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           network={network}
-          toAddress={trimmedTo}
-          amountDuffs={amountDuffs}
+          recipients={coreRecipientList}
           amountFiat={amountFiat}
           source={coreSpendSource}
           onSuccess={() => {

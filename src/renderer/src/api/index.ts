@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreSpendSource, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformRecipient, PlatformSendResult, PlatformSpendSource, PreferencesJSON, SelectableUtxo, SendResult, ShieldedSpendSource, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreRecipient, CoreSpendSource, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformRecipient, PlatformSendResult, PlatformSpendSource, PreferencesJSON, SelectableUtxo, SendResult, ShieldedSpendSource, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -163,8 +163,8 @@ export class API {
     return this.api.deleteContact(id)
   }
 
-  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password, source) as Promise<SendResult>
+  static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, recipients, password, source) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {

@@ -75,9 +75,11 @@ export class FeeService {
     switch (operation) {
       // Paid in Dash on L1, per byte, so the quote runs the selection the send
       // will run rather than a floor the send is free to exceed.
-      case 'coreSend':
+      case 'coreSend': {
         requireAutomaticInputs(params.platformSource)
-        return {feeCredits: null, ...await this.coreQuote(wallet, params, 0), maxPerTx: null, noteLimit: null}
+        const outputsCount = Array.isArray(params.recipient) ? Math.max(params.recipient.length, 1) : 1
+        return {feeCredits: null, ...await this.coreQuote(wallet, params, outputsCount, 0), maxPerTx: null, noteLimit: null}
+      }
 
       // Two transactions, so two fees. The L1 lock is paid in Dash on top of the
       // amount; the transition its proof funds is paid in credits out of what
@@ -89,7 +91,8 @@ export class FeeService {
         requireAutomaticInputs(params.platformSource)
         return {
           feeCredits: await this.protocolFee(wallet, operation, params, 1),
-          ...await this.coreQuote(wallet, params, ASSET_LOCK_PAYLOAD_BYTES),
+          // A lock pays its burn output whatever the recipient list names.
+          ...await this.coreQuote(wallet, params, 1, ASSET_LOCK_PAYLOAD_BYTES),
           maxPerTx: null,
           noteLimit: null,
         }
@@ -218,9 +221,9 @@ export class FeeService {
   // selection over the same coins the send will. maxDuffs is what those coins
   // can fund at their own price, which is the only amount a Max can offer
   // without the send refusing it.
-  private async coreQuote(wallet: Wallet, params: FeeParams, payloadBytes: number): Promise<{feeDuffs: bigint; maxDuffs: bigint}> {
+  private async coreQuote(wallet: Wallet, params: FeeParams, outputsCount: number, payloadBytes: number): Promise<{feeDuffs: bigint; maxDuffs: bigint}> {
     const feeForInputs = (inputsCount: number): bigint =>
-      coreFeeDuffsFor(this.preferences.general.coreFeeMultiplier, inputsCount, 1, true, payloadBytes)
+      coreFeeDuffsFor(this.preferences.general.coreFeeMultiplier, inputsCount, outputsCount, true, payloadBytes)
 
     const source = params.coreSource ?? undefined
     const grouped = await this.addressDAO.getAddressesByWalletId(wallet.walletId)

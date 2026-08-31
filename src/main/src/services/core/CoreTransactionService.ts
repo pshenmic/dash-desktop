@@ -88,19 +88,24 @@ export class CoreTransactionService {
   }
 
   async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
-    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, feeDuffs, seed, network} = params
+    const {inputs, outputs, changeAddress, inputTotal, feeDuffs, seed, network} = params
 
     const transaction = new SDKTransaction()
     const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
 
-    const recipientOutput = new Output(amount)
-    if (recipientType === 'p2sh') {
-      recipientOutput.script = this.p2shScript(toAddress)
-    } else {
-      recipientOutput.generateP2PKH(toAddress)
+    let outputTotal = 0n
+    for (const output of outputs) {
+      const recipientOutput = new Output(output.amountDuffs)
+      if (output.recipientType === 'p2sh') {
+        recipientOutput.script = this.p2shScript(output.address)
+      } else {
+        recipientOutput.generateP2PKH(output.address)
+      }
+      transaction.addOutput(recipientOutput)
+      outputTotal += output.amountDuffs
     }
-    transaction.addOutput(recipientOutput)
-    this.addChange(transaction, inputTotal - amount - feeDuffs, changeAddress)
+
+    this.addChange(transaction, inputTotal - outputTotal - feeDuffs, changeAddress)
     transaction.sign(privateKeys)
 
     return transaction

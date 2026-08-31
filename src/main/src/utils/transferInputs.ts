@@ -1,7 +1,8 @@
 import {GroupedAddresses} from '../types/GroupedAddresses'
 import {CoreFeeForInputs, CoreSpendSource, SelectableUtxo} from '../types/CoinSelection'
-import {TransferInput, TransferInputSelection} from '../types/CoreTransaction'
+import {CoreRecipient, TransferInput, TransferInputSelection} from '../types/CoreTransaction'
 import {UTXO} from '../types/UTXO'
+import {DUST_THRESHOLD_DUFFS, MAX_CORE_RECIPIENTS} from '../constants/chain'
 import {selectCoins} from './coinSelection'
 
 const outpointKey = (txid: string, vout: number): string => `${txid}:${vout}`
@@ -10,6 +11,20 @@ const pickedOutpointKeys = (source?: CoreSpendSource): Set<string> | null =>
   source?.kind === 'outpoints'
     ? new Set(source.outpoints.map(outpoint => outpointKey(outpoint.txid, outpoint.vout)))
     : null
+
+// Every output a send carries, and the amount it has to fund. An output under
+// the dust threshold is one no peer relays, so it is refused rather than sent.
+export function requireCoreRecipients(recipients: CoreRecipient[]): bigint {
+  if (recipients.length === 0 || recipients.length > MAX_CORE_RECIPIENTS) {
+    throw new Error(`Recipient count must be between 1 and ${MAX_CORE_RECIPIENTS}`)
+  }
+  for (const recipient of recipients) {
+    if (recipient.amountDuffs < DUST_THRESHOLD_DUFFS) {
+      throw new Error(`Minimum amount per recipient is ${DUST_THRESHOLD_DUFFS.toString()} duffs`)
+    }
+  }
+  return recipients.reduce((sum, recipient) => sum + recipient.amountDuffs, 0n)
+}
 
 // Falls back to the last change address, then to a receiving one, so change
 // never leaves the wallet.

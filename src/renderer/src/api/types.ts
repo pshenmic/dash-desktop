@@ -58,6 +58,13 @@ export type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: Outpoint[] }
 
+// One output of a send. Nothing is keyed by address, so the same address twice
+// is two payments.
+export interface CoreRecipient {
+  address: string
+  amountDuffs: bigint
+}
+
 // An address narrows the automatic note selection; a picked note list is the
 // spend set itself, spent whole.
 export type ShieldedSpendSource =

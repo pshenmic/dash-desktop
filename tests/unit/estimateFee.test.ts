@@ -29,6 +29,8 @@ const ONE_DASH = 100_000_000n
 
 const CORE_FEE = (inputsCount: number): bigint =>
   coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true)
+const CORE_FEE_FOR = (inputsCount: number, outputsCount: number): bigint =>
+  coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, outputsCount, true)
 const ASSET_LOCK_FEE = (inputsCount: number): bigint =>
   coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true, ASSET_LOCK_PAYLOAD_BYTES)
 
@@ -254,6 +256,48 @@ describe('estimateFee', () => {
     }))
 
     expect(fee.feeDuffs).toBe(CORE_FEE(2))
+  })
+
+  // Every extra recipient is another output on the same transaction, and the
+  // fee is per byte, so quoting one output would underprice all but a plain send.
+  it('prices a Core send for every output it carries', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 1_000n,
+      recipient: [CORE_ADDRESS, CORE_ADDRESS, CORE_ADDRESS],
+    }))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE_FOR(1, 3))
+    expect(fee.feeDuffs).toBeGreaterThan(CORE_FEE(1))
+  })
+
+  // Max is what the send can still fund, and the outputs it will carry are part
+  // of that price.
+  it('offers a smaller maximum the more outputs the send carries', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const one = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 0n}))
+    const many = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 0n,
+      recipient: [CORE_ADDRESS, CORE_ADDRESS, CORE_ADDRESS],
+    }))
+
+    expect(one.maxDuffs).toBe(ONE_DASH - CORE_FEE_FOR(1, 1))
+    expect(many.maxDuffs).toBe(ONE_DASH - CORE_FEE_FOR(1, 3))
+  })
+
+  // An asset lock pays its burn output and its change, whatever the caller
+  // named, so the recipient list cannot move its price.
+  it('prices an asset lock for one output whatever the recipient list says', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const fee = await svc.estimateFee(WALLET, 'assetLockFunding', params({
+      amountDuffs: 1_000n,
+      recipient: [CORE_ADDRESS, CORE_ADDRESS, CORE_ADDRESS],
+    }))
+
+    expect(fee.feeDuffs).toBe(ASSET_LOCK_FEE(1))
   })
 
   // An asset lock is funded by L1 coins, so a platform address names nothing it

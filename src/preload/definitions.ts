@@ -8,6 +8,10 @@ type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
 
+// Mirrors the CoreRecipient in src/main/src/types/CoreTransaction: one
+// transaction can pay many addresses, each its own amount.
+type CoreRecipient = { address: string; amountDuffs: bigint }
+
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
 type ShieldedSpendSource =
@@ -51,7 +55,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   addPlatformAddress: (walletId: string) => ipcRenderer.invoke('addPlatformAddress', walletId),
   setAddressLabel: (walletId: string, address: string, label: string) => ipcRenderer.invoke('setAddressLabel', walletId, address, label),
   setWalletLabel: (walletId: string, label: string | null) => ipcRenderer.invoke('setWalletLabel', walletId, label),
-  sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password, source),
+  sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource) => ipcRenderer.invoke('sendTransaction', walletId, recipients, password, source),
   getTxLockStatus: (walletId: string, txid: string) => ipcRenderer.invoke('getTxLockStatus', walletId, txid),
   estimateFee: (walletId: string, operation: string, params: unknown) => ipcRenderer.invoke('estimateFee', walletId, operation, params),
   sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, source, recipients, password),

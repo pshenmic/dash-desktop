@@ -30,7 +30,8 @@ import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";
 import {CoreSpendSource, SelectableUtxo} from '../../types/CoinSelection'
-import {selectableTransferUtxos, selectTransferInputs} from '../../utils/transferInputs'
+import {CoreRecipient} from '../../types/CoreTransaction'
+import {requireCoreRecipients, selectableTransferUtxos, selectTransferInputs} from '../../utils/transferInputs'
 import {Preferences} from '../../preferences'
 import {ConnectionStatus} from '../../types/ConnectionStatus'
 
@@ -313,20 +314,22 @@ export class WalletService {
     return await provider.getBalance(address)
   }
 
+  // One transaction pays many addresses: each recipient is another output, which
+  // costs another slice of the per-byte fee rather than another transaction.
   async sendTransaction(
     walletId: string,
-    toAddress: string,
-    amountDuffs: bigint,
+    recipients: CoreRecipient[],
     password: string,
     source?: CoreSpendSource,
   ): Promise<SendResult> {
-    if (amountDuffs <= 0n) {
-      throw new Error('Send amount must be greater than zero')
-    }
+    const amountDuffs = requireCoreRecipients(recipients)
 
     const {tx, inputTotal, changeAddress} = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
       const network = wallet.network
-      const recipientType = this.coreTransactionService.classifyRecipientAddress(toAddress, network)
+      const outputs = recipients.map(recipient => ({
+        ...recipient,
+        recipientType: this.coreTransactionService.classifyRecipientAddress(recipient.address, network),
+      }))
       const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
       const provider = this.providers.forWallet(walletId, network)
       await provider.ensureReady()
@@ -336,15 +339,13 @@ export class WalletService {
           grouped,
           await provider.getWalletUtxos(),
           amountDuffs,
-          inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, 1, true),
+          inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, outputs.length, true),
           source,
         )
 
       const tx = await this.coreTransactionService.buildSignedTransfer({
         inputs: transferInputs,
-        toAddress,
-        recipientType,
-        amount: amountDuffs,
+        outputs,
         changeAddress,
         inputTotal,
         feeDuffs,
@@ -358,13 +359,13 @@ export class WalletService {
 
     const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
     const actualFee = inputTotal - outputTotal
-    const hasChange = tx.outputs.length > 1
+    const hasChange = tx.outputs.length > recipients.length
 
     return {
       txid: broadcast.txid,
       amount: amountDuffs,
       fee: actualFee,
-      toAddress,
+      toAddress: recipients[0].address,
       changeAddress: hasChange ? changeAddress : null,
       peersAcked: broadcast.peersDelivered.length,
     }
