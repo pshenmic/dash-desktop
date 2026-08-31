@@ -78,7 +78,7 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
 }
 
 function params(overrides: Partial<FeeParams> = {}): FeeParams {
-  return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', sourceAddress: null, identityId: IDENTITY, shieldedSource: null, ...overrides}
+  return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', platformSource: null, identityId: IDENTITY, shieldedSource: null, ...overrides}
 }
 
 function feeCalls(request: ReturnType<typeof vi.fn>): Array<{operation: string; params: FeeQuoteParams}> {
@@ -256,17 +256,15 @@ describe('estimateFee', () => {
     expect(fee.feeDuffs).toBe(CORE_FEE(2))
   })
 
-  // sourceAddress names a platform address on these operations, and reading it
-  // as an L1 filter matched no coin at all, so Max offered nothing.
-  it('funds an asset lock from the whole wallet while a platform source is named', async () => {
+  // An asset lock is funded by L1 coins, so a platform address names nothing it
+  // could spend — refused rather than ignored.
+  it('refuses a platform input pick on an asset lock', async () => {
     const {service: svc} = service([], [utxo(ONE_DASH, 1)])
 
-    const fee = await svc.estimateFee(WALLET, 'identityRegister', params({
+    await expect(svc.estimateFee(WALLET, 'identityRegister', params({
       amountDuffs: 1_000n,
-      sourceAddress: 'tdash1qsourceplatformaddress',
-    }))
-
-    expect(fee.maxDuffs).toBe(ONE_DASH - ASSET_LOCK_FEE(1))
+      platformSource: {kind: 'address', address: 'tdash1qsourceplatformaddress'},
+    }))).rejects.toThrow('address-funded operations only')
   })
 
   // An asset lock is funded by L1 coins like any other send, and the link it

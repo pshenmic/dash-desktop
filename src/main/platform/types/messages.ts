@@ -1,6 +1,7 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {Network} from '../../src/types/Network'
+import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
 import {ShieldedSpendSource} from '../../src/types/ShieldedNoteSelection'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
@@ -104,7 +105,6 @@ export type PoolSpendOperation =
   | 'identityCreateFromShielded'
 
 export type TransitionFeeOperation =
-  | 'addressFundsTransfer'
   | 'shield'
   | 'identityToAddress'
   | 'identityToIdentity'
@@ -123,6 +123,7 @@ export type BuiltTransitionOperation = Exclude<
 // Funded by platform addresses, so the fee scales with the inputs the selection
 // takes and the two have to resolve together.
 export type SelectionFeeOperation =
+  | 'addressFundsTransfer'
   | 'addressWithdrawal'
   | 'identityCreate'
   | 'identityTopUp'
@@ -139,12 +140,12 @@ export interface FeeParams {
   // L1 quotes only: the fee scales with the inputs the amount takes.
   amountDuffs?: bigint | null
   // L1 quotes only: narrows the funding to one Core address, or to coins the
-  // user picked. Kept apart from sourceAddress, which names a platform address
+  // user picked. Kept apart from platformSource, which names platform addresses
   // and so matches no L1 coin at all.
   coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them, and a caller spelling
   // out which fields it does not use says nothing about the fee.
-  sourceAddress?: string | null
+  platformSource?: PlatformSpendSource | null
   identityId?: string | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
@@ -251,19 +252,24 @@ export interface PlatformOperations {
     result: {infos: AddressInfo[]}
   }
   addressTransfer: {
-    payload: {seed: Uint8Array; input: AddressInput; recipient: string; amountCredits: bigint}
+    payload: {
+      seed: Uint8Array
+      inputs: AddressInput[]
+      feeStrategy: FeeStrategyStep[]
+      recipients: Recipient[]
+    }
     result: {stHash: string}
   }
   addressWithdrawal: {
-    payload: {seed: Uint8Array; inputs: AddressInput[]; coreAddress: string; coreFeePerByte: number}
+    payload: {seed: Uint8Array; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]; coreAddress: string; coreFeePerByte: number}
     result: {stHash: string}
   }
   identityCreateFromAddresses: {
-    payload: {seed: Uint8Array; identityIndex: number; inputs: AddressInput[]}
+    payload: {seed: Uint8Array; identityIndex: number; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]}
     result: {stHash: string; identifier: string}
   }
   identityTopUpFromAddresses: {
-    payload: {seed: Uint8Array; identifier: string; inputs: AddressInput[]}
+    payload: {seed: Uint8Array; identifier: string; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]}
     result: {stHash: string}
   }
   identityCreditsToAddresses: {

@@ -11,8 +11,12 @@ export const MAX_FEE_MULTIPLIER = 20
 
 export const MIN_OUTPUT_CREDITS = 500_000n
 export const MIN_INPUT_CREDITS = 100_000n
+// Consensus funds a new identity from a lower floor than it accepts as an
+// ordinary output.
+export const MIN_IDENTITY_FUNDING_CREDITS = 200_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
+export const MAX_FEE_STRATEGY_STEPS = 4
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0

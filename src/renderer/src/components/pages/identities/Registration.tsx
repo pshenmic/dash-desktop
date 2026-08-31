@@ -15,7 +15,7 @@ import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import { API } from '@renderer/api'
-import { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
+import { AssetLockFundingState, PlatformSpendSource, ShieldedSpendState } from '@renderer/api/types'
 import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
@@ -122,6 +122,13 @@ export default function IdentityRegistration(): React.JSX.Element {
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? BigInt(shieldedSync.balance)
     : null
+  // Only the transitions platform addresses fund read this; an L1 registration
+  // is funded by coins and names none.
+  const platformSource: PlatformSpendSource | null =
+    selectedSource != null && operation === TransferOperation.IdentityCreate
+      ? { kind: 'address', address: selectedSource.platformAddress }
+      : null
+
   const availableCredits = fromKind === SourceKind.PlatformAddress
     ? BigInt(selectedSource?.balanceCredits ?? 0n)
     : fromKind === SourceKind.Shielded
@@ -133,7 +140,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     recipient: '',
     amountCredits,
     amountDuffs: fromKind === SourceKind.Core ? amountDuffs : null,
-    sourceAddress: selectedSource?.platformAddress ?? null,
+    platformSource,
     identityId: null,
     shieldedSource: null,
   })
@@ -248,7 +255,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const runPlatformRegistration = (password: string) => {
     if (!walletId) return Promise.reject(new Error('No wallet selected'))
-    return API.createIdentityFromAddresses(walletId, selectedSource?.platformAddress ?? null, amountCredits, password)
+    return API.createIdentityFromAddresses(walletId, platformSource, amountCredits, password)
       .then(result => ({
         stHash: result.stHash,
         amountCredits: result.amountCredits,

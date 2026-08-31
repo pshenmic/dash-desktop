@@ -16,6 +16,19 @@ type ShieldedSpendSource =
   | { kind: 'address'; noteIndexes: number[] }
   | { kind: 'notes'; noteIndexes: number[] }
 
+// Mirrors src/main/src/types/PlatformTransfer: one address to draw from, or
+// every address it may draw on, how much of each, and which one is charged.
+type PlatformPickedInput = { address: string; credits: bigint }
+type PlatformFeeStep =
+  | { kind: 'deductFromInput'; address: string }
+  | { kind: 'reduceOutput'; index: number }
+// Mirrors the Recipient in src/main/platform/types/messages: one transition can
+// pay many addresses, each its own amount.
+type PlatformRecipient = { address: string; amountCredits: bigint }
+type PlatformSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'inputs'; inputs: PlatformPickedInput[]; feeStrategy: PlatformFeeStep[] }
+
 // Every coin a send can draw on: what getUtxos lists and what an outpoints
 // source picks from.
 interface SelectableUtxoDTO {
@@ -99,13 +112,13 @@ declare global {
       sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, source?: CoreSpendSource) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
-      sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
-      topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
-      withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
+      sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => Promise<unknown>
+      topUpIdentityFromAddresses: (walletId: string, identityId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => Promise<unknown>
+      withdrawPlatformCredits: (walletId: string, source: PlatformSpendSource | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       transferIdentityCredits: (walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawIdentityCredits: (walletId: string, identityId: string, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
-      createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
+      createIdentityFromAddresses: (walletId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => Promise<unknown>
       startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string, source?: CoreSpendSource) => Promise<unknown>
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>

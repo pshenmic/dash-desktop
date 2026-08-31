@@ -2,7 +2,7 @@ import {IdentityCreateFromAddressesTransitionWASM, IdentityPublicKeyInCreationWA
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
-import {DEDUCT_FROM_FIRST, signInputs, toInputAddresses} from './signInputs'
+import {signInputs, toFeeStrategy, toInputAddresses} from './signInputs'
 import {KEY_SPECS} from '../../constants'
 
 type Payload = PlatformOperations['identityCreateFromAddresses']['payload']
@@ -32,7 +32,7 @@ export async function identityCreateFromAddresses(payload: Payload, ctx: Operati
     publicKeys: keys.map(key =>
       new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey)),
     inputs: toInputAddresses(inputs),
-    feeStrategy: DEDUCT_FROM_FIRST,
+    feeStrategy: toFeeStrategy(payload.feeStrategy),
     inputWitness: [],
     userFeeIncrease: 0,
   })

@@ -37,6 +37,7 @@ describe('send drafts', () => {
         enabled: true,
         addresses: {
           [SourceKind.Core]: 'core-source',
+          [SourceKind.PlatformAddress]: 'platform-source',
           [SourceKind.Shielded]: 'shielded-source',
         },
       },

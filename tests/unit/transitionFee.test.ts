@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {DashPlatformSDK} from 'dash-platform-sdk'
-import {PlatformAddressWASM} from 'pshenmic-dpp'
+import {AddressFundsTransferTransitionWASM, PlatformAddressWASM} from 'pshenmic-dpp'
 import {InputAddressWASM} from 'dash-platform-sdk/types.js'
 import {createBase58check} from '@scure/base'
 import {sha256} from '@noble/hashes/sha2.js'
@@ -85,7 +85,7 @@ function params(overrides: Partial<FeeQuoteParams> = {}): FeeQuoteParams {
   return {
     amountCredits: 1_000_000n,
     recipient: IDENTITY,
-    sourceAddress: null,
+    platformSource: null,
     identityId: IDENTITY,
     shieldedSource: null,
     inputCount: 1,
@@ -139,6 +139,25 @@ describe('transitionFee', () => {
       params: params({recipient: [PLATFORM_ADDRESS, PLATFORM_ADDRESS]}),
     }, ctx)
     expect(twice.feeCredits).toBe(once.feeCredits)
+  })
+
+  // Consensus meters an input like an output, one address balance write each,
+  // so an input is priced like one.
+  it('charges an input of a transfer what it charges an output', () => {
+    const twoInputs = transitionFee({operation: 'addressFundsTransfer', params: params({inputCount: 2})}, ctx)
+    const oneInput = transitionFee({operation: 'addressFundsTransfer', params: params({inputCount: 1})}, ctx)
+    const oneOutput = AddressFundsTransferTransitionWASM.estimateMinFee(0, 1)
+
+    expect(twoInputs.feeCredits - oneInput.feeCredits).toBe(oneOutput)
+  })
+
+  // Consensus meters the transition rather than counting addresses, and what it
+  // charged was more than the addresses alone.
+  it('reserves more than the addresses a transfer touches', () => {
+    const {feeCredits} = transitionFee({operation: 'addressFundsTransfer', params: params({inputCount: 10})}, ctx)
+    const touched = AddressFundsTransferTransitionWASM.estimateMinFee(0, 11)
+
+    expect(feeCredits).toBeGreaterThan(touched)
   })
 
   // A bare string is one recipient; nothing has to say so separately.

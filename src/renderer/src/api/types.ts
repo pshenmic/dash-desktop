@@ -64,6 +64,31 @@ export type ShieldedSpendSource =
   | { kind: 'address'; noteIndexes: number[] }
   | { kind: 'notes'; noteIndexes: number[] }
 
+// One transition can pay many addresses, each its own amount.
+export interface PlatformRecipient {
+  address: string
+  amountCredits: bigint
+}
+
+// The most of one Platform address a transition may draw. Credits are divisible,
+// so what it does not draw stays where it is.
+export interface PlatformPickedInput {
+  address: string
+  credits: bigint
+}
+
+// Which input pays the fee, named by address: the index consensus reads is a
+// position in the byte-sorted inputs, which only the main process can compute.
+export type PlatformFeeStep =
+  | { kind: 'deductFromInput'; address: string }
+  | { kind: 'reduceOutput'; index: number }
+
+// One address to draw from, or every address it may draw on, how much of each,
+// and which one is charged.
+export type PlatformSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'inputs'; inputs: PlatformPickedInput[]; feeStrategy: PlatformFeeStep[] }
+
 // getUtxos — every coin a send can draw on, which is also everything an
 // outpoints source may pick from.
 export interface SelectableUtxo {
@@ -84,10 +109,10 @@ export interface FeeParams {
   // L1 quotes only: the fee scales with the inputs the amount takes.
   amountDuffs?: bigint | null
   // L1 quotes only: narrows the funding to one Core address, or to coins the
-  // user picked. Kept apart from sourceAddress, which names a platform address.
+  // user picked. Kept apart from platformSource, which names platform addresses.
   coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them.
-  sourceAddress?: string | null
+  platformSource?: PlatformSpendSource | null
   identityId?: string | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null

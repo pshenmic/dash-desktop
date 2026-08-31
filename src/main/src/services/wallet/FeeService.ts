@@ -17,7 +17,13 @@ import {
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
 import {requireWallet} from '../../utils/requireWallet'
 import {maxSelectableAmount, requireAutomaticSelection, selectCoins} from '../../utils/coinSelection'
-import {selectPlatformInputsWithFee} from '../../utils/platformTransfer'
+import {
+  PlatformFeeForInputs,
+  maxPlatformCredits,
+  requireAutomaticInputs,
+  selectPlatformInputsWithFee,
+  selectablePlatformInputs,
+} from '../../utils/platformTransfer'
 import {coreFeeDuffsFor, coreFeePerByte} from '../../utils/coreFeeRate'
 import {selectableTransferUtxos} from '../../utils/transferInputs'
 
@@ -70,6 +76,7 @@ export class FeeService {
       // Paid in Dash on L1, per byte, so the quote runs the selection the send
       // will run rather than a floor the send is free to exceed.
       case 'coreSend':
+        requireAutomaticInputs(params.platformSource)
         return {feeCredits: null, ...await this.coreQuote(wallet, params, 0), maxPerTx: null, noteLimit: null}
 
       // Two transactions, so two fees. The L1 lock is paid in Dash on top of the
@@ -79,6 +86,7 @@ export class FeeService {
       case 'assetLockShield':
       case 'identityRegister':
       case 'identityTopUpL1':
+        requireAutomaticInputs(params.platformSource)
         return {
           feeCredits: await this.protocolFee(wallet, operation, params, 1),
           ...await this.coreQuote(wallet, params, ASSET_LOCK_PAYLOAD_BYTES),
@@ -92,15 +100,17 @@ export class FeeService {
       case 'shieldedWithdrawal':
       case 'identityCreateFromShielded':
         requireAutomaticSelection(params.coreSource)
+        requireAutomaticInputs(params.platformSource)
         return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.shieldedSource ?? null)
 
       // Funded by platform addresses: the fee scales with the inputs, so the
       // selection has to run before the price is known.
+      case 'addressFundsTransfer':
       case 'addressWithdrawal':
       case 'identityCreate':
       case 'identityTopUp':
         requireAutomaticSelection(params.coreSource)
-        return this.credits(await this.selectionFee(wallet, operation, params))
+        return this.platformQuote(wallet, operation, params)
 
       // Spends an identity's balance, so there is no price until one is picked.
       // null rather than zero: nothing charges zero.
@@ -108,14 +118,15 @@ export class FeeService {
       case 'identityToIdentity':
       case 'identityWithdrawal':
         requireAutomaticSelection(params.coreSource)
+        requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null || params.amountCredits <= 0n
           ? null
           : await this.protocolFee(wallet, operation, params, 1))
 
-      // One input by construction: neither send ever splits its source.
-      case 'addressFundsTransfer':
+      // One input by construction: a shield spends its source address whole.
       case 'shield':
         requireAutomaticSelection(params.coreSource)
+        requireAutomaticInputs(params.platformSource)
         return this.credits(await this.protocolFee(wallet, operation, params, 1))
     }
   }
@@ -137,10 +148,11 @@ export class FeeService {
   ): Promise<PlatformInputOutcome> {
     const candidates = await this.addresses.loadCandidates(wallet)
     return selectPlatformInputsWithFee(
-      candidates,
+      selectablePlatformInputs(candidates, params.platformSource),
       params.amountCredits,
-      inputCount => this.protocolFee(wallet, operation, params, inputCount),
-      params.sourceAddress ?? undefined,
+      this.inputFee(wallet, operation, params),
+      params.platformSource,
+      this.outputCount(operation, params),
     )
   }
 
@@ -163,14 +175,43 @@ export class FeeService {
   }
 
   // A quote is asked for before the amount is affordable, so a selection that
-  // refuses answers with the one-input floor rather than failing.
-  private async selectionFee(
+  // refuses still answers, with the floor a single input would cost.
+  private async platformQuote(
     wallet: Wallet,
     operation: SelectionFeeOperation,
     params: FeeParams,
-  ): Promise<bigint> {
-    const {plan} = await this.planInputs(wallet, operation, params)
-    return plan?.feeCredits ?? this.protocolFee(wallet, operation, params, 1)
+  ): Promise<OperationFee> {
+    const candidates = await this.addresses.loadCandidates(wallet)
+    const selectable = selectablePlatformInputs(candidates, params.platformSource)
+    const feeForInputs = this.inputFee(wallet, operation, params)
+    const {plan} = await selectPlatformInputsWithFee(
+      selectable, params.amountCredits, feeForInputs, params.platformSource, this.outputCount(operation, params))
+
+    return {
+      feeCredits: plan?.feeCredits ?? await feeForInputs(1),
+      feeDuffs: null,
+      maxDuffs: null,
+      maxPerTx: await maxPlatformCredits(selectable, feeForInputs, params.platformSource),
+      noteLimit: null,
+    }
+  }
+
+  // A transfer is the one address-funded transition carrying outputs of its
+  // own, which are all a reduceOutput fee step could index.
+  private outputCount(operation: SelectionFeeOperation, params: FeeParams): number {
+    if (operation !== 'addressFundsTransfer') return 0
+    return Array.isArray(params.recipient) ? params.recipient.length : 1
+  }
+
+  // Every input count is a worker round trip, and the selection and the maximum
+  // walk the same ones, so a quote prices a count once.
+  private inputFee(wallet: Wallet, operation: SelectionFeeOperation, params: FeeParams): PlatformFeeForInputs {
+    const priced = new Map<number, Promise<bigint>>()
+    return inputCount => {
+      const quoted = priced.get(inputCount) ?? this.protocolFee(wallet, operation, params, inputCount)
+      priced.set(inputCount, quoted)
+      return quoted
+    }
   }
 
   // The fee scales with the inputs the selection takes, so the quote runs that

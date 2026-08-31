@@ -56,8 +56,10 @@ export function transitionFee(payload: Payload, ctx: OperationContext): Result {
 
 function protocolFee(operation: TransitionFeeOperation, params: FeeQuoteParams, ctx: OperationContext): bigint {
   switch (operation) {
+    // Consensus meters an input like an output, one address balance write each,
+    // so every address touched is priced at the output rate, plus one for base.
     case 'addressFundsTransfer':
-      return AddressFundsTransferTransitionWASM.estimateMinFee(params.inputCount, paid(params).length)
+      return AddressFundsTransferTransitionWASM.estimateMinFee(0, params.inputCount + paid(params).length + 1)
 
     // What a withdrawal does not spend stays on the address, so no change output.
     case 'addressWithdrawal':

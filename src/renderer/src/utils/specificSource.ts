@@ -10,6 +10,7 @@ export function initialSpecificSourcePreferences(): SpecificSourcePreferences {
     enabled: false,
     addresses: {
       [SourceKind.Core]: null,
+      [SourceKind.PlatformAddress]: null,
       [SourceKind.Shielded]: null,
     },
   }
@@ -26,6 +27,16 @@ export function specificSourceKindForOperation(operation: TransferOperation | nu
     || operation === TransferOperation.IdentityTopUpL1
   ) {
     return SourceKind.Core
+  }
+  // The three transitions whose fee scales with the inputs they take, which are
+  // the only ones a pick can name.
+  if (
+    operation === TransferOperation.AddressFundsTransfer
+    || operation === TransferOperation.AddressWithdrawal
+    || operation === TransferOperation.IdentityCreate
+    || operation === TransferOperation.IdentityTopUp
+  ) {
+    return SourceKind.PlatformAddress
   }
   if (
     operation === TransferOperation.ShieldedTransfer

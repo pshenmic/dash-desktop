@@ -107,6 +107,8 @@ interface SourcePickerProps {
   platformAddresses: PlatformAddressDto[]
   selectedPlatformAddress: PlatformAddressDto | undefined
   onPlatformAddressChange: (address: string) => void
+  // Off while the inputs are being picked, which lists the same addresses.
+  showPlatformAddress?: boolean
   identities: IdentityApiDto[]
   selectedIdentity: IdentityApiDto | undefined
   onIdentityChange: (identifier: string) => void
@@ -120,6 +122,7 @@ export function SourcePicker({
   platformAddresses,
   selectedPlatformAddress,
   onPlatformAddressChange,
+  showPlatformAddress = true,
   identities,
   selectedIdentity,
   onIdentityChange,
@@ -128,7 +131,7 @@ export function SourcePicker({
     <div className={"flex flex-col gap-2"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
-      {kind === SourceKind.PlatformAddress && (
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && (
         <PlatformAddressSelect
           addresses={platformAddresses}
           selected={selectedPlatformAddress}

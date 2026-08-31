@@ -6,6 +6,7 @@ import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {AssetLockFundingState} from '../../types/AssetLockFunding'
 import {CoreSpendSource} from '../../types/CoinSelection'
+import {PlatformInputPlan, PlatformSpendSource} from '../../types/PlatformTransfer'
 import {Network} from '../../types/Network'
 import {Wallet} from '../../types/Wallet'
 import {Identity} from '../../types/Identity'
@@ -14,14 +15,15 @@ import {IdentityCreateResult} from '../../types/IdentityCreateResult'
 import {ShieldResult} from '../../types/ShieldResult'
 import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {platformAccountXpub} from '../../utils/platformAddress'
-import {CREDITS_PER_DUFF, MAX_RECIPIENTS, MIN_OUTPUT_CREDITS} from '../../constants/credits'
+import {CREDITS_PER_DUFF, MIN_IDENTITY_FUNDING_CREDITS} from '../../constants/credits'
 import {identityPath} from '../../utils/identityKeys'
-import {selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
+import {requireRecipients, selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
 import {lockedDuffsFor} from '../../utils/assetLockTx'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
 import {FeeService} from '../wallet/FeeService'
+import {Recipient, SelectionFeeOperation} from '../../../platform/types/messages'
 
 
 // Every way credits move on L2: between platform addresses, to and from
@@ -63,39 +65,40 @@ export class PlatformTransferService {
     this.preferences = preferences
   }
 
+  // One transition pays many addresses: consensus keys its outputs by address,
+  // and every extra one costs another balance write rather than another fee.
   async sendPlatformTransfer(
     walletId: string,
-    fromPlatformAddress: string,
-    toPlatformAddress: string,
-    amountCredits: bigint,
+    source: PlatformSpendSource | null,
+    recipients: Recipient[],
     password: string,
   ): Promise<PlatformSendResult> {
-    if (amountCredits <= 0n) {
-      throw new Error('Send amount must be greater than zero')
-    }
+    const amountCredits = requireRecipients(recipients)
 
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.addresses.loadCandidates(wallet)
-    const feeCredits = await this.fee.requireFee(walletId, 'addressFundsTransfer', {
-      amountCredits, recipient: toPlatformAddress, sourceAddress: fromPlatformAddress || null,
+    const {plan, error} = await this.fee.planInputs(wallet, 'addressFundsTransfer', {
+      amountCredits,
+      recipient: recipients.map(recipient => recipient.address),
+      platformSource: source,
     })
-    const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
+    if (plan === null) throw new Error(error)
+    this.logPlan('addressFundsTransfer', plan, amountCredits)
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
       seed,
-      input: toAddressInput(source, amountCredits),
-      recipient: toPlatformAddress,
-      amountCredits,
+      inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
+      feeStrategy: plan.feeStrategy,
+      recipients,
     })
 
     return {
       stHash,
       amountCredits,
-      feeCredits,
-      fromAddress: source.platformAddress,
-      toAddress: toPlatformAddress,
+      feeCredits: plan.feeCredits,
+      fromAddress: plan.inputs[0].candidate.platformAddress,
+      toAddress: recipients[0].address,
     }
   }
 
@@ -105,20 +108,11 @@ export class PlatformTransferService {
     recipients: Array<{address: string; amountCredits: bigint}>,
     password: string,
   ): Promise<PlatformSendResult> {
-    if (recipients.length === 0 || recipients.length > MAX_RECIPIENTS) {
-      throw new Error(`Recipient count must be between 1 and ${MAX_RECIPIENTS}`)
-    }
-    for (const recipient of recipients) {
-      if (recipient.amountCredits < MIN_OUTPUT_CREDITS) {
-        throw new Error(`Minimum amount per recipient is ${MIN_OUTPUT_CREDITS.toString()} credits`)
-      }
-    }
+    const totalCredits = requireRecipients(recipients)
 
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, identityIdentifier)
-
-    const totalCredits = recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
     const feeCredits = await this.fee.requireFee(walletId, 'identityToAddress', {
       amountCredits: recipients[0].amountCredits,
       recipient: recipients.map(entry => entry.address),
@@ -184,12 +178,12 @@ export class PlatformTransferService {
 
   async createIdentityFromAddresses(
     walletId: string,
-    fromPlatformAddress: string | null,
+    source: PlatformSpendSource | null,
     amountCredits: bigint,
     password: string,
   ): Promise<IdentityCreateResult> {
-    if (amountCredits < MIN_OUTPUT_CREDITS) {
-      throw new Error(`Minimum identity funding is ${MIN_OUTPUT_CREDITS.toString()} credits`)
+    if (amountCredits < MIN_IDENTITY_FUNDING_CREDITS) {
+      throw new Error(`Minimum identity funding is ${MIN_IDENTITY_FUNDING_CREDITS.toString()} credits`)
     }
 
     const {wallet, seed} = await this.unlock(walletId, password)
@@ -199,14 +193,16 @@ export class PlatformTransferService {
     const identityIndex = existing.reduce((max, identity) => Math.max(max, identity.identityIndex), -1) + 1
 
     const {plan, error} = await this.fee.planInputs(wallet, 'identityCreate', {
-      amountCredits, recipient: '', sourceAddress: fromPlatformAddress,
+      amountCredits, recipient: '', platformSource: source,
     })
     if (plan === null) throw new Error(error)
+    this.logPlan('identityCreate', plan, amountCredits)
 
     const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
       seed,
       identityIndex,
       inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
+      feeStrategy: plan.feeStrategy,
     })
 
     await this.identityDAO.insertIdentities([{
@@ -229,7 +225,7 @@ export class PlatformTransferService {
   async topUpIdentityFromAddresses(
     walletId: string,
     identityId: string,
-    fromPlatformAddress: string | null,
+    source: PlatformSpendSource | null,
     amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> {
@@ -244,14 +240,16 @@ export class PlatformTransferService {
     if (!exists) throw new Error('Identity not found on Platform')
 
     const {plan, error} = await this.fee.planInputs(wallet, 'identityTopUp', {
-      amountCredits, recipient: identityId, sourceAddress: fromPlatformAddress,
+      amountCredits, recipient: identityId, platformSource: source,
     })
     if (plan === null) throw new Error(error)
+    this.logPlan('identityTopUp', plan, amountCredits)
 
     const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
       seed,
       identifier: identityId,
       inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
+      feeStrategy: plan.feeStrategy,
     })
 
     return {
@@ -265,7 +263,7 @@ export class PlatformTransferService {
 
   async withdrawPlatformToCore(
     walletId: string,
-    fromPlatformAddress: string | null,
+    source: PlatformSpendSource | null,
     toCoreAddress: string,
     amountCredits: bigint,
     password: string,
@@ -278,13 +276,15 @@ export class PlatformTransferService {
     const network = wallet.network
 
     const {plan, error} = await this.fee.planInputs(wallet, 'addressWithdrawal', {
-      amountCredits, recipient: toCoreAddress, sourceAddress: fromPlatformAddress,
+      amountCredits, recipient: toCoreAddress, platformSource: source,
     })
     if (plan === null) throw new Error(error)
+    this.logPlan('addressWithdrawal', plan, amountCredits)
 
     const {stHash} = await this.platform.request('addressWithdrawal', network, {
       seed,
       inputs: plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
+      feeStrategy: plan.feeStrategy,
       coreAddress: toCoreAddress,
       coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
     })
@@ -355,7 +355,7 @@ export class PlatformTransferService {
 
     const candidates = await this.addresses.loadCandidates(wallet)
     const feeCredits = await this.fee.requireFee(walletId, 'shield', {
-      amountCredits, recipient: toShieldedAddress, sourceAddress: fromPlatformAddress || null,
+      amountCredits, recipient: toShieldedAddress,
     })
     const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
 
@@ -447,6 +447,22 @@ export class PlatformTransferService {
     await this.assetLock.done(state, row, stHash)
   }
 
+
+  // A consensus refusal reports only the figure it required; reconciling it
+  // needs the count priced and what each address keeps back.
+  private logPlan(operation: SelectionFeeOperation, plan: PlatformInputPlan, amountCredits: bigint): void {
+    const inputs = plan.inputs
+      .map(({candidate, credits}) => `${candidate.platformAddress} spends=${credits} of=${candidate.balanceCredits} nonce=${candidate.nonce}`)
+      .join(' | ')
+    const strategy = plan.feeStrategy
+      .map(step => step.kind === 'deductFromInput' ? `input[${step.index}]` : `output[${step.index}]`)
+      .join(',')
+
+    console.log(
+      `[platform] ${operation}: amount=${amountCredits} fee=${plan.feeCredits} `
+      + `inputs=${plan.inputs.length} feeFrom=${strategy} | ${inputs}`,
+    )
+  }
 
   private async requireIdentity(walletId: string, identifier: string): Promise<Identity> {
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
