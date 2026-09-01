@@ -164,9 +164,21 @@ describe('estimateFee', () => {
       const {service: svc, estimateSpendFee} = service()
       const source: ShieldedSpendSource = {kind: 'address', noteIndexes: [2, 5]}
       const fee = await svc.estimateFee(WALLET, operation, params({shieldedSource: source}))
-      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, source)
+      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, source, 1)
       expect(fee).toEqual({feeCredits: 7n, feeDuffs: null, maxDuffs: null, maxPerTx: 90n, noteLimit: 6})
     }
+  })
+
+  // The fan-out lands on the action count, which is the only thing the shielded
+  // fee follows, so a quote that ignored it would underprice every bundle.
+  it('tells the shielded service how many addresses a transfer pays', async () => {
+    const {service: svc, estimateSpendFee} = service()
+
+    await svc.estimateFee(WALLET, 'shieldedTransfer', params({
+      recipient: ['addr-a', 'addr-b', 'addr-c'],
+    }))
+
+    expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, 'shieldedTransfer', 1_000_000n, null, 3)
   })
 
   // The L1 fee used to bypass this method and ride the status poll instead.

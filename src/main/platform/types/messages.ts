@@ -199,7 +199,9 @@ export interface PlatformOperations {
     payload: {
       seed: Uint8Array
       kind: PoolSpendOperation
-      recipient: string
+      // A pool-to-pool transfer pays several; the two payouts pay one; creating
+      // an identity pays none, and funds it from amountCredits.
+      recipients: Recipient[]
       amountCredits: bigint
       notes: EncryptedNotePayload[]
       source: ShieldedSpendSource | null
@@ -239,8 +241,8 @@ export interface PlatformOperations {
     payload: {operation: TransitionFeeOperation; params: FeeQuoteParams}
     result: FeeQuote
   }
-  // Every note count a spend may settle on, so the caller can resolve the fee
-  // and the count together without a round trip per candidate count.
+  // Every action count a spend may settle on, so the caller can resolve the fee,
+  // the note count and the recipient count together without a round trip each.
   spendFeeCurve: {
     payload: {kind: PoolSpendOperation}
     result: {feeCredits: bigint[]}

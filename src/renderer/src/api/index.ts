@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreRecipient, CoreSpendSource, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformRecipient, PlatformSendResult, PlatformSpendSource, PreferencesJSON, SelectableUtxo, SendResult, ShieldedSpendSource, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreRecipient, CoreSpendSource, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformRecipient, PlatformSendResult, PlatformSpendSource, PreferencesJSON, SelectableUtxo, SendResult, ShieldedRecipient, ShieldedSpendSource, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -243,8 +243,8 @@ export class API {
     return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
   }
 
-  static async startShieldedTransfer(walletId: string, recipient: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {
-    return this.api.startShieldedTransfer(walletId, recipient, amountCredits, password, source) as Promise<ShieldedSpendState>
+  static async startShieldedTransfer(walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {
+    return this.api.startShieldedTransfer(walletId, recipients, password, source) as Promise<ShieldedSpendState>
   }
 
   static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {

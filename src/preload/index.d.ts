@@ -20,6 +20,10 @@ type ShieldedSpendSource =
   | { kind: 'address'; noteIndexes: number[] }
   | { kind: 'notes'; noteIndexes: number[] }
 
+// Mirrors the ShieldedRecipient in the same file: one bundle pays several
+// Orchard addresses, each its own amount.
+type ShieldedRecipient = { address: string; amountCredits: bigint }
+
 // Mirrors src/main/src/types/PlatformTransfer: one address to draw from, or
 // every address it may draw on, how much of each, and which one is charged.
 type PlatformPickedInput = { address: string; credits: bigint }
@@ -155,7 +159,7 @@ declare global {
       startShieldedSync: (walletId: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
       getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
       refreshShieldedSpentNotes: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
-      startShieldedTransfer: (walletId: string, recipient: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedTransfer: (walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedIdentityCreate: (walletId: string, denominationCredits: bigint, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; identityId: string | null; error: string | null }>

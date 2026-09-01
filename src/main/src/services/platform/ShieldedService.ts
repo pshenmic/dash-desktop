@@ -13,7 +13,7 @@ import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSe
 import { UnlockedWallet } from '../../types/UnlockedWallet'
 import { Wallet } from '../../types/Wallet'
 import {SHIELDED_ADDRESS_WINDOW} from '../../constants/addresses'
-import {SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
+import {MAX_SPEND_NOTES, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
 import { findNextIdentityIndex, identityPath } from '../../utils/identityKeys'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {platformAccountXpub, platformAddressDeriver} from '../../utils/platformAddress'
@@ -34,8 +34,14 @@ import {
   ShieldedSyncState,
 } from '../../types/Shielded'
 import {OperationFee} from '../../types/Fee'
-import {ShieldedSpendSource} from '../../types/ShieldedNoteSelection'
-import {maxSpendableCredits, selectableNotes, selectSpendNotes} from '../../utils/shieldedNoteSelection'
+import {ShieldedRecipient, ShieldedSpendSource} from '../../types/ShieldedNoteSelection'
+import {
+  bundleActions,
+  maxSpendableCredits,
+  requireShieldedRecipients,
+  selectableNotes,
+  selectSpendNotes,
+} from '../../utils/shieldedNoteSelection'
 import {requireWallet} from '../../utils/requireWallet'
 import {
   EncryptedNotePayload,
@@ -429,16 +435,18 @@ export class ShieldedService {
     return this.spendStates.get(walletId) ?? this.idleSpendState()
   }
 
-  startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint, source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'shieldedTransfer', recipient, amountCredits, source)
+  // One bundle pays several Orchard addresses out of one note set, in one proof
+  // and for one fee, which grows with the outputs rather than repeating.
+  startTransfer(walletId: string, password: string, recipients: ShieldedRecipient[], source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'shieldedTransfer', recipients, source)
   }
 
   startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint, source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'unshield', outputAddress, amountCredits, source)
+    return this.startSpend(walletId, password, 'unshield', [{address: outputAddress, amountCredits}], source)
   }
 
   startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint, source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'shieldedWithdrawal', coreAddress, amountCredits, source)
+    return this.startSpend(walletId, password, 'shieldedWithdrawal', [{address: coreAddress, amountCredits}], source)
   }
 
   // Returns the in-flight state when a spend is already running for this
@@ -453,13 +461,13 @@ export class ShieldedService {
     return {state, running: false}
   }
 
-  private async startSpend(walletId: string, password: string, kind: PoolSpendOperation, recipient: string, amountCredits: bigint, source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
+  private async startSpend(walletId: string, password: string, kind: PoolSpendOperation, recipients: ShieldedRecipient[], source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
     const {state, running} = this.beginSpend(walletId)
     if (running) return state
 
     let unlocked: UnlockedWallet | null = null
     try {
-      if (amountCredits <= 0n) throw new Error('Amount must be greater than zero')
+      const amountCredits = requireShieldedRecipients(recipients)
 
       unlocked = await unlockWallet(this.walletDAO, walletId, password)
       const {wallet: {network}, seed} = unlocked
@@ -471,7 +479,7 @@ export class ShieldedService {
       this.runSpend(walletId, network, state, {
         seed,
         kind,
-        recipient,
+        recipients,
         amountCredits,
         notes,
         source: source ?? null,
@@ -540,7 +548,7 @@ export class ShieldedService {
       this.runSpend(walletId, network, state, {
         seed,
         kind: 'identityCreateFromShielded',
-        recipient: '',
+        recipients: [],
         amountCredits: denominationCredits,
         notes,
         source: null,
@@ -642,10 +650,14 @@ export class ShieldedService {
     kind: PoolSpendOperation,
     amountCredits: bigint,
     source: ShieldedSpendSource | null,
+    outputCount = 1,
   ): Promise<OperationFee> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const curve = await this.spendFeeCurve(wallet.network, kind)
-    const feeForCount = (numSpends: number): bigint => curve[Math.min(numSpends, curve.length) - 1]
+    // Only a pool-to-pool transfer writes its payouts as Orchard outputs.
+    const outputs = kind === 'shieldedTransfer' ? outputCount : 0
+    const feeForCount = (numSpends: number): bigint =>
+      curve[Math.min(bundleActions(numSpends, outputs), curve.length) - 1]
 
     const candidates = selectableNotes(
       (this.syncStates.get(walletId)?.notes ?? [])
@@ -654,15 +666,15 @@ export class ShieldedService {
     )
 
     const selection = amountCredits > 0n
-      ? selectSpendNotes(candidates, amountCredits, curve.length, feeForCount, source)
+      ? selectSpendNotes(candidates, amountCredits, MAX_SPEND_NOTES, feeForCount, source)
       : null
 
     return {
       feeCredits: selection?.feeCredits ?? feeForCount(1),
       feeDuffs: null,
       maxDuffs: null,
-      maxPerTx: maxSpendableCredits(candidates, curve.length, feeForCount, source),
-      noteLimit: curve.length,
+      maxPerTx: maxSpendableCredits(candidates, MAX_SPEND_NOTES, feeForCount, source),
+      noteLimit: MAX_SPEND_NOTES,
     }
   }
 

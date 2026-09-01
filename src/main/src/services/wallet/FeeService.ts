@@ -101,10 +101,13 @@ export class FeeService {
       case 'shieldedTransfer':
       case 'unshield':
       case 'shieldedWithdrawal':
-      case 'identityCreateFromShielded':
+      case 'identityCreateFromShielded': {
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
-        return this.shielded.estimateSpendFee(walletId, operation, params.amountCredits, params.shieldedSource ?? null)
+        const outputCount = Array.isArray(params.recipient) ? Math.max(params.recipient.length, 1) : 1
+        return this.shielded.estimateSpendFee(
+          walletId, operation, params.amountCredits, params.shieldedSource ?? null, outputCount)
+      }
 
       // Funded by platform addresses: the fee scales with the inputs, so the
       // selection has to run before the price is known.

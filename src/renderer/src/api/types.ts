@@ -71,6 +71,13 @@ export type ShieldedSpendSource =
   | { kind: 'address'; noteIndexes: number[] }
   | { kind: 'notes'; noteIndexes: number[] }
 
+// One Orchard output of a pool spend. Diversified addresses mean a repeat is
+// not detectable as one, so the same address twice is two notes.
+export interface ShieldedRecipient {
+  address: string
+  amountCredits: bigint
+}
+
 // One transition can pay many addresses, each its own amount.
 export interface PlatformRecipient {
   address: string

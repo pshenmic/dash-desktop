@@ -6,13 +6,13 @@ import {
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
 import {PoolSpendOperation} from '../../../types/messages'
-import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/constants/credits'
-import {MIN_BUNDLE_ACTIONS} from '../constants'
+import {IDENTITY_KEY_DEFINITIONS, MIN_BUNDLE_ACTIONS} from '../../../../src/constants/credits'
+
 // What consensus will charge, from the protocol implementation itself. Never
 // reimplement this: it is versioned (`platformVersion`) and scales with the
 // action count, which is why a constant table cannot track it.
-export function minimumFee(kind: PoolSpendOperation, numSpends: number): bigint {
-  const actions = Math.max(numSpends, MIN_BUNDLE_ACTIONS)
+export function minimumFee(kind: PoolSpendOperation, actionCount: number): bigint {
+  const actions = Math.max(actionCount, MIN_BUNDLE_ACTIONS)
   switch (kind) {
     case 'shieldedTransfer':
       return ShieldedTransferTransitionWASM.computeMinimumFee(actions)

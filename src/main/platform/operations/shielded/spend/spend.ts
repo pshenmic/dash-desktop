@@ -1,12 +1,12 @@
 import {IdentityCreateFromShieldedPoolTransitionWASM, RecoveredNoteWASM} from 'pshenmic-dpp'
-import {maxSpendableCredits, selectableNotes, selectSpendNotes} from '../../../../src/utils/shieldedNoteSelection'
+import {bundleActions, maxSpendableCredits, selectableNotes, selectSpendNotes} from '../../../../src/utils/shieldedNoteSelection'
 import {PlatformOperations} from '../../../types/messages'
 import {OperationContext, OperationError, throwIfAborted} from '../../types'
 import {consensusMessage} from '../../consensusMessage'
 import {buildTransition} from './buildTransition'
 import {checkSpent} from '../checkSpent'
 import {actualFee, minimumFee} from './fee'
-import {MAX_SPEND_NOTES} from '../constants'
+import {MAX_SPEND_NOTES, MAX_SPEND_RECIPIENTS} from '../../../../src/constants/credits'
 import {SHIELDED_ACCOUNT} from '../../../../src/constants/addresses'
 import {waitForResult} from './waitForResult'
 
@@ -15,10 +15,13 @@ type Result = PlatformOperations['spend']['result']
 
 export async function spend(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {sdk, network, signal} = ctx
-  const {seed, kind, notes: all} = payload
+  const {seed, kind, notes: all, recipients} = payload
   const amount = payload.amountCredits
 
   if (amount <= 0n) throw new OperationError('Amount must be greater than zero', 'internal')
+  if (recipients.length > MAX_SPEND_RECIPIENTS) {
+    throw new OperationError(`A shielded spend pays at most ${MAX_SPEND_RECIPIENTS} recipients`, 'internal')
+  }
 
   // recoverNotes keys by array position; every index leaving this operation is
   // a pool index, which is what the note tables and the user's pick key on.
@@ -33,7 +36,10 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   const stale = checked.filter(({spent}) => spent).map(({recoveredNote}) => poolIndex(recoveredNote))
   if (stale.length > 0) ctx.notesSpent(stale)
 
-  const fee = (numSpends: number): bigint => minimumFee(kind, numSpends)
+  // Only a pool-to-pool transfer writes its payouts as Orchard outputs; the
+  // rest leave the pool, so they add no action beyond the change note.
+  const outputCount = kind === 'shieldedTransfer' ? recipients.length : 0
+  const fee = (numSpends: number): bigint => minimumFee(kind, bundleActions(numSpends, outputCount))
   const selectable = selectableNotes(
     checked.map(({recoveredNote, spent}) => ({index: poolIndex(recoveredNote), value: recoveredNote.note.value, spent})),
     payload.source,

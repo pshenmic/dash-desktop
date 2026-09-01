@@ -1,5 +1,6 @@
 import {PlatformOperations} from '../../../types/messages'
 import {OperationContext} from '../../types'
+import {nullifierStatuses} from './nullifierStatuses'
 
 type Payload = PlatformOperations['checkNullifiers']['payload']
 type Result = PlatformOperations['checkNullifiers']['result']
@@ -9,6 +10,6 @@ type Result = PlatformOperations['checkNullifiers']['result']
 export async function checkNullifiers(payload: Payload, ctx: OperationContext): Promise<Result> {
   if (payload.nullifiers.length === 0) return {spent: []}
 
-  const statuses = await ctx.sdk.shielded.getShieldedNullifiers(payload.nullifiers)
+  const statuses = await nullifierStatuses(ctx.sdk, payload.nullifiers)
   return {spent: statuses.filter(status => status.isSpent).map(status => status.nullifier)}
 }

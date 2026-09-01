@@ -24,6 +24,10 @@ export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
 // bincode encoding of PlatformAddress::P2pkh: one variant byte, then the hash.
 export const PLATFORM_ADDRESS_BYTES = 21
 
+// Drive caps a proved query at max_returned_elements, and rejects the request
+// rather than truncating it. Versioned, so it can move under a protocol bump.
+export const PROVED_QUERY_LIMIT = 100
+
 export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
   {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
   {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},

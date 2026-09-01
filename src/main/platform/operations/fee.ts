@@ -24,19 +24,23 @@ import {OperationContext} from './types'
 import {buildAssetLockProof} from './assetLockProof'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
-import {MAX_SPEND_NOTES, MIN_BUNDLE_ACTIONS} from './shielded/constants'
-import {IDENTITY_KEY_DEFINITIONS, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../src/constants/credits'
+import {
+  IDENTITY_KEY_DEFINITIONS,
+  MAX_BUNDLE_ACTIONS,
+  MIN_BUNDLE_ACTIONS,
+  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
+} from '../../src/constants/credits'
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
 type CurvePayload = PlatformOperations['spendFeeCurve']['payload']
 type CurveResult = PlatformOperations['spendFeeCurve']['result']
 
-// A spend's fee and its note count define each other, so the caller needs the
-// whole curve to resolve them rather than one point on it.
+// Notes spent and addresses paid both land on the action count, and the fee
+// follows only that, so one curve over every action count answers for both.
 export function spendFeeCurve(payload: CurvePayload): CurveResult {
   return {
-    feeCredits: Array.from({length: MAX_SPEND_NOTES}, (_, index) => minimumFee(payload.kind, index + 1)),
+    feeCredits: Array.from({length: MAX_BUNDLE_ACTIONS}, (_, index) => minimumFee(payload.kind, index + 1)),
   }
 }
 

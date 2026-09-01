@@ -9,9 +9,12 @@ import Checkbox from "@renderer/components/ui/Checkbox";
 import PlatformInputPicker from "./PlatformInputPicker";
 import PlatformRecipientsTest from "./PlatformRecipientsTest";
 import CoreRecipientsTest from "./CoreRecipientsTest";
+import ShieldedRecipientsTest from "./ShieldedRecipientsTest";
+import ShieldedNotePicker from "./ShieldedNotePicker";
 import CoreUtxoPicker, { outpointKey } from "./CoreUtxoPicker";
 import { PLATFORM_INPUT_LIMIT, PLATFORM_RECIPIENT_LIMIT } from "@renderer/constants/platform";
 import { CORE_RECIPIENT_LIMIT } from "@renderer/constants/core";
+import { SHIELDED_NOTE_LIMIT, SHIELDED_RECIPIENT_LIMIT } from "@renderer/constants/shielded";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
 import { useAuth } from "@renderer/contexts/AuthContext";
@@ -109,6 +112,8 @@ function WalletTransferHub(): React.JSX.Element {
   }))
   const [testRecipients, setTestRecipients] = useState<string[]>([])
   const [testCoreRecipients, setTestCoreRecipients] = useState<string[]>([])
+  const [testShieldedRecipients, setTestShieldedRecipients] = useState<string[]>([])
+  const [pickedNoteIndexes, setPickedNoteIndexes] = useState<number[]>([])
   const [utxos, setUtxos] = useState<SelectableUtxo[]>([])
   const [pickedOutpoints, setPickedOutpoints] = useState<string[]>([])
   const [pickedPlatformInputs, setPickedPlatformInputs] = useState<string[]>([])
@@ -240,17 +245,28 @@ function WalletTransferHub(): React.JSX.Element {
   const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
     ? shieldedFromAddress
     : shieldedAddresses[0]
-  const shieldedSpecificNotes = useMemo(
-    () => shieldedSpendOperation && useSpecificSource && selectedShieldedAddress != null
-      ? spendableNotes.filter(n => n.address === selectedShieldedAddress)
-      : undefined,
-    [shieldedSpendOperation, useSpecificSource, selectedShieldedAddress, spendableNotes],
+  const shieldedPicking = shieldedSpendOperation && useSpecificSource
+  const pickedNotes = useMemo(
+    () => (shieldedPicking ? spendableNotes.filter(n => pickedNoteIndexes.includes(n.index)) : []),
+    [shieldedPicking, spendableNotes, pickedNoteIndexes],
   )
+  const shieldedSpecificNotes = useMemo(
+    () => pickedNotes.length > 0 ? pickedNotes
+      : shieldedPicking && selectedShieldedAddress != null
+        ? spendableNotes.filter(n => n.address === selectedShieldedAddress)
+        : undefined,
+    [pickedNotes, shieldedPicking, selectedShieldedAddress, spendableNotes],
+  )
+  // A pick names the notes themselves, which is the only way a spend reaches
+  // for ones an amount would have stopped short of.
   const shieldedSpendSource = useMemo(
     (): ShieldedSpendSource | undefined => shieldedSpecificNotes == null
       ? undefined
-      : {kind: 'address', noteIndexes: shieldedSpecificNotes.map(note => note.index)},
-    [shieldedSpecificNotes],
+      : {
+        kind: pickedNotes.length > 0 ? 'notes' : 'address',
+        noteIndexes: shieldedSpecificNotes.map(note => note.index),
+      },
+    [shieldedSpecificNotes, pickedNotes],
   )
 
   const platformPicking = specificSourceKind === SourceKind.PlatformAddress && useSpecificSource
@@ -342,7 +358,24 @@ function WalletTransferHub(): React.JSX.Element {
     [trimmedTo, testCoreRecipients, amountDuffs],
   )
 
-  const destinationValid = manyRecipients
+  // TEST ONLY. One bundle pays them all, so the split is the same as elsewhere.
+  const manyShieldedRecipients = operation === TransferOperation.ShieldedTransfer && testShieldedRecipients.length > 0
+  const shieldedRecipientList = useMemo(
+    () => {
+      const addresses = [trimmedTo, ...testShieldedRecipients.map(entry => entry.trim())].filter(entry => entry.length > 0)
+      const share = addresses.length === 0 ? 0n : amountCredits / BigInt(addresses.length)
+      return addresses.map((address, index) => ({
+        address,
+        amountCredits: index === 0 ? amountCredits - share * BigInt(addresses.length - 1) : share,
+      }))
+    },
+    [trimmedTo, testShieldedRecipients, amountCredits],
+  )
+
+  const destinationValid = manyShieldedRecipients
+    ? shieldedRecipientList.length === testShieldedRecipients.length + 1
+      && shieldedRecipientList.every(entry => isLikelyShieldedAddress(entry.address))
+    : manyRecipients
     ? recipientList.length === testRecipients.length + 1
       && recipientList.every(entry => isValidPlatformAddress(entry.address, network ?? undefined))
     : manyCoreRecipients
@@ -358,6 +391,7 @@ function WalletTransferHub(): React.JSX.Element {
     destinationValid,
     recipient: manyRecipients ? recipientList.map(entry => entry.address)
       : manyCoreRecipients ? coreRecipientList.map(entry => entry.address)
+      : manyShieldedRecipients ? shieldedRecipientList.map(entry => entry.address)
       : trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
@@ -486,6 +520,8 @@ function WalletTransferHub(): React.JSX.Element {
     setPlatformFeeAddress(null)
     setTestRecipients([])
     setTestCoreRecipients([])
+    setTestShieldedRecipients([])
+    setPickedNoteIndexes([])
     setPickedOutpoints([])
     const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
     draftRef.current = resetDraft
@@ -570,6 +606,13 @@ function WalletTransferHub(): React.JSX.Element {
               maxInputs={PLATFORM_INPUT_LIMIT}
             />
           )}
+          {operation === TransferOperation.ShieldedTransfer && (
+            <ShieldedRecipientsTest
+              addresses={testShieldedRecipients}
+              onChange={setTestShieldedRecipients}
+              maxRecipients={SHIELDED_RECIPIENT_LIMIT - 1}
+            />
+          )}
           {useSpecificSource && shieldedSpendOperation && (
             <>
               <ShieldedAddressSelect
@@ -578,6 +621,14 @@ function WalletTransferHub(): React.JSX.Element {
                 selected={selectedShieldedAddress}
                 onSelect={address => setSpecificSourcePreferences(current =>
                   updateSpecificSourceAddress(current, SourceKind.Shielded, address))}
+              />
+              <ShieldedNotePicker
+                notes={spendableNotes}
+                picked={pickedNoteIndexes}
+                onToggle={(index, checked) => setPickedNoteIndexes(current =>
+                  checked ? [...current, index] : current.filter(entry => entry !== index))}
+                onClear={() => setPickedNoteIndexes([])}
+                maxNotes={SHIELDED_NOTE_LIMIT}
               />
               <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
             </>
@@ -841,7 +892,14 @@ function WalletTransferHub(): React.JSX.Element {
     if (!walletId) {
       return Promise.resolve<ShieldedSpendState>({ phase: ShieldedSpendPhase.Error, fetched: 0, total: 0, stHash: null, identityId: null, error: 'No wallet selected' })
     }
-    if (operation === TransferOperation.ShieldedTransfer) return API.startShieldedTransfer(walletId, trimmedTo, amountCredits, password, shieldedSpendSource)
+    if (operation === TransferOperation.ShieldedTransfer) {
+      return API.startShieldedTransfer(
+        walletId,
+        manyShieldedRecipients ? shieldedRecipientList : [{ address: trimmedTo, amountCredits }],
+        password,
+        shieldedSpendSource,
+      )
+    }
     if (operation === TransferOperation.Unshield) return API.startShieldedUnshield(walletId, trimmedTo, amountCredits, password, shieldedSpendSource)
     if (operation === TransferOperation.IdentityCreateFromShielded) return API.startShieldedIdentityCreate(walletId, amountCredits, password)
     return API.startShieldedWithdrawal(walletId, trimmedTo, amountCredits, password, shieldedSpendSource)

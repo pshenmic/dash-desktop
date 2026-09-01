@@ -2,9 +2,31 @@ import {
   NoteSelectionResult,
   OwnedNote,
   SelectableNote,
+  ShieldedRecipient,
   ShieldedSpendSource,
   SpendFeeForCount,
 } from '../types/ShieldedNoteSelection'
+import {MAX_SPEND_RECIPIENTS, MIN_BUNDLE_ACTIONS} from '../constants/credits'
+
+// One action per note spent, one per shielded output, and the change note takes
+// a slot even at zero value.
+export function bundleActions(numSpends: number, numOutputs: number): number {
+  return Math.max(numSpends, numOutputs + 1, MIN_BUNDLE_ACTIONS)
+}
+
+// Every note a bundle pays out to, and the amount it has to fund. Each output
+// is another Orchard action, which is what the recipient cap counts.
+export function requireShieldedRecipients(recipients: ShieldedRecipient[]): bigint {
+  if (recipients.length === 0 || recipients.length > MAX_SPEND_RECIPIENTS) {
+    throw new Error(`Recipient count must be between 1 and ${MAX_SPEND_RECIPIENTS}`)
+  }
+  for (const recipient of recipients) {
+    if (recipient.amountCredits <= 0n) {
+      throw new Error('Every recipient must be paid more than zero credits')
+    }
+  }
+  return recipients.reduce((sum, recipient) => sum + recipient.amountCredits, 0n)
+}
 
 function byValueDesc(a: SelectableNote, b: SelectableNote): number {
   if (a.value !== b.value) return a.value > b.value ? -1 : 1

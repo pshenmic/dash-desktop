@@ -18,6 +18,10 @@ type ShieldedSpendSource =
   | { kind: 'address'; noteIndexes: number[] }
   | { kind: 'notes'; noteIndexes: number[] }
 
+// Mirrors the ShieldedRecipient in the same file: one bundle pays several
+// Orchard addresses, each its own amount.
+type ShieldedRecipient = { address: string; amountCredits: bigint }
+
 // Mirrors src/main/src/types/PlatformTransfer: one address to draw from, or
 // every address it may draw on, how much of each, and which one is charged.
 type PlatformPickedInput = { address: string; credits: bigint }
@@ -103,7 +107,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   startShieldedSync: (walletId: string, password: string) => ipcRenderer.invoke('startShieldedSync', walletId, password),
   getShieldedSyncState: (walletId: string) => ipcRenderer.invoke('getShieldedSyncState', walletId),
   refreshShieldedSpentNotes: (walletId: string) => ipcRenderer.invoke('refreshShieldedSpentNotes', walletId),
-  startShieldedTransfer: (walletId: string, recipient: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipient, amountCredits, password, source),
+  startShieldedTransfer: (walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipients, password, source),
   startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedUnshield', walletId, outputAddress, amountCredits, password, source),
   startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedWithdrawal', walletId, coreAddress, amountCredits, password, source),
   startShieldedIdentityCreate: (walletId: string, denominationCredits: bigint, password: string) => ipcRenderer.invoke('startShieldedIdentityCreate', walletId, denominationCredits, password),
