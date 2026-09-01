@@ -24,39 +24,35 @@ export async function buildTransition(
   changeAddress: ShieldedAddress,
 ): Promise<StateTransitionWASM> {
   const {seed, recipients} = payload
-  const base = {
+  const spendInputs = {
     spends,
     changeAddress,
     seed,
     coinType: COIN_TYPE[network],
     account: SHIELDED_ACCOUNT,
     anchor,
-    memo: ShieldedMemoWASM.empty() as unknown as string,
   }
+  // A multi-output bundle carries a memo per output instead of one for the
+  // transition, so the memo is not part of what every spend shares.
+  const base = {...spendInputs, memo: ShieldedMemoWASM.empty() as unknown as string}
 
   switch (payload.kind) {
-    case 'shieldedTransfer': {
-      // The bundle builder is the only one that fans out, and it carries a memo
-      // per output rather than one for the transition, so its arguments do not
-      // fit createStateTransition's flat map.
+    case 'shieldedTransfer':
       if (recipients.length > 1) {
-        const builder = await sdk.shielded.getShieldedBuilder()
-        const outputs = recipients.map(recipient => new ShieldedOutputWASM(
-          OrchardAddressWASM.fromBech32m(recipient.address),
-          recipient.amountCredits,
-          ShieldedMemoWASM.empty(),
-        ))
-        const {stateTransition} = await builder.shieldedTransferMulti(
-          spends, outputs, changeAddress, seed, COIN_TYPE[network], SHIELDED_ACCOUNT, anchor,
-        )
-        return stateTransition
+        return sdk.shielded.createStateTransition('shieldedTransferMulti', {
+          ...spendInputs,
+          outputs: recipients.map(recipient => new ShieldedOutputWASM(
+            OrchardAddressWASM.fromBech32m(recipient.address),
+            recipient.amountCredits,
+            ShieldedMemoWASM.empty(),
+          )),
+        })
       }
       return sdk.shielded.createStateTransition('shieldedTransfer', {
         ...base,
         recipient: OrchardAddressWASM.fromBech32m(recipients[0].address),
         transferAmount: recipients[0].amountCredits,
       })
-    }
 
     case 'unshield':
       return sdk.shielded.createStateTransition('unshield', {
