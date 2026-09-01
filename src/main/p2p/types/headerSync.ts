@@ -8,6 +8,10 @@ export interface HeaderRace {
   // Kept for logging only: a response is validated by connecting it to the
   // recent-header window, not by matching what we asked for.
   locator: string[]
+  // Tip the locator was built from. `getheaders` carries no request id, so this
+  // is the only way to tell an answer to this race from one to the race before
+  // it — the same peers are picked repeatedly and their responses overlap.
+  expectedPrev: string
   racers: Set<Peer>
   zeroResponses: number
   timer: ReturnType<typeof setTimeout> | null

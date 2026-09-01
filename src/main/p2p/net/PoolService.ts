@@ -2,14 +2,14 @@ import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../../src/types/Network'
 import {parsePeerAddress} from './peerAddress'
-import {FALLBACK_PEERS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS} from '../constants'
+import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS, POOL_SILENCE_TIMEOUT_MS} from '../constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
 // coordination (who serves filters, who leads a race) impossible.
 
 import {PoolServiceEventMap, PoolServiceOptions} from '../types/pool'
-import {FORWARDED_EVENTS} from '../constants'
+import {DIAL_LIFECYCLE_EVENTS, FORWARDED_EVENTS} from '../constants'
 
 export class PoolService extends EventEmitter {
   readonly network: Network
@@ -23,14 +23,14 @@ export class PoolService extends EventEmitter {
   // connections, so every address has exactly one owner. Only the surplus above
   // the reserve moves — this runs on every gossip and every peer change, so a
   // fractional hand-off would drain the book a slice at a time.
-  takeAddresses(): AddrInfo[] {
+  takeAddresses(reserve = POOL_ADDRESS_RESERVE): AddrInfo[] {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     const addrs = pool._addrs as AddrInfo[]
     const spare = addrs.filter(addr =>
       !(addr.hash! in pool._connectedPeers) && addr.retryTime == null)
 
-    const taken = spare.slice(0, Math.max(0, spare.length - POOL_ADDRESS_RESERVE))
+    const taken = spare.slice(0, Math.max(0, spare.length - reserve))
     if (taken.length === 0) return []
 
     const gone = new Set(taken.map(addr => addr.hash))
@@ -47,9 +47,13 @@ export class PoolService extends EventEmitter {
   private stalledFills = 0
   private shortTicks = 0
   private emptyTicks = 0
+  private dialTicks = 0
+  private failedDials = 0
+  private seatedDials = 0
   private fallbackDialled = false
   private noDelayPeers = 0
   private noDelayUnavailable = false
+  private lastMessageAt = Date.now()
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
@@ -86,6 +90,15 @@ export class PoolService extends EventEmitter {
     const seeds = this.pool.dnsSeed ? this.pool.network?.dnsSeeds ?? [] : []
     console.log(`[${this.label}] start seeds=${seeds.join(',') || '(none)'} custom=${this.customPeers.length} known=${this.pool._addrs.length}`)
     this.addAddresses(this.parsePeers(this.customPeers))
+
+    // Capacity opens at the ready target and only widens on a refill tick a full
+    // interval later, by which time dead gossip addresses hold every slot and no
+    // further dial is possible. The tick clamps it back.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const initialFill = this.pool as any
+    initialFill.maxSize = this.maxConnections
+    initialFill._fillConnections()
+
     this.refillTimer = setInterval(() => {
       if (this.stopped) return
       // maxSize caps connections, not ready peers, and dead gossip addresses hold
@@ -99,6 +112,24 @@ export class PoolService extends EventEmitter {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pool = this.pool as any
+
+      if (++this.dialTicks >= POOL_DIAL_REPORT_TICKS) {
+        this.dialTicks = 0
+        console.log(
+          `[${this.label}] dials: ${this.seatedDials} seated, ${this.failedDials} never handshook ` +
+          `(ready=${ready} connected=${this.pool.numberConnected()} known=${pool._addrs.length})`,
+        )
+        this.failedDials = 0
+        this.seatedDials = 0
+      }
+
+      // Ahead of the branches below because they all read `ready`, and after the
+      // link drops every one of those peers is a socket that will never speak or
+      // close again — a pool that looks full and is entirely dead.
+      if (ready > 0 && Date.now() - this.lastMessageAt > POOL_SILENCE_TIMEOUT_MS) {
+        this.dropStalePeers(ready)
+        return
+      }
 
       // Nothing connected is a different failure from being under target: it
       // means discovery produced no usable address, which no amount of
@@ -131,6 +162,10 @@ export class PoolService extends EventEmitter {
         const surplus = [...this.readyPeers].slice(this.readyTarget)
         for (const peer of surplus) {
           this.readyPeers.delete(peer)
+          // Both sets, not just readyPeers: peerdisconnect is what normally
+          // clears this one, and a socket already gone never fires it — leaving
+          // a dead peer that cf* requests are still routed to.
+          this.filterCapablePeers.delete(peer)
           try { peer.disconnect() } catch { /* already gone */ }
         }
         console.log(`[${this.label}] trimmed ${surplus.length} peers ready=${ready}->${this.readyPeers.size}`)
@@ -150,6 +185,24 @@ export class PoolService extends EventEmitter {
     const pool = this.pool as any
     for (const addr of addrs) pool._addAddr({...addr, hash: undefined})
     console.log(`[${this.label}] +${addrs.length} peers(es) known=${this.pool._addrs.length}`)
+    pool._fillConnections()
+  }
+
+  // peer.disconnect() emits 'disconnect' synchronously, so the pool's own
+  // bookkeeping (deprioritise, remove, refill) runs for each one.
+  private dropStalePeers(ready: number): void {
+    const quietFor = Math.round((Date.now() - this.lastMessageAt) / 1000)
+    console.warn(`[${this.label}] nothing heard from any of ${ready} peer(s) for ${quietFor}s — dropping them and redialling`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pool = this.pool as any
+    for (const peer of Object.values(pool._connectedPeers) as Array<{disconnect: () => void}>) {
+      try { peer.disconnect() } catch { /* already gone */ }
+    }
+    this.readyPeers.clear()
+    this.filterCapablePeers.clear()
+    this.lastMessageAt = Date.now()
+    this.stalledFills = 0
+    pool.maxSize = this.maxConnections
     pool._fillConnections()
   }
 
@@ -202,7 +255,9 @@ export class PoolService extends EventEmitter {
     // small write followed by a wait, which is the case Nagle plus the peer's
     // delayed ACK turns into a fixed ~40ms stall per round trip.
     this.pool.on('peerconnect', (peer: Peer) => {
-      const socket = (peer as unknown as {socket?: {setNoDelay?: (on: boolean) => void}}).socket
+      const socket = (peer as unknown as {
+        socket?: {setNoDelay?: (on: boolean) => void; setKeepAlive?: (on: boolean, delay: number) => void}
+      }).socket
       // Logged either way, once: whether this took effect is indistinguishable
       // from a slow network otherwise.
       if (typeof socket?.setNoDelay !== 'function') {
@@ -213,8 +268,9 @@ export class PoolService extends EventEmitter {
         return
       }
       socket.setNoDelay(true)
+      socket.setKeepAlive?.(true, PEER_KEEPALIVE_DELAY_MS)
       if (this.noDelayPeers++ === 0) {
-        console.log(`[${this.label}] TCP_NODELAY set on peer sockets`)
+        console.log(`[${this.label}] TCP_NODELAY and keepalive set on peer sockets`)
       }
     })
 
@@ -225,21 +281,37 @@ export class PoolService extends EventEmitter {
     // filterCapablePeers is filled here rather than on `peerversion`, which
     // arrives mid-handshake: a request sent to a peer that has not finished one
     // is simply never answered, and costs a full race timeout to find out.
+    // Peer lifecycle is logged here rather than in the workers: this is the only
+    // place that knows whether a socket ever completed a handshake, and both
+    // workers subscribing meant two lines per event saying the same thing.
     this.pool.on('peerready', (peer: Peer) => {
       this.readyPeers.add(peer)
-      if (((this.peerServices.get(peer) ?? 0n) & BigInt(NODE_COMPACT_FILTERS)) !== 0n) {
-        this.filterCapablePeers.add(peer)
-      }
+      const cf = ((this.peerServices.get(peer) ?? 0n) & BigInt(NODE_COMPACT_FILTERS)) !== 0n
+      if (cf) this.filterCapablePeers.add(peer)
+      this.seatedDials++
+      console.log(
+        `[${this.label}] peerready ${peer.host}:${peer.port} v${peer.version} ` +
+        `bestHeight=${peer.bestHeight} ${cf ? '+CF' : '-CF'} ready=${this.readyPeers.size}`,
+      )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       peer.sendMessage((this.messages as any).GetAddr())
     })
     this.pool.on('peerdisconnect', (peer: Peer) => {
-      this.readyPeers.delete(peer)
+      const wasReady = this.readyPeers.delete(peer)
       this.filterCapablePeers.delete(peer)
+      // A dead gossip address dropping is the expected case and the bulk of the
+      // churn; only a peer we actually had is worth a line of its own.
+      if (wasReady) {
+        console.log(`[${this.label}] peerdisconnect ${peer.host}:${peer.port} ready=${this.readyPeers.size}`)
+      } else {
+        this.failedDials++
+      }
     })
 
     for (const evt of FORWARDED_EVENTS) {
+      const speaks = !DIAL_LIFECYCLE_EVENTS.has(evt)
       this.pool.on(evt as string, (...args: unknown[]) => {
+        if (speaks) this.lastMessageAt = Date.now()
         super.emit(evt as string, ...args)
       })
     }

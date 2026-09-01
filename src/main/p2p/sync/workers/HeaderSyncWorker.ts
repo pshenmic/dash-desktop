@@ -54,6 +54,9 @@ export class HeaderSyncWorker extends Worker {
 
   // Chased announcements, so one block costs one getheaders across all peers.
   private announcedBlocks = new Set<string>()
+  // Non-tx inv hashes already logged. Every peer announces the same clsig —
+  // measured at ~11 copies — and one line each buries the rest of the log.
+  private loggedInv = new Set<string>()
   private lastHeaderAt = Date.now()
   private lastStallPollAt = 0
   private stallTimer: ReturnType<typeof setInterval> | null = null
@@ -134,7 +137,6 @@ export class HeaderSyncWorker extends Worker {
     if (this.stopped) return
     const best = (peer as { bestHeight?: number }).bestHeight ?? 0
     if (best > this.maxPeerHeight) this.maxPeerHeight = best
-    console.log(`[p2p] peerready ${peer.host}:${peer.port} v${peer.version} bestHeight=${peer.bestHeight} ready=${this.peerPool.readyPeers.size}`)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     peer.sendMessage((this.peerPool.messages as any).SendHeaders())
 
@@ -146,6 +148,13 @@ export class HeaderSyncWorker extends Worker {
         this.currentRace.racers.add(peer)
         peer.sendMessage(this.getHeadersMsg(this.currentRace.locator))
       }
+      return
+    }
+
+    // A fresh peer arriving while the tip is stale is the pool having replaced
+    // peers that died with the link, and no stall check is due for minutes yet.
+    if (this.phase === 'synced' && Date.now() - this.lastHeaderAt > HEADER_STALL_CHECK_MS) {
+      this.requestTipHeaders([peer])
     }
   }
 
@@ -159,13 +168,16 @@ export class HeaderSyncWorker extends Worker {
     // something else.
     const interesting = Object.keys(counts).some(t => Number(t) !== 1 && Number(t) !== 16)
     if (!interesting) return
-    const summary = Object.entries(counts).map(([t, n]) => `${typeName(Number(t))}=${n}`).join(' ')
     // Display order, so the line correlates with the lock watcher's logs.
-    const hashes = inventory
+    const fresh = inventory
       .filter(i => i.type !== 1 && i.type !== 16 && i.hash)
       .map(i => `${typeName(i.type)}:${wireToDisplayHex(i.hash!)}`)
-      .join(' ')
-    console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'}${hashes ? ` [${hashes}]` : ''}`)
+      .filter(entry => !this.loggedInv.has(entry))
+    if (fresh.length === 0) return
+    if (this.loggedInv.size >= ANNOUNCE_DEDUPE_LIMIT) this.loggedInv.clear()
+    for (const entry of fresh) this.loggedInv.add(entry)
+    const summary = Object.entries(counts).map(([t, n]) => `${typeName(Number(t))}=${n}`).join(' ')
+    console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'} [${fresh.join(' ')}]`)
   }
 
   // Past 'synced' the tip rides on unsolicited pushes, which need a peer that
@@ -215,13 +227,12 @@ export class HeaderSyncWorker extends Worker {
   private handlePeerHeaders(peer: Peer, rawHeaders: Uint8Array[]): void {
     if (this.stopped) return
     this.rotation.markResponsive(peer)
-    console.log(`[p2p] peerheaders ${peer.host} count=${rawHeaders.length} phase=${this.phase}`)
 
     if (this.phase !== 'syncing-headers') {
       // Tip-following: post-sync, accept unsolicited extensions and the
       // competing branches processHeaders resolves against our own.
       if (rawHeaders.length === 0 || rawHeaders[0]!.length < 80) return
-      this.processHeaders(rawHeaders).catch(err => {
+      this.processHeaders(rawHeaders, peer.host).catch(err => {
         console.error('[p2p] processHeaders (tip-follow) failed:', err)
         this.reportError(formatChainDbError(err), false)
       })
@@ -231,8 +242,19 @@ export class HeaderSyncWorker extends Worker {
     const race = this.currentRace
     if (!race || !race.racers.has(peer)) return
 
-    // Unconditional: a racer left in the set on an unusable response holds the
-    // race open until its timeout, re-asking the same peers the same question.
+    // A batch that does not build on the tip this race asked from is the answer
+    // to an earlier race, still in flight — the same peers are picked race after
+    // race. Crediting it here consumes the racer and rejects the batch, and the
+    // peer's real answer is then dropped for not being in `racers`, so the race
+    // waits on whoever is left. Measured at 97% of first responses.
+    if (rawHeaders.length > 0 && rawHeaders[0]!.length >= 80 &&
+        rawPrevHash(rawHeaders[0]!) !== race.expectedPrev) {
+      return
+    }
+
+    // Unconditional past that point: a racer left in the set on an unusable
+    // response holds the race open until its timeout, re-asking the same peers
+    // the same question.
     race.racers.delete(peer)
 
     if (rawHeaders.length > 0 && rawHeaders[0]!.length < 80) {
@@ -251,7 +273,7 @@ export class HeaderSyncWorker extends Worker {
       return
     }
 
-    this.processHeaders(rawHeaders).then(advanced => {
+    this.processHeaders(rawHeaders, peer.host).then(advanced => {
       if (this.stopped) return
       if (!advanced) {
         // zeroResponses left alone: those peers are counting toward
@@ -269,7 +291,6 @@ export class HeaderSyncWorker extends Worker {
   }
 
   private handlePeerDisconnect(peer: Peer): void {
-    console.log(`[p2p] peerdisconnect ${peer.host}:${peer.port} ready=${this.peerPool.readyPeers.size}`)
     this.rotation.forget(peer)
     const race = this.currentRace
     if (race && race.racers.has(peer)) {
@@ -308,7 +329,9 @@ export class HeaderSyncWorker extends Worker {
     if (picks.length === 0) return
 
     const locator = this.buildLocator()
-    const race: HeaderRace = {locator, racers: new Set(picks), zeroResponses: 0, timer: null}
+    const race: HeaderRace = {
+      locator, expectedPrev: this.chainTipHash, racers: new Set(picks), zeroResponses: 0, timer: null,
+    }
     this.currentRace = race
 
     const msg = this.getHeadersMsg(locator)
@@ -347,14 +370,13 @@ export class HeaderSyncWorker extends Worker {
     this.emitStatus('synced')
   }
 
-  private async processHeaders(rawHeaders: Uint8Array[]): Promise<boolean> {
-    console.log(`[p2p] processHeaders: ${rawHeaders.length}`)
+  private async processHeaders(rawHeaders: Uint8Array[], from: string): Promise<boolean> {
     if (rawHeaders.length === 0) return false
 
     const incomingPrev = rawPrevHash(rawHeaders[0]!)
     if (incomingPrev === this.chainTipHash) {
       const validated = validateHeaders(rawHeaders, this.chainTipHeight, this.chainTipHash)
-      return validated == null ? false : await this.commitHeaders(validated.accepted)
+      return validated == null ? false : await this.commitHeaders(validated.accepted, from)
     }
 
     // Usually not a competing branch: a second peer announcing the block we just
@@ -369,12 +391,12 @@ export class HeaderSyncWorker extends Worker {
     if (rest.length === 0) return false
     if (height === this.chainTipHeight) {
       const validated = validateHeaders(rest, this.chainTipHeight, this.chainTipHash)
-      return validated == null ? false : await this.commitHeaders(validated.accepted)
+      return validated == null ? false : await this.commitHeaders(validated.accepted, from)
     }
-    return await this.considerFork(rest, height, hash)
+    return await this.considerFork(rest, height, hash, from)
   }
 
-  private async considerFork(rawHeaders: Uint8Array[], forkHeight: number, forkHash: string): Promise<boolean> {
+  private async considerFork(rawHeaders: Uint8Array[], forkHeight: number, forkHash: string, from: string): Promise<boolean> {
     // A ChainLock is final by consensus, so a branch forking under one is not a
     // chain we lost — it is a peer on a chain that lost.
     if (forkHeight < this.finalityHeight) {
@@ -392,7 +414,7 @@ export class HeaderSyncWorker extends Worker {
     }
 
     await this.rewindTo(forkHeight, forkHash)
-    return await this.commitHeaders(validated.accepted)
+    return await this.commitHeaders(validated.accepted, from)
   }
 
   private async rewindTo(forkHeight: number, forkHash: string): Promise<void> {
@@ -409,7 +431,7 @@ export class HeaderSyncWorker extends Worker {
     this.emit('chainRewound', forkHeight)
   }
 
-  private async commitHeaders(accepted: PersistedHeader[]): Promise<boolean> {
+  private async commitHeaders(accepted: PersistedHeader[], from: string): Promise<boolean> {
     const last = accepted[accepted.length - 1]!
 
     // Advance the in-memory tip BEFORE awaiting the write: racing peers re-enter
@@ -421,6 +443,7 @@ export class HeaderSyncWorker extends Worker {
     for (const header of accepted) this.window.record(header.height, header.hash, headerWork(header.nBits))
 
     this.lastHeaderAt = Date.now()
+    console.log(`[p2p] tip h=${last.height} +${accepted.length} from ${from} phase=${this.phase}`)
     // Whatever was outstanding is either in the window now or was never ours.
     this.announcedBlocks.clear()
 

@@ -373,11 +373,15 @@ export class SyncService {
   }
 
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
+    const before = this.watchedTxids.size
     if (cmd.mode === 'replace') {
       this.watchedTxids = new Set(cmd.txids)
     } else {
       for (const txid of cmd.txids) this.watchedTxids.add(txid)
     }
+    // A wallet with nothing unconfirmed re-sends an empty replace on every
+    // refresh; only a change in what is armed says anything.
+    if (this.watchedTxids.size === 0 && before === 0) return
     console.log(`[locks] watchTxs ${cmd.mode} (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
   }
 
@@ -503,6 +507,11 @@ export class SyncService {
       this.headerSyncWorker = null
     }
     if (this.bulkPool) {
+      // Addresses move rather than copy, so by now the lock pool's whole surplus
+      // lives here, and a lock pool long past gossiping has no other source.
+      if (this.lockPool && this.lockPool.network === this.bulkPool.network) {
+        this.lockPool.addAddresses(this.bulkPool.takeAddresses(0))
+      }
       this.bulkPool.stop()
       this.bulkPool.removeAllListeners()
       this.bulkPool = null
@@ -526,8 +535,10 @@ export class SyncService {
 
   private emit(next: Partial<WalletSyncStatus>): void {
     const merged = {...this.status, ...next, updatedAt: Date.now()}
-    // Owned here rather than by the workers: the lock pool outlives them.
+    // Owned here rather than by the workers: the pools outlive them, and fill
+    // with peers through phases no worker is running in.
     merged.lockPeerCount = this.lockPool?.readyPeers.size ?? 0
+    merged.filterCapablePeerCount = this.bulkPool?.filterCapablePeers.size ?? 0
     merged.phaseEtaMs = this.computePhaseEta(merged)
     this.status = merged
     this.events.status(this.status)
@@ -625,7 +636,6 @@ export class SyncService {
       cfilterScanHeight: s.cfilterScanHeight,
       matchedBlocksPending: s.matchedBlocksPending,
       peerCount: Math.max(this.status.peerCount, s.peerCount),
-      filterCapablePeerCount: s.filterCapablePeerCount,
     })
   }
 
