@@ -262,10 +262,14 @@ export class WalletService {
     return provider.getWalletTransactions()
   }
 
+  // Guarded like a send rather than like a read: a picker fed a partial set does
+  // not under-display, it narrows what the user can pick to coins they cannot
+  // tell are only some of theirs.
   async getUtxos(walletId: string): Promise<SelectableUtxo[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
+    await provider.ensureReady()
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
 
     return selectableTransferUtxos(grouped, await provider.getWalletUtxos())
@@ -365,7 +369,6 @@ export class WalletService {
       txid: broadcast.txid,
       amount: amountDuffs,
       fee: actualFee,
-      toAddress: recipients[0].address,
       changeAddress: hasChange ? changeAddress : null,
       peersAcked: broadcast.peersDelivered.length,
     }

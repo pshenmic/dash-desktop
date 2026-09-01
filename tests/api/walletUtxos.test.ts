@@ -14,11 +14,13 @@ const FOREIGN = 'yPx8DNt1oQt3yubB2Sh73vAQRQ1AoyyLCS'
 const utxo = (address: string, satoshis: bigint, txId: string, height: number): UTXO =>
   ({address, satoshis, txId, vOut: 0, script: Script.fromHex(SCRIPT_HEX), height})
 
-const providerStub = (utxos: UTXO[]): WalletProvider => ({
+const providerStub = (utxos: UTXO[], ready = true): WalletProvider => ({
   getWalletUtxos: async () => utxos,
   getWalletBalance: async () => 0n,
   getBalance: async () => 0n,
-  ensureReady: async () => undefined,
+  ensureReady: async () => {
+    if (!ready) throw new Error('Wallet sync is not complete')
+  },
   getConnectionStatus: async () => 'online',
   scanAddressUsage: async () => null,
   getUsedAddresses: async () => [],
@@ -69,5 +71,14 @@ describe('listing the coins a send can draw on', () => {
     vi.spyOn(providers, 'forWallet').mockReturnValue(providerStub([utxo(owned, 50_000n, 'aa', 0)]))
 
     expect((await walletService.getUtxos(walletId))[0].height).toBe(0)
+  })
+
+  // Listing a partial set does not under-display, it narrows what can be picked
+  // to coins the user cannot tell are only some of theirs.
+  it('refuses to list coins a source is not ready to answer for', async () => {
+    vi.spyOn(providers, 'forWallet')
+      .mockReturnValue(providerStub([utxo(owned, 50_000n, 'aa', 2_300_000)], false))
+
+    await expect(walletService.getUtxos(walletId)).rejects.toThrow('sync is not complete')
   })
 })

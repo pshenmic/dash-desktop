@@ -44,17 +44,19 @@ export function selectableNotes(
   source?: ShieldedSpendSource | null,
 ): SelectableNote[] {
   const restricted = source == null ? null : new Set(source.noteIndexes)
-  const selectable = notes
+  return notes
     .filter(note => !note.spent)
     .filter(note => restricted == null || restricted.has(note.index))
     .map(({index, value}) => ({index, value}))
+}
 
-  // A narrowed spend prices whatever survived, but one that quietly used fewer
-  // notes than were picked would break the promise picking them makes.
-  if (source?.kind === 'notes' && selectable.length !== source.noteIndexes.length) {
-    throw new Error('Selected note is no longer spendable')
-  }
-  return selectable
+// Whether a pick still holds every note it named. A quote answers a stale pick
+// with what it can no longer fund; only the spend itself refuses on one.
+export function picksMissingNotes(
+  selectable: SelectableNote[],
+  source?: ShieldedSpendSource | null,
+): boolean {
+  return source?.kind === 'notes' && selectable.length !== source.noteIndexes.length
 }
 
 export function selectSpendNotes(
@@ -66,8 +68,10 @@ export function selectSpendNotes(
 ): NoteSelectionResult | null {
   // A picked set is spent whole rather than walked: stopping early would leave
   // out notes the user asked to spend, which is the one thing picking them means.
+  // So a pick short of a note it named funds nothing, rather than less.
   if (source?.kind === 'notes') {
     if (notes.length === 0 || notes.length > maxNotes) return null
+    if (picksMissingNotes(notes, source)) return null
     const total = totalOf(notes)
     const feeCredits = feeForCount(notes.length)
     return total >= amount + feeCredits ? {selected: [...notes], total, feeCredits} : null
@@ -96,6 +100,7 @@ export function maxSpendableCredits(
   // one the picked count carries, whether or not a smaller set would be cheaper.
   if (source?.kind === 'notes') {
     if (notes.length === 0 || notes.length > maxNotes) return 0n
+    if (picksMissingNotes(notes, source)) return 0n
     const spendable = totalOf(notes) - feeForCount(notes.length)
     return spendable > 0n ? spendable : 0n
   }

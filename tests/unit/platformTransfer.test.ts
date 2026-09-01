@@ -283,19 +283,20 @@ describe('funding a transition from picked inputs', () => {
     expect(plan!.inputs.reduce((sum, entry) => sum + entry.credits, 0n)).toBe(2_000_000n)
   })
 
-  // A share below the protocol minimum cannot be its own input, so the address
-  // paying the fee carries it instead.
-  it('leaves out a picked address whose share would be below the minimum', () => {
-    const {plan} = inputsFor(
+  // A share below the protocol minimum cannot be its own input, and funding the
+  // transition from the rest would spend from fewer addresses than were picked.
+  it('refuses a picked address whose share would be below the minimum', () => {
+    const outcome = inputsFor(
       candidates, 2_000_000n, INPUT_FEE,
       pick([input('a', 2_000_000n), input('b', MIN_INPUT_CREDITS - 1n)]))
 
-    expect(plan!.inputs.map(entry => entry.candidate.platformAddress)).toEqual(['a'])
+    expect(outcome.plan).toBeNull()
+    expect(outcome.error).toMatch(/at least/)
   })
 
   it('refuses an input larger than its address holds', () => {
-    expect(() => inputsFor(candidates, 6_000_000n, INPUT_FEE, pick([input('a', 6_000_000n)])))
-      .toThrow('no longer holds')
+    expect(inputsFor(candidates, 6_000_000n, INPUT_FEE, pick([input('a', 6_000_000n)])).error)
+      .toMatch(/no longer holds/)
   })
 
   // Each input carries the address's next nonce, so a second one would replay it.
@@ -328,8 +329,8 @@ describe('funding a transition from picked inputs', () => {
   })
 
   it('refuses an address this wallet does not hold', () => {
-    expect(() => inputsFor(candidates, 1_000_000n, INPUT_FEE, pick([input('zzz', 1_000_000n)])))
-      .toThrow('no longer holds')
+    expect(inputsFor(candidates, 1_000_000n, INPUT_FEE, pick([input('zzz', 1_000_000n)])).error)
+      .toMatch(/not found in this wallet/)
   })
 
   it('refuses when the fee payer does not keep back the fee', () => {
@@ -417,16 +418,24 @@ describe('selectablePlatformInputs', () => {
     expect(selectablePlatformInputs([candidate('a', 5_000_000n)], from('zzz'))).toEqual([])
   })
 
-  it('refuses a picked address whose balance no longer covers its input', () => {
+  // A quote asks before the pick is affordable, so this filter answers a stale
+  // one with what survived and leaves the refusal to the plan over it.
+  it('keeps a picked address whose balance no longer covers its input', () => {
     const candidates = [candidate('a', 1_000_000n)]
 
-    expect(() => selectablePlatformInputs(candidates, pick([input('a', 2_000_000n)])))
-      .toThrow('no longer holds')
+    expect(selectablePlatformInputs(candidates, pick([input('a', 2_000_000n)])).map(e => e.platformAddress))
+      .toEqual(['a'])
   })
 
-  it('refuses a picked address this wallet does not hold', () => {
-    expect(() => selectablePlatformInputs([candidate('a', 5_000_000n)], pick([input('zzz', 1_000_000n)])))
-      .toThrow('no longer holds')
+  it('keeps a picked address the automatic walk would drop as too small', () => {
+    const candidates = [candidate('a', MIN_INPUT_CREDITS - 1n)]
+
+    expect(selectablePlatformInputs(candidates, pick([input('a', MIN_INPUT_CREDITS)])).map(e => e.platformAddress))
+      .toEqual(['a'])
+  })
+
+  it('yields nothing for a picked address this wallet does not hold', () => {
+    expect(selectablePlatformInputs([candidate('a', 5_000_000n)], pick([input('zzz', 1_000_000n)]))).toEqual([])
   })
 })
 

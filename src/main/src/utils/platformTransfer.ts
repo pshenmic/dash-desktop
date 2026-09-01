@@ -52,17 +52,12 @@ export function selectablePlatformInputs(
   candidates: PlatformSourceCandidate[],
   source?: PlatformSpendSource | null,
 ): PlatformSourceCandidate[] {
-  // A picked set names its addresses, so one that can no longer cover what it
-  // was allowed to draw is a refusal rather than one fewer candidate.
+  // A pick names its addresses; whether they still hold what it draws is the
+  // plan's to refuse, not this filter's to throw on. A quote asks before the
+  // pick is affordable and has to answer a stale one rather than fail on it.
   if (source?.kind === 'inputs') {
-    const held = new Map(candidates.map(candidate => [candidate.platformAddress, candidate]))
-    return source.inputs.map(input => {
-      const candidate = held.get(input.address)
-      if (candidate == null || candidate.balanceCredits < input.credits) {
-        throw new Error('Selected address no longer holds these credits')
-      }
-      return candidate
-    })
+    const picked = new Set(source.inputs.map(input => input.address))
+    return candidates.filter(candidate => picked.has(candidate.platformAddress))
   }
 
   return candidates
@@ -213,6 +208,15 @@ function planPickedInputs(
     const candidate = byAddress.get(input.address)
     if (candidate == null) {
       return refuse('Source address not found in this wallet')
+    }
+    if (candidate.balanceCredits < input.credits) {
+      return refuse('Selected address no longer holds these credits')
+    }
+    // Every picked address has to become an input of its own, and one drawing
+    // less than the protocol floor cannot. Refused rather than allocated around,
+    // which would fund the transition from fewer addresses than were picked.
+    if (input.credits < MIN_INPUT_CREDITS) {
+      return refuse(`Each selected address must fund at least ${MIN_INPUT_CREDITS.toString()} credits`)
     }
     allocatable.push({candidate, cap: input.credits})
   }

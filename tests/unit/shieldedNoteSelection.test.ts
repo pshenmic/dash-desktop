@@ -3,6 +3,7 @@ import {
   bundleActions,
   maxSpendableCredits,
   requireShieldedRecipients,
+  picksMissingNotes,
   selectableNotes,
   selectSpendNotes,
 } from '../../src/main/src/utils/shieldedNoteSelection'
@@ -124,14 +125,49 @@ describe('selectableNotes', () => {
     expect(selectableNotes(notes, {kind: 'address', noteIndexes: [0, 1]}).map(n => n.index)).toEqual([0])
   })
 
-  it('refuses a picked note that was spent since it was picked', () => {
+  // A quote asks before the pick is affordable, so a stale one is answered with
+  // what survived rather than thrown on; picksMissingNotes is what reports it.
+  it('drops a picked note that was spent since it was picked', () => {
     const notes = [owned(0, 100n), owned(1, 50n, true)]
 
-    expect(() => selectableNotes(notes, picked(0, 1))).toThrow('no longer spendable')
+    expect(selectableNotes(notes, picked(0, 1)).map(n => n.index)).toEqual([0])
+    expect(picksMissingNotes(selectableNotes(notes, picked(0, 1)), picked(0, 1))).toBe(true)
   })
 
-  it('refuses a picked note the wallet does not hold', () => {
-    expect(() => selectableNotes([owned(0, 100n)], picked(0, 7))).toThrow('no longer spendable')
+  it('reports a picked note the wallet does not hold as missing', () => {
+    expect(picksMissingNotes(selectableNotes([owned(0, 100n)], picked(0, 7)), picked(0, 7))).toBe(true)
+  })
+
+  it('reports a pick that still holds every note it named as intact', () => {
+    const notes = [owned(0, 100n), owned(1, 50n)]
+
+    expect(picksMissingNotes(selectableNotes(notes, picked(0, 1)), picked(0, 1))).toBe(false)
+  })
+
+  // An address source names where to draw from, not what to spend, so a spent
+  // note there is one fewer candidate and never a missing pick.
+  it('never reports an address source as missing notes', () => {
+    const source = {kind: 'address' as const, noteIndexes: [0, 1]}
+
+    expect(picksMissingNotes(selectableNotes([owned(0, 100n), owned(1, 50n, true)], source), source)).toBe(false)
+  })
+})
+
+describe('a pick short of a note it named', () => {
+  const fee = (count: number): bigint => BigInt(count) * 10n
+
+  it('funds nothing rather than funding less', () => {
+    const source = picked(0, 1)
+    const survived = selectableNotes([owned(0, 100n), owned(1, 50n, true)], source)
+
+    expect(selectSpendNotes(survived, 10n, 6, fee, source)).toBeNull()
+  })
+
+  it('offers no maximum to send', () => {
+    const source = picked(0, 1)
+    const survived = selectableNotes([owned(0, 100n), owned(1, 50n, true)], source)
+
+    expect(maxSpendableCredits(survived, 6, fee, source)).toBe(0n)
   })
 })
 

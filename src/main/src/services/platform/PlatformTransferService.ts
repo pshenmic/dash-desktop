@@ -6,7 +6,7 @@ import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {AssetLockFundingState} from '../../types/AssetLockFunding'
 import {CoreSpendSource} from '../../types/CoinSelection'
-import {PlatformInputPlan, PlatformSpendSource} from '../../types/PlatformTransfer'
+import {PlatformSpendSource} from '../../types/PlatformTransfer'
 import {Network} from '../../types/Network'
 import {Wallet} from '../../types/Wallet'
 import {Identity} from '../../types/Identity'
@@ -23,7 +23,7 @@ import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
 import {FeeService} from '../wallet/FeeService'
-import {Recipient, SelectionFeeOperation} from '../../../platform/types/messages'
+import {Recipient} from '../../../platform/types/messages'
 
 
 // Every way credits move on L2: between platform addresses, to and from
@@ -113,7 +113,7 @@ export class PlatformTransferService {
     const network = wallet.network
     const identity = await this.requireIdentity(walletId, identityIdentifier)
     const feeCredits = await this.fee.requireFee(walletId, 'identityToAddress', {
-      amountCredits: recipients[0].amountCredits,
+      amountCredits: totalCredits,
       recipient: recipients.map(entry => entry.address),
       identityId: identityIdentifier,
     })

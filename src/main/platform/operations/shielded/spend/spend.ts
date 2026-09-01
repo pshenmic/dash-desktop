@@ -1,5 +1,11 @@
 import {IdentityCreateFromShieldedPoolTransitionWASM, RecoveredNoteWASM} from 'pshenmic-dpp'
-import {bundleActions, maxSpendableCredits, selectableNotes, selectSpendNotes} from '../../../../src/utils/shieldedNoteSelection'
+import {
+  bundleActions,
+  maxSpendableCredits,
+  picksMissingNotes,
+  selectableNotes,
+  selectSpendNotes,
+} from '../../../../src/utils/shieldedNoteSelection'
 import {PlatformOperations} from '../../../types/messages'
 import {OperationContext, OperationError, throwIfAborted} from '../../types'
 import {consensusMessage} from '../../consensusMessage'
@@ -54,6 +60,13 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
     checked.map(({recoveredNote, spent}) => ({index: poolIndex(recoveredNote), value: recoveredNote.note.value, spent})),
     payload.source,
   )
+
+  // The quote prices whatever a stale pick still holds; the spend is where that
+  // becomes a refusal, so it names the notes rather than reporting a shortfall.
+  if (picksMissingNotes(selectable, payload.source)) {
+    throw new OperationError('Selected note is no longer spendable', 'insufficientFunds')
+  }
+
   const selection = selectSpendNotes(selectable, amount, MAX_SPEND_NOTES, fee, payload.source)
   if (selection == null) {
     const max = maxSpendableCredits(selectable, MAX_SPEND_NOTES, fee, payload.source)
