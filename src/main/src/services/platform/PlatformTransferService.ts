@@ -84,7 +84,6 @@ export class PlatformTransferService {
       platformSource: source,
     })
     if (plan === null) throw new Error(error)
-    this.logPlan('addressFundsTransfer', plan, amountCredits)
 
     const {stHash} = await this.platform.request('addressTransfer', network, {
       seed,
@@ -196,7 +195,6 @@ export class PlatformTransferService {
       amountCredits, recipient: '', platformSource: source,
     })
     if (plan === null) throw new Error(error)
-    this.logPlan('identityCreate', plan, amountCredits)
 
     const {stHash, identifier} = await this.platform.request('identityCreateFromAddresses', network, {
       seed,
@@ -243,7 +241,6 @@ export class PlatformTransferService {
       amountCredits, recipient: identityId, platformSource: source,
     })
     if (plan === null) throw new Error(error)
-    this.logPlan('identityTopUp', plan, amountCredits)
 
     const {stHash} = await this.platform.request('identityTopUpFromAddresses', network, {
       seed,
@@ -279,7 +276,6 @@ export class PlatformTransferService {
       amountCredits, recipient: toCoreAddress, platformSource: source,
     })
     if (plan === null) throw new Error(error)
-    this.logPlan('addressWithdrawal', plan, amountCredits)
 
     const {stHash} = await this.platform.request('addressWithdrawal', network, {
       seed,
@@ -447,22 +443,6 @@ export class PlatformTransferService {
     await this.assetLock.done(state, row, stHash)
   }
 
-
-  // A consensus refusal reports only the figure it required; reconciling it
-  // needs the count priced and what each address keeps back.
-  private logPlan(operation: SelectionFeeOperation, plan: PlatformInputPlan, amountCredits: bigint): void {
-    const inputs = plan.inputs
-      .map(({candidate, credits}) => `${candidate.platformAddress} spends=${credits} of=${candidate.balanceCredits} nonce=${candidate.nonce}`)
-      .join(' | ')
-    const strategy = plan.feeStrategy
-      .map(step => step.kind === 'deductFromInput' ? `input[${step.index}]` : `output[${step.index}]`)
-      .join(',')
-
-    console.log(
-      `[platform] ${operation}: amount=${amountCredits} fee=${plan.feeCredits} `
-      + `inputs=${plan.inputs.length} feeFrom=${strategy} | ${inputs}`,
-    )
-  }
 
   private async requireIdentity(walletId: string, identifier: string): Promise<Identity> {
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
