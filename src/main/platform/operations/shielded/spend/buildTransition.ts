@@ -24,7 +24,6 @@ export async function buildTransition(
   changeAddress: ShieldedAddress,
 ): Promise<StateTransitionWASM> {
   const {seed, recipients} = payload
-  const amount = payload.amountCredits
   const base = {
     spends,
     changeAddress,
@@ -55,7 +54,7 @@ export async function buildTransition(
       return sdk.shielded.createStateTransition('shieldedTransfer', {
         ...base,
         recipient: OrchardAddressWASM.fromBech32m(recipients[0].address),
-        transferAmount: amount,
+        transferAmount: recipients[0].amountCredits,
       })
     }
 
@@ -63,7 +62,7 @@ export async function buildTransition(
       return sdk.shielded.createStateTransition('unshield', {
         ...base,
         outputAddress: recipients[0].address,
-        unshieldAmount: amount,
+        unshieldAmount: recipients[0].amountCredits,
       })
 
     case 'identityCreateFromShielded': {
@@ -75,7 +74,7 @@ export async function buildTransition(
         ...base,
         publicKeys: keys.publicKeys,
         privateKeys: keys.privateKeys,
-        denomination: amount,
+        denomination: payload.amountCredits,
         sendToAddressOnCreationFailure: payload.failureAddress,
       })
     }
@@ -83,7 +82,7 @@ export async function buildTransition(
     case 'shieldedWithdrawal':
       return sdk.shielded.createStateTransition('shieldedWithdrawal', {
         ...base,
-        withdrawalAmount: amount,
+        withdrawalAmount: recipients[0].amountCredits,
         outputScript: coreAddressToScript(recipients[0].address, network),
         coreFeePerByte: payload.coreFeePerByte,
         pooling: 'Never',

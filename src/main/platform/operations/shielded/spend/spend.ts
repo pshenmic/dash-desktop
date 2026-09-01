@@ -19,8 +19,18 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   const amount = payload.amountCredits
 
   if (amount <= 0n) throw new OperationError('Amount must be greater than zero', 'internal')
-  if (recipients.length > MAX_SPEND_RECIPIENTS) {
-    throw new OperationError(`A shielded spend pays at most ${MAX_SPEND_RECIPIENTS} recipients`, 'internal')
+
+  // Only a transfer fans out; the two payouts name exactly one address and an
+  // identity create names none, so the count is decided by the kind rather than
+  // bounded from above. Every builder below indexes what this admits.
+  const allowedRecipients = kind === 'shieldedTransfer' ? MAX_SPEND_RECIPIENTS
+    : kind === 'identityCreateFromShielded' ? 0
+    : 1
+  if (recipients.length > allowedRecipients || recipients.length < Math.min(allowedRecipients, 1)) {
+    throw new OperationError(
+      `${kind} takes ${allowedRecipients} recipients at most, and was given ${recipients.length}`,
+      'internal',
+    )
   }
 
   // recoverNotes keys by array position; every index leaving this operation is

@@ -200,8 +200,10 @@ export interface PlatformOperations {
       seed: Uint8Array
       kind: PoolSpendOperation
       // A pool-to-pool transfer pays several; the two payouts pay one; creating
-      // an identity pays none, and funds it from amountCredits.
+      // an identity pays none. Every payout amount is read from its own entry.
       recipients: Recipient[]
+      // What leaves the pool, which is what the note selection has to cover: the
+      // sum of the recipients, or the denomination when there are none.
       amountCredits: bigint
       notes: EncryptedNotePayload[]
       source: ShieldedSpendSource | null
