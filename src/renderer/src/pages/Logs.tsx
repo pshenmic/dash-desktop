@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { API } from '@renderer/api'
 import { LogFileContent, LogFileInfo } from '@renderer/api/types'
 import { LogLevel, ParsedLogLine } from '@renderer/types/Log'
-import { Button, ChevronIcon, Heading, InfoCircleIcon, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, InfoCircleIcon, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import SettingsDetailHeader from '@renderer/components/pages/settings/SettingsDetailHeader'
 import Spinner from '@renderer/components/ui/Spinner'
 import { toast } from '@renderer/components/ui/Toast'
 import CopyButton from '@renderer/components/ui/CopyButton'
@@ -13,7 +13,6 @@ import { INITIAL_LOG_LINES, LOG_LEVEL_OPTIONS, LOG_LINES_INCREMENT, LOG_LINE_DIS
 import { filterLogLines, formatFileSize, newestLogWindow, parseLogLines } from '@renderer/utils/logs'
 
 export default function LogsPage(): React.JSX.Element {
-  const navigate = useNavigate()
   const [files, setFiles] = useState<LogFileInfo[]>([])
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [selected, setSelected] = useState<LogFileContent | null>(null)
@@ -82,25 +81,19 @@ export default function LogsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="w-full px-12">
-      <div className="dash-card-base rounded-3xl p-6 shadow-[8px_0_64px_0_rgba(12,28,51,0.08)]">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate('/settings')} className="dash-text-default flex size-8 items-center justify-center rounded-[.625rem] hover:bg-dash-primary-dark-blue/8 dark:hover:bg-white/10" aria-label="Back to settings" title="Back to settings">
-              <ChevronIcon size={14} color="currentColor" className="rotate-90" />
-            </button>
-            <Heading as="h1" size="xl" weight="extrabold" color="brand-white">Application logs</Heading>
-          </div>
-          <div className="flex gap-2">
+    <div className="w-full pb-12">
+      <SettingsDetailHeader primary="Application" secondary="Logs" />
+      <div className="mt-8 px-12">
+        <div className="dash-card-base rounded-3xl p-6 shadow-[8px_0_64px_0_rgba(12,28,51,0.08)]">
+          <div className="mb-4 flex justify-end gap-2">
             <Button size="sm" variant="outline" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void refresh()} disabled={loadingFiles}>Refresh</Button>
             <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void showInFolder()} disabled={!selected}>Show Log in Folder</Button>
           </div>
-        </div>
 
-        <div className="mb-4 flex items-center gap-2 text-amber-700 dark:text-amber-200">
-          <InfoCircleIcon size={14} color="currentColor" className="shrink-0" />
-          <span className="text-xs">Logs may contain wallet addresses and technical details. Review a file before sharing it.</span>
-        </div>
+          <div className="mb-4 flex items-center gap-2 text-amber-700 dark:text-amber-200">
+            <InfoCircleIcon size={14} color="currentColor" className="shrink-0" />
+            <span className="text-xs">Logs may contain wallet addresses and technical details. Review a file before sharing it.</span>
+          </div>
 
         {error && (
           <div className="mb-5 flex items-center justify-between rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300">
@@ -165,6 +158,7 @@ export default function LogsPage(): React.JSX.Element {
               )}
             </div>
           </section>
+        </div>
         </div>
       </div>
     </div>

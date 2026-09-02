@@ -13,6 +13,10 @@ import IdentitiesPage from "./pages/Identities"
 import IdentityRegistrationPage from "./pages/IdentityRegistration"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
+import GeneralSettingsPage from "./pages/GeneralSettings"
+import PreferencesSettingsPage from "./pages/PreferencesSettings"
+import SecuritySettingsPage from "./pages/SecuritySettings"
+import AboutSettingsPage from "./pages/AboutSettings"
 import LogsPage from "./pages/Logs"
 import ConnectionSettingsPage from "./pages/ConnectionSettings"
 import { useAuth } from "./contexts/AuthContext"
@@ -65,6 +69,10 @@ function App(): React.JSX.Element {
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/identities/register"} element={<IdentityRegistrationPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />
+            <Route path={"/settings/general"} element={<GeneralSettingsPage />} />
+            <Route path={"/settings/preferences"} element={<PreferencesSettingsPage />} />
+            <Route path={"/settings/security"} element={<SecuritySettingsPage />} />
+            <Route path={"/settings/about"} element={<AboutSettingsPage />} />
             <Route path={"/settings/logs"} element={<LogsPage />} />
             <Route path={"/connection-settings"} element={<ConnectionSettingsPage />} />
           </Routes>

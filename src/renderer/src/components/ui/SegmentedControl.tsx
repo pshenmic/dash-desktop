@@ -33,10 +33,12 @@ export default function SegmentedControl<T extends string>({
           <button
             key={option.value}
             type="button"
+            aria-pressed={active}
             onClick={() => onChange(option.value)}
             className={`
               px-3.5 py-1.5 rounded-[.5rem]
               cursor-pointer transition-colors duration-150
+              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-brand
               ${active
                 ? 'bg-dash-brand dark:bg-dash-mint/20'
                 : 'hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5'}

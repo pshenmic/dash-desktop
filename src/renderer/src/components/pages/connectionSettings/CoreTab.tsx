@@ -64,7 +64,7 @@ export default function CoreTab(): React.JSX.Element {
 
   return (
     <div className="pb-3">
-      <Text as="h2" size={14} weight="medium" color="brand" opacity={50} className="mb-3">
+      <Text as="h2" reset size={14} weight="medium" color="brand" opacity={50} className="mb-3">
         Peer Settings
       </Text>
 
