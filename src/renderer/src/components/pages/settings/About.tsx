@@ -9,7 +9,6 @@ export default function AboutSettings(): React.JSX.Element {
     <div className="w-full pb-12">
       <SettingsDetailHeader primary="About" secondary="Dash Desktop Wallet" />
       <div className="mt-8 px-12">
-        <div className="max-w-[42rem]">
           <SettingsSection title="Application">
             <div className="flex items-center gap-5 px-5 py-6">
               <div className="flex size-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-dash-brand/10 dark:bg-dash-mint/10">
@@ -33,7 +32,6 @@ export default function AboutSettings(): React.JSX.Element {
               <Text size={14} weight="medium" color="brand" opacity={50}>Mainnet and Testnet</Text>
             </div>
           </SettingsSection>
-        </div>
       </div>
     </div>
   )

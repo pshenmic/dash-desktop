@@ -24,7 +24,6 @@ export default function SecuritySettings(): React.JSX.Element {
     <div className="w-full pb-12">
       <SettingsDetailHeader primary="Security" secondary="& Privacy" />
       <div className="mt-8 px-12">
-        <div className="max-w-[42rem]">
           <SettingsSection title="Recovery">
             <SettingsRow
               title="Recovery phrase"
@@ -45,7 +44,6 @@ export default function SecuritySettings(): React.JSX.Element {
               onClick={openDelete}
             />
           </SettingsSection>
-        </div>
       </div>
 
       <DeleteWallet

@@ -86,7 +86,6 @@ export default function GeneralSettings(): React.JSX.Element {
     <div className="w-full pb-12">
       <SettingsDetailHeader primary="General" secondary="Settings" />
       <div className="mt-8 px-12">
-        <div className="max-w-[42rem]">
           <SettingsSection title="Wallet">
             <SettingsRow
               title="Wallet name"
@@ -151,7 +150,6 @@ export default function GeneralSettings(): React.JSX.Element {
               onClick={() => navigate('/settings/logs')}
             />
           </SettingsSection>
-        </div>
       </div>
     </div>
   )

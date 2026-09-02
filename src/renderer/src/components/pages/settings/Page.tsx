@@ -29,7 +29,6 @@ export default function Settings(): React.JSX.Element {
       </Heading>
 
       <div className="mt-8 px-12">
-        <div className="max-w-[42rem]">
           {SETTINGS_HUB_SECTIONS.map((section, sectionIndex) => (
             <section key={section.label} className={sectionIndex === 0 ? '' : 'mt-6'}>
               <Text as="h2" reset size={14} weight="medium" color="brand" opacity={50} className="mb-3">
@@ -53,7 +52,6 @@ export default function Settings(): React.JSX.Element {
               </div>
             </section>
           ))}
-        </div>
       </div>
     </div>
   )

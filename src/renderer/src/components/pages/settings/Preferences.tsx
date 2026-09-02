@@ -16,7 +16,6 @@ export default function PreferencesSettings(): React.JSX.Element {
     <div className="w-full pb-12">
       <SettingsDetailHeader primary="Preferences" secondary="Settings" />
       <div className="mt-8 px-12">
-        <div className="max-w-[42rem]">
           <SettingsSection title="Appearance">
             <SettingsRow
               title="Theme"
@@ -55,7 +54,6 @@ export default function PreferencesSettings(): React.JSX.Element {
               )}
             />
           </SettingsSection>
-        </div>
       </div>
     </div>
   )
