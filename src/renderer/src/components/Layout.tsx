@@ -6,7 +6,6 @@ import { toDropdownOptions } from '@renderer/utils/wallets'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import DropdownSelect from './ui/DropdownSelect'
 import ConnectionButton from './ui/ConnectionButton'
-import SyncProgressBar from './ui/SyncProgressBar'
 import RefreshButton from './ui/RefreshButton'
 import DataRefreshNotice from './ui/DataRefreshNotice'
 import ScrollIndicator from './ui/ScrollIndicator'
@@ -59,7 +58,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     [wallets]
   )
 
-  const { desired, showSyncUI } = useConnectionModeContext()
+  const { desired } = useConnectionModeContext()
 
   const handleWalletChange = (walletId: string): void => {
     if (!walletId || walletId === selectedWallet) return
@@ -101,12 +100,10 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
         </div>
       </header>
 
-      <main className={`flex-1 mt-12 ${showSyncUI && status?.walletSync.phase !== 'synced' ? 'pb-28' : ''}`}>
+      <main className="mt-12 flex-1">
         <DataRefreshNotice />
         {children}
       </main>
-
-      {showSyncUI && <SyncProgressBar />}
 
       <ScrollIndicator />
 

@@ -18,7 +18,7 @@ export default function SyncProgressTooltip({
       role="tooltip"
       className={`
         pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 hidden -translate-x-1/2
-        min-w-[20rem] max-w-[24rem] rounded-[.9375rem]
+        w-max max-w-[20rem] rounded-[.9375rem]
         border border-dash-primary-dark-blue/12 bg-white px-4 py-3
         shadow-[0_0_32px_0_rgba(0,0,0,0.12)]
         dark:border-white/12 dark:bg-[#315c96]
@@ -26,15 +26,15 @@ export default function SyncProgressTooltip({
       `}
     >
       <div className="mb-2 flex flex-col gap-[.125rem]">
-        <Text size={14} weight="medium" color="brand">
+        <Text size={14} weight="medium" color="brand" className="whitespace-nowrap">
           {WALLET_SYNC_PHASE_LABELS[phase]}{isComplete ? '' : ` — ${percent}%`}
         </Text>
-        <Text size={10} weight="medium" color="brand" opacity={50}>
+        <Text size={10} weight="medium" color="brand" opacity={50} className="block max-w-[18rem] whitespace-normal break-words">
           {info.caption}
         </Text>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-1">
+      <div className="mb-3 grid grid-cols-[max-content_max-content] gap-x-3 gap-y-1 [&>*]:whitespace-nowrap">
         <Text size={10} weight="medium" color="brand" opacity={50}>Peers</Text>
         <Text size={10} weight="medium" color="brand">
           {sync?.peerCount ?? 0}
@@ -71,7 +71,7 @@ export default function SyncProgressTooltip({
       </div>
 
       {sync?.lastError && (
-        <Text as="div" size={10} weight="medium" color="red" className="mb-2">
+        <Text as="div" size={10} weight="medium" color="red" className="mb-2 max-w-[18rem] whitespace-normal break-words">
           {sync.lastError}
         </Text>
       )}
