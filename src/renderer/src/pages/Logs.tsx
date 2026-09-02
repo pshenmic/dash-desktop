@@ -85,14 +85,15 @@ export default function LogsPage(): React.JSX.Element {
       <SettingsDetailHeader primary="Application" secondary="Logs" />
       <div className="mt-8 px-12">
         <div className="dash-card-base rounded-3xl p-6 shadow-[8px_0_64px_0_rgba(12,28,51,0.08)]">
-          <div className="mb-4 flex justify-end gap-2">
-            <Button size="sm" variant="outline" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void refresh()} disabled={loadingFiles}>Refresh</Button>
-            <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void showInFolder()} disabled={!selected}>Show Log in Folder</Button>
-          </div>
-
-          <div className="mb-4 flex items-center gap-2 text-amber-700 dark:text-amber-200">
-            <InfoCircleIcon size={14} color="currentColor" className="shrink-0" />
-            <span className="text-xs">Logs may contain wallet addresses and technical details. Review a file before sharing it.</span>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-200">
+              <InfoCircleIcon size={14} color="currentColor" className="shrink-0" />
+              <span className="text-xs">Logs may contain wallet addresses and technical details. Review a file before sharing it.</span>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void refresh()} disabled={loadingFiles}>Refresh</Button>
+              <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => void showInFolder()} disabled={!selected}>Show Log in Folder</Button>
+            </div>
           </div>
 
         {error && (
