@@ -76,7 +76,7 @@ describe('lock pool mempool watch', () => {
   }
 
   beforeEach(async () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'info').mockImplementation(() => undefined)
     captured.pools.length = 0
     incoming = []
     peer = makePeer()
@@ -149,7 +149,7 @@ describe('mempool watch reporting', () => {
 
   beforeEach(() => {
     logged = []
-    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+    vi.spyOn(console, 'info').mockImplementation((...args: unknown[]) => {
       logged.push(String(args[0]))
     })
     captured.pools.length = 0

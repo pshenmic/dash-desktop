@@ -4,10 +4,14 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
-import { initLogger } from './src/logger'
+import { initLogTransport } from './src/logTransport'
 import packageJSON from '../../package.json'
+import {Logger} from './src/utils/logger'
 
-initLogger()
+const log = new Logger('startup')
+const shutdown = new Logger('shutdown')
+
+initLogTransport()
 
 const backend = new WalletBackend()
 
@@ -112,7 +116,7 @@ app.whenReady().then(() => {
   backend.start()
     .then(createWindow)
     .catch((err) => {
-      console.error(err)
+      log.error(err)
       dialog.showErrorBox('Startup failed', String(err))
     })
 
@@ -121,7 +125,7 @@ app.whenReady().then(() => {
       backend.start()
         .then(createWindow)
         .catch((err) => {
-          console.error(err)
+          log.error(err)
           dialog.showErrorBox('Startup failed', String(err))
         })
     }
@@ -143,6 +147,6 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   backendStopped = true
   backend.shutdown()
-    .catch((err) => console.error('[shutdown] backend shutdown failed:', err))
+    .catch((err) => shutdown.error('backend shutdown failed:', err))
     .finally(() => app.quit())
 })

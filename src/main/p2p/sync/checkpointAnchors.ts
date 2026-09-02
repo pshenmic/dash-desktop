@@ -2,6 +2,9 @@ import type {CFCheckptArgs, Peer} from 'dash-core-p2p'
 import {CFCHECKPT_RACE_PEERS, CFCHECKPT_RACE_TIMEOUT_MS, FILTER_TYPE} from '../constants'
 import type {PeerRotation} from '../net/peerRotation'
 import type {CheckpointAnchorsOptions} from '../types/cfilterSync'
+import {Logger} from '../../src/utils/logger'
+
+const log = new Logger('cfilter')
 
 // The filter-header chain's trust anchors: one `getcfcheckpt` gives every
 // 1000th filter header up to a stop hash. Every cfheaders chunk is verified
@@ -52,17 +55,17 @@ export class CheckpointAnchors {
     const stopHeight = Math.floor(scanTipHeight / 1000) * 1000
     const stopHashWire = this.stopHashAt(stopHeight)
     if (!stopHashWire) {
-      console.warn(`[cfilter] cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
+      log.warn(`cfcheckpt: no hash for stop h=${stopHeight}, chain too short`)
       return false
     }
 
     const picks = this.rotation.pick(CFCHECKPT_RACE_PEERS, this.triedPeers)
     if (picks.length === 0) {
-      console.warn('[cfilter] cfcheckpt: no +CF peers — waiting')
+      log.warn('cfcheckpt: no +CF peers — waiting')
       return false
     }
 
-    console.log(`[cfilter] cfcheckpt stopHeight=${stopHeight} picks=${picks.length}`)
+    log.info(`cfcheckpt stopHeight=${stopHeight} picks=${picks.length}`)
     const msg = this.messages.GetCFCheckpt({filterType: FILTER_TYPE, stopHash: stopHashWire})
     for (const p of picks) {
       this.triedPeers.add(p)
@@ -72,7 +75,7 @@ export class CheckpointAnchors {
     if (this.raceTimer) clearTimeout(this.raceTimer)
     this.raceTimer = setTimeout(() => {
       if (this.responded || this.stopped) return
-      console.warn('[cfilter] cfcheckpt timeout — rotating')
+      log.warn('cfcheckpt timeout — rotating')
       this.rotation.markSilent(picks)
       this.request(scanTipHeight)
     }, CFCHECKPT_RACE_TIMEOUT_MS)

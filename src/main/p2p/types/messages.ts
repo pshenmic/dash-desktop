@@ -1,3 +1,4 @@
+import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
 import {PeerOverrides} from './pool'
@@ -82,6 +83,13 @@ export interface P2PReseedUtxosMessage {
   utxos: WalletSyncUtxo[]
 }
 
+// Mirrors the user's log-level preference into the child, which keeps its own
+// threshold so suppressed lines never cross the pipe.
+export interface P2PSetLogLevelMessage {
+  type: 'setLogLevel'
+  level: LogLevel
+}
+
 export type P2PCommand =
   | P2PStartMessage
   | P2PListenMessage
@@ -90,6 +98,7 @@ export type P2PCommand =
   | P2PBroadcastMessage
   | P2PWatchTxsMessage
   | P2PReseedUtxosMessage
+  | P2PSetLogLevelMessage
 
 // ── Events (utility -> main) ────────────────────────────────────────────────
 

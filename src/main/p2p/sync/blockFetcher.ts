@@ -2,6 +2,9 @@ import {Inventory, type Message, type Peer} from 'dash-core-p2p'
 import {BLOCK_REQUEST_TIMEOUT_MS} from '../constants'
 import type {PeerRotation} from '../net/peerRotation'
 import type {BlockRequest, BlockFetcherOptions} from '../types/cfilterSync'
+import {Logger} from '../../src/utils/logger'
+
+const log = new Logger('cfilter')
 
 function keyOf(hashWire: Uint8Array): string {
   return Buffer.from(hashWire).toString('hex')
@@ -54,7 +57,7 @@ export class BlockFetcher {
       entry.triedPeers.add(target)
       target.sendMessage(this.getData(hashWire))
     } else {
-      console.warn(`[cfilter] block h=${height} matched but no ready peers — retrying on timer`)
+      log.warn(`block h=${height} matched but no ready peers — retrying on timer`)
     }
     this.arm(key, entry)
   }
@@ -101,13 +104,13 @@ export class BlockFetcher {
         entry.triedPeers.clear()
         next = this.rotation.first(entry.triedPeers)
         if (!next) {
-          console.warn(`[cfilter] block h=${entry.height} retry — no ready peers, re-arming`)
+          log.warn(`block h=${entry.height} retry — no ready peers, re-arming`)
           this.arm(key, entry)
           return
         }
-        console.warn(`[cfilter] block h=${entry.height} retry — no fresh peers, re-asking ${next.host}`)
+        log.warn(`block h=${entry.height} retry — no fresh peers, re-asking ${next.host}`)
       } else {
-        console.warn(`[cfilter] block h=${entry.height} timeout — retrying via ${next.host} (tried ${entry.triedPeers.size})`)
+        log.warn(`block h=${entry.height} timeout — retrying via ${next.host} (tried ${entry.triedPeers.size})`)
       }
       entry.triedPeers.add(next)
       next.sendMessage(this.getData(entry.hashWire))

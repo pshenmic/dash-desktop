@@ -32,7 +32,7 @@ import {spend} from './operations/shielded/spend/spend'
 import {sync} from './operations/shielded/sync'
 import {
   emptyPlatformStatus,
-  PlatformCommand,
+  PlatformCancel,
   PlatformError,
   PlatformErrorCode,
   PlatformEvent,
@@ -66,7 +66,7 @@ export class PlatformService {
     return this.status
   }
 
-  handle(command: PlatformCommand): void {
+  handle(command: PlatformRequestMessage | PlatformCancel): void {
     if (command.type === 'cancel') {
       this.cancel(command.requestId)
       return

@@ -109,7 +109,9 @@ describe('PlatformWorkerService correlation', () => {
     vi.restoreAllMocks()
   })
 
-  const sentRequestId = (): string => child.postMessage.mock.calls[0][0].requestId
+  // calls[0] is the log level every forked child is handed first.
+  const sentRequestId = (): string =>
+    child.postMessage.mock.calls.filter(([msg]) => msg.type === 'request')[0][0].requestId
 
   it('resolves the caller when the worker responds', async () => {
     const pending = service.request('identityBalance', 'testnet', {identifier: 'id-1'})

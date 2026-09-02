@@ -1,10 +1,12 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import {randomUUID} from 'crypto'
-import {logChildOutput} from '../../logger'
+import {logChildOutput} from '../../logTransport'
+import {currentLogLevel} from '../../utils/logger'
 import {PendingRequest, PlatformRequestOptions} from '../../types/PlatformWorker'
 import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
 import {Network} from '../../types/Network'
+import {LogLevel} from '../../types/Log'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -16,6 +18,9 @@ import {
   PlatformRequestMessage,
   PlatformWorkerStatus,
 } from '../../../platform/types/messages'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('platform')
 
 
 export class PlatformWorkerError extends Error {
@@ -103,6 +108,12 @@ export class PlatformWorkerService {
     this.child = null
   }
 
+  // Never starts a child: a level change is not a reason to boot the prover,
+  // and a child forked later reads the level in ensureChild.
+  setLogLevel(level: LogLevel): void {
+    this.child?.postMessage({type: 'setLogLevel', level})
+  }
+
   private send(command: PlatformCommand): void {
     this.ensureChild().postMessage(command)
   }
@@ -132,8 +143,8 @@ export class PlatformWorkerService {
 
     child.on('exit', code => {
       const tail = this.childOutputTail.trim()
-      console.log(`[platform] utility process exited code=${code}`)
-      if (tail) console.error(`[platform] last output before exit:\n${tail}`)
+      log.info(`utility process exited code=${code}`)
+      if (tail) log.error(`last output before exit:\n${tail}`)
       this.child = null
       // Every pending request must be settled here or its caller hangs forever.
       const detail = tail ? `\n--- platform output (tail) ---\n${tail}` : ''
@@ -154,6 +165,8 @@ export class PlatformWorkerService {
       this.status = emptyPlatformStatus()
     })
 
+    child.postMessage({type: 'setLogLevel', level: currentLogLevel()})
+
     this.child = child
     return child
   }
@@ -165,7 +178,7 @@ export class PlatformWorkerService {
       const record = this.pending.get(event.requestId)
       // A response for a request main already settled — a cancel, or a restart.
       if (record == null) {
-        console.warn(`[platform] response for unknown request ${event.requestId}`)
+        log.warn(`response for unknown request ${event.requestId}`)
         return
       }
       record.settle(event.ok ? {ok: true, result: event.result} : {ok: false, error: event.error})
@@ -174,7 +187,7 @@ export class PlatformWorkerService {
     } else if (event.type === 'notesSpent') {
       this.progressHandlers.get(event.requestId)?.onNotesSpent?.(event.indexes)
     } else if (event.type === 'error') {
-      console.error('[platform] utility process error:', event.message)
+      log.error('utility process error:', event.message)
     }
   }
 }

@@ -6,7 +6,9 @@ import {ChainStorageFilename} from '../../constants/app'
 import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
-import {logChildOutput} from '../../logger'
+import {LogLevel} from '../../types/Log'
+import {logChildOutput} from '../../logTransport'
+import {currentLogLevel} from '../../utils/logger'
 import {WalletDAO} from '../../database/WalletDAO'
 import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
 import {REBROADCAST_INTERVAL_MS} from '../../constants/chain'
@@ -22,6 +24,11 @@ import {ScanCursorGate} from '../../utils/scanCursorGate'
 import {Preferences} from '../../preferences'
 import {Network} from '../../types/Network'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('walletSync')
+const locks = new Logger('locks')
+const discovery = new Logger('discovery')
 
 
 // Main-process facade for wallet sync: forks the p2p utility process and
@@ -129,8 +136,8 @@ export class WalletSyncService {
 
     child.on('exit', code => {
       const tail = this.childOutputTail.trim()
-      console.log(`[p2p] utility process exited code=${code}`)
-      if (tail) console.error(`[p2p] last output before exit:\n${tail}`)
+      log.info(`utility process exited code=${code}`)
+      if (tail) log.error(`last output before exit:\n${tail}`)
       this.child = null
       // The utility process can no longer answer these, and the caller's
       // promise would hang forever. The output tail rides along so the crash
@@ -171,6 +178,8 @@ export class WalletSyncService {
       this.activeWalletId = null
     })
 
+    child.postMessage({type: 'setLogLevel', level: currentLogLevel()})
+
     this.child = child
     return child
   }
@@ -193,13 +202,13 @@ export class WalletSyncService {
       this.enqueuePersist(async () => {
         await this.transactionDAO.rewindToHeight(data.walletId, data.height)
         const utxos = await this.transactionDAO.getUtxos(data.walletId)
-        console.warn(`[walletSync] reorg: un-confirmed everything above h=${data.height}; reseeding ${utxos.length} utxo(s)`)
+        log.warn(`reorg: un-confirmed everything above h=${data.height}; reseeding ${utxos.length} utxo(s)`)
         this.send({type: 'reseedUtxos', walletId: data.walletId, utxos})
       })
     } else if (data.type === 'gapExhausted') {
       this.gapHeld.add(data.gap.walletId)
-      console.log(
-        `[discovery] scan held at h=${data.gap.height}: ${data.gap.isChange ? 'change' : 'receiving'} ` +
+      discovery.info(
+        `scan held at h=${data.gap.height}: ${data.gap.isChange ? 'change' : 'receiving'} ` +
         `lastUsed=${data.gap.lastUsedIndex} maxIndex=${data.gap.maxIndex} — deriving more addresses`,
       )
       // After the queued writes for the blocks that caused this, or discovery
@@ -214,17 +223,23 @@ export class WalletSyncService {
       }
     } else if (data.type === 'txInstantLocked') {
       this.transactionDAO.markInstantLocked(data.txid).catch(err =>
-        console.error('[walletSync] markInstantLocked failed:', err)
+        log.error('markInstantLocked failed:', err)
       )
       this.recordInstantLock(data.txid, data.islockHex)
     } else if (data.type === 'chainLocked') {
       this.transactionDAO.markChainlockedUpTo(data.network, data.height).catch(err =>
-        console.error('[walletSync] markChainlockedUpTo failed:', err)
+        log.error('markChainlockedUpTo failed:', err)
       )
       this.recordChainLock(data.network, data.height)
     } else if (data.type === 'error') {
-      console.error('[p2p] utility process error:', data.message)
+      log.error('utility process error:', data.message)
     }
+  }
+
+  // Never starts a child: a level change is not a reason to bring the pools up,
+  // and a child forked later reads the level in ensureChild.
+  setLogLevel(level: LogLevel): void {
+    this.child?.postMessage({type: 'setLogLevel', level})
   }
 
   private send(command: P2PCommand): void {
@@ -347,8 +362,8 @@ export class WalletSyncService {
     const skipRewind = answersHold || opts.forwardOnly === true || scannedOnce
     const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
 
-    console.log(
-      `[discovery] watching ${addresses.length} new address(es): ` +
+    discovery.info(
+      `watching ${addresses.length} new address(es): ` +
       (answersHold ? 'resuming held scan'
         : rewindToHeight == null ? 'forward-only'
         : `rescanning from h=${rewindToHeight}`),
@@ -384,7 +399,7 @@ export class WalletSyncService {
   private disarmLockWatch(txid: string): void {
     if (!this.armedLockTxids.delete(txid)) return
     this.refreshWatchedTxids().catch(err =>
-      console.error('[walletSync] refreshWatchedTxids failed:', err))
+      log.error('refreshWatchedTxids failed:', err))
   }
 
   // Runs in both connection modes: an rpc-mode wallet still needs InstantSend
@@ -411,7 +426,7 @@ export class WalletSyncService {
     if (this.lockWatchSweepTimer) return
     this.lockWatchSweepTimer = setInterval(() => {
       this.refreshWatchedTxids().catch(err =>
-        console.error('[walletSync] lock watch sweep failed:', err))
+        log.error('lock watch sweep failed:', err))
     }, LOCK_WATCH_SWEEP_INTERVAL_MS)
     this.lockWatchSweepTimer.unref?.()
   }
@@ -485,7 +500,7 @@ export class WalletSyncService {
     // Silent while nobody is waiting — the child already logs every clsig. This
     // line is the only place the crossing into main is observable.
     if (woken.length > 0) {
-      console.log(`[locks] chainlock h=${height} woke ${woken.length} waiter(s) for h>=${Math.min(...woken)}`)
+      locks.info(`chainlock h=${height} woke ${woken.length} waiter(s) for h>=${Math.min(...woken)}`)
     }
   }
 
@@ -527,7 +542,7 @@ export class WalletSyncService {
   // tail swallows the rejection either way.
   private enqueuePersist(task: () => Promise<void>): Promise<void> {
     const run = this.persistQueue.catch(() => undefined).then(task)
-    this.persistQueue = run.catch(err => console.error('[walletSync] persist task failed:', err))
+    this.persistQueue = run.catch(err => log.error('persist task failed:', err))
     return run
   }
 
@@ -553,7 +568,7 @@ export class WalletSyncService {
         this.persistenceError =
           `Block ${block.height} could not be saved (${message}). Sync is held at height ${heldAt} ` +
           'and will rescan from there on the next start.'
-        console.error(`[walletSync] applyBlock failed permanently at h=${block.height}:`, err)
+        log.error(`applyBlock failed permanently at h=${block.height}:`, err)
       }
     }
   }
@@ -564,7 +579,7 @@ export class WalletSyncService {
     const target = this.cursorGate.allowedHeight(walletId, height)
     if (target == null) return
     await this.transactionDAO.advanceCursor(walletId, target).catch(err =>
-      console.error('[walletSync] advanceCursor failed:', err)
+      log.error('advanceCursor failed:', err)
     )
   }
 
@@ -600,7 +615,7 @@ export class WalletSyncService {
         if (ok) {
           resolve(result)
         } else {
-          console.error(`[walletSync] broadcast rejected ${txid ?? '(unparsed)'}: ${errorMessage}`)
+          log.error(`broadcast rejected ${txid ?? '(unparsed)'}: ${errorMessage}`)
           const err = new Error(errorMessage ?? 'broadcastTransaction failed') as Error & {result: BroadcastResult}
           err.result = result
           reject(err)
@@ -618,7 +633,7 @@ export class WalletSyncService {
     // failure must not turn a successful broadcast into an error.
     if (this.activeWalletId && result.peersDelivered.length > 0) {
       await this.recordOptimisticSpend(this.activeWalletId, txHex).catch(err =>
-        console.error('[walletSync] recordOptimisticSpend failed:', err))
+        log.error('recordOptimisticSpend failed:', err))
     }
     return result
   }
@@ -629,7 +644,7 @@ export class WalletSyncService {
     if (this.rebroadcastTimer) return
     this.rebroadcastTimer = setInterval(() => {
       this.rebroadcastPending().catch(err =>
-        console.error('[walletSync] rebroadcastPending failed:', err))
+        log.error('rebroadcastPending failed:', err))
     }, REBROADCAST_INTERVAL_MS)
     this.rebroadcastTimer.unref?.()
   }
@@ -683,7 +698,7 @@ export class WalletSyncService {
     try {
       tx = SDKTransaction.fromHex(txHex)
     } catch (err) {
-      console.error('[walletSync] optimistic record: failed to parse tx hex:', err)
+      log.error('optimistic record: failed to parse tx hex:', err)
       return
     }
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
@@ -716,7 +731,7 @@ export class WalletSyncService {
   private async recordIncomingTx(walletId: string, tx: AppliedTx): Promise<void> {
     await this.transactionDAO.recordPendingTx(walletId, tx, false)
     const received = tx.outputs.filter(o => o.isMine).reduce((sum, o) => sum + BigInt(o.satoshis), 0n)
-    console.log(`[walletSync] incoming tx ${tx.txid} recorded unconfirmed (+${received} duffs)`)
+    log.info(`incoming tx ${tx.txid} recorded unconfirmed (+${received} duffs)`)
     this.watchForInstantLock(tx.txid)
     this.notifyWalletActivity(walletId)
   }

@@ -50,6 +50,9 @@ import {
   PoolSpendOperation,
 } from '../../../platform/types/messages'
 import {AssetLockFundingRow, AcquiredAssetLock} from '../../types/AssetLock'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('shielded')
 
 type SpendPayload = PlatformPayload<'spend'>
 
@@ -507,7 +510,7 @@ export class ShieldedService {
       onProgress: phase => { state.phase = spendPhase(phase) ?? state.phase },
       onNotesSpent: indexes => {
         this.markNotesSpent(walletId, indexes).catch(e =>
-          console.error('Failed to record spent shielded notes', e))
+          log.error('failed to record spent notes', e))
       },
     }).then(async result => {
       state.stHash = result.stHash
@@ -518,7 +521,7 @@ export class ShieldedService {
       await this.refreshNotes(walletId, network, payload.seed)
       if (identityCreate != null && result.identityId != null) {
         this.persistCreatedIdentity({walletId, network, ...identityCreate}, result.identityId).catch(e =>
-          console.error('Failed to persist identity created from the shielded pool', e))
+          log.error('failed to persist identity created from the pool', e))
       }
     }).catch(e => this.failed(state, e))
       .finally(() => zeroSeed(payload))

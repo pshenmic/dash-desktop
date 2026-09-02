@@ -10,6 +10,7 @@ import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONN
 
 import {PoolServiceEventMap, PoolServiceOptions} from '../types/pool'
 import {DIAL_LIFECYCLE_EVENTS, FORWARDED_EVENTS} from '../constants'
+import {Logger} from '../../src/utils/logger'
 
 export class PoolService extends EventEmitter {
   readonly network: Network
@@ -56,12 +57,14 @@ export class PoolService extends EventEmitter {
   private lastMessageAt = Date.now()
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
+  private readonly log: Logger
 
   constructor(network: Network, options: PoolServiceOptions = {}) {
     super()
     this.network = network
     this.messages = new Messages({network} as never)
     this.label = options.label ?? 'pool'
+    this.log = new Logger(this.label)
     this.readyTarget = options.readyPeers ?? POOL_READY_PEERS
     this.minPeers = options.minPeers ?? POOL_MIN_PEERS
     this.maxConnections = options.maxConnections ?? POOL_MAX_CONNECTIONS
@@ -88,7 +91,7 @@ export class PoolService extends EventEmitter {
   start = (): void => {
     this.pool.connect()
     const seeds = this.pool.dnsSeed ? this.pool.network?.dnsSeeds ?? [] : []
-    console.log(`[${this.label}] start seeds=${seeds.join(',') || '(none)'} custom=${this.customPeers.length} known=${this.pool._addrs.length}`)
+    this.log.info(`start seeds=${seeds.join(',') || '(none)'} custom=${this.customPeers.length} known=${this.pool._addrs.length}`)
     this.addAddresses(this.parsePeers(this.customPeers))
 
     // Capacity opens at the ready target and only widens on a refill tick a full
@@ -115,8 +118,8 @@ export class PoolService extends EventEmitter {
 
       if (++this.dialTicks >= POOL_DIAL_REPORT_TICKS) {
         this.dialTicks = 0
-        console.log(
-          `[${this.label}] dials: ${this.seatedDials} seated, ${this.failedDials} never handshook ` +
+        this.log.debug(
+          `dials: ${this.seatedDials} seated, ${this.failedDials} never handshook ` +
           `(ready=${ready} connected=${this.pool.numberConnected()} known=${pool._addrs.length})`,
         )
         this.failedDials = 0
@@ -139,7 +142,7 @@ export class PoolService extends EventEmitter {
 
       if (ready < this.minPeers && ++this.shortTicks >= POOL_SHORT_REPORT_TICKS) {
         this.shortTicks = 0
-        console.log(`[${this.label}] short ready=${ready}/${this.minPeers} connected=${this.pool.numberConnected()} known=${this.pool._addrs.length} stalled=${this.stalledFills}/${POOL_FILL_STALL_LIMIT}`)
+        this.log.debug(`short ready=${ready}/${this.minPeers} connected=${this.pool.numberConnected()} known=${this.pool._addrs.length} stalled=${this.stalledFills}/${POOL_FILL_STALL_LIMIT}`)
       }
 
       if (ready < this.minPeers && this.stalledFills < POOL_FILL_STALL_LIMIT) {
@@ -149,7 +152,7 @@ export class PoolService extends EventEmitter {
         pool._fillConnections()
         const after = this.pool.numberConnected()
         if (after > before) {
-          console.log(`[${this.label}] refill connected=${before}->${after} ready=${ready} known=${pool._addrs.length}`)
+          this.log.debug(`refill connected=${before}->${after} ready=${ready} known=${pool._addrs.length}`)
         }
         return
       }
@@ -168,7 +171,7 @@ export class PoolService extends EventEmitter {
           this.filterCapablePeers.delete(peer)
           try { peer.disconnect() } catch { /* already gone */ }
         }
-        console.log(`[${this.label}] trimmed ${surplus.length} peers ready=${ready}->${this.readyPeers.size}`)
+        this.log.debug(`trimmed ${surplus.length} peers ready=${ready}->${this.readyPeers.size}`)
       }
       // Deliberately no refill between the minimum and the target: most known
       // addresses are dead, so topping up a merely-below-target pool re-dials
@@ -184,7 +187,7 @@ export class PoolService extends EventEmitter {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     for (const addr of addrs) pool._addAddr({...addr, hash: undefined})
-    console.log(`[${this.label}] +${addrs.length} peers(es) known=${this.pool._addrs.length}`)
+    this.log.debug(`+${addrs.length} peers(es) known=${this.pool._addrs.length}`)
     pool._fillConnections()
   }
 
@@ -192,7 +195,7 @@ export class PoolService extends EventEmitter {
   // bookkeeping (deprioritise, remove, refill) runs for each one.
   private dropStalePeers(ready: number): void {
     const quietFor = Math.round((Date.now() - this.lastMessageAt) / 1000)
-    console.warn(`[${this.label}] nothing heard from any of ${ready} peer(s) for ${quietFor}s — dropping them and redialling`)
+    this.log.warn(`nothing heard from any of ${ready} peer(s) for ${quietFor}s — dropping them and redialling`)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     for (const peer of Object.values(pool._connectedPeers) as Array<{disconnect: () => void}>) {
@@ -211,7 +214,7 @@ export class PoolService extends EventEmitter {
     this.fallbackDialled = true
 
     const parsed = this.parsePeers(FALLBACK_PEERS[this.network])
-    console.log(`[${this.label}] no peers after ${(POOL_FALLBACK_TICKS * POOL_REFILL_INTERVAL_MS) / 1000}s — dialling ${parsed.length} built-in address(es)`)
+    this.log.info(`no peers after ${(POOL_FALLBACK_TICKS * POOL_REFILL_INTERVAL_MS) / 1000}s — dialling ${parsed.length} built-in address(es)`)
     this.addAddresses(parsed)
   }
 
@@ -221,7 +224,7 @@ export class PoolService extends EventEmitter {
     for (const entry of entries) {
       const addr = parsePeerAddress(entry, port)
       if (addr == null) {
-        console.error(`[${this.label}] ignoring unparseable peer ${JSON.stringify(entry)}`)
+        this.log.error(`ignoring unparseable peer ${JSON.stringify(entry)}`)
         continue
       }
       parsed.push(addr)
@@ -245,10 +248,10 @@ export class PoolService extends EventEmitter {
     // Mainnet ships a single DNS seed and there is no peer cache behind it, so
     // a failed lookup leaves both pools with nothing to dial, permanently.
     this.pool.on('seed', (ips: string[]) => {
-      console.log(`[${this.label}] dns seed returned ${ips.length} address(es)`)
+      this.log.info(`dns seed returned ${ips.length} address(es)`)
     })
     this.pool.on('seederror', (err: Error) => {
-      console.error(`[${this.label}] dns seed failed, no addresses to dial: ${err.message}`)
+      this.log.error(`dns seed failed, no addresses to dial: ${err.message}`)
     })
 
     // dash-core-p2p never sets TCP_NODELAY. Every cf*/getheaders request is a
@@ -263,14 +266,14 @@ export class PoolService extends EventEmitter {
       if (typeof socket?.setNoDelay !== 'function') {
         if (!this.noDelayUnavailable) {
           this.noDelayUnavailable = true
-          console.warn(`[${this.label}] socket has no setNoDelay — Nagle stays on`)
+          this.log.warn(`socket has no setNoDelay — Nagle stays on`)
         }
         return
       }
       socket.setNoDelay(true)
       socket.setKeepAlive?.(true, PEER_KEEPALIVE_DELAY_MS)
       if (this.noDelayPeers++ === 0) {
-        console.log(`[${this.label}] TCP_NODELAY and keepalive set on peer sockets`)
+        this.log.info(`TCP_NODELAY and keepalive set on peer sockets`)
       }
     })
 
@@ -289,8 +292,8 @@ export class PoolService extends EventEmitter {
       const cf = ((this.peerServices.get(peer) ?? 0n) & BigInt(NODE_COMPACT_FILTERS)) !== 0n
       if (cf) this.filterCapablePeers.add(peer)
       this.seatedDials++
-      console.log(
-        `[${this.label}] peerready ${peer.host}:${peer.port} v${peer.version} ` +
+      this.log.debug(
+        `peerready ${peer.host}:${peer.port} v${peer.version} ` +
         `bestHeight=${peer.bestHeight} ${cf ? '+CF' : '-CF'} ready=${this.readyPeers.size}`,
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -302,7 +305,7 @@ export class PoolService extends EventEmitter {
       // A dead gossip address dropping is the expected case and the bulk of the
       // churn; only a peer we actually had is worth a line of its own.
       if (wasReady) {
-        console.log(`[${this.label}] peerdisconnect ${peer.host}:${peer.port} ready=${this.readyPeers.size}`)
+        this.log.debug(`peerdisconnect ${peer.host}:${peer.port} ready=${this.readyPeers.size}`)
       } else {
         this.failedDials++
       }

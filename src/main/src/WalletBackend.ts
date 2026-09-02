@@ -1,5 +1,6 @@
 import {calibratePBKDF2Iterations, getKnex, migrateKnex} from './utils'
 import {dataPath, ensureDataFolder} from './utils/dataPath'
+import {applyLogLevel} from './logTransport'
 import {LogsFolderName, PBKDF2_TARGET_MS, PreferencesFilename, StorageFilename} from './constants/app'
 import {SHIELDED_NOTES_CHECK_INTERVAL_MS} from './constants/credits'
 import { ipcMain } from 'electron'
@@ -57,6 +58,7 @@ import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
 import {VerifyWalletMnemonicHandler} from "./api/wallet/verifyWalletMnemonic";
 import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
 import {SetLanguageHandler} from "./api/setLanguage";
+import {SetLogLevelHandler} from "./api/setLogLevel";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
@@ -107,7 +109,12 @@ import {LogService} from './services/app/LogService'
 import {ListLogFiles} from './api/logs/listLogFiles'
 import {GetLogFileHandler} from './api/logs/getLogFile'
 import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
+import {Logger} from './utils/logger'
 
+const prevout = new Logger('prevout')
+const locks = new Logger('locks')
+const discoveryLog = new Logger('discovery')
+const shielded = new Logger('shielded')
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -133,7 +140,7 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -177,6 +184,7 @@ export class WalletBackend {
     ipcMain.handle('resetWalletPassword', new ResetWalletPasswordHandler(this.walletCredentialsService).handle)
     ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
+    ipcMain.handle('setLogLevel', new SetLogLevelHandler(this.applicationService, this.walletSyncService, this.platformWorkerService).handle)
     ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
     ipcMain.handle('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
     ipcMain.handle('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
@@ -218,6 +226,10 @@ export class WalletBackend {
     const calibratedIterations = calibratePBKDF2Iterations(PBKDF2_TARGET_MS)
 
     const preferences = await Preferences.init(dataPath(PreferencesFilename))
+
+    // The bootstrap in main/index.ts runs before preferences exist, so until
+    // here everything is logged at the default level.
+    applyLogLevel(preferences.general.logLevel)
 
     const knex = getKnex(dataPath(StorageFilename))
 
@@ -273,7 +285,7 @@ export class WalletBackend {
       if (applicationService.preferences.general.connectionType !== 'p2p' || resolvingPrevOuts) return
       resolvingPrevOuts = true
       prevOuts.resolveBacklog(walletId)
-        .catch(err => console.error('[prevout] input resolution failed:', err))
+        .catch(err => prevout.error('input resolution failed:', err))
         .finally(() => { resolvingPrevOuts = false })
     }
     const discoverSelected = async (): Promise<void> => {
@@ -285,25 +297,25 @@ export class WalletBackend {
       try {
         await walletSyncService.startLockListen(selected.network, selected.walletId)
       } catch (err) {
-        console.error('[locks] failed to start lock listener:', err)
+        locks.error('failed to start lock listener:', err)
       }
       await discovery.discoverCoreAddresses(selected.walletId)
       resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
       discovery.discoverCoreAddresses(walletId).catch(err =>
-        console.error('[discovery] post-sync address discovery failed:', err))
+        discoveryLog.error('post-sync address discovery failed:', err))
       resolvePrevOuts(walletId)
     }
     // The scan is stopped until this answers, so it must not join a discovery
     // run that started before the block that exhausted the gap was persisted.
     this.walletSyncService.onGapExhausted = (gap) => {
       discovery.rediscoverCoreAddresses(gap.walletId).catch(err =>
-        console.error('[discovery] gap-exhausted address discovery failed:', err))
+        discoveryLog.error('gap-exhausted address discovery failed:', err))
     }
-    discoverSelected().catch(err => console.error('[discovery] startup address discovery failed:', err))
+    discoverSelected().catch(err => discoveryLog.error('startup address discovery failed:', err))
     setInterval(() => {
-      discoverSelected().catch(err => console.error('[discovery] periodic address discovery failed:', err))
+      discoverSelected().catch(err => discoveryLog.error('periodic address discovery failed:', err))
     }, DISCOVERY_INTERVAL_MS).unref()
 
     const shieldedService = this.shieldedService
@@ -313,9 +325,9 @@ export class WalletBackend {
         await shieldedService.prefetchNotes(selected.walletId, selected.network)
       }
     }
-    fetchShieldedNotes().catch(err => console.error('[shielded] startup note fetch failed:', err))
+    fetchShieldedNotes().catch(err => shielded.error('startup note fetch failed:', err))
     setInterval(() => {
-      fetchShieldedNotes().catch(err => console.error('[shielded] periodic note fetch failed:', err))
+      fetchShieldedNotes().catch(err => shielded.error('periodic note fetch failed:', err))
     }, SHIELDED_NOTES_CHECK_INTERVAL_MS).unref()
 
     this.applicationService.markReady()

@@ -25,6 +25,9 @@ import type {
   HeaderSyncWorkerStatus,
 } from '../../types/headerSync'
 import {PersistedHeader, ChainTipState} from '../../types/chainStore'
+import {Logger} from '../../../src/utils/logger'
+
+const log = new Logger('p2p')
 
 function typeName(t: number): string {
   return INV_TYPE_NAMES[t] ?? `UNKNOWN(${t})`
@@ -177,7 +180,7 @@ export class HeaderSyncWorker extends Worker {
     if (this.loggedInv.size >= ANNOUNCE_DEDUPE_LIMIT) this.loggedInv.clear()
     for (const entry of fresh) this.loggedInv.add(entry)
     const summary = Object.entries(counts).map(([t, n]) => `${typeName(Number(t))}=${n}`).join(' ')
-    console.log(`[p2p] peerinv from ${peer.host} ${summary || '(empty)'} [${fresh.join(' ')}]`)
+    log.debug(`peerinv from ${peer.host} ${summary || '(empty)'} [${fresh.join(' ')}]`)
   }
 
   // Past 'synced' the tip rides on unsolicited pushes, which need a peer that
@@ -197,7 +200,7 @@ export class HeaderSyncWorker extends Worker {
     }
 
     if (!chase) return
-    console.log(`[p2p] block announced by ${peer.host} above h=${this.chainTipHeight} — requesting headers`)
+    log.info(`block announced by ${peer.host} above h=${this.chainTipHeight} — requesting headers`)
     this.requestTipHeaders([peer])
   }
 
@@ -220,7 +223,7 @@ export class HeaderSyncWorker extends Worker {
 
     this.lastStallPollAt = Date.now()
     const quietFor = Math.round((Date.now() - this.lastHeaderAt) / 1000)
-    console.warn(`[p2p] no headers for ${quietFor}s at h=${this.chainTipHeight} — polling ${peers.length} peer(s)`)
+    log.warn(`no headers for ${quietFor}s at h=${this.chainTipHeight} — polling ${peers.length} peer(s)`)
     this.requestTipHeaders(peers)
   }
 
@@ -233,7 +236,7 @@ export class HeaderSyncWorker extends Worker {
       // competing branches processHeaders resolves against our own.
       if (rawHeaders.length === 0 || rawHeaders[0]!.length < 80) return
       this.processHeaders(rawHeaders, peer.host).catch(err => {
-        console.error('[p2p] processHeaders (tip-follow) failed:', err)
+        log.error('processHeaders (tip-follow) failed:', err)
         this.reportError(formatChainDbError(err), false)
       })
       return
@@ -284,7 +287,7 @@ export class HeaderSyncWorker extends Worker {
       this.endRace(race)
       this.startHeaderRace()
     }).catch(err => {
-      console.error('[p2p] processHeaders failed:', err)
+      log.error('processHeaders failed:', err)
       this.endRace(race)
       this.reportError(formatChainDbError(err), false)
     })
@@ -336,11 +339,11 @@ export class HeaderSyncWorker extends Worker {
 
     const msg = this.getHeadersMsg(locator)
     for (const p of picks) p.sendMessage(msg)
-    console.log(`[p2p] race start locator=${locator[0]}+${locator.length - 1} height=${this.chainTipHeight} racers=${picks.length}`)
+    log.info(`race start locator=${locator[0]}+${locator.length - 1} height=${this.chainTipHeight} racers=${picks.length}`)
 
     race.timer = setTimeout(() => {
       if (this.currentRace !== race) return
-      console.warn(`[p2p] race at ${locator} timed out (silent: ${race.racers.size})`)
+      log.warn(`race at ${locator} timed out (silent: ${race.racers.size})`)
       // Whoever is still outstanding never answered, so the next race prefers
       // anyone else.
       this.rotation.markSilent(race.racers)
@@ -383,7 +386,7 @@ export class HeaderSyncWorker extends Worker {
     // accepted lands here too, its parent now one below the tip.
     const connectsAt = this.window.heightOf(incomingPrev)
     if (connectsAt == null) {
-      console.warn(`[p2p] reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+      log.warn(`reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
       return false
     }
 
@@ -400,7 +403,7 @@ export class HeaderSyncWorker extends Worker {
     // A ChainLock is final by consensus, so a branch forking under one is not a
     // chain we lost — it is a peer on a chain that lost.
     if (forkHeight < this.finalityHeight) {
-      console.warn(`[p2p] refusing fork at h=${forkHeight}: below chainlocked h=${this.finalityHeight}`)
+      log.warn(`refusing fork at h=${forkHeight}: below chainlocked h=${this.finalityHeight}`)
       return false
     }
 
@@ -409,7 +412,7 @@ export class HeaderSyncWorker extends Worker {
 
     const ourWork = this.window.workAbove(forkHeight)
     if (validated.work <= ourWork) {
-      console.log(`[p2p] fork at h=${forkHeight} carries no more work than ours — keeping current branch`)
+      log.info(`fork at h=${forkHeight} carries no more work than ours — keeping current branch`)
       return false
     }
 
@@ -418,7 +421,7 @@ export class HeaderSyncWorker extends Worker {
   }
 
   private async rewindTo(forkHeight: number, forkHash: string): Promise<void> {
-    console.warn(`[p2p] reorg: dropping ${this.chainTipHeight - forkHeight} block(s) back to h=${forkHeight} ${forkHash}`)
+    log.warn(`reorg: dropping ${this.chainTipHeight - forkHeight} block(s) back to h=${forkHeight} ${forkHash}`)
     await this.chainStore.deleteHeadersFrom(forkHeight + 1, {tipHeight: forkHeight, tipHash: forkHash})
 
     this.chainTipHeight = forkHeight
@@ -443,7 +446,7 @@ export class HeaderSyncWorker extends Worker {
     for (const header of accepted) this.window.record(header.height, header.hash, headerWork(header.nBits))
 
     this.lastHeaderAt = Date.now()
-    console.log(`[p2p] tip h=${last.height} +${accepted.length} from ${from} phase=${this.phase}`)
+    log.debug(`tip h=${last.height} +${accepted.length} from ${from} phase=${this.phase}`)
     // Whatever was outstanding is either in the window now or was never ours.
     this.announcedBlocks.clear()
 
