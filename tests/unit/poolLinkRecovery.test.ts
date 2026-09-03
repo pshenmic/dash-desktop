@@ -3,7 +3,10 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 vi.mock('dash-core-p2p', async () => {
   const {EventEmitter} = await import('events')
   return {
-    Messages: class { GetAddr = (): {command: string} => ({command: 'getaddr'}) },
+    Messages: class {
+      GetAddr = (): {command: string} => ({command: 'getaddr'})
+      Ping = (): {command: string} => ({command: 'ping'})
+    },
     Networks: {get: (network: string) => ({name: network, port: network === 'mainnet' ? 9999 : 19999, dnsSeeds: ['seed.example']})},
     NODE_COMPACT_FILTERS: 64,
     Pool: class extends EventEmitter {
@@ -27,7 +30,7 @@ vi.mock('dash-core-p2p', async () => {
 })
 
 import {PoolService} from '../../src/main/p2p/net/PoolService'
-import {PEER_KEEPALIVE_DELAY_MS, POOL_REFILL_INTERVAL_MS, POOL_SILENCE_TIMEOUT_MS} from '../../src/main/p2p/constants'
+import {PEER_KEEPALIVE_DELAY_MS, POOL_REFILL_INTERVAL_MS, POOL_SILENCE_PROBE_MS, POOL_SILENCE_TIMEOUT_MS} from '../../src/main/p2p/constants'
 
 type RawPool = {_connectedPeers: Record<string, unknown>; fills: number; emit: (event: string, ...args: unknown[]) => boolean}
 const raw = (service: PoolService): RawPool => service.pool as unknown as RawPool
@@ -36,18 +39,23 @@ interface FakePeer {
   host: string
   port: number
   disconnects: number
-  sendMessage: () => void
+  sent: Array<{command: string}>
+  sendMessage: (message: {command: string}) => void
   disconnect: () => void
 }
 
 const fakePeer = (host: string): FakePeer => {
   const peer: FakePeer = {
-    host, port: 19999, disconnects: 0,
-    sendMessage: () => undefined,
+    host, port: 19999, disconnects: 0, sent: [],
+    sendMessage: (message: {command: string}) => { peer.sent.push(message) },
     disconnect: () => { peer.disconnects++ },
   }
   return peer
 }
+
+// Long enough for the silence to be noticed, the probe to go out, and its grace
+// to lapse unanswered.
+const SILENT_RUN_MS = POOL_SILENCE_TIMEOUT_MS + POOL_SILENCE_PROBE_MS + POOL_REFILL_INTERVAL_MS * 2
 
 const seat = (service: PoolService, peer: FakePeer): void => {
   raw(service)._connectedPeers[peer.host] = peer
@@ -73,14 +81,15 @@ describe('pool recovery from a dead link', () => {
     vi.restoreAllMocks()
   })
 
-  it('drops peers that have gone silent and redials', () => {
+  it('drops peers that leave the silence probe unanswered, and redials', () => {
     const peer = fakePeer('1.1.1.1')
     seat(service, peer)
     expect(service.readyPeers.size).toBe(1)
     const fillsBefore = raw(service).fills
 
-    vi.advanceTimersByTime(POOL_SILENCE_TIMEOUT_MS + POOL_REFILL_INTERVAL_MS)
+    vi.advanceTimersByTime(SILENT_RUN_MS)
 
+    expect(peer.sent).toContainEqual({command: 'ping'})
     expect(peer.disconnects).toBe(1)
     expect(service.readyPeers.size).toBe(0)
     expect(service.filterCapablePeers.size).toBe(0)
@@ -106,7 +115,7 @@ describe('pool recovery from a dead link', () => {
     const peer = fakePeer('1.1.1.1')
     seat(service, peer)
 
-    for (let elapsed = 0; elapsed < POOL_SILENCE_TIMEOUT_MS + POOL_REFILL_INTERVAL_MS; elapsed += POOL_REFILL_INTERVAL_MS) {
+    for (let elapsed = 0; elapsed < SILENT_RUN_MS; elapsed += POOL_REFILL_INTERVAL_MS) {
       vi.advanceTimersByTime(POOL_REFILL_INTERVAL_MS)
       raw(service).emit('peerconnect', fakePeer('2.2.2.2'))
       raw(service).emit('peerdisconnect', fakePeer('2.2.2.2'))
@@ -114,6 +123,24 @@ describe('pool recovery from a dead link', () => {
 
     expect(peer.disconnects).toBe(1)
     expect(service.readyPeers.size).toBe(0)
+  })
+
+  // The measured case: one static peer on a quiet testnet, dropped as dead every
+  // 90s and handing back a full handshake seconds later.
+  it('keeps a peer that answers the probe, however quiet it is otherwise', () => {
+    const peer = fakePeer('1.1.1.1')
+    seat(service, peer)
+
+    for (let elapsed = 0; elapsed < POOL_SILENCE_TIMEOUT_MS * 3; elapsed += POOL_REFILL_INTERVAL_MS) {
+      vi.advanceTimersByTime(POOL_REFILL_INTERVAL_MS)
+      if (peer.sent.some(m => m.command === 'ping')) {
+        peer.sent.length = 0
+        raw(service).emit('peerpong', peer, {})
+      }
+    }
+
+    expect(peer.disconnects).toBe(0)
+    expect(service.readyPeers.size).toBe(1)
   })
 
   // dash-core-p2p answers ping but never sends one, so without this the OS never

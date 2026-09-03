@@ -11,6 +11,7 @@ import {
   MEMPOOL_SEEN_LIMIT,
 } from '../constants'
 import {PoolService} from '../net/PoolService'
+import {peerOverridesKey} from '../net/peerOverrides'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
 import type {HeaderSyncWorkerStatus} from '../types/headerSync'
@@ -23,7 +24,7 @@ import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from '../types/chainStore'
 import {SyncServiceEvents} from '../types/sync'
-import {PeerOverrides} from '../types/pool'
+import {PeerOverrides, PoolServiceOptions} from '../types/pool'
 
 // Top-level controller for the p2p utility process: owns ChainStore and the
 // pools, spawns workers per session, aggregates their status.
@@ -37,8 +38,13 @@ export class SyncService {
   // relay:true, always up: lock watching + broadcast.
   private lockPool: PoolService | null = null
   private lockNetwork: Network | null = null
-  // relay:false, p2p mode only: headers, cfilters, blocks.
+  // relay:false, p2p mode only: headers, cfilters, blocks. Null in static mode,
+  // where the pinned peers serve both jobs from the one pool.
   private bulkPool: PoolService | null = null
+  // What the workers read: the bulk pool, or the lock pool in static mode.
+  private syncPool: PoolService | null = null
+  private lockOverridesKey: string | null = null
+  private staticPeers = false
   private headerSyncWorker: HeaderSyncWorker | null = null
   private cfilterSyncWorker: CFilterSyncWorker | null = null
 
@@ -76,6 +82,7 @@ export class SyncService {
     peerCount: 0,
     filterCapablePeerCount: 0,
     lockPeerCount: 0,
+    peerMode: null,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: Date.now(),
@@ -105,6 +112,13 @@ export class SyncService {
   // session rather than restarting it.
   listen = (cmd: P2PListenMessage): Promise<void> =>
     this.runExclusive(async () => {
+      // Changed peer settings rebuild the pool, and in static mode that is the
+      // pool the workers hold. Main sends `stop` before re-listening, so this
+      // only catches a session that outlived it.
+      if (this.syncPool && this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides)) {
+        console.log('[p2p] peer settings changed under a running session — stopping the sync layer')
+        await this.teardownBulk()
+      }
       this.startLockCore(cmd.network, cmd.peerOverrides)
       if (cmd.walletId) this.setLockAddresses(cmd.walletId, cmd.watchAddresses ?? [])
     })
@@ -122,22 +136,39 @@ export class SyncService {
   // outlive a mode switch. Network-scoped rather than wallet-scoped so
   // switching wallets reuses a filled pool instead of re-crawling DNS.
   private startLockCore = (network: Network, overrides?: PeerOverrides): void => {
-    if (this.lockPool && this.lockNetwork === network) return
+    const overridesKey = peerOverridesKey(overrides)
+    if (this.lockPool && this.lockNetwork === network && this.lockOverridesKey === overridesKey) return
 
     this.teardownLock()
     this.lockNetwork = network
+    this.lockOverridesKey = overridesKey
     this.watchedTxids = new Set()
     this.chainlockedHeight = 0
 
-    this.lockPool = new PoolService(network, {
-      label: 'lock-pool',
-      relay: true,
-      readyPeers: LOCK_POOL_READY_PEERS,
-      minPeers: LOCK_POOL_MIN_PEERS,
-      maxConnections: LOCK_POOL_MAX_CONNECTIONS,
-      dnsSeeds: overrides?.dnsSeeds,
-      peers: overrides?.peers,
-    })
+    const pinned = overrides?.mode === 'static' ? overrides.peers : []
+    this.staticPeers = pinned.length > 0
+    // Sized to the pinned set exactly: there is nothing else to dial, so a
+    // target above it would pin the pool in its refill branch forever.
+    const options: PoolServiceOptions = this.staticPeers
+      ? {
+        label: 'static-pool',
+        relay: true,
+        staticPeers: true,
+        peers: pinned,
+        readyPeers: pinned.length,
+        minPeers: pinned.length,
+        maxConnections: pinned.length,
+      }
+      : {
+        label: 'lock-pool',
+        relay: true,
+        readyPeers: LOCK_POOL_READY_PEERS,
+        minPeers: LOCK_POOL_MIN_PEERS,
+        maxConnections: LOCK_POOL_MAX_CONNECTIONS,
+        dnsSeeds: overrides?.dnsSeeds,
+        peers: overrides?.peers,
+      }
+    this.lockPool = new PoolService(network, options)
     this.lockPool.on('peerinv', this.onPeerInvForLocks)
     this.lockPool.on('peerisdlock', this.onIsdlock)
     this.lockPool.on('peertx', this.onTx)
@@ -148,6 +179,9 @@ export class SyncService {
     this.lockPool.on('peerready', this.onLockPeerChange)
     this.lockPool.on('peerdisconnect', this.onLockPeerChange)
     this.lockPool.start()
+    // The pool the status reports on just changed, and in rpc mode nothing else
+    // emits until a peer seats — which would leave the old mode on show.
+    this.emit({})
 
     this.mempoolReportTimer = setInterval(this.reportMempoolWatch, MEMPOOL_REPORT_INTERVAL_MS)
     this.mempoolReportTimer.unref?.()
@@ -209,6 +243,7 @@ export class SyncService {
       peerCount: 0,
       filterCapablePeerCount: 0,
       lockPeerCount: 0,
+      peerMode: null,
       phaseEtaMs: null,
       lastError: null,
     })
@@ -239,23 +274,36 @@ export class SyncService {
     }
     console.log(`[p2p] starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
-    // `relay: false` drops the tx inv stream these workers never read — and
-    // Dash Core gates ISLOCK/ISDLOCK inv behind the same flag, which is why
-    // lock watching stays on the other pool.
-    this.bulkPool = new PoolService(cmd.network, {
-      label: 'bulk-pool',
-      relay: false,
-      dnsSeed: false,
-      peers: cmd.peerOverrides?.peers,
-    })
-    this.feedBulkPool()
-    this.bulkPool.start()
+    if (this.staticPeers) {
+      // One pool, both jobs: a second pool dialling the same pinned hosts would
+      // drop both connections to every one of them.
+      this.syncPool = this.lockPool
+    } else {
+      // `relay: false` drops the tx inv stream these workers never read — and
+      // Dash Core gates ISLOCK/ISDLOCK inv behind the same flag, which is why
+      // lock watching stays on the other pool.
+      this.bulkPool = new PoolService(cmd.network, {
+        label: 'bulk-pool',
+        relay: false,
+        dnsSeed: false,
+        peers: cmd.peerOverrides?.peers,
+      })
+      this.feedBulkPool()
+      this.bulkPool.start()
+      this.syncPool = this.bulkPool
+    }
+    if (!this.syncPool) {
+      const message = 'peer pool failed to start'
+      this.emit({phase: 'stopped', lastError: message})
+      this.events.error(message)
+      return
+    }
 
     // CFilterSyncWorker boots lazily once header sync reports 'synced', so the
     // two never compete for chain.db state mid-sync.
     this.headerSyncWorker = new HeaderSyncWorker({
       chainStore: this.chainStore,
-      peerPool: this.bulkPool,
+      peerPool: this.syncPool,
       initialTipHeight: resumeHeight,
       initialTipHash: resumeHash,
       finalityHeight: this.chainlockedHeight,
@@ -300,6 +348,7 @@ export class SyncService {
       peerCount: 0,
       filterCapablePeerCount: 0,
       lockPeerCount: 0,
+      peerMode: null,
       phaseEtaMs: null,
     })
   }
@@ -396,7 +445,7 @@ export class SyncService {
     if (!this.lockPool) return
     // With no waiter and no sync layer to mark txs final, fetching one per
     // block is permanent background cost for nothing.
-    const wantChainlocks = this.watchedTxids.size > 0 || this.bulkPool != null
+    const wantChainlocks = this.watchedTxids.size > 0 || this.syncPool != null
     const wanted: Array<{type: number; hash: Uint8Array}> = []
     for (const item of msg.inventory ?? []) {
       if (item.type === Inventory.TYPE.TX) {
@@ -516,6 +565,7 @@ export class SyncService {
       this.bulkPool.removeAllListeners()
       this.bulkPool = null
     }
+    this.syncPool = null
     if (this.chainStore) {
       await this.chainStore.close().catch(() => { /* ignore */ })
       this.chainStore = null
@@ -525,6 +575,8 @@ export class SyncService {
 
   private teardownLock(): void {
     this.lockNetwork = null
+    this.lockOverridesKey = null
+    if (this.syncPool === this.lockPool) this.syncPool = null
     if (this.mempoolReportTimer) clearInterval(this.mempoolReportTimer)
     this.mempoolReportTimer = null
     if (!this.lockPool) return
@@ -538,7 +590,8 @@ export class SyncService {
     // Owned here rather than by the workers: the pools outlive them, and fill
     // with peers through phases no worker is running in.
     merged.lockPeerCount = this.lockPool?.readyPeers.size ?? 0
-    merged.filterCapablePeerCount = this.bulkPool?.filterCapablePeers.size ?? 0
+    merged.peerMode = this.lockPool == null ? null : this.staticPeers ? 'static' : 'dynamic'
+    merged.filterCapablePeerCount = this.syncPool?.filterCapablePeers.size ?? 0
     merged.phaseEtaMs = this.computePhaseEta(merged)
     this.status = merged
     this.events.status(this.status)
@@ -583,7 +636,7 @@ export class SyncService {
       peerCount: s.peerCount,
     })
 
-    if (s.phase === 'synced' && !this.cfilterStarted && this.chainStore && this.bulkPool && s.tipHash) {
+    if (s.phase === 'synced' && !this.cfilterStarted && this.chainStore && this.syncPool && s.tipHash) {
       this.cfilterStarted = true
       this.startCFilterWorker(s.tipHeight, s.tipHash).catch(err =>
         this.handleWorkerError('CFilterSyncWorker', err instanceof Error ? err.message : String(err))
@@ -592,12 +645,12 @@ export class SyncService {
   }
 
   private async startCFilterWorker(tipHeight: number, tipHashDisplayHex: string): Promise<void> {
-    if (!this.chainStore || !this.bulkPool || !this.activeWalletId) return
+    if (!this.chainStore || !this.syncPool || !this.activeWalletId) return
     this.cfilterSyncWorker = new CFilterSyncWorker({
       network: this.chainStore.network,
       walletId: this.activeWalletId,
       chainStore: this.chainStore,
-      peerPool: this.bulkPool,
+      peerPool: this.syncPool,
       chainTipHeight: tipHeight,
       chainTipHashDisplayHex: tipHashDisplayHex,
       watchAddresses: this.activeWatchAddresses,

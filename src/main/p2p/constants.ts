@@ -20,6 +20,9 @@ export const INV_TYPE_NAMES: Record<number, string> = {
 export const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
   'peerconnect', 'peerready', 'peerdisconnect', 'peerversion',
   'peerheaders', 'peerinv', 'peerblock', 'peeraddr', 'peertx',
+  // Not for subscribers — nothing reads them — but because a pool with few
+  // peers on a quiet chain hears nothing else for minutes at a time.
+  'peerping', 'peerpong',
   'peercfcheckpt', 'peercfheaders', 'peercfilter',
   'peerislock', 'peerisdlock', 'peerclsig',
   'seederror',
@@ -102,10 +105,15 @@ export const POOL_FALLBACK_TICKS = 2
 // holds its slot until the process restarts. This hands the OS the job.
 export const PEER_KEEPALIVE_DELAY_MS = 60_000
 
-// Total silence across every peer in a pool, after which they are assumed dead
-// with the link rather than merely quiet. Peers gossip inv continuously, so this
-// only trips when the path to all of them broke at once.
+// Total silence across every peer in a pool, after which the pool stops assuming
+// they are merely quiet and asks. A pool of one or two peers on a quiet chain
+// reaches this routinely, so it opens a probe rather than a redial.
 export const POOL_SILENCE_TIMEOUT_MS = 90_000
+
+// Grace for the pong that probe asks for. dash-core-p2p answers a ping but never
+// sends one, so this is the only round trip that can tell a dead link from a
+// quiet one; a peer that lets it lapse is dropped.
+export const POOL_SILENCE_PROBE_MS = 10_000
 
 // Dialled when a pool has produced no live peer at all: a resolver that cannot
 // answer the single mainnet DNS seed — or answers it with rewritten records —

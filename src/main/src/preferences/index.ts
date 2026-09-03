@@ -11,7 +11,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 7
+  static readonly CURRENT_VERSION = 8
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
@@ -98,7 +98,7 @@ export class Preferences {
     )
 
     // Hand-edited far more often than the rest of the file, so a malformed
-    // section falls back to discovery defaults instead of wedging startup.
+    // section falls back to dynamic defaults instead of wedging startup.
     const rawNetwork = NetworkPreferencesSchema.safeParse(raw.network)
     if (raw.network != null && !rawNetwork.success) {
       console.error('Invalid network preferences, ignoring:', rawNetwork.error.issues.map(i => i.message).join(', '))

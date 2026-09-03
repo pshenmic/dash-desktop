@@ -110,6 +110,7 @@ export interface WalletSyncStatus {
   peerCount: number
   filterCapablePeerCount: number
   lockPeerCount: number
+  peerMode: PeerMode | null
   phaseEtaMs: number | null
   lastError: string | null
   updatedAt: number
@@ -143,12 +144,15 @@ export interface GeneralPreferencesJSON {
   coreFeeMultiplier: number
 }
 
+export type PeerMode = 'dynamic' | 'static'
+
 export interface PeerOverridesJSON {
   dnsSeeds: string[]
   peers: string[]
 }
 
 export interface NetworkPreferencesJSON {
+  mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
 }

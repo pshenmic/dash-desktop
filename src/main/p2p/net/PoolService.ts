@@ -2,7 +2,7 @@ import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../../src/types/Network'
 import {parsePeerAddress} from './peerAddress'
-import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS, POOL_SILENCE_TIMEOUT_MS} from '../constants'
+import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS, POOL_SILENCE_PROBE_MS, POOL_SILENCE_TIMEOUT_MS} from '../constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
@@ -16,6 +16,9 @@ export class PoolService extends EventEmitter {
   readonly messages: Messages
   readonly pool: Pool
   readonly readyPeers = new Set<Peer>()
+  // Read by BroadcastService: a pinned pool is usually too small to hold a
+  // propagation witness back.
+  readonly staticPeers: boolean
   readonly filterCapablePeers = new Set<Peer>()
   readonly peerServices = new WeakMap<Peer, bigint>()
 
@@ -24,6 +27,9 @@ export class PoolService extends EventEmitter {
   // the reserve moves — this runs on every gossip and every peer change, so a
   // fractional hand-off would drain the book a slice at a time.
   takeAddresses(reserve = POOL_ADDRESS_RESERVE): AddrInfo[] {
+    // A pinned pool holds only the addresses the user named, and handing one
+    // away would leave it unable to redial that peer.
+    if (this.staticPeers) return []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     const addrs = pool._addrs as AddrInfo[]
@@ -54,6 +60,7 @@ export class PoolService extends EventEmitter {
   private noDelayPeers = 0
   private noDelayUnavailable = false
   private lastMessageAt = Date.now()
+  private silenceProbedAt: number | null = null
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
@@ -66,10 +73,11 @@ export class PoolService extends EventEmitter {
     this.minPeers = options.minPeers ?? POOL_MIN_PEERS
     this.maxConnections = options.maxConnections ?? POOL_MAX_CONNECTIONS
     this.customPeers = options.peers ?? []
+    this.staticPeers = options.staticPeers ?? false
 
     // Networks.get hands a network object straight back, so a copy carrying
     // different seeds is all it takes to redirect discovery.
-    const seeds = options.dnsSeeds ?? []
+    const seeds = this.staticPeers ? [] : options.dnsSeeds ?? []
     const base = Networks.get(network)
     this.pool = new Pool({
       network: seeds.length > 0 && base ? {...base, dnsSeeds: seeds} : network,
@@ -79,7 +87,11 @@ export class PoolService extends EventEmitter {
       maxSize: this.readyTarget,
       relay: options.relay ?? true,
       messages: this.messages,
-      dnsSeed: options.dnsSeed ?? true,
+      dnsSeed: this.staticPeers ? false : options.dnsSeed ?? true,
+      // dash-core-p2p's own `addr` handler is what records gossiped addresses,
+      // so switching it off is what keeps a pinned pool pinned — dropping the
+      // getaddr below is not enough, peers gossip unprompted.
+      listenAddr: !this.staticPeers,
     } as never)
 
     this.bindForwarders()
@@ -126,8 +138,10 @@ export class PoolService extends EventEmitter {
       // Ahead of the branches below because they all read `ready`, and after the
       // link drops every one of those peers is a socket that will never speak or
       // close again — a pool that looks full and is entirely dead.
-      if (ready > 0 && Date.now() - this.lastMessageAt > POOL_SILENCE_TIMEOUT_MS) {
-        this.dropStalePeers(ready)
+      if (Date.now() - this.lastMessageAt <= POOL_SILENCE_TIMEOUT_MS) {
+        this.silenceProbedAt = null
+      } else if (ready > 0) {
+        this.probeOrDropStalePeers(ready)
         return
       }
 
@@ -135,14 +149,16 @@ export class PoolService extends EventEmitter {
       // means discovery produced no usable address, which no amount of
       // refilling fixes.
       if (ready > 0) this.emptyTicks = 0
-      else if (++this.emptyTicks >= POOL_FALLBACK_TICKS) this.dialFallbackPeers()
+      else if (!this.staticPeers && ++this.emptyTicks >= POOL_FALLBACK_TICKS) this.dialFallbackPeers()
 
       if (ready < this.minPeers && ++this.shortTicks >= POOL_SHORT_REPORT_TICKS) {
         this.shortTicks = 0
         console.log(`[${this.label}] short ready=${ready}/${this.minPeers} connected=${this.pool.numberConnected()} known=${this.pool._addrs.length} stalled=${this.stalledFills}/${POOL_FILL_STALL_LIMIT}`)
       }
 
-      if (ready < this.minPeers && this.stalledFills < POOL_FILL_STALL_LIMIT) {
+      // The stall limit exists to stop re-dialling dead gossip; a pinned pool has
+      // no other address to reach for, so it keeps retrying the ones it was given.
+      if (ready < this.minPeers && (this.staticPeers || this.stalledFills < POOL_FILL_STALL_LIMIT)) {
         this.stalledFills++
         pool.maxSize = this.maxConnections
         const before = this.pool.numberConnected()
@@ -188,11 +204,31 @@ export class PoolService extends EventEmitter {
     pool._fillConnections()
   }
 
+  // Silence is not evidence on its own. The measured case: one static peer on a
+  // quiet testnet says nothing for 90s, gets dropped as dead, and hands back a
+  // full handshake seconds later — every 90s, forever. So the pool asks first,
+  // and only a peer that will not answer is dropped.
+  private probeOrDropStalePeers(ready: number): void {
+    if (this.silenceProbedAt == null) {
+      this.silenceProbedAt = Date.now()
+      const quietFor = Math.round((Date.now() - this.lastMessageAt) / 1000)
+      console.log(`[${this.label}] nothing heard from ${ready} peer(s) for ${quietFor}s — pinging`)
+      for (const peer of this.readyPeers) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        try { peer.sendMessage((this.messages as any).Ping()) } catch { /* socket already gone */ }
+      }
+      return
+    }
+    if (Date.now() - this.silenceProbedAt < POOL_SILENCE_PROBE_MS) return
+    this.dropStalePeers(ready)
+  }
+
   // peer.disconnect() emits 'disconnect' synchronously, so the pool's own
   // bookkeeping (deprioritise, remove, refill) runs for each one.
   private dropStalePeers(ready: number): void {
     const quietFor = Math.round((Date.now() - this.lastMessageAt) / 1000)
-    console.warn(`[${this.label}] nothing heard from any of ${ready} peer(s) for ${quietFor}s — dropping them and redialling`)
+    console.warn(`[${this.label}] ${ready} peer(s) left a ping unanswered after ${quietFor}s of silence — dropping them and redialling`)
+    this.silenceProbedAt = null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     for (const peer of Object.values(pool._connectedPeers) as Array<{disconnect: () => void}>) {
@@ -294,7 +330,7 @@ export class PoolService extends EventEmitter {
         `bestHeight=${peer.bestHeight} ${cf ? '+CF' : '-CF'} ready=${this.readyPeers.size}`,
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      peer.sendMessage((this.messages as any).GetAddr())
+      if (!this.staticPeers) peer.sendMessage((this.messages as any).GetAddr())
     })
     this.pool.on('peerdisconnect', (peer: Peer) => {
       const wasReady = this.readyPeers.delete(peer)

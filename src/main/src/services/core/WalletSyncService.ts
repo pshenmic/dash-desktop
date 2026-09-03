@@ -51,6 +51,7 @@ export class WalletSyncService {
     peerCount: 0,
     filterCapablePeerCount: 0,
     lockPeerCount: 0,
+    peerMode: null,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: Date.now(),
@@ -162,6 +163,7 @@ export class WalletSyncService {
         peerCount: 0,
         filterCapablePeerCount: 0,
         lockPeerCount: 0,
+        peerMode: null,
         phaseEtaMs: null,
         lastError: null,
         updatedAt: Date.now(),
@@ -307,7 +309,7 @@ export class WalletSyncService {
       gapLimit: CORE_ADDRESS_WINDOW.gapLimit,
       seedUtxos,
       cfilterCursor,
-      peerOverrides: this.preferences.network[network],
+      peerOverrides: this.preferences.network.settingsFor(network),
       // birthdayHeight is intentionally undefined — defaults to genesis in the
       // utility process. Replace with a per-wallet birthday once the wallet
       // schema captures it.
@@ -391,6 +393,21 @@ export class WalletSyncService {
   // locks for asset-lock funding, and nothing else listens for them.
   startLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
     if (this.lockListenNetwork === network && this.lockListenWalletId === walletId && this.child) return
+    await this.sendLockListen(network, walletId)
+  }
+
+  // The pools are built from the peer preferences when they start, so an edit
+  // only takes effect by rebuilding the session holding them: the sync layer
+  // comes down first, because in static mode it runs on the pool being replaced.
+  reloadPeerPreferences = async (): Promise<void> => {
+    if (!this.child) return
+    const walletId = this.activeWalletId
+    if (walletId) this.send({type: 'stop'})
+    if (this.lockListenNetwork) await this.sendLockListen(this.lockListenNetwork, this.lockListenWalletId)
+    if (walletId) await this.startSync(walletId)
+  }
+
+  private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
     this.lockListenNetwork = network
     this.lockListenWalletId = walletId
     // Without addresses the pool still watches locks and broadcasts; it just
@@ -402,7 +419,7 @@ export class WalletSyncService {
       network,
       walletId,
       watchAddresses,
-      peerOverrides: this.preferences.network[network],
+      peerOverrides: this.preferences.network.settingsFor(network),
     })
     this.startLockWatchSweep()
   }
@@ -767,6 +784,7 @@ export class WalletSyncService {
       peerCount: 0,
       filterCapablePeerCount: 0,
       lockPeerCount: 0,
+      peerMode: null,
       phaseEtaMs: null,
       lastError: null,
       updatedAt: Date.now(),

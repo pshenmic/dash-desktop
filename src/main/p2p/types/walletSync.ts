@@ -1,4 +1,5 @@
 import {Network} from '../../src/types/Network'
+import {PeerMode} from './pool'
 
 // Domain types for wallet sync, independent of transport: messages.ts wraps
 // them for the wire, TransactionDAO consumes the apply payload directly.
@@ -44,6 +45,9 @@ export interface WalletSyncStatus {
   // Separate set from the counts above: the lock pool runs even when no chain
   // sync does. Zero here means locks cannot be detected.
   lockPeerCount: number
+  // How the pool now running found its peers, or null while none is up. Static
+  // is the one mode where these counts are bounded by what the user pinned.
+  peerMode: PeerMode | null
 
   phaseEtaMs: number | null
 
