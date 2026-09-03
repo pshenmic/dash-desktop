@@ -27,6 +27,10 @@ export class API {
     return this.api.setStaticPeers(network, peers)
   }
 
+  static async getStaticPeers(network: Network): Promise<string[]> {
+    return this.api.getStaticPeers(network) as Promise<string[]>
+  }
+
   static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
   }

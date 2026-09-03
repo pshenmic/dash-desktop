@@ -99,6 +99,7 @@ declare global {
       getPeers: () => Promise<unknown>
       setPeerMode: (mode: 'dynamic' | 'static') => Promise<void>
       setStaticPeers: (network: Network, peers: string[]) => Promise<void>
+      getStaticPeers: (network: Network) => Promise<unknown>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

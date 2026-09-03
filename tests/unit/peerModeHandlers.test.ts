@@ -1,6 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {SetPeerModeHandler} from '../../src/main/src/api/setPeerMode'
 import {SetStaticPeersHandler} from '../../src/main/src/api/setStaticPeers'
+import {GetStaticPeersHandler} from '../../src/main/src/api/getStaticPeers'
 import {Preferences} from '../../src/main/src/preferences'
 import type {IpcMainInvokeEvent} from 'electron/utility'
 import type {ApplicationService} from '../../src/main/src/services/app/ApplicationService'
@@ -12,6 +13,7 @@ describe('peer settings handlers', () => {
   let preferences: Preferences
   let reloaded: number
   let setPeers: SetStaticPeersHandler
+  let getPeers: GetStaticPeersHandler
   let setMode: SetPeerModeHandler
 
   beforeEach(() => {
@@ -20,6 +22,7 @@ describe('peer settings handlers', () => {
     const app = {preferences} as ApplicationService
     const sync = {reloadPeerPreferences: async (): Promise<void> => { reloaded++ }} as WalletSyncService
     setPeers = new SetStaticPeersHandler(app, sync)
+    getPeers = new GetStaticPeersHandler(app)
     setMode = new SetPeerModeHandler(app, sync)
   })
 
@@ -28,6 +31,27 @@ describe('peer settings handlers', () => {
 
     expect(preferences.network.testnet.peers).toEqual(['1.2.3.4', '5.6.7.8:19999'])
     expect(reloaded).toBe(1)
+  })
+
+  it('reads back the peers pinned for one network', async () => {
+    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4', '5.6.7.8:19999'])
+
+    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4', '5.6.7.8:19999'])
+    expect(await getPeers.handle(EVENT, 'mainnet')).toEqual([])
+  })
+
+  // The list is per network and the mode is not, so it survives a switch back.
+  it('keeps reading the list in dynamic mode', async () => {
+    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4'])
+    await setMode.handle(EVENT, 'static')
+    await setMode.handle(EVENT, 'dynamic')
+
+    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4'])
+  })
+
+  it('refuses an unknown network on read', async () => {
+    await expect(getPeers.handle(EVENT, 'regtest')).rejects.toThrow(/getStaticPeers/)
+    await expect(getPeers.handle(EVENT, undefined)).rejects.toThrow(/getStaticPeers/)
   })
 
   // Nothing between a renderer call and the handler checks the shape, so a bad
