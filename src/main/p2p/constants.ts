@@ -80,7 +80,7 @@ export const POOL_CONNECT_HEADROOM = 8
 
 // Matches dash-core-p2p's internal default; higher makes initial sync slow to
 // find +CF peers.
-export const POOL_REFILL_INTERVAL_MS = 5_000
+export const POOL_REFILL_INTERVAL_MS = 2_500
 
 // Refill ticks between reports while a pool is under its minimum. Past
 // POOL_FILL_STALL_LIMIT the refill branch goes quiet, so without this an empty
@@ -208,7 +208,7 @@ export const MAX_INFLIGHT_BATCHES = 10
 // cfheaders chunks requested at once. The walk is a round trip per 1000 blocks
 // and nothing else — neither CPU nor bandwidth is near its limit while one is
 // outstanding — so this is what decides how long the phase takes.
-export const MAX_INFLIGHT_CFHEADERS = 10
+export const MAX_INFLIGHT_CFHEADERS = 20
 
 // Peers asked for a given cfilter batch. Unlike the cf* races below, one request
 // draws CFILTER_BATCH separate cfilter messages back per peer, so every peer past
