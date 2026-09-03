@@ -86,6 +86,9 @@ process.parentPort.on('message', ({data}) => {
     case 'reseedUtxos':
       sync.reseedUtxos(data)
       return
+    case 'getPeers':
+      process.parentPort.postMessage({type: 'peers', requestId: data.requestId, peers: sync.getPeers()})
+      return
   }
 })
 

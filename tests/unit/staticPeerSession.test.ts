@@ -35,6 +35,13 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
       }
       start = (): void => undefined
       stop = (): void => { this.entry.stopped = true }
+      peerInfo = (): unknown[] => [{
+        pool: this.entry.options.label ?? 'pool',
+        host: '1.2.3.4',
+        port: 19999,
+        userAgent: '/Dash Core:22.1.0/',
+        pingMs: 12,
+      }]
       takeAddresses = (): unknown[] => []
       addAddresses = (): void => undefined
     },
@@ -161,6 +168,26 @@ describe('static peers run one pool', () => {
     await service.listen({type: 'listen', network: 'testnet', peerOverrides: {...PINNED}})
 
     expect(captured.pools).toHaveLength(1)
+  })
+
+  // Both peer modes answer, and in dynamic mode that means both pools: a peer
+  // serving headers is one the wallet is connected to just as much as a peer
+  // serving locks.
+  it('reports the peers of every pool it is running', async () => {
+    await start(service, PINNED)
+
+    expect(service.getPeers().map(p => p.pool)).toEqual(['static-pool'])
+
+    await service.stop()
+    captured.pools.length = 0
+    service = new SyncService(noopEvents)
+    await start(service, DYNAMIC)
+
+    expect(service.getPeers().map(p => p.pool)).toEqual(['lock-pool', 'bulk-pool'])
+  })
+
+  it('reports no peer while no pool is up', () => {
+    expect(service.getPeers()).toEqual([])
   })
 
   // Reported off the pool that is up, not off the preference that asked for it:

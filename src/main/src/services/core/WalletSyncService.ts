@@ -3,7 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
 import {ChainStorageFilename} from '../../constants/app'
-import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants/chain'
+import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {logChildOutput} from '../../logger'
@@ -16,6 +16,7 @@ import {TransactionDAO} from '../../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../../p2p/types/messages'
 import {BroadcastPolicyOverrides, BroadcastResult} from '../../../p2p/types/broadcast'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from '../../../p2p/types/walletSync'
+import {PeerInfo} from '../../../p2p/types/pool'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../../p2p/constants'
 import {ScanCursorGate} from '../../utils/scanCursorGate'
@@ -67,6 +68,9 @@ export class WalletSyncService {
   // Keyed by requestId, which the utility process echoes back, so overlapping
   // broadcasts resolve the right promise.
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
+  // Same correlation as the broadcasts, minus the failure path: a peer list
+  // nobody could produce is an empty one, not an error.
+  private pendingPeerRequests = new Map<string, (peers: PeerInfo[]) => void>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
@@ -149,6 +153,8 @@ export class WalletSyncService {
         })
       }
       this.pendingBroadcasts.clear()
+      for (const resolve of this.pendingPeerRequests.values()) resolve([])
+      this.pendingPeerRequests.clear()
       this.notifyPhase('stopped')
       this.status = {
         phase: 'stopped',
@@ -213,6 +219,12 @@ export class WalletSyncService {
       if (resolve) {
         this.pendingBroadcasts.delete(data.requestId)
         resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
+      }
+    } else if (data.type === 'peers') {
+      const resolve = this.pendingPeerRequests.get(data.requestId)
+      if (resolve) {
+        this.pendingPeerRequests.delete(data.requestId)
+        resolve(data.peers)
       }
     } else if (data.type === 'txInstantLocked') {
       this.transactionDAO.markInstantLocked(data.txid).catch(err =>
@@ -369,6 +381,26 @@ export class WalletSyncService {
   getStatus = (): WalletSyncStatus => {
     if (this.persistenceError == null) return this.status
     return {...this.status, lastError: this.persistenceError}
+  }
+
+  // The pools live in the utility process, so this is a round trip rather than
+  // a read. Empty means no transport at all — a wallet with peers reports them
+  // in both connection modes and both peer modes.
+  getPeers = (): Promise<PeerInfo[]> => {
+    if (!this.child) return Promise.resolve([])
+    const requestId = randomUUID()
+    return new Promise<PeerInfo[]>(resolve => {
+      const timer = setTimeout(() => {
+        this.pendingPeerRequests.delete(requestId)
+        console.warn(`[walletSync] getPeers ${requestId} unanswered after ${PEER_INFO_TIMEOUT_MS}ms`)
+        resolve([])
+      }, PEER_INFO_TIMEOUT_MS)
+      this.pendingPeerRequests.set(requestId, peers => {
+        clearTimeout(timer)
+        resolve(peers)
+      })
+      this.send({type: 'getPeers', requestId})
+    })
   }
 
   private recordInstantLock(txid: string, islockHex: string): void {

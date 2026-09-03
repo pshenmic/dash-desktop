@@ -1,6 +1,6 @@
 import {Network} from '../../src/types/Network'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
-import {PeerOverrides} from './pool'
+import {PeerInfo, PeerOverrides} from './pool'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
@@ -75,6 +75,13 @@ export interface P2PWatchTxsMessage {
   txids: string[]
 }
 
+// requestId is echoed back in P2PPeersMessage. Read straight off the pools, so
+// it answers in whatever state the session is in — including none.
+export interface P2PGetPeersMessage {
+  type: 'getPeers'
+  requestId: string
+}
+
 // Answers P2PChainRewoundMessage. The worker's scan stays held until it lands.
 export interface P2PReseedUtxosMessage {
   type: 'reseedUtxos'
@@ -90,6 +97,7 @@ export type P2PCommand =
   | P2PBroadcastMessage
   | P2PWatchTxsMessage
   | P2PReseedUtxosMessage
+  | P2PGetPeersMessage
 
 // ── Events (utility -> main) ────────────────────────────────────────────────
 
@@ -144,6 +152,12 @@ export interface P2PBroadcastResultMessage {
   errorMessage: string | null
 }
 
+export interface P2PPeersMessage {
+  type: 'peers'
+  requestId: string
+  peers: PeerInfo[]
+}
+
 // A DIP-24 InstantSend lock — irreversibly final before the tx is even mined.
 export interface P2PTxInstantLockedMessage {
   type: 'txInstantLocked'
@@ -184,6 +198,7 @@ export type P2PEvent =
   | P2PGapExhaustedMessage
   | P2PErrorMessage
   | P2PBroadcastResultMessage
+  | P2PPeersMessage
   | P2PTxInstantLockedMessage
   | P2PChainLockedMessage
   | P2PChainRewoundMessage

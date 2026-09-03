@@ -1,4 +1,4 @@
-import {AddrInfo} from 'dash-core-p2p'
+import {AddrInfo, Peer} from 'dash-core-p2p'
 
 // dash-core-p2p parses its own `peers` option inside the Pool constructor and
 // throws on a bad entry, which in this process means one typo in preferences
@@ -38,4 +38,17 @@ function toPort(raw: string): number | null {
   const port = Number(raw)
   if (!Number.isInteger(port) || port <= 0 || port > 0xffff) return null
   return port
+}
+
+// How a pool identifies the socket an entry opens: it dials v4 when that half is
+// set and v6 otherwise, so two entries with the same target are one peer. The
+// pool's own dedupe hashes both halves and misses that.
+export function dialTarget(addr: AddrInfo, defaultPort: number): string {
+  return `${addr.ip.v4 ?? addr.ip.v6}:${addr.port ?? defaultPort}`
+}
+
+// The same string for the socket an entry opened, so a claim taken on connect
+// and a lookup against the address book agree on what one node is.
+export function peerTarget(peer: Peer): string {
+  return `${peer.host}:${peer.port}`
 }

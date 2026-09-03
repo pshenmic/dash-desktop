@@ -1,4 +1,5 @@
 import type {Message, Peer} from 'dash-core-p2p'
+import type {PeerRegistry} from '../net/peerRegistry'
 
 // 'static' dials `peers` and nothing else; 'dynamic' augments DNS and gossip
 // with whatever the user supplied.
@@ -9,6 +10,17 @@ export interface PeerOverrides {
   mode: PeerMode
   dnsSeeds: string[]
   peers: string[]
+}
+
+// One connected peer, as the getPeers endpoint reports it. `pingMs` is null
+// until a pong has been measured, `userAgent` until the version handshake lands.
+export interface PeerInfo {
+  // Which pool holds it — in dynamic mode two pools dial different peers.
+  pool: string
+  host: string
+  port: number
+  userAgent: string | null
+  pingMs: number | null
 }
 
 export interface PoolServiceOptions {
@@ -23,6 +35,9 @@ export interface PoolServiceOptions {
   // Dial `peers` and nothing else: DNS is off and gossiped addresses are
   // neither recorded nor dialled, so the pool stays exactly what the user named.
   staticPeers?: boolean
+  // Shared between the pools of one process so a node is dialled by one of
+  // them, never both.
+  registry?: PeerRegistry
   // Prefixes this pool's logs. Two pools log the same lines otherwise.
   label?: string
   readyPeers?: number

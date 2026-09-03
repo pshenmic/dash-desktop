@@ -105,6 +105,16 @@ export const POOL_FALLBACK_TICKS = 2
 // holds its slot until the process restarts. This hands the OS the job.
 export const PEER_KEEPALIVE_DELAY_MS = 60_000
 
+// Delay from a completed handshake to a peer's first ping. Long enough to be
+// clear of the burst of version/verack/addr traffic that arrives with it —
+// measuring inside that burst times our own reader — and short enough that a
+// peer has a latency about as soon as it has a user agent.
+export const POOL_PING_FIRST_MS = 1_000
+
+// How often every ready peer is pinged. Under the silence timeout by design: a
+// quiet peer answering these never reaches it.
+export const POOL_PING_INTERVAL_MS = 30_000
+
 // Total silence across every peer in a pool, after which the pool stops assuming
 // they are merely quiet and asks. A pool of one or two peers on a quiet chain
 // reaches this routinely, so it opens a probe rather than a redial.

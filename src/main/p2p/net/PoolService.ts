@@ -1,14 +1,15 @@
 import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../../src/types/Network'
-import {parsePeerAddress} from './peerAddress'
-import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS, POOL_SILENCE_PROBE_MS, POOL_SILENCE_TIMEOUT_MS} from '../constants'
+import {dialTarget, parsePeerAddress, peerTarget} from './peerAddress'
+import {PeerRegistry} from './peerRegistry'
+import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_PING_FIRST_MS, POOL_PING_INTERVAL_MS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS, POOL_SILENCE_PROBE_MS, POOL_SILENCE_TIMEOUT_MS} from '../constants'
 
 // One pool, many subscribers. Workers must not instantiate their own Pool —
 // parallel pools fight for the same peer addresses and make peer-state
 // coordination (who serves filters, who leads a race) impossible.
 
-import {PoolServiceEventMap, PoolServiceOptions} from '../types/pool'
+import {PeerInfo, PoolServiceEventMap, PoolServiceOptions} from '../types/pool'
 import {DIAL_LIFECYCLE_EVENTS, FORWARDED_EVENTS} from '../constants'
 
 export class PoolService extends EventEmitter {
@@ -44,6 +45,16 @@ export class PoolService extends EventEmitter {
     return taken
   }
 
+  // Ready peers only: a socket still shaking hands has no user agent to report
+  // and is not a peer the wallet is using.
+  peerInfo = (): PeerInfo[] => [...this.readyPeers].map(peer => ({
+    pool: this.label,
+    host: peer.host,
+    port: peer.port,
+    userAgent: peer.subversion,
+    pingMs: this.pingRtt.get(peer) ?? null,
+  }))
+
   private readonly label: string
   private readonly customPeers: string[]
   private readonly readyTarget: number
@@ -61,6 +72,18 @@ export class PoolService extends EventEmitter {
   private noDelayUnavailable = false
   private lastMessageAt = Date.now()
   private silenceProbedAt: number | null = null
+  private prunedAddrs = 0
+  private prunedPeers = 0
+  private readonly registry: PeerRegistry
+  // Keyed by peer because a pong carries only the nonce it echoes: an
+  // out-of-order or unsolicited one would otherwise be timed against the wrong
+  // ping. Weak so a dropped peer takes its entry with it.
+  private readonly pingSent = new WeakMap<Peer, {nonce: string; at: number}>()
+  private readonly pingRtt = new WeakMap<Peer, number>()
+  // Per peer rather than per pool: peers seat continuously, and a pool-wide
+  // interval leaves everyone that arrived after the last one unmeasured until
+  // the next.
+  private readonly pingedAt = new WeakMap<Peer, number>()
   private refillTimer: ReturnType<typeof setInterval> | null = null
   private stopped = false
 
@@ -73,6 +96,8 @@ export class PoolService extends EventEmitter {
     this.minPeers = options.minPeers ?? POOL_MIN_PEERS
     this.maxConnections = options.maxConnections ?? POOL_MAX_CONNECTIONS
     this.customPeers = options.peers ?? []
+    // Its own when it runs alone, so a single pool behaves the same as one of a pair.
+    this.registry = options.registry ?? new PeerRegistry()
     this.staticPeers = options.staticPeers ?? false
 
     // Networks.get hands a network object straight back, so a copy carrying
@@ -125,14 +150,20 @@ export class PoolService extends EventEmitter {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pool = this.pool as any
 
+      this.claimPeers(pool)
+      this.pruneAddressBook(pool)
+
       if (++this.dialTicks >= POOL_DIAL_REPORT_TICKS) {
         this.dialTicks = 0
         console.log(
-          `[${this.label}] dials: ${this.seatedDials} seated, ${this.failedDials} never handshook ` +
+          `[${this.label}] dials: ${this.seatedDials} seated, ${this.failedDials} never handshook, ` +
+          `${this.prunedAddrs} duplicate address(es) and ${this.prunedPeers} duplicate socket(s) dropped ` +
           `(ready=${ready} connected=${this.pool.numberConnected()} known=${pool._addrs.length})`,
         )
         this.failedDials = 0
         this.seatedDials = 0
+        this.prunedAddrs = 0
+        this.prunedPeers = 0
       }
 
       // Ahead of the branches below because they all read `ready`, and after the
@@ -143,6 +174,12 @@ export class PoolService extends EventEmitter {
       } else if (ready > 0) {
         this.probeOrDropStalePeers(ready)
         return
+      }
+
+      // After the silence branch, which does its own pinging on the tick it
+      // opens a probe.
+      for (const peer of this.readyPeers) {
+        if (Date.now() - (this.pingedAt.get(peer) ?? 0) >= POOL_PING_INTERVAL_MS) this.pingPeer(peer)
       }
 
       // Nothing connected is a different failure from being under target: it
@@ -204,6 +241,74 @@ export class PoolService extends EventEmitter {
     pool._fillConnections()
   }
 
+  private get defaultPort(): number {
+    return this.pool.network?.port ?? 0
+  }
+
+  // The pool's own dedupe is over the address entry, not the socket it opens, so
+  // one node gossiped under several forms is dialled several times over — and
+  // Core drops every one of those connections when it notices.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private pruneAddressBook(pool: any): void {
+    const addrs = pool._addrs as AddrInfo[]
+    const seen = new Set<string>()
+    const kept: AddrInfo[] = []
+    for (const addr of addrs) {
+      const target = dialTarget(addr, this.defaultPort)
+      // Held by the other pool: dialling it here would cost both of us the node.
+      if (seen.has(target) || this.registry.heldByOther(target, this)) continue
+      seen.add(target)
+      kept.push(addr)
+    }
+    if (kept.length === addrs.length) return
+    this.prunedAddrs += addrs.length - kept.length
+    pool._addrs = kept
+  }
+
+  // Backstop for the claim made on connect: it reconciles what this pool holds
+  // against what it has, so a socket that vanished without a disconnect event
+  // does not keep a node reserved.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private claimPeers(pool: any): void {
+    const held = new Set<string>()
+    for (const peer of Object.values(pool._connectedPeers) as Peer[]) {
+      const target = peerTarget(peer)
+      if (!held.has(target) && this.registry.claim(target, this, peer)) {
+        held.add(target)
+        continue
+      }
+      this.prunedPeers++
+      this.readyPeers.delete(peer)
+      this.filterCapablePeers.delete(peer)
+      try { peer.disconnect() } catch { /* already gone */ }
+    }
+    // Whatever this pool no longer holds is free for the other one.
+    this.registry.keepOnly(this, held)
+  }
+
+  // Doubles as the liveness probe and as the only latency sample there is:
+  // every other message the pool sends is a sync request whose answer time is
+  // the peer's disk rather than the link.
+  private pingPeer(peer: Peer): void {
+    this.pingedAt.set(peer, Date.now())
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ping = (this.messages as any).Ping() as {nonce: Uint8Array}
+    try {
+      peer.sendMessage(ping as never)
+    } catch {
+      return // socket already gone
+    }
+    this.pingSent.set(peer, {nonce: Buffer.from(ping.nonce).toString('hex'), at: Date.now()})
+  }
+
+  // Off the handshake rather than in it: a round trip measured while version,
+  // verack and addr are still crossing times that exchange, not the link.
+  private scheduleFirstPing(peer: Peer): void {
+    setTimeout(() => {
+      if (!this.stopped && this.readyPeers.has(peer)) this.pingPeer(peer)
+    }, POOL_PING_FIRST_MS).unref?.()
+  }
+
   // Silence is not evidence on its own. The measured case: one static peer on a
   // quiet testnet says nothing for 90s, gets dropped as dead, and hands back a
   // full handshake seconds later — every 90s, forever. So the pool asks first,
@@ -213,10 +318,7 @@ export class PoolService extends EventEmitter {
       this.silenceProbedAt = Date.now()
       const quietFor = Math.round((Date.now() - this.lastMessageAt) / 1000)
       console.log(`[${this.label}] nothing heard from ${ready} peer(s) for ${quietFor}s — pinging`)
-      for (const peer of this.readyPeers) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        try { peer.sendMessage((this.messages as any).Ping()) } catch { /* socket already gone */ }
-      }
+      for (const peer of this.readyPeers) this.pingPeer(peer)
       return
     }
     if (Date.now() - this.silenceProbedAt < POOL_SILENCE_PROBE_MS) return
@@ -252,7 +354,7 @@ export class PoolService extends EventEmitter {
   }
 
   private parsePeers(entries: string[]): AddrInfo[] {
-    const port = this.pool.network?.port ?? 0
+    const port = this.defaultPort
     const parsed: AddrInfo[] = []
     for (const entry of entries) {
       const addr = parsePeerAddress(entry, port)
@@ -273,6 +375,7 @@ export class PoolService extends EventEmitter {
       this.refillTimer = null
     }
     try { this.pool.disconnect() } catch { /* ignore */ }
+    this.registry.keepOnly(this, new Set())
     this.readyPeers.clear()
     this.filterCapablePeers.clear()
   }
@@ -291,6 +394,15 @@ export class PoolService extends EventEmitter {
     // small write followed by a wait, which is the case Nagle plus the peer's
     // delayed ACK turns into a fixed ~40ms stall per round trip.
     this.pool.on('peerconnect', (peer: Peer) => {
+      // Before the handshake, because it is the second socket that makes Core
+      // hang up on both — waiting for the refill tick leaves a window wide
+      // enough to lose the node.
+      if (!this.registry.claim(peerTarget(peer), this, peer)) {
+        this.prunedPeers++
+        try { peer.disconnect() } catch { /* already gone */ }
+        return
+      }
+
       const socket = (peer as unknown as {
         socket?: {setNoDelay?: (on: boolean) => void; setKeepAlive?: (on: boolean, delay: number) => void}
       }).socket
@@ -308,6 +420,13 @@ export class PoolService extends EventEmitter {
       if (this.noDelayPeers++ === 0) {
         console.log(`[${this.label}] TCP_NODELAY and keepalive set on peer sockets`)
       }
+    })
+
+    this.pool.on('peerpong', (peer: Peer, message: Message & { nonce?: Uint8Array }) => {
+      const sent = this.pingSent.get(peer)
+      if (!sent || message.nonce == null || Buffer.from(message.nonce).toString('hex') !== sent.nonce) return
+      this.pingSent.delete(peer)
+      this.pingRtt.set(peer, Date.now() - sent.at)
     })
 
     // Tracked here so workers just read readyPeers / filterCapablePeers.
@@ -331,10 +450,14 @@ export class PoolService extends EventEmitter {
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (!this.staticPeers) peer.sendMessage((this.messages as any).GetAddr())
+      this.scheduleFirstPing(peer)
     })
     this.pool.on('peerdisconnect', (peer: Peer) => {
       const wasReady = this.readyPeers.delete(peer)
       this.filterCapablePeers.delete(peer)
+      // Freed here rather than on the next sweep, or a dial that dies on
+      // connect holds the node hostage for a whole tick.
+      this.registry.release(peerTarget(peer), peer)
       // A dead gossip address dropping is the expected case and the bulk of the
       // churn; only a peer we actually had is worth a line of its own.
       if (wasReady) {

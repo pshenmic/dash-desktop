@@ -11,6 +11,7 @@ vi.mock('dash-core-p2p', async () => {
   return {
     Messages: class {
       GetAddr = (): {command: string} => ({command: 'getaddr'})
+      Ping = (): {command: string; nonce: Uint8Array} => ({command: 'ping', nonce: new Uint8Array(8)})
     },
     Networks: {get: (network: string) => networks[network]},
     NODE_COMPACT_FILTERS: 64,
@@ -87,10 +88,14 @@ describe('a pinned peer pool', () => {
   it('asks a seated peer for no addresses', () => {
     const service = pinned()
     service.start()
-    const peer = {host: '1.2.3.4', port: 19999, version: 70000, bestHeight: 1, sendMessage: vi.fn()}
+    const sent: Array<{command: string}> = []
+    const peer = {
+      host: '1.2.3.4', port: 19999, version: 70000, bestHeight: 1,
+      sendMessage: (message: {command: string}) => { sent.push(message) },
+    }
     service.pool.emit('peerready', peer as never)
 
-    expect(peer.sendMessage).not.toHaveBeenCalled()
+    expect(sent).toEqual([])
     service.stop()
   })
 

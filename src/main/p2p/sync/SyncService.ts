@@ -11,6 +11,7 @@ import {
   MEMPOOL_SEEN_LIMIT,
 } from '../constants'
 import {PoolService} from '../net/PoolService'
+import {PeerRegistry} from '../net/peerRegistry'
 import {peerOverridesKey} from '../net/peerOverrides'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
@@ -24,7 +25,7 @@ import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from '../types/chainStore'
 import {SyncServiceEvents} from '../types/sync'
-import {PeerOverrides, PoolServiceOptions} from '../types/pool'
+import {PeerInfo, PeerOverrides, PoolServiceOptions} from '../types/pool'
 
 // Top-level controller for the p2p utility process: owns ChainStore and the
 // pools, spawns workers per session, aggregates their status.
@@ -43,6 +44,9 @@ export class SyncService {
   private bulkPool: PoolService | null = null
   // What the workers read: the bulk pool, or the lock pool in static mode.
   private syncPool: PoolService | null = null
+  // Both pools claim their sockets here, so a node one of them is connected to
+  // is not dialled by the other.
+  private readonly peerRegistry = new PeerRegistry()
   private lockOverridesKey: string | null = null
   private staticPeers = false
   private headerSyncWorker: HeaderSyncWorker | null = null
@@ -93,6 +97,13 @@ export class SyncService {
   constructor(private readonly events: SyncServiceEvents) {}
 
   getStatus = (): WalletSyncStatus => this.status
+
+  // Both pools: in dynamic mode they hold different peers, and in static mode
+  // the bulk pool does not exist — the pinned one serves sync too.
+  getPeers = (): PeerInfo[] => [
+    ...this.lockPool?.peerInfo() ?? [],
+    ...this.bulkPool?.peerInfo() ?? [],
+  ]
 
   // LevelDB is single-owner, so two near-simultaneous starts would race to open
   // chain.db and the loser fails the lock as LEVEL_DATABASE_NOT_OPEN.
@@ -151,6 +162,7 @@ export class SyncService {
     // target above it would pin the pool in its refill branch forever.
     const options: PoolServiceOptions = this.staticPeers
       ? {
+        registry: this.peerRegistry,
         label: 'static-pool',
         relay: true,
         staticPeers: true,
@@ -160,6 +172,7 @@ export class SyncService {
         maxConnections: pinned.length,
       }
       : {
+        registry: this.peerRegistry,
         label: 'lock-pool',
         relay: true,
         readyPeers: LOCK_POOL_READY_PEERS,
@@ -283,6 +296,7 @@ export class SyncService {
       // Dash Core gates ISLOCK/ISDLOCK inv behind the same flag, which is why
       // lock watching stays on the other pool.
       this.bulkPool = new PoolService(cmd.network, {
+        registry: this.peerRegistry,
         label: 'bulk-pool',
         relay: false,
         dnsSeed: false,

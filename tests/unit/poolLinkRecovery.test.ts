@@ -5,7 +5,7 @@ vi.mock('dash-core-p2p', async () => {
   return {
     Messages: class {
       GetAddr = (): {command: string} => ({command: 'getaddr'})
-      Ping = (): {command: string} => ({command: 'ping'})
+      Ping = (): {command: string; nonce: Uint8Array} => ({command: 'ping', nonce: new Uint8Array(8)})
     },
     Networks: {get: (network: string) => ({name: network, port: network === 'mainnet' ? 9999 : 19999, dnsSeeds: ['seed.example']})},
     NODE_COMPACT_FILTERS: 64,
@@ -39,15 +39,15 @@ interface FakePeer {
   host: string
   port: number
   disconnects: number
-  sent: Array<{command: string}>
-  sendMessage: (message: {command: string}) => void
+  sent: Array<{command: string; nonce?: Uint8Array}>
+  sendMessage: (message: {command: string; nonce?: Uint8Array}) => void
   disconnect: () => void
 }
 
 const fakePeer = (host: string): FakePeer => {
   const peer: FakePeer = {
     host, port: 19999, disconnects: 0, sent: [],
-    sendMessage: (message: {command: string}) => { peer.sent.push(message) },
+    sendMessage: (message: {command: string; nonce?: Uint8Array}) => { peer.sent.push(message) },
     disconnect: () => { peer.disconnects++ },
   }
   return peer
@@ -89,7 +89,7 @@ describe('pool recovery from a dead link', () => {
 
     vi.advanceTimersByTime(SILENT_RUN_MS)
 
-    expect(peer.sent).toContainEqual({command: 'ping'})
+    expect(peer.sent.some(m => m.command === 'ping')).toBe(true)
     expect(peer.disconnects).toBe(1)
     expect(service.readyPeers.size).toBe(0)
     expect(service.filterCapablePeers.size).toBe(0)

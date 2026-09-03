@@ -26,6 +26,11 @@ export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
 // where waiting for the *next* clsig would cost a whole block interval.
 export const CHAIN_LOCK_BACKSTOP_MS = 45 * 1000
 
+// How long getPeers waits for the utility process to answer. The reply is a
+// synchronous read off the pools, so anything near this means the child is
+// wedged and an empty list beats a hung IPC call.
+export const PEER_INFO_TIMEOUT_MS = 5_000
+
 // Sweeps expired entries out of the isdlock watch set. The rebroadcast loop
 // does this too, but only runs in p2p mode, so without it an rpc-mode wallet
 // keeps the worker fetching isdlocks nobody is waiting on.

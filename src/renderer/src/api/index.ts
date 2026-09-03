@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
 
 export class API {
   private static get api() {
@@ -13,6 +13,10 @@ export class API {
 
   static async setConnectionType(connectionType: ConnectionType): Promise<void> {
     return this.api.setConnectionType(connectionType)
+  }
+
+  static async getPeers(): Promise<PeerInfo[]> {
+    return this.api.getPeers() as Promise<PeerInfo[]>
   }
 
   static async setPeerMode(mode: PeerMode): Promise<void> {

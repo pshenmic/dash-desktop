@@ -59,6 +59,7 @@ import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
 import {SetLanguageHandler} from "./api/setLanguage";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
+import {GetPeersHandler} from "./api/getPeers";
 import {SetPeerModeHandler} from "./api/setPeerMode";
 import {SetStaticPeersHandler} from "./api/setStaticPeers";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
@@ -182,6 +183,7 @@ export class WalletBackend {
     ipcMain.handle('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
     ipcMain.handle('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
     ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
+    ipcMain.handle('getPeers', new GetPeersHandler(this.walletSyncService).handle)
     ipcMain.handle('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('setStaticPeers', new SetStaticPeersHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
