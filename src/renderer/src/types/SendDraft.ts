@@ -1,6 +1,5 @@
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
-import type { SpecificSourcePreferences } from './SpecificSource'
 
 export interface SendDraft {
   fromKind: SourceKind
@@ -10,5 +9,4 @@ export interface SendDraft {
   toValue: string
   amount: string
   acked: boolean
-  specificSourcePreferences: SpecificSourcePreferences
 }

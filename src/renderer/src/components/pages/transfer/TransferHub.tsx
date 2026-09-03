@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
-import { Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text, ShieldSmallIcon, SettingsIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
-import PlatformInputPicker from "./PlatformInputPicker";
 import PlatformRecipientsTest from "./PlatformRecipientsTest";
 import CoreRecipientsTest from "./CoreRecipientsTest";
 import ShieldedRecipientsTest from "./ShieldedRecipientsTest";
-import ShieldedNotePicker from "./ShieldedNotePicker";
-import CoreUtxoPicker, { outpointKey } from "./CoreUtxoPicker";
-import { PLATFORM_INPUT_LIMIT, PLATFORM_RECIPIENT_LIMIT } from "@renderer/constants/platform";
+import { PLATFORM_RECIPIENT_LIMIT } from "@renderer/constants/platform";
 import { CORE_RECIPIENT_LIMIT } from "@renderer/constants/core";
-import { SHIELDED_NOTE_LIMIT, SHIELDED_RECIPIENT_LIMIT } from "@renderer/constants/shielded";
+import { SHIELDED_RECIPIENT_LIMIT } from "@renderer/constants/shielded";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
 import { useAuth } from "@renderer/contexts/AuthContext";
@@ -34,12 +31,15 @@ import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistration";
-import {
-  specificSourceKindForOperation,
-  updateSpecificSourceAddress,
-  updateSpecificSourceEnabled,
-} from "@renderer/utils/specificSource";
 import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
+import {
+  automaticCoinControl,
+  normalizeCoinControlSelection,
+  outpointKey,
+  toCoreSpendSource,
+  toPlatformSpendSource,
+  toShieldedSpendSource,
+} from "@renderer/utils/coinControl";
 import {
   DESTINATION_KINDS,
   resolveOperation,
@@ -57,17 +57,16 @@ import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
 import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
-import { AssetLockFundingState, CoreSpendSource, PlatformAddressDto, PlatformSpendSource, SelectableUtxo, ShieldedSpendSource, ShieldedSpendState } from "@renderer/api/types";
+import { AssetLockFundingState, PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, ShieldedSpendState, WalletAddressDto } from "@renderer/api/types";
 import type { SendDraft } from "@renderer/types/SendDraft";
-import type { SpecificSourcePreferences } from "@renderer/types/SpecificSource";
+import type { CoinControlSelection } from "@renderer/types/CoinControl";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
-import CoreAddressSelect from "@renderer/components/pages/receive/CoreAddressSelect";
-import ShieldedAddressSelect from "./ShieldedAddressSelect";
+import CoinControlModal from "./CoinControlModal";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
 import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
 import SendConfirmModal from "@renderer/components/modal/SendConfirmModal";
@@ -90,7 +89,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
-  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, specificSourcePreferences } = draft
+  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked } = draft
   const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
     const next = update(draftRef.current)
     draftRef.current = next
@@ -104,20 +103,12 @@ function WalletTransferHub(): React.JSX.Element {
   const setToValue = (toValue: string): void => updateDraft(current => ({ ...current, toValue }))
   const setAmount = (amount: string): void => updateDraft(current => ({ ...current, amount }))
   const setAcked = (acked: boolean): void => updateDraft(current => ({ ...current, acked }))
-  const setSpecificSourcePreferences = (
-    update: (current: SpecificSourcePreferences) => SpecificSourcePreferences,
-  ): void => updateDraft(current => ({
-    ...current,
-    specificSourcePreferences: update(current.specificSourcePreferences),
-  }))
   const [testRecipients, setTestRecipients] = useState<string[]>([])
   const [testCoreRecipients, setTestCoreRecipients] = useState<string[]>([])
   const [testShieldedRecipients, setTestShieldedRecipients] = useState<string[]>([])
-  const [pickedNoteIndexes, setPickedNoteIndexes] = useState<number[]>([])
   const [utxos, setUtxos] = useState<SelectableUtxo[]>([])
-  const [pickedOutpoints, setPickedOutpoints] = useState<string[]>([])
-  const [pickedPlatformInputs, setPickedPlatformInputs] = useState<string[]>([])
-  const [platformFeeAddress, setPlatformFeeAddress] = useState<string | null>(null)
+  const [coinControl, setCoinControl] = useState<CoinControlSelection>(automaticCoinControl)
+  const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
@@ -178,9 +169,6 @@ function WalletTransferHub(): React.JSX.Element {
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
-  const specificSourceKind = specificSourceKindForOperation(operation)
-  const useSpecificSource = specificSourcePreferences.enabled
-
   const destinationKinds = useMemo(
     () => DESTINATION_KINDS.filter(d => d.kind !== DestinationKind.NewIdentity && resolveOperation(fromKind, d.kind) != null),
     [fromKind],
@@ -216,110 +204,87 @@ function WalletTransferHub(): React.JSX.Element {
       .sort((a, b) => (a.balance < b.balance ? 1 : a.balance > b.balance ? -1 : 0)),
     [receiving, change],
   )
-  const selectedCoreAddress = coreAddresses.find(a => a.address === specificSourcePreferences.addresses[SourceKind.Core]) ?? coreAddresses[0]
-  const coreSpecificAddress = specificSourceKind === SourceKind.Core && useSpecificSource ? selectedCoreAddress : undefined
-  const corePicking = specificSourceKind === SourceKind.Core && useSpecificSource
-  const pickedUtxos = useMemo(
-    () => (corePicking ? utxos.filter(utxo => pickedOutpoints.includes(outpointKey(utxo))) : []),
-    [corePicking, utxos, pickedOutpoints],
-  )
-  // A pick names the coins themselves, which is the only way a send reaches for
-  // ones an amount would have stopped short of.
-  const coreSpendSource: CoreSpendSource | undefined = pickedUtxos.length > 0
-    ? { kind: 'outpoints', outpoints: pickedUtxos.map(utxo => ({ txid: utxo.txid, vout: utxo.vout })) }
-    : coreSpecificAddress
-      ? { kind: 'address', address: coreSpecificAddress.address }
-      : undefined
-
   const spendableNotes = useMemo(
     () => (shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes.filter(n => !n.spent) : [])
       .slice()
       .sort((a, b) => (BigInt(a.amount) < BigInt(b.amount) ? 1 : BigInt(a.amount) > BigInt(b.amount) ? -1 : 0)),
     [shieldedSync.phase, shieldedSync.notes],
   )
-  const shieldedSpendOperation = operation === TransferOperation.ShieldedTransfer || operation === TransferOperation.Unshield || operation === TransferOperation.ShieldedWithdrawal
   const notesSyncing = shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering
   const shieldedAddressBalances = useMemo(() => shieldedBalancesByAddress(spendableNotes), [spendableNotes])
-  const shieldedAddresses = useMemo(() => [...shieldedAddressBalances.keys()], [shieldedAddressBalances])
-  const shieldedFromAddress = specificSourcePreferences.addresses[SourceKind.Shielded]
-  const selectedShieldedAddress = shieldedFromAddress != null && shieldedAddresses.includes(shieldedFromAddress)
-    ? shieldedFromAddress
-    : shieldedAddresses[0]
-  const shieldedPicking = shieldedSpendOperation && useSpecificSource
-  const pickedNotes = useMemo(
-    () => (shieldedPicking ? spendableNotes.filter(n => pickedNoteIndexes.includes(n.index)) : []),
-    [shieldedPicking, spendableNotes, pickedNoteIndexes],
+  const coinControlInventory = useMemo(() => ({
+    coreAddresses: coreAddresses.map(address => address.address),
+    coreOutpoints: utxos.map(outpointKey),
+    platformBalances: Object.fromEntries(fundedAddresses.map(address => [address.platformAddress, address.balanceCredits])),
+    shieldedAddresses: [...shieldedAddressBalances.keys()],
+    shieldedNoteIndexes: spendableNotes.map(note => note.index),
+  }), [coreAddresses, utxos, fundedAddresses, shieldedAddressBalances, spendableNotes])
+  const appliedCoinControl = useMemo(
+    () => normalizeCoinControlSelection(coinControl, operation, coinControlInventory),
+    [coinControl, operation, coinControlInventory],
   )
-  const shieldedSpecificNotes = useMemo(
-    () => pickedNotes.length > 0 ? pickedNotes
-      : shieldedPicking && selectedShieldedAddress != null
-        ? spendableNotes.filter(n => n.address === selectedShieldedAddress)
-        : undefined,
-    [pickedNotes, shieldedPicking, selectedShieldedAddress, spendableNotes],
-  )
-  // A pick names the notes themselves, which is the only way a spend reaches
-  // for ones an amount would have stopped short of.
+
+  useEffect(() => {
+    setCoinControl(automaticCoinControl())
+  }, [operation])
+
+  useEffect(() => {
+    if (appliedCoinControl !== coinControl) setCoinControl(appliedCoinControl)
+  }, [appliedCoinControl, coinControl])
+
+  const coreSpendSource = useMemo(() => toCoreSpendSource(appliedCoinControl, utxos), [appliedCoinControl, utxos])
+  const platformSource = useMemo(() => toPlatformSpendSource(appliedCoinControl), [appliedCoinControl])
   const shieldedSpendSource = useMemo(
-    (): ShieldedSpendSource | undefined => shieldedSpecificNotes == null
-      ? undefined
-      : {
-        kind: pickedNotes.length > 0 ? 'notes' : 'address',
-        noteIndexes: shieldedSpecificNotes.map(note => note.index),
-      },
-    [shieldedSpecificNotes, pickedNotes],
+    () => toShieldedSpendSource(appliedCoinControl, spendableNotes),
+    [appliedCoinControl, spendableNotes],
   )
+  let pickedUtxos: SelectableUtxo[] = []
+  if (appliedCoinControl.kind === 'coreOutpoints') {
+    pickedUtxos = utxos.filter(utxo => appliedCoinControl.outpoints.includes(outpointKey(utxo)))
+  }
+  let coreSpecificAddress: WalletAddressDto | undefined
+  if (appliedCoinControl.kind === 'coreAddress') {
+    coreSpecificAddress = coreAddresses.find(address => address.address === appliedCoinControl.address)
+  }
+  let selectedShieldedNotes: ShieldedNoteInfo[] | null = null
+  if (appliedCoinControl.kind === 'shieldedNotes') {
+    selectedShieldedNotes = spendableNotes.filter(note => appliedCoinControl.noteIndexes.includes(note.index))
+  } else if (appliedCoinControl.kind === 'shieldedAddress') {
+    selectedShieldedNotes = spendableNotes.filter(note => note.address === appliedCoinControl.address)
+  }
+  let fundingAddresses = fundedAddresses.map(address => address.platformAddress)
+  if (appliedCoinControl.kind === 'platformInputs') {
+    fundingAddresses = appliedCoinControl.inputs.map(input => input.address)
+  } else if (appliedCoinControl.kind === 'platformAddress') {
+    fundingAddresses = [appliedCoinControl.address]
+  }
 
-  const platformPicking = specificSourceKind === SourceKind.PlatformAddress && useSpecificSource
-  const pickedPlatformAddresses = useMemo(
-    () => fundedAddresses.filter(a => pickedPlatformInputs.includes(a.platformAddress)),
-    [fundedAddresses, pickedPlatformInputs],
-  )
-  // Consensus charges one input, so a pick that lost its payer falls back to the
-  // address most likely to keep the fee back.
-  const platformFeePayer = pickedPlatformAddresses.some(a => a.platformAddress === platformFeeAddress)
-    ? platformFeeAddress
-    : pickedPlatformAddresses.reduce<PlatformAddressDto | undefined>(
-      (best, a) => (best == null || BigInt(a.balanceCredits) > BigInt(best.balanceCredits) ? a : best),
-      undefined,
-    )?.platformAddress ?? null
-
-  // Consensus refuses an output address that is also an input, so a transfer
-  // back into what funds it is caught before the amount step.
-  const fundingAddresses = platformPicking
-    ? pickedPlatformInputs
-    : selectedSource ? [selectedSource.platformAddress] : []
-
-  // A pick names the addresses to draw on and the one that pays; how much each
-  // puts in is the backend's to allocate.
-  const platformSource: PlatformSpendSource | null = useMemo(
-    () => {
-      if (specificSourceKind !== SourceKind.PlatformAddress) return null
-      if (platformPicking) {
-        if (pickedPlatformAddresses.length === 0 || platformFeePayer == null) return null
-        return {
-          kind: 'inputs',
-          inputs: pickedPlatformAddresses.map(a => ({ address: a.platformAddress, credits: BigInt(a.balanceCredits) })),
-          feeStrategy: [{ kind: 'deductFromInput', address: platformFeePayer }],
-        }
-      }
-      return selectedSource ? { kind: 'address', address: selectedSource.platformAddress } : null
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [specificSourceKind, platformPicking, pickedPlatformAddresses, platformFeePayer, selectedSource?.platformAddress],
-  )
-
-  const balanceDuffs = pickedUtxos.length > 0
-    ? pickedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
-    : coreSpecificAddress ? coreSpecificAddress.balance : balance.dash.amount
+  let balanceDuffs = balance.dash.amount
+  if (pickedUtxos.length > 0) {
+    balanceDuffs = pickedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
+  } else if (coreSpecificAddress) {
+    balanceDuffs = coreSpecificAddress.balance
+  }
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null ? BigInt(shieldedSync.balance) : null
 
-  const availableCredits: bigint | null =
-    fromKind === SourceKind.PlatformAddress ? (platformPicking && pickedPlatformAddresses.length > 0
-      ? pickedPlatformAddresses.reduce((sum, a) => sum + BigInt(a.balanceCredits), 0n)
-      : selectedSource ? BigInt(selectedSource.balanceCredits) : 0n)
-    : fromKind === SourceKind.Identity ? (selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n)
-    : fromKind === SourceKind.Shielded ? (shieldedSpecificNotes != null ? shieldedSpecificNotes.reduce((sum, n) => sum + BigInt(n.amount), 0n) : shieldedBalance)
-    : null
+  let availableCredits: bigint | null = null
+  if (fromKind === SourceKind.PlatformAddress) {
+    if (operation === TransferOperation.Shield) {
+      availableCredits = selectedSource?.balanceCredits ?? 0n
+    } else if (appliedCoinControl.kind === 'platformInputs') {
+      availableCredits = appliedCoinControl.inputs.reduce((sum, input) => sum + input.credits, 0n)
+    } else if (appliedCoinControl.kind === 'platformAddress') {
+      availableCredits = fundedAddresses.find(address => address.platformAddress === appliedCoinControl.address)?.balanceCredits ?? 0n
+    } else {
+      availableCredits = fundedAddresses.reduce((sum, address) => sum + address.balanceCredits, 0n)
+    }
+  } else if (fromKind === SourceKind.Identity) {
+    availableCredits = selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n
+  } else if (fromKind === SourceKind.Shielded) {
+    availableCredits = selectedShieldedNotes == null
+      ? shieldedBalance
+      : selectedShieldedNotes.reduce((sum, note) => sum + note.amount, 0n)
+  }
 
   const isCoreOperation = fromKind === SourceKind.Core
   const amountDuffs = useMemo(() => dashToDuffs(amount), [amount])
@@ -514,15 +479,40 @@ function WalletTransferHub(): React.JSX.Element {
     noteLimit,
   })
   const fieldError = amountError ?? feeErr
+  let coinControlSummary = 'Automatic'
+  switch (appliedCoinControl.kind) {
+    case 'coreAddress':
+      coinControlSummary = 'One Core address'
+      break
+    case 'coreOutpoints':
+      coinControlSummary = appliedCoinControl.outpoints.length === 1 ? '1 coin' : `${appliedCoinControl.outpoints.length} coins`
+      break
+    case 'platformAddress':
+      coinControlSummary = 'One Platform address'
+      break
+    case 'platformInputs':
+      coinControlSummary = appliedCoinControl.inputs.length === 1 ? '1 input' : `${appliedCoinControl.inputs.length} inputs`
+      break
+    case 'shieldedAddress':
+      coinControlSummary = 'One shielded address'
+      break
+    case 'shieldedNotes':
+      coinControlSummary = appliedCoinControl.noteIndexes.length === 1 ? '1 note' : `${appliedCoinControl.noteIndexes.length} notes`
+      break
+    case 'automatic':
+      if (operation === TransferOperation.Shield) {
+        coinControlSummary = 'Fixed address'
+      } else if (fromKind === SourceKind.Identity) {
+        coinControlSummary = 'Fixed identity'
+      }
+      break
+  }
 
   const resetForm = (): void => {
-    setPickedPlatformInputs([])
-    setPlatformFeeAddress(null)
+    setCoinControl(automaticCoinControl())
     setTestRecipients([])
     setTestCoreRecipients([])
     setTestShieldedRecipients([])
-    setPickedNoteIndexes([])
-    setPickedOutpoints([])
     const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
     draftRef.current = resetDraft
     setDraftState(resetDraft)
@@ -538,102 +528,41 @@ function WalletTransferHub(): React.JSX.Element {
     <>
       <SourcePicker
         kind={fromKind}
-        onKindChange={k => { setFromKind(k); setAcked(false) }}
+        onKindChange={k => { setFromKind(k); setAcked(false); setCoinControl(automaticCoinControl()) }}
         platformAddresses={fundedAddresses}
         selectedPlatformAddress={selectedSource}
         onPlatformAddressChange={setFromAddress}
-        showPlatformAddress={!platformPicking}
+        showPlatformAddress={operation === TransferOperation.Shield}
         identities={identities}
         selectedIdentity={selectedIdentity}
         onIdentityChange={setFromIdentity}
       />
 
-      {specificSourceKind != null && (
-        <div className={"flex flex-col gap-2"}>
-          <Checkbox
-            checked={useSpecificSource}
-            onChange={enabled => setSpecificSourcePreferences(current =>
-              updateSpecificSourceEnabled(current, enabled))}
-            label={
-              <Text size={12} weight={"medium"} color={"brand"}>
-                {specificSourceKind === SourceKind.PlatformAddress
-                  ? 'Choose which addresses fund this'
-                  : 'Send from a specific address'}
-              </Text>
-            }
-          />
-          {useSpecificSource && specificSourceKind === SourceKind.Core && (
-            <>
-              <CoreAddressSelect
-                addresses={coreAddresses}
-                selected={selectedCoreAddress}
-                onSelect={address => setSpecificSourcePreferences(current =>
-                  updateSpecificSourceAddress(current, SourceKind.Core, address))}
-              />
-              <CoreUtxoPicker
-                utxos={utxos}
-                picked={pickedOutpoints}
-                onToggle={(key, checked) => setPickedOutpoints(current =>
-                  checked ? [...current, key] : current.filter(entry => entry !== key))}
-                onClear={() => setPickedOutpoints([])}
-              />
-            </>
-          )}
-          {operation === TransferOperation.CoreSend && (
-            <CoreRecipientsTest
-              addresses={testCoreRecipients}
-              onChange={setTestCoreRecipients}
-              maxRecipients={CORE_RECIPIENT_LIMIT - 1}
-            />
-          )}
-          {operation === TransferOperation.AddressFundsTransfer && (
-            <PlatformRecipientsTest
-              addresses={testRecipients}
-              onChange={setTestRecipients}
-              maxRecipients={PLATFORM_RECIPIENT_LIMIT - 1}
-            />
-          )}
-          {platformPicking && (
-            <PlatformInputPicker
-              addresses={fundedAddresses}
-              picked={pickedPlatformInputs}
-              onToggle={(address, checked) => setPickedPlatformInputs(current =>
-                checked ? [...current, address] : current.filter(entry => entry !== address))}
-              onClear={() => setPickedPlatformInputs([])}
-              feeAddress={platformFeePayer}
-              onFeeAddressChange={setPlatformFeeAddress}
-              feeCredits={feeCredits}
-              maxInputs={PLATFORM_INPUT_LIMIT}
-            />
-          )}
-          {operation === TransferOperation.ShieldedTransfer && (
-            <ShieldedRecipientsTest
-              addresses={testShieldedRecipients}
-              onChange={setTestShieldedRecipients}
-              maxRecipients={SHIELDED_RECIPIENT_LIMIT - 1}
-            />
-          )}
-          {useSpecificSource && shieldedSpendOperation && (
-            <>
-              <ShieldedAddressSelect
-                addresses={shieldedAddresses}
-                balances={shieldedAddressBalances}
-                selected={selectedShieldedAddress}
-                onSelect={address => setSpecificSourcePreferences(current =>
-                  updateSpecificSourceAddress(current, SourceKind.Shielded, address))}
-              />
-              <ShieldedNotePicker
-                notes={spendableNotes}
-                picked={pickedNoteIndexes}
-                onToggle={(index, checked) => setPickedNoteIndexes(current =>
-                  checked ? [...current, index] : current.filter(entry => entry !== index))}
-                onClear={() => setPickedNoteIndexes([])}
-                maxNotes={SHIELDED_NOTE_LIMIT}
-              />
-              <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
-            </>
-          )}
-        </div>
+      {operation != null && (
+        <button
+          type={"button"}
+          onClick={() => setCoinControlOpen(true)}
+          className={"w-full flex items-center justify-between gap-3 px-4 py-3 rounded-[.875rem] dash-block hover:dash-block-accent-10 transition-colors cursor-pointer"}
+        >
+          <span className={"flex items-center gap-2"}>
+            <SettingsIcon size={14} className={"dash-text-default"} />
+            <Text size={12} weight={"extrabold"} color={"brand"}>Coin control</Text>
+          </span>
+          <Text size={12} weight={"medium"} color={"blue-mint"}>{coinControlSummary}</Text>
+        </button>
+      )}
+
+      {operation === TransferOperation.CoreSend && (
+        <CoreRecipientsTest addresses={testCoreRecipients} onChange={setTestCoreRecipients} maxRecipients={CORE_RECIPIENT_LIMIT - 1} />
+      )}
+      {operation === TransferOperation.AddressFundsTransfer && (
+        <PlatformRecipientsTest addresses={testRecipients} onChange={setTestRecipients} maxRecipients={PLATFORM_RECIPIENT_LIMIT - 1} />
+      )}
+      {operation === TransferOperation.ShieldedTransfer && (
+        <ShieldedRecipientsTest addresses={testShieldedRecipients} onChange={setTestShieldedRecipients} maxRecipients={SHIELDED_RECIPIENT_LIMIT - 1} />
+      )}
+      {fromKind === SourceKind.Shielded && (
+        <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
       )}
 
       {toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend ? (
@@ -819,11 +748,30 @@ function WalletTransferHub(): React.JSX.Element {
     </div>
   )
 
-  const fromDisplay =
-    fromKind === SourceKind.Core ? 'Dash Core (L1)'
-    : fromKind === SourceKind.PlatformAddress ? (selectedSource?.platformAddress ?? '')
-    : fromKind === SourceKind.Identity ? (selectedIdentity?.identifier ?? '')
-    : 'Your shielded balance'
+  let fromDisplay = 'Your shielded balance'
+  switch (fromKind) {
+    case SourceKind.Core:
+      fromDisplay = 'Dash Core (L1)'
+      break
+    case SourceKind.PlatformAddress:
+      if (operation === TransferOperation.Shield) {
+        fromDisplay = selectedSource?.platformAddress ?? ''
+      } else if (appliedCoinControl.kind === 'platformAddress') {
+        fromDisplay = appliedCoinControl.address
+      } else if (appliedCoinControl.kind === 'platformInputs') {
+        if (appliedCoinControl.inputs.length === 1) {
+          fromDisplay = '1 Platform input'
+        } else {
+          fromDisplay = `${appliedCoinControl.inputs.length} Platform inputs`
+        }
+      } else {
+        fromDisplay = 'Automatic Platform selection'
+      }
+      break
+    case SourceKind.Identity:
+      fromDisplay = selectedIdentity?.identifier ?? ''
+      break
+  }
 
   const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
 
@@ -1012,6 +960,21 @@ function WalletTransferHub(): React.JSX.Element {
         onSubmit={() => setConfirmOpen(true)}
         submitLabel={info?.submitLabel ?? 'Send'}
         submitDisabled={!canSubmit}
+      />
+
+      <CoinControlModal
+        isOpen={coinControlOpen}
+        operation={operation}
+        selection={appliedCoinControl}
+        coreAddresses={coreAddresses}
+        utxos={utxos}
+        platformAddresses={fundedAddresses}
+        shieldedNotes={spendableNotes}
+        identityLabel={selectedIdentity?.alias ?? null}
+        identityId={selectedIdentity?.identifier ?? null}
+        platformAddress={selectedSource}
+        onClose={() => setCoinControlOpen(false)}
+        onApply={setCoinControl}
       />
 
       {operation === TransferOperation.CoreSend && (
