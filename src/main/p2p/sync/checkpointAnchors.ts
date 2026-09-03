@@ -1,6 +1,5 @@
 import type {CFCheckptArgs, Peer} from 'dash-core-p2p'
 import {CFCHECKPT_RACE_PEERS, CFCHECKPT_RACE_TIMEOUT_MS, FILTER_TYPE} from '../constants'
-import {wireToDisplayHex} from '../utils/byteOrder'
 import type {PeerRotation} from '../net/peerRotation'
 import type {CheckpointAnchorsOptions} from '../types/cfilterSync'
 
@@ -63,9 +62,7 @@ export class CheckpointAnchors {
       return false
     }
 
-    // The hash rides along because a peer that does not recognise it answers
-    // nothing at all, which is indistinguishable from a peer that is merely slow.
-    console.log(`[cfilter] cfcheckpt stopHeight=${stopHeight} stopHash=${wireToDisplayHex(stopHashWire)} picks=${picks.length}`)
+    console.log(`[cfilter] cfcheckpt stopHeight=${stopHeight} picks=${picks.length}`)
     const msg = this.messages.GetCFCheckpt({filterType: FILTER_TYPE, stopHash: stopHashWire})
     for (const p of picks) {
       this.triedPeers.add(p)
