@@ -1,7 +1,6 @@
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
 import type { SendDraft } from '../types/SendDraft'
-import { initialSpecificSourcePreferences } from './specificSource'
 
 const sendDrafts = new Map<string, SendDraft>()
 
@@ -22,7 +21,6 @@ export function createSendDraft(from: string | null = null, to: string | null = 
     toValue: '',
     amount: '',
     acked: false,
-    specificSourcePreferences: initialSpecificSourcePreferences(),
   }
 }
 
