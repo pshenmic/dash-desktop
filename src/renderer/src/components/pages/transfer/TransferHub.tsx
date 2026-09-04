@@ -16,7 +16,7 @@ import { useWalletBalance, refreshBalance } from "@renderer/hooks/useWalletBalan
 import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
 import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useAdresses } from "@renderer/hooks/useAdresses";
-import { useIdentities, prefetchIdentities } from "@renderer/hooks/useIdentities";
+import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
 import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits } from "@renderer/utils/balance";
@@ -173,7 +173,7 @@ function WalletTransferHub(): React.JSX.Element {
   const { balance } = useWalletBalance(walletId ?? undefined)
   const { receiving, change } = useAdresses(walletId ?? undefined)
   const { platformAddresses } = usePlatformAddresses(walletId ?? undefined)
-  const { identities } = useIdentities(walletId ?? undefined)
+  const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const prover = useShieldedStatus()
 
@@ -449,6 +449,12 @@ function WalletTransferHub(): React.JSX.Element {
     noteLimit,
   })
   const fieldError = amountError ?? feeErr
+
+  const reloadIdentities = (): void => {
+    if (!walletId) return
+    void refreshIdentities(walletId)
+  }
+
   let coinControlSummary = 'Automatic'
   switch (appliedCoinControl.kind) {
     case 'coreAddress':
@@ -501,14 +507,22 @@ function WalletTransferHub(): React.JSX.Element {
     <>
       <SourcePicker
         kind={fromKind}
-        onKindChange={k => { setFromKind(k); setAcked(false); setCoinControl(automaticCoinControl()) }}
+        onKindChange={k => {
+          setFromKind(k)
+          setAcked(false)
+          setCoinControl(automaticCoinControl())
+          if (k === SourceKind.Identity && identities.length === 0) reloadIdentities()
+        }}
         platformAddresses={fundedAddresses}
         selectedPlatformAddress={selectedSource}
         onPlatformAddressChange={setFromAddress}
         showPlatformAddress={operation === TransferOperation.Shield}
         identities={identities}
+        identitiesLoading={identitiesLoading}
+        identitiesError={identitiesError}
         selectedIdentity={selectedIdentity}
         onIdentityChange={setFromIdentity}
+        onRetryIdentities={reloadIdentities}
       />
 
       {operation != null && (
