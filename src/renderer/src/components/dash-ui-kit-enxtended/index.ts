@@ -4,6 +4,7 @@ export { Input, type InputProps } from './input'
 export { Select, type SelectProps } from './select'
 export { Heading, type HeadingProps } from './heading'
 export { Tooltip, TooltipBubble, type TooltipProps } from './tooltip'
+export { InfoTooltip, type InfoTooltipProps } from './infoTooltip'
 export {
   ArrowIcon,
   ConnectionIcon,
@@ -21,8 +22,11 @@ export {
   ProtectedMessageIcon,
   SmartphoneIcon,
   CrossIcon,
+  CloseIcon,
   WalletIcon,
   PlusIcon,
+  AddIcon,
+  TurnOffIcon,
   FilterIcon,
   EditIcon,
   DeleteIcon,

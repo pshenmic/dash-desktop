@@ -7,7 +7,6 @@ import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import DropdownSelect from './ui/DropdownSelect'
 import ConnectionButton from './ui/ConnectionButton'
 import SyncProgressBar from './ui/SyncProgressBar'
-import RefreshButton from './ui/RefreshButton'
 import DataRefreshNotice from './ui/DataRefreshNotice'
 import ScrollIndicator from './ui/ScrollIndicator'
 import WalletUnlockModal from './modal/WalletUnlockModal'
@@ -59,7 +58,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     [wallets]
   )
 
-  const { desired, showSyncUI } = useConnectionModeContext()
+  const { showSyncUI } = useConnectionModeContext()
 
   const handleWalletChange = (walletId: string): void => {
     if (!walletId || walletId === selectedWallet) return
@@ -86,7 +85,6 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
         </div>
 
         <div className={"flex items-center gap-[.625rem]"}>
-          {desired === 'rpc' && <RefreshButton />}
           <ConnectionButton />
           <button
             onMouseEnter={hoverNotification.onMouseEnter}
