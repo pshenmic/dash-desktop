@@ -48,6 +48,9 @@ export class SyncService {
   // is not dialled by the other.
   private readonly peerRegistry = new PeerRegistry()
   private lockOverridesKey: string | null = null
+  // Held here rather than read off the overrides at construction: bans arrive
+  // while the pools are running and must survive one being rebuilt.
+  private banned: string[] = []
   private staticPeers = false
   private headerSyncWorker: HeaderSyncWorker | null = null
   private cfilterSyncWorker: CFilterSyncWorker | null = null
@@ -105,6 +108,12 @@ export class SyncService {
     ...this.bulkPool?.peerInfo() ?? [],
   ]
 
+  setBannedPeers = (banned: string[]): void => {
+    this.banned = banned
+    this.lockPool?.setBanned(banned)
+    this.bulkPool?.setBanned(banned)
+  }
+
   // LevelDB is single-owner, so two near-simultaneous starts would race to open
   // chain.db and the loser fails the lock as LEVEL_DATABASE_NOT_OPEN.
   private opChain: Promise<unknown> = Promise.resolve()
@@ -147,6 +156,7 @@ export class SyncService {
   // outlive a mode switch. Network-scoped rather than wallet-scoped so
   // switching wallets reuses a filled pool instead of re-crawling DNS.
   private startLockCore = (network: Network, overrides?: PeerOverrides): void => {
+    if (overrides) this.setBannedPeers(overrides.banned)
     const overridesKey = peerOverridesKey(overrides)
     if (this.lockPool && this.lockNetwork === network && this.lockOverridesKey === overridesKey) return
 
@@ -163,6 +173,7 @@ export class SyncService {
     const options: PoolServiceOptions = this.staticPeers
       ? {
         registry: this.peerRegistry,
+        banned: this.banned,
         label: 'static-pool',
         relay: true,
         staticPeers: true,
@@ -173,6 +184,7 @@ export class SyncService {
       }
       : {
         registry: this.peerRegistry,
+        banned: this.banned,
         label: 'lock-pool',
         relay: true,
         readyPeers: LOCK_POOL_READY_PEERS,
@@ -297,6 +309,7 @@ export class SyncService {
       // lock watching stays on the other pool.
       this.bulkPool = new PoolService(cmd.network, {
         registry: this.peerRegistry,
+        banned: this.banned,
         label: 'bulk-pool',
         relay: false,
         dnsSeed: false,

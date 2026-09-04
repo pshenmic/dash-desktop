@@ -17,6 +17,8 @@ export const PeerOverridesSchema = z.object({
   dnsSeeds: PeerListSchema,
   // Dialled directly.
   peers: PeerListSchema,
+  // `ip:port` — a ban matches one socket, not every port a host answers on.
+  banned: PeerListSchema.default([]),
 })
 
 export type PeerOverridesJSON = z.infer<typeof PeerOverridesSchema>
@@ -60,8 +62,8 @@ export class NetworkPreferences {
   toJSON(): NetworkPreferencesJSON {
     return {
       mode: this.mode,
-      mainnet: {dnsSeeds: [...this.mainnet.dnsSeeds], peers: [...this.mainnet.peers]},
-      testnet: {dnsSeeds: [...this.testnet.dnsSeeds], peers: [...this.testnet.peers]},
+      mainnet: {dnsSeeds: [...this.mainnet.dnsSeeds], peers: [...this.mainnet.peers], banned: [...this.mainnet.banned]},
+      testnet: {dnsSeeds: [...this.testnet.dnsSeeds], peers: [...this.testnet.peers], banned: [...this.testnet.banned]},
     }
   }
 
@@ -71,6 +73,6 @@ export class NetworkPreferences {
   }
 
   static default(): NetworkPreferences {
-    return new NetworkPreferences('dynamic', {dnsSeeds: [], peers: []}, {dnsSeeds: [], peers: []})
+    return new NetworkPreferences('dynamic', {dnsSeeds: [], peers: [], banned: []}, {dnsSeeds: [], peers: [], banned: []})
   }
 }

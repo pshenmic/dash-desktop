@@ -439,6 +439,14 @@ export class WalletSyncService {
     if (walletId) await this.startSync(walletId)
   }
 
+  // Unlike reloadPeerPreferences this keeps the session: the pools apply the
+  // list in place, so a ban costs no sync progress. A ban for a network the
+  // child is not on lands when it next listens.
+  reloadBannedPeers = async (): Promise<void> => {
+    if (!this.child || !this.lockListenNetwork) return
+    this.send({type: 'banPeers', banned: this.preferences.network[this.lockListenNetwork].banned})
+  }
+
   private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
     this.lockListenNetwork = network
     this.lockListenWalletId = walletId

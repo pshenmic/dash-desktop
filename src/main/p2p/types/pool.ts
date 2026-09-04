@@ -10,6 +10,7 @@ export interface PeerOverrides {
   mode: PeerMode
   dnsSeeds: string[]
   peers: string[]
+  banned: string[]
 }
 
 // One connected peer, as the getPeers endpoint reports it. `pingMs` is null
@@ -38,6 +39,9 @@ export interface PoolServiceOptions {
   // Shared between the pools of one process so a node is dialled by one of
   // them, never both.
   registry?: PeerRegistry
+  // Entries the pool refuses, as `host` or `host:port`. Replaced live by
+  // setBanned rather than read once, so a ban does not rebuild the pool.
+  banned?: string[]
   // Prefixes this pool's logs. Two pools log the same lines otherwise.
   label?: string
   readyPeers?: number

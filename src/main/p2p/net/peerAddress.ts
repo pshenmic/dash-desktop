@@ -52,3 +52,11 @@ export function dialTarget(addr: AddrInfo, defaultPort: number): string {
 export function peerTarget(peer: Peer): string {
   return `${peer.host}:${peer.port}`
 }
+
+// Ban entries carry a port, so the set holds exactly what dialTarget and
+// peerTarget spell and a lookup is a plain `has`. `[v6]:port` is the form the
+// peer list accepts and a peer never reports, hence the brackets come off here
+// rather than at every lookup.
+export function bannedSet(entries: string[]): ReadonlySet<string> {
+  return new Set(entries.map(entry => entry.replace(/[[\]]/g, '')))
+}

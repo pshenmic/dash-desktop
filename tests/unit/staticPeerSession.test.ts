@@ -1,7 +1,7 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 
 const captured = vi.hoisted(() => ({
-  pools: [] as Array<{options: Record<string, unknown>; stopped: boolean}>,
+  pools: [] as Array<{options: Record<string, unknown>; stopped: boolean; bans: string[][]}>,
   headerPools: [] as unknown[],
 }))
 
@@ -26,13 +26,14 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
       readyPeers = new Set()
       filterCapablePeers = new Set()
       messages = {}
-      entry: {options: Record<string, unknown>; stopped: boolean}
+      entry: {options: Record<string, unknown>; stopped: boolean; bans: string[][]}
       constructor(network: string, options: Record<string, unknown> = {}) {
         super()
         this.network = network
-        this.entry = {options, stopped: false}
+        this.entry = {options, stopped: false, bans: []}
         captured.pools.push(this.entry)
       }
+      setBanned = (banned: string[]): void => { this.entry.bans.push(banned) }
       start = (): void => undefined
       stop = (): void => { this.entry.stopped = true }
       peerInfo = (): unknown[] => [{
@@ -78,8 +79,8 @@ vi.mock('../../src/main/p2p/sync/workers/CFilterSyncWorker', async () => {
 import {SyncService} from '../../src/main/p2p/sync/SyncService'
 import type {PeerOverrides} from '../../src/main/p2p/types/pool'
 
-const PINNED: PeerOverrides = {mode: 'static', dnsSeeds: [], peers: ['1.2.3.4:19999']}
-const DYNAMIC: PeerOverrides = {mode: 'dynamic', dnsSeeds: [], peers: []}
+const PINNED: PeerOverrides = {mode: 'static', dnsSeeds: [], peers: ['1.2.3.4:19999'], banned: []}
+const DYNAMIC: PeerOverrides = {mode: 'dynamic', dnsSeeds: [], peers: [], banned: []}
 
 const noopEvents = {
   status: () => undefined,
@@ -168,6 +169,20 @@ describe('static peers run one pool', () => {
     await service.listen({type: 'listen', network: 'testnet', peerOverrides: {...PINNED}})
 
     expect(captured.pools).toHaveLength(1)
+  })
+
+  // Bans are the one setting a listen carries that does not rebuild the pool, so
+  // they have to reach the running one rather than the field it was built from.
+  it('pushes a ban a listen carries into the pool it left standing', async () => {
+    await service.listen({type: 'listen', network: 'testnet', peerOverrides: PINNED})
+    await service.listen({
+      type: 'listen',
+      network: 'testnet',
+      peerOverrides: {...PINNED, banned: ['9.9.9.9']},
+    })
+
+    expect(captured.pools).toHaveLength(1)
+    expect(captured.pools[0]!.bans).toEqual([['9.9.9.9']])
   })
 
   // Both peer modes answer, and in dynamic mode that means both pools: a peer

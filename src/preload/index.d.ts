@@ -100,6 +100,8 @@ declare global {
       setPeerMode: (mode: 'dynamic' | 'static') => Promise<void>
       setStaticPeers: (network: Network, peers: string[]) => Promise<void>
       getStaticPeers: (network: Network) => Promise<unknown>
+      setBannedPeers: (network: Network, peers: string[]) => Promise<void>
+      getBannedPeers: (network: Network) => Promise<unknown>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

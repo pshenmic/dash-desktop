@@ -31,6 +31,14 @@ export class API {
     return this.api.getStaticPeers(network) as Promise<string[]>
   }
 
+  static async setBannedPeers(network: Network, peers: string[]): Promise<void> {
+    return this.api.setBannedPeers(network, peers)
+  }
+
+  static async getBannedPeers(network: Network): Promise<string[]> {
+    return this.api.getBannedPeers(network) as Promise<string[]>
+  }
+
   static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
   }

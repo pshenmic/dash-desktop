@@ -8,16 +8,16 @@ describe('Preferences network section', () => {
     expect(prefs.version).toBe(Preferences.CURRENT_VERSION)
     expect(prefs.network.toJSON()).toEqual({
       mode: 'dynamic',
-      mainnet: {dnsSeeds: [], peers: []},
-      testnet: {dnsSeeds: [], peers: []},
+      mainnet: {dnsSeeds: [], peers: [], banned: []},
+      testnet: {dnsSeeds: [], peers: [], banned: []},
     })
   })
 
-  it('keeps hand-edited seeds and peers', () => {
+  it('keeps hand-edited seeds, peers and bans', () => {
     const network = {
       mode: 'dynamic',
-      mainnet: {dnsSeeds: ['seed.example.com'], peers: ['1.2.3.4:9999']},
-      testnet: {dnsSeeds: [], peers: ['node.test:19999']},
+      mainnet: {dnsSeeds: ['seed.example.com'], peers: ['1.2.3.4:9999'], banned: ['9.9.9.9:9999']},
+      testnet: {dnsSeeds: [], peers: ['node.test:19999'], banned: []},
     }
 
     expect(Preferences.fromObject({version: 9, network}).network.toJSON()).toEqual(network)
@@ -37,14 +37,14 @@ describe('Preferences network section', () => {
   it('pins every network with a single mode', () => {
     const network = {
       mode: 'static',
-      mainnet: {dnsSeeds: [], peers: ['1.2.3.4:9999']},
-      testnet: {dnsSeeds: [], peers: ['5.6.7.8:19999']},
+      mainnet: {dnsSeeds: [], peers: ['1.2.3.4:9999'], banned: []},
+      testnet: {dnsSeeds: [], peers: ['5.6.7.8:19999'], banned: []},
     }
     const prefs = Preferences.fromObject({version: 9, network})
 
     expect(prefs.network.toJSON()).toEqual(network)
-    expect(prefs.network.settingsFor('mainnet')).toEqual({mode: 'static', dnsSeeds: [], peers: ['1.2.3.4:9999']})
-    expect(prefs.network.settingsFor('testnet')).toEqual({mode: 'static', dnsSeeds: [], peers: ['5.6.7.8:19999']})
+    expect(prefs.network.settingsFor('mainnet')).toEqual({mode: 'static', dnsSeeds: [], peers: ['1.2.3.4:9999'], banned: []})
+    expect(prefs.network.settingsFor('testnet')).toEqual({mode: 'static', dnsSeeds: [], peers: ['5.6.7.8:19999'], banned: []})
   })
 
   // Static mode with nothing to dial anywhere is a wallet with no peers at all,
@@ -82,8 +82,8 @@ describe('Preferences network section', () => {
 
     expect(prefs.network.toJSON()).toEqual({
       mode: 'dynamic',
-      mainnet: {dnsSeeds: [], peers: []},
-      testnet: {dnsSeeds: [], peers: []},
+      mainnet: {dnsSeeds: [], peers: [], banned: []},
+      testnet: {dnsSeeds: [], peers: [], banned: []},
     })
   })
 

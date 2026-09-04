@@ -1,7 +1,7 @@
 import {EventEmitter} from 'events'
 import {AddrInfo, Message, Messages, Networks, NODE_COMPACT_FILTERS, Peer, Pool} from 'dash-core-p2p'
 import {Network} from '../../src/types/Network'
-import {dialTarget, parsePeerAddress, peerTarget} from './peerAddress'
+import {bannedSet, dialTarget, parsePeerAddress, peerTarget} from './peerAddress'
 import {PeerRegistry} from './peerRegistry'
 import {FALLBACK_PEERS, PEER_KEEPALIVE_DELAY_MS, POOL_ADDRESS_RESERVE, POOL_CONNECT_HEADROOM, POOL_DIAL_REPORT_TICKS, POOL_FALLBACK_TICKS, POOL_FILL_STALL_LIMIT, POOL_MAX_CONNECTIONS, POOL_MIN_PEERS, POOL_PING_FIRST_MS, POOL_PING_INTERVAL_MS, POOL_READY_PEERS, POOL_REFILL_INTERVAL_MS, POOL_SHORT_REPORT_TICKS, POOL_SILENCE_PROBE_MS, POOL_SILENCE_TIMEOUT_MS} from '../constants'
 
@@ -73,8 +73,10 @@ export class PoolService extends EventEmitter {
   private lastMessageAt = Date.now()
   private silenceProbedAt: number | null = null
   private prunedAddrs = 0
+  private bannedAddrs = 0
   private prunedPeers = 0
   private readonly registry: PeerRegistry
+  private banned: ReadonlySet<string>
   // Keyed by peer because a pong carries only the nonce it echoes: an
   // out-of-order or unsolicited one would otherwise be timed against the wrong
   // ping. Weak so a dropped peer takes its entry with it.
@@ -98,6 +100,7 @@ export class PoolService extends EventEmitter {
     this.customPeers = options.peers ?? []
     // Its own when it runs alone, so a single pool behaves the same as one of a pair.
     this.registry = options.registry ?? new PeerRegistry()
+    this.banned = bannedSet(options.banned ?? [])
     this.staticPeers = options.staticPeers ?? false
 
     // Networks.get hands a network object straight back, so a copy carrying
@@ -157,12 +160,14 @@ export class PoolService extends EventEmitter {
         this.dialTicks = 0
         console.log(
           `[${this.label}] dials: ${this.seatedDials} seated, ${this.failedDials} never handshook, ` +
-          `${this.prunedAddrs} duplicate address(es) and ${this.prunedPeers} duplicate socket(s) dropped ` +
+          `${this.prunedAddrs} duplicate address(es), ${this.bannedAddrs} banned address(es) and ` +
+          `${this.prunedPeers} duplicate socket(s) dropped ` +
           `(ready=${ready} connected=${this.pool.numberConnected()} known=${pool._addrs.length})`,
         )
         this.failedDials = 0
         this.seatedDials = 0
         this.prunedAddrs = 0
+        this.bannedAddrs = 0
         this.prunedPeers = 0
       }
 
@@ -234,11 +239,35 @@ export class PoolService extends EventEmitter {
   // live off what the lock pool found.
   addAddresses = (addrs: AddrInfo[]): void => {
     if (addrs.length === 0 || this.stopped) return
+    // Filtered before the book rather than at the socket: this call dials, so an
+    // entry that reaches _addrs here is one connect attempt.
+    const allowed = addrs.filter(addr => !this.banned.has(dialTarget(addr, this.defaultPort)))
+    if (allowed.length === 0) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
-    for (const addr of addrs) pool._addAddr({...addr, hash: undefined})
-    console.log(`[${this.label}] +${addrs.length} peers(es) known=${this.pool._addrs.length}`)
+    for (const addr of allowed) pool._addAddr({...addr, hash: undefined})
+    console.log(`[${this.label}] +${allowed.length} peers(es) known=${this.pool._addrs.length}`)
     pool._fillConnections()
+  }
+
+  // Replaces the set and enforces it at once. Dropping the sockets here rather
+  // than on the next tick is the point of banning a peer at all.
+  setBanned = (entries: string[]): void => {
+    this.banned = bannedSet(entries)
+    if (this.stopped) return
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pool = this.pool as any
+    let dropped = 0
+    for (const peer of Object.values(pool._connectedPeers) as Peer[]) {
+      if (!this.banned.has(peerTarget(peer))) continue
+      dropped++
+      this.readyPeers.delete(peer)
+      this.filterCapablePeers.delete(peer)
+      try { peer.disconnect() } catch { /* already gone */ }
+    }
+    this.pruneAddressBook(pool)
+    if (dropped > 0) console.log(`[${this.label}] banned ${dropped} connected peer(s)`)
   }
 
   private get defaultPort(): number {
@@ -253,15 +282,21 @@ export class PoolService extends EventEmitter {
     const addrs = pool._addrs as AddrInfo[]
     const seen = new Set<string>()
     const kept: AddrInfo[] = []
+    let banned = 0
     for (const addr of addrs) {
       const target = dialTarget(addr, this.defaultPort)
+      if (this.banned.has(target)) {
+        banned++
+        continue
+      }
       // Held by the other pool: dialling it here would cost both of us the node.
       if (seen.has(target) || this.registry.heldByOther(target, this)) continue
       seen.add(target)
       kept.push(addr)
     }
     if (kept.length === addrs.length) return
-    this.prunedAddrs += addrs.length - kept.length
+    this.bannedAddrs += banned
+    this.prunedAddrs += addrs.length - kept.length - banned
     pool._addrs = kept
   }
 
@@ -394,6 +429,13 @@ export class PoolService extends EventEmitter {
     // small write followed by a wait, which is the case Nagle plus the peer's
     // delayed ACK turns into a fixed ~40ms stall per round trip.
     this.pool.on('peerconnect', (peer: Peer) => {
+      // A dial already in flight when the ban landed, or one the pool started
+      // from an entry the tick has not pruned yet.
+      if (this.banned.has(peerTarget(peer))) {
+        try { peer.disconnect() } catch { /* already gone */ }
+        return
+      }
+
       // Before the handshake, because it is the second socket that makes Core
       // hang up on both — waiting for the refill tick leaves a window wide
       // enough to lose the node.
@@ -420,6 +462,17 @@ export class PoolService extends EventEmitter {
       if (this.noDelayPeers++ === 0) {
         console.log(`[${this.label}] TCP_NODELAY and keepalive set on peer sockets`)
       }
+    })
+
+    // Gossip enters the book through the pool's own handler, which is registered
+    // first and does not dial. Sweeping in the same event is what keeps a banned
+    // address from surviving to the next fill — and every disconnect is a fill.
+    this.pool.on('peeraddr', (_peer: Peer, message: Message & { addresses?: AddrInfo[] }) => {
+      if (this.banned.size === 0) return
+      const arrived = message.addresses ?? []
+      if (!arrived.some(addr => this.banned.has(dialTarget(addr, this.defaultPort)))) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.pruneAddressBook(this.pool as any)
     })
 
     this.pool.on('peerpong', (peer: Peer, message: Message & { nonce?: Uint8Array }) => {

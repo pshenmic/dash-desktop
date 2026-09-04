@@ -75,6 +75,14 @@ export interface P2PWatchTxsMessage {
   txids: string[]
 }
 
+// Applied to whichever pools are up and kept for the ones built later. Sent on
+// its own rather than through peerOverrides because a ban must not rebuild a
+// running pool.
+export interface P2PBanPeersMessage {
+  type: 'banPeers'
+  banned: string[]
+}
+
 // requestId is echoed back in P2PPeersMessage. Read straight off the pools, so
 // it answers in whatever state the session is in — including none.
 export interface P2PGetPeersMessage {
@@ -98,6 +106,7 @@ export type P2PCommand =
   | P2PWatchTxsMessage
   | P2PReseedUtxosMessage
   | P2PGetPeersMessage
+  | P2PBanPeersMessage
 
 // ── Events (utility -> main) ────────────────────────────────────────────────
 
