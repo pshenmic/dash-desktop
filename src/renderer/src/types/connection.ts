@@ -44,3 +44,10 @@ export interface ConnectionSelectOption {
   value: string
   label: string
 }
+
+export interface ConnectionModeDetails {
+  title: string
+  highlight: string
+  description: string
+  timing: string
+}

@@ -1,3 +1,5 @@
+import type { CreateWalletStep, WalletCreationPath } from '@renderer/types/auth'
+
 export interface BaseTexts {
   title: string
   description: string
@@ -41,6 +43,15 @@ export interface ImportSeedPhraseTexts extends BaseTexts {
   buttonContinue: string
 }
 
+export interface ConnectionModeTexts extends BaseTexts {
+  backgroundSyncTitle: string
+  backgroundSyncDescription: string
+  requiredSyncTitle: string
+  requiredSyncDescription: string
+  buttonCreate: string
+  buttonImport: string
+}
+
 export interface AuthTexts {
   createWallet: CreateWalletTexts
   saveYourSeedPhrase: SaveYourSeedPhraseTexts
@@ -50,6 +61,43 @@ export interface AuthTexts {
   successImport: SuccessTexts,
   welcome: WelcomeTexts,
   importSeedPhrase: ImportSeedPhraseTexts,
+  connectionMode: ConnectionModeTexts,
+}
+
+export const CREATE_WALLET_PREVIOUS_STEPS: Partial<Record<CreateWalletStep, CreateWalletStep>> = {
+  password: 'welcome',
+  'seed-phrase': 'password',
+  verify: 'seed-phrase',
+  'import-seed-phrase': 'welcome',
+  'password-import': 'import-seed-phrase',
+}
+
+export const CONNECTION_MODE_PREVIOUS_STEPS: Record<WalletCreationPath, CreateWalletStep> = {
+  create: 'verify',
+  import: 'password-import',
+}
+
+export const CREATE_WALLET_PROGRESS: Record<WalletCreationPath, {
+  totalSteps: number
+  stepNumbers: Partial<Record<CreateWalletStep, number>>
+}> = {
+  create: {
+    totalSteps: 4,
+    stepNumbers: {
+      password: 1,
+      'seed-phrase': 2,
+      verify: 3,
+      'connection-mode': 4,
+    },
+  },
+  import: {
+    totalSteps: 3,
+    stepNumbers: {
+      'import-seed-phrase': 1,
+      'password-import': 2,
+      'connection-mode': 3,
+    },
+  },
 }
 
 export const authTexts: AuthTexts = {
@@ -102,5 +150,15 @@ export const authTexts: AuthTexts = {
     title: 'Import your Seed Phrase',
     description: 'Paste your existing Dash Seed Phrase',
     buttonContinue: 'Continue'
+  },
+  connectionMode: {
+    title: 'Choose a connection mode',
+    description: 'You can change this later in Connection Settings.',
+    backgroundSyncTitle: 'Synchronize P2P in the background',
+    backgroundSyncDescription: 'Use RPC immediately while the private P2P data source prepares in the background.',
+    requiredSyncTitle: 'P2P synchronization is required',
+    requiredSyncDescription: 'The wallet will start synchronizing as soon as creation is complete.',
+    buttonCreate: 'Create Wallet',
+    buttonImport: 'Import Wallet',
   },
 }

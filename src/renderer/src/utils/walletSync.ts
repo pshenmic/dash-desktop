@@ -15,6 +15,21 @@ export function isWalletSyncIncomplete(
   return connectionType === 'p2p' && phase !== WalletSyncPhase.Synced
 }
 
+export function shouldOfferP2pSwitch(
+  connectionType: ConnectionType,
+  phase: WalletSyncPhase | undefined,
+  syncWalletId: string | null | undefined,
+  selectedWalletId: string | null | undefined,
+  dismissed: boolean,
+): boolean {
+  return connectionType === 'rpc'
+    && phase === WalletSyncPhase.Synced
+    && selectedWalletId !== null
+    && selectedWalletId !== undefined
+    && syncWalletId === selectedWalletId
+    && !dismissed
+}
+
 export function formatSyncEta(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms <= 0) return '—'
   const totalSeconds = Math.round(ms / 1000)

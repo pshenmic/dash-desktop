@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
 import { Switch } from "dash-ui-kit/react"
 import { BaseTexts, ImportSeedPhraseTexts } from "@renderer/constants"
-import { TypeUseCreateWallet, WordCount } from "@renderer/hooks/useCreateWallet"
+import type { UseCreateWalletState, WordCount } from '@renderer/types/auth'
 import { wordlist } from '@scure/bip39/wordlists/english.js'
 import { toast } from "@renderer/components/ui/Toast"
 
@@ -13,7 +13,7 @@ type ImportSeedPhraseData = Pick<ImportSeedPhraseTexts, 'buttonContinue'> & {
   seedPhraseWarning: BaseTexts
 }
 
-type ImportSeedPhraseProps = Pick<TypeUseCreateWallet, 'submitImportSeedPhrase'> & {
+type ImportSeedPhraseProps = Pick<UseCreateWalletState, 'submitImportSeedPhrase'> & {
   data: ImportSeedPhraseData
 }
 

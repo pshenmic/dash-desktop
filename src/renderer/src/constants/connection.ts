@@ -1,11 +1,42 @@
 import { ConnectionStatus, ConnectionType, WalletSyncPhase } from '@renderer/api/types'
 import type {
+  ConnectionModeDetails,
   ConnectionSelectOption,
   ConnectionSettingsTabDefinition,
   PeerTableRow,
   PeerTableTab,
   PeerTableTabDefinition,
 } from '@renderer/types/connection'
+
+export const WALLET_CONNECTION_MODE_STORAGE_KEY = 'wallet.connection.desired'
+
+export const WALLET_SYNC_ENABLED_STORAGE_KEY = 'wallet.sync.enabled'
+
+export const P2P_SWITCH_PROMPT_DISMISSED_STORAGE_PREFIX = 'wallet.p2p-switch-prompt.dismissed'
+
+export const WALLET_CONNECTION_MODES: readonly ConnectionType[] = ['rpc', 'p2p']
+
+export const WALLET_CONNECTION_MODE_DETAILS: Record<ConnectionType, ConnectionModeDetails> = {
+  p2p: {
+    title: 'P2P Network',
+    highlight: 'More private',
+    description: 'Connect directly to the Dash network without sending wallet queries through a third-party service.',
+    timing: 'Requires an initial synchronization before your wallet data is ready.',
+  },
+  rpc: {
+    title: 'Dashscan RPC',
+    highlight: 'Ready immediately',
+    description: 'Use Dashscan to access your wallet immediately while your requests are handled by a third-party service.',
+    timing: 'Faster to start, but less private than a direct P2P connection.',
+  },
+}
+
+export const P2P_READY_PROMPT = {
+  title: 'Your private P2P connection is ready',
+  description: 'Synchronization is complete. Switch from Dashscan RPC to P2P to use your locally synchronized wallet data.',
+  confirm: 'Switch to P2P',
+  dismiss: 'Not now',
+} as const
 
 export const CONNECTION_LABELS: Record<ConnectionType, string> = {
   p2p: 'Dash P2P',

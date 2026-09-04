@@ -4,17 +4,15 @@ import { wordlist } from '@scure/bip39/wordlists/english.js'
 import { toast } from '../components/ui/Toast'
 import { API } from '../api'
 import { messages } from '@renderer/constants'
-import { Network } from '@renderer/api/types'
-
-export type CreateWalletStep =
-  | 'password'
-  | 'seed-phrase'
-  | 'verify'
-  | 'success'
-  | 'welcome'
-  | 'import-seed-phrase'
-  | 'password-import'
-export type WordCount = 12 | 24
+import { CONNECTION_MODE_PREVIOUS_STEPS, CREATE_WALLET_PREVIOUS_STEPS } from '@renderer/constants/auth'
+import type { ConnectionType, Network } from '@renderer/api/types'
+import type {
+  CreateWalletStep,
+  UseCreateWalletState,
+  WalletCreationPath,
+  WordCount,
+} from '@renderer/types/auth'
+import { saveWalletConnectionSettings } from '@renderer/utils/connectionSettings'
 
 const VERIFY_HIDDEN_COUNT: Record<12 | 24, number> = {
   12: 4,
@@ -39,39 +37,7 @@ function normalizeWord(w: string): string {
   return w.trim().toLowerCase()
 }
 
-type Path = 'create' | 'import' | null
-
-export interface TypeUseCreateWallet {
-  step: CreateWalletStep
-  password: string
-  seedPhrase: string[]
-  verifyPhrase: string[]
-  wordCount: WordCount
-  network: Network
-  path: Path
-  createdWalletId: string | null
-  setPassword: (password: string) => void
-  setWordCount: (count: WordCount) => void
-  generateSeedPhrase: () => Promise<void>
-  verifyMissingWords: (words: string[]) => Promise<void>
-  verifySeedPhrase: () => void
-  goBack: () => void
-  setNetwork: (network: Network) => void
-  goToPassword: () => void
-  goToImportSeedPhrase: () => void
-  submitImportSeedPhrase: (phrase: string[]) => void
-  createImportedWallet: () => Promise<void>
-}
-
-const PREV_STEP: Partial<Record<CreateWalletStep, CreateWalletStep>> = {
-  'password':           'welcome',
-  'seed-phrase':        'password',
-  'verify':             'seed-phrase',
-  'import-seed-phrase': 'welcome',
-  'password-import': 'import-seed-phrase',
-}
-
-export function useCreateWallet(): TypeUseCreateWallet {
+export function useCreateWallet(): UseCreateWalletState {
   const [step, setStep] = useState<CreateWalletStep>('welcome')
   const [password, setPasswordState] = useState('')
   const [seedPhrase, setSeedPhrase] = useState<string[]>([])
@@ -79,9 +45,11 @@ export function useCreateWallet(): TypeUseCreateWallet {
   const [wordCount, setWordCountState] = useState<WordCount>(12)
   const [network, setNetwork] = useState<Network>('mainnet')
   const { createWallet: { invalidPhrase, phraseDoesNotMatch, couldNotCreateWallet } } = messages
-  const [path, setPath] = useState<Path>(null)
+  const [path, setPath] = useState<WalletCreationPath | null>(null)
   const [importedSeedPhrase, setImportedSeedPhrase] = useState<string[]>([])
   const [createdWalletId, setCreatedWalletId] = useState<string | null>(null)
+  const [connectionMode, setConnectionMode] = useState<ConnectionType>('rpc')
+  const [backgroundSyncEnabled, setBackgroundSyncEnabled] = useState(true)
 
   const setPassword = useCallback((newPassword: string) => {
     setPasswordState(newPassword)
@@ -126,17 +94,9 @@ export function useCreateWallet(): TypeUseCreateWallet {
         return
       }
 
-      try {
-        const walletId = await API.createWallet(seedPhrase.join(' '), network, password)
-        setCreatedWalletId(walletId)
-        setStep('success')
-      } catch (err) {
-        console.error('createWallet failed:', err)
-        const message = err instanceof Error ? err.message : couldNotCreateWallet
-        toast.error(couldNotCreateWallet + " " + message)
-      }
+      setStep('connection-mode')
     },
-    [seedPhrase, network, password]
+    [seedPhrase, invalidPhrase, phraseDoesNotMatch]
   )
 
   const verifySeedPhrase = useCallback(() => {
@@ -146,7 +106,11 @@ export function useCreateWallet(): TypeUseCreateWallet {
 
   const goBack = useCallback(() => {
     setStep((prev) => {
-      const prevStep = PREV_STEP[prev]
+      if (prev === 'connection-mode') {
+        return path === null ? prev : CONNECTION_MODE_PREVIOUS_STEPS[path]
+      }
+
+      const prevStep = CREATE_WALLET_PREVIOUS_STEPS[prev]
       if (!prevStep) return prev
       if (prev === 'verify') setVerifyPhrase([])
       if (prev === 'seed-phrase') {
@@ -158,7 +122,7 @@ export function useCreateWallet(): TypeUseCreateWallet {
       }
       return prevStep
     })
-  }, [])
+  }, [path])
 
   const goToPassword = useCallback(() => {
     setPath('create')
@@ -170,18 +134,33 @@ export function useCreateWallet(): TypeUseCreateWallet {
     setStep('import-seed-phrase')
   }, [])
 
-  const createImportedWallet = useCallback((): Promise<void> => {
-    return API.createWallet(importedSeedPhrase.join(' '), network, password)
-      .then((walletId) => {
-        setCreatedWalletId(walletId)
-        setStep('success')
-      })
-      .catch((err) => {
-        console.error('createWallet failed:', err)
-        const message = err instanceof Error ? err.message : couldNotCreateWallet
-        toast.error(couldNotCreateWallet + " " + message)
-      })
-  }, [importedSeedPhrase, network, password])
+  const continueImportedWallet = useCallback(() => {
+    setStep('connection-mode')
+  }, [])
+
+  const finishWalletCreation = useCallback(async (): Promise<void> => {
+    if (path === null) return
+
+    const seedPhrases: Record<WalletCreationPath, string[]> = {
+      create: seedPhrase,
+      import: importedSeedPhrase,
+    }
+
+    let walletId: string
+    try {
+      walletId = await API.createWallet(seedPhrases[path].join(' '), network, password)
+    } catch (err) {
+      console.error('createWallet failed:', err)
+      const message = err instanceof Error ? err.message : couldNotCreateWallet
+      toast.error(couldNotCreateWallet + " " + message)
+      return
+    }
+
+    const syncEnabled = connectionMode === 'p2p' || backgroundSyncEnabled
+    saveWalletConnectionSettings(connectionMode, syncEnabled)
+    setCreatedWalletId(walletId)
+    setStep('success')
+  }, [backgroundSyncEnabled, connectionMode, couldNotCreateWallet, importedSeedPhrase, network, password, path, seedPhrase])
 
   const submitImportSeedPhrase = useCallback((phrase: string[]) => {
     const isValid =
@@ -190,7 +169,7 @@ export function useCreateWallet(): TypeUseCreateWallet {
     if (!isValid) return
     setImportedSeedPhrase(phrase)
     setStep('password-import')
-  }, [network, password])
+  }, [])
 
   return {
     step,
@@ -209,8 +188,13 @@ export function useCreateWallet(): TypeUseCreateWallet {
     goToPassword,
     goToImportSeedPhrase,
     submitImportSeedPhrase,
-    createImportedWallet,
     path,
-    createdWalletId
+    createdWalletId,
+    connectionMode,
+    backgroundSyncEnabled,
+    setConnectionMode,
+    setBackgroundSyncEnabled,
+    continueImportedWallet,
+    finishWalletCreation,
   }
 }

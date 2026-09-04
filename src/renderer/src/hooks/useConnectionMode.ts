@@ -10,14 +10,11 @@ import {
   isWalletSyncIncomplete,
   shouldShowWalletSyncUI,
 } from '@renderer/utils/walletSync'
-
-const LS_DESIRED_KEY = 'wallet.connection.desired'
-const CONNECTION_TYPES: readonly ConnectionType[] = ['rpc', 'p2p']
-
-export function readDesired(): ConnectionType {
-  const raw = localStorage.getItem(LS_DESIRED_KEY)
-  return CONNECTION_TYPES.includes(raw as ConnectionType) ? (raw as ConnectionType) : 'rpc'
-}
+import {
+  isWalletSyncEnabled,
+  readDesiredConnectionMode,
+  setDesiredConnectionMode,
+} from '@renderer/utils/connectionSettings'
 
 export interface UseConnectionMode {
   desired: ConnectionType
@@ -32,7 +29,7 @@ export function useConnectionMode(): UseConnectionMode {
   const phase = status?.walletSync.phase
   const walletId = status?.selectedWalletId ?? null
   const activeSyncWalletId = status?.walletSync.walletId ?? null
-  const [desired, setDesiredState] = useState<ConnectionType>(readDesired)
+  const [desired, setDesiredState] = useState<ConnectionType>(readDesiredConnectionMode)
   const [ready, setReady] = useState(false)
 
   const phaseRef = useRef<WalletSyncPhase | undefined>(phase)
@@ -49,7 +46,7 @@ export function useConnectionMode(): UseConnectionMode {
             invalidateAllAsyncCaches()
           } catch (error) {
             toast.error(`**Connection mode failed** Could not apply the selected mode. ${getErrorMessage(error)}`)
-            localStorage.setItem(LS_DESIRED_KEY, applied)
+            setDesiredConnectionMode(applied)
             if (!cancelled) setDesiredState(applied)
           }
         }
@@ -61,7 +58,7 @@ export function useConnectionMode(): UseConnectionMode {
 
   const autoStartedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!walletId || localStorage.getItem('wallet.sync.enabled') === 'false') return
+    if (!walletId) return
 
     // A sync running for a different wallet than the selected one is stale
     // (e.g. the user switched networks). Its phase/data belong to the old
@@ -72,6 +69,8 @@ export function useConnectionMode(): UseConnectionMode {
       API.stopWalletSync().catch((error) => toast.error(`**Sync failed** Could not stop synchronization. ${getErrorMessage(error)}`))
       return
     }
+
+    if (!isWalletSyncEnabled()) return
 
     if (autoStartedFor.current === walletId) return
     if (!isWalletSyncInactive(phaseRef.current)) {
@@ -89,7 +88,7 @@ export function useConnectionMode(): UseConnectionMode {
     API.setConnectionType(next)
       .then(() => {
         invalidateAllAsyncCaches()
-        localStorage.setItem(LS_DESIRED_KEY, next)
+        setDesiredConnectionMode(next)
         setDesiredState(next)
       })
       .catch((error) => toast.error(`**Connection mode failed** Could not switch connection mode. ${getErrorMessage(error)}`))

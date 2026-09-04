@@ -14,14 +14,27 @@ import VerifySeedPhrase from "../../components/pages/auth/VerifySeedPhrase";
 import Success from "../../components/pages/auth/Success";
 import WelcomeDashDesktopWallet from "@renderer/components/pages/auth/WelcomeDashDesktopWallet"
 import ImportSeedPhrase from "@renderer/components/pages/auth/ImportSeedPhrase";
+import ConnectionModeStep from '@renderer/components/pages/auth/ConnectionModeStep'
 import NetworkBadge from "@renderer/components/ui/NetworkBadge";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useWallets, refreshWallets } from "@renderer/hooks/useWallets";
+import { CREATE_WALLET_PROGRESS } from '@renderer/constants/auth'
+import type { CreateWalletStep, WalletCreationPath } from '@renderer/types/auth'
 
 export default function CreateWalletWrapper(): React.JSX.Element {
-  const {createWallet, saveYourSeedPhrase, fillInYourSeedPhrase, seedPhraseWarning, success, successImport, welcome, importSeedPhrase} = authTexts
+  const {
+    createWallet,
+    saveYourSeedPhrase,
+    fillInYourSeedPhrase,
+    seedPhraseWarning,
+    success,
+    successImport,
+    welcome,
+    importSeedPhrase,
+    connectionMode: connectionModeTexts,
+  } = authTexts
   const { theme } = useTheme()
   const backgroundImage = theme === 'dark' ? bgDark : bgLight
 
@@ -42,7 +55,12 @@ export default function CreateWalletWrapper(): React.JSX.Element {
     goToPassword,
     goToImportSeedPhrase,
     submitImportSeedPhrase,
-    createImportedWallet,
+    continueImportedWallet,
+    finishWalletCreation,
+    connectionMode,
+    backgroundSyncEnabled,
+    setConnectionMode,
+    setBackgroundSyncEnabled,
     path,
     createdWalletId
   } = useCreateWallet()
@@ -66,22 +84,39 @@ export default function CreateWalletWrapper(): React.JSX.Element {
     goBack()
   }
 
-  const title = step === 'password' ? createWallet.title :
-  step === 'seed-phrase' ? saveYourSeedPhrase.title :
-  step === 'verify' ? fillInYourSeedPhrase.title :
-  step === 'welcome' ?
-  <span className={"inline-block max-w-125 leading-[100%]"}>
-    <span className={"font-normal"}>{welcome.titlePrefix}</span> <span className={"font-bold"}>{welcome.titleHighlight}</span>
-  </span> :
-  step === 'import-seed-phrase' ? importSeedPhrase.title :
-  step === 'password-import' ? 'Create Password' : ''
+  const titles: Partial<Record<CreateWalletStep, ReactNode>> = {
+    password: createWallet.title,
+    'seed-phrase': saveYourSeedPhrase.title,
+    verify: fillInYourSeedPhrase.title,
+    welcome: (
+      <span className="inline-block max-w-125 leading-[100%]">
+        <span className="font-normal">{welcome.titlePrefix}</span>{' '}
+        <span className="font-bold">{welcome.titleHighlight}</span>
+      </span>
+    ),
+    'import-seed-phrase': importSeedPhrase.title,
+    'password-import': 'Create Password',
+    'connection-mode': connectionModeTexts.title,
+  }
 
-  const description = step === 'password' ? createWallet.description :
-  step === 'seed-phrase' ? saveYourSeedPhrase.description :
-  step === 'verify' ? fillInYourSeedPhrase.description :
-  step === 'welcome' ? welcome.description :
-  step === 'import-seed-phrase' ? importSeedPhrase.description :
-  step === 'password-import' ? createWallet.description : ''
+  const descriptions: Partial<Record<CreateWalletStep, string>> = {
+    password: createWallet.description,
+    'seed-phrase': saveYourSeedPhrase.description,
+    verify: fillInYourSeedPhrase.description,
+    welcome: welcome.description,
+    'import-seed-phrase': importSeedPhrase.description,
+    'password-import': createWallet.description,
+    'connection-mode': connectionModeTexts.description,
+  }
+
+  const connectionModeActionLabels: Record<WalletCreationPath, string> = {
+    create: connectionModeTexts.buttonCreate,
+    import: connectionModeTexts.buttonImport,
+  }
+
+  const title = titles[step] ?? ''
+  const description = descriptions[step] ?? ''
+  const progress = path === null ? null : CREATE_WALLET_PROGRESS[path]
 
   const wave = step === 'welcome' ? authBgFlower : waveAuth
 
@@ -167,7 +202,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
           <CreateWallet
             setPassword={setPassword}
             password={password}
-            createImportedWallet={createImportedWallet}
+            continueImportedWallet={continueImportedWallet}
             data={{
               labelConfirmPassword: createWallet.labelConfirmPassword,
               placeholderConfirmPassword: createWallet.placeholderConfirmPassword,
@@ -196,8 +231,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
             verifyMissingWords={verifyMissingWords}
             data={{
               buttonContinue: fillInYourSeedPhrase.buttonContinue,
-              seedPhraseWarning: seedPhraseWarning,
-              slowCreationNotice: createWallet.slowCreationNotice
+              seedPhraseWarning: seedPhraseWarning
             }}
         />}
 
@@ -211,10 +245,22 @@ export default function CreateWalletWrapper(): React.JSX.Element {
           />
         }
 
-        {step !== 'welcome' &&
+        {step === 'connection-mode' && path !== null &&
+          <ConnectionModeStep
+            mode={connectionMode}
+            backgroundSyncEnabled={backgroundSyncEnabled}
+            actionLabel={connectionModeActionLabels[path]}
+            loadingNotice={createWallet.slowCreationNotice}
+            onModeChange={setConnectionMode}
+            onBackgroundSyncChange={setBackgroundSyncEnabled}
+            onConfirm={finishWalletCreation}
+          />
+        }
+
+        {step !== 'welcome' && progress !== null &&
           <ProgressStepBar
-            currentStep={path === 'create' ? (step === 'password' ? 1 : step === 'seed-phrase' ? 2 : 3) : (step === 'import-seed-phrase' ? 1 : 2)}
-            totalSteps={path === 'create' ? 3 : 2}
+            currentStep={progress.stepNumbers[step] ?? progress.totalSteps}
+            totalSteps={progress.totalSteps}
             className={"mt-[.75rem]"}
             color={"blue-mint"}
           />
