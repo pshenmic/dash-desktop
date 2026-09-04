@@ -13,6 +13,12 @@ export interface SyncProgressTooltipProps {
   phase: WalletSyncPhase
   info: SyncProgressPhaseInfo
   percent: number
+  tooltipId: string
+  variant: 'floating' | 'compact'
+}
+
+export interface SyncProgressBarProps {
+  variant?: 'floating' | 'compact'
 }
 
 export type WalletSyncAction = 'start' | 'stop'

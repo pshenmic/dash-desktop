@@ -114,7 +114,7 @@ export default function CoreTab(): React.JSX.Element {
         </Text>
       </div>
 
-      <SyncProgressBar />
+      <SyncProgressBar variant="compact" />
 
       <div className="mt-3 overflow-hidden rounded-[1.25rem] border border-dash-primary-dark-blue/12 bg-dash-primary-dark-blue/3 dark:border-white/12 dark:bg-white/3">
         <div className="grid h-10 grid-cols-[1.25fr_1.1fr_.65fr] items-center border-b border-dash-primary-dark-blue/10 px-[.875rem] dark:border-white/10">
