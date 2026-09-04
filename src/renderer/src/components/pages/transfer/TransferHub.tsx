@@ -484,8 +484,6 @@ function WalletTransferHub(): React.JSX.Element {
     case 'automatic':
       if (operation === TransferOperation.Shield) {
         coinControlSummary = 'Fixed address'
-      } else if (fromKind === SourceKind.Identity) {
-        coinControlSummary = 'Fixed identity'
       }
       break
   }
@@ -525,7 +523,7 @@ function WalletTransferHub(): React.JSX.Element {
         onRetryIdentities={reloadIdentities}
       />
 
-      {operation != null && (
+      {operation != null && fromKind !== SourceKind.Identity && (
         <button
           type={"button"}
           onClick={() => setCoinControlOpen(true)}
