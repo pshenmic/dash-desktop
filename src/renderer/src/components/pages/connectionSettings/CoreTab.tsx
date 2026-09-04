@@ -31,6 +31,7 @@ import {API} from '@renderer/api'
 import {toast} from '@renderer/components/ui/Toast'
 import {isWalletSyncInactive} from '@renderer/utils/walletSync'
 import {getErrorMessage} from '@renderer/utils/error'
+import {setWalletSyncEnabled} from '@renderer/utils/connectionSettings'
 import type {
   PeerTableRow,
   PeerTableTab,
@@ -260,7 +261,7 @@ export default function CoreTab(): React.JSX.Element {
     setPendingSyncAction('start')
     try {
       await API.startWalletSync(walletId)
-      localStorage.setItem('wallet.sync.enabled', 'true')
+      setWalletSyncEnabled(true)
     } catch (err) {
       setPendingSyncAction(null)
       console.error('start wallet sync failed', err)
@@ -273,7 +274,7 @@ export default function CoreTab(): React.JSX.Element {
     setPendingSyncAction('stop')
     try {
       await API.stopWalletSync()
-      localStorage.setItem('wallet.sync.enabled', 'false')
+      setWalletSyncEnabled(false)
     } catch (err) {
       setPendingSyncAction(null)
       console.error('stop wallet sync failed', err)
