@@ -457,8 +457,11 @@ export default function IdentityRegistration(): React.JSX.Element {
         selectedPlatformAddress={selectedSource}
         onPlatformAddressChange={setFromAddress}
         identities={[]}
+        identitiesLoading={false}
+        identitiesError={null}
         selectedIdentity={undefined}
         onIdentityChange={() => {}}
+        onRetryIdentities={() => {}}
       />
       {fromKind === SourceKind.Shielded && (
         <div className={"flex flex-col gap-2"}>

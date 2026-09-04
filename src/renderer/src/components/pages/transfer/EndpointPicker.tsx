@@ -41,35 +41,70 @@ function KindDropdown({kinds, selected, onSelect}: KindDropdownProps): React.JSX
 
 interface IdentitySelectProps {
   identities: IdentityApiDto[]
+  loading: boolean
+  error: string | null
   selected: IdentityApiDto | undefined
   onSelect: (identifier: string) => void
+  onRetry: () => void
 }
 
-function IdentitySelect({identities, selected, onSelect}: IdentitySelectProps): React.JSX.Element {
+function IdentitySelect({identities, loading, error, selected, onSelect, onRetry}: IdentitySelectProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useClickOutside(ref, () => setOpen(false))
+
+  let content: React.JSX.Element
+  if (selected) {
+    content = (
+      <div className={"flex flex-col items-start min-w-0"}>
+        <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>
+          {selected.alias ?? selected.identifier}
+        </Text>
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+          <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
+        </Text>
+        {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
+      </div>
+    )
+  } else if (loading) {
+    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Loading identities…</Text>
+  } else if (error) {
+    content = <Text size={14} weight={"medium"} color={"red"}>{error}</Text>
+  } else {
+    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
+  }
+
+  let action: React.JSX.Element | null = null
+  if (error) {
+    action = <Text size={12} weight={"medium"} color={"blue-mint"}>Try again</Text>
+  } else if (identities.length > 0) {
+    action = (
+      <ChevronIcon
+        size={12}
+        className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+      />
+    )
+  } else if (!loading) {
+    action = <Text size={12} weight={"medium"} color={"blue-mint"}>Try again</Text>
+  }
+
+  const handleClick = (): void => {
+    if (error || identities.length === 0) {
+      if (!loading) onRetry()
+      return
+    }
+    setOpen(value => !value)
+  }
 
   return (
     <div className={"relative"} ref={ref}>
       <button
         type={"button"}
-        onClick={() => identities.length > 0 && setOpen(v => !v)}
+        onClick={handleClick}
         className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
       >
-        {selected ? (
-          <div className={"flex flex-col items-start min-w-0"}>
-            <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>
-              {selected.alias ?? selected.identifier}
-            </Text>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-              <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
-            </Text>
-          </div>
-        ) : (
-          <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
-        )}
-        <ChevronIcon size={12} className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        {content}
+        {action}
       </button>
 
       {open && (
@@ -110,8 +145,11 @@ interface SourcePickerProps {
   // Off while the inputs are being picked, which lists the same addresses.
   showPlatformAddress?: boolean
   identities: IdentityApiDto[]
+  identitiesLoading: boolean
+  identitiesError: string | null
   selectedIdentity: IdentityApiDto | undefined
   onIdentityChange: (identifier: string) => void
+  onRetryIdentities: () => void
 }
 
 export function SourcePicker({
@@ -124,8 +162,11 @@ export function SourcePicker({
   onPlatformAddressChange,
   showPlatformAddress = true,
   identities,
+  identitiesLoading,
+  identitiesError,
   selectedIdentity,
   onIdentityChange,
+  onRetryIdentities,
 }: SourcePickerProps): React.JSX.Element {
   return (
     <div className={"flex flex-col gap-2"}>
@@ -139,7 +180,14 @@ export function SourcePicker({
         />
       )}
       {kind === SourceKind.Identity && (
-        <IdentitySelect identities={identities} selected={selectedIdentity} onSelect={onIdentityChange} />
+        <IdentitySelect
+          identities={identities}
+          loading={identitiesLoading}
+          error={identitiesError}
+          selected={selectedIdentity}
+          onSelect={onIdentityChange}
+          onRetry={onRetryIdentities}
+        />
       )}
     </div>
   )
