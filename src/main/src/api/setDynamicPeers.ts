@@ -7,7 +7,7 @@ import {WalletSyncService} from '../services/core/WalletSyncService'
 
 const ArgsSchema = z.object({network: NetworkNameSchema, peers: PeerListSchema})
 
-export class SetStaticPeersHandler {
+export class SetDynamicPeersHandler {
   private applicationService: ApplicationService
   private walletSyncService: WalletSyncService
 
@@ -16,19 +16,16 @@ export class SetStaticPeersHandler {
     this.walletSyncService = walletSyncService
   }
 
-  // Arguments are parsed rather than trusted: nothing between a renderer call
-  // and here checks them, and a wrong shape reached the peer list as a
-  // TypeError rather than a message anyone could act on.
   handle = async (_event: IpcMainInvokeEvent, network: unknown, peers: unknown): Promise<void> => {
     const args = ArgsSchema.safeParse({network, peers})
     // A ZodError crossing IPC arrives as its class name only.
     if (!args.success) {
-      throw new Error(`setStaticPeers: ${args.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`)
+      throw new Error(`setDynamicPeers: ${args.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ')}`)
     }
 
-    // The pool drops an entry it cannot parse, so in static mode a typo is the
-    // difference between the peer set the user named and no peers at all. The
-    // port the parse defaults to is irrelevant to whether the entry is valid.
+    // Dropped by the pool if it cannot parse. Unlike the pinned list an entry
+    // lost here costs the user nothing but that peer, so the port stays
+    // optional — the pool fills in the network default.
     const invalid = args.data.peers.filter(peer => parsePeerAddress(peer, 1) == null)
     if (invalid.length > 0) {
       throw new Error(`Invalid peer address(es): ${invalid.map(peer => JSON.stringify(peer)).join(', ')}`)
@@ -39,7 +36,7 @@ export class SetStaticPeersHandler {
       ...preferences,
       network: {
         ...preferences.network,
-        [args.data.network]: {...preferences.network[args.data.network], staticPeers: args.data.peers},
+        [args.data.network]: {...preferences.network[args.data.network], dynamicPeers: args.data.peers},
       },
     })
 

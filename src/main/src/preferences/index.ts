@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import {z} from 'zod'
 import {GeneralPreferences, GeneralPreferencesJSON, GeneralPreferencesSchema} from "./general";
-import {NetworkPreferences, NetworkPreferencesSchema} from "./network";
+import {NetworkPreferences, NetworkPreferencesSchema, renameLegacyPeerFields} from "./network";
 
 export const PreferencesSchema = z.object({
   general: GeneralPreferencesSchema,
@@ -99,7 +99,7 @@ export class Preferences {
 
     // Hand-edited far more often than the rest of the file, so a malformed
     // section falls back to dynamic defaults instead of wedging startup.
-    const rawNetwork = NetworkPreferencesSchema.safeParse(raw.network)
+    const rawNetwork = NetworkPreferencesSchema.safeParse(renameLegacyPeerFields(raw.network))
     if (raw.network != null && !rawNetwork.success) {
       console.error('Invalid network preferences, ignoring:', rawNetwork.error.issues.map(i => i.message).join(', '))
     }

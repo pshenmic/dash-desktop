@@ -79,8 +79,8 @@ vi.mock('../../src/main/p2p/sync/workers/CFilterSyncWorker', async () => {
 import {SyncService} from '../../src/main/p2p/sync/SyncService'
 import type {PeerOverrides} from '../../src/main/p2p/types/pool'
 
-const PINNED: PeerOverrides = {mode: 'static', dnsSeeds: [], peers: ['1.2.3.4:19999'], banned: []}
-const DYNAMIC: PeerOverrides = {mode: 'dynamic', dnsSeeds: [], peers: [], banned: []}
+const PINNED: PeerOverrides = {mode: 'static', dnsSeeds: [], staticPeers: ['1.2.3.4:19999'], dynamicPeers: [], bannedPeers: []}
+const DYNAMIC: PeerOverrides = {mode: 'dynamic', dnsSeeds: [], staticPeers: [], dynamicPeers: [], bannedPeers: []}
 
 const noopEvents = {
   status: () => undefined,
@@ -124,7 +124,7 @@ describe('static peers run one pool', () => {
 
     expect(captured.pools).toHaveLength(1)
     expect(captured.pools[0]!.options).toMatchObject({
-      staticPeers: true,
+      pinnedOnly: true,
       relay: true,
       peers: ['1.2.3.4:19999'],
       readyPeers: 1,
@@ -161,12 +161,35 @@ describe('static peers run one pool', () => {
 
     expect(captured.pools).toHaveLength(2)
     expect(captured.pools[0]!.stopped).toBe(true)
-    expect(captured.pools[1]!.options).toMatchObject({staticPeers: true})
+    expect(captured.pools[1]!.options).toMatchObject({pinnedOnly: true})
   })
 
   it('leaves the pool alone when they do not', async () => {
     await service.listen({type: 'listen', network: 'testnet', peerOverrides: PINNED})
     await service.listen({type: 'listen', network: 'testnet', peerOverrides: {...PINNED}})
+
+    expect(captured.pools).toHaveLength(1)
+  })
+
+  // Dynamic mode dials these on top of DNS and gossip; the pinned list is not
+  // what it reads.
+  it('hands the dynamic peers to the pools discovery runs', async () => {
+    await start(service, {...DYNAMIC, staticPeers: ['1.2.3.4:19999'], dynamicPeers: ['5.6.7.8:19999']})
+
+    expect(captured.pools).toHaveLength(2)
+    expect(captured.pools[0]!.options).toMatchObject({label: 'lock-pool', peers: ['5.6.7.8:19999']})
+    expect(captured.pools[1]!.options).toMatchObject({label: 'bulk-pool', peers: ['5.6.7.8:19999']})
+  })
+
+  // The pool is built from the list its own mode dials, so editing the other
+  // one would cost a synced session for a pool rebuilt identically.
+  it('leaves the pool standing when only the other mode\'s list changes', async () => {
+    await service.listen({type: 'listen', network: 'testnet', peerOverrides: PINNED})
+    await service.listen({
+      type: 'listen',
+      network: 'testnet',
+      peerOverrides: {...PINNED, dynamicPeers: ['5.6.7.8:19999'], dnsSeeds: ['seed.example.com']},
+    })
 
     expect(captured.pools).toHaveLength(1)
   })
@@ -178,7 +201,7 @@ describe('static peers run one pool', () => {
     await service.listen({
       type: 'listen',
       network: 'testnet',
-      peerOverrides: {...PINNED, banned: ['9.9.9.9']},
+      peerOverrides: {...PINNED, bannedPeers: ['9.9.9.9']},
     })
 
     expect(captured.pools).toHaveLength(1)

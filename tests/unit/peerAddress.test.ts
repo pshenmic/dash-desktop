@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {parsePeerAddress} from '../../src/main/p2p/net/peerAddress'
+import {isDnsSeedHost, parsePeerAddress} from '../../src/main/p2p/net/peerAddress'
 
 const PORT = 9999
 
@@ -43,5 +43,32 @@ describe('parsePeerAddress', () => {
     ['[2001:db8::1]x', 'trailing junk'],
   ])('rejects %j (%s)', input => {
     expect(parsePeerAddress(input, PORT)).toBeNull()
+  })
+})
+
+describe('isDnsSeedHost', () => {
+  it.each([
+    'dnsseed.dash.org',
+    'testnet-seed.dashdot.io',
+    'seed-1.pshenmic.dev',
+    '  seed.example.com  ',
+    'SEED.EXAMPLE.COM',
+  ])('accepts %j', input => {
+    expect(isDnsSeedHost(input)).toBe(true)
+  })
+
+  it.each([
+    ['', 'empty'],
+    ['seed.example.com:19999', 'carries a port'],
+    ['1.2.3.4', 'v4 literal'],
+    ['2001:db8::1', 'v6 literal'],
+    ['localhost', 'single label'],
+    ['-seed.example.com', 'label starts with a hyphen'],
+    ['seed..example.com', 'empty label'],
+    ['http://seed.example.com', 'scheme'],
+    ['seed.example.com/', 'trailing slash'],
+    ['seed example.com', 'inner space'],
+  ])('rejects %j (%s)', input => {
+    expect(isDnsSeedHost(input)).toBe(false)
   })
 })

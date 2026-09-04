@@ -60,3 +60,11 @@ export function peerTarget(peer: Peer): string {
 export function bannedSet(entries: string[]): ReadonlySet<string> {
   return new Set(entries.map(entry => entry.replace(/[[\]]/g, '')))
 }
+
+// A seed is handed to dns.resolve, which reports a failure as a `seederror`
+// nobody reads — and a non-empty list replaces the network's built-in seeds, so
+// a typo is discovery switched off rather than one seed lost. A port or an IP
+// literal is the mistake worth naming: neither ever resolves.
+export function isDnsSeedHost(input: string): boolean {
+  return /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(input.trim())
+}

@@ -51,7 +51,7 @@ export class SyncService {
   // Held here rather than read off the overrides at construction: bans arrive
   // while the pools are running and must survive one being rebuilt.
   private banned: string[] = []
-  private staticPeers = false
+  private pinnedOnly = false
   private headerSyncWorker: HeaderSyncWorker | null = null
   private cfilterSyncWorker: CFilterSyncWorker | null = null
 
@@ -156,7 +156,7 @@ export class SyncService {
   // outlive a mode switch. Network-scoped rather than wallet-scoped so
   // switching wallets reuses a filled pool instead of re-crawling DNS.
   private startLockCore = (network: Network, overrides?: PeerOverrides): void => {
-    if (overrides) this.setBannedPeers(overrides.banned)
+    if (overrides) this.setBannedPeers(overrides.bannedPeers)
     const overridesKey = peerOverridesKey(overrides)
     if (this.lockPool && this.lockNetwork === network && this.lockOverridesKey === overridesKey) return
 
@@ -166,17 +166,17 @@ export class SyncService {
     this.watchedTxids = new Set()
     this.chainlockedHeight = 0
 
-    const pinned = overrides?.mode === 'static' ? overrides.peers : []
-    this.staticPeers = pinned.length > 0
+    const pinned = overrides?.mode === 'static' ? overrides.staticPeers : []
+    this.pinnedOnly = pinned.length > 0
     // Sized to the pinned set exactly: there is nothing else to dial, so a
     // target above it would pin the pool in its refill branch forever.
-    const options: PoolServiceOptions = this.staticPeers
+    const options: PoolServiceOptions = this.pinnedOnly
       ? {
         registry: this.peerRegistry,
         banned: this.banned,
         label: 'static-pool',
         relay: true,
-        staticPeers: true,
+        pinnedOnly: true,
         peers: pinned,
         readyPeers: pinned.length,
         minPeers: pinned.length,
@@ -191,7 +191,7 @@ export class SyncService {
         minPeers: LOCK_POOL_MIN_PEERS,
         maxConnections: LOCK_POOL_MAX_CONNECTIONS,
         dnsSeeds: overrides?.dnsSeeds,
-        peers: overrides?.peers,
+        peers: overrides?.dynamicPeers,
       }
     this.lockPool = new PoolService(network, options)
     this.lockPool.on('peerinv', this.onPeerInvForLocks)
@@ -299,7 +299,7 @@ export class SyncService {
     }
     console.log(`[p2p] starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
-    if (this.staticPeers) {
+    if (this.pinnedOnly) {
       // One pool, both jobs: a second pool dialling the same pinned hosts would
       // drop both connections to every one of them.
       this.syncPool = this.lockPool
@@ -313,7 +313,7 @@ export class SyncService {
         label: 'bulk-pool',
         relay: false,
         dnsSeed: false,
-        peers: cmd.peerOverrides?.peers,
+        peers: cmd.peerOverrides?.dynamicPeers,
       })
       this.feedBulkPool()
       this.bulkPool.start()
@@ -617,7 +617,7 @@ export class SyncService {
     // Owned here rather than by the workers: the pools outlive them, and fill
     // with peers through phases no worker is running in.
     merged.lockPeerCount = this.lockPool?.readyPeers.size ?? 0
-    merged.peerMode = this.lockPool == null ? null : this.staticPeers ? 'static' : 'dynamic'
+    merged.peerMode = this.lockPool == null ? null : this.pinnedOnly ? 'static' : 'dynamic'
     merged.filterCapablePeerCount = this.syncPool?.filterCapablePeers.size ?? 0
     merged.phaseEtaMs = this.computePhaseEta(merged)
     this.status = merged

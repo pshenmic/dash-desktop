@@ -65,6 +65,10 @@ import {SetStaticPeersHandler} from "./api/setStaticPeers";
 import {GetStaticPeersHandler} from "./api/getStaticPeers";
 import {SetBannedPeersHandler} from "./api/setBannedPeers";
 import {GetBannedPeersHandler} from "./api/getBannedPeers";
+import {SetDnsSeedsHandler} from "./api/setDnsSeeds";
+import {GetDnsSeedsHandler} from "./api/getDnsSeeds";
+import {SetDynamicPeersHandler} from "./api/setDynamicPeers";
+import {GetDynamicPeersHandler} from "./api/getDynamicPeers";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
 import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
@@ -192,6 +196,10 @@ export class WalletBackend {
     ipcMain.handle('getStaticPeers', new GetStaticPeersHandler(this.applicationService).handle)
     ipcMain.handle('setBannedPeers', new SetBannedPeersHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('getBannedPeers', new GetBannedPeersHandler(this.applicationService).handle)
+    ipcMain.handle('setDnsSeeds', new SetDnsSeedsHandler(this.applicationService, this.walletSyncService).handle)
+    ipcMain.handle('getDnsSeeds', new GetDnsSeedsHandler(this.applicationService).handle)
+    ipcMain.handle('setDynamicPeers', new SetDynamicPeersHandler(this.applicationService, this.walletSyncService).handle)
+    ipcMain.handle('getDynamicPeers', new GetDynamicPeersHandler(this.applicationService).handle)
     ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)

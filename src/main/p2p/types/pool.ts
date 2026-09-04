@@ -6,11 +6,14 @@ import type {PeerRegistry} from '../net/peerRegistry'
 export type PeerMode = 'dynamic' | 'static'
 
 // User-supplied discovery, per network. Empty arrays mean built-in behaviour.
+// Structurally the main process's PeerOverridesJSON plus the mode, so the
+// preferences object crosses to the child as itself.
 export interface PeerOverrides {
   mode: PeerMode
   dnsSeeds: string[]
-  peers: string[]
-  banned: string[]
+  staticPeers: string[]
+  dynamicPeers: string[]
+  bannedPeers: string[]
 }
 
 // One connected peer, as the getPeers endpoint reports it. `pingMs` is null
@@ -35,7 +38,7 @@ export interface PoolServiceOptions {
   dnsSeed?: boolean
   // Dial `peers` and nothing else: DNS is off and gossiped addresses are
   // neither recorded nor dialled, so the pool stays exactly what the user named.
-  staticPeers?: boolean
+  pinnedOnly?: boolean
   // Shared between the pools of one process so a node is dialled by one of
   // them, never both.
   registry?: PeerRegistry

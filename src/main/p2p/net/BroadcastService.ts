@@ -120,7 +120,7 @@ export class BroadcastService {
         // Core never relays a tx toward the peer that announced it — so nothing
         // short of a lock can ever prove propagation here. Delivery is then the
         // only positive evidence there is.
-        if (spread() || (this.peerPool.staticPeers && witnesses.size === 0 && delivered().size > 0)) succeed()
+        if (spread() || (this.peerPool.pinnedOnly && witnesses.size === 0 && delivered().size > 0)) succeed()
       }
 
       const armUnsolicited = (peer: Peer): void => {

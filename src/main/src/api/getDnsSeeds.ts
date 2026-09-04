@@ -2,21 +2,22 @@ import {IpcMainInvokeEvent} from 'electron/utility'
 import {NetworkNameSchema} from '../preferences/network'
 import {ApplicationService} from '../services/app/ApplicationService'
 
-export class GetStaticPeersHandler {
+export class GetDnsSeedsHandler {
   private applicationService: ApplicationService
 
   constructor(applicationService: ApplicationService) {
     this.applicationService = applicationService
   }
 
-  // Everything static mode dials for one network. Kept whatever mode is in
-  // force: dynamic mode leaves the list alone and dials dynamicPeers instead.
+  // What the user put in place of the built-in seeds. Empty is the normal
+  // answer — it means the network's own seeds are in use, not that discovery
+  // has none.
   handle = async (_event: IpcMainInvokeEvent, network: unknown): Promise<string[]> => {
     const parsed = NetworkNameSchema.safeParse(network)
     if (!parsed.success) {
-      throw new Error(`getStaticPeers: expected 'mainnet' or 'testnet', got ${JSON.stringify(network)}`)
+      throw new Error(`getDnsSeeds: expected 'mainnet' or 'testnet', got ${JSON.stringify(network)}`)
     }
 
-    return [...this.applicationService.preferences.network[parsed.data].staticPeers]
+    return [...this.applicationService.preferences.network[parsed.data].dnsSeeds]
   }
 }

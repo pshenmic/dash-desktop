@@ -49,7 +49,7 @@ const dialled = (service: PoolService): string[] =>
   raw(service)._addrs.map(a => `${a.ip.v4 ?? a.ip.v6}:${a.port}`)
 
 const pinned = (): PoolService => new PoolService('testnet', {
-  staticPeers: true,
+  pinnedOnly: true,
   peers: PEERS,
   readyPeers: PEERS.length,
   minPeers: PEERS.length,

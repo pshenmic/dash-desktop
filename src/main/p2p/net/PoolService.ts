@@ -19,7 +19,7 @@ export class PoolService extends EventEmitter {
   readonly readyPeers = new Set<Peer>()
   // Read by BroadcastService: a pinned pool is usually too small to hold a
   // propagation witness back.
-  readonly staticPeers: boolean
+  readonly pinnedOnly: boolean
   readonly filterCapablePeers = new Set<Peer>()
   readonly peerServices = new WeakMap<Peer, bigint>()
 
@@ -30,7 +30,7 @@ export class PoolService extends EventEmitter {
   takeAddresses(reserve = POOL_ADDRESS_RESERVE): AddrInfo[] {
     // A pinned pool holds only the addresses the user named, and handing one
     // away would leave it unable to redial that peer.
-    if (this.staticPeers) return []
+    if (this.pinnedOnly) return []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pool = this.pool as any
     const addrs = pool._addrs as AddrInfo[]
@@ -101,11 +101,11 @@ export class PoolService extends EventEmitter {
     // Its own when it runs alone, so a single pool behaves the same as one of a pair.
     this.registry = options.registry ?? new PeerRegistry()
     this.banned = bannedSet(options.banned ?? [])
-    this.staticPeers = options.staticPeers ?? false
+    this.pinnedOnly = options.pinnedOnly ?? false
 
     // Networks.get hands a network object straight back, so a copy carrying
     // different seeds is all it takes to redirect discovery.
-    const seeds = this.staticPeers ? [] : options.dnsSeeds ?? []
+    const seeds = this.pinnedOnly ? [] : options.dnsSeeds ?? []
     const base = Networks.get(network)
     this.pool = new Pool({
       network: seeds.length > 0 && base ? {...base, dnsSeeds: seeds} : network,
@@ -115,11 +115,11 @@ export class PoolService extends EventEmitter {
       maxSize: this.readyTarget,
       relay: options.relay ?? true,
       messages: this.messages,
-      dnsSeed: this.staticPeers ? false : options.dnsSeed ?? true,
+      dnsSeed: this.pinnedOnly ? false : options.dnsSeed ?? true,
       // dash-core-p2p's own `addr` handler is what records gossiped addresses,
       // so switching it off is what keeps a pinned pool pinned — dropping the
       // getaddr below is not enough, peers gossip unprompted.
-      listenAddr: !this.staticPeers,
+      listenAddr: !this.pinnedOnly,
     } as never)
 
     this.bindForwarders()
@@ -191,7 +191,7 @@ export class PoolService extends EventEmitter {
       // means discovery produced no usable address, which no amount of
       // refilling fixes.
       if (ready > 0) this.emptyTicks = 0
-      else if (!this.staticPeers && ++this.emptyTicks >= POOL_FALLBACK_TICKS) this.dialFallbackPeers()
+      else if (!this.pinnedOnly && ++this.emptyTicks >= POOL_FALLBACK_TICKS) this.dialFallbackPeers()
 
       if (ready < this.minPeers && ++this.shortTicks >= POOL_SHORT_REPORT_TICKS) {
         this.shortTicks = 0
@@ -200,7 +200,7 @@ export class PoolService extends EventEmitter {
 
       // The stall limit exists to stop re-dialling dead gossip; a pinned pool has
       // no other address to reach for, so it keeps retrying the ones it was given.
-      if (ready < this.minPeers && (this.staticPeers || this.stalledFills < POOL_FILL_STALL_LIMIT)) {
+      if (ready < this.minPeers && (this.pinnedOnly || this.stalledFills < POOL_FILL_STALL_LIMIT)) {
         this.stalledFills++
         pool.maxSize = this.maxConnections
         const before = this.pool.numberConnected()
@@ -502,7 +502,7 @@ export class PoolService extends EventEmitter {
         `bestHeight=${peer.bestHeight} ${cf ? '+CF' : '-CF'} ready=${this.readyPeers.size}`,
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!this.staticPeers) peer.sendMessage((this.messages as any).GetAddr())
+      if (!this.pinnedOnly) peer.sendMessage((this.messages as any).GetAddr())
       this.scheduleFirstPing(peer)
     })
     this.pool.on('peerdisconnect', (peer: Peer) => {

@@ -167,7 +167,7 @@ describe('peers a pool refuses', () => {
   // Static mode dials nothing but the pinned list, and a ban outranks it.
   it('refuses a pinned peer the user banned', () => {
     service = new PoolService('testnet', {
-      staticPeers: true, peers: ['68.67.122.38:19999'], banned: ['68.67.122.38:19999'],
+      pinnedOnly: true, peers: ['68.67.122.38:19999'], banned: ['68.67.122.38:19999'],
     })
     service.start()
 

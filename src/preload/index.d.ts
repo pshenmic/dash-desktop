@@ -102,6 +102,10 @@ declare global {
       getStaticPeers: (network: Network) => Promise<unknown>
       setBannedPeers: (network: Network, peers: string[]) => Promise<void>
       getBannedPeers: (network: Network) => Promise<unknown>
+      setDnsSeeds: (network: Network, seeds: string[]) => Promise<void>
+      getDnsSeeds: (network: Network) => Promise<unknown>
+      setDynamicPeers: (network: Network, peers: string[]) => Promise<void>
+      getDynamicPeers: (network: Network) => Promise<unknown>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

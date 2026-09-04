@@ -54,6 +54,10 @@ export const apiDefinitions = (ipcRenderer) => ({
   getStaticPeers: (network: Network) => ipcRenderer.invoke('getStaticPeers', network),
   setBannedPeers: (network: Network, peers: string[]) => ipcRenderer.invoke('setBannedPeers', network, peers),
   getBannedPeers: (network: Network) => ipcRenderer.invoke('getBannedPeers', network),
+  setDnsSeeds: (network: Network, seeds: string[]) => ipcRenderer.invoke('setDnsSeeds', network, seeds),
+  getDnsSeeds: (network: Network) => ipcRenderer.invoke('getDnsSeeds', network),
+  setDynamicPeers: (network: Network, peers: string[]) => ipcRenderer.invoke('setDynamicPeers', network, peers),
+  getDynamicPeers: (network: Network) => ipcRenderer.invoke('getDynamicPeers', network),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),

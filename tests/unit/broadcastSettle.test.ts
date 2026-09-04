@@ -62,10 +62,10 @@ import {PoolService} from '../../src/main/p2p/net/PoolService'
 
 const {minPeerAcks, witnessPeers, timeoutMs} = BROADCAST_POLICY
 
-function start(readyCount: number, staticPeers = false): Promise<unknown> {
+function start(readyCount: number, pinnedOnly = false): Promise<unknown> {
   captured.ready = Array.from({length: readyCount}, (_, i) => ({host: `10.0.0.${i}`, port: 19999}))
   const pool = {numberConnected: (): number => readyCount}
-  const poolService = Object.assign(new EventEmitter(), {pool, staticPeers}) as unknown as PoolService
+  const poolService = Object.assign(new EventEmitter(), {pool, pinnedOnly}) as unknown as PoolService
   return new BroadcastService(poolService).broadcast('00')
 }
 

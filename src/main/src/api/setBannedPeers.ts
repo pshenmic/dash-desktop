@@ -36,7 +36,7 @@ export class SetBannedPeersHandler {
     // Static mode dials the pinned list and nothing else — no DNS seeds, no
     // gossip — so a ban covering all of it is a network with no peers at all,
     // which is the state the schema already refuses to be configured into.
-    const pinned = preferences.network[args.data.network].peers
+    const pinned = preferences.network[args.data.network].staticPeers
     if (preferences.network.mode === 'static' && pinned.length > 0) {
       const banned = bannedSet(args.data.peers)
       const dialable = pinned.filter(peer => {
@@ -52,7 +52,7 @@ export class SetBannedPeersHandler {
       ...preferences,
       network: {
         ...preferences.network,
-        [args.data.network]: {...preferences.network[args.data.network], banned: args.data.peers},
+        [args.data.network]: {...preferences.network[args.data.network], bannedPeers: args.data.peers},
       },
     })
 

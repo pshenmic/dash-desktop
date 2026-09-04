@@ -39,6 +39,22 @@ export class API {
     return this.api.getBannedPeers(network) as Promise<string[]>
   }
 
+  static async setDnsSeeds(network: Network, seeds: string[]): Promise<void> {
+    return this.api.setDnsSeeds(network, seeds)
+  }
+
+  static async getDnsSeeds(network: Network): Promise<string[]> {
+    return this.api.getDnsSeeds(network) as Promise<string[]>
+  }
+
+  static async setDynamicPeers(network: Network, peers: string[]): Promise<void> {
+    return this.api.setDynamicPeers(network, peers)
+  }
+
+  static async getDynamicPeers(network: Network): Promise<string[]> {
+    return this.api.getDynamicPeers(network) as Promise<string[]>
+  }
+
   static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
   }

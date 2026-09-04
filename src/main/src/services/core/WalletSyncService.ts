@@ -444,7 +444,7 @@ export class WalletSyncService {
   // child is not on lands when it next listens.
   reloadBannedPeers = async (): Promise<void> => {
     if (!this.child || !this.lockListenNetwork) return
-    this.send({type: 'banPeers', banned: this.preferences.network[this.lockListenNetwork].banned})
+    this.send({type: 'banPeers', banned: this.preferences.network[this.lockListenNetwork].bannedPeers})
   }
 
   private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {

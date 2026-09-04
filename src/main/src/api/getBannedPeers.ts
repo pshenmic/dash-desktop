@@ -15,6 +15,6 @@ export class GetBannedPeersHandler {
       throw new Error(`getBannedPeers: expected 'mainnet' or 'testnet', got ${JSON.stringify(network)}`)
     }
 
-    return [...this.applicationService.preferences.network[parsed.data].banned]
+    return [...this.applicationService.preferences.network[parsed.data].bannedPeers]
   }
 }

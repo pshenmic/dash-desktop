@@ -158,8 +158,9 @@ export interface PeerInfo {
 
 export interface PeerOverridesJSON {
   dnsSeeds: string[]
-  peers: string[]
-  banned: string[]
+  staticPeers: string[]
+  dynamicPeers: string[]
+  bannedPeers: string[]
 }
 
 export interface NetworkPreferencesJSON {
