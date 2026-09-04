@@ -9,10 +9,7 @@ export const SHIELDED_SPEND_POLL_MS = 700
 
 export const SHIELDED_BALANCE_UNKNOWN_TOOLTIP = 'Sync shielded notes to load this balance.'
 export const SHIELDED_SPEND_RETRY_MS = 1_000
-
-// A bundle fits 6 Orchard actions under the 20 KiB transition limit, and the
-// change note takes one of them.
-export const SHIELDED_RECIPIENT_LIMIT = 5
+export const SHIELDED_DUST_FILTER_CREDITS = 100_000_000n
 
 // One Orchard action per note spent, so the note cap is the bundle's.
 export const SHIELDED_NOTE_LIMIT = 6
