@@ -6,14 +6,9 @@ import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
-import PlatformRecipientsTest from "./PlatformRecipientsTest";
-import CoreRecipientsTest from "./CoreRecipientsTest";
-import ShieldedRecipientsTest from "./ShieldedRecipientsTest";
-import { PLATFORM_RECIPIENT_LIMIT } from "@renderer/constants/platform";
-import { CORE_RECIPIENT_LIMIT } from "@renderer/constants/core";
-import { SHIELDED_RECIPIENT_LIMIT } from "@renderer/constants/shielded";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
+import { toast } from "@renderer/components/ui/Toast";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useConnectionModeContext } from "@renderer/contexts/ConnectionModeContext";
 import { useFiat } from "@renderer/hooks/useFiat";
@@ -30,6 +25,7 @@ import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
+import { getErrorMessage } from "@renderer/utils/error";
 import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistration";
 import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
 import {
@@ -82,6 +78,7 @@ export default function TransferHub(): React.JSX.Element {
 
 function WalletTransferHub(): React.JSX.Element {
   const { status } = useAuth()
+  const { syncIncomplete } = useConnectionModeContext()
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
@@ -103,10 +100,10 @@ function WalletTransferHub(): React.JSX.Element {
   const setToValue = (toValue: string): void => updateDraft(current => ({ ...current, toValue }))
   const setAmount = (amount: string): void => updateDraft(current => ({ ...current, amount }))
   const setAcked = (acked: boolean): void => updateDraft(current => ({ ...current, acked }))
-  const [testRecipients, setTestRecipients] = useState<string[]>([])
-  const [testCoreRecipients, setTestCoreRecipients] = useState<string[]>([])
-  const [testShieldedRecipients, setTestShieldedRecipients] = useState<string[]>([])
   const [utxos, setUtxos] = useState<SelectableUtxo[]>([])
+  const [utxosLoading, setUtxosLoading] = useState(false)
+  const [utxosError, setUtxosError] = useState<string | null>(null)
+  const [utxosReload, setUtxosReload] = useState(0)
   const [coinControl, setCoinControl] = useState<CoinControlSelection>(automaticCoinControl)
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -127,18 +124,34 @@ function WalletTransferHub(): React.JSX.Element {
         if (dead) return
         setResumableFunding(isUnfinishedAssetLockFunding(state.phase) ? state : null)
       })
-      .catch(() => {})
+      .catch(error => {
+        if (dead) return
+        toast.error(`**Could not check funding progress** ${getErrorMessage(error)}`)
+      })
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
 
   useEffect(() => {
-    if (!walletId) return
+    if (!walletId || syncIncomplete) {
+      setUtxos([])
+      setUtxosLoading(false)
+      setUtxosError(null)
+      return
+    }
+
     let dead = false
+    setUtxos([])
+    setUtxosLoading(true)
+    setUtxosError(null)
     API.getUtxos(walletId)
       .then(loaded => { if (!dead) setUtxos(loaded) })
-      .catch(() => {})
+      .catch(error => {
+        if (dead) return
+        setUtxosError(`Could not load spendable UTXOs. ${getErrorMessage(error)}`)
+      })
+      .finally(() => { if (!dead) setUtxosLoading(false) })
     return () => { dead = true }
-  }, [walletId, wizardKey])
+  }, [walletId, wizardKey, syncIncomplete, utxosReload])
 
   const dismissFunding = async (): Promise<void> => {
     if (!walletId || dismissBusy) return
@@ -156,7 +169,6 @@ function WalletTransferHub(): React.JSX.Element {
     }
   }
 
-  const { syncIncomplete } = useConnectionModeContext()
   const { format: formatFiat, rateReady } = useFiat()
   const { balance } = useWalletBalance(walletId ?? undefined)
   const { receiving, change } = useAdresses(walletId ?? undefined)
@@ -242,6 +254,7 @@ function WalletTransferHub(): React.JSX.Element {
   if (appliedCoinControl.kind === 'coreOutpoints') {
     pickedUtxos = utxos.filter(utxo => appliedCoinControl.outpoints.includes(outpointKey(utxo)))
   }
+  const pickedUtxosDuffs = pickedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
   let coreSpecificAddress: WalletAddressDto | undefined
   if (appliedCoinControl.kind === 'coreAddress') {
     coreSpecificAddress = coreAddresses.find(address => address.address === appliedCoinControl.address)
@@ -261,7 +274,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   let balanceDuffs = balance.dash.amount
   if (pickedUtxos.length > 0) {
-    balanceDuffs = pickedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
+    balanceDuffs = pickedUtxosDuffs
   } else if (coreSpecificAddress) {
     balanceDuffs = coreSpecificAddress.balance
   }
@@ -293,71 +306,28 @@ function WalletTransferHub(): React.JSX.Element {
 
   const amountCredits = isCoreOperation ? 0n : duffsToCredits(amountDuffs)
 
-  // TEST ONLY. The extra addresses join the one typed above, and the amount from
-  // the amount step is split between them, so nothing else in the flow changes.
-  const manyRecipients = operation === TransferOperation.AddressFundsTransfer && testRecipients.length > 0
-  const recipientList = useMemo(
-    () => {
-      const addresses = [trimmedTo, ...testRecipients.map(entry => entry.trim())].filter(entry => entry.length > 0)
-      const share = addresses.length === 0 ? 0n : amountCredits / BigInt(addresses.length)
-      return addresses.map((address, index) => ({
-        address,
-        amountCredits: index === 0 ? amountCredits - share * BigInt(addresses.length - 1) : share,
-      }))
-    },
-    [trimmedTo, testRecipients, amountCredits],
-  )
-
-  // TEST ONLY. The same split on L1, where each extra address is another output
-  // paid by the same transaction.
-  const manyCoreRecipients = operation === TransferOperation.CoreSend && testCoreRecipients.length > 0
-  const coreRecipientList = useMemo(
-    () => {
-      const addresses = [trimmedTo, ...testCoreRecipients.map(entry => entry.trim())].filter(entry => entry.length > 0)
-      const share = addresses.length === 0 ? 0n : amountDuffs / BigInt(addresses.length)
-      return addresses.map((address, index) => ({
-        address,
-        amountDuffs: index === 0 ? amountDuffs - share * BigInt(addresses.length - 1) : share,
-      }))
-    },
-    [trimmedTo, testCoreRecipients, amountDuffs],
-  )
-
-  // TEST ONLY. One bundle pays them all, so the split is the same as elsewhere.
-  const manyShieldedRecipients = operation === TransferOperation.ShieldedTransfer && testShieldedRecipients.length > 0
-  const shieldedRecipientList = useMemo(
-    () => {
-      const addresses = [trimmedTo, ...testShieldedRecipients.map(entry => entry.trim())].filter(entry => entry.length > 0)
-      const share = addresses.length === 0 ? 0n : amountCredits / BigInt(addresses.length)
-      return addresses.map((address, index) => ({
-        address,
-        amountCredits: index === 0 ? amountCredits - share * BigInt(addresses.length - 1) : share,
-      }))
-    },
-    [trimmedTo, testShieldedRecipients, amountCredits],
-  )
-
-  const destinationValid = manyShieldedRecipients
-    ? shieldedRecipientList.length === testShieldedRecipients.length + 1
-      && shieldedRecipientList.every(entry => isLikelyShieldedAddress(entry.address))
-    : manyRecipients
-    ? recipientList.length === testRecipients.length + 1
-      && recipientList.every(entry => isValidPlatformAddress(entry.address, network ?? undefined))
-    : manyCoreRecipients
-    ? coreRecipientList.length === testCoreRecipients.length + 1
-      && coreRecipientList.every(entry => isValidDashAddress(entry.address, network ?? undefined))
-    : toKind === DestinationKind.CoreAddress ? isValidDashAddress(trimmedTo, network ?? undefined)
-    : toKind === DestinationKind.PlatformAddress ? isValidPlatformAddress(trimmedTo, network ?? undefined)
-    : toKind === DestinationKind.Identity ? isLikelyIdentityId(trimmedTo)
-    : toKind === DestinationKind.NewIdentity ? true
-    : isLikelyShieldedAddress(trimmedTo)
+  let destinationValid = false
+  switch (toKind) {
+    case DestinationKind.CoreAddress:
+      destinationValid = isValidDashAddress(trimmedTo, network ?? undefined)
+      break
+    case DestinationKind.PlatformAddress:
+      destinationValid = isValidPlatformAddress(trimmedTo, network ?? undefined)
+      break
+    case DestinationKind.Identity:
+      destinationValid = isLikelyIdentityId(trimmedTo)
+      break
+    case DestinationKind.NewIdentity:
+      destinationValid = true
+      break
+    case DestinationKind.Shielded:
+      destinationValid = isLikelyShieldedAddress(trimmedTo)
+      break
+  }
 
   const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr } = useOperationFee(walletId, operation, {
     destinationValid,
-    recipient: manyRecipients ? recipientList.map(entry => entry.address)
-      : manyCoreRecipients ? coreRecipientList.map(entry => entry.address)
-      : manyShieldedRecipients ? shieldedRecipientList.map(entry => entry.address)
-      : trimmedTo,
+    recipient: trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
@@ -406,7 +376,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const selfSend =
     (operation === TransferOperation.AddressFundsTransfer && destinationValid
-      && (manyRecipients ? recipientList : [{address: trimmedTo}]).some(entry => fundingAddresses.includes(entry.address)))
+      && fundingAddresses.includes(trimmedTo))
     || (operation === TransferOperation.IdentityToIdentity && destinationValid && selectedIdentity != null && trimmedTo === selectedIdentity.identifier)
 
   const destinationError = toKind === DestinationKind.NewIdentity || trimmedTo.length === 0
@@ -485,20 +455,26 @@ function WalletTransferHub(): React.JSX.Element {
       coinControlSummary = 'One Core address'
       break
     case 'coreOutpoints':
-      coinControlSummary = appliedCoinControl.outpoints.length === 1 ? '1 coin' : `${appliedCoinControl.outpoints.length} coins`
+      coinControlSummary = `${appliedCoinControl.outpoints.length} ${appliedCoinControl.outpoints.length === 1 ? 'UTXO' : 'UTXOs'} · ${davToDashCompact(pickedUtxosDuffs)} Dash`
       break
     case 'platformAddress':
       coinControlSummary = 'One Platform address'
       break
-    case 'platformInputs':
-      coinControlSummary = appliedCoinControl.inputs.length === 1 ? '1 input' : `${appliedCoinControl.inputs.length} inputs`
+    case 'platformInputs': {
+      const inputLabel = appliedCoinControl.inputs.length === 1 ? 'input' : 'inputs'
+      const inputCredits = appliedCoinControl.inputs.reduce((sum, input) => sum + input.credits, 0n)
+      coinControlSummary = `${appliedCoinControl.inputs.length} ${inputLabel} · ${davToDashCompact(creditsToDuffs(inputCredits))} Dash`
       break
+    }
     case 'shieldedAddress':
       coinControlSummary = 'One shielded address'
       break
-    case 'shieldedNotes':
-      coinControlSummary = appliedCoinControl.noteIndexes.length === 1 ? '1 note' : `${appliedCoinControl.noteIndexes.length} notes`
+    case 'shieldedNotes': {
+      const noteLabel = appliedCoinControl.noteIndexes.length === 1 ? 'note' : 'notes'
+      const noteCredits = selectedShieldedNotes?.reduce((sum, note) => sum + note.amount, 0n) ?? 0n
+      coinControlSummary = `${appliedCoinControl.noteIndexes.length} ${noteLabel} · ${davToDashCompact(creditsToDuffs(noteCredits))} Dash`
       break
+    }
     case 'automatic':
       if (operation === TransferOperation.Shield) {
         coinControlSummary = 'Fixed address'
@@ -510,9 +486,6 @@ function WalletTransferHub(): React.JSX.Element {
 
   const resetForm = (): void => {
     setCoinControl(automaticCoinControl())
-    setTestRecipients([])
-    setTestCoreRecipients([])
-    setTestShieldedRecipients([])
     const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
     draftRef.current = resetDraft
     setDraftState(resetDraft)
@@ -552,15 +525,6 @@ function WalletTransferHub(): React.JSX.Element {
         </button>
       )}
 
-      {operation === TransferOperation.CoreSend && (
-        <CoreRecipientsTest addresses={testCoreRecipients} onChange={setTestCoreRecipients} maxRecipients={CORE_RECIPIENT_LIMIT - 1} />
-      )}
-      {operation === TransferOperation.AddressFundsTransfer && (
-        <PlatformRecipientsTest addresses={testRecipients} onChange={setTestRecipients} maxRecipients={PLATFORM_RECIPIENT_LIMIT - 1} />
-      )}
-      {operation === TransferOperation.ShieldedTransfer && (
-        <ShieldedRecipientsTest addresses={testShieldedRecipients} onChange={setTestShieldedRecipients} maxRecipients={SHIELDED_RECIPIENT_LIMIT - 1} />
-      )}
       {fromKind === SourceKind.Shielded && (
         <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
       )}
@@ -843,7 +807,7 @@ function WalletTransferHub(): React.JSX.Element {
     if (operation === TransferOperation.ShieldedTransfer) {
       return API.startShieldedTransfer(
         walletId,
-        manyShieldedRecipients ? shieldedRecipientList : [{ address: trimmedTo, amountCredits }],
+        [{ address: trimmedTo, amountCredits }],
         password,
         shieldedSpendSource,
       )
@@ -859,7 +823,7 @@ function WalletTransferHub(): React.JSX.Element {
       return API.sendPlatformTransfer(
         walletId,
         platformSource,
-        manyRecipients ? recipientList : [{ address: trimmedTo, amountCredits }],
+        [{ address: trimmedTo, amountCredits }],
         password,
       )
     }
@@ -968,11 +932,15 @@ function WalletTransferHub(): React.JSX.Element {
         selection={appliedCoinControl}
         coreAddresses={coreAddresses}
         utxos={utxos}
+        utxosLoading={utxosLoading}
+        utxosError={utxosError}
+        coreSyncIncomplete={syncIncomplete}
         platformAddresses={fundedAddresses}
         shieldedNotes={spendableNotes}
         identityLabel={selectedIdentity?.alias ?? null}
         identityId={selectedIdentity?.identifier ?? null}
         platformAddress={selectedSource}
+        onRetryUtxos={() => setUtxosReload(current => current + 1)}
         onClose={() => setCoinControlOpen(false)}
         onApply={setCoinControl}
       />
@@ -983,7 +951,7 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           network={network}
-          recipients={coreRecipientList}
+          recipients={[{ address: trimmedTo, amountDuffs }]}
           amountFiat={amountFiat}
           source={coreSpendSource}
           onSuccess={() => {
