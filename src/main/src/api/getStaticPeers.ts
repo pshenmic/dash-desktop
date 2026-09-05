@@ -9,8 +9,6 @@ export class GetStaticPeersHandler {
     this.applicationService = applicationService
   }
 
-  // Everything static mode dials for one network. Kept whatever mode is in
-  // force: dynamic mode leaves the list alone and dials dynamicPeers instead.
   handle = async (_event: IpcMainInvokeEvent, network: unknown): Promise<string[]> => {
     const parsed = NetworkNameSchema.safeParse(network)
     if (!parsed.success) {

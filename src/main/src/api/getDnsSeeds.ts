@@ -9,9 +9,6 @@ export class GetDnsSeedsHandler {
     this.applicationService = applicationService
   }
 
-  // What the user put in place of the built-in seeds. Empty is the normal
-  // answer — it means the network's own seeds are in use, not that discovery
-  // has none.
   handle = async (_event: IpcMainInvokeEvent, network: unknown): Promise<string[]> => {
     const parsed = NetworkNameSchema.safeParse(network)
     if (!parsed.success) {

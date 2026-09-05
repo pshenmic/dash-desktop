@@ -40,47 +40,28 @@ function toPort(raw: string): number | null {
   return port
 }
 
-// How a pool identifies the socket an entry opens: it dials v4 when that half is
-// set and v6 otherwise, so two entries with the same target are one peer. The
-// pool's own dedupe hashes both halves and misses that.
 export function dialTarget(addr: AddrInfo, defaultPort: number): string {
   return `${addr.ip.v4 ?? addr.ip.v6}:${addr.port ?? defaultPort}`
 }
 
-// The form the peer list stores. An entry without a port matches nothing where
-// the default is not re-applied — a ban is matched at port 0 — and v6 keeps its
-// brackets so the entry parses back.
 export function peerListEntry(addr: AddrInfo, defaultPort: number): string {
   const port = addr.port ?? defaultPort
   return addr.ip.v4 != null ? `${addr.ip.v4}:${port}` : `[${addr.ip.v6}]:${port}`
 }
 
-// The socket a typed entry would open, for comparing entries: `1.2.3.4` and
-// `1.2.3.4:9999` are one node on mainnet, and dialling it twice from one host
-// drops both connections.
 export function entryTarget(entry: string, defaultPort: number): string {
   const addr = parsePeerAddress(entry, defaultPort)
   return addr == null ? entry.trim() : dialTarget(addr, defaultPort)
 }
 
-// The same string for the socket an entry opened, so a claim taken on connect
-// and a lookup against the address book agree on what one node is.
 export function peerTarget(peer: Peer): string {
   return `${peer.host}:${peer.port}`
 }
 
-// Ban entries carry a port, so the set holds exactly what dialTarget and
-// peerTarget spell and a lookup is a plain `has`. `[v6]:port` is the form the
-// peer list accepts and a peer never reports, hence the brackets come off here
-// rather than at every lookup.
 export function bannedSet(entries: string[]): ReadonlySet<string> {
   return new Set(entries.map(entry => entry.replace(/[[\]]/g, '')))
 }
 
-// A seed is handed to dns.resolve, which reports a failure as a `seederror`
-// nobody reads — and a non-empty list replaces the network's built-in seeds, so
-// a typo is discovery switched off rather than one seed lost. A port or an IP
-// literal is the mistake worth naming: neither ever resolves.
 export function isDnsSeedHost(input: string): boolean {
   return /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(input.trim())
 }

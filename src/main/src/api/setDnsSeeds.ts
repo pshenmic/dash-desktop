@@ -16,8 +16,6 @@ export class SetDnsSeedsHandler {
     this.walletSyncService = walletSyncService
   }
 
-  // The whole list, so an empty one is how a network goes back to the seeds
-  // dash-core-p2p ships.
   handle = async (_event: IpcMainInvokeEvent, network: unknown, seeds: unknown): Promise<void> => {
     const args = ArgsSchema.safeParse({network, seeds})
     // A ZodError crossing IPC arrives as its class name only.

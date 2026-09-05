@@ -9,9 +9,6 @@ export class GetDynamicPeersHandler {
     this.applicationService = applicationService
   }
 
-  // The peers dynamic mode dials on top of what DNS and gossip find. Kept
-  // whatever mode is in force: static mode leaves the list alone and dials
-  // staticPeers instead.
   handle = async (_event: IpcMainInvokeEvent, network: unknown): Promise<string[]> => {
     const parsed = NetworkNameSchema.safeParse(network)
     if (!parsed.success) {

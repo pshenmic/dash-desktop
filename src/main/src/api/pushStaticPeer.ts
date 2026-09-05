@@ -17,9 +17,6 @@ export class PushStaticPeerHandler {
     this.walletSyncService = walletSyncService
   }
 
-  // Static mode dials the pinned list and nothing else — no DNS, no gossip — so
-  // a peer that turns out to be dead is not one the wallet can replace, and it
-  // is dialled for a version handshake before it is written.
   handle = async (_event: IpcMainInvokeEvent, network: unknown, peer: unknown): Promise<string[]> => {
     const args = ArgsSchema.safeParse({network, peer})
     // A ZodError crossing IPC arrives as its class name only.

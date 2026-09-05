@@ -17,8 +17,6 @@ export class RemoveStaticPeerHandler {
     this.walletSyncService = walletSyncService
   }
 
-  // No address check and no probe: an entry is matched by the socket it names,
-  // and a peer that stopped answering is the one a user comes here to drop.
   handle = async (_event: IpcMainInvokeEvent, network: unknown, peer: unknown): Promise<string[]> => {
     const args = ArgsSchema.safeParse({network, peer})
     if (!args.success) {

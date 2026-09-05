@@ -16,8 +16,6 @@ export class SetBannedPeersHandler {
     this.walletSyncService = walletSyncService
   }
 
-  // The whole list, so lifting a ban is the same call as adding one. An empty
-  // list is how the last one is lifted.
   handle = async (_event: IpcMainInvokeEvent, network: unknown, peers: unknown): Promise<void> => {
     const args = ArgsSchema.safeParse({network, peers})
     if (!args.success) {
