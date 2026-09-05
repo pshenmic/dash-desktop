@@ -110,6 +110,7 @@ export interface WalletSyncStatus {
   peerCount: number
   filterCapablePeerCount: number
   lockPeerCount: number
+  peerMode: PeerMode | null
   phaseEtaMs: number | null
   lastError: string | null
   updatedAt: number
@@ -143,12 +144,27 @@ export interface GeneralPreferencesJSON {
   coreFeeMultiplier: number
 }
 
+export type PeerMode = 'dynamic' | 'static'
+
+// getConnectedPeers — one connected peer. pingMs is null until a round trip has been
+// measured, userAgent until the peer's version message lands.
+export interface PeerInfo {
+  pool: string
+  host: string
+  port: number
+  userAgent: string | null
+  pingMs: number | null
+}
+
 export interface PeerOverridesJSON {
   dnsSeeds: string[]
-  peers: string[]
+  staticPeers: string[]
+  dynamicPeers: string[]
+  bannedPeers: string[]
 }
 
 export interface NetworkPreferencesJSON {
+  mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
 }

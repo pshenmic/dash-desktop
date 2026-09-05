@@ -3,7 +3,9 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 vi.mock('dash-core-p2p', async () => {
   const {EventEmitter} = await import('events')
   return {
-    Messages: class {},
+    Messages: class {
+      Ping = (): {command: string; nonce: Uint8Array} => ({command: 'ping', nonce: new Uint8Array(8)})
+    },
     Networks: {get: (network: string) => ({name: network, port: network === 'mainnet' ? 9999 : 19999, dnsSeeds: ['seed.example']})},
     NODE_COMPACT_FILTERS: 64,
     Pool: class extends EventEmitter {

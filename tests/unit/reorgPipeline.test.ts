@@ -34,6 +34,8 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
       stop = (): void => undefined
       takeAddresses = (): unknown[] => []
       addAddresses = (): void => undefined
+      addPeers = (): void => undefined
+      dropPeers = (): void => undefined
     },
   }
 })

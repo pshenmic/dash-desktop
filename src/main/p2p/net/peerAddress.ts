@@ -1,4 +1,4 @@
-import {AddrInfo} from 'dash-core-p2p'
+import {AddrInfo, Peer} from 'dash-core-p2p'
 
 // dash-core-p2p parses its own `peers` option inside the Pool constructor and
 // throws on a bad entry, which in this process means one typo in preferences
@@ -38,4 +38,30 @@ function toPort(raw: string): number | null {
   const port = Number(raw)
   if (!Number.isInteger(port) || port <= 0 || port > 0xffff) return null
   return port
+}
+
+export function dialTarget(addr: AddrInfo, defaultPort: number): string {
+  return `${addr.ip.v4 ?? addr.ip.v6}:${addr.port ?? defaultPort}`
+}
+
+export function peerListEntry(addr: AddrInfo, defaultPort: number): string {
+  const port = addr.port ?? defaultPort
+  return addr.ip.v4 != null ? `${addr.ip.v4}:${port}` : `[${addr.ip.v6}]:${port}`
+}
+
+export function entryTarget(entry: string, defaultPort: number): string {
+  const addr = parsePeerAddress(entry, defaultPort)
+  return addr == null ? entry.trim() : dialTarget(addr, defaultPort)
+}
+
+export function peerTarget(peer: Peer): string {
+  return `${peer.host}:${peer.port}`
+}
+
+export function bannedSet(entries: string[]): ReadonlySet<string> {
+  return new Set(entries.map(entry => entry.replace(/[[\]]/g, '')))
+}
+
+export function isDnsSeedHost(input: string): boolean {
+  return /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(input.trim())
 }

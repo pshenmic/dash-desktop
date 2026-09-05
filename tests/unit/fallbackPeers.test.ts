@@ -5,7 +5,9 @@ const captured = vi.hoisted(() => ({pools: [] as Array<Record<string, unknown>>}
 vi.mock('dash-core-p2p', async () => {
   const {EventEmitter} = await import('events')
   return {
-    Messages: class {},
+    Messages: class {
+      Ping = (): {command: string; nonce: Uint8Array} => ({command: 'ping', nonce: new Uint8Array(8)})
+    },
     Networks: {get: (network: string) => ({name: network, port: network === 'mainnet' ? 9999 : 19999, dnsSeeds: ['seed.example']})},
     NODE_COMPACT_FILTERS: 64,
     Pool: class extends EventEmitter {
@@ -55,7 +57,7 @@ describe('built-in peer fallback', () => {
   it('stays out of the way while discovery is producing peers', () => {
     const service = new PoolService('testnet')
     service.start()
-    service.readyPeers.add({} as never)
+    service.readyPeers.add({host: '68.67.122.38', port: 19999} as never)
 
     tick(POOL_FALLBACK_TICKS + 2)
 
@@ -108,7 +110,7 @@ describe('built-in peer fallback', () => {
     service.start()
 
     tick(POOL_FALLBACK_TICKS - 1)
-    const peer = {} as never
+    const peer = {host: '68.67.122.38', port: 19999} as never
     service.readyPeers.add(peer)
     tick(1)
     service.readyPeers.delete(peer)
