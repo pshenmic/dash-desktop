@@ -129,7 +129,7 @@ export class PoolService extends EventEmitter {
     this.pool.connect()
     const seeds = this.pool.dnsSeed ? this.pool.network?.dnsSeeds ?? [] : []
     console.log(`[${this.label}] start seeds=${seeds.join(',') || '(none)'} custom=${this.customPeers.length} known=${this.pool._addrs.length}`)
-    this.addAddresses(this.parsePeers(this.customPeers))
+    this.addPeers(this.customPeers)
 
     // Capacity opens at the ready target and only widens on a refill tick a full
     // interval later, by which time dead gossip addresses hold every slot and no
@@ -233,6 +233,38 @@ export class PoolService extends EventEmitter {
       // them every tick and costs the sync more than the peers it seats.
     }, POOL_REFILL_INTERVAL_MS)
     this.refillTimer.unref?.()
+  }
+
+  // String form of addAddresses: only the pool knows the port an entry without
+  // one dials on.
+  addPeers = (entries: string[]): void => {
+    this.addAddresses(this.parsePeers(entries))
+  }
+
+  // Hands a set of peers to the other pool. The sockets go before the book,
+  // because a node this one is still connected to stays reserved against it —
+  // and the claim is released here rather than left to the disconnect event,
+  // which lands a tick later than the pool taking them over dials.
+  dropPeers = (entries: string[]): void => {
+    if (entries.length === 0 || this.stopped) return
+    const targets = new Set(this.parsePeers(entries).map(addr => dialTarget(addr, this.defaultPort)))
+    if (targets.size === 0) return
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pool = this.pool as any
+    let dropped = 0
+    for (const peer of Object.values(pool._connectedPeers) as Peer[]) {
+      const target = peerTarget(peer)
+      if (!targets.has(target)) continue
+      dropped++
+      this.readyPeers.delete(peer)
+      this.filterCapablePeers.delete(peer)
+      this.registry.release(target, peer)
+      try { peer.disconnect() } catch { /* already gone */ }
+    }
+    pool._addrs = (pool._addrs as AddrInfo[])
+      .filter(addr => !targets.has(dialTarget(addr, this.defaultPort)))
+    console.log(`[${this.label}] lent ${targets.size} peer(s), dropping ${dropped} connection(s)`)
   }
 
   // Receiving end of takeAddresses — lets the bulk pool skip DNS entirely and

@@ -12,7 +12,7 @@ import {
 } from '../constants'
 import {PoolService} from '../net/PoolService'
 import {PeerRegistry} from '../net/peerRegistry'
-import {peerOverridesKey} from '../net/peerOverrides'
+import {bulkPeerShare, peerOverridesKey} from '../net/peerOverrides'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
 import type {HeaderSyncWorkerStatus} from '../types/headerSync'
@@ -52,6 +52,8 @@ export class SyncService {
   // while the pools are running and must survive one being rebuilt.
   private banned: string[] = []
   private pinnedOnly = false
+  // The user's peers the bulk pool borrowed, kept so they can go back.
+  private lentPeers: string[] = []
   private headerSyncWorker: HeaderSyncWorker | null = null
   private cfilterSyncWorker: CFilterSyncWorker | null = null
 
@@ -307,14 +309,18 @@ export class SyncService {
       // `relay: false` drops the tx inv stream these workers never read — and
       // Dash Core gates ISLOCK/ISDLOCK inv behind the same flag, which is why
       // lock watching stays on the other pool.
+      this.lentPeers = bulkPeerShare(cmd.peerOverrides?.dynamicPeers)
       this.bulkPool = new PoolService(cmd.network, {
         registry: this.peerRegistry,
         banned: this.banned,
         label: 'bulk-pool',
         relay: false,
         dnsSeed: false,
-        peers: cmd.peerOverrides?.dynamicPeers,
+        peers: this.lentPeers,
       })
+      // Before the first dial: the lock pool has held these since boot, and the
+      // registry hands a contested node to whoever claimed it first.
+      this.lockPool?.dropPeers(this.lentPeers)
       this.feedBulkPool()
       this.bulkPool.start()
       this.syncPool = this.bulkPool
@@ -587,7 +593,11 @@ export class SyncService {
       // lives here, and a lock pool long past gossiping has no other source.
       if (this.lockPool && this.lockPool.network === this.bulkPool.network) {
         this.lockPool.addAddresses(this.bulkPool.takeAddresses(0))
+        // takeAddresses moves what is spare, and a lent peer is the one entry
+        // here most likely to be connected — so it is handed back by name.
+        this.lockPool.addPeers(this.lentPeers)
       }
+      this.lentPeers = []
       this.bulkPool.stop()
       this.bulkPool.removeAllListeners()
       this.bulkPool = null

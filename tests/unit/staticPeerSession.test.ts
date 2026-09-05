@@ -1,7 +1,7 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 
 const captured = vi.hoisted(() => ({
-  pools: [] as Array<{options: Record<string, unknown>; stopped: boolean; bans: string[][]}>,
+  pools: [] as Array<{options: Record<string, unknown>; stopped: boolean; bans: string[][]; lent: string[][]; returned: string[][]}>,
   headerPools: [] as unknown[],
 }))
 
@@ -26,11 +26,11 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
       readyPeers = new Set()
       filterCapablePeers = new Set()
       messages = {}
-      entry: {options: Record<string, unknown>; stopped: boolean; bans: string[][]}
+      entry: {options: Record<string, unknown>; stopped: boolean; bans: string[][]; lent: string[][]; returned: string[][]}
       constructor(network: string, options: Record<string, unknown> = {}) {
         super()
         this.network = network
-        this.entry = {options, stopped: false, bans: []}
+        this.entry = {options, stopped: false, bans: [], lent: [], returned: []}
         captured.pools.push(this.entry)
       }
       setBanned = (banned: string[]): void => { this.entry.bans.push(banned) }
@@ -45,6 +45,8 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
       }]
       takeAddresses = (): unknown[] => []
       addAddresses = (): void => undefined
+      addPeers = (entries: string[]): void => { this.entry.returned.push(entries) }
+      dropPeers = (entries: string[]): void => { this.entry.lent.push(entries) }
     },
   }
 })
@@ -172,13 +174,33 @@ describe('static peers run one pool', () => {
   })
 
   // Dynamic mode dials these on top of DNS and gossip; the pinned list is not
-  // what it reads.
+  // what it reads. A lone peer stays on the pool rpc mode also runs.
   it('hands the dynamic peers to the pools discovery runs', async () => {
     await start(service, {...DYNAMIC, staticPeers: ['1.2.3.4:19999'], dynamicPeers: ['5.6.7.8:19999']})
 
     expect(captured.pools).toHaveLength(2)
     expect(captured.pools[0]!.options).toMatchObject({label: 'lock-pool', peers: ['5.6.7.8:19999']})
-    expect(captured.pools[1]!.options).toMatchObject({label: 'bulk-pool', peers: ['5.6.7.8:19999']})
+    expect(captured.pools[1]!.options).toMatchObject({label: 'bulk-pool', peers: []})
+    expect(captured.pools[0]!.lent).toEqual([[]])
+  })
+
+  // One node answering two sockets from this host drops both, so the pools
+  // share the list out instead of each dialling all of it.
+  it('lends the bulk pool its share of the dynamic peers', async () => {
+    await start(service, {...DYNAMIC, dynamicPeers: ['1.1.1.1:19999', '2.2.2.2:19999', '3.3.3.3:19999']})
+
+    expect(captured.pools[1]!.options).toMatchObject({label: 'bulk-pool', peers: ['2.2.2.2:19999']})
+    expect(captured.pools[0]!.lent).toEqual([['2.2.2.2:19999']])
+  })
+
+  // The lock pool outlives the bulk one and is all rpc mode has, so what it lent
+  // comes back by name — takeAddresses only moves what is spare, and a peer the
+  // user named is the entry most likely to be connected.
+  it('takes the lent peers back when the sync layer stops', async () => {
+    await start(service, {...DYNAMIC, dynamicPeers: ['1.1.1.1:19999', '2.2.2.2:19999']})
+    await service.stop()
+
+    expect(captured.pools[0]!.returned).toEqual([['2.2.2.2:19999']])
   })
 
   // The pool is built from the list its own mode dials, so editing the other

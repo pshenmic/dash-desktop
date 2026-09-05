@@ -12,3 +12,12 @@ export function peerOverridesKey(overrides?: PeerOverrides): string {
     ? [mode, overrides?.staticPeers ?? []]
     : [mode, overrides?.dnsSeeds ?? [], overrides?.dynamicPeers ?? []])
 }
+
+// Both pools run in dynamic mode, and a node dialled twice from one host drops
+// both connections — so the user's peers are shared out rather than handed to
+// each. The lock pool is built with all of them because in rpc mode it is the
+// only pool there is, and it lends this share out when the bulk layer starts.
+// Every second entry: the first stays where broadcast and lock watching are.
+export function bulkPeerShare(peers: string[] = []): string[] {
+  return peers.filter((_, index) => index % 2 === 1)
+}
