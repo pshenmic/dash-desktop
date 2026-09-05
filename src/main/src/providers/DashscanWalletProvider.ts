@@ -219,7 +219,8 @@ export class DashscanWalletProvider implements WalletProvider {
         txId: utxo.prevTxHash as string,
         vOut: utxo.vOutIndex as number,
         satoshis: BigInt(utxo.amount ?? '0'),
-        script: Script.fromHex(utxo.scriptPubKeyHex as string)
+        script: Script.fromHex(utxo.scriptPubKeyHex as string),
+        height: utxo.blockHeight ?? 0,
       }))
   }
 

@@ -1,8 +1,10 @@
 import { OrchardAddressWASM } from 'pshenmic-dpp'
+import { CoreSpendSource } from '../../types/CoinSelection'
 import { Network } from '../../types/Network'
 import { WalletDAO } from '../../database/WalletDAO'
 import { IdentityDAO } from '../../database/IdentityDAO'
 import { ShieldedNoteDAO } from '../../database/ShieldedNoteDAO'
+import { PersistNote } from '../../types/ShieldedNote'
 import { ShieldedPoolDAO } from '../../database/ShieldedPoolDAO'
 import { ShieldedAddressDAO } from '../../database/ShieldedAddressDAO'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
@@ -11,7 +13,7 @@ import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSe
 import { UnlockedWallet } from '../../types/UnlockedWallet'
 import { Wallet } from '../../types/Wallet'
 import {SHIELDED_ADDRESS_WINDOW} from '../../constants/addresses'
-import {SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
+import {MAX_SPEND_NOTES, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
 import { findNextIdentityIndex, identityPath } from '../../utils/identityKeys'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {platformAccountXpub, platformAddressDeriver} from '../../utils/platformAddress'
@@ -23,7 +25,6 @@ import {Preferences} from '../../preferences'
 import { lockedDuffsFor, shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
-  ShieldedNoteInfo,
   ShieldedPoolInfo,
   ShieldedNotesInfo,
   ShieldedSpendPhase,
@@ -33,7 +34,14 @@ import {
   ShieldedSyncState,
 } from '../../types/Shielded'
 import {OperationFee} from '../../types/Fee'
-import {maxSpendableCredits, selectSpendNotes} from '../../utils/shieldedNoteSelection'
+import {ShieldedRecipient, ShieldedSpendSource} from '../../types/ShieldedNoteSelection'
+import {
+  bundleActions,
+  maxSpendableCredits,
+  requireShieldedRecipients,
+  selectableNotes,
+  selectSpendNotes,
+} from '../../utils/shieldedNoteSelection'
 import {requireWallet} from '../../utils/requireWallet'
 import {
   EncryptedNotePayload,
@@ -44,6 +52,8 @@ import {
 import {AssetLockFundingRow, AcquiredAssetLock} from '../../types/AssetLock'
 
 type SpendPayload = PlatformPayload<'spend'>
+
+const hexOf = (bytes: Uint8Array): string => Buffer.from(bytes).toString('hex')
 
 function syncPhase(phase: PlatformPhase): ShieldedSyncPhase | null {
   return phase === 'recovering' ? 'recovering' : null
@@ -349,13 +359,15 @@ export class ShieldedService {
     }
   }
 
-  private settleSync(state: ShieldedSyncState, notes: ShieldedNoteInfo[]): void {
+  // Projects away the nullifier: it belongs to the note tables, and the sync
+  // state is what the renderer polls.
+  private settleSync(state: ShieldedSyncState, notes: PersistNote[]): void {
     let balance = 0n
     for (const note of notes) {
       if (!note.spent) balance += note.amount
     }
     state.balance = balance
-    state.notes = notes
+    state.notes = notes.map(({index, amount, spent, address}) => ({index, amount, spent, address}))
     state.phase = 'done'
     state.syncedAt = Date.now()
   }
@@ -387,11 +399,12 @@ export class ShieldedService {
       onProgress: phase => { state.phase = syncPhase(phase) ?? state.phase },
     })
 
-    const all: ShieldedNoteInfo[] = result.notes.map(note => ({
+    const all: PersistNote[] = result.notes.map(note => ({
       index: note.index,
       amount: note.amount,
       spent: note.spent,
       address: note.address,
+      nullifier: note.nullifier,
     })).sort((a, b) => b.index - a.index)
     this.settleSync(state, all)
     await this.shieldedNoteDAO.upsertNotes(walletId, all)
@@ -422,16 +435,18 @@ export class ShieldedService {
     return this.spendStates.get(walletId) ?? this.idleSpendState()
   }
 
-  startTransfer(walletId: string, password: string, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'shieldedTransfer', recipient, amountCredits, noteIndexes)
+  // One bundle pays several Orchard addresses out of one note set, in one proof
+  // and for one fee, which grows with the outputs rather than repeating.
+  startTransfer(walletId: string, password: string, recipients: ShieldedRecipient[], source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'shieldedTransfer', recipients, source)
   }
 
-  startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'unshield', outputAddress, amountCredits, noteIndexes)
+  startUnshield(walletId: string, password: string, outputAddress: string, amountCredits: bigint, source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'unshield', [{address: outputAddress, amountCredits}], source)
   }
 
-  startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.startSpend(walletId, password, 'shieldedWithdrawal', coreAddress, amountCredits, noteIndexes)
+  startWithdrawal(walletId: string, password: string, coreAddress: string, amountCredits: bigint, source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
+    return this.startSpend(walletId, password, 'shieldedWithdrawal', [{address: coreAddress, amountCredits}], source)
   }
 
   // Returns the in-flight state when a spend is already running for this
@@ -446,13 +461,13 @@ export class ShieldedService {
     return {state, running: false}
   }
 
-  private async startSpend(walletId: string, password: string, kind: PoolSpendOperation, recipient: string, amountCredits: bigint, noteIndexes?: number[]): Promise<ShieldedSpendState> {
+  private async startSpend(walletId: string, password: string, kind: PoolSpendOperation, recipients: ShieldedRecipient[], source?: ShieldedSpendSource | null): Promise<ShieldedSpendState> {
     const {state, running} = this.beginSpend(walletId)
     if (running) return state
 
     let unlocked: UnlockedWallet | null = null
     try {
-      if (amountCredits <= 0n) throw new Error('Amount must be greater than zero')
+      const amountCredits = requireShieldedRecipients(recipients)
 
       unlocked = await unlockWallet(this.walletDAO, walletId, password)
       const {wallet: {network}, seed} = unlocked
@@ -464,10 +479,10 @@ export class ShieldedService {
       this.runSpend(walletId, network, state, {
         seed,
         kind,
-        recipient,
+        recipients,
         amountCredits,
         notes,
-        noteIndexes: noteIndexes ?? null,
+        source: source ?? null,
         identityIndex: null,
         failureAddress: null,
         coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
@@ -533,10 +548,10 @@ export class ShieldedService {
       this.runSpend(walletId, network, state, {
         seed,
         kind: 'identityCreateFromShielded',
-        recipient: '',
+        recipients: [],
         amountCredits: denominationCredits,
         notes,
-        noteIndexes: null,
+        source: null,
         identityIndex,
         failureAddress,
         coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
@@ -550,7 +565,7 @@ export class ShieldedService {
 
   // Locks L1 coins and shields the credits straight into the pool, so they
   // never sit on a transparent platform address.
-  async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+  async startShieldFromL1(walletId: string, recipient: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<AssetLockFundingState> {
     const destination = recipient.trim()
     if (destination.length === 0) {
       throw new Error('Shielded recipient address is required')
@@ -570,7 +585,7 @@ export class ShieldedService {
       const state = await this.assetLock.begin(walletId, 'shielded', destination, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'shielded', destination, amountDuffs: lockDuffs, seed,
+          walletId, kind: 'shielded', destination, amountDuffs: lockDuffs, seed, source,
         })
         await this.settleShield(wallet, seed, state, acquired)
       })
@@ -634,25 +649,32 @@ export class ShieldedService {
     walletId: string,
     kind: PoolSpendOperation,
     amountCredits: bigint,
-    noteIndexes: number[] | null,
+    source: ShieldedSpendSource | null,
+    outputCount = 1,
   ): Promise<OperationFee> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const curve = await this.spendFeeCurve(wallet.network, kind)
-    const feeForCount = (numSpends: number): bigint => curve[Math.min(numSpends, curve.length) - 1]
+    // Only a pool-to-pool transfer writes its payouts as Orchard outputs.
+    const outputs = kind === 'shieldedTransfer' ? outputCount : 0
+    const feeForCount = (numSpends: number): bigint =>
+      curve[Math.min(bundleActions(numSpends, outputs), curve.length) - 1]
 
-    const candidates = (this.syncStates.get(walletId)?.notes ?? [])
-      .filter(note => !note.spent && (noteIndexes == null || noteIndexes.includes(note.index)))
-      .map(note => ({index: note.index, value: note.amount}))
+    const candidates = selectableNotes(
+      (this.syncStates.get(walletId)?.notes ?? [])
+        .map(note => ({index: note.index, value: note.amount, spent: note.spent})),
+      source,
+    )
 
     const selection = amountCredits > 0n
-      ? selectSpendNotes(candidates, amountCredits, curve.length, feeForCount)
+      ? selectSpendNotes(candidates, amountCredits, MAX_SPEND_NOTES, feeForCount, source)
       : null
 
     return {
       feeCredits: selection?.feeCredits ?? feeForCount(1),
       feeDuffs: null,
-      maxPerTx: maxSpendableCredits(candidates, curve.length, feeForCount),
-      noteLimit: curve.length,
+      maxDuffs: null,
+      maxPerTx: maxSpendableCredits(candidates, MAX_SPEND_NOTES, feeForCount, source),
+      noteLimit: MAX_SPEND_NOTES,
     }
   }
 
@@ -665,6 +687,26 @@ export class ShieldedService {
     const {feeCredits} = await this.platform.request('spendFeeCurve', network, {kind})
     this.feeCurves.set(key, feeCredits)
     return feeCredits
+  }
+
+  // The chain is the only authority on whether a note is spent, and everything
+  // before the spend itself reads our own flags. Nullifiers are persisted at
+  // sync time, so this catches them up without the seed decoding a note needs.
+  async refreshSpentFlags(walletId: string): Promise<ShieldedSyncState> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const pending = (await this.shieldedNoteDAO.getOwnedNotes(walletId))
+      .filter((note): note is PersistNote & {nullifier: Uint8Array} => !note.spent && note.nullifier != null)
+    if (pending.length === 0) return this.getSyncState(walletId)
+
+    const {spent} = await this.platform.request('checkNullifiers', wallet.network, {
+      nullifiers: pending.map(note => note.nullifier),
+    })
+
+    const spentKeys = new Set(spent.map(hexOf))
+    const indexes = pending.filter(note => spentKeys.has(hexOf(note.nullifier))).map(note => note.index)
+    if (indexes.length > 0) await this.markNotesSpent(walletId, indexes)
+
+    return this.getSyncState(walletId)
   }
 
   private async markNotesSpent(walletId: string, indexes: number[]): Promise<void> {

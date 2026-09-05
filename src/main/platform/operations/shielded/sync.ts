@@ -24,6 +24,7 @@ export async function sync(payload: Payload, ctx: OperationContext): Promise<Res
       amount: recoveredNote.note.value,
       spent,
       address: recoveredNote.note.address.toBech32m(ctx.network),
+      nullifier: recoveredNote.nullifier,
     }
   })
   notes.sort((a, b) => b.index - a.index)

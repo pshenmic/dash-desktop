@@ -11,8 +11,23 @@ export const MAX_FEE_MULTIPLIER = 20
 
 export const MIN_OUTPUT_CREDITS = 500_000n
 export const MIN_INPUT_CREDITS = 100_000n
+// Consensus funds a new identity from a lower floor than it accepts as an
+// ordinary output.
+export const MIN_IDENTITY_FUNDING_CREDITS = 200_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
+// What fits the 20 KiB max_state_transition_size, not the protocol's own
+// max_shielded_transition_actions of 16: the Halo2 proof grows ~2,681 bytes per
+// action, so a seventh action puts the transition over the wire limit.
+export const MAX_BUNDLE_ACTIONS = 6
+// The change note takes a slot of its own, and is written even at zero value.
+export const MAX_SPEND_RECIPIENTS = MAX_BUNDLE_ACTIONS - 1
+// One action per note spent, so the note cap is the action cap.
+export const MAX_SPEND_NOTES = MAX_BUNDLE_ACTIONS
+// An Orchard bundle carries at least two actions, so a single-note spend is
+// still charged for two.
+export const MIN_BUNDLE_ACTIONS = 2
+export const MAX_FEE_STRATEGY_STEPS = 4
 
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0

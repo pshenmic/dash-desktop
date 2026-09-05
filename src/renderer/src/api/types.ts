@@ -47,27 +47,102 @@ export interface PlatformAddressDto {
 }
 
 // estimateFee — the one fee endpoint. What gets priced for each operation is
+export interface Outpoint {
+  txid: string
+  vout: number
+}
+
+// An address narrows the automatic coin selection; a picked outpoint list is
+// the input set itself, spent whole.
+export type CoreSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'outpoints'; outpoints: Outpoint[] }
+
+// One output of a send. Nothing is keyed by address, so the same address twice
+// is two payments.
+export interface CoreRecipient {
+  address: string
+  amountDuffs: bigint
+}
+
+// An address narrows the automatic note selection; a picked note list is the
+// spend set itself, spent whole.
+export type ShieldedSpendSource =
+  | { kind: 'address'; noteIndexes: number[] }
+  | { kind: 'notes'; noteIndexes: number[] }
+
+// One Orchard output of a pool spend. Diversified addresses mean a repeat is
+// not detectable as one, so the same address twice is two notes.
+export interface ShieldedRecipient {
+  address: string
+  amountCredits: bigint
+}
+
+// One transition can pay many addresses, each its own amount.
+export interface PlatformRecipient {
+  address: string
+  amountCredits: bigint
+}
+
+// The most of one Platform address a transition may draw. Credits are divisible,
+// so what it does not draw stays where it is.
+export interface PlatformPickedInput {
+  address: string
+  credits: bigint
+}
+
+// Which input pays the fee, named by address: the index consensus reads is a
+// position in the byte-sorted inputs, which only the main process can compute.
+export type PlatformFeeStep =
+  | { kind: 'deductFromInput'; address: string }
+  | { kind: 'reduceOutput'; index: number }
+
+// One address to draw from, or every address it may draw on, how much of each,
+// and which one is charged.
+export type PlatformSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'inputs'; inputs: PlatformPickedInput[]; feeStrategy: PlatformFeeStep[] }
+
+// getUtxos — every coin a send can draw on, which is also everything an
+// outpoints source may pick from.
+export interface SelectableUtxo {
+  txid: string
+  vout: number
+  satoshis: bigint
+  address: string
+  // 0 while the output is still in the mempool.
+  height: number
+}
+
 // the backend's business; this carries only what the user chose.
 export interface FeeParams {
   amountCredits: bigint
   // Whatever kind of address this operation pays. The transfer screens pay one,
   // so they never need the list form.
   recipient: string | string[]
+  // L1 quotes only: the fee scales with the inputs the amount takes.
+  amountDuffs?: bigint | null
+  // L1 quotes only: narrows the funding to one Core address, or to coins the
+  // user picked. Kept apart from platformSource, which names platform addresses.
+  coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them.
-  sourceAddress?: string | null
+  platformSource?: PlatformSpendSource | null
   identityId?: string | null
-  // Restricts a pool spend to one shielded address's notes.
-  noteIndexes?: number[] | null
+  // Narrows a pool spend to one shielded address's notes, or names the notes.
+  shieldedSource?: ShieldedSpendSource | null
 }
 
 // feeDuffs is what L1 charges on top of the amount, feeCredits what L2 takes
 // out of it. An L1 -> L2 transfer is two transactions and carries both; every
 // other operation carries one, and null means it cannot be priced yet.
-// maxPerTx and noteLimit are pool-spend facts: nothing else is capped by
-// anything but the balance.
+// maxDuffs is the largest amount the L1 selection can fund, which is not the
+// balance minus feeDuffs: the fee grows with every input it takes. maxPerTx and
+// noteLimit are pool-spend facts: nothing else is capped by anything but the
+// balance.
 export interface OperationFee {
   feeCredits: bigint | null
   feeDuffs: bigint | null
+  maxDuffs: bigint | null
   maxPerTx: bigint | null
   noteLimit: number | null
 }
@@ -79,12 +154,10 @@ export interface OperationFeeParams extends FeeParams {
 export interface AmountValidationParams {
   isCoreOperation: boolean
   amount: string
-  // Every fee the send pays in Dash. An L1 -> L2 transfer locks the L2 fee too,
-  // so the amount asked for is the amount that arrives.
-  totalFeeDuffs: bigint
+  // Null while the quote that knows it is in flight.
+  coreMaxDuffs: bigint | null
   operation: TransferOperation | null
   amountDuffs: bigint
-  balanceDuffs: bigint
   amountCredits: bigint
   minCredits: bigint
   availableCredits: bigint | null
@@ -207,7 +280,6 @@ export interface SendResult {
   txid: string
   amount: bigint
   fee: bigint
-  toAddress: string
   changeAddress: string | null
   peersAcked: number
 }

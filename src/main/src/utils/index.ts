@@ -20,6 +20,7 @@ import * as migration0015 from '../../migrations/0015_transaction_origin'
 import * as migration0016 from '../../migrations/0016_input_prevout'
 import * as migration0017 from '../../migrations/0017_platform_addresses'
 import * as migration0018 from '../../migrations/0018_shielded_address_rows'
+import * as migration0019 from '../../migrations/0019_shielded_note_nullifier'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -41,6 +42,7 @@ const migrations = [
   { name: '0016_input_prevout.ts', migration: migration0016 },
   { name: '0017_platform_addresses.ts', migration: migration0017 },
   { name: '0018_shielded_address_rows.ts', migration: migration0018 },
+  { name: '0019_shielded_note_nullifier.ts', migration: migration0019 },
 ]
 
 const inlineMigrationSource = {

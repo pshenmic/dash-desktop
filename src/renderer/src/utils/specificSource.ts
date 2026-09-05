@@ -10,13 +10,34 @@ export function initialSpecificSourcePreferences(): SpecificSourcePreferences {
     enabled: false,
     addresses: {
       [SourceKind.Core]: null,
+      [SourceKind.PlatformAddress]: null,
       [SourceKind.Shielded]: null,
     },
   }
 }
 
 export function specificSourceKindForOperation(operation: TransferOperation | null): SpecificSourceKind | null {
-  if (operation === TransferOperation.CoreSend) return SourceKind.Core
+  // Every operation funded by L1 coins, not just the plain send: an asset lock
+  // binds the coins it spends to its L2 destination for good.
+  if (
+    operation === TransferOperation.CoreSend
+    || operation === TransferOperation.AssetLockFunding
+    || operation === TransferOperation.AssetLockShield
+    || operation === TransferOperation.IdentityRegister
+    || operation === TransferOperation.IdentityTopUpL1
+  ) {
+    return SourceKind.Core
+  }
+  // The three transitions whose fee scales with the inputs they take, which are
+  // the only ones a pick can name.
+  if (
+    operation === TransferOperation.AddressFundsTransfer
+    || operation === TransferOperation.AddressWithdrawal
+    || operation === TransferOperation.IdentityCreate
+    || operation === TransferOperation.IdentityTopUp
+  ) {
+    return SourceKind.PlatformAddress
+  }
   if (
     operation === TransferOperation.ShieldedTransfer
     || operation === TransferOperation.Unshield

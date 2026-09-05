@@ -1,5 +1,6 @@
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {AssetLockProofParams} from '../../platform/types/messages'
+import {CoreSpendSource} from './CoinSelection'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
 import {Network} from './Network'
 import {Transaction} from './Transaction'
@@ -43,6 +44,10 @@ export interface AssetLockFunder {
     amountDuffs: bigint,
     seed: Uint8Array,
     credit?: {address: string; derivationPath: string},
+    // Which L1 coins fund the lock. The link it writes between them and the L2
+    // destination is permanent, so leaving the choice to the caller matters
+    // more here than on a plain send.
+    source?: CoreSpendSource,
   ): Promise<BuiltAssetLock>
   broadcastAssetLock(txHex: string): Promise<void>
   waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null>
@@ -67,5 +72,6 @@ export interface AcquireParams {
   amountDuffs: bigint
   seed: Uint8Array
   credit?: {address: string; derivationPath: string}
+  source?: CoreSpendSource
   identityIndex?: number | null
 }

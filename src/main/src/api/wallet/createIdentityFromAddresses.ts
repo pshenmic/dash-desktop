@@ -1,6 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { PlatformTransferService } from '../../services/platform/PlatformTransferService'
 import { IdentityCreateResult } from '../../types/IdentityCreateResult'
+import { PlatformSpendSource } from '../../types/PlatformTransfer'
 
 export class CreateIdentityFromAddressesHandler {
   private platformTransferService: PlatformTransferService
@@ -12,10 +13,10 @@ export class CreateIdentityFromAddressesHandler {
   handle = async (
     _event: IpcMainInvokeEvent,
     walletId: string,
-    fromAddress: string | null,
+    source: PlatformSpendSource | null,
     amountCredits: bigint,
     password: string,
   ): Promise<IdentityCreateResult> => {
-    return this.platformTransferService.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password)
+    return this.platformTransferService.createIdentityFromAddresses(walletId, source, amountCredits, password)
   }
 }

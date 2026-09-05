@@ -125,7 +125,7 @@ describe('the seed a shielded job holds', () => {
   it('is zeroed when a spend settles', async () => {
     const {service} = wire()
 
-    await service.startTransfer(WALLET, PASSWORD, 'recipient', 100n)
+    await service.startTransfer(WALLET, PASSWORD, [{address: 'recipient', amountCredits: 100n}])
     await vi.waitFor(() => expect(zeroed()).toBe(true))
   })
 
@@ -133,7 +133,7 @@ describe('the seed a shielded job holds', () => {
     const {service, request} = wire()
     request.mockRejectedValue(new Error('prover died'))
 
-    await service.startTransfer(WALLET, PASSWORD, 'recipient', 100n)
+    await service.startTransfer(WALLET, PASSWORD, [{address: 'recipient', amountCredits: 100n}])
     await vi.waitFor(() => expect(zeroed()).toBe(true))
   })
 
@@ -143,7 +143,7 @@ describe('the seed a shielded job holds', () => {
     const {service, poolDAO} = wire()
     poolDAO.getAllEncryptedNotes.mockRejectedValue(new Error('database is locked'))
 
-    await service.startTransfer(WALLET, PASSWORD, 'recipient', 100n)
+    await service.startTransfer(WALLET, PASSWORD, [{address: 'recipient', amountCredits: 100n}])
 
     expect(zeroed()).toBe(true)
   })
@@ -173,7 +173,7 @@ describe('the seed a shielded job holds', () => {
       return {stHash: 'st', identityId: null}
     })
 
-    await service.startTransfer(WALLET, PASSWORD, 'recipient', 100n)
+    await service.startTransfer(WALLET, PASSWORD, [{address: 'recipient', amountCredits: 100n}])
     await vi.waitFor(() => expect(zeroed()).toBe(true))
 
     expect(liveDuringSync).toBe(true)
@@ -190,7 +190,7 @@ describe('the seed a shielded job holds', () => {
       return {stHash: 'st', identityId: null}
     })
 
-    await service.startTransfer(WALLET, PASSWORD, 'recipient', 100n)
+    await service.startTransfer(WALLET, PASSWORD, [{address: 'recipient', amountCredits: 100n}])
     await vi.waitFor(() => expect(zeroed()).toBe(true))
 
     expect(liveDuringSpend).toBe(true)

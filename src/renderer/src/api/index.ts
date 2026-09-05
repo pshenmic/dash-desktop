@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -119,6 +119,10 @@ export class API {
     return this.api.getTransactions(walletId)
   }
 
+  static async getUtxos(walletId: string): Promise<SelectableUtxo[]> {
+    return this.api.getUtxos(walletId)
+  }
+
   static async getTransactionByHash(hash: string, network: Network): Promise<WalletTxDto> {
     return this.api.getTransactionByHash(hash, network) as Promise<WalletTxDto>
   }
@@ -203,8 +207,8 @@ export class API {
     return this.api.deleteContact(id)
   }
 
-  static async sendTransaction(walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, toAddress, amountDuffs, password, fromAddress) as Promise<SendResult>
+  static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, recipients, password, source) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {
@@ -231,16 +235,20 @@ export class API {
     return this.api.getShieldedSyncState(walletId) as Promise<ShieldedSyncState>
   }
 
-  static async sendPlatformTransfer(walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string): Promise<PlatformSendResult> {
-    return this.api.sendPlatformTransfer(walletId, fromAddress, toAddress, amountCredits, password) as Promise<PlatformSendResult>
+  static async refreshShieldedSpentNotes(walletId: string): Promise<ShieldedSyncState> {
+    return this.api.refreshShieldedSpentNotes(walletId) as Promise<ShieldedSyncState>
   }
 
-  static async topUpIdentityFromAddresses(walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string): Promise<PlatformSendResult> {
-    return this.api.topUpIdentityFromAddresses(walletId, identityId, fromAddress, amountCredits, password) as Promise<PlatformSendResult>
+  static async sendPlatformTransfer(walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string): Promise<PlatformSendResult> {
+    return this.api.sendPlatformTransfer(walletId, source, recipients, password) as Promise<PlatformSendResult>
   }
 
-  static async withdrawPlatformCredits(walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string): Promise<PlatformSendResult> {
-    return this.api.withdrawPlatformCredits(walletId, fromAddress, toCoreAddress, amountCredits, password) as Promise<PlatformSendResult>
+  static async topUpIdentityFromAddresses(walletId: string, identityId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string): Promise<PlatformSendResult> {
+    return this.api.topUpIdentityFromAddresses(walletId, identityId, source, amountCredits, password) as Promise<PlatformSendResult>
+  }
+
+  static async withdrawPlatformCredits(walletId: string, source: PlatformSpendSource | null, toCoreAddress: string, amountCredits: bigint, password: string): Promise<PlatformSendResult> {
+    return this.api.withdrawPlatformCredits(walletId, source, toCoreAddress, amountCredits, password) as Promise<PlatformSendResult>
   }
 
   static async sendIdentityCredits(walletId: string, identityId: string, toAddress: string, amountCredits: bigint, password: string): Promise<PlatformSendResult> {
@@ -255,12 +263,12 @@ export class API {
     return this.api.withdrawIdentityCredits(walletId, identityId, toCoreAddress, amountCredits, password) as Promise<PlatformSendResult>
   }
 
-  static async createIdentityFromAddresses(walletId: string, fromAddress: string | null, amountCredits: bigint, password: string): Promise<IdentityCreateResult> {
-    return this.api.createIdentityFromAddresses(walletId, fromAddress, amountCredits, password) as Promise<IdentityCreateResult>
+  static async createIdentityFromAddresses(walletId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string): Promise<IdentityCreateResult> {
+    return this.api.createIdentityFromAddresses(walletId, source, amountCredits, password) as Promise<IdentityCreateResult>
   }
 
-  static async startAssetLockFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind: AssetLockFundingKind = AssetLockFundingKind.Address): Promise<AssetLockFundingState> {
-    return this.api.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password, kind) as Promise<AssetLockFundingState>
+  static async startAssetLockFunding(walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind: AssetLockFundingKind = AssetLockFundingKind.Address, source?: CoreSpendSource): Promise<AssetLockFundingState> {
+    return this.api.startAssetLockFunding(walletId, toPlatformAddress, amountDuffs, password, kind, source) as Promise<AssetLockFundingState>
   }
 
   static async getAssetLockFundingState(walletId: string): Promise<AssetLockFundingState> {
@@ -279,16 +287,16 @@ export class API {
     return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
   }
 
-  static async startShieldedTransfer(walletId: string, recipient: string, amountCredits: bigint, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.api.startShieldedTransfer(walletId, recipient, amountCredits, password, noteIndexes) as Promise<ShieldedSpendState>
+  static async startShieldedTransfer(walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {
+    return this.api.startShieldedTransfer(walletId, recipients, password, source) as Promise<ShieldedSpendState>
   }
 
-  static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password, noteIndexes) as Promise<ShieldedSpendState>
+  static async startShieldedUnshield(walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {
+    return this.api.startShieldedUnshield(walletId, outputAddress, amountCredits, password, source) as Promise<ShieldedSpendState>
   }
 
-  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> {
-    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password, noteIndexes) as Promise<ShieldedSpendState>
+  static async startShieldedWithdrawal(walletId: string, coreAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {
+    return this.api.startShieldedWithdrawal(walletId, coreAddress, amountCredits, password, source) as Promise<ShieldedSpendState>
   }
 
   static async startShieldedIdentityCreate(walletId: string, denominationCredits: bigint, password: string): Promise<ShieldedSpendState> {

@@ -85,6 +85,7 @@ import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
 import {GetShieldedNotesInfoHandler} from './api/shielded/getShieldedNotesInfo'
 import {StartShieldedSyncHandler} from './api/shielded/startShieldedSync'
 import {GetShieldedSyncStateHandler} from './api/shielded/getShieldedSyncState'
+import {RefreshShieldedSpentNotesHandler} from './api/shielded/refreshShieldedSpentNotes'
 import {StartShieldedTransferHandler} from './api/shielded/startShieldedTransfer'
 import {StartShieldedUnshieldHandler} from './api/shielded/startShieldedUnshield'
 import {StartShieldedWithdrawalHandler} from './api/shielded/startShieldedWithdrawal'
@@ -102,7 +103,7 @@ import {DeleteContactHandler} from './api/contacts/deleteContact'
 import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
-import {GetUtxosHandler} from './api/walletSync/getUtxos'
+import {GetUtxosHandler} from './api/wallet/getUtxos'
 import {DISCOVERY_INTERVAL_MS} from './constants/addresses'
 import {CoreDiscoveryService} from './services/core/CoreDiscoveryService'
 import {CorePrevOutService} from './services/core/CorePrevOutService'
@@ -206,7 +207,7 @@ export class WalletBackend {
     ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
     ipcMain.handle('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
-    ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletSyncService).handle)
+    ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletService).handle)
     ipcMain.handle('hasSyncProgress', new HasSyncProgressHandler(this.walletSyncService).handle)
     ipcMain.handle('broadcastTransaction', new BroadcastTransactionHandler(this.walletSyncService).handle)
     ipcMain.handle('getExchangeRates', new GetExchangeRatesHandler(this.ratesService).handle)
@@ -218,6 +219,7 @@ export class WalletBackend {
     ipcMain.handle('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
     ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
+    ipcMain.handle('refreshShieldedSpentNotes', new RefreshShieldedSpentNotesHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
     ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
@@ -272,7 +274,7 @@ export class WalletBackend {
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
     this.platformAddressService = new PlatformAddressService(walletDAO, new PlatformAddressDAO(knex), this.platformWorkerService)
-    this.feeService = new FeeService(walletDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, preferences)
+    this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, providers, preferences)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
     this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformAddressService, this.platformWorkerService, this.shieldedService, this.feeService, preferences)
     this.walletDAO = walletDAO

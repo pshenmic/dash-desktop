@@ -18,9 +18,10 @@ describe('specific source preferences', () => {
     expect(preferences.enabled).toBe(true)
   })
 
-  it('keeps Core and Shielded addresses independent when the shared setting is toggled', () => {
+  it('keeps every source kind\'s address independent when the shared setting is toggled', () => {
     const withCore = updateSpecificSourceAddress(initialSpecificSourcePreferences(), SourceKind.Core, 'core-address')
-    const withShielded = updateSpecificSourceAddress(withCore, SourceKind.Shielded, 'shielded-address')
+    const withPlatform = updateSpecificSourceAddress(withCore, SourceKind.PlatformAddress, 'platform-address')
+    const withShielded = updateSpecificSourceAddress(withPlatform, SourceKind.Shielded, 'shielded-address')
     const enabled = updateSpecificSourceEnabled(withShielded, true)
     const disabled = updateSpecificSourceEnabled(enabled, false)
     const enabledAgain = updateSpecificSourceEnabled(disabled, true)
@@ -29,6 +30,7 @@ describe('specific source preferences', () => {
       enabled: true,
       addresses: {
         [SourceKind.Core]: 'core-address',
+        [SourceKind.PlatformAddress]: 'platform-address',
         [SourceKind.Shielded]: 'shielded-address',
       },
     })
@@ -40,7 +42,18 @@ describe('specific source preferences', () => {
     [TransferOperation.Unshield, SourceKind.Shielded],
     [TransferOperation.ShieldedWithdrawal, SourceKind.Shielded],
     [TransferOperation.IdentityCreateFromShielded, null],
-    [TransferOperation.AssetLockFunding, null],
+    // Funded by L1 coins like a plain send, so the same picker applies.
+    [TransferOperation.AssetLockFunding, SourceKind.Core],
+    [TransferOperation.AssetLockShield, SourceKind.Core],
+    [TransferOperation.IdentityRegister, SourceKind.Core],
+    [TransferOperation.IdentityTopUpL1, SourceKind.Core],
+    // Funded by platform addresses, whose inputs are what a pick names here.
+    [TransferOperation.AddressFundsTransfer, SourceKind.PlatformAddress],
+    [TransferOperation.IdentityCreate, SourceKind.PlatformAddress],
+    [TransferOperation.IdentityTopUp, SourceKind.PlatformAddress],
+    [TransferOperation.AddressWithdrawal, SourceKind.PlatformAddress],
+    // Spends its source address whole, so it has no set to pick from.
+    [TransferOperation.Shield, null],
   ])('maps %s to its applicable preference', (operation, expected) => {
     expect(specificSourceKindForOperation(operation)).toBe(expected)
   })

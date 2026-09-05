@@ -15,7 +15,7 @@ import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import { API } from '@renderer/api'
-import { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
+import { AssetLockFundingState, PlatformSpendSource, ShieldedSpendState } from '@renderer/api/types'
 import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
@@ -122,25 +122,35 @@ export default function IdentityRegistration(): React.JSX.Element {
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? BigInt(shieldedSync.balance)
     : null
+  // Only the transitions platform addresses fund read this; an L1 registration
+  // is funded by coins and names none.
+  const platformSource: PlatformSpendSource | null =
+    selectedSource != null && operation === TransferOperation.IdentityCreate
+      ? { kind: 'address', address: selectedSource.platformAddress }
+      : null
+
   const availableCredits = fromKind === SourceKind.PlatformAddress
     ? BigInt(selectedSource?.balanceCredits ?? 0n)
     : fromKind === SourceKind.Shielded
       ? shieldedBalance
       : null
 
-  const { feeCredits, feeDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
+  const { feeCredits, feeDuffs, maxDuffs: coreSelectableDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
     destinationValid: true,
     recipient: '',
     amountCredits,
-    sourceAddress: selectedSource?.platformAddress ?? null,
+    amountDuffs: fromKind === SourceKind.Core ? amountDuffs : null,
+    platformSource,
     identityId: null,
-    noteIndexes: null,
+    shieldedSource: null,
   })
 
   // The Core fee is paid on top of the amount, and an L1 registration locks the
   // identity-create fee on top of that so the amount typed is what is credited.
   const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
-  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs, totalFeeDuffs)
+  const coreMaxDuffs = coreSelectableDuffs === null
+    ? null
+    : identityRegistrationMaxDuffs(coreSelectableDuffs, creditsToDuffs(feeCredits ?? 0n))
   const platformMaxDuffs = maxPerTx !== null
     ? creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     : feeCredits !== null && availableCredits !== null
@@ -148,14 +158,13 @@ export default function IdentityRegistration(): React.JSX.Element {
       : null
   const maxDuffs = fromKind === SourceKind.Core ? coreMaxDuffs : platformMaxDuffs
   const amountError = fromKind === SourceKind.Core
-    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs, totalFeeDuffs)
+    ? identityRegistrationAmountError(amount, amountDuffs, coreMaxDuffs)
     : amountErrorFor({
         isCoreOperation: false,
         amount,
-        totalFeeDuffs,
+        coreMaxDuffs,
         operation,
         amountDuffs,
-        balanceDuffs,
         amountCredits,
         minCredits: info.minCredits ?? 0n,
         availableCredits,
@@ -246,7 +255,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const runPlatformRegistration = (password: string) => {
     if (!walletId) return Promise.reject(new Error('No wallet selected'))
-    return API.createIdentityFromAddresses(walletId, selectedSource?.platformAddress ?? null, amountCredits, password)
+    return API.createIdentityFromAddresses(walletId, platformSource, amountCredits, password)
       .then(result => ({
         stHash: result.stHash,
         amountCredits: result.amountCredits,

@@ -3,6 +3,8 @@ export interface PersistNote {
   amount: bigint
   address: string
   spent: boolean
+  // Null on rows written before 0019; the next sync fills it.
+  nullifier: Uint8Array | null
 }
 
 export interface EncryptedNoteRecord {

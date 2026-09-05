@@ -3,12 +3,21 @@ import {AddressWitnessWASM, InputAddressWASM, AddressFundsFeeStrategyStepWASM} f
 import {Network} from '../../../src/types/Network'
 import {PLATFORM_ACCOUNT} from '../../../src/constants/addresses'
 import {AddressInput} from '../../types/messages'
+import {FeeStrategyStep} from '../../../src/types/PlatformTransfer'
 
-// Fees come out of the first input for every address-funded transition.
+// What a quote charges, and the wallet's default: the fee comes out of the
+// first input. A priced transition has no strategy of its own to carry.
 export const DEDUCT_FROM_FIRST = [AddressFundsFeeStrategyStepWASM.DeductFromInput(0)]
 
 export const toInputAddresses = (inputs: AddressInput[]): InputAddressWASM[] =>
   inputs.map(input => new InputAddressWASM(input.platformAddress, input.nonce + 1, input.credits))
+
+// Both indexes are positions in the inputs and outputs as this transition
+// submits them, which main resolved them against.
+export const toFeeStrategy = (steps: FeeStrategyStep[]): AddressFundsFeeStrategyStepWASM[] =>
+  steps.map(step => step.kind === 'deductFromInput'
+    ? AddressFundsFeeStrategyStepWASM.DeductFromInput(step.index)
+    : AddressFundsFeeStrategyStepWASM.ReduceOutput(step.index))
 
 export async function signInputs(
   sdk: DashPlatformSDK,

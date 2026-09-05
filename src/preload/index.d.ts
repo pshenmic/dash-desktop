@@ -4,6 +4,49 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 // share types, so each spells the two networks out for itself.
 type Network = 'mainnet' | 'testnet'
 
+// Mirrors src/main/src/types/CoinSelection, which the bundles do not share: an
+// address narrows the automatic selection, a picked outpoint list is spent whole.
+type CoreSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
+
+// Mirrors the CoreRecipient in src/main/src/types/CoreTransaction: one
+// transaction can pay many addresses, each its own amount.
+type CoreRecipient = { address: string; amountDuffs: bigint }
+
+// Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
+// automatic note selection, a picked note list is spent whole.
+type ShieldedSpendSource =
+  | { kind: 'address'; noteIndexes: number[] }
+  | { kind: 'notes'; noteIndexes: number[] }
+
+// Mirrors the ShieldedRecipient in the same file: one bundle pays several
+// Orchard addresses, each its own amount.
+type ShieldedRecipient = { address: string; amountCredits: bigint }
+
+// Mirrors src/main/src/types/PlatformTransfer: one address to draw from, or
+// every address it may draw on, how much of each, and which one is charged.
+type PlatformPickedInput = { address: string; credits: bigint }
+type PlatformFeeStep =
+  | { kind: 'deductFromInput'; address: string }
+  | { kind: 'reduceOutput'; index: number }
+// Mirrors the Recipient in src/main/platform/types/messages: one transition can
+// pay many addresses, each its own amount.
+type PlatformRecipient = { address: string; amountCredits: bigint }
+type PlatformSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'inputs'; inputs: PlatformPickedInput[]; feeStrategy: PlatformFeeStep[] }
+
+// Every coin a send can draw on: what getUtxos lists and what an outpoints
+// source picks from.
+interface SelectableUtxoDTO {
+  txid: string
+  vout: number
+  satoshis: bigint
+  address: string
+  height: number
+}
+
 // Hand-maintained alongside definitions.ts, and deliberately a second
 // declaration of src/main/src/types/Transaction: the three bundles do not share
 // types. Amounts stay bigint — structured clone carries them as themselves.
@@ -74,17 +117,17 @@ declare global {
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<void>
       setWalletLabel: (walletId: string, label: string | null) => Promise<void>
-      sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => Promise<unknown>
+      sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
-      estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
-      sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
-      topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
-      withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
+      estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
+      sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => Promise<unknown>
+      topUpIdentityFromAddresses: (walletId: string, identityId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => Promise<unknown>
+      withdrawPlatformCredits: (walletId: string, source: PlatformSpendSource | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
       transferIdentityCredits: (walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawIdentityCredits: (walletId: string, identityId: string, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
-      createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: bigint, password: string) => Promise<unknown>
-      startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => Promise<unknown>
+      createIdentityFromAddresses: (walletId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => Promise<unknown>
+      startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string, source?: CoreSpendSource) => Promise<unknown>
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
       dismissAssetLockFunding: (walletId: string) => Promise<unknown>
@@ -111,7 +154,7 @@ declare global {
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>
       resetWalletSync: (network: Network) => Promise<void>
-      getUtxos: () => Promise<unknown>
+      getUtxos: (walletId: string) => Promise<SelectableUtxoDTO[]>
       hasSyncProgress: (walletId: string) => Promise<boolean>
       getExchangeRates: () => Promise<unknown>
       saveTextFile: (defaultFileName: string, content: string) => Promise<boolean>
@@ -126,9 +169,10 @@ declare global {
       getShieldedNotesInfo: (walletId: string) => Promise<{ undecodedCount: number }>
       startShieldedSync: (walletId: string, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
       getShieldedSyncState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
-      startShieldedTransfer: (walletId: string, recipient: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
-      startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
-      startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      refreshShieldedSpentNotes: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'recovering' | 'done' | 'error'; fetched: number; total: number; balance: bigint | null; notes: { index: number; amount: bigint; spent: boolean }[]; error: string | null; syncedAt: number | null }>
+      startShieldedTransfer: (walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
+      startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; error: string | null }>
       startShieldedIdentityCreate: (walletId: string, denominationCredits: bigint, password: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; identityId: string | null; error: string | null }>
       getShieldedSpendState: (walletId: string) => Promise<{ phase: 'idle' | 'syncing' | 'proving' | 'broadcasting' | 'done' | 'error'; fetched: number; total: number; stHash: string | null; identityId: string | null; error: string | null }>
       getShieldedAddress: (walletId: string, password?: string) => Promise<string | null>

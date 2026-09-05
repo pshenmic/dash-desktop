@@ -19,7 +19,7 @@ export class ShieldedNoteDAO {
 
   getOwnedNotes = async (walletId: string): Promise<PersistNote[]> => {
     const rows = await this.knex('shielded_notes')
-      .select('note_index', 'amount', 'address', 'spent')
+      .select('note_index', 'amount', 'address', 'spent', 'nullifier')
       .where({wallet_id: walletId})
       .orderBy('note_index', 'desc')
     return rows.map((row) => ({
@@ -27,6 +27,7 @@ export class ShieldedNoteDAO {
       amount: BigInt(row.amount),
       address: row.address,
       spent: Boolean(row.spent),
+      nullifier: row.nullifier ?? null,
     }))
   }
 
@@ -39,9 +40,10 @@ export class ShieldedNoteDAO {
         amount: n.amount.toString(),
         address: n.address,
         spent: n.spent,
+        nullifier: n.nullifier == null ? null : Buffer.from(n.nullifier),
       })))
       .onConflict(['wallet_id', 'note_index'])
-      .merge(['amount', 'address', 'spent'])
+      .merge(['amount', 'address', 'spent', 'nullifier'])
   }
 
   // Only ever an update: a spent index that is not already an owned note would
