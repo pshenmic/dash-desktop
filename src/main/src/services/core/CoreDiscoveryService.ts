@@ -10,6 +10,9 @@ import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
 import {coreAddressDeriver} from '../../utils/addressDiscovery'
 import {runAddressWindow} from '../../utils/addressWindow'
 import {WalletSyncService} from './WalletSyncService'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('discovery')
 
 export class CoreDiscoveryService {
   private walletDAO: WalletDAO
@@ -74,8 +77,8 @@ export class CoreDiscoveryService {
       if (revealed.length === 0) continue
 
       added.push(...revealed.map(derived => this.coreAddressRow(walletId, isChange, derived)))
-      console.log(
-        `[discovery] ${isChange ? 'change' : 'receiving'} — derived ${revealed.length} ` +
+      log.info(
+        `${isChange ? 'change' : 'receiving'} — derived ${revealed.length} ` +
         `address(es) at index ${revealed[0].index}..${revealed[revealed.length - 1].index}`,
       )
     }
@@ -97,7 +100,7 @@ export class CoreDiscoveryService {
       this.scanCompleteLatched.add(walletId)
       await this.transactionDAO.markInitialScanComplete(walletId).catch(err => {
         this.scanCompleteLatched.delete(walletId)
-        console.error('[discovery] markInitialScanComplete failed:', err)
+        log.error('markInitialScanComplete failed:', err)
       })
     }
   }

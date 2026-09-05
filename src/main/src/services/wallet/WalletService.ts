@@ -34,6 +34,10 @@ import {CoreRecipient} from '../../types/CoreTransaction'
 import {requireCoreRecipients, selectableTransferUtxos, selectTransferInputs} from '../../utils/transferInputs'
 import {Preferences} from '../../preferences'
 import {ConnectionStatus} from '../../types/ConnectionStatus'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('wallet')
+const locks = new Logger('locks')
 
 export class WalletService {
   private walletDAO: WalletDAO
@@ -119,7 +123,7 @@ export class WalletService {
     try {
       await this.discovery.discoverCoreAddresses(walletId)
     } catch (e) {
-      console.error('Core address discovery after wallet creation failed:', e)
+      log.error('core address discovery after wallet creation failed:', e)
     }
 
     // The wallet and addresses are already persisted, so a scan that cannot
@@ -142,7 +146,7 @@ export class WalletService {
         })))
       }
     } catch (e) {
-      console.error('Identity discovery after wallet creation failed:', e)
+      log.error('identity discovery after wallet creation failed:', e)
     }
 
     return walletId
@@ -180,7 +184,7 @@ export class WalletService {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet != null) {
       await this.walletSyncService.startLockListen(wallet.network, walletId)
-        .catch(err => console.error('[locks] failed to start lock listener:', err))
+        .catch(err => locks.error('failed to start lock listener:', err))
     }
   }
 

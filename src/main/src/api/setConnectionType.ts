@@ -3,6 +3,9 @@ import {ConnectionType} from "../preferences/general";
 import {ApplicationService} from "../services/app/ApplicationService";
 import {WalletService} from "../services/wallet/WalletService";
 import {CoreDiscoveryService} from "../services/core/CoreDiscoveryService";
+import {Logger} from '../utils/logger'
+
+const log = new Logger('discovery')
 
 export class SetConnectionTypeHandler {
   private applicationService: ApplicationService
@@ -31,7 +34,7 @@ export class SetConnectionTypeHandler {
       const selected = await this.walletService.getSelectedWallet()
       if (selected != null) {
         this.discovery.rediscoverCoreAddresses(selected.walletId).catch(err =>
-          console.error('[discovery] connection-type switch address discovery failed:', err))
+          log.error('connection-type switch address discovery failed:', err))
       }
     }
   }

@@ -33,11 +33,8 @@ import {
   XPUB_PAGE_LIMIT,
 } from '../constants/dashscan'
 
-const dashscanConnectionStatusCache = {
-  statuses: new Map<Network, ConnectionStatus>(),
-  checkedAt: new Map<Network, number>(),
-  inflight: new Map<Network, Promise<void>>(),
-}
+const statusCache = new Map<Network, {status: ConnectionStatus, checkedAt: number}>()
+const statusProbes = new Set<Network>()
 
 export class DashscanWalletProvider implements WalletProvider {
   private baseUrl: string
@@ -231,25 +228,32 @@ export class DashscanWalletProvider implements WalletProvider {
     if (!response.ok) throw new Error(`Dashscan status request failed (${response.status})`)
   }
 
+  // The renderer polls this every second, so it answers from cache and leaves
+  // the probe running detached.
   async getConnectionStatus(): Promise<ConnectionStatus> {
-    const checkedAt = dashscanConnectionStatusCache.checkedAt.get(this.network)
-    const fresh = checkedAt != null && Date.now() - checkedAt < DASHSCAN_STATUS_INTERVAL_MS
+    const cached = statusCache.get(this.network)
+    const stale = cached == null || Date.now() - cached.checkedAt >= DASHSCAN_STATUS_INTERVAL_MS
 
-    if (!fresh && !dashscanConnectionStatusCache.inflight.has(this.network)) {
-      const refresh = Promise.resolve()
-        .then(() => this.ensureReady())
-        .then(() => dashscanConnectionStatusCache.statuses.set(this.network, 'online'))
-        .catch(() => dashscanConnectionStatusCache.statuses.set(this.network, 'unavailable'))
-        .then(() => undefined)
-        .finally(() => {
-          dashscanConnectionStatusCache.checkedAt.set(this.network, Date.now())
-          dashscanConnectionStatusCache.inflight.delete(this.network)
-        })
+    if (stale && !statusProbes.has(this.network)) void this.refreshConnectionStatus()
 
-      dashscanConnectionStatusCache.inflight.set(this.network, refresh)
+    return cached?.status ?? 'connecting'
+  }
+
+  // A failed probe still stamps checkedAt, or an indexer that is down would be
+  // re-probed on every poll.
+  private async refreshConnectionStatus(): Promise<void> {
+    statusProbes.add(this.network)
+
+    let status: ConnectionStatus
+    try {
+      await this.ensureReady()
+      status = 'online'
+    } catch {
+      status = 'unavailable'
     }
 
-    return dashscanConnectionStatusCache.statuses.get(this.network) ?? 'connecting'
+    statusCache.set(this.network, {status, checkedAt: Date.now()})
+    statusProbes.delete(this.network)
   }
 
   async getTxLockStatus(txid: string): Promise<TxLockStatus> {

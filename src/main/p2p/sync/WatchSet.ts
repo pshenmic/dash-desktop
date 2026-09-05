@@ -10,6 +10,9 @@ import type {
   WalletSyncUtxo,
   WatchAddress,
 } from '../types/walletSync'
+import {Logger} from '../../src/utils/logger'
+
+const log = new Logger('cfilter')
 
 const {addressToPublicKeyHash} = sdkUtils
 
@@ -129,7 +132,7 @@ export class WatchSet {
           spends.push({prevTxid: u.txid, prevVout: u.vout, spentInTxid: txid})
           this.utxos.delete(`${input.txId}:${input.vOut}`)
           isOurs = true
-          console.log(`[cfilter] spent ${u.txid.slice(0, 16)}…:${u.vout} -${u.satoshis} h=${height}`)
+          log.info(`spent ${u.txid.slice(0, 16)}…:${u.vout} -${u.satoshis} h=${height}`)
         }
       }
 
@@ -151,7 +154,7 @@ export class WatchSet {
         this.matchItems.push(new OutPoint(txid, vout).bytes())
         this.itemsRevision++
         isOurs = true
-        console.log(`[cfilter] received ${txid.slice(0, 16)}…:${vout} +${u.satoshis} h=${height} (${address})`)
+        log.info(`received ${txid.slice(0, 16)}…:${vout} +${u.satoshis} h=${height} (${address})`)
       }
 
       if (isOurs) txs.push({txid, raw: tx.bytes(), inputs, outputs})

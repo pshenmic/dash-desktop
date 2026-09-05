@@ -231,7 +231,7 @@ describe('observability of the crossing into main', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     logged = []
-    vi.spyOn(console, 'log').mockImplementation((msg: unknown) => { logged.push(String(msg)) })
+    vi.spyOn(console, 'info').mockImplementation((msg: unknown) => { logged.push(String(msg)) })
     const transactionDAO = {markChainlockedUpTo: vi.fn().mockResolvedValue(undefined)}
     service = new WalletSyncService({} as never, {} as never, transactionDAO as never, Preferences.default())
   })

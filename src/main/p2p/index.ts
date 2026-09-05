@@ -1,7 +1,12 @@
+import {Logger, configureLogger} from '../src/utils/logger'
 import {probePeer} from './net/peerProbe'
 import {SyncService} from './sync/SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
-import {MB} from './constants'
+
+// The parent re-logs this process's stdout, so every line carries its level.
+configureLogger({levelPrefix: true})
+
+const log = new Logger('p2p')
 
 process.title = 'dash-p2p'
 
@@ -10,11 +15,11 @@ process.title = 'dash-p2p'
 // is recorded even when no one is watching the terminal.
 function reportFatal(label: string, value: unknown): void {
   const detail = value instanceof Error ? (value.stack ?? value.message) : String(value)
-  console.error(`[p2p] ${label}:`, value)
+  log.error(`${label}:`, value)
   try {
     process.parentPort.postMessage({type: 'error', message: `${label}: ${detail}`})
   } catch {
-    // parentPort may already be torn down during shutdown — the console.error above still lands.
+    // parentPort may already be torn down during shutdown — the log.error above still lands.
   }
 }
 process.on('uncaughtException', (err) => {
@@ -87,6 +92,9 @@ process.parentPort.on('message', ({data}) => {
     case 'reseedUtxos':
       sync.reseedUtxos(data)
       return
+    case 'setLogLevel':
+      configureLogger({level: data.level})
+      return
     case 'banPeers':
       sync.setBannedPeers(data.banned)
       return
@@ -104,12 +112,3 @@ process.parentPort.on('message', ({data}) => {
 
 // Push the initial 'idle' state to the parent.
 process.parentPort.postMessage({type: 'status', status: sync.getStatus()})
-
-setInterval(() => {
-  const m = process.memoryUsage()
-  console.log(
-    `[p2p-mem] rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +
-    `heapTotal=${(m.heapTotal / MB).toFixed(0)}MB external=${(m.external / MB).toFixed(0)}MB ` +
-    `arrayBuffers=${(m.arrayBuffers / MB).toFixed(0)}MB`,
-  )
-}, 60_000).unref()

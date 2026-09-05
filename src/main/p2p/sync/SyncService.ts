@@ -26,6 +26,10 @@ import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from '../types/chainStore'
 import {SyncServiceEvents} from '../types/sync'
 import {PeerInfo, PeerOverrides, PoolServiceOptions} from '../types/pool'
+import {Logger} from '../../src/utils/logger'
+
+const log = new Logger('p2p')
+const locks = new Logger('locks')
 
 // Top-level controller for the p2p utility process: owns ChainStore and the
 // pools, spawns workers per session, aggregates their status.
@@ -138,7 +142,7 @@ export class SyncService {
       // pool the workers hold. Main sends `stop` before re-listening, so this
       // only catches a session that outlived it.
       if (this.syncPool && this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides)) {
-        console.log('[p2p] peer settings changed under a running session — stopping the sync layer')
+        log.info('peer settings changed under a running session — stopping the sync layer')
         await this.teardownBulk()
       }
       this.startLockCore(cmd.network, cmd.peerOverrides)
@@ -220,8 +224,8 @@ export class SyncService {
   private reportMempoolWatch = (): void => {
     const {announced, fetched, matched} = this.mempoolStats
     this.mempoolStats = {announced: 0, fetched: 0, matched: 0}
-    console.log(
-      `[locks] mempool watch: ${announced} announced, ${fetched} fetched, ${matched} ours ` +
+    locks.info(
+      `mempool watch: ${announced} announced, ${fetched} fetched, ${matched} ours ` +
       `(watching ${this.lockAddresses.size} address(es))`,
     )
   }
@@ -293,13 +297,13 @@ export class SyncService {
     // Resume from persisted tip, or genesis on a fresh chain.db.
     let resumeHeight = persisted.tipHeight
     let resumeHash = persisted.tipHash
-    console.log(`[p2p] persisted state: height=${resumeHeight} hash=${resumeHash ?? 'null'}`)
+    log.info(`persisted state: height=${resumeHeight} hash=${resumeHash ?? 'null'}`)
     if (!resumeHash) {
       resumeHash = GENESIS[cmd.network].hash
       resumeHeight = GENESIS[cmd.network].height
-      console.log(`[p2p] genesis fallback: height=${resumeHeight} hash=${resumeHash}`)
+      log.info(`genesis fallback: height=${resumeHeight} hash=${resumeHash}`)
     }
-    console.log(`[p2p] starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
+    log.info(`starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
     if (this.pinnedOnly) {
       // One pool, both jobs: a second pool dialling the same pinned hosts would
@@ -401,7 +405,7 @@ export class SyncService {
         lastErr = err
         await store.close().catch(() => { /* ignore */ })
         if (attempt < ATTEMPTS) {
-          console.warn(`[p2p] chain.db open attempt ${attempt}/${ATTEMPTS} failed, retrying: ${describeError(err)}`)
+          log.warn(`chain.db open attempt ${attempt}/${ATTEMPTS} failed, retrying: ${describeError(err)}`)
           await delay(BACKOFF_MS)
         }
       }
@@ -464,7 +468,7 @@ export class SyncService {
     // A wallet with nothing unconfirmed re-sends an empty replace on every
     // refresh; only a change in what is armed says anything.
     if (this.watchedTxids.size === 0 && before === 0) return
-    console.log(`[locks] watchTxs ${cmd.mode} (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
+    locks.debug(`watchTxs ${cmd.mode} (${this.watchedTxids.size}): ${[...this.watchedTxids].join(',') || '(none)'}`)
   }
 
   // ── lock watcher ────────────────────────────────────────────────────────────
@@ -497,10 +501,10 @@ export class SyncService {
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
         const hashHex = wireToDisplayHex(item.hash)
         if (this.watchedTxids.size > 0) {
-          console.log(`[locks] isdlock inv ${hashHex} — requesting getdata (watching ${this.watchedTxids.size})`)
+          locks.debug(`isdlock inv ${hashHex} — requesting getdata (watching ${this.watchedTxids.size})`)
           wanted.push({type: item.type, hash: item.hash})
         } else {
-          console.log(`[locks] isdlock inv ${hashHex} — skipped, watch set empty`)
+          locks.debug(`isdlock inv ${hashHex} — skipped, watch set empty`)
         }
       }
     }
@@ -512,12 +516,12 @@ export class SyncService {
   // isdlock.txid is wire/internal byte order; our watch set is display order.
   private onIsdlock = (_peer: Peer, msg: Message & {txid?: string}): void => {
     if (!msg.txid) {
-      console.log('[locks] isdlock received without a txid')
+      locks.info('isdlock received without a txid')
       return
     }
     const displayTxid = reverseHex(msg.txid)
     const matched = this.watchedTxids.has(displayTxid)
-    console.log(`[locks] isdlock received wire=${msg.txid} display=${displayTxid} matched=${matched} watching=[${[...this.watchedTxids].join(',')}]`)
+    locks.info(`isdlock received wire=${msg.txid} display=${displayTxid} matched=${matched} watching=[${[...this.watchedTxids].join(',')}]`)
     if (!matched) return
     this.watchedTxids.delete(displayTxid)
     // Serialized for InstantAssetLockProof construction in main. We broadcast
@@ -559,7 +563,7 @@ export class SyncService {
       outputs,
     }
     this.mempoolStats.matched++
-    console.log(`[locks] incoming mempool tx ${applied.txid} paying ${outputs.filter(o => o.isMine).length} of our output(s)`)
+    locks.info(`incoming mempool tx ${applied.txid} paying ${outputs.filter(o => o.isMine).length} of our output(s)`)
     this.events.incomingTx(this.lockWalletId, applied)
   }
 
@@ -571,7 +575,7 @@ export class SyncService {
     // Header sync will not rewind below this. Logged because a floor stuck at 0
     // leaves REORG_MAX_DEPTH as the only bound on a rewind.
     this.headerSyncWorker?.setFinalityHeight(height)
-    console.log(`[locks] chainlock h=${height} — reorg floor ${this.headerSyncWorker ? 'applied' : 'not applied (no header sync)'}`)
+    locks.info(`chainlock h=${height} — reorg floor ${this.headerSyncWorker ? 'applied' : 'not applied (no header sync)'}`)
     this.events.chainLocked(this.lockNetwork, height)
   }
 
@@ -734,7 +738,7 @@ export class SyncService {
     const err = fatal
       ? `[${workerName}] chain.db unusable: ${message}. Call resetWalletSync to recover.`
       : `[${workerName}] ${message}`
-    console.error(err)
+    log.error(err)
     this.status = {...this.status, lastError: err, updatedAt: Date.now()}
     this.events.status(this.status)
     this.events.error(err)

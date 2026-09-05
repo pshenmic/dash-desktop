@@ -1,6 +1,9 @@
 import { net } from 'electron'
 import {RATES_REQUEST_TIMEOUT_MS, RATES_TTL_MS, SUPPORTED_CURRENCIES} from '../../constants/app'
 import {ExchangeRates, ExchangeRatesResult, ProviderRates, RateProvider} from '../../types/Rates'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('rates')
 
 function zeroRates(): ExchangeRates {
   return Object.fromEntries(SUPPORTED_CURRENCIES.map((c) => [c, 0]))
@@ -110,7 +113,7 @@ export class RatesService {
       const rates = await this.refresh()
       return { ...rates, updatedAt: this.fetchedAt, stale: false }
     } catch (err) {
-      console.error('[rates] refresh failed:', err)
+      log.error('refresh failed:', err)
       return {
         rates: this.cache?.rates ?? zeroRates(),
         changes24h: this.cache?.changes24h ?? {},

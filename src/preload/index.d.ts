@@ -135,6 +135,7 @@ declare global {
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
       setLanguage: (language: string) => Promise<void>
+      setLogLevel: (level: string) => Promise<void>
       setFiatCurrency: (currency: string) => Promise<void>
       setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
       setPlatformFeeMultiplier: (platformFeeMultiplier: number) => Promise<void>

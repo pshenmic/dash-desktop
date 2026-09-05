@@ -2,6 +2,9 @@ import fs from "fs/promises";
 import {z} from 'zod'
 import {GeneralPreferences, GeneralPreferencesJSON, GeneralPreferencesSchema} from "./general";
 import {NetworkPreferences, NetworkPreferencesSchema, renameLegacyPeerFields} from "./network";
+import {Logger} from '../utils/logger'
+
+const log = new Logger('preferences')
 
 export const PreferencesSchema = z.object({
   general: GeneralPreferencesSchema,
@@ -11,7 +14,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 8
+  static readonly CURRENT_VERSION = 9
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
@@ -28,7 +31,7 @@ export class Preferences {
 
   static async init(path?: string): Promise<Preferences> {
     if (path == null) {
-      console.warn(`Preferences path not set. Using RAM`)
+      log.warn('path not set — preferences live in RAM only')
       return Preferences.default()
     }
 
@@ -44,7 +47,7 @@ export class Preferences {
     let preferences: Preferences
 
     if (!fileExists) {
-      console.log('Preferences file not exists. Creating Preferences')
+      log.info('no preferences file — creating one')
       preferences = await Preferences.createAndWrite(path)
     } else {
       preferences = await Preferences.readFromFile(path)
@@ -62,7 +65,7 @@ export class Preferences {
       rawConfig = JSON.parse(content)
     } catch (err) {
       // TODO: We need to throw this error to frontend
-      console.error('Failed to read preferences file, backup corrupted file, recreating with defaults:', err)
+      log.error('unreadable preferences file, backing it up and recreating with defaults:', err)
 
       const corruptedPath = `${path}.error-${Date.now()}`
       await fs.rename(path, corruptedPath)
@@ -74,7 +77,7 @@ export class Preferences {
 
     // Needed for app updates that change preferences fields.
     if (preferences.version !== (rawConfig.version ?? 0)) {
-      console.log(`Preferences migrated from v${rawConfig.version ?? 0} to v${preferences.version}`)
+      log.info(`migrated from v${rawConfig.version ?? 0} to v${preferences.version}`)
       await fs.writeFile(path, JSON.stringify(preferences))
     }
 
@@ -95,13 +98,14 @@ export class Preferences {
       rawGeneral.connectionType ?? defaults.general.connectionType,
       rawGeneral.platformFeeMultiplier ?? defaults.general.platformFeeMultiplier,
       rawGeneral.coreFeeMultiplier ?? defaults.general.coreFeeMultiplier,
+      rawGeneral.logLevel ?? defaults.general.logLevel,
     )
 
     // Hand-edited far more often than the rest of the file, so a malformed
     // section falls back to dynamic defaults instead of wedging startup.
     const rawNetwork = NetworkPreferencesSchema.safeParse(renameLegacyPeerFields(raw.network))
     if (raw.network != null && !rawNetwork.success) {
-      console.error('Invalid network preferences, ignoring:', rawNetwork.error.issues.map(i => i.message).join(', '))
+      log.error('invalid network preferences, ignoring:', rawNetwork.error.issues.map(i => i.message).join(', '))
     }
     instance.network = rawNetwork.success
       ? NetworkPreferences.fromObject(rawNetwork.data)

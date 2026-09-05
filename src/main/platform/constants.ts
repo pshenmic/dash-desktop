@@ -3,8 +3,6 @@ import type {Network} from '../src/types/Network'
 
 export const PROVER_LANE = 'prover'
 
-export const MB = 1024 * 1024
-
 export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
 
 export const ERROR_CODES: readonly string[] =

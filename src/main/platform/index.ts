@@ -1,7 +1,12 @@
+import {Logger, configureLogger} from '../src/utils/logger'
 import {PlatformService} from './PlatformService'
 import {SdkRegistry} from './SdkRegistry'
 import {PlatformCommand, PlatformEvent} from './types/messages'
-import {MB} from './constants'
+
+// The parent re-logs this process's stdout, so every line carries its level.
+configureLogger({levelPrefix: true})
+
+const log = new Logger('platform')
 
 process.title = 'dash-platform'
 
@@ -10,11 +15,11 @@ process.title = 'dash-platform'
 // is recorded even when no one is watching the terminal.
 function reportFatal(label: string, value: unknown): void {
   const detail = value instanceof Error ? (value.stack ?? value.message) : String(value)
-  console.error(`[platform] ${label}:`, value)
+  log.error(`${label}:`, value)
   try {
     process.parentPort.postMessage({type: 'error', message: `${label}: ${detail}`})
   } catch {
-    // parentPort may already be torn down during shutdown — the console.error above still lands.
+    // parentPort may already be torn down during shutdown — the log.error above still lands.
   }
 }
 process.on('uncaughtException', err => {
@@ -38,6 +43,10 @@ const registry = new SdkRegistry()
 const service = new PlatformService(registry, event => process.parentPort.postMessage(event))
 
 process.parentPort.on('message', ({data}) => {
+  if (data.type === 'setLogLevel') {
+    configureLogger({level: data.level})
+    return
+  }
   service.handle(data)
 })
 
@@ -47,14 +56,3 @@ process.parentPort.postMessage({type: 'status', status: service.getStatus()})
 service.warmup().catch(() => {
   // Already reported as prover: 'error' on the status push.
 })
-
-// Tracks the platform footprint without an external profiler — with two SDK
-// instances in one process, this is what says whether that costs anything.
-setInterval(() => {
-  const m = process.memoryUsage()
-  console.log(
-    `[platform-mem] rss=${(m.rss / MB).toFixed(0)}MB heapUsed=${(m.heapUsed / MB).toFixed(0)}MB ` +
-    `heapTotal=${(m.heapTotal / MB).toFixed(0)}MB external=${(m.external / MB).toFixed(0)}MB ` +
-    `arrayBuffers=${(m.arrayBuffers / MB).toFixed(0)}MB`,
-  )
-}, 60_000).unref()

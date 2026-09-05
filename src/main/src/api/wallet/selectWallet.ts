@@ -1,6 +1,9 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
 import { CoreDiscoveryService } from '../../services/core/CoreDiscoveryService'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('discovery')
 
 export class SelectWallet {
   private walletService: WalletService
@@ -15,6 +18,6 @@ export class SelectWallet {
     await this.walletService.setSelectedWallet(walletId)
 
     this.discovery.discoverCoreAddresses(walletId).catch(err =>
-      console.error('[discovery] address discovery on wallet select failed:', err))
+      log.error('address discovery on wallet select failed:', err))
   }
 }
