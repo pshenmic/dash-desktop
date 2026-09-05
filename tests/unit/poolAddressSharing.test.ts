@@ -3,11 +3,13 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 vi.mock('dash-core-p2p', async () => {
   const {EventEmitter} = await import('events')
   return {
-    Messages: class {},
+    Messages: class {
+      Ping = (): {command: string; nonce: Uint8Array} => ({command: 'ping', nonce: new Uint8Array(8)})
+    },
     Networks: {get: (network: string) => ({name: network, port: network === 'mainnet' ? 9999 : 19999, dnsSeeds: ['seed.example']})},
     NODE_COMPACT_FILTERS: 64,
     Pool: class extends EventEmitter {
-      _addrs: Array<{hash: string; retryTime?: number}> = []
+      _addrs: Array<{hash: string; ip: {v4: string}; port: number; retryTime?: number}> = []
       _connectedPeers: Record<string, unknown> = {}
       network = {port: 19999, dnsSeeds: []}
       dnsSeed = true
@@ -15,7 +17,7 @@ vi.mock('dash-core-p2p', async () => {
       connect = (): void => undefined
       disconnect = (): void => undefined
       numberConnected = (): number => 0
-      _addAddr = (addr: {hash: string}): void => { this._addrs.push(addr) }
+      _addAddr = (addr: {hash: string; ip: {v4: string}; port: number}): void => { this._addrs.push(addr) }
       _fillConnections = (): void => undefined
     },
   }
@@ -25,7 +27,7 @@ import {PoolService} from '../../src/main/p2p/net/PoolService'
 import {POOL_ADDRESS_RESERVE} from '../../src/main/p2p/constants'
 
 type RawPool = {
-  _addrs: Array<{hash: string; retryTime?: number}>
+  _addrs: Array<{hash: string; ip: {v4: string}; port: number; retryTime?: number}>
   _connectedPeers: Record<string, unknown>
 }
 
@@ -33,7 +35,7 @@ const raw = (service: PoolService): RawPool => service.pool as unknown as RawPoo
 
 function withAddresses(count: number): PoolService {
   const service = new PoolService('testnet')
-  raw(service)._addrs = Array.from({length: count}, (_, i) => ({hash: `h${i}`}))
+  raw(service)._addrs = Array.from({length: count}, (_, i) => ({hash: `h${i}`, ip: {v4: '68.67.122.38'}, port: 19999}))
   return service
 }
 
@@ -98,7 +100,8 @@ describe('sharing addresses between pools', () => {
     const service = withAddresses(POOL_ADDRESS_RESERVE)
     expect(service.takeAddresses()).toEqual([])
 
-    service.addAddresses(Array.from({length: 40}, (_, i) => ({hash: `new${i}`} as never)))
+    service.addAddresses(Array.from({length: 40}, (_, i) =>
+      ({hash: `new${i}`, ip: {v4: '68.67.122.38'}, port: 19999} as never)))
 
     expect(service.takeAddresses()).toHaveLength(40)
   })

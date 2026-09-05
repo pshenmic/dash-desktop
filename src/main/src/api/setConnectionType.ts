@@ -27,9 +27,6 @@ export class SetConnectionTypeHandler {
       }
     })
 
-    // The new mode has its own answer to "is this address used" — an SPV store
-    // that never finished syncing hides usage Dashscan can see — so re-run
-    // discovery now rather than waiting for the periodic tick.
     if (previous !== connectionType) {
       const selected = await this.walletService.getSelectedWallet()
       if (selected != null) {

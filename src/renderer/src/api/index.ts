@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, CoreRecipient, CoreSpendSource, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PlatformAddressDto, PlatformRecipient, PlatformSendResult, PlatformSpendSource, PreferencesJSON, SelectableUtxo, SendResult, ShieldedRecipient, ShieldedSpendSource, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus } from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -13,6 +13,50 @@ export class API {
 
   static async setConnectionType(connectionType: ConnectionType): Promise<void> {
     return this.api.setConnectionType(connectionType)
+  }
+
+  static async getConnectedPeers(): Promise<PeerInfo[]> {
+    return this.api.getConnectedPeers() as Promise<PeerInfo[]>
+  }
+
+  static async setPeerMode(mode: PeerMode): Promise<void> {
+    return this.api.setPeerMode(mode)
+  }
+
+  static async pushStaticPeer(network: Network, peer: string): Promise<string[]> {
+    return this.api.pushStaticPeer(network, peer) as Promise<string[]>
+  }
+
+  static async removeStaticPeer(network: Network, peer: string): Promise<string[]> {
+    return this.api.removeStaticPeer(network, peer) as Promise<string[]>
+  }
+
+  static async getStaticPeers(network: Network): Promise<string[]> {
+    return this.api.getStaticPeers(network) as Promise<string[]>
+  }
+
+  static async setBannedPeers(network: Network, peers: string[]): Promise<void> {
+    return this.api.setBannedPeers(network, peers)
+  }
+
+  static async getBannedPeers(network: Network): Promise<string[]> {
+    return this.api.getBannedPeers(network) as Promise<string[]>
+  }
+
+  static async setDnsSeeds(network: Network, seeds: string[]): Promise<void> {
+    return this.api.setDnsSeeds(network, seeds)
+  }
+
+  static async getDnsSeeds(network: Network): Promise<string[]> {
+    return this.api.getDnsSeeds(network) as Promise<string[]>
+  }
+
+  static async setDynamicPeers(network: Network, peers: string[]): Promise<void> {
+    return this.api.setDynamicPeers(network, peers)
+  }
+
+  static async getDynamicPeers(network: Network): Promise<string[]> {
+    return this.api.getDynamicPeers(network) as Promise<string[]>
   }
 
   static async setFiatCurrency(currency: string): Promise<void> {

@@ -16,6 +16,7 @@ function sync(overrides: Partial<WalletSyncStatus>): WalletSyncStatus {
     peerCount: 4,
     filterCapablePeerCount: 4,
     lockPeerCount: 4,
+    peerMode: 'dynamic',
     phaseEtaMs: null,
     lastError: null,
     updatedAt: 0,

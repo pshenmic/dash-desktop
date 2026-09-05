@@ -62,10 +62,10 @@ import {PoolService} from '../../src/main/p2p/net/PoolService'
 
 const {minPeerAcks, witnessPeers, timeoutMs} = BROADCAST_POLICY
 
-function start(readyCount: number): Promise<unknown> {
+function start(readyCount: number, pinnedOnly = false): Promise<unknown> {
   captured.ready = Array.from({length: readyCount}, (_, i) => ({host: `10.0.0.${i}`, port: 19999}))
   const pool = {numberConnected: (): number => readyCount}
-  const poolService = Object.assign(new EventEmitter(), {pool}) as unknown as PoolService
+  const poolService = Object.assign(new EventEmitter(), {pool, pinnedOnly}) as unknown as PoolService
   return new BroadcastService(poolService).broadcast('00')
 }
 
@@ -116,6 +116,25 @@ describe('what a broadcast accepts as proof', () => {
     captured.session.emit('isdlock', {getPayload: () => new Uint8Array([0xaa])})
 
     await expect(result).resolves.toMatchObject({instantLocked: true, islockHex: 'aa'})
+  })
+
+  // A user who pinned two peers gets a pool that can never show propagation, so
+  // holding delivery to that standard makes every send fail.
+  it('takes delivery as proof on a pinned pool with no witness to spare', async () => {
+    const result = start(1, true)
+
+    captured.session.deliverToInvited()
+
+    await expect(result).resolves.toMatchObject({peersDelivered: ['10.0.0.0:19999'], instantLocked: false})
+  })
+
+  it('still holds a pinned pool large enough to spare one to the witness', async () => {
+    const settled = expect(start(minPeerAcks + witnessPeers + 3, true)).rejects.toThrow(/no witness saw the tx/)
+    captured.session.deliverToInvited()
+
+    await vi.advanceTimersByTimeAsync(timeoutMs)
+
+    await settled
   })
 
   // Carrying the tx wins over observing it: below this the pool cannot do both.
