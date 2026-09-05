@@ -1,6 +1,6 @@
 import {Network} from '../../src/types/Network'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
-import {PeerInfo, PeerOverrides} from './pool'
+import {PeerInfo, PeerOverrides, PeerProbeResult} from './pool'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
@@ -90,6 +90,16 @@ export interface P2PGetPeersMessage {
   requestId: string
 }
 
+// requestId is echoed back in P2PPeerProbeMessage. Carries its own network:
+// the entry is being checked before it is pinned, so the answer must not depend
+// on which network a session happens to be running.
+export interface P2PProbePeerMessage {
+  type: 'probePeer'
+  requestId: string
+  network: Network
+  peer: string
+}
+
 // Answers P2PChainRewoundMessage. The worker's scan stays held until it lands.
 export interface P2PReseedUtxosMessage {
   type: 'reseedUtxos'
@@ -107,6 +117,7 @@ export type P2PCommand =
   | P2PReseedUtxosMessage
   | P2PGetPeersMessage
   | P2PBanPeersMessage
+  | P2PProbePeerMessage
 
 // ── Events (utility -> main) ────────────────────────────────────────────────
 
@@ -167,6 +178,12 @@ export interface P2PPeersMessage {
   peers: PeerInfo[]
 }
 
+export interface P2PPeerProbeMessage {
+  type: 'peerProbe'
+  requestId: string
+  result: PeerProbeResult
+}
+
 // A DIP-24 InstantSend lock — irreversibly final before the tx is even mined.
 export interface P2PTxInstantLockedMessage {
   type: 'txInstantLocked'
@@ -208,6 +225,7 @@ export type P2PEvent =
   | P2PErrorMessage
   | P2PBroadcastResultMessage
   | P2PPeersMessage
+  | P2PPeerProbeMessage
   | P2PTxInstantLockedMessage
   | P2PChainLockedMessage
   | P2PChainRewoundMessage

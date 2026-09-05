@@ -9,9 +9,12 @@ export const NetworkNameSchema = z.enum(['mainnet', 'testnet'])
 
 const StringListSchema = z.array(z.string().trim().min(1))
 
-// Entries read as `host`, `host:port`, `[v6]` or `[v6]:port`. Which of those an
-// endpoint accepts is checked there, not here: a schema strict enough to refuse
-// one would take the whole network section down with it — see Preferences.migrate.
+// One entry, read as `host`, `host:port`, `[v6]` or `[v6]:port`. Which of those
+// an endpoint accepts is checked there, not here: a schema strict enough to
+// refuse one would take the whole network section down with it — see
+// Preferences.migrate.
+export const PeerEntrySchema = z.string().trim().min(1)
+
 export const PeerListSchema = StringListSchema
 
 // Hostnames. dns.resolve turns one into several addresses, all on the network's

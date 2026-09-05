@@ -47,6 +47,22 @@ export function dialTarget(addr: AddrInfo, defaultPort: number): string {
   return `${addr.ip.v4 ?? addr.ip.v6}:${addr.port ?? defaultPort}`
 }
 
+// The form the peer list stores. An entry without a port matches nothing where
+// the default is not re-applied — a ban is matched at port 0 — and v6 keeps its
+// brackets so the entry parses back.
+export function peerListEntry(addr: AddrInfo, defaultPort: number): string {
+  const port = addr.port ?? defaultPort
+  return addr.ip.v4 != null ? `${addr.ip.v4}:${port}` : `[${addr.ip.v6}]:${port}`
+}
+
+// The socket a typed entry would open, for comparing entries: `1.2.3.4` and
+// `1.2.3.4:9999` are one node on mainnet, and dialling it twice from one host
+// drops both connections.
+export function entryTarget(entry: string, defaultPort: number): string {
+  const addr = parsePeerAddress(entry, defaultPort)
+  return addr == null ? entry.trim() : dialTarget(addr, defaultPort)
+}
+
 // The same string for the socket an entry opened, so a claim taken on connect
 // and a lookup against the address book agree on what one node is.
 export function peerTarget(peer: Peer): string {

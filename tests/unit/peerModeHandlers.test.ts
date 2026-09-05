@@ -1,6 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {SetPeerModeHandler} from '../../src/main/src/api/setPeerMode'
-import {SetStaticPeersHandler} from '../../src/main/src/api/setStaticPeers'
+import {PushStaticPeerHandler} from '../../src/main/src/api/pushStaticPeer'
+import {RemoveStaticPeerHandler} from '../../src/main/src/api/removeStaticPeer'
 import {GetStaticPeersHandler} from '../../src/main/src/api/getStaticPeers'
 import {SetBannedPeersHandler} from '../../src/main/src/api/setBannedPeers'
 import {GetBannedPeersHandler} from '../../src/main/src/api/getBannedPeers'
@@ -12,13 +13,16 @@ import {Preferences} from '../../src/main/src/preferences'
 import type {IpcMainInvokeEvent} from 'electron/utility'
 import type {ApplicationService} from '../../src/main/src/services/app/ApplicationService'
 import type {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
+import type {PeerProbeResult} from '../../src/main/p2p/types/pool'
+import type {Network} from '../../src/main/src/types/Network'
 
 const EVENT = {} as IpcMainInvokeEvent
 
 describe('peer settings handlers', () => {
   let preferences: Preferences
   let reloaded: number
-  let setPeers: SetStaticPeersHandler
+  let pushPeer: PushStaticPeerHandler
+  let removePeer: RemoveStaticPeerHandler
   let getPeers: GetStaticPeersHandler
   let setBanned: SetBannedPeersHandler
   let getBanned: GetBannedPeersHandler
@@ -28,17 +32,30 @@ describe('peer settings handlers', () => {
   let setDynamic: SetDynamicPeersHandler
   let getDynamic: GetDynamicPeersHandler
   let bansPushed: number
+  // What the handler asked the p2p process to dial, and which of those entries
+  // the stubbed probe reports as dead.
+  let probed: string[]
+  let unreachable: Set<string>
 
   beforeEach(() => {
     preferences = Preferences.fromObject({version: 9})
     reloaded = 0
     bansPushed = 0
+    probed = []
+    unreachable = new Set()
     const app = {preferences} as ApplicationService
     const sync = {
       reloadPeerPreferences: async (): Promise<void> => { reloaded++ },
       reloadBannedPeers: async (): Promise<void> => { bansPushed++ },
+      probePeer: async (_network: Network, peer: string): Promise<PeerProbeResult> => {
+        probed.push(peer)
+        return unreachable.has(peer)
+          ? {ok: false, error: 'closed before the handshake'}
+          : {ok: true, error: null}
+      },
     } as WalletSyncService
-    setPeers = new SetStaticPeersHandler(app, sync)
+    pushPeer = new PushStaticPeerHandler(app, sync)
+    removePeer = new RemoveStaticPeerHandler(app, sync)
     getPeers = new GetStaticPeersHandler(app)
     setBanned = new SetBannedPeersHandler(app, sync)
     getBanned = new GetBannedPeersHandler(app)
@@ -49,27 +66,109 @@ describe('peer settings handlers', () => {
     getDynamic = new GetDynamicPeersHandler(app)
   })
 
-  it('pins the peers it is given', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4', '5.6.7.8:19999'])
+  it('pins the peer it is given, once it has answered a handshake', async () => {
+    expect(await pushPeer.handle(EVENT, 'testnet', '5.6.7.8:19999')).toEqual(['5.6.7.8:19999'])
 
-    expect(preferences.network.testnet.staticPeers).toEqual(['1.2.3.4', '5.6.7.8:19999'])
+    expect(probed).toEqual(['5.6.7.8:19999'])
     expect(reloaded).toBe(1)
   })
 
-  it('reads back the peers pinned for one network', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4', '5.6.7.8:19999'])
+  // A ban is matched at port 0, so an entry stored without a port never matches
+  // the peer it names — and the default is per network.
+  it('stores the entry with the network default port spelled out', async () => {
+    expect(await pushPeer.handle(EVENT, 'testnet', '1.2.3.4')).toEqual(['1.2.3.4:19999'])
+    expect(await pushPeer.handle(EVENT, 'mainnet', '1.2.3.4')).toEqual(['1.2.3.4:9999'])
+    expect(await pushPeer.handle(EVENT, 'testnet', '[2001:db8::1]')).toEqual(['1.2.3.4:19999', '[2001:db8::1]:19999'])
+    expect(probed).toEqual(['1.2.3.4:19999', '1.2.3.4:9999', '[2001:db8::1]:19999'])
+  })
 
-    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4', '5.6.7.8:19999'])
+  it('adds to the list it already pinned, and answers with all of it', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
+
+    expect(await pushPeer.handle(EVENT, 'testnet', '5.6.7.8:19999'))
+      .toEqual(['1.2.3.4:19999', '5.6.7.8:19999'])
+    expect(reloaded).toBe(2)
+  })
+
+  // One node dialled twice from one host drops both connections, and the
+  // default port is what makes those two entries the same node. A rewrite would
+  // also rebuild the session, which in static mode costs the sync its progress.
+  it('leaves a peer it already pinned alone, however it was spelled', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
+    probed = []
+
+    expect(await pushPeer.handle(EVENT, 'testnet', '1.2.3.4')).toEqual(['1.2.3.4:19999'])
+    expect(probed).toEqual([])
+    expect(reloaded).toBe(1)
+  })
+
+  // Static mode dials this list and nothing else, so an entry that answers
+  // nothing is not a peer the wallet can replace.
+  it('refuses a peer that never completes the handshake', async () => {
+    unreachable.add('5.6.7.8:19999')
+
+    await expect(pushPeer.handle(EVENT, 'testnet', '5.6.7.8:19999'))
+      .rejects.toThrow(/Unreachable peer 5\.6\.7\.8:19999: closed before the handshake/)
+    expect(preferences.network.testnet.staticPeers).toEqual([])
+    expect(reloaded).toBe(0)
+  })
+
+  it('unpins a peer without dialling it, however it was spelled', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
+    await pushPeer.handle(EVENT, 'testnet', '5.6.7.8:19999')
+    probed = []
+
+    expect(await removePeer.handle(EVENT, 'testnet', '1.2.3.4')).toEqual(['5.6.7.8:19999'])
+    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['5.6.7.8:19999'])
+    expect(probed).toEqual([])
+    expect(reloaded).toBe(3)
+  })
+
+  it('leaves the session alone when the peer was not pinned', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
+
+    expect(await removePeer.handle(EVENT, 'testnet', '5.6.7.8:19999')).toEqual(['1.2.3.4:19999'])
+    expect(reloaded).toBe(1)
+  })
+
+  // The state setBannedPeers refuses to ban a network into: static mode has no
+  // DNS and no gossip to fall back on.
+  it('refuses to unpin the last peer of a network in static mode', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
+    await setMode.handle(EVENT, 'static')
+
+    await expect(removePeer.handle(EVENT, 'testnet', '1.2.3.4:19999')).rejects.toThrow(/nothing to dial/)
+    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4:19999'])
+  })
+
+  it('unpins the last peer of a network in dynamic mode', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
+
+    expect(await removePeer.handle(EVENT, 'testnet', '1.2.3.4:19999')).toEqual([])
+    expect(reloaded).toBe(2)
+  })
+
+  it('refuses an unknown network and a peer that is not a string on remove', async () => {
+    await expect(removePeer.handle(EVENT, 'regtest', '1.2.3.4')).rejects.toThrow(/removeStaticPeer/)
+    await expect(removePeer.handle(EVENT, 'testnet', ['1.2.3.4'])).rejects.toThrow(/removeStaticPeer/)
+    await expect(removePeer.handle(EVENT, 'testnet', undefined)).rejects.toThrow(/removeStaticPeer/)
+  })
+
+  it('reads back the peers pinned for one network', async () => {
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4')
+    await pushPeer.handle(EVENT, 'testnet', '5.6.7.8:19999')
+
+    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4:19999', '5.6.7.8:19999'])
     expect(await getPeers.handle(EVENT, 'mainnet')).toEqual([])
   })
 
   // The list is per network and the mode is not, so it survives a switch back.
   it('keeps reading the list in dynamic mode', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4'])
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4')
     await setMode.handle(EVENT, 'static')
     await setMode.handle(EVENT, 'dynamic')
 
-    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4'])
+    expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4:19999'])
   })
 
   it('refuses an unknown network on read', async () => {
@@ -79,24 +178,26 @@ describe('peer settings handlers', () => {
 
   // Nothing between a renderer call and the handler checks the shape, so a bad
   // one reached the peer list as a TypeError.
-  it('refuses a peer list that is not a list', async () => {
-    await expect(setPeers.handle(EVENT, 'testnet', '1.2.3.4')).rejects.toThrow(/setStaticPeers/)
-    await expect(setPeers.handle(EVENT, 'testnet', [4])).rejects.toThrow(/setStaticPeers/)
-    await expect(setPeers.handle(EVENT, 'mainnet', undefined)).rejects.toThrow(/setStaticPeers/)
+  it('refuses a peer that is not a string', async () => {
+    await expect(pushPeer.handle(EVENT, 'testnet', ['1.2.3.4'])).rejects.toThrow(/pushStaticPeer/)
+    await expect(pushPeer.handle(EVENT, 'testnet', 4)).rejects.toThrow(/pushStaticPeer/)
+    await expect(pushPeer.handle(EVENT, 'mainnet', undefined)).rejects.toThrow(/pushStaticPeer/)
+    expect(probed).toEqual([])
     expect(reloaded).toBe(0)
   })
 
   it('refuses an unknown network', async () => {
-    await expect(setPeers.handle(EVENT, 'regtest', ['1.2.3.4'])).rejects.toThrow(/setStaticPeers/)
+    await expect(pushPeer.handle(EVENT, 'regtest', '1.2.3.4')).rejects.toThrow(/pushStaticPeer/)
   })
 
   it('refuses a peer address the pool could not dial', async () => {
-    await expect(setPeers.handle(EVENT, 'testnet', ['1.2.3.4:99999'])).rejects.toThrow(/Invalid peer address/)
+    await expect(pushPeer.handle(EVENT, 'testnet', '1.2.3.4:99999')).rejects.toThrow(/Invalid peer address/)
     expect(preferences.network.testnet.staticPeers).toEqual([])
+    expect(probed).toEqual([])
   })
 
   it('switches the mode for every network at once', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4'])
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4')
     await setMode.handle(EVENT, 'static')
 
     expect(preferences.network.mode).toBe('static')
@@ -160,7 +261,7 @@ describe('peer settings handlers', () => {
   // Static mode dials the pinned list and nothing else, so a ban covering all of
   // it leaves that network with no peers rather than fewer.
   it('refuses a ban that would leave a pinned network with nothing to dial', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4:19999'])
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
     await setMode.handle(EVENT, 'static')
 
     await expect(setBanned.handle(EVENT, 'testnet', ['1.2.3.4:19999'])).rejects.toThrow(/nothing to dial/)
@@ -171,7 +272,7 @@ describe('peer settings handlers', () => {
   // Two lists, because the modes dial them differently: one is everything
   // static mode has, the other is added to what discovery already found.
   it('keeps the pinned and the dynamic list apart', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4:19999'])
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4:19999')
     await setDynamic.handle(EVENT, 'testnet', ['5.6.7.8:19999'])
 
     expect(await getPeers.handle(EVENT, 'testnet')).toEqual(['1.2.3.4:19999'])
@@ -235,7 +336,7 @@ describe('peer settings handlers', () => {
   // Bans apply in both modes: the pool honours them, the mode only decides what
   // it dials in the first place.
   it('keeps a ban across a mode switch, and never restarts the session for one', async () => {
-    await setPeers.handle(EVENT, 'testnet', ['1.2.3.4'])
+    await pushPeer.handle(EVENT, 'testnet', '1.2.3.4')
     await setMode.handle(EVENT, 'static')
     const restarts = reloaded
 

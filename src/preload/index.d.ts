@@ -98,7 +98,8 @@ declare global {
       setCoreFeeMultiplier: (coreFeeMultiplier: number) => Promise<void>
       getPeers: () => Promise<unknown>
       setPeerMode: (mode: 'dynamic' | 'static') => Promise<void>
-      setStaticPeers: (network: Network, peers: string[]) => Promise<void>
+      pushStaticPeer: (network: Network, peer: string) => Promise<unknown>
+      removeStaticPeer: (network: Network, peer: string) => Promise<unknown>
       getStaticPeers: (network: Network) => Promise<unknown>
       setBannedPeers: (network: Network, peers: string[]) => Promise<void>
       getBannedPeers: (network: Network) => Promise<unknown>

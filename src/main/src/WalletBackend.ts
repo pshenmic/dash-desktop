@@ -61,7 +61,8 @@ import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {GetPeersHandler} from "./api/getPeers";
 import {SetPeerModeHandler} from "./api/setPeerMode";
-import {SetStaticPeersHandler} from "./api/setStaticPeers";
+import {PushStaticPeerHandler} from "./api/pushStaticPeer";
+import {RemoveStaticPeerHandler} from "./api/removeStaticPeer";
 import {GetStaticPeersHandler} from "./api/getStaticPeers";
 import {SetBannedPeersHandler} from "./api/setBannedPeers";
 import {GetBannedPeersHandler} from "./api/getBannedPeers";
@@ -192,7 +193,8 @@ export class WalletBackend {
     ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
     ipcMain.handle('getPeers', new GetPeersHandler(this.walletSyncService).handle)
     ipcMain.handle('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('setStaticPeers', new SetStaticPeersHandler(this.applicationService, this.walletSyncService).handle)
+    ipcMain.handle('pushStaticPeer', new PushStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
+    ipcMain.handle('removeStaticPeer', new RemoveStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('getStaticPeers', new GetStaticPeersHandler(this.applicationService).handle)
     ipcMain.handle('setBannedPeers', new SetBannedPeersHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('getBannedPeers', new GetBannedPeersHandler(this.applicationService).handle)

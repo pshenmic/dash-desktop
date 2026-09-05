@@ -166,6 +166,13 @@ export const FALLBACK_PEERS: Record<Network, string[]> = {
   ],
 }
 
+export const DEFAULT_PEER_PORT: Record<Network, number> = {mainnet: 9999, testnet: 19999}
+
+// How long a probe dial waits for the version handshake. Node retries SYN for
+// minutes before reporting a connect failure, so nothing else bounds a dial to
+// a host that is simply not there.
+export const PEER_PROBE_TIMEOUT_MS = 8_000
+
 // ── Header sync ─────────────────────────────────────────────────────────────
 
 // A latency hedge, not a throughput knob: the response that counts is the first

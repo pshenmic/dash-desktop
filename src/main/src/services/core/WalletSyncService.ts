@@ -3,7 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
 import {ChainStorageFilename} from '../../constants/app'
-import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS} from '../../constants/chain'
+import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS, PEER_PROBE_REPLY_TIMEOUT_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {logChildOutput} from '../../logger'
@@ -16,7 +16,7 @@ import {TransactionDAO} from '../../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../../p2p/types/messages'
 import {BroadcastPolicyOverrides, BroadcastResult} from '../../../p2p/types/broadcast'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from '../../../p2p/types/walletSync'
-import {PeerInfo} from '../../../p2p/types/pool'
+import {PeerInfo, PeerProbeResult} from '../../../p2p/types/pool'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../../p2p/constants'
 import {ScanCursorGate} from '../../utils/scanCursorGate'
@@ -71,6 +71,9 @@ export class WalletSyncService {
   // Same correlation as the broadcasts, minus the failure path: a peer list
   // nobody could produce is an empty one, not an error.
   private pendingPeerRequests = new Map<string, (peers: PeerInfo[]) => void>()
+  // Answered per request like the peer list, but a failure has to reach the
+  // caller: an unanswered probe is not evidence that a peer is unreachable.
+  private pendingProbes = new Map<string, {resolve: (result: PeerProbeResult) => void; reject: (err: Error) => void}>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
@@ -155,6 +158,10 @@ export class WalletSyncService {
       this.pendingBroadcasts.clear()
       for (const resolve of this.pendingPeerRequests.values()) resolve([])
       this.pendingPeerRequests.clear()
+      for (const [requestId, probe] of this.pendingProbes) {
+        probe.reject(new Error(`p2p utility process exited (code=${code}) before peer probe ${requestId} answered${crashDetail}`))
+      }
+      this.pendingProbes.clear()
       this.notifyPhase('stopped')
       this.status = {
         phase: 'stopped',
@@ -225,6 +232,12 @@ export class WalletSyncService {
       if (resolve) {
         this.pendingPeerRequests.delete(data.requestId)
         resolve(data.peers)
+      }
+    } else if (data.type === 'peerProbe') {
+      const probe = this.pendingProbes.get(data.requestId)
+      if (probe) {
+        this.pendingProbes.delete(data.requestId)
+        probe.resolve(data.result)
       }
     } else if (data.type === 'txInstantLocked') {
       this.transactionDAO.markInstantLocked(data.txid).catch(err =>
@@ -400,6 +413,30 @@ export class WalletSyncService {
         resolve(peers)
       })
       this.send({type: 'getPeers', requestId})
+    })
+  }
+
+  // Dials one entry for a version handshake and reports what it found. Runs in
+  // the utility process, which is where the sockets and the network magic are,
+  // and needs no session — a probe belongs to no pool.
+  probePeer = (network: Network, peer: string): Promise<PeerProbeResult> => {
+    const requestId = randomUUID()
+    return new Promise<PeerProbeResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingProbes.delete(requestId)
+        reject(new Error(`p2p utility process did not answer peer probe ${requestId} within ${PEER_PROBE_REPLY_TIMEOUT_MS}ms`))
+      }, PEER_PROBE_REPLY_TIMEOUT_MS)
+      this.pendingProbes.set(requestId, {
+        resolve: result => {
+          clearTimeout(timer)
+          resolve(result)
+        },
+        reject: err => {
+          clearTimeout(timer)
+          reject(err)
+        },
+      })
+      this.send({type: 'probePeer', requestId, network, peer})
     })
   }
 

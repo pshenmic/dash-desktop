@@ -23,8 +23,12 @@ export class API {
     return this.api.setPeerMode(mode)
   }
 
-  static async setStaticPeers(network: Network, peers: string[]): Promise<void> {
-    return this.api.setStaticPeers(network, peers)
+  static async pushStaticPeer(network: Network, peer: string): Promise<string[]> {
+    return this.api.pushStaticPeer(network, peer) as Promise<string[]>
+  }
+
+  static async removeStaticPeer(network: Network, peer: string): Promise<string[]> {
+    return this.api.removeStaticPeer(network, peer) as Promise<string[]>
   }
 
   static async getStaticPeers(network: Network): Promise<string[]> {

@@ -27,6 +27,13 @@ export interface PeerInfo {
   pingMs: number | null
 }
 
+// `error` carries why a probe dial ended short — refused, timed out, or closed
+// before the handshake.
+export interface PeerProbeResult {
+  ok: boolean
+  error: string | null
+}
+
 export interface PoolServiceOptions {
   // Replaces the network's built-in seeds when non-empty.
   dnsSeeds?: string[]
