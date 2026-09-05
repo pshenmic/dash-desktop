@@ -10,7 +10,7 @@ import type {PoolService} from '../../src/main/p2p/net/PoolService'
 // the number of chunks. Chunks sit between two cfcheckpt anchors, so they are
 // verified independently and can be in flight together.
 
-const TIP = 15_000
+const TIP = (MAX_INFLIGHT_CFHEADERS + 5) * 1000
 const hashAt = (height: number): string => height.toString(16).padStart(64, '0')
 const wireAt = (height: number): Uint8Array => {
   const wire = new Uint8Array(32)

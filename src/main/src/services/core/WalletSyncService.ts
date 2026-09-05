@@ -3,7 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
 import {ChainStorageFilename} from '../../constants/app'
-import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS} from '../../constants/chain'
+import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS, PEER_PROBE_REPLY_TIMEOUT_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {LogLevel} from '../../types/Log'
@@ -18,6 +18,7 @@ import {TransactionDAO} from '../../database/TransactionDAO'
 import {P2PCommand, P2PEvent} from '../../../p2p/types/messages'
 import {BroadcastPolicyOverrides, BroadcastResult} from '../../../p2p/types/broadcast'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from '../../../p2p/types/walletSync'
+import {PeerInfo, PeerProbeResult} from '../../../p2p/types/pool'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../../p2p/constants'
 import {ScanCursorGate} from '../../utils/scanCursorGate'
@@ -58,6 +59,7 @@ export class WalletSyncService {
     peerCount: 0,
     filterCapablePeerCount: 0,
     lockPeerCount: 0,
+    peerMode: null,
     phaseEtaMs: null,
     lastError: null,
     updatedAt: Date.now(),
@@ -73,6 +75,12 @@ export class WalletSyncService {
   // Keyed by requestId, which the utility process echoes back, so overlapping
   // broadcasts resolve the right promise.
   private pendingBroadcasts = new Map<string, (event: {ok: boolean; result: BroadcastResult; errorMessage: string | null}) => void>()
+  // Same correlation as the broadcasts, minus the failure path: a peer list
+  // nobody could produce is an empty one, not an error.
+  private pendingPeerRequests = new Map<string, (peers: PeerInfo[]) => void>()
+  // Answered per request like the peer list, but a failure has to reach the
+  // caller: an unanswered probe is not evidence that a peer is unreachable.
+  private pendingProbes = new Map<string, {resolve: (result: PeerProbeResult) => void; reject: (err: Error) => void}>()
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
@@ -155,6 +163,12 @@ export class WalletSyncService {
         })
       }
       this.pendingBroadcasts.clear()
+      for (const resolve of this.pendingPeerRequests.values()) resolve([])
+      this.pendingPeerRequests.clear()
+      for (const [requestId, probe] of this.pendingProbes) {
+        probe.reject(new Error(`p2p utility process exited (code=${code}) before peer probe ${requestId} answered${crashDetail}`))
+      }
+      this.pendingProbes.clear()
       this.notifyPhase('stopped')
       this.status = {
         phase: 'stopped',
@@ -169,6 +183,7 @@ export class WalletSyncService {
         peerCount: 0,
         filterCapablePeerCount: 0,
         lockPeerCount: 0,
+        peerMode: null,
         phaseEtaMs: null,
         lastError: null,
         updatedAt: Date.now(),
@@ -220,6 +235,18 @@ export class WalletSyncService {
       if (resolve) {
         this.pendingBroadcasts.delete(data.requestId)
         resolve({ok: data.ok, result: data.result, errorMessage: data.errorMessage})
+      }
+    } else if (data.type === 'peers') {
+      const resolve = this.pendingPeerRequests.get(data.requestId)
+      if (resolve) {
+        this.pendingPeerRequests.delete(data.requestId)
+        resolve(data.peers)
+      }
+    } else if (data.type === 'peerProbe') {
+      const probe = this.pendingProbes.get(data.requestId)
+      if (probe) {
+        this.pendingProbes.delete(data.requestId)
+        probe.resolve(data.result)
       }
     } else if (data.type === 'txInstantLocked') {
       this.transactionDAO.markInstantLocked(data.txid).catch(err =>
@@ -322,7 +349,7 @@ export class WalletSyncService {
       gapLimit: CORE_ADDRESS_WINDOW.gapLimit,
       seedUtxos,
       cfilterCursor,
-      peerOverrides: this.preferences.network[network],
+      peerOverrides: this.preferences.network.settingsFor(network),
       // birthdayHeight is intentionally undefined — defaults to genesis in the
       // utility process. Replace with a per-wallet birthday once the wallet
       // schema captures it.
@@ -384,6 +411,50 @@ export class WalletSyncService {
     return {...this.status, lastError: this.persistenceError}
   }
 
+  // The pools live in the utility process, so this is a round trip rather than
+  // a read. Empty means no transport at all — a wallet with peers reports them
+  // in both connection modes and both peer modes.
+  getConnectedPeers = (): Promise<PeerInfo[]> => {
+    if (!this.child) return Promise.resolve([])
+    const requestId = randomUUID()
+    return new Promise<PeerInfo[]>(resolve => {
+      const timer = setTimeout(() => {
+        this.pendingPeerRequests.delete(requestId)
+        log.warn(`getConnectedPeers ${requestId} unanswered after ${PEER_INFO_TIMEOUT_MS}ms`)
+        resolve([])
+      }, PEER_INFO_TIMEOUT_MS)
+      this.pendingPeerRequests.set(requestId, peers => {
+        clearTimeout(timer)
+        resolve(peers)
+      })
+      this.send({type: 'getConnectedPeers', requestId})
+    })
+  }
+
+  // Dials one entry for a version handshake and reports what it found. Runs in
+  // the utility process, which is where the sockets and the network magic are,
+  // and needs no session — a probe belongs to no pool.
+  probePeer = (network: Network, peer: string): Promise<PeerProbeResult> => {
+    const requestId = randomUUID()
+    return new Promise<PeerProbeResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingProbes.delete(requestId)
+        reject(new Error(`p2p utility process did not answer peer probe ${requestId} within ${PEER_PROBE_REPLY_TIMEOUT_MS}ms`))
+      }, PEER_PROBE_REPLY_TIMEOUT_MS)
+      this.pendingProbes.set(requestId, {
+        resolve: result => {
+          clearTimeout(timer)
+          resolve(result)
+        },
+        reject: err => {
+          clearTimeout(timer)
+          reject(err)
+        },
+      })
+      this.send({type: 'probePeer', requestId, network, peer})
+    })
+  }
+
   private recordInstantLock(txid: string, islockHex: string): void {
     this.instantLocks.set(txid, islockHex)
     this.disarmLockWatch(txid)
@@ -406,6 +477,29 @@ export class WalletSyncService {
   // locks for asset-lock funding, and nothing else listens for them.
   startLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
     if (this.lockListenNetwork === network && this.lockListenWalletId === walletId && this.child) return
+    await this.sendLockListen(network, walletId)
+  }
+
+  // The pools are built from the peer preferences when they start, so an edit
+  // only takes effect by rebuilding the session holding them: the sync layer
+  // comes down first, because in static mode it runs on the pool being replaced.
+  reloadPeerPreferences = async (): Promise<void> => {
+    if (!this.child) return
+    const walletId = this.activeWalletId
+    if (walletId) this.send({type: 'stop'})
+    if (this.lockListenNetwork) await this.sendLockListen(this.lockListenNetwork, this.lockListenWalletId)
+    if (walletId) await this.startSync(walletId)
+  }
+
+  // Unlike reloadPeerPreferences this keeps the session: the pools apply the
+  // list in place, so a ban costs no sync progress. A ban for a network the
+  // child is not on lands when it next listens.
+  reloadBannedPeers = async (): Promise<void> => {
+    if (!this.child || !this.lockListenNetwork) return
+    this.send({type: 'banPeers', banned: this.preferences.network[this.lockListenNetwork].bannedPeers})
+  }
+
+  private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
     this.lockListenNetwork = network
     this.lockListenWalletId = walletId
     // Without addresses the pool still watches locks and broadcasts; it just
@@ -417,7 +511,7 @@ export class WalletSyncService {
       network,
       walletId,
       watchAddresses,
-      peerOverrides: this.preferences.network[network],
+      peerOverrides: this.preferences.network.settingsFor(network),
     })
     this.startLockWatchSweep()
   }
@@ -775,6 +869,7 @@ export class WalletSyncService {
       peerCount: 0,
       filterCapablePeerCount: 0,
       lockPeerCount: 0,
+      peerMode: null,
       phaseEtaMs: null,
       lastError: null,
       updatedAt: Date.now(),

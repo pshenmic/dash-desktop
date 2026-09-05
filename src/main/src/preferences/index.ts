@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import {z} from 'zod'
 import {GeneralPreferences, GeneralPreferencesJSON, GeneralPreferencesSchema} from "./general";
-import {NetworkPreferences, NetworkPreferencesSchema} from "./network";
+import {NetworkPreferences, NetworkPreferencesSchema, renameLegacyPeerFields} from "./network";
 import {Logger} from '../utils/logger'
 
 const log = new Logger('preferences')
@@ -14,7 +14,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 8
+  static readonly CURRENT_VERSION = 9
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
@@ -102,8 +102,8 @@ export class Preferences {
     )
 
     // Hand-edited far more often than the rest of the file, so a malformed
-    // section falls back to discovery defaults instead of wedging startup.
-    const rawNetwork = NetworkPreferencesSchema.safeParse(raw.network)
+    // section falls back to dynamic defaults instead of wedging startup.
+    const rawNetwork = NetworkPreferencesSchema.safeParse(renameLegacyPeerFields(raw.network))
     if (raw.network != null && !rawNetwork.success) {
       log.error('invalid network preferences, ignoring:', rawNetwork.error.issues.map(i => i.message).join(', '))
     }
