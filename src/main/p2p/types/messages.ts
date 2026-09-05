@@ -85,8 +85,8 @@ export interface P2PBanPeersMessage {
 
 // requestId is echoed back in P2PPeersMessage. Read straight off the pools, so
 // it answers in whatever state the session is in — including none.
-export interface P2PGetPeersMessage {
-  type: 'getPeers'
+export interface P2PGetConnectedPeersMessage {
+  type: 'getConnectedPeers'
   requestId: string
 }
 
@@ -115,7 +115,7 @@ export type P2PCommand =
   | P2PBroadcastMessage
   | P2PWatchTxsMessage
   | P2PReseedUtxosMessage
-  | P2PGetPeersMessage
+  | P2PGetConnectedPeersMessage
   | P2PBanPeersMessage
   | P2PProbePeerMessage
 

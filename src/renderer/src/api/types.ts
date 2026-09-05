@@ -146,7 +146,7 @@ export interface GeneralPreferencesJSON {
 
 export type PeerMode = 'dynamic' | 'static'
 
-// getPeers — one connected peer. pingMs is null until a round trip has been
+// getConnectedPeers — one connected peer. pingMs is null until a round trip has been
 // measured, userAgent until the peer's version message lands.
 export interface PeerInfo {
   pool: string

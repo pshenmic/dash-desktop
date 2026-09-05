@@ -96,7 +96,7 @@ declare global {
       setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
       setPlatformFeeMultiplier: (platformFeeMultiplier: number) => Promise<void>
       setCoreFeeMultiplier: (coreFeeMultiplier: number) => Promise<void>
-      getPeers: () => Promise<unknown>
+      getConnectedPeers: () => Promise<unknown>
       setPeerMode: (mode: 'dynamic' | 'static') => Promise<void>
       pushStaticPeer: (network: Network, peer: string) => Promise<unknown>
       removeStaticPeer: (network: Network, peer: string) => Promise<unknown>

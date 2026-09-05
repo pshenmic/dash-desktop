@@ -15,8 +15,8 @@ export class API {
     return this.api.setConnectionType(connectionType)
   }
 
-  static async getPeers(): Promise<PeerInfo[]> {
-    return this.api.getPeers() as Promise<PeerInfo[]>
+  static async getConnectedPeers(): Promise<PeerInfo[]> {
+    return this.api.getConnectedPeers() as Promise<PeerInfo[]>
   }
 
   static async setPeerMode(mode: PeerMode): Promise<void> {

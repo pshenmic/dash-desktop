@@ -236,18 +236,18 @@ describe('static peers run one pool', () => {
   it('reports the peers of every pool it is running', async () => {
     await start(service, PINNED)
 
-    expect(service.getPeers().map(p => p.pool)).toEqual(['static-pool'])
+    expect(service.getConnectedPeers().map(p => p.pool)).toEqual(['static-pool'])
 
     await service.stop()
     captured.pools.length = 0
     service = new SyncService(noopEvents)
     await start(service, DYNAMIC)
 
-    expect(service.getPeers().map(p => p.pool)).toEqual(['lock-pool', 'bulk-pool'])
+    expect(service.getConnectedPeers().map(p => p.pool)).toEqual(['lock-pool', 'bulk-pool'])
   })
 
   it('reports no peer while no pool is up', () => {
-    expect(service.getPeers()).toEqual([])
+    expect(service.getConnectedPeers()).toEqual([])
   })
 
   // Reported off the pool that is up, not off the preference that asked for it:

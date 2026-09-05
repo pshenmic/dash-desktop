@@ -26,10 +26,10 @@ export const IDENTITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000
 // where waiting for the *next* clsig would cost a whole block interval.
 export const CHAIN_LOCK_BACKSTOP_MS = 45 * 1000
 
-// How long getPeers waits for the utility process to answer. The reply is a
+// How long getConnectedPeers waits for the utility process to answer. The reply is a
 // synchronous read off the pools, so anything near this means the child is
 // wedged and an empty list beats a hung IPC call.
-export const PEER_INFO_TIMEOUT_MS = 5_000
+export const PEER_INFO_TIMEOUT_MS = 2_500
 
 // How long a peer probe waits for the utility process. Each dial there is
 // already bounded, so this is headroom over that bound rather than the dial

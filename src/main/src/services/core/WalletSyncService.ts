@@ -399,20 +399,20 @@ export class WalletSyncService {
   // The pools live in the utility process, so this is a round trip rather than
   // a read. Empty means no transport at all — a wallet with peers reports them
   // in both connection modes and both peer modes.
-  getPeers = (): Promise<PeerInfo[]> => {
+  getConnectedPeers = (): Promise<PeerInfo[]> => {
     if (!this.child) return Promise.resolve([])
     const requestId = randomUUID()
     return new Promise<PeerInfo[]>(resolve => {
       const timer = setTimeout(() => {
         this.pendingPeerRequests.delete(requestId)
-        console.warn(`[walletSync] getPeers ${requestId} unanswered after ${PEER_INFO_TIMEOUT_MS}ms`)
+        console.warn(`[walletSync] getConnectedPeers ${requestId} unanswered after ${PEER_INFO_TIMEOUT_MS}ms`)
         resolve([])
       }, PEER_INFO_TIMEOUT_MS)
       this.pendingPeerRequests.set(requestId, peers => {
         clearTimeout(timer)
         resolve(peers)
       })
-      this.send({type: 'getPeers', requestId})
+      this.send({type: 'getConnectedPeers', requestId})
     })
   }
 

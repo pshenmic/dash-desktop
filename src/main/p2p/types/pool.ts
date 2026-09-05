@@ -16,7 +16,7 @@ export interface PeerOverrides {
   bannedPeers: string[]
 }
 
-// One connected peer, as the getPeers endpoint reports it. `pingMs` is null
+// One connected peer, as the getConnectedPeers endpoint reports it. `pingMs` is null
 // until a pong has been measured, `userAgent` until the version handshake lands.
 export interface PeerInfo {
   // Which pool holds it — in dynamic mode two pools dial different peers.

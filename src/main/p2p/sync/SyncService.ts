@@ -105,7 +105,7 @@ export class SyncService {
 
   // Both pools: in dynamic mode they hold different peers, and in static mode
   // the bulk pool does not exist — the pinned one serves sync too.
-  getPeers = (): PeerInfo[] => [
+  getConnectedPeers = (): PeerInfo[] => [
     ...this.lockPool?.peerInfo() ?? [],
     ...this.bulkPool?.peerInfo() ?? [],
   ]

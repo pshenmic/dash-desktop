@@ -59,7 +59,7 @@ import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
 import {SetLanguageHandler} from "./api/setLanguage";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
-import {GetPeersHandler} from "./api/getPeers";
+import {GetConnectedPeersHandler} from "./api/getConnectedPeers";
 import {SetPeerModeHandler} from "./api/setPeerMode";
 import {PushStaticPeerHandler} from "./api/pushStaticPeer";
 import {RemoveStaticPeerHandler} from "./api/removeStaticPeer";
@@ -191,7 +191,7 @@ export class WalletBackend {
     ipcMain.handle('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
     ipcMain.handle('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
     ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
-    ipcMain.handle('getPeers', new GetPeersHandler(this.walletSyncService).handle)
+    ipcMain.handle('getConnectedPeers', new GetConnectedPeersHandler(this.walletSyncService).handle)
     ipcMain.handle('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('pushStaticPeer', new PushStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
     ipcMain.handle('removeStaticPeer', new RemoveStaticPeerHandler(this.applicationService, this.walletSyncService).handle)

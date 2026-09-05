@@ -90,8 +90,8 @@ process.parentPort.on('message', ({data}) => {
     case 'banPeers':
       sync.setBannedPeers(data.banned)
       return
-    case 'getPeers':
-      process.parentPort.postMessage({type: 'peers', requestId: data.requestId, peers: sync.getPeers()})
+    case 'getConnectedPeers':
+      process.parentPort.postMessage({type: 'peers', requestId: data.requestId, peers: sync.getConnectedPeers()})
       return
     // Straight to the dialler: a probe touches no pool and no chain state, so
     // routing it through SyncService would only rename the call.
