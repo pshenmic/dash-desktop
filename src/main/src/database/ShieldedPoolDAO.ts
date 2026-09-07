@@ -2,7 +2,8 @@ import type {Knex} from 'knex'
 import {Network} from '../types/Network'
 
 import {EncryptedNoteRecord} from '../types/ShieldedNote'
-import {PAYLOAD_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
+import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
+import {chunk} from '../utils/chunk'
 // The Orchard pool: network state, shared by every wallet on that network.
 // Trial-decryption is what makes a note a wallet's own, and that lives in
 // ShieldedNoteDAO.
@@ -25,10 +26,9 @@ export class ShieldedPoolDAO {
   }
 
   saveEncryptedNotes = async (network: Network, notes: EncryptedNoteRecord[]): Promise<void> => {
-    for (let offset = 0; offset < notes.length; offset += PAYLOAD_CHUNK_SIZE) {
-      const chunk = notes.slice(offset, offset + PAYLOAD_CHUNK_SIZE)
+    for (const rows of chunk(notes, INSERT_CHUNK_SIZE)) {
       await this.knex('shielded_pool_notes')
-        .insert(chunk.map((n) => ({
+        .insert(rows.map((n) => ({
           network,
           note_index: n.index,
           nullifier: Buffer.from(n.nullifier),
@@ -43,11 +43,11 @@ export class ShieldedPoolDAO {
 
   getEncryptedNotes = async (network: Network, indexes: number[]): Promise<EncryptedNoteRecord[]> => {
     const result: EncryptedNoteRecord[] = []
-    for (let offset = 0; offset < indexes.length; offset += SELECT_CHUNK_SIZE) {
+    for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
       const rows = await this.knex('shielded_pool_notes')
         .select('note_index', 'nullifier', 'cmx', 'encrypted_note', 'cv_net')
         .where({network})
-        .whereIn('note_index', indexes.slice(offset, offset + SELECT_CHUNK_SIZE))
+        .whereIn('note_index', slice)
         .orderBy('note_index', 'asc')
       result.push(...rows.map(toRecord))
     }
