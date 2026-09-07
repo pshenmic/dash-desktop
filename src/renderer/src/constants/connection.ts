@@ -1,9 +1,8 @@
-import { ConnectionStatus, ConnectionType, WalletSyncPhase } from '@renderer/api/types'
+import { ConnectionStatus, ConnectionType, Network, WalletSyncPhase } from '@renderer/api/types'
 import type {
   ConnectionModeDetails,
   ConnectionSelectOption,
   ConnectionSettingsTabDefinition,
-  PeerTableRow,
   PeerTableTab,
   PeerTableTabDefinition,
 } from '@renderer/types/connection'
@@ -134,16 +133,6 @@ export const PEER_TABLE_TABS: PeerTableTabDefinition[] = [
   {value: 'static', label: 'Static'},
 ]
 
-export const PEER_TABLE_ROWS: Record<PeerTableTab, PeerTableRow[]> = {
-  active: [
-    {id: 'active-159-200-54-78-a', peer: '159.200.54.78:9999', userAgent: '/Dash Core:23.0.2/', pingTime: '163 ms'},
-    {id: 'active-159-200-54-78-b', peer: '159.200.54.78:9999', userAgent: '/Dash Core:23.0.2/', pingTime: '578 ms'},
-    {id: 'active-188-50-341-5', peer: '188.50.341.5:9999', userAgent: '/Dash Core:23.1.2/', pingTime: '91 ms'},
-  ],
-  banned: [],
-  static: [],
-}
-
 export const PEER_TABLE_ACTION_LABELS: Record<PeerTableTab, string> = {
   active: 'Add Peer',
   banned: 'Ban Peer',
@@ -155,11 +144,41 @@ export const PEER_ACTION_MENU_TITLE = 'Peer Actions'
 export const PEER_ACTION_LABELS = {
   ban: 'Ban Peer',
   addStatic: 'Add to Static List',
+  remove: 'Remove Peer',
+  unban: 'Unban Peer',
 } as const
 
 export const ADD_PEER_PLACEHOLDER = 'Enter IP:Port'
 
 export const PEER_TABLE_EMPTY_LABEL = 'No peers in this list.'
+
+export const PEER_TABLE_LOADING_LABEL = 'Loading peers…'
+
+export const PEER_CHECKING_LABEL = 'Checking peer…'
+
+export const PEER_SAVING_LABEL = 'Saving peer…'
+
+export const PEER_NETWORK_REQUIRED_LABEL = 'Select a wallet to manage peers.'
+
+export const STATIC_PEER_REQUIRED_MESSAGE =
+  'Add a static peer for this network before enabling static peer mode.'
+
+export const STATIC_PEER_READY_MESSAGE =
+  'Static peer added. Turn on Use Static Peers to enable static peer mode.'
+
+export const STATIC_PEER_FALLBACK_LABEL = 'Using Dynamic'
+
+export const STATIC_PEER_FALLBACK_TOOLTIP =
+  'Static mode is saved globally, but this network is currently using dynamic discovery.'
+
+export const PEER_UNAVAILABLE_LABEL = '—'
+
+export const PEER_POLL_INTERVAL_MS = 4_000
+
+export const DEFAULT_PEER_PORTS: Record<Network, number> = {
+  mainnet: 9999,
+  testnet: 19999,
+}
 
 export const PLATFORM_ROW_LABELS = {
   dapi: 'Enable GRPC',
@@ -174,7 +193,7 @@ export const CONNECTION_SETTINGS_TOOLTIPS = {
   rpc:
     'RPC supplies the wallet data shown in the app when RPC mode is selected. Background P2P synchronization can remain enabled at the same time.',
   peers:
-    'View active, banned, and static P2P peers. Peer management and static peers are visual controls only for now.',
+    'View connected peers and manage per-network dynamic, banned, and static peer lists. Static peer mode applies to the whole app, while each network keeps its own peer list.',
   dapi:
     'DAPI is used to query decentralized Platform data, including balances and documents. This switch is visual only for now.',
   platformExplorer:

@@ -1,14 +1,15 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import {
   AddIcon,
   Button,
   CheckmarkIcon,
   CloseIcon,
+  DeleteIcon,
   InfoTooltip,
   Text,
   TurnOffIcon,
 } from '@renderer/components/dash-ui-kit-enxtended'
-import ContextMenu from '@renderer/components/ui/ContextMenu'
+import ContextMenu, {type ContextMenuItem} from '@renderer/components/ui/ContextMenu'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {useConnectionModeContext} from '@renderer/contexts/ConnectionModeContext'
@@ -19,12 +20,19 @@ import {
   CORE_CONNECTION_MODE_OPTIONS,
   PEER_ACTION_LABELS,
   PEER_ACTION_MENU_TITLE,
+  PEER_CHECKING_LABEL,
+  PEER_NETWORK_REQUIRED_LABEL,
+  PEER_SAVING_LABEL,
   PEER_TABLE_ACTION_LABELS,
   PEER_TABLE_EMPTY_LABEL,
-  PEER_TABLE_ROWS,
+  PEER_TABLE_LOADING_LABEL,
   PEER_TABLE_TABS,
   RPC_CONNECTION_NAME,
   RPC_CONNECTION_OPTIONS,
+  STATIC_PEER_READY_MESSAGE,
+  STATIC_PEER_FALLBACK_LABEL,
+  STATIC_PEER_FALLBACK_TOOLTIP,
+  STATIC_PEER_REQUIRED_MESSAGE,
 } from '@renderer/constants/connection'
 import {WalletSyncPhase} from '@renderer/api/types'
 import {API} from '@renderer/api'
@@ -32,7 +40,10 @@ import {toast} from '@renderer/components/ui/Toast'
 import {isWalletSyncInactive} from '@renderer/utils/walletSync'
 import {getErrorMessage} from '@renderer/utils/error'
 import {setWalletSyncEnabled} from '@renderer/utils/connectionSettings'
+import {usePeerSettings} from '@renderer/hooks/usePeerSettings'
+import {buildPeerTableRows} from '@renderer/utils/peers'
 import type {
+  PeerRowAction,
   PeerTableRow,
   PeerTableTab,
   WalletConnectionMode,
@@ -162,12 +173,38 @@ function WalletConnectionSelector({
   )
 }
 
-function AddPeerForm({onClose}: {onClose: () => void}): React.JSX.Element {
+function AddPeerForm({
+  pendingLabel,
+  onClose,
+  onSubmit,
+}: {
+  pendingLabel: string
+  onClose: () => void
+  onSubmit: (peer: string) => Promise<void>
+}): React.JSX.Element {
+  const [peer, setPeer] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+
+  const submit = async (): Promise<void> => {
+    const trimmed = peer.trim()
+    if (trimmed.length === 0 || submitting) return
+    setSubmitting(true)
+    setSubmissionError(null)
+    try {
+      await onSubmit(trimmed)
+      onClose()
+    } catch (error) {
+      setSubmissionError(getErrorMessage(error))
+      setSubmitting(false)
+    }
+  }
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        onClose()
+        void submit()
       }}
       className="grid min-h-[3.625rem] grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10"
     >
@@ -175,62 +212,140 @@ function AddPeerForm({onClose}: {onClose: () => void}): React.JSX.Element {
         <input
           type="text"
           aria-label="Peer address"
+          aria-invalid={submissionError !== null}
+          aria-describedby={submissionError === null ? undefined : 'peer-form-error'}
           placeholder={ADD_PEER_PLACEHOLDER}
+          value={peer}
+          disabled={submitting}
+          autoFocus
+          onChange={event => setPeer(event.target.value)}
           className="h-11 min-w-0 flex-1 rounded-[.75rem] bg-dash-primary-dark-blue/5 px-4 text-sm font-medium text-dash-primary-dark-blue outline-none placeholder:text-dash-primary-dark-blue/35 focus:ring-2 focus:ring-dash-brand/25 dark:bg-white/8 dark:text-white dark:placeholder:text-white/35 dark:focus:ring-dash-mint/25"
         />
         <button
           type="submit"
-          aria-label="Confirm peer"
-          className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[.5rem] bg-dash-mint/20 text-dash-mint hover:bg-dash-mint/30"
+          aria-label={submitting ? pendingLabel : 'Confirm peer'}
+          disabled={submitting || peer.trim().length === 0}
+          className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[.5rem] bg-dash-mint/20 text-dash-mint hover:bg-dash-mint/30 disabled:cursor-wait disabled:opacity-50"
         >
           <CheckmarkIcon size={12} color="currentColor" />
         </button>
         <button
           type="button"
           aria-label="Close peer form"
+          disabled={submitting}
           onClick={onClose}
-          className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[.5rem] bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue/45 hover:bg-dash-primary-dark-blue/12 dark:bg-white/10 dark:text-white/45 dark:hover:bg-white/15"
+          className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[.5rem] bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue/45 hover:bg-dash-primary-dark-blue/12 disabled:cursor-wait disabled:opacity-50 dark:bg-white/10 dark:text-white/45 dark:hover:bg-white/15"
         >
           <CloseIcon size={10} color="currentColor" />
         </button>
+      </div>
+      <div
+        id="peer-form-error"
+        aria-live="polite"
+        className="truncate"
+        title={submissionError ?? undefined}
+      >
+        <Text
+          as="p"
+          size={12}
+          weight="medium"
+          color="brand"
+          className={`truncate ${submissionError === null ? '' : 'text-dash-red!'}`}
+        >
+          {submissionError ?? (submitting ? pendingLabel : '')}
+        </Text>
       </div>
     </form>
   )
 }
 
-function PeerRow({row}: {row: PeerTableRow}): React.JSX.Element {
-  return (
-    <ContextMenu
-      title={PEER_ACTION_MENU_TITLE}
-      items={[
-        {
-          id: 'ban',
-          label: PEER_ACTION_LABELS.ban,
-          icon: <TurnOffIcon size={10} color="currentColor" />,
-        },
-        {
-          id: 'add-static',
-          label: PEER_ACTION_LABELS.addStatic,
-          icon: <AddIcon size={10} color="currentColor" />,
-        },
-      ]}
+function PeerRow({
+  disabled,
+  row,
+  tab,
+  onAction,
+}: {
+  disabled: boolean
+  row: PeerTableRow
+  tab: PeerTableTab
+  onAction: (action: PeerRowAction, row: PeerTableRow) => void
+}): React.JSX.Element {
+  const items: ContextMenuItem[] = []
+  if (tab === 'active' && row.connected) {
+    items.push(
+      {
+        id: 'ban',
+        label: PEER_ACTION_LABELS.ban,
+        icon: <TurnOffIcon size={10} color="currentColor" />,
+        tone: 'danger',
+        onSelect: () => onAction('ban', row),
+      },
+      {
+        id: 'add-static',
+        label: PEER_ACTION_LABELS.addStatic,
+        icon: <AddIcon size={10} color="currentColor" />,
+        onSelect: () => onAction('add-static', row),
+      },
+    )
+  }
+  if (tab === 'active' && row.configuredList === 'dynamic') {
+    items.push({
+      id: 'remove-dynamic',
+      label: PEER_ACTION_LABELS.remove,
+      icon: <DeleteIcon size={10} color="currentColor" />,
+      tone: 'danger',
+      onSelect: () => onAction('remove-dynamic', row),
+    })
+  } else if (tab === 'static') {
+    items.push({
+      id: 'remove-static',
+      label: PEER_ACTION_LABELS.remove,
+      icon: <DeleteIcon size={10} color="currentColor" />,
+      tone: 'danger',
+      onSelect: () => onAction('remove-static', row),
+    })
+  } else if (tab === 'banned') {
+    items.push({
+      id: 'unban',
+      label: PEER_ACTION_LABELS.unban,
+      icon: <CheckmarkIcon size={10} color="currentColor" />,
+      onSelect: () => onAction('unban', row),
+    })
+  }
+
+  const offlineDynamic = tab === 'active'
+    && row.configuredList === 'dynamic'
+    && !row.connected
+  const content = (
+    <div
+      tabIndex={disabled ? -1 : 0}
+      aria-label={offlineDynamic ? `${row.peer}, configured but not connected` : row.peer}
+      title={offlineDynamic ? 'Configured dynamic peer is not connected' : undefined}
+      className={`
+        grid min-h-[3.625rem] grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 outline-none transition-colors dark:border-white/10
+        ${disabled ? 'cursor-wait opacity-60' : 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'}
+        ${offlineDynamic ? 'bg-dash-orange/8 dark:bg-dash-orange/10' : ''}
+      `}
     >
-      <div
-        tabIndex={0}
-        className="grid min-h-[3.625rem] cursor-context-menu grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 outline-none transition-colors hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:border-white/10 dark:hover:bg-white/5 dark:focus:bg-white/5"
+      <Text
+        size={14}
+        weight="medium"
+        color="brand"
+        className={`truncate ${offlineDynamic ? 'text-dash-orange!' : ''}`}
       >
-        <Text size={14} weight="medium" color="brand" className="truncate">
-          {row.peer}
-        </Text>
-        <Text size={14} weight="medium" color="brand" className="truncate">
-          {row.userAgent}
-        </Text>
-        <Text size={14} weight="medium" color="brand" className="justify-self-end whitespace-nowrap">
-          {row.pingTime}
-        </Text>
-      </div>
-    </ContextMenu>
+        {row.peer}
+      </Text>
+      <Text size={14} weight="medium" color="brand" className="truncate">
+        {row.userAgent}
+      </Text>
+      <Text size={14} weight="medium" color="brand" className="justify-self-end whitespace-nowrap">
+        {row.pingTime}
+      </Text>
+    </div>
   )
+
+  if (disabled || items.length === 0) return content
+  return <ContextMenu title={PEER_ACTION_MENU_TITLE} items={items}>{content}</ContextMenu>
 }
 
 export default function CoreTab(): React.JSX.Element {
@@ -238,15 +353,35 @@ export default function CoreTab(): React.JSX.Element {
   const {desired, ready, setDesired} = useConnectionModeContext()
   const sync = status?.walletSync
   const walletId = status?.selectedWalletId ?? null
+  const network = status?.network ?? null
   const phase = sync?.phase ?? WalletSyncPhase.Stopped
   const syncInactive = isWalletSyncInactive(phase)
   const [pendingSyncAction, setPendingSyncAction] = useState<WalletSyncAction | null>(null)
-  const [staticPeersEnabled, setStaticPeersEnabled] = useState(false)
   const [peerTab, setPeerTab] = useState<PeerTableTab>('active')
   const [rpcConnection, setRpcConnection] = useState(RPC_CONNECTION_NAME)
   const [addPeerOpen, setAddPeerOpen] = useState(false)
+  const [peerInstruction, setPeerInstruction] = useState<string | null>(null)
+  const peerSettings = usePeerSettings(network, peerTab === 'active')
   const syncPending = pendingSyncAction !== null
-  const peerRows = PEER_TABLE_ROWS[peerTab]
+  const peerMutationPending = peerSettings.pending !== null
+  const peerRows = useMemo(() => {
+    if (network === null || !peerSettings.settingsReady) return []
+    return buildPeerTableRows({
+      connectedPeers: peerSettings.connectedPeers,
+      dynamicPeers: peerSettings.dynamicPeers,
+      staticPeers: peerSettings.staticPeers,
+      bannedPeers: peerSettings.bannedPeers,
+      network,
+    })[peerTab]
+  }, [
+    network,
+    peerSettings.bannedPeers,
+    peerSettings.connectedPeers,
+    peerSettings.dynamicPeers,
+    peerSettings.staticPeers,
+    peerSettings.settingsReady,
+    peerTab,
+  ])
 
   useEffect(() => {
     if (pendingSyncAction === 'start' && !syncInactive) {
@@ -255,6 +390,11 @@ export default function CoreTab(): React.JSX.Element {
       setPendingSyncAction(null)
     }
   }, [pendingSyncAction, syncInactive])
+
+  useEffect(() => {
+    setAddPeerOpen(false)
+    setPeerInstruction(null)
+  }, [network])
 
   const handleStartSync = async (): Promise<void> => {
     if (!walletId || syncPending || !syncInactive) return
@@ -290,21 +430,73 @@ export default function CoreTab(): React.JSX.Element {
     }
   }
 
-  const handleStaticPeersToggle = (): void => {
-    setStaticPeersEnabled((current) => {
-      const next = !current
-      if (next) {
+  const handleStaticPeersToggle = async (): Promise<void> => {
+    if (!peerSettings.settingsReady || peerMutationPending) return
+    const enabling = peerSettings.configuredMode !== 'static'
+    if (enabling && peerSettings.staticPeers.length === 0) {
+      setPeerTab('static')
+      setAddPeerOpen(true)
+      setPeerInstruction(STATIC_PEER_REQUIRED_MESSAGE)
+      toast.error(`**Static peer required** ${STATIC_PEER_REQUIRED_MESSAGE}`)
+      return
+    }
+
+    peerSettings.clearError()
+    try {
+      await peerSettings.setMode(enabling ? 'static' : 'dynamic')
+      setPeerInstruction(null)
+      if (enabling) {
         setPeerTab('static')
         setAddPeerOpen(false)
       }
-      return next
-    })
+    } catch (error) {
+      console.error('set peer mode failed', error)
+      toast.error(`**Could not change peer mode** ${getErrorMessage(error)}`)
+    }
   }
 
   const handlePeerTabChange = (tab: PeerTableTab): void => {
+    if (peerMutationPending) return
     setPeerTab(tab)
     setAddPeerOpen(false)
   }
+
+  const handleAddPeer = async (peer: string): Promise<void> => {
+    peerSettings.clearError()
+    try {
+      if (peerTab === 'active') await peerSettings.addDynamicPeer(peer)
+      else if (peerTab === 'static') await peerSettings.addStaticPeer(peer)
+      else await peerSettings.banPeer(peer)
+
+      if (peerTab === 'static' && peerSettings.configuredMode !== 'static') {
+        setPeerInstruction(STATIC_PEER_READY_MESSAGE)
+      }
+    } catch (error) {
+      console.error('add peer failed', error)
+      toast.error(`**Could not add peer** ${getErrorMessage(error)}`)
+      throw error
+    }
+  }
+
+  const handlePeerAction = async (action: PeerRowAction, row: PeerTableRow): Promise<void> => {
+    peerSettings.clearError()
+    try {
+      if (action === 'ban') await peerSettings.banPeer(row.peer)
+      else if (action === 'add-static') await peerSettings.addStaticPeer(row.peer)
+      else if (action === 'remove-dynamic') await peerSettings.removeDynamicPeer(row.entry)
+      else if (action === 'remove-static') await peerSettings.removeStaticPeer(row.entry)
+      else await peerSettings.unbanPeer(row.entry)
+    } catch (error) {
+      console.error('peer action failed', error)
+      toast.error(`**Could not update peer** ${getErrorMessage(error)}`)
+    }
+  }
+
+  const peerEmptyLabel = network === null
+    ? PEER_NETWORK_REQUIRED_LABEL
+    : peerSettings.loading
+      ? PEER_TABLE_LOADING_LABEL
+      : PEER_TABLE_EMPTY_LABEL
 
   return (
     <div className="px-1 pb-2">
@@ -326,11 +518,24 @@ export default function CoreTab(): React.JSX.Element {
           />
         </SettingsRow>
         <SettingsRow label="Use Static Peers">
-          <SwitchControl
-            checked={staticPeersEnabled}
-            label="Use static peers"
-            onChange={handleStaticPeersToggle}
-          />
+          <div className="flex items-center gap-3">
+            {peerSettings.configuredMode === 'static'
+              && sync?.peerMode === 'dynamic' && (
+                <Text
+                  size={10}
+                  weight="medium"
+                  className="text-dash-orange!"
+                >
+                  <span title={STATIC_PEER_FALLBACK_TOOLTIP}>{STATIC_PEER_FALLBACK_LABEL}</span>
+                </Text>
+              )}
+            <SwitchControl
+              checked={peerSettings.configuredMode === 'static'}
+              disabled={!peerSettings.settingsReady || peerMutationPending}
+              label="Use static peers"
+              onChange={() => void handleStaticPeersToggle()}
+            />
+          </div>
         </SettingsRow>
       </div>
 
@@ -359,9 +564,10 @@ export default function CoreTab(): React.JSX.Element {
                 <button
                   key={tab.value}
                   type="button"
+                  disabled={peerMutationPending}
                   onClick={() => handlePeerTabChange(tab.value)}
                   className={`
-                    h-8 cursor-pointer rounded-full px-4 text-sm font-medium transition-colors
+                    h-8 cursor-pointer rounded-full px-4 text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60
                     ${peerTab === tab.value
                       ? 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue dark:bg-white/8 dark:text-white'
                       : 'text-dash-primary-dark-blue/35 hover:text-dash-primary-dark-blue dark:text-white/35 dark:hover:text-white'}
@@ -375,7 +581,11 @@ export default function CoreTab(): React.JSX.Element {
 
           <Button
             type="button"
-            onClick={() => setAddPeerOpen(true)}
+            disabled={!peerSettings.settingsReady || peerMutationPending}
+            onClick={() => {
+              peerSettings.clearError()
+              setAddPeerOpen(true)
+            }}
             variant="solid"
             colorScheme={peerTab === 'banned' ? 'danger-light' : 'lightBlue-mint'}
             size="sm"
@@ -385,6 +595,43 @@ export default function CoreTab(): React.JSX.Element {
             {PEER_TABLE_ACTION_LABELS[peerTab]}
           </Button>
         </div>
+
+        {peerInstruction !== null && (
+          <div
+            role="status"
+            className="mb-3 rounded-[.75rem] border border-dash-orange/40 bg-dash-orange/8 px-4 py-2 dark:bg-dash-orange/10"
+          >
+            <Text as="p" size={12} weight="medium" className="text-dash-orange!">
+              {peerInstruction}
+            </Text>
+          </div>
+        )}
+        {peerSettings.error !== null && (
+          <div
+            role="alert"
+            className="mb-3 flex items-center justify-between gap-3 rounded-[.75rem] border border-dash-red/30 bg-dash-red/5 px-4 py-2 dark:bg-dash-red/10"
+          >
+            <Text as="p" size={12} weight="medium" className="text-dash-red!">
+              {peerSettings.error}
+            </Text>
+            {!peerSettings.settingsReady && network !== null && (
+              <button
+                type="button"
+                onClick={peerSettings.reload}
+                className="shrink-0 cursor-pointer text-xs font-medium text-dash-red underline"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+        {peerSettings.pending === 'add-static' && !addPeerOpen && (
+          <div className="mb-3 px-1" role="status">
+            <Text size={12} weight="medium" color="brand" opacity={50}>
+              {PEER_CHECKING_LABEL}
+            </Text>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-[1.25rem] border border-dash-primary-dark-blue/15 dark:border-white/15">
           <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 px-[.9375rem] py-3">
@@ -398,12 +645,26 @@ export default function CoreTab(): React.JSX.Element {
               Ping Time
             </Text>
           </div>
-          {addPeerOpen && <AddPeerForm onClose={() => setAddPeerOpen(false)} />}
-          {peerRows.map((row) => <PeerRow key={row.id} row={row} />)}
+          {addPeerOpen && (
+            <AddPeerForm
+              pendingLabel={peerTab === 'static' ? PEER_CHECKING_LABEL : PEER_SAVING_LABEL}
+              onClose={() => setAddPeerOpen(false)}
+              onSubmit={handleAddPeer}
+            />
+          )}
+          {peerRows.map((row) => (
+            <PeerRow
+              key={row.id}
+              disabled={peerMutationPending}
+              row={row}
+              tab={peerTab}
+              onAction={(action, selectedRow) => void handlePeerAction(action, selectedRow)}
+            />
+          ))}
           {peerRows.length === 0 && !addPeerOpen && (
             <div className="flex min-h-[3.625rem] items-center justify-center border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10">
               <Text size={14} weight="medium" color="brand" opacity={40}>
-                {PEER_TABLE_EMPTY_LABEL}
+                {peerEmptyLabel}
               </Text>
             </div>
           )}
