@@ -29,6 +29,22 @@ afterEach(async () => {
 
 const indexes = Array.from({length: OVER_LIMIT}, (_, index) => index)
 
+// The other cap: sqlite binds every `whereIn` value, and SQLITE_MAX_VARIABLE_NUMBER
+// stops a statement at 32,766 of them. A whole-wallet address list is what
+// reaches it.
+const OVER_BINDINGS = 40_000
+const manyAddresses = Array.from({length: OVER_BINDINGS}, (_, index) => `core-${index}`)
+
+const paidTx = {
+  txid: 'paid',
+  raw: new Uint8Array([1]),
+  inputs: [],
+  outputs: [
+    {vout: 0, address: 'core-1', satoshis: '500', isMine: true},
+    {vout: 1, address: 'core-2', satoshis: '700', isMine: true},
+  ],
+}
+
 describe('bulk inserts past the compound-select limit', () => {
   it('reveals core addresses', async () => {
     await new AddressDAO(knex).insertAddresses(indexes.map(index => ({
@@ -104,5 +120,65 @@ describe('bulk inserts past the compound-select limit', () => {
     const inputs = await knex('transaction_inputs').where({wallet_id: WALLET}).count('* as count').first()
     expect(Number(outputs?.count)).toBe(OVER_LIMIT)
     expect(Number(inputs?.count)).toBe(OVER_LIMIT)
+  })
+})
+
+describe('address batches past the bind-variable limit', () => {
+  beforeEach(async () => {
+    await new TransactionDAO(knex).applyBlock({
+      walletId: WALLET,
+      height: 10,
+      blockHash: 'hash',
+      blockTime: 0,
+      txs: [paidTx],
+      spends: [],
+    })
+  })
+
+  it('sums a balance', async () => {
+    expect(await new TransactionDAO(knex).getBalanceForAddresses(WALLET, manyAddresses)).toBe(1200n)
+  })
+
+  it('collects utxos', async () => {
+    const utxos = await new TransactionDAO(knex).getUtxosByAddresses(WALLET, manyAddresses)
+    expect(utxos.map(u => u.address).sort()).toEqual(['core-1', 'core-2'])
+  })
+
+  it('filters used addresses', async () => {
+    expect(await new TransactionDAO(knex).getUsedAddresses(WALLET, manyAddresses)).toEqual(['core-1', 'core-2'])
+  })
+
+  it('marks core addresses used', async () => {
+    const dao = new AddressDAO(knex)
+    await dao.insertAddresses(indexes.map(index => ({
+      walletId: WALLET,
+      accountId: 0,
+      address: `core-${index}`,
+      derivationPath: `m/44'/1'/0'/0/${index}`,
+      index,
+      isChange: false,
+      isUsed: false,
+      label: null,
+    })))
+
+    await dao.markAddressesUsed(WALLET, false, Array.from({length: OVER_BINDINGS}, (_, index) => index))
+
+    const {receiving} = await dao.getAddressesByWalletId(WALLET)
+    expect(receiving.filter(a => a.isUsed)).toHaveLength(OVER_LIMIT)
+  })
+
+  it('marks shielded notes spent', async () => {
+    const dao = new ShieldedNoteDAO(knex)
+    await dao.upsertNotes(WALLET, indexes.map(index => ({
+      index,
+      amount: 1000n,
+      address: `shielded-${index}`,
+      spent: false,
+    })))
+
+    await dao.markSpent(WALLET, Array.from({length: OVER_BINDINGS}, (_, index) => index))
+
+    const notes = await dao.getOwnedNotes(WALLET)
+    expect(notes.every(note => note.spent)).toBe(true)
   })
 })

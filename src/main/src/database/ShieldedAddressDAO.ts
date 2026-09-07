@@ -1,6 +1,6 @@
 import type {Knex} from 'knex'
 import {ShieldedAddressRow} from '../types/ShieldedAddress'
-import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
 
 function fromRow({wallet_id, address_index, address, is_used}): ShieldedAddressRow {
@@ -42,10 +42,11 @@ export class ShieldedAddressDAO {
   }
 
   markAddressesUsed = async (walletId: string, indexes: number[]): Promise<void> => {
-    if (indexes.length === 0) return
-    await this.knex('shielded_addresses')
-      .where('wallet_id', walletId)
-      .whereIn('address_index', indexes)
-      .update({is_used: true})
+    for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
+      await this.knex('shielded_addresses')
+        .where('wallet_id', walletId)
+        .whereIn('address_index', slice)
+        .update({is_used: true})
+    }
   }
 }

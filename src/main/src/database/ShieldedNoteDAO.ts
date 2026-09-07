@@ -1,7 +1,7 @@
 import type {Knex} from 'knex'
 
 import {PersistNote} from '../types/ShieldedNote'
-import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
 // Notes trial-decryption proved belong to this wallet. The ciphertext they were
 // decoded from is network state and lives in ShieldedPoolDAO.
@@ -50,10 +50,11 @@ export class ShieldedNoteDAO {
   // Only ever an update: a spent index that is not already an owned note would
   // mean spending a note we never decoded.
   markSpent = async (walletId: string, indexes: number[]): Promise<void> => {
-    if (indexes.length === 0) return
-    await this.knex('shielded_notes')
-      .where({wallet_id: walletId})
-      .whereIn('note_index', indexes)
-      .update({spent: true})
+    for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
+      await this.knex('shielded_notes')
+        .where({wallet_id: walletId})
+        .whereIn('note_index', slice)
+        .update({spent: true})
+    }
   }
 }

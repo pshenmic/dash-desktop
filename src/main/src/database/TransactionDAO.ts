@@ -356,45 +356,53 @@ export class TransactionDAO {
     })
   }
   getUtxosByAddresses = async (walletId: string, addresses: string[]): Promise<WalletSyncUtxo[]> => {
-    if (addresses.length === 0) return []
+    const utxos: WalletSyncUtxo[] = []
 
-    const rows = await this.knex('transaction_outputs as o')
-      .innerJoin('transactions as t', function() {
-        this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
-      })
-      .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height')
-      .where('o.wallet_id', walletId)
-      .whereIn('o.address', addresses)
-      .whereNull('o.spent_in_txid')
+    for (const slice of chunk(addresses, SELECT_CHUNK_SIZE)) {
+      const rows = await this.knex('transaction_outputs as o')
+        .innerJoin('transactions as t', function() {
+          this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
+        })
+        .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height')
+        .where('o.wallet_id', walletId)
+        .whereIn('o.address', slice)
+        .whereNull('o.spent_in_txid')
 
-    return rows.map(row => ({
-      txid: row.txid,
-      vout: row.vout,
-      address: row.address as string,
-      satoshis: row.satoshis,
-      height: row.height,
-    }))
+      utxos.push(...rows.map(row => ({
+        txid: row.txid,
+        vout: row.vout,
+        address: row.address as string,
+        satoshis: row.satoshis,
+        height: row.height,
+      })))
+    }
+
+    return utxos
   }
 
   getBalanceForAddresses = async (walletId: string, addresses: string[]): Promise<bigint> => {
-    if (addresses.length === 0) return 0n
+    let total = 0n
 
-    const rows = await this.knex('transaction_outputs')
-      .select('satoshis')
-      .where('wallet_id', walletId)
-      .whereIn('address', addresses)
-      .whereNull('spent_in_txid')
+    for (const slice of chunk(addresses, SELECT_CHUNK_SIZE)) {
+      const rows = await this.knex('transaction_outputs')
+        .select('satoshis')
+        .where('wallet_id', walletId)
+        .whereIn('address', slice)
+        .whereNull('spent_in_txid')
 
-    return rows.reduce((sum: bigint, row: {satoshis: string}) => sum + BigInt(row.satoshis), 0n)
+      total = rows.reduce((sum: bigint, row: {satoshis: string}) => sum + BigInt(row.satoshis), total)
+    }
+
+    return total
   }
 
   getUsedAddresses = async (walletId: string, addresses: string[]): Promise<string[]> => {
     const used = new Set<string>()
-    for (let offset = 0; offset < addresses.length; offset += SELECT_CHUNK_SIZE) {
+    for (const slice of chunk(addresses, SELECT_CHUNK_SIZE)) {
       const rows = await this.knex('transaction_outputs')
         .distinct('address')
         .where('wallet_id', walletId)
-        .whereIn('address', addresses.slice(offset, offset + SELECT_CHUNK_SIZE))
+        .whereIn('address', slice)
       for (const row of rows) used.add(row.address as string)
     }
     return addresses.filter(address => used.has(address))
@@ -407,13 +415,11 @@ export class TransactionDAO {
     const balances = new Map<string, bigint>()
     const txids = new Map<string, Set<string>>()
 
-    for (let offset = 0; offset < addresses.length; offset += SELECT_CHUNK_SIZE) {
-      const chunk = addresses.slice(offset, offset + SELECT_CHUNK_SIZE)
-
+    for (const slice of chunk(addresses, SELECT_CHUNK_SIZE)) {
       const rows = await this.knex('transaction_outputs')
         .select('address', 'txid', 'satoshis', 'spent_in_txid')
         .where('wallet_id', walletId)
-        .whereIn('address', chunk)
+        .whereIn('address', slice)
 
       for (const row of rows) {
         const address = row.address as string

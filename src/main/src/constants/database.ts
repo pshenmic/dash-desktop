@@ -16,13 +16,11 @@ export const WALLET_SCOPED_TABLES = [
   'platform_addresses',
 ] as const
 
-// SQLite bind-variable limit safety.
-export const PAYLOAD_CHUNK_SIZE = 100
-export const SELECT_CHUNK_SIZE = 500
-
-// Knex compiles a multi-row SQLite insert into one `select` term per row, and
-// SQLITE_MAX_COMPOUND_SELECT caps a compound select at 500 of them.
-export const INSERT_CHUNK_SIZE = 300
+// Batched statements stay under both SQLite ceilings: knex builds a multi-row
+// insert as one `select` term per row (SQLITE_MAX_COMPOUND_SELECT caps it at
+// 500), and every `whereIn` value is a bind variable (capped at 32,766).
+export const INSERT_CHUNK_SIZE = 250
+export const SELECT_CHUNK_SIZE = 300
 
 // applyBlock retry ladder. Failures here are almost always transient lock
 // contention that busy_timeout already absorbs; what survives is a persistence

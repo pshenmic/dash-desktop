@@ -1,7 +1,7 @@
 import type {Knex} from 'knex'
 import {Address} from '../types/Address'
 import {GroupedAddresses} from "../types/GroupedAddresses";
-import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
 
 function fromRow({wallet_id, account_id, address, derivation_path, index, is_change, is_used, label}): Address {
@@ -64,12 +64,13 @@ export class AddressDAO {
   }
 
   markAddressesUsed = async (walletId: string, isChange: boolean, indexes: number[]): Promise<void> => {
-    if (indexes.length === 0) return
-    await this.knex('addresses')
-      .where('wallet_id', walletId)
-      .andWhere('is_change', isChange)
-      .whereIn('index', indexes)
-      .update({is_used: true})
+    for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
+      await this.knex('addresses')
+        .where('wallet_id', walletId)
+        .andWhere('is_change', isChange)
+        .whereIn('index', slice)
+        .update({is_used: true})
+    }
   }
 
   setAddressLabel = async (walletId: string, address: string, label: string): Promise<void> => {
