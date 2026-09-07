@@ -1,6 +1,8 @@
 import type {Knex} from 'knex'
 
 import {PersistNote} from '../types/ShieldedNote'
+import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {chunk} from '../utils/chunk'
 // Notes trial-decryption proved belong to this wallet. The ciphertext they were
 // decoded from is network state and lives in ShieldedPoolDAO.
 export class ShieldedNoteDAO {
@@ -31,17 +33,18 @@ export class ShieldedNoteDAO {
   }
 
   upsertNotes = async (walletId: string, notes: PersistNote[]): Promise<void> => {
-    if (notes.length === 0) return
-    await this.knex('shielded_notes')
-      .insert(notes.map((n) => ({
-        wallet_id: walletId,
-        note_index: n.index,
-        amount: n.amount.toString(),
-        address: n.address,
-        spent: n.spent,
-      })))
-      .onConflict(['wallet_id', 'note_index'])
-      .merge(['amount', 'address', 'spent'])
+    for (const rows of chunk(notes, INSERT_CHUNK_SIZE)) {
+      await this.knex('shielded_notes')
+        .insert(rows.map((n) => ({
+          wallet_id: walletId,
+          note_index: n.index,
+          amount: n.amount.toString(),
+          address: n.address,
+          spent: n.spent,
+        })))
+        .onConflict(['wallet_id', 'note_index'])
+        .merge(['amount', 'address', 'spent'])
+    }
   }
 
   // Only ever an update: a spent index that is not already an owned note would

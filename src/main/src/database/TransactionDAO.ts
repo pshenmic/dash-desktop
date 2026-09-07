@@ -7,7 +7,8 @@ import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
 import {COINBASE_PREV_TXID} from '../constants/chain'
-import {SELECT_CHUNK_SIZE} from '../constants/database'
+import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
+import {chunk} from '../utils/chunk'
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 
@@ -34,12 +35,12 @@ export class TransactionDAO {
         block_time: block.blockTime,
         raw: Buffer.from(t.raw.buffer, t.raw.byteOffset, t.raw.byteLength),
       }))
-      if (txRows.length > 0) {
-        // merge (not ignore) so a tx we recorded optimistically at broadcast
-        // (block_height = 0) gets its real height/hash/time when its block is
-        // finally scanned.
+      // merge (not ignore) so a tx we recorded optimistically at broadcast
+      // (block_height = 0) gets its real height/hash/time when its block is
+      // finally scanned.
+      for (const rows of chunk(txRows, INSERT_CHUNK_SIZE)) {
         await trx('transactions')
-          .insert(txRows)
+          .insert(rows)
           .onConflict(['wallet_id', 'txid'])
           .merge(['block_height', 'block_hash', 'block_time', 'raw'])
       }
@@ -54,9 +55,9 @@ export class TransactionDAO {
           is_mine: o.isMine,
         }))
       )
-      if (outputRows.length > 0) {
+      for (const rows of chunk(outputRows, INSERT_CHUNK_SIZE)) {
         await trx('transaction_outputs')
-          .insert(outputRows)
+          .insert(rows)
           .onConflict(['wallet_id', 'txid', 'vout'])
           .ignore()
       }
@@ -71,9 +72,9 @@ export class TransactionDAO {
           sequence: i.sequence,
         }))
       )
-      if (inputRows.length > 0) {
+      for (const rows of chunk(inputRows, INSERT_CHUNK_SIZE)) {
         await trx('transaction_inputs')
-          .insert(inputRows)
+          .insert(rows)
           .onConflict(['wallet_id', 'txid', 'vin'])
           .ignore()
       }
@@ -240,8 +241,8 @@ export class TransactionDAO {
         satoshis: o.satoshis,
         is_mine: o.isMine,
       }))
-      if (outputRows.length > 0) {
-        await trx('transaction_outputs').insert(outputRows).onConflict(['wallet_id', 'txid', 'vout']).ignore()
+      for (const rows of chunk(outputRows, INSERT_CHUNK_SIZE)) {
+        await trx('transaction_outputs').insert(rows).onConflict(['wallet_id', 'txid', 'vout']).ignore()
       }
 
       const inputRows = tx.inputs.map(i => ({
@@ -252,8 +253,8 @@ export class TransactionDAO {
         prev_vout: i.prevVout,
         sequence: i.sequence,
       }))
-      if (inputRows.length > 0) {
-        await trx('transaction_inputs').insert(inputRows).onConflict(['wallet_id', 'txid', 'vin']).ignore()
+      for (const rows of chunk(inputRows, INSERT_CHUNK_SIZE)) {
+        await trx('transaction_inputs').insert(rows).onConflict(['wallet_id', 'txid', 'vin']).ignore()
       }
 
       // Only currently-unspent outputs, so an already-recorded spend is never

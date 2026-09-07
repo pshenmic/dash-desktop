@@ -20,6 +20,10 @@ export const WALLET_SCOPED_TABLES = [
 export const PAYLOAD_CHUNK_SIZE = 100
 export const SELECT_CHUNK_SIZE = 500
 
+// Knex compiles a multi-row SQLite insert into one `select` term per row, and
+// SQLITE_MAX_COMPOUND_SELECT caps a compound select at 500 of them.
+export const INSERT_CHUNK_SIZE = 300
+
 // applyBlock retry ladder. Failures here are almost always transient lock
 // contention that busy_timeout already absorbs; what survives is a persistence
 // gap.

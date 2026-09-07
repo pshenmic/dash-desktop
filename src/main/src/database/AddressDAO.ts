@@ -1,6 +1,8 @@
 import type {Knex} from 'knex'
 import {Address} from '../types/Address'
 import {GroupedAddresses} from "../types/GroupedAddresses";
+import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {chunk} from '../utils/chunk'
 
 function fromRow({wallet_id, account_id, address, derivation_path, index, is_change, is_used, label}): Address {
   return {
@@ -24,17 +26,19 @@ export class AddressDAO {
   }
 
   insertAddresses = async (addresses: Address[]): Promise<void> => {
-    await this.knex('addresses').insert(
-      addresses.map(e => ({
-        wallet_id: e.walletId,
-        account_id: e.accountId,
-        address: e.address,
-        derivation_path: e.derivationPath,
-        index: e.index,
-        is_change: e.isChange,
-        label: e.label,
-      }))
-    )
+    for (const rows of chunk(addresses, INSERT_CHUNK_SIZE)) {
+      await this.knex('addresses').insert(
+        rows.map(e => ({
+          wallet_id: e.walletId,
+          account_id: e.accountId,
+          address: e.address,
+          derivation_path: e.derivationPath,
+          index: e.index,
+          is_change: e.isChange,
+          label: e.label,
+        }))
+      )
+    }
   }
 
   getAddressesByWalletId = async (walletId: string): Promise<GroupedAddresses> => {
