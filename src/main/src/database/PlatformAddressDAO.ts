@@ -1,5 +1,7 @@
 import type {Knex} from 'knex'
 import {PlatformAddressRow} from '../types/PlatformAddress'
+import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
+import {chunk} from '../utils/chunk'
 
 function fromRow({wallet_id, address_index, address, derivation_path, is_used}): PlatformAddressRow {
   return {
@@ -27,24 +29,26 @@ export class PlatformAddressDAO {
   }
 
   insertAddresses = async (addresses: PlatformAddressRow[]): Promise<void> => {
-    if (addresses.length === 0) return
-    await this.knex('platform_addresses')
-      .insert(addresses.map(entry => ({
-        wallet_id: entry.walletId,
-        address_index: entry.index,
-        address: entry.address,
-        derivation_path: entry.derivationPath,
-        is_used: entry.isUsed,
-      })))
-      .onConflict(['wallet_id', 'address_index'])
-      .ignore()
+    for (const rows of chunk(addresses, INSERT_CHUNK_SIZE)) {
+      await this.knex('platform_addresses')
+        .insert(rows.map(entry => ({
+          wallet_id: entry.walletId,
+          address_index: entry.index,
+          address: entry.address,
+          derivation_path: entry.derivationPath,
+          is_used: entry.isUsed,
+        })))
+        .onConflict(['wallet_id', 'address_index'])
+        .ignore()
+    }
   }
 
   markAddressesUsed = async (walletId: string, indexes: number[]): Promise<void> => {
-    if (indexes.length === 0) return
-    await this.knex('platform_addresses')
-      .where('wallet_id', walletId)
-      .whereIn('address_index', indexes)
-      .update({is_used: true})
+    for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
+      await this.knex('platform_addresses')
+        .where('wallet_id', walletId)
+        .whereIn('address_index', slice)
+        .update({is_used: true})
+    }
   }
 }
