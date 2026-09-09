@@ -19,6 +19,8 @@ import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
+import { useErrorToast } from "@renderer/hooks/useErrorToast";
+import { invalidateAsyncCache } from "@renderer/hooks/useAsyncWithCache";
 import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits } from "@renderer/utils/balance";
 import { isValidDashAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
@@ -173,11 +175,16 @@ function WalletTransferHub(): React.JSX.Element {
 
   const { format: formatFiat, rateReady } = useFiat()
   const { balance } = useWalletBalance(walletId ?? undefined)
-  const { receiving, change, loading: coreAddressesLoading } = useAdresses(walletId ?? undefined)
-  const { platformAddresses, loading: platformAddressesLoading } = usePlatformAddresses(walletId ?? undefined)
+  const { receiving, change, loading: coreAddressesLoading, err: coreAddressesError } = useAdresses(walletId ?? undefined)
+  const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const prover = useShieldedStatus()
+  useErrorToast(utxosError)
+  useErrorToast(coreAddressesError)
+  useErrorToast(platformAddressesError)
+  useErrorToast(identitiesError)
+  useErrorToast(shieldedSync.error)
 
   const operation = resolveOperation(fromKind, toKind)
   const reason = unsupportedReason(fromKind, toKind)
@@ -246,11 +253,18 @@ function WalletTransferHub(): React.JSX.Element {
     shieldedAddress: shieldedSync.phase !== ShieldedSyncPhase.Done && shieldedSync.phase !== ShieldedSyncPhase.Error,
     shieldedNotes: shieldedSync.phase !== ShieldedSyncPhase.Done && shieldedSync.phase !== ShieldedSyncPhase.Error,
   }[appliedCoinControl.kind]
-  const coinControlValid = !coinControlLoading && isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
+  const sourceInventoryError = {
+    [SourceKind.Core]: coreAddressesError ?? (appliedCoinControl.kind === 'coreOutpoints' ? utxosError : null),
+    [SourceKind.PlatformAddress]: platformAddressesError,
+    [SourceKind.Identity]: identitiesError,
+    [SourceKind.Shielded]: shieldedSync.error,
+  }[fromKind]
+  const coinControlValid = !coinControlLoading && !sourceInventoryError
+    && isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
   useEffect(() => {
-    if (!coinControlLoading && !coinControlValid) toast.error(COIN_CONTROL_INVALID_MESSAGE)
-  }, [coinControlLoading, coinControlValid])
+    if (!coinControlLoading && !sourceInventoryError && !coinControlValid) toast.error(COIN_CONTROL_INVALID_MESSAGE)
+  }, [coinControlLoading, sourceInventoryError, coinControlValid])
 
   useEffect(() => {
     if (appliedCoinControl !== coinControl) setCoinControl(appliedCoinControl)
@@ -337,7 +351,7 @@ function WalletTransferHub(): React.JSX.Element {
       break
   }
 
-  const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr } = useOperationFee(walletId, operation, {
+  const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr, retry: retryFee } = useOperationFee(walletId, coinControlValid ? operation : null, {
     destinationValid,
     recipient: trimmedTo,
     amountCredits,
@@ -347,6 +361,7 @@ function WalletTransferHub(): React.JSX.Element {
     identityId: selectedIdentity?.identifier ?? null,
     shieldedSource: shieldedSpendSource ?? null,
   })
+  useErrorToast(feeErr)
 
   // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
   // L2 fee on top of that, so the amount typed is the amount that arrives.
@@ -415,7 +430,7 @@ function WalletTransferHub(): React.JSX.Element {
       && (maxPerTx === null || amountCredits <= maxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
-  const canSubmit = routeReady && amountReady
+  const canSubmit = routeReady && amountReady && !feeLoading && !feeErr
 
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
 
@@ -460,7 +475,7 @@ function WalletTransferHub(): React.JSX.Element {
     maxPerTx,
     noteLimit,
   })
-  const fieldError = amountError ?? feeErr
+  const fieldError = amountError
 
   const reloadIdentities = (): void => {
     if (!walletId) return
@@ -524,6 +539,9 @@ function WalletTransferHub(): React.JSX.Element {
         platformAddresses={fundedAddresses}
         selectedPlatformAddress={selectedSource}
         onPlatformAddressChange={setFromAddress}
+        platformAddressesLoading={platformAddressesLoading}
+        platformAddressesError={platformAddressesError}
+        onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
         showPlatformAddress={operation === TransferOperation.Shield}
         identities={identities}
         identitiesLoading={identitiesLoading}
@@ -700,6 +718,7 @@ function WalletTransferHub(): React.JSX.Element {
           <Text size={12} weight={"medium"} color={"red"}>{fieldError}</Text>
         </div>
       )}
+      {feeErr && <button type={'button'} onClick={retryFee} className={'dash-text-primary text-sm cursor-pointer'}>Retry fee estimate</button>}
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
         {isCoreOperation ? (
           <Text size={12} weight={"medium"} color={amountDuffs > 0n && amountDuffs > balanceDuffs ? "red" : "brand"} opacity={amountDuffs > 0n && amountDuffs > balanceDuffs ? 100 : 50}>
@@ -940,7 +959,7 @@ function WalletTransferHub(): React.JSX.Element {
         key={wizardKey}
         steps={[
           { label: 'From & To', content: routeStep, canAdvance: routeReady },
-          { label: 'Amount', content: amountStep, canAdvance: amountReady && coinControlValid },
+          { label: 'Amount', content: amountStep, canAdvance: canSubmit },
           { label: 'Confirm', content: confirmStep },
         ]}
         onSubmit={() => { if (canSubmit) setConfirmOpen(true) }}
@@ -953,11 +972,17 @@ function WalletTransferHub(): React.JSX.Element {
         operation={operation}
         selection={appliedCoinControl}
         coreAddresses={coreAddresses}
+        coreAddressesLoading={coreAddressesLoading}
+        coreAddressesError={coreAddressesError}
+        onRetryCoreAddresses={() => { if (walletId) invalidateAsyncCache('addresses', walletId) }}
         utxos={utxos}
         utxosLoading={utxosLoading}
         utxosError={utxosError}
         coreSyncIncomplete={syncIncomplete}
         platformAddresses={fundedAddresses}
+        platformAddressesLoading={platformAddressesLoading}
+        platformAddressesError={platformAddressesError}
+        onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
         shieldedNotes={spendableNotes}
         identityLabel={selectedIdentity?.alias ?? null}
         identityId={selectedIdentity?.identifier ?? null}
@@ -976,7 +1001,7 @@ function WalletTransferHub(): React.JSX.Element {
           recipients={[{ address: trimmedTo, amountDuffs }]}
           amountFiat={amountFiat}
           source={coreSpendSource}
-          sourceValid={coinControlValid}
+          sourceValid={canSubmit}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -993,6 +1018,7 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           fromAddress={selectedSource?.platformAddress ?? ''}
+          sourceValid={canSubmit}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
           feeCredits={feeCredits}
@@ -1013,7 +1039,7 @@ function WalletTransferHub(): React.JSX.Element {
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
-          sourceValid={coinControlValid}
+          sourceValid={canSubmit}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.ShieldedWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
@@ -1029,7 +1055,7 @@ function WalletTransferHub(): React.JSX.Element {
           resume={false}
           kind={operation === TransferOperation.AssetLockShield ? AssetLockFundingKind.Shielded : operation === TransferOperation.IdentityRegister ? AssetLockFundingKind.Identity : operation === TransferOperation.IdentityTopUpL1 ? AssetLockFundingKind.IdentityTopUp : AssetLockFundingKind.Address}
           source={coreSpendSource}
-          sourceValid={coinControlValid}
+          sourceValid={canSubmit}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1077,7 +1103,7 @@ function WalletTransferHub(): React.JSX.Element {
             {label: 'To', value: toDisplay, mono: true},
           ]}
           run={runPlatformOperation}
-          sourceValid={coinControlValid}
+          sourceValid={canSubmit}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />

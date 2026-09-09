@@ -63,13 +63,12 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
           <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
         </Text>
-        {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
       </div>
     )
   } else if (loading) {
     content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Loading identities…</Text>
   } else if (error) {
-    content = <Text size={14} weight={"medium"} color={"red"}>{error}</Text>
+    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Identities</Text>
   } else {
     content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
   }
@@ -107,7 +106,7 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
         {action}
       </button>
 
-      {open && (
+      {open && !loading && !error && (
         <div className={"absolute left-0 right-0 top-[calc(100%+.375rem)] z-20 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
           {identities.map(identity => (
             <button
@@ -142,6 +141,9 @@ interface SourcePickerProps {
   platformAddresses: PlatformAddressDto[]
   selectedPlatformAddress: PlatformAddressDto | undefined
   onPlatformAddressChange: (address: string) => void
+  platformAddressesLoading?: boolean
+  platformAddressesError?: string | null
+  onRetryPlatformAddresses?: () => void
   // Off while the inputs are being picked, which lists the same addresses.
   showPlatformAddress?: boolean
   identities: IdentityApiDto[]
@@ -160,6 +162,9 @@ export function SourcePicker({
   platformAddresses,
   selectedPlatformAddress,
   onPlatformAddressChange,
+  platformAddressesLoading = false,
+  platformAddressesError = null,
+  onRetryPlatformAddresses,
   showPlatformAddress = true,
   identities,
   identitiesLoading,
@@ -172,7 +177,13 @@ export function SourcePicker({
     <div className={"flex flex-col gap-2"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
-      {kind === SourceKind.PlatformAddress && showPlatformAddress && (
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && platformAddressesLoading && (
+        <Text size={12} weight={'medium'} color={'brand'} opacity={50}>Loading Platform addresses…</Text>
+      )}
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && platformAddressesError && (
+        <button type={'button'} onClick={onRetryPlatformAddresses} className={'dash-text-primary text-sm cursor-pointer self-start'}>Try again</button>
+      )}
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && !platformAddressesError && (
         <PlatformAddressSelect
           addresses={platformAddresses}
           selected={selectedPlatformAddress}

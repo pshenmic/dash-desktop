@@ -30,6 +30,8 @@ import { useFiat } from '@renderer/hooks/useFiat'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
+import { useErrorToast } from '@renderer/hooks/useErrorToast'
+import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshPlatformAddresses, usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { refreshBalance, useWalletBalance } from '@renderer/hooks/useWalletBalance'
@@ -65,7 +67,7 @@ export default function IdentityRegistration(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? null
   const { syncIncomplete } = useConnectionModeContext()
   const { balance, loading: balanceLoading, err: balanceError } = useWalletBalance(walletId ?? undefined)
-  const { receiving, change, err: coreAddressesError } = useAdresses(walletId ?? undefined)
+  const { receiving, change, loading: coreAddressesLoading, err: coreAddressesError } = useAdresses(walletId ?? undefined)
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const prover = useShieldedStatus()
@@ -85,6 +87,11 @@ export default function IdentityRegistration(): React.JSX.Element {
   const [modalOpen, setModalOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const successful = useRef(false)
+  useErrorToast(utxosError)
+  useErrorToast(fundingError)
+  useErrorToast(balanceError)
+  useErrorToast(coreAddressesError)
+  useErrorToast(platformAddressesError)
 
   const loadFundingState = useCallback(async (): Promise<void> => {
     if (!walletId) {
@@ -191,11 +198,28 @@ export default function IdentityRegistration(): React.JSX.Element {
     () => normalizeCoinControlSelection(coinControl, operation),
     [coinControl, operation],
   )
-  const coinControlValid = isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
+  const coinControlLoading = {
+    automatic: false,
+    coreAddress: coreAddressesLoading,
+    coreOutpoints: utxosLoading || syncIncomplete,
+    platformAddress: platformAddressesLoading,
+    platformInputs: platformAddressesLoading,
+    shieldedAddress: false,
+    shieldedNotes: false,
+  }[appliedCoinControl.kind]
+  let sourceInventoryError: string | null = null
+  if (fromKind === SourceKind.Core) {
+    sourceInventoryError = balanceError ?? coreAddressesError
+    if (appliedCoinControl.kind === 'coreOutpoints') sourceInventoryError ??= utxosError
+  } else if (fromKind === SourceKind.PlatformAddress) {
+    sourceInventoryError = platformAddressesError
+  }
+  const coinControlValid = !coinControlLoading && !sourceInventoryError
+    && isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
   useEffect(() => {
-    if (!coinControlValid && !successful.current) toast.error(COIN_CONTROL_INVALID_MESSAGE)
-  }, [coinControlValid])
+    if (!coinControlLoading && !sourceInventoryError && !coinControlValid && !successful.current) toast.error(COIN_CONTROL_INVALID_MESSAGE)
+  }, [coinControlLoading, sourceInventoryError, coinControlValid])
 
   useEffect(() => {
     setCoinControlOpen(false)
@@ -239,7 +263,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     availableCredits = shieldedBalance
   }
 
-  const { feeCredits, feeDuffs, maxDuffs: coreSelectableDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
+  const { feeCredits, feeDuffs, maxDuffs: coreSelectableDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError, retry: retryFee } = useOperationFee(walletId, coinControlValid ? operation : null, {
     destinationValid: true,
     recipient: '',
     amountCredits,
@@ -249,6 +273,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     identityId: null,
     shieldedSource: null,
   })
+  useErrorToast(feeError)
 
   // The Core fee is paid on top of the amount, and an L1 registration locks the
   // identity-create fee on top of that so the amount typed is what is credited.
@@ -292,6 +317,7 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
   const amountReady = sourceReady
     && coinControlValid
+    && !feeLoading && !feeError
     && amount.length > 0
     && amountError === null
     && (fromKind === SourceKind.Core || feeCredits !== null)
@@ -462,10 +488,8 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex flex-col items-center gap-4 rounded-3xl dash-card-base p-8 text-center"}>
-          <Text size={16} weight={"bold"} color={"brand"}>Could not check funding progress</Text>
-          <Text size={12} weight={"medium"} color={"red"} className={"break-all"}>{fundingError}</Text>
-          <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Try again</Button>
+        <div className={"mx-12 mt-8 flex justify-center"}>
+          <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
         </div>
       </div>
     )
@@ -712,10 +736,16 @@ export default function IdentityRegistration(): React.JSX.Element {
         )}
       </div>
       {amountError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{amountError}</Text>}
-      {fromKind === SourceKind.Core && balanceError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{balanceError}</Text>}
-      {fromKind === SourceKind.Core && coreAddressesError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{coreAddressesError}</Text>}
-      {fromKind === SourceKind.PlatformAddress && platformAddressesError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{platformAddressesError}</Text>}
-      {feeError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{feeError}</Text>}
+      {fromKind === SourceKind.Core && (balanceError || coreAddressesError) && (
+        <button type={'button'} onClick={() => {
+          invalidateAsyncCache('addresses', walletId)
+          void refreshBalance(walletId)
+        }} className={'dash-text-primary text-sm cursor-pointer'}>Retry Core balances</button>
+      )}
+      {fromKind === SourceKind.PlatformAddress && platformAddressesError && (
+        <button type={'button'} onClick={() => { void refreshPlatformAddresses(walletId) }} className={'dash-text-primary text-sm cursor-pointer'}>Retry Platform addresses</button>
+      )}
+      {feeError && <button type={'button'} onClick={retryFee} className={'dash-text-primary text-sm cursor-pointer'}>Retry fee estimate</button>}
       {fromKind === SourceKind.Core && syncIncomplete && <P2pSyncAlert />}
       {fromKind === SourceKind.Shielded && (
         <>
@@ -829,11 +859,17 @@ export default function IdentityRegistration(): React.JSX.Element {
         operation={operation}
         selection={appliedCoinControl}
         coreAddresses={coreAddresses}
+        coreAddressesLoading={coreAddressesLoading}
+        coreAddressesError={coreAddressesError}
+        onRetryCoreAddresses={() => invalidateAsyncCache('addresses', walletId)}
         utxos={utxos}
         utxosLoading={utxosLoading}
         utxosError={utxosError}
         coreSyncIncomplete={syncIncomplete}
         platformAddresses={fundedAddresses}
+        platformAddressesLoading={platformAddressesLoading}
+        platformAddressesError={platformAddressesError}
+        onRetryPlatformAddresses={() => { void refreshPlatformAddresses(walletId) }}
         shieldedNotes={[]}
         identityLabel={null}
         identityId={null}
@@ -852,7 +888,7 @@ export default function IdentityRegistration(): React.JSX.Element {
           resume={false}
           kind={AssetLockFundingKind.Identity}
           source={coreSpendSource}
-          sourceValid={coinControlValid}
+          sourceValid={amountReady}
           onSuccess={handleCoreSuccess}
         />
       )}
@@ -869,7 +905,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             { label: 'Creates', value: 'New Platform identity with 4 keys' },
           ]}
           run={runPlatformRegistration}
-          sourceValid={coinControlValid}
+          sourceValid={amountReady}
           onSuccess={handlePlatformSuccess}
         />
       )}
@@ -885,6 +921,7 @@ export default function IdentityRegistration(): React.JSX.Element {
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedRegistration}
+          sourceValid={amountReady}
           onSuccess={handleShieldedSuccess}
         />
       )}

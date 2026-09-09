@@ -40,11 +40,17 @@ interface CoinControlModalProps {
   operation: TransferOperation | null
   selection: CoinControlSelection
   coreAddresses: WalletAddressDto[]
+  coreAddressesLoading: boolean
+  coreAddressesError: string | null
+  onRetryCoreAddresses: () => void
   utxos: SelectableUtxo[]
   utxosLoading: boolean
   utxosError: string | null
   coreSyncIncomplete: boolean
   platformAddresses: PlatformAddressDto[]
+  platformAddressesLoading: boolean
+  platformAddressesError: string | null
+  onRetryPlatformAddresses: () => void
   shieldedNotes: ShieldedNoteInfo[]
   identityLabel: string | null
   identityId: string | null
@@ -59,11 +65,17 @@ export default function CoinControlModal({
   operation,
   selection,
   coreAddresses,
+  coreAddressesLoading,
+  coreAddressesError,
+  onRetryCoreAddresses,
   utxos,
   utxosLoading,
   utxosError,
   coreSyncIncomplete,
   platformAddresses,
+  platformAddressesLoading,
+  platformAddressesError,
+  onRetryPlatformAddresses,
   shieldedNotes,
   identityLabel,
   identityId,
@@ -235,6 +247,24 @@ export default function CoinControlModal({
     </button>
   )
 
+  let sourceLoading = false
+  let sourceError: string | null = null
+  let retrySource = onRetryUtxos
+  if (sourceKind === SourceKind.Core) {
+    sourceLoading = utxosLoading || coreSyncIncomplete
+    sourceError = utxosError
+    if (mode !== CoinControlMode.Inputs) {
+      sourceLoading = coreAddressesLoading
+      sourceError = coreAddressesError
+      retrySource = onRetryCoreAddresses
+    }
+  } else if (sourceKind === SourceKind.PlatformAddress || operation === TransferOperation.Shield) {
+    sourceLoading = platformAddressesLoading
+    sourceError = platformAddressesError
+    retrySource = onRetryPlatformAddresses
+  }
+  const sourceReady = !sourceLoading && sourceError == null
+
   const fixed = sourceKind == null
   const inputModeLabel = sourceKind == null ? 'Inputs' : INPUT_MODE_LABEL[sourceKind]
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? {
@@ -362,6 +392,7 @@ export default function CoinControlModal({
       onClose()
       return
     }
+    if (!canApply || !sourceReady) return
     onApply(draft)
     onClose()
   }
@@ -382,10 +413,14 @@ export default function CoinControlModal({
         </div>
 
         <div className={'mt-5 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
+          {sourceLoading && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{coreSyncIncomplete && sourceKind === SourceKind.Core ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
+          {!sourceLoading && sourceError && (
+            <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>
+          )}
           {fixed ? (
             <div className={'dash-block rounded-[.9375rem] p-4'}>
               <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{fixedCopy.title}</Text>
-              <Text size={14} weight={'medium'} color={'brand'} className={'mt-2 block font-mono break-all'}>{fixedValue}</Text>
+              {sourceReady && <Text size={14} weight={'medium'} color={'brand'} className={'mt-2 block font-mono break-all'}>{fixedValue}</Text>}
               <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-3 block leading-[140%]'}>
                 {fixedCopy.description}
               </Text>
@@ -434,7 +469,7 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {mode === CoinControlMode.Address && sourceKind === SourceKind.Core && (
+              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.Core && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   {coreAddresses.length === 0 && <Empty text={'No funded Core addresses'} />}
                   {coreAddresses.length > 0 && visibleCoreAddresses.length === 0 && (
@@ -449,7 +484,7 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {mode === CoinControlMode.Address && sourceKind === SourceKind.PlatformAddress && (
+              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.PlatformAddress && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
                   {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
@@ -464,7 +499,7 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {mode === CoinControlMode.Address && sourceKind === SourceKind.Shielded && (
+              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.Shielded && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   {shieldedAddresses.length === 0 && <Empty text={'No spendable shielded addresses'} />}
                   {shieldedAddresses.length > 0 && visibleShieldedAddresses.length === 0 && (
@@ -482,27 +517,13 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
+              {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
                 <div className={'mt-4 flex flex-col gap-1'}>
-                  {coreSyncIncomplete && <Empty text={'Wallet sync must finish before UTXOs can be listed.'} />}
-                  {!coreSyncIncomplete && utxosLoading && <Empty text={'Loading spendable UTXOs…'} />}
-                  {!coreSyncIncomplete && !utxosLoading && utxosError != null && (
-                    <div role={'alert'} className={'dash-block rounded-[.75rem] p-4'}>
-                      <Text size={12} weight={'medium'} color={'red'} className={'break-all'}>{utxosError}</Text>
-                      <button
-                        type={'button'}
-                        onClick={onRetryUtxos}
-                        className={'mt-3 cursor-pointer hover:opacity-70 transition-opacity'}
-                      >
-                        <Text size={12} weight={'extrabold'} color={'blue-mint'}>Try again</Text>
-                      </button>
-                    </div>
-                  )}
-                  {!coreSyncIncomplete && !utxosLoading && utxosError == null && utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
-                  {!coreSyncIncomplete && !utxosLoading && utxosError == null && utxos.length > 0 && visibleUtxos.length === 0 && (
+                  {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
+                  {utxos.length > 0 && visibleUtxos.length === 0 && (
                     <Empty text={'All UTXOs are below the dust threshold.'} />
                   )}
-                  {!coreSyncIncomplete && !utxosLoading && utxosError == null && displayedUtxos.map(utxo => {
+                  {displayedUtxos.map(utxo => {
                     const key = outpointKey(utxo)
                     const checked = draft.kind === 'coreOutpoints' && draft.outpoints.includes(key)
                     return (
@@ -515,7 +536,7 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
+              {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Up to {PLATFORM_INPUT_LIMIT} inputs. Set the maximum credits available from each.</Text>
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
@@ -565,7 +586,7 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {mode === CoinControlMode.Inputs && sourceKind === SourceKind.Shielded && (
+              {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Shielded && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Choose up to {SHIELDED_NOTE_LIMIT} notes.</Text>
                   {shieldedNotes.length === 0 && <Empty text={'No spendable shielded notes'} />}
@@ -601,7 +622,7 @@ export default function CoinControlModal({
           <Button
             type={'button'}
             onClick={apply}
-            disabled={!fixed && !canApply}
+            disabled={!fixed && (!canApply || !sourceReady)}
             variant={'solid'}
             colorScheme={'lightBlue-mint'}
             size={'sm'}
