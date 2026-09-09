@@ -104,7 +104,7 @@ export const RPC_CONNECTION_NAME = 'dashscan.io'
 
 export const CONNECTION_SETTINGS_TABS: ConnectionSettingsTabDefinition[] = [
   {value: 'core', label: 'Core'},
-  {value: 'platform', label: 'Platform'},
+  // {value: 'platform', label: 'Platform'},
 ]
 
 export const CONNECTION_SETTINGS_DESCRIPTION =
