@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Input, Text } from "@renderer/components/dash-ui-kit-enxtended";
 import { useTheme } from 'dash-ui-kit/react';
-import { TypeUseCreateWallet } from '@renderer/hooks/useCreateWallet';
+import type { UseCreateWalletState } from '@renderer/types/auth';
 import { CreateWalletTexts, messages } from '@renderer/constants';
 import { getPasswordValidationError } from '@renderer/utils/passwordValidation';
 import { toast } from '@renderer/components/ui/Toast';
@@ -19,9 +19,9 @@ type CreateWalletData = Pick<
   'slowCreationNotice'
 >
 
-type CreateWalletProps = Pick<TypeUseCreateWallet, 'password' | 'setPassword'> & {
-  generateSeedPhrase?: TypeUseCreateWallet['generateSeedPhrase']
-  createImportedWallet?: TypeUseCreateWallet['createImportedWallet']
+type CreateWalletProps = Pick<UseCreateWalletState, 'password' | 'setPassword'> & {
+  generateSeedPhrase?: UseCreateWalletState['generateSeedPhrase']
+  continueImportedWallet?: UseCreateWalletState['continueImportedWallet']
   data: CreateWalletData
 }
 
@@ -29,7 +29,7 @@ const { createWallet: { passwordValidation: { passwordsDoNotMatch },
   seedPhrase: { errorMessage, errorTitle }
 }} = messages
 
-export default function  CreateWallet({ password, setPassword, generateSeedPhrase, createImportedWallet, data } : CreateWalletProps): React.JSX.Element {
+export default function CreateWallet({ password, setPassword, generateSeedPhrase, continueImportedWallet, data }: CreateWalletProps): React.JSX.Element {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -54,8 +54,8 @@ export default function  CreateWallet({ password, setPassword, generateSeedPhras
     }
     setLoading(true)
     try {
-      if (createImportedWallet) {
-        await createImportedWallet()
+      if (continueImportedWallet) {
+        continueImportedWallet()
       } else {
         if (generateSeedPhrase) {
           await generateSeedPhrase()

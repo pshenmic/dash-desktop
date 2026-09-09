@@ -1,15 +1,21 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog, Menu, screen } from 'electron'
 import { writeFile } from 'fs/promises'
+import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
 import { initLogTransport } from './src/logTransport'
+import { WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
+import { dataPath } from './src/utils/dataPath'
+import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
+import { WindowState } from './src/types/WindowState'
 import packageJSON from '../../package.json'
 import {Logger} from './src/utils/logger'
 
 const log = new Logger('startup')
 const shutdown = new Logger('shutdown')
+const windowState = new Logger('window-state')
 
 initLogTransport()
 
@@ -17,12 +23,38 @@ const backend = new WalletBackend()
 
 let mainWindow: BrowserWindow | null = null;
 
+const windowStatePath = dataPath(WindowStateFilename)
+
+const readWindowState = (): WindowState | null => {
+  try {
+    const raw = JSON.parse(readFileSync(windowStatePath, 'utf-8'))
+    return restoreWindowState(raw, screen.getAllDisplays().map((display) => display.workArea))
+  } catch {
+    return null
+  }
+}
+
+const saveWindowState = (window: BrowserWindow): void => {
+  try {
+    const maximized = window.isMinimized()
+      ? readWindowState()?.maximized ?? false
+      : window.isMaximized()
+    const state: WindowState = { ...window.getNormalBounds(), maximized }
+    writeFileSync(windowStatePath, JSON.stringify(state))
+  } catch (err) {
+    windowState.error('save failed:', err)
+  }
+}
+
 const createWindow = (): void => {
+  const saved = readWindowState()
+  const defaultSize = computeDefaultWindowSize(screen.getPrimaryDisplay().workAreaSize)
   mainWindow = new BrowserWindow({
-    width: 1366,
-    height: 768,
-    minWidth: 1024,
-    minHeight: 576,
+    width: saved?.width ?? defaultSize.width,
+    height: saved?.height ?? defaultSize.height,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    minWidth: WINDOW_MIN_WIDTH,
+    minHeight: WINDOW_MIN_HEIGHT,
     show: false,
     autoHideMenuBar: true,
     icon: icon,
@@ -34,8 +66,26 @@ const createWindow = (): void => {
   })
 
   mainWindow.on('ready-to-show', () => {
+    if (saved?.maximized) {
+      mainWindow?.maximize()
+    }
     mainWindow?.show()
+    if (mainWindow) {
+      saveWindowState(mainWindow)
+    }
   })
+
+  const persistWindowState = (): void => {
+    if (mainWindow) {
+      saveWindowState(mainWindow)
+    }
+  }
+  mainWindow.on('moved', persistWindowState)
+  mainWindow.on('resized', persistWindowState)
+  mainWindow.on('maximize', persistWindowState)
+  mainWindow.on('unmaximize', persistWindowState)
+  mainWindow.on('close', persistWindowState)
+  mainWindow.on('session-end', persistWindowState)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

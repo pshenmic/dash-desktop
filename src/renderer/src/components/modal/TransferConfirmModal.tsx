@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
@@ -27,6 +27,7 @@ interface TransferConfirmModalProps {
   successTitle: string
   rows: TransferConfirmRow[]
   run: (password: string) => Promise<PlatformSendResult>
+  sourceValid?: boolean
   onSuccess: () => void
   successNote?: string
 }
@@ -39,10 +40,13 @@ export default function TransferConfirmModal({
   successTitle,
   rows,
   run,
+  sourceValid = true,
   onSuccess,
   successNote,
 }: TransferConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const { status } = useAuth()
   const network = status?.network ?? null
   const walletId = status?.selectedWalletId ?? null
@@ -65,13 +69,17 @@ export default function TransferConfirmModal({
   const sending = phase === ConfirmModalPhase.Sending
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || sending) return
+    if (!walletId || password.length === 0 || sending || !sourceValidRef.current) return
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPhase(ConfirmModalPhase.Confirm)
+        return
+      }
+      if (!sourceValidRef.current) {
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
@@ -165,7 +173,7 @@ export default function TransferConfirmModal({
               <Button
                 type={"button"}
                 onClick={handleConfirm}
-                disabled={password.length === 0 || sending}
+                disabled={password.length === 0 || sending || !sourceValid}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
                 size={"sm"}

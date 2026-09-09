@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 
 vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
-vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+vi.mock('../../src/main/src/logTransport', () => ({logChildOutput: vi.fn()}))
 vi.mock('fs', () => {
   const mocked = {mkdirSync: vi.fn(), promises: {rm: vi.fn().mockResolvedValue(undefined)}}
   return {...mocked, default: mocked}

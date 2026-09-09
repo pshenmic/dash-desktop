@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 
 vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
-vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+vi.mock('../../src/main/src/logTransport', () => ({logChildOutput: vi.fn()}))
 
 import {PlatformService} from '../../src/main/platform/PlatformService'
 import {SdkSource} from '../../src/main/platform/types/sdk'

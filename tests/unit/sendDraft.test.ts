@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
 import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
+import type { CoinControlSelection } from '../../src/renderer/src/types/CoinControl'
+import { isCoinControlSelectionValid } from '../../src/renderer/src/utils/coinControl'
 import {
   clearSendDraft,
   createSendDraft,
@@ -22,6 +24,7 @@ describe('send drafts', () => {
     expect(createSendDraft('invalid', 'invalid')).toMatchObject({
       fromKind: SourceKind.Core,
       toKind: DestinationKind.CoreAddress,
+      coinControl: {kind: 'automatic'},
     })
   })
 
@@ -33,14 +36,6 @@ describe('send drafts', () => {
       toValue: 'recipient',
       amount: '1.25',
       acked: true,
-      specificSourcePreferences: {
-        enabled: true,
-        addresses: {
-          [SourceKind.Core]: 'core-source',
-          [SourceKind.PlatformAddress]: 'platform-source',
-          [SourceKind.Shielded]: 'shielded-source',
-        },
-      },
     }
     saveSendDraft('wallet-a', draft)
 
@@ -66,13 +61,18 @@ describe('send drafts', () => {
   })
 
   it('keeps drafts isolated by wallet and removes a cleared draft', () => {
-    const walletA = { ...createSendDraft(), toValue: 'wallet-a-recipient' }
+    const walletA = {
+      ...createSendDraft(),
+      toValue: 'wallet-a-recipient',
+      coinControl: {kind: 'coreAddress', address: 'core-a'} as CoinControlSelection,
+    }
     saveSendDraft('wallet-a', walletA)
 
     expect(getOrCreateSendDraft('wallet-b', SourceKind.Shielded, DestinationKind.Shielded)).toMatchObject({
       fromKind: SourceKind.Shielded,
       toKind: DestinationKind.Shielded,
       toValue: '',
+      coinControl: {kind: 'automatic'},
     })
 
     clearSendDraft('wallet-a')
@@ -80,6 +80,55 @@ describe('send drafts', () => {
       fromKind: SourceKind.Core,
       toKind: DestinationKind.PlatformAddress,
       toValue: '',
+      coinControl: {kind: 'automatic'},
+    })
+  })
+
+  it.each<{from: SourceKind; selection: CoinControlSelection}>([
+    {from: SourceKind.Core, selection: {kind: 'coreAddress', address: 'core-a'}},
+    {from: SourceKind.Core, selection: {kind: 'coreOutpoints', outpoints: ['tx-a:0', 'tx-b:1']}},
+    {from: SourceKind.PlatformAddress, selection: {kind: 'platformAddress', address: 'platform-a'}},
+    {
+      from: SourceKind.PlatformAddress,
+      selection: {
+        kind: 'platformInputs',
+        inputs: [{address: 'platform-a', credits: 9_007_199_254_740_993n}, {address: 'platform-b', credits: 3n}],
+        feeAddress: 'platform-b',
+      },
+    },
+    {from: SourceKind.Shielded, selection: {kind: 'shieldedAddress', address: 'shielded-a'}},
+    {from: SourceKind.Shielded, selection: {kind: 'shieldedNotes', noteIndexes: [4, 8]}},
+  ])('restores $selection.kind together with the recipient and amount', ({from, selection}) => {
+    const draft = {
+      ...createSendDraft(from, DestinationKind.CoreAddress),
+      toValue: 'recipient',
+      amount: '1.25',
+      coinControl: selection,
+    }
+    saveSendDraft('wallet-a', draft)
+
+    expect(getOrCreateSendDraft('wallet-a', null, null)).toEqual(draft)
+  })
+
+  it('retains a restored selection until its inventory can be validated', () => {
+    const selection: CoinControlSelection = {kind: 'coreOutpoints', outpoints: ['tx-a:0']}
+    saveSendDraft('wallet-a', {...createSendDraft(), coinControl: selection})
+
+    const restored = getOrCreateSendDraft('wallet-a', null, null)
+    expect(isCoinControlSelectionValid(restored.coinControl, {
+      coreAddresses: [], coreOutpoints: [], platformBalances: {}, shieldedAddresses: [], shieldedNoteIndexes: [],
+    })).toBe(false)
+    expect(getOrCreateSendDraft('wallet-a', null, null).coinControl).toEqual(selection)
+  })
+
+  it('preserves compatible URL route changes and clears an incompatible selection', () => {
+    const selection: CoinControlSelection = {kind: 'coreOutpoints', outpoints: ['tx-a:0']}
+    saveSendDraft('wallet-a', {...createSendDraft(), coinControl: selection, amount: '1.25'})
+
+    expect(getOrCreateSendDraft('wallet-a', null, DestinationKind.PlatformAddress).coinControl).toEqual(selection)
+    expect(getOrCreateSendDraft('wallet-a', SourceKind.PlatformAddress, null)).toMatchObject({
+      amount: '1.25',
+      coinControl: {kind: 'automatic'},
     })
   })
 })

@@ -1,5 +1,5 @@
 import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
-import { TypeUseCreateWallet, WordCount } from "@renderer/hooks/useCreateWallet";
+import type { UseCreateWalletState, WordCount } from '@renderer/types/auth'
 import { Switch } from "dash-ui-kit/react";
 import SeedPhraseWarning from "./SeedPhraseWarning";
 import { BaseTexts, SaveYourSeedPhraseTexts } from "@renderer/constants";
@@ -12,7 +12,7 @@ type SeedPhraseData = Pick<
   seedPhraseWarning: BaseTexts
 }
 
-type SeedPhraseProps = Pick<TypeUseCreateWallet, 'seedPhrase' | 'wordCount' | 'setWordCount' | 'verifySeedPhrase'> & {
+type SeedPhraseProps = Pick<UseCreateWalletState, 'seedPhrase' | 'wordCount' | 'setWordCount' | 'verifySeedPhrase'> & {
   data: SeedPhraseData
 }
 
