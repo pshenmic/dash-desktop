@@ -9,6 +9,7 @@ import {
   coinControlSourceKind,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
+  parsePlatformInputCredits,
   toCoreSpendSource,
   toPlatformSpendSource,
   toShieldedSpendSource,
@@ -23,6 +24,23 @@ const inventory: CoinControlInventory = {
 }
 
 describe('coin control', () => {
+  it.each<[string, bigint]>([
+    ['', 0n],
+    ['0', 0n],
+    ['000', 0n],
+    ['00123', 123n],
+    ['9007199254740993', 9_007_199_254_740_993n],
+    ['9999999999999999999999999999999999999999', 9999999999999999999999999999999999999999n],
+  ])('parses a whole credit limit %j without losing precision', (value, expected) => {
+    expect(parsePlatformInputCredits(value)).toBe(expected)
+  })
+
+  it.each(['1.5', '.5', '1.', '-100', '+100', '1e3', '0x10', '1_000', '12abc', ' 12', '12 ', '12\n', '١٢'])(
+    'rejects malformed credit limit %j instead of changing its meaning', value => {
+      expect(parsePlatformInputCredits(value)).toBeNull()
+    },
+  )
+
   it.each([
     [TransferOperation.CoreSend, SourceKind.Core],
     [TransferOperation.AssetLockFunding, SourceKind.Core],

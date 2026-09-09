@@ -13,7 +13,7 @@ import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
 import type { CoinControlSelection } from '@renderer/types/CoinControl'
-import { automaticCoinControl, coinControlSourceKind, outpointKey } from '@renderer/utils/coinControl'
+import { automaticCoinControl, coinControlSourceKind, outpointKey, parsePlatformInputCredits } from '@renderer/utils/coinControl'
 import { creditsToDuffs, davToDashCompact } from '@renderer/utils/balance'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 
@@ -363,7 +363,8 @@ export default function CoinControlModal({
   }
 
   const setPlatformInputCredits = (address: string, value: string): void => {
-    const credits = BigInt(value.replace(/\D/g, '') || '0')
+    const credits = parsePlatformInputCredits(value)
+    if (credits === null) return
     let feeAddress = address
     if (draft.kind === 'platformInputs') feeAddress = draft.feeAddress
     setDraft({

@@ -13,6 +13,11 @@ import type { CoinControlInventory, CoinControlSelection } from '../types/CoinCo
 
 export const automaticCoinControl = (): CoinControlSelection => ({kind: 'automatic'})
 
+export function parsePlatformInputCredits(value: string): bigint | null {
+  if (/[^0-9]/.test(value)) return null
+  return BigInt(value || '0')
+}
+
 export function coinControlSourceKind(operation: TransferOperation | null): SourceKind | null {
   if (
     operation === TransferOperation.CoreSend
