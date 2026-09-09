@@ -1,6 +1,15 @@
 import type {Network, PeerInfo} from '@renderer/api/types'
-import {DEFAULT_PEER_PORTS, PEER_UNAVAILABLE_LABEL} from '@renderer/constants/connection'
-import type {PeerTableRow, PeerTableSources, PeerTableTab} from '@renderer/types/connection'
+import {
+  DEFAULT_PEER_PORTS,
+  PEER_EMPTY_STATE_DISPLAY,
+  PEER_UNAVAILABLE_LABEL,
+} from '@renderer/constants/connection'
+import type {
+  PeerTableRow,
+  PeerTableSources,
+  PeerTableTab,
+  UsePeerSettingsResult,
+} from '@renderer/types/connection'
 
 function parsePeerEntry(entry: string, network: Network): [string, number] | null {
   const trimmed = entry.trim()
@@ -70,6 +79,28 @@ export function removePeerEntry(entries: string[], entry: string, network: Netwo
   const removedIdentity = peerIdentity(entry, network)
   return dedupePeerEntries(entries, network)
     .filter(candidate => peerIdentity(candidate, network) !== removedIdentity)
+}
+
+export function getPeerEmptyState(
+  network: Network | null,
+  tab: PeerTableTab,
+  settings: Pick<
+    UsePeerSettingsResult,
+    'loading' | 'connectedPeersLoading' | 'pending'
+  >,
+  syncInactive: boolean,
+) {
+  if (network === null) return PEER_EMPTY_STATE_DISPLAY.networkRequired
+
+  const active = tab === 'active'
+  if (
+    settings.loading
+    || (active && (settings.connectedPeersLoading || settings.pending === 'set-mode'))
+  ) return PEER_EMPTY_STATE_DISPLAY.loading
+
+  if (active && !syncInactive) return PEER_EMPTY_STATE_DISPLAY.connecting
+  if (active) return PEER_EMPTY_STATE_DISPLAY.activeEmpty
+  return PEER_EMPTY_STATE_DISPLAY.empty
 }
 
 export function buildPeerTableRows({

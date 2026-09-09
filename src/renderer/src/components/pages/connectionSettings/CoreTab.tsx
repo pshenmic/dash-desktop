@@ -28,16 +28,11 @@ import {
   PEER_ALREADY_BANNED_MESSAGE,
   PEER_BANNED_MESSAGE,
   PEER_CHECKING_LABEL,
-  PEER_NETWORK_REQUIRED_LABEL,
   PEER_REMOVED_MESSAGE,
   PEER_SAVING_LABEL,
-  PEER_TABLE_ACTIVE_EMPTY_LABEL,
   PEER_TABLE_COLUMN_LABELS,
-  PEER_TABLE_CONNECTING_LABEL,
   PEER_TABLE_GRID_CLASS_NAMES,
   PEER_TABLE_ACTION_LABELS,
-  PEER_TABLE_EMPTY_LABEL,
-  PEER_TABLE_LOADING_LABEL,
   PEER_TABLE_TABS,
   PEER_UNBANNED_MESSAGE,
   PEER_UNAVAILABLE_LABEL,
@@ -45,11 +40,10 @@ import {
   RPC_CONNECTION_OPTIONS,
   STATIC_PEER_ADDED_MESSAGE,
   STATIC_PEER_ALREADY_ADDED_MESSAGE,
-  STATIC_PEER_DETAILS_LABELS,
   STATIC_PEER_MODE_ENABLED_MESSAGE,
   STATIC_PEER_READY_MESSAGE,
   STATIC_PEER_REQUIRED_MESSAGE,
-  STATIC_PEER_STATUS_LABELS,
+  STATIC_PEER_STATE_DISPLAY,
 } from '@renderer/constants/connection'
 import {WalletSyncPhase, type PeerMode} from '@renderer/api/types'
 import {API} from '@renderer/api'
@@ -58,7 +52,7 @@ import {isWalletSyncInactive} from '@renderer/utils/walletSync'
 import {getErrorMessage} from '@renderer/utils/error'
 import {setWalletSyncEnabled} from '@renderer/utils/connectionSettings'
 import {usePeerSettings} from '@renderer/hooks/usePeerSettings'
-import {buildPeerTableRows} from '@renderer/utils/peers'
+import {buildPeerTableRows, getPeerEmptyState} from '@renderer/utils/peers'
 import type {
   PeerRowAction,
   PeerTableRow,
@@ -321,18 +315,10 @@ function PeerRow({
   const liveDetails = [row.userAgent, row.pingTime]
     .filter(value => value !== PEER_UNAVAILABLE_LABEL)
     .join(' · ')
-  const staticStatus = row.connected
-    ? configuredMode === 'dynamic'
-      ? STATIC_PEER_STATUS_LABELS.connectedDynamic
-      : STATIC_PEER_STATUS_LABELS.connected
-    : configuredMode === 'dynamic'
-      ? STATIC_PEER_STATUS_LABELS.saved
-      : STATIC_PEER_STATUS_LABELS.disconnected
-  const staticDetails = row.connected
-    ? liveDetails || STATIC_PEER_DETAILS_LABELS.pending
-    : configuredMode === 'dynamic'
-      ? STATIC_PEER_DETAILS_LABELS.saved
-      : STATIC_PEER_DETAILS_LABELS.disconnected
+  const staticConnectionState = row.connected ? 'connected' : 'disconnected'
+  const staticDisplay = STATIC_PEER_STATE_DISPLAY[configuredMode ?? 'static'][staticConnectionState]
+  const staticStatus = staticDisplay.status
+  const staticDetails = liveDetails || staticDisplay.details
   const rowAriaLabel = tab === 'static'
     ? `${row.peer}, ${staticStatus}`
     : tab === 'banned'
@@ -580,25 +566,7 @@ export default function CoreTab(): React.JSX.Element {
     }
   }
 
-  const peerEmptyLabel = network === null
-    ? PEER_NETWORK_REQUIRED_LABEL
-    : peerSettings.loading || (peerTab === 'active' && (
-      peerSettings.connectedPeersLoading || peerSettings.pending === 'set-mode'
-    ))
-      ? PEER_TABLE_LOADING_LABEL
-      : peerTab === 'active' && !syncInactive
-        ? PEER_TABLE_CONNECTING_LABEL
-        : peerTab === 'active'
-          ? PEER_TABLE_ACTIVE_EMPTY_LABEL
-          : PEER_TABLE_EMPTY_LABEL
-  const peerEmptyLoading = network !== null && (
-    peerSettings.loading
-    || (peerTab === 'active' && (
-      peerSettings.connectedPeersLoading
-      || peerSettings.pending === 'set-mode'
-      || !syncInactive
-    ))
-  )
+  const peerEmptyState = getPeerEmptyState(network, peerTab, peerSettings, syncInactive)
 
   return (
     <div className="px-1 pb-2">
@@ -730,13 +698,13 @@ export default function CoreTab(): React.JSX.Element {
           {peerRows.length === 0 && !addPeerOpen && (
             <div
               className="flex min-h-[3.625rem] items-center justify-center gap-2 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10"
-              role={peerEmptyLoading ? 'status' : undefined}
+              role={peerEmptyState.loading ? 'status' : undefined}
             >
-              {peerEmptyLoading && (
+              {peerEmptyState.loading && (
                 <Spinner size={16} className="text-dash-brand dark:text-dash-mint" />
               )}
               <Text size={14} weight="medium" color="brand" opacity={40}>
-                {peerEmptyLabel}
+                {peerEmptyState.label}
               </Text>
             </div>
           )}

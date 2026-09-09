@@ -176,6 +176,14 @@ export const PEER_SAVING_LABEL = 'Saving peer…'
 
 export const PEER_NETWORK_REQUIRED_LABEL = 'Select a wallet to manage peers.'
 
+export const PEER_EMPTY_STATE_DISPLAY = {
+  networkRequired: {label: PEER_NETWORK_REQUIRED_LABEL, loading: false},
+  loading: {label: PEER_TABLE_LOADING_LABEL, loading: true},
+  connecting: {label: PEER_TABLE_CONNECTING_LABEL, loading: true},
+  activeEmpty: {label: PEER_TABLE_ACTIVE_EMPTY_LABEL, loading: false},
+  empty: {label: PEER_TABLE_EMPTY_LABEL, loading: false},
+} as const
+
 export const STATIC_PEER_REQUIRED_MESSAGE =
   'Add a static peer for this network before enabling static peer mode.'
 
@@ -206,17 +214,15 @@ export const DYNAMIC_PEER_MODE_ENABLED_MESSAGE = 'Dynamic peer mode enabled.'
 
 export const PEER_UNAVAILABLE_LABEL = '—'
 
-export const STATIC_PEER_STATUS_LABELS = {
-  connected: 'Connected',
-  connectedDynamic: 'Connected dynamically',
-  saved: 'Saved',
-  disconnected: 'Not connected',
-} as const
-
-export const STATIC_PEER_DETAILS_LABELS = {
-  pending: 'Waiting for handshake',
-  saved: 'Used when Static mode is enabled',
-  disconnected: 'Connection not established',
+export const STATIC_PEER_STATE_DISPLAY = {
+  dynamic: {
+    connected: {status: 'Connected dynamically', details: 'Waiting for handshake'},
+    disconnected: {status: 'Saved', details: 'Used when Static mode is enabled'},
+  },
+  static: {
+    connected: {status: 'Connected', details: 'Waiting for handshake'},
+    disconnected: {status: 'Not connected', details: 'Connection not established'},
+  },
 } as const
 
 export const BANNED_PEER_STATUS_LABEL = 'Banned'

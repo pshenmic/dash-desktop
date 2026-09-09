@@ -13,6 +13,7 @@ import type {
   WordCount,
 } from '@renderer/types/auth'
 import { saveWalletConnectionSettings } from '@renderer/utils/connectionSettings'
+import {getErrorMessage} from '@renderer/utils/error'
 
 const VERIFY_HIDDEN_COUNT: Record<12 | 24, number> = {
   12: 4,
@@ -151,8 +152,7 @@ export function useCreateWallet(): UseCreateWalletState {
       walletId = await API.createWallet(seedPhrases[path].join(' '), network, password)
     } catch (err) {
       console.error('createWallet failed:', err)
-      const message = err instanceof Error ? err.message : couldNotCreateWallet
-      toast.error(couldNotCreateWallet + " " + message)
+      toast.error(`${couldNotCreateWallet} ${getErrorMessage(err)}`)
       return
     }
 

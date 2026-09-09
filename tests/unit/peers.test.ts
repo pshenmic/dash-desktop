@@ -5,6 +5,7 @@ import {
   dedupePeerEntries,
   formatPeerAddress,
   formatPeerEntry,
+  getPeerEmptyState,
   peerIdentity,
   removePeerEntry,
 } from '@renderer/utils/peers'
@@ -38,6 +39,30 @@ describe('peer list operations', () => {
     expect(appendPeerEntry(['127.0.0.1'], '127.0.0.1:9999', 'mainnet')).toEqual(['127.0.0.1'])
     expect(removePeerEntry(['127.0.0.1', '127.0.0.2:9999'], '127.0.0.1:9999', 'mainnet'))
       .toEqual(['127.0.0.2:9999'])
+  })
+})
+
+describe('peer empty state', () => {
+  const settings = {
+    loading: false,
+    connectedPeersLoading: false,
+    pending: null,
+  }
+
+  it('describes loading and connection states for the Active tab', () => {
+    expect(getPeerEmptyState('mainnet', 'active', {...settings, loading: true}, false))
+      .toEqual({label: 'Loading peers…', loading: true})
+    expect(getPeerEmptyState('mainnet', 'active', settings, false))
+      .toEqual({label: 'Connecting to peers…', loading: true})
+    expect(getPeerEmptyState('mainnet', 'active', settings, true))
+      .toEqual({label: 'No connected peers.', loading: false})
+  })
+
+  it('describes unavailable and empty peer lists', () => {
+    expect(getPeerEmptyState(null, 'active', settings, true))
+      .toEqual({label: 'Select a wallet to manage peers.', loading: false})
+    expect(getPeerEmptyState('mainnet', 'static', settings, true))
+      .toEqual({label: 'No peers in this list.', loading: false})
   })
 })
 
