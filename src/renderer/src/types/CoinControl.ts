@@ -1,3 +1,7 @@
+import type { ReactNode } from 'react'
+import type { PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
+import type { TransferOperation } from '../enums/TransferOperation'
+
 export type CoinControlSelection =
   | { kind: 'automatic' }
   | { kind: 'coreAddress'; address: string }
@@ -13,4 +17,57 @@ export interface CoinControlInventory {
   platformBalances: Record<string, bigint>
   shieldedAddresses: string[]
   shieldedNoteIndexes: number[]
+}
+
+export interface CoinControlFixedSourceCopy {
+  title: string
+  description: string
+}
+
+export interface CoinControlModalProps {
+  isOpen: boolean
+  operation: TransferOperation | null
+  selection: CoinControlSelection
+  coreAddresses: WalletAddressDto[]
+  coreAddressesLoading: boolean
+  coreAddressesError: string | null
+  onRetryCoreAddresses: () => void
+  utxos: SelectableUtxo[]
+  utxosLoading: boolean
+  utxosError: string | null
+  coreSyncIncomplete: boolean
+  platformAddresses: PlatformAddressDto[]
+  platformAddressesLoading: boolean
+  platformAddressesError: string | null
+  onRetryPlatformAddresses: () => void
+  shieldedNotes: ShieldedNoteInfo[]
+  identityLabel: string | null
+  identityId: string | null
+  platformAddress: PlatformAddressDto | undefined
+  onRetryUtxos: () => void
+  onClose: () => void
+  onApply: (selection: CoinControlSelection) => void
+}
+
+export interface CoinControlEmptyProps {
+  text: string
+}
+
+export interface CoinControlAddressValueProps {
+  address: string
+  detail: ReactNode
+}
+
+export interface CoinControlChoiceRowProps {
+  checked: boolean
+  onChange: () => void
+  children: ReactNode
+}
+
+export interface CoinControlCheckRowProps {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  children: ReactNode
+  disabled?: boolean
+  bare?: boolean
 }

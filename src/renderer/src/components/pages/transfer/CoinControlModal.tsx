@@ -5,60 +5,25 @@ import { Button, CreditsIcon, CrossIcon, ShieldSmallIcon, Text } from '@renderer
 import { DashLogo } from 'dash-ui-kit/react'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
-import type { PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, WalletAddressDto } from '@renderer/api/types'
+import type { PlatformAddressDto } from '@renderer/api/types'
+import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY, INPUT_MODE_LABEL } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
-import type { CoinControlSelection } from '@renderer/types/CoinControl'
+import type {
+  CoinControlAddressValueProps,
+  CoinControlCheckRowProps,
+  CoinControlChoiceRowProps,
+  CoinControlEmptyProps,
+  CoinControlModalProps,
+  CoinControlSelection,
+} from '@renderer/types/CoinControl'
 import { automaticCoinControl, coinControlSourceKind, outpointKey, parsePlatformInputCredits } from '@renderer/utils/coinControl'
 import { creditsToDuffs, davToDashCompact } from '@renderer/utils/balance'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
-
-const FIXED_SOURCE_COPY: Partial<Record<TransferOperation, {title: string; description: string}>> = {
-  [TransferOperation.Shield]: {
-    title: 'Selected Platform address',
-    description: 'Shielding spends one source address as a single input. Change it in the From field.',
-  },
-  [TransferOperation.IdentityCreateFromShielded]: {
-    title: 'Automatic shielded selection',
-    description: 'Manual note selection is not available for identity creation from the shielded pool.',
-  },
-}
-
-const INPUT_MODE_LABEL: Record<SourceKind, string> = {
-  [SourceKind.Core]: 'UTXOs',
-  [SourceKind.PlatformAddress]: 'Inputs',
-  [SourceKind.Identity]: 'Inputs',
-  [SourceKind.Shielded]: 'Notes',
-}
-
-interface CoinControlModalProps {
-  isOpen: boolean
-  operation: TransferOperation | null
-  selection: CoinControlSelection
-  coreAddresses: WalletAddressDto[]
-  coreAddressesLoading: boolean
-  coreAddressesError: string | null
-  onRetryCoreAddresses: () => void
-  utxos: SelectableUtxo[]
-  utxosLoading: boolean
-  utxosError: string | null
-  coreSyncIncomplete: boolean
-  platformAddresses: PlatformAddressDto[]
-  platformAddressesLoading: boolean
-  platformAddressesError: string | null
-  onRetryPlatformAddresses: () => void
-  shieldedNotes: ShieldedNoteInfo[]
-  identityLabel: string | null
-  identityId: string | null
-  platformAddress: PlatformAddressDto | undefined
-  onRetryUtxos: () => void
-  onClose: () => void
-  onApply: (selection: CoinControlSelection) => void
-}
 
 export default function CoinControlModal({
   isOpen,
@@ -267,10 +232,7 @@ export default function CoinControlModal({
 
   const fixed = sourceKind == null
   const inputModeLabel = sourceKind == null ? 'Inputs' : INPUT_MODE_LABEL[sourceKind]
-  const fixedCopy = FIXED_SOURCE_COPY[operation] ?? {
-    title: 'Selected identity',
-    description: 'Identity operations spend the selected identity balance. Change it in the From field.',
-  }
+  const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
   let fixedValue = identityLabel ?? identityId ?? 'No identity selected'
   if (operation === TransferOperation.Shield) {
     fixedValue = platformAddress?.platformAddress ?? 'No funded Platform address'
@@ -638,11 +600,11 @@ export default function CoinControlModal({
   )
 }
 
-function Empty({text}: {text: string}): React.JSX.Element {
+function Empty({text}: CoinControlEmptyProps): React.JSX.Element {
   return <div className={'dash-block rounded-[.75rem] p-4'}><Text size={12} weight={'medium'} color={'brand'} opacity={50}>{text}</Text></div>
 }
 
-function AddressValue({address, detail}: {address: string; detail: React.ReactNode}): React.JSX.Element {
+function AddressValue({address, detail}: CoinControlAddressValueProps): React.JSX.Element {
   return (
     <span className={'min-w-0 flex flex-col items-start'}>
       <Text reset size={12} weight={'medium'} color={'brand'} className={'font-mono break-all text-left'}>{address}</Text>
@@ -651,7 +613,7 @@ function AddressValue({address, detail}: {address: string; detail: React.ReactNo
   )
 }
 
-function ChoiceRow({checked, onChange, children}: {checked: boolean; onChange: () => void; children: React.ReactNode}): React.JSX.Element {
+function ChoiceRow({checked, onChange, children}: CoinControlChoiceRowProps): React.JSX.Element {
   return (
     <label className={`flex items-center gap-2.5 rounded-[.75rem] p-3 cursor-pointer ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
       <input type={'radio'} checked={checked} onChange={onChange} className={'accent-dash-brand dark:accent-dash-mint'} />
@@ -660,7 +622,7 @@ function ChoiceRow({checked, onChange, children}: {checked: boolean; onChange: (
   )
 }
 
-function CheckRow({checked, onChange, children, disabled = false, bare = false}: {checked: boolean; onChange: (checked: boolean) => void; children: React.ReactNode; disabled?: boolean; bare?: boolean}): React.JSX.Element {
+function CheckRow({checked, onChange, children, disabled = false, bare = false}: CoinControlCheckRowProps): React.JSX.Element {
   let rowClass = ''
   if (!bare) rowClass = `rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'}`
   return (
