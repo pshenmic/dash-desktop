@@ -21,8 +21,18 @@ import type {
   CoinControlModalProps,
   CoinControlSelection,
 } from '@renderer/types/CoinControl'
-import { automaticCoinControl, coinControlSourceKind, outpointKey, parsePlatformInputCredits } from '@renderer/utils/coinControl'
-import { creditsToDuffs, davToDashCompact } from '@renderer/utils/balance'
+import {
+  automaticCoinControl,
+  buildCoinControlInventory,
+  coinControlInputLabel,
+  coinControlSelectionTotals,
+  coinControlSourceKind,
+  isCoinControlSelectionValid,
+  normalizeCoinControlSelection,
+  outpointKey,
+  parsePlatformInputCredits,
+} from '@renderer/utils/coinControl'
+import { davToDashCompact } from '@renderer/utils/balance'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 
 export default function CoinControlModal({
@@ -78,7 +88,6 @@ export default function CoinControlModal({
   const visibleUtxos = filterDust ? nonDustUtxos : utxos
   const selectedOutpoints = draft.kind === 'coreOutpoints' ? new Set(draft.outpoints) : new Set<string>()
   const selectedUtxos = visibleUtxos.filter(utxo => selectedOutpoints.has(outpointKey(utxo)))
-  const selectedDuffs = selectedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0n)
   const displayedUtxos = onlySelected && selectedUtxos.length > 0 ? selectedUtxos : visibleUtxos
 
   const nonDustPlatformAddresses = platformAddresses.filter(address => address.balanceCredits >= PLATFORM_DUST_FILTER_CREDITS)
@@ -88,75 +97,17 @@ export default function CoinControlModal({
   const displayedPlatformAddresses = onlySelected && selectedPlatformInputs.length > 0
     ? visiblePlatformAddresses.filter(address => selectedPlatformAddresses.has(address.platformAddress))
     : visiblePlatformAddresses
-  const selectedPlatformCredits = selectedPlatformInputs.reduce((sum, input) => sum + input.credits, 0n)
 
   const selectedNoteIndexes = draft.kind === 'shieldedNotes' ? new Set(draft.noteIndexes) : new Set<number>()
   const selectedShieldedNotes = visibleShieldedNotes.filter(note => selectedNoteIndexes.has(note.index))
   const displayedShieldedNotes = onlySelected && selectedShieldedNotes.length > 0
     ? selectedShieldedNotes
     : visibleShieldedNotes
-  const selectedShieldedCredits = selectedShieldedNotes.reduce((sum, note) => sum + note.amount, 0n)
-
-  let selectedCount = 0
-  let selectedAmountDuffs = 0n
-  let selectedItemSingular = 'input'
-  let selectedItemPlural = 'inputs'
-  switch (sourceKind) {
-    case SourceKind.Core:
-      selectedCount = selectedUtxos.length
-      selectedAmountDuffs = selectedDuffs
-      selectedItemSingular = 'UTXO'
-      selectedItemPlural = 'UTXOs'
-      break
-    case SourceKind.PlatformAddress:
-      selectedCount = selectedPlatformInputs.length
-      selectedAmountDuffs = creditsToDuffs(selectedPlatformCredits)
-      break
-    case SourceKind.Shielded:
-      selectedCount = selectedShieldedNotes.length
-      selectedAmountDuffs = creditsToDuffs(selectedShieldedCredits)
-      selectedItemSingular = 'note'
-      selectedItemPlural = 'notes'
-      break
-  }
-  const selectedItemLabel = selectedCount === 1 ? selectedItemSingular : selectedItemPlural
-
-  const platformInputsValid = draft.kind !== 'platformInputs' || (
-    draft.inputs.length > 0
-    && draft.inputs.length <= PLATFORM_INPUT_LIMIT
-    && draft.inputs.some(input => input.address === draft.feeAddress)
-    && draft.inputs.every(input => {
-      const address = platformAddresses.find(entry => entry.platformAddress === input.address)
-      return address != null && input.credits > 0n && input.credits <= address.balanceCredits
-    })
-  )
-  let canApply = false
-  switch (draft.kind) {
-    case 'automatic':
-      canApply = true
-      break
-    case 'coreAddress':
-      canApply = coreAddresses.some(entry => entry.address === draft.address)
-      break
-    case 'coreOutpoints':
-      canApply = draft.outpoints.length > 0
-        && draft.outpoints.every(outpoint => utxos.some(utxo => outpointKey(utxo) === outpoint))
-      break
-    case 'platformAddress':
-      canApply = platformAddresses.some(entry => entry.platformAddress === draft.address)
-      break
-    case 'platformInputs':
-      canApply = platformInputsValid
-      break
-    case 'shieldedAddress':
-      canApply = shieldedAddresses.includes(draft.address)
-      break
-    case 'shieldedNotes':
-      canApply = draft.noteIndexes.length > 0
-        && draft.noteIndexes.length <= SHIELDED_NOTE_LIMIT
-        && draft.noteIndexes.every(index => shieldedNotes.some(note => note.index === index))
-      break
-  }
+  const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
+  const {count: selectedCount, duffs: selectedAmountDuffs} = coinControlSelectionTotals(draft, funds)
+  const selectedItemLabel = coinControlInputLabel(sourceKind, selectedCount)
+  const canApply = normalizeCoinControlSelection(draft, operation) === draft
+    && isCoinControlSelectionValid(draft, buildCoinControlInventory(funds))
 
   const chooseMode = (nextMode: CoinControlMode): void => {
     setOnlySelected(false)

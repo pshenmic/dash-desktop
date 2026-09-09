@@ -3,9 +3,12 @@ import { PLATFORM_INPUT_LIMIT } from '../../src/renderer/src/constants/platform'
 import { SHIELDED_NOTE_LIMIT } from '../../src/renderer/src/constants/shielded'
 import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
-import type { CoinControlInventory, CoinControlSelection } from '../../src/renderer/src/types/CoinControl'
+import type { CoinControlFunds, CoinControlInventory, CoinControlSelection } from '../../src/renderer/src/types/CoinControl'
 import {
   automaticCoinControl,
+  buildCoinControlInventory,
+  coinControlSelectionSummary,
+  coinControlSelectionTotals,
   coinControlSourceKind,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
@@ -23,7 +26,70 @@ const inventory: CoinControlInventory = {
   shieldedNoteIndexes: [4, 8],
 }
 
+const funds: CoinControlFunds = {
+  coreAddresses: [{
+    walletId: 'wallet-a', accountId: 0, address: 'core-a', derivationPath: '', index: 0,
+    isChange: 0, isUsed: true, balance: 100_000_000n, txCount: 1, label: null, usdBalance: null,
+  }],
+  utxos: [
+    {txid: 'tx-a', vout: 0, satoshis: 1n, address: 'core-a', height: 1},
+    {txid: 'tx-b', vout: 1, satoshis: 99_999_999n, address: 'core-a', height: 1},
+  ],
+  platformAddresses: [
+    {platformAddress: 'platform-a', balanceCredits: 5_000_000n, nonce: 0},
+    {platformAddress: 'platform-b', balanceCredits: 7_000_000n, nonce: 0},
+  ],
+  shieldedNotes: [
+    {index: 4, address: 'shielded-a', amount: 1_000n, spent: false},
+    {index: 8, address: 'shielded-a', amount: 1_999n, spent: false},
+    {index: 99, address: 'shielded-spent', amount: 1_000_000n, spent: true},
+  ],
+}
+
 describe('coin control', () => {
+  it('builds validation inventory without spent notes and duplicate shielded addresses', () => {
+    expect(buildCoinControlInventory(funds)).toEqual(inventory)
+  })
+
+  it('counts missing selections but never substitutes unselected Core funds into their total', () => {
+    expect(coinControlSelectionTotals({kind: 'coreOutpoints', outpoints: ['tx-a:0', 'missing:1']}, funds)).toEqual({
+      count: 2, duffs: 1n, credits: 1_000n,
+    })
+    expect(coinControlSelectionTotals({kind: 'coreAddress', address: 'core-a'}, funds)).toEqual({
+      count: 1, duffs: 100_000_000n, credits: 100_000_000_000n,
+    })
+    expect(coinControlSelectionTotals({kind: 'coreAddress', address: 'missing'}, funds).duffs).toBe(0n)
+  })
+
+  it('totals Platform input caps exactly without replacing caps with address balances', () => {
+    expect(coinControlSelectionTotals({
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 9_007_199_254_740_993n}, {address: 'platform-b', credits: 9n}],
+      feeAddress: 'platform-b',
+    }, funds)).toEqual({count: 2, credits: 9_007_199_254_741_002n, duffs: 9_007_199_254_741n})
+    expect(coinControlSelectionTotals({kind: 'platformAddress', address: 'platform-a'}, funds).credits).toBe(5_000_000n)
+  })
+
+  it('retains sub-duff credits and excludes spent shielded notes from totals', () => {
+    expect(coinControlSelectionTotals({kind: 'shieldedAddress', address: 'shielded-a'}, funds)).toEqual({
+      count: 1, credits: 2_999n, duffs: 2n,
+    })
+    expect(coinControlSelectionTotals({kind: 'shieldedNotes', noteIndexes: [8, 99]}, funds)).toEqual({
+      count: 2, credits: 1_999n, duffs: 1n,
+    })
+  })
+
+  it('formats address summaries with the optional registration balance and input counts consistently', () => {
+    const address: CoinControlSelection = {kind: 'coreAddress', address: 'core-a'}
+    const totals = coinControlSelectionTotals(address, funds)
+    expect(coinControlSelectionSummary(address, totals)).toBe('One Core address')
+    expect(coinControlSelectionSummary(address, totals, true)).toBe('One Core address · 1 Dash')
+    const inputs: CoinControlSelection = {kind: 'coreOutpoints', outpoints: ['tx-a:0', 'tx-b:1']}
+    expect(coinControlSelectionSummary(inputs, coinControlSelectionTotals(inputs, funds))).toBe('2 UTXOs · 1 Dash')
+    const automatic = automaticCoinControl()
+    expect(coinControlSelectionSummary(automatic, coinControlSelectionTotals(automatic, funds))).toBe('Automatic')
+  })
+
   it.each<[string, bigint]>([
     ['', 0n],
     ['0', 0n],

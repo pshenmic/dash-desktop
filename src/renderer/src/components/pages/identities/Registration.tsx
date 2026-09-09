@@ -16,7 +16,7 @@ import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import { API } from '@renderer/api'
-import type { AssetLockFundingState, SelectableUtxo, ShieldedSpendState } from '@renderer/api/types'
+import type { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
 import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
@@ -31,24 +31,26 @@ import { useAdresses } from '@renderer/hooks/useAdresses'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
 import { useErrorToast } from '@renderer/hooks/useErrorToast'
+import { useWalletUtxos } from '@renderer/hooks/useWalletUtxos'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshPlatformAddresses, usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { refreshBalance, useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { amountErrorFor } from '@renderer/utils/amountValidation'
-import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, formatCredits } from '@renderer/utils/balance'
+import { creditsToDuffs, davToDash, dashToDuffs, duffsToCredits, formatCredits } from '@renderer/utils/balance'
 import {
   automaticCoinControl,
+  buildCoinControlInventory,
+  coinControlSelectionSummary,
+  coinControlSelectionTotals,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
-  outpointKey,
   toCoreSpendSource,
   toPlatformSpendSource,
 } from '@renderer/utils/coinControl'
 import { COIN_CONTROL_INVALID_MESSAGE } from '@renderer/constants/coinControl'
 import { toast } from '@renderer/components/ui/Toast'
-import { getErrorMessage } from '@renderer/utils/error'
 import {
   identityRegistrationAmountError,
   identityRegistrationMaxDuffs,
@@ -75,10 +77,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const [fromKind, setFromKind] = useState(SourceKind.Core)
   const [amount, setAmount] = useState(IDENTITY_REGISTRATION_DEFAULT_AMOUNT)
-  const [utxos, setUtxos] = useState<SelectableUtxo[]>([])
-  const [utxosLoading, setUtxosLoading] = useState(false)
-  const [utxosError, setUtxosError] = useState<string | null>(null)
-  const [utxosReload, setUtxosReload] = useState(0)
+  const { utxos, loading: utxosLoading, error: utxosError, retry: retryUtxos } = useWalletUtxos()
   const [coinControl, setCoinControl] = useState<CoinControlSelection>(automaticCoinControl)
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [fundingState, setFundingState] = useState<AssetLockFundingState | null>(null)
@@ -125,35 +124,6 @@ export default function IdentityRegistration(): React.JSX.Element {
     successful.current = false
   }, [walletId])
 
-  useEffect(() => {
-    if (!walletId || syncIncomplete) {
-      setUtxos([])
-      setUtxosLoading(false)
-      setUtxosError(null)
-      return
-    }
-
-    let cancelled = false
-    setUtxos([])
-    setUtxosLoading(true)
-    setUtxosError(null)
-    API.getUtxos(walletId)
-      .then(loaded => {
-        if (!cancelled) setUtxos(loaded)
-      })
-      .catch(error => {
-        if (cancelled) return
-        setUtxosError(`Could not load spendable UTXOs. ${getErrorMessage(error)}`)
-      })
-      .finally(() => {
-        if (!cancelled) setUtxosLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [walletId, syncIncomplete, utxosReload])
-
   const balanceDuffs = balance.dash.amount
   const amountDuffs = useMemo(() => dashToDuffs(amount), [amount])
   const amountCredits = duffsToCredits(amountDuffs)
@@ -185,15 +155,10 @@ export default function IdentityRegistration(): React.JSX.Element {
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? BigInt(shieldedSync.balance)
     : null
-  const coinControlInventory = useMemo(() => ({
-    coreAddresses: coreAddresses.map(address => address.address),
-    coreOutpoints: utxos.map(outpointKey),
-    platformBalances: Object.fromEntries(
-      fundedAddresses.map(address => [address.platformAddress, address.balanceCredits]),
-    ),
-    shieldedAddresses: [],
-    shieldedNoteIndexes: [],
+  const coinControlFunds = useMemo(() => ({
+    coreAddresses, utxos, platformAddresses: fundedAddresses, shieldedNotes: [],
   }), [coreAddresses, utxos, fundedAddresses])
+  const coinControlInventory = useMemo(() => buildCoinControlInventory(coinControlFunds), [coinControlFunds])
   const appliedCoinControl = useMemo(
     () => normalizeCoinControlSelection(coinControl, operation),
     [coinControl, operation],
@@ -238,24 +203,16 @@ export default function IdentityRegistration(): React.JSX.Element {
     [appliedCoinControl],
   )
 
+  const selectedTotals = coinControlSelectionTotals(appliedCoinControl, coinControlFunds)
   let selectedCoreDuffs = balanceDuffs
-  if (appliedCoinControl.kind === 'coreAddress') {
-    selectedCoreDuffs = coreAddresses.find(address => address.address === appliedCoinControl.address)?.balance ?? 0n
-  } else if (appliedCoinControl.kind === 'coreOutpoints') {
-    const selectedOutpoints = new Set(appliedCoinControl.outpoints)
-    selectedCoreDuffs = utxos
-      .filter(utxo => selectedOutpoints.has(outpointKey(utxo)))
-      .reduce((sum, utxo) => sum + utxo.satoshis, 0n)
+  if (appliedCoinControl.kind === 'coreAddress' || appliedCoinControl.kind === 'coreOutpoints') {
+    selectedCoreDuffs = selectedTotals.duffs
   }
 
   let availableCredits: bigint | null = null
   if (fromKind === SourceKind.PlatformAddress) {
-    if (appliedCoinControl.kind === 'platformAddress') {
-      availableCredits = fundedAddresses.find(
-        address => address.platformAddress === appliedCoinControl.address,
-      )?.balanceCredits ?? 0n
-    } else if (appliedCoinControl.kind === 'platformInputs') {
-      availableCredits = appliedCoinControl.inputs.reduce((sum, input) => sum + input.credits, 0n)
+    if (appliedCoinControl.kind === 'platformAddress' || appliedCoinControl.kind === 'platformInputs') {
+      availableCredits = selectedTotals.credits
     } else {
       availableCredits = fundedAddresses.reduce((sum, address) => sum + address.balanceCredits, 0n)
     }
@@ -329,36 +286,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     ? fundingState
     : null
 
-  let coinControlSummary = 'Automatic'
-  switch (appliedCoinControl.kind) {
-    case 'coreAddress': {
-      const addressDuffs = coreAddresses.find(address => address.address === appliedCoinControl.address)?.balance ?? 0n
-      coinControlSummary = `One Core address · ${davToDashCompact(addressDuffs)} Dash`
-      break
-    }
-    case 'coreOutpoints': {
-      const selectedOutpoints = new Set(appliedCoinControl.outpoints)
-      const selectedDuffs = utxos
-        .filter(utxo => selectedOutpoints.has(outpointKey(utxo)))
-        .reduce((sum, utxo) => sum + utxo.satoshis, 0n)
-      const label = appliedCoinControl.outpoints.length === 1 ? 'UTXO' : 'UTXOs'
-      coinControlSummary = `${appliedCoinControl.outpoints.length} ${label} · ${davToDashCompact(selectedDuffs)} Dash`
-      break
-    }
-    case 'platformAddress': {
-      const addressCredits = fundedAddresses.find(
-        address => address.platformAddress === appliedCoinControl.address,
-      )?.balanceCredits ?? 0n
-      coinControlSummary = `One Platform address · ${davToDashCompact(creditsToDuffs(addressCredits))} Dash`
-      break
-    }
-    case 'platformInputs': {
-      const inputCredits = appliedCoinControl.inputs.reduce((sum, input) => sum + input.credits, 0n)
-      const label = appliedCoinControl.inputs.length === 1 ? 'input' : 'inputs'
-      coinControlSummary = `${appliedCoinControl.inputs.length} ${label} · ${davToDashCompact(creditsToDuffs(inputCredits))} Dash`
-      break
-    }
-  }
+  const coinControlSummary = coinControlSelectionSummary(appliedCoinControl, selectedTotals, true)
 
   const sliderPercent = useMemo(() => {
     if (maxDuffs === null || maxDuffs <= 0n || amountDuffs <= 0n) return 0
@@ -874,7 +802,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         identityLabel={null}
         identityId={null}
         platformAddress={undefined}
-        onRetryUtxos={() => setUtxosReload(current => current + 1)}
+        onRetryUtxos={retryUtxos}
         onClose={() => setCoinControlOpen(false)}
         onApply={setCoinControl}
       />

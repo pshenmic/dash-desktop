@@ -1,6 +1,6 @@
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
-import type { CoinControlFixedSourceCopy } from '../types/CoinControl'
+import type { CoinControlFixedSourceCopy, CoinControlInputLabel } from '../types/CoinControl'
 
 export const COIN_CONTROL_INVALID_MESSAGE = 'Selected funds are no longer available. Review your coin control selection before continuing.'
 
@@ -25,4 +25,11 @@ export const INPUT_MODE_LABEL: Record<SourceKind, string> = {
   [SourceKind.PlatformAddress]: 'Inputs',
   [SourceKind.Identity]: 'Inputs',
   [SourceKind.Shielded]: 'Notes',
+}
+
+export const INPUT_ITEM_LABELS: Record<SourceKind, CoinControlInputLabel> = {
+  [SourceKind.Core]: {singular: 'UTXO', plural: 'UTXOs'},
+  [SourceKind.PlatformAddress]: {singular: 'input', plural: 'inputs'},
+  [SourceKind.Identity]: {singular: 'input', plural: 'inputs'},
+  [SourceKind.Shielded]: {singular: 'note', plural: 'notes'},
 }

@@ -6,16 +6,107 @@ import type {
   ShieldedSpendSource,
 } from '../api/types'
 import { PLATFORM_INPUT_LIMIT } from '../constants/platform'
+import { INPUT_ITEM_LABELS } from '../constants/coinControl'
 import { SHIELDED_NOTE_LIMIT } from '../constants/shielded'
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
-import type { CoinControlInventory, CoinControlSelection } from '../types/CoinControl'
+import type { CoinControlFunds, CoinControlInventory, CoinControlSelection, CoinControlTotals } from '../types/CoinControl'
+import { creditsToDuffs, davToDashCompact, duffsToCredits } from './balance'
 
 export const automaticCoinControl = (): CoinControlSelection => ({kind: 'automatic'})
 
 export function parsePlatformInputCredits(value: string): bigint | null {
   if (/[^0-9]/.test(value)) return null
   return BigInt(value || '0')
+}
+
+export function buildCoinControlInventory(funds: CoinControlFunds): CoinControlInventory {
+  const notes = funds.shieldedNotes.filter(note => !note.spent)
+  return {
+    coreAddresses: funds.coreAddresses.map(address => address.address),
+    coreOutpoints: funds.utxos.map(outpointKey),
+    platformBalances: Object.fromEntries(funds.platformAddresses.map(address => [address.platformAddress, address.balanceCredits])),
+    shieldedAddresses: [...new Set(notes.map(note => note.address))],
+    shieldedNoteIndexes: notes.map(note => note.index),
+  }
+}
+
+export function coinControlSelectionTotals(selection: CoinControlSelection, funds: CoinControlFunds): CoinControlTotals {
+  let count = 0
+  let duffs = 0n
+  let credits = 0n
+  switch (selection.kind) {
+    case 'coreAddress':
+      count = 1
+      duffs = funds.coreAddresses.find(address => address.address === selection.address)?.balance ?? 0n
+      return {count, duffs, credits: duffsToCredits(duffs)}
+    case 'coreOutpoints': {
+      count = selection.outpoints.length
+      const selected = new Set(selection.outpoints)
+      duffs = funds.utxos.filter(utxo => selected.has(outpointKey(utxo))).reduce((sum, utxo) => sum + utxo.satoshis, 0n)
+      return {count, duffs, credits: duffsToCredits(duffs)}
+    }
+    case 'platformAddress':
+      count = 1
+      credits = funds.platformAddresses.find(address => address.platformAddress === selection.address)?.balanceCredits ?? 0n
+      break
+    case 'platformInputs':
+      count = selection.inputs.length
+      credits = selection.inputs.reduce((sum, input) => sum + input.credits, 0n)
+      break
+    case 'shieldedAddress':
+      count = 1
+      credits = funds.shieldedNotes.filter(note => !note.spent && note.address === selection.address).reduce((sum, note) => sum + note.amount, 0n)
+      break
+    case 'shieldedNotes': {
+      count = selection.noteIndexes.length
+      const selected = new Set(selection.noteIndexes)
+      credits = funds.shieldedNotes.filter(note => !note.spent && selected.has(note.index)).reduce((sum, note) => sum + note.amount, 0n)
+      break
+    }
+  }
+  return {count, duffs: creditsToDuffs(credits), credits}
+}
+
+export function coinControlSelectionSummary(
+  selection: CoinControlSelection,
+  totals: CoinControlTotals,
+  includeAddressBalance = false,
+): string {
+  let label: string
+  let addressSelection = false
+  switch (selection.kind) {
+    case 'automatic':
+      return 'Automatic'
+    case 'coreAddress':
+      label = 'One Core address'
+      addressSelection = true
+      break
+    case 'platformAddress':
+      label = 'One Platform address'
+      addressSelection = true
+      break
+    case 'shieldedAddress':
+      label = 'One shielded address'
+      addressSelection = true
+      break
+    case 'coreOutpoints':
+      label = `${totals.count} ${coinControlInputLabel(SourceKind.Core, totals.count)}`
+      break
+    case 'platformInputs':
+      label = `${totals.count} ${coinControlInputLabel(SourceKind.PlatformAddress, totals.count)}`
+      break
+    case 'shieldedNotes':
+      label = `${totals.count} ${coinControlInputLabel(SourceKind.Shielded, totals.count)}`
+      break
+  }
+  if (addressSelection && !includeAddressBalance) return label
+  return `${label} · ${davToDashCompact(totals.duffs)} Dash`
+}
+
+export function coinControlInputLabel(sourceKind: SourceKind | null, count: number): string {
+  const labels = INPUT_ITEM_LABELS[sourceKind ?? SourceKind.PlatformAddress]
+  return count === 1 ? labels.singular : labels.plural
 }
 
 export function coinControlSourceKind(operation: TransferOperation | null): SourceKind | null {

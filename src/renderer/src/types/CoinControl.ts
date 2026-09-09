@@ -19,6 +19,31 @@ export interface CoinControlInventory {
   shieldedNoteIndexes: number[]
 }
 
+export interface CoinControlFunds {
+  coreAddresses: WalletAddressDto[]
+  utxos: SelectableUtxo[]
+  platformAddresses: PlatformAddressDto[]
+  shieldedNotes: ShieldedNoteInfo[]
+}
+
+export interface CoinControlTotals {
+  count: number
+  duffs: bigint
+  credits: bigint
+}
+
+export interface CoinControlInputLabel {
+  singular: string
+  plural: string
+}
+
+export interface WalletUtxosResult {
+  utxos: SelectableUtxo[]
+  loading: boolean
+  error: string | null
+  retry: () => void
+}
+
 export interface CoinControlFixedSourceCopy {
   title: string
   description: string
