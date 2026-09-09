@@ -277,7 +277,6 @@ function PeerRow({
         id: 'ban',
         label: PEER_ACTION_LABELS.ban,
         icon: <TurnOffIcon size={10} color="currentColor" />,
-        tone: 'danger',
         onSelect: () => onAction('ban', row),
       },
       {
