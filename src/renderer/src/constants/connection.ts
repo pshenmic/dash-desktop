@@ -166,11 +166,6 @@ export const STATIC_PEER_REQUIRED_MESSAGE =
 export const STATIC_PEER_READY_MESSAGE =
   'Static peer added. Turn on Use Static Peers to enable static peer mode.'
 
-export const STATIC_PEER_FALLBACK_LABEL = 'Using Dynamic'
-
-export const STATIC_PEER_FALLBACK_TOOLTIP =
-  'Static mode is saved globally, but this network is currently using dynamic discovery.'
-
 export const PEER_UNAVAILABLE_LABEL = '—'
 
 export const PEER_POLL_INTERVAL_MS = 4_000

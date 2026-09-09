@@ -30,8 +30,6 @@ import {
   RPC_CONNECTION_NAME,
   RPC_CONNECTION_OPTIONS,
   STATIC_PEER_READY_MESSAGE,
-  STATIC_PEER_FALLBACK_LABEL,
-  STATIC_PEER_FALLBACK_TOOLTIP,
   STATIC_PEER_REQUIRED_MESSAGE,
 } from '@renderer/constants/connection'
 import {WalletSyncPhase} from '@renderer/api/types'
@@ -515,24 +513,12 @@ export default function CoreTab(): React.JSX.Element {
           />
         </SettingsRow>
         <SettingsRow label="Use Static Peers">
-          <div className="flex items-center gap-3">
-            {peerSettings.configuredMode === 'static'
-              && sync?.peerMode === 'dynamic' && (
-                <Text
-                  size={10}
-                  weight="medium"
-                  className="text-dash-orange!"
-                >
-                  <span title={STATIC_PEER_FALLBACK_TOOLTIP}>{STATIC_PEER_FALLBACK_LABEL}</span>
-                </Text>
-              )}
-            <SwitchControl
-              checked={peerSettings.configuredMode === 'static'}
-              disabled={!peerSettings.settingsReady || peerMutationPending}
-              label="Use static peers"
-              onChange={() => void handleStaticPeersToggle()}
-            />
-          </div>
+          <SwitchControl
+            checked={peerSettings.configuredMode === 'static'}
+            disabled={!peerSettings.settingsReady || peerMutationPending}
+            label="Use static peers"
+            onChange={() => void handleStaticPeersToggle()}
+          />
         </SettingsRow>
       </div>
 
