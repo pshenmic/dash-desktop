@@ -50,12 +50,14 @@ const funds: CoinControlFunds = {
 describe('coin control', () => {
   it('preserves Core fee-cache keys for automatic, address and ordered outpoint sources', () => {
     expect(coreSpendSourceKey(null)).toBe('')
+    expect(coreSpendSourceKey(undefined)).toBe('')
     expect(coreSpendSourceKey({kind: 'address', address: 'core-a'})).toBe('core-a')
     expect(coreSpendSourceKey({kind: 'outpoints', outpoints: [{txid: 'tx-b', vout: 1}, {txid: 'tx-a', vout: 0}]})).toBe('tx-b:1,tx-a:0')
   })
 
   it('preserves Platform fee-cache keys including exact caps and ordered fee strategies', () => {
     expect(platformSpendSourceKey(null)).toBe('')
+    expect(platformSpendSourceKey(undefined)).toBe('')
     expect(platformSpendSourceKey({kind: 'address', address: 'platform-a'})).toBe('platform-a')
     expect(platformSpendSourceKey({
       kind: 'inputs',

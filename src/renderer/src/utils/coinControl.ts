@@ -209,13 +209,13 @@ export function toCoreSpendSource(
   }
 }
 
-export function coreSpendSourceKey(source: CoreSpendSource | null): string {
+export function coreSpendSourceKey(source: CoreSpendSource | null | undefined): string {
   if (source == null) return ''
   if (source.kind === 'address') return source.address
   return source.outpoints.map(outpointKey).join(',')
 }
 
-export function platformSpendSourceKey(source: PlatformSpendSource | null): string {
+export function platformSpendSourceKey(source: PlatformSpendSource | null | undefined): string {
   if (source == null) return ''
   if (source.kind === 'address') return source.address
   const inputs = source.inputs.map(input => `${input.address}:${input.credits}`).join(',')
