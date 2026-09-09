@@ -88,7 +88,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
-  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked } = draft
+  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, coinControl } = draft
   const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
     const next = update(draftRef.current)
     draftRef.current = next
@@ -102,11 +102,11 @@ function WalletTransferHub(): React.JSX.Element {
   const setToValue = (toValue: string): void => updateDraft(current => ({ ...current, toValue }))
   const setAmount = (amount: string): void => updateDraft(current => ({ ...current, amount }))
   const setAcked = (acked: boolean): void => updateDraft(current => ({ ...current, acked }))
+  const setCoinControl = (coinControl: CoinControlSelection): void => updateDraft(current => ({ ...current, coinControl }))
   const [utxos, setUtxos] = useState<SelectableUtxo[]>([])
-  const [utxosLoading, setUtxosLoading] = useState(false)
+  const [utxosLoading, setUtxosLoading] = useState(walletId != null && !syncIncomplete)
   const [utxosError, setUtxosError] = useState<string | null>(null)
   const [utxosReload, setUtxosReload] = useState(0)
-  const [coinControl, setCoinControl] = useState<CoinControlSelection>(automaticCoinControl)
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
@@ -173,8 +173,8 @@ function WalletTransferHub(): React.JSX.Element {
 
   const { format: formatFiat, rateReady } = useFiat()
   const { balance } = useWalletBalance(walletId ?? undefined)
-  const { receiving, change } = useAdresses(walletId ?? undefined)
-  const { platformAddresses } = usePlatformAddresses(walletId ?? undefined)
+  const { receiving, change, loading: coreAddressesLoading } = useAdresses(walletId ?? undefined)
+  const { platformAddresses, loading: platformAddressesLoading } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const prover = useShieldedStatus()
@@ -237,11 +237,20 @@ function WalletTransferHub(): React.JSX.Element {
     () => normalizeCoinControlSelection(coinControl, operation),
     [coinControl, operation],
   )
-  const coinControlValid = isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
+  const coinControlLoading = {
+    automatic: false,
+    coreAddress: coreAddressesLoading,
+    coreOutpoints: utxosLoading || syncIncomplete,
+    platformAddress: platformAddressesLoading,
+    platformInputs: platformAddressesLoading,
+    shieldedAddress: shieldedSync.phase !== ShieldedSyncPhase.Done && shieldedSync.phase !== ShieldedSyncPhase.Error,
+    shieldedNotes: shieldedSync.phase !== ShieldedSyncPhase.Done && shieldedSync.phase !== ShieldedSyncPhase.Error,
+  }[appliedCoinControl.kind]
+  const coinControlValid = !coinControlLoading && isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
   useEffect(() => {
-    if (!coinControlValid) toast.error(COIN_CONTROL_INVALID_MESSAGE)
-  }, [coinControlValid])
+    if (!coinControlLoading && !coinControlValid) toast.error(COIN_CONTROL_INVALID_MESSAGE)
+  }, [coinControlLoading, coinControlValid])
 
   useEffect(() => {
     if (appliedCoinControl !== coinControl) setCoinControl(appliedCoinControl)
@@ -492,8 +501,7 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const resetForm = (): void => {
-    setCoinControl(automaticCoinControl())
-    const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false }
+    const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false, coinControl: automaticCoinControl() }
     draftRef.current = resetDraft
     setDraftState(resetDraft)
     if (walletId) clearSendDraft(walletId)
@@ -511,7 +519,6 @@ function WalletTransferHub(): React.JSX.Element {
         onKindChange={k => {
           setFromKind(k)
           setAcked(false)
-          setCoinControl(automaticCoinControl())
           if (k === SourceKind.Identity && identities.length === 0) reloadIdentities()
         }}
         platformAddresses={fundedAddresses}

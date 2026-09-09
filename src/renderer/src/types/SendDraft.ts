@@ -1,5 +1,6 @@
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
+import type { CoinControlSelection } from './CoinControl'
 
 export interface SendDraft {
   fromKind: SourceKind
@@ -9,4 +10,5 @@ export interface SendDraft {
   toValue: string
   amount: string
   acked: boolean
+  coinControl: CoinControlSelection
 }

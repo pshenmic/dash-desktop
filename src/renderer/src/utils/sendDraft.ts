@@ -1,6 +1,8 @@
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
 import type { SendDraft } from '../types/SendDraft'
+import { automaticCoinControl, normalizeCoinControlSelection } from './coinControl'
+import { resolveOperation } from './transferMatrix'
 
 const sendDrafts = new Map<string, SendDraft>()
 
@@ -21,6 +23,7 @@ export function createSendDraft(from: string | null = null, to: string | null = 
     toValue: '',
     amount: '',
     acked: false,
+    coinControl: automaticCoinControl(),
   }
 }
 
@@ -36,6 +39,7 @@ export function getOrCreateSendDraft(walletId: string | null, from: string | nul
         ...(fromKind != null && {fromKind}),
         ...(toKind != null && {toKind}),
       }
+  draft.coinControl = normalizeCoinControlSelection(draft.coinControl, resolveOperation(draft.fromKind, draft.toKind))
   sendDrafts.set(walletId, draft)
   return draft
 }
