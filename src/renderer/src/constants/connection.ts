@@ -166,6 +166,10 @@ export const PEER_TABLE_EMPTY_LABEL = 'No peers in this list.'
 
 export const PEER_TABLE_LOADING_LABEL = 'Loading peers…'
 
+export const PEER_TABLE_CONNECTING_LABEL = 'Connecting to peers…'
+
+export const PEER_TABLE_ACTIVE_EMPTY_LABEL = 'No connected peers.'
+
 export const PEER_CHECKING_LABEL = 'Checking peer…'
 
 export const PEER_SAVING_LABEL = 'Saving peer…'

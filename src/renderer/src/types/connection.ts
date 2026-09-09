@@ -79,6 +79,7 @@ export interface UsePeerSettingsResult {
   staticPeers: string[]
   bannedPeers: string[]
   loading: boolean
+  connectedPeersLoading: boolean
   settingsReady: boolean
   pending: PeerMutation | null
   error: string | null

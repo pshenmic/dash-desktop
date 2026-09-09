@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {API} from '@renderer/api'
 import type {Network, PeerInfo, PeerMode} from '@renderer/api/types'
 import {PEER_POLL_INTERVAL_MS} from '@renderer/constants/connection'
@@ -16,6 +16,7 @@ export function usePeerSettings(
   const [staticPeers, setStaticPeers] = useState<string[]>([])
   const [bannedPeers, setBannedPeers] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [connectedPeersLoading, setConnectedPeersLoading] = useState(false)
   const [settingsReady, setSettingsReady] = useState(false)
   const [loadedNetwork, setLoadedNetwork] = useState<Network | null | undefined>(undefined)
   const [loadVersion, setLoadVersion] = useState(0)
@@ -25,6 +26,8 @@ export function usePeerSettings(
   const generationRef = useRef(0)
   const connectedRequestRef = useRef<number | null>(null)
   const connectedRefreshQueuedRef = useRef(false)
+  const connectedLoadingQueuedRef = useRef(false)
+  const pollingConnectedPeersRef = useRef(pollConnectedPeers)
   const pendingRef = useRef<PeerMutation | null>(null)
 
   useEffect(() => {
@@ -43,10 +46,12 @@ export function usePeerSettings(
     setStaticPeers([])
     setBannedPeers([])
     setLoading(true)
+    setConnectedPeersLoading(network !== null)
     setSettingsReady(false)
     setLoadedNetwork(undefined)
     setError(null)
     connectedRefreshQueuedRef.current = false
+    connectedLoadingQueuedRef.current = false
 
     if (network === null) {
       API.getPreferences()
@@ -65,6 +70,7 @@ export function usePeerSettings(
           if (mountedRef.current && generationRef.current === generation) {
             setLoadedNetwork(null)
             setLoading(false)
+            setConnectedPeersLoading(false)
           }
         })
       return
@@ -102,20 +108,31 @@ export function usePeerSettings(
       setError(failures.length === 0 ? null : `Could not load ${failures.join('; ')}`)
       setLoading(false)
     }).finally(() => {
-      if (connectedRequestRef.current === generation) connectedRequestRef.current = null
+      if (connectedRequestRef.current === generation) {
+        connectedRequestRef.current = null
+        connectedRefreshQueuedRef.current = false
+        connectedLoadingQueuedRef.current = false
+      }
+      if (mountedRef.current && generationRef.current === generation) {
+        setConnectedPeersLoading(false)
+      }
     })
   }, [loadVersion, network])
 
-  const refreshConnectedPeers = useCallback(async (): Promise<void> => {
+  const refreshConnectedPeers = useCallback(async (showLoading = true): Promise<void> => {
     const generation = generationRef.current
     if (network === null) return
+    if (showLoading && mountedRef.current) setConnectedPeersLoading(true)
     if (connectedRequestRef.current === generation) {
       connectedRefreshQueuedRef.current = true
+      connectedLoadingQueuedRef.current ||= showLoading
       return
     }
 
     do {
       connectedRefreshQueuedRef.current = false
+      showLoading ||= connectedLoadingQueuedRef.current
+      connectedLoadingQueuedRef.current = false
       connectedRequestRef.current = generation
       try {
         const peers = await API.getConnectedPeers()
@@ -135,11 +152,26 @@ export function usePeerSettings(
         if (connectedRequestRef.current === generation) connectedRequestRef.current = null
       }
     } while (connectedRefreshQueuedRef.current && generationRef.current === generation)
+
+    if (mountedRef.current && generationRef.current === generation) {
+      setConnectedPeersLoading(false)
+    }
   }, [network])
+
+  useLayoutEffect(() => {
+    const wasPolling = pollingConnectedPeersRef.current
+    pollingConnectedPeersRef.current = pollConnectedPeers
+    if (network !== null && pollConnectedPeers && !wasPolling) {
+      void refreshConnectedPeers()
+    }
+  }, [network, pollConnectedPeers, refreshConnectedPeers])
 
   useEffect(() => {
     if (network === null || !pollConnectedPeers) return
-    const timer = setInterval(() => void refreshConnectedPeers(), PEER_POLL_INTERVAL_MS)
+    const timer = setInterval(
+      () => void refreshConnectedPeers(false),
+      PEER_POLL_INTERVAL_MS,
+    )
     return () => clearInterval(timer)
   }, [network, pollConnectedPeers, refreshConnectedPeers])
 
@@ -384,6 +416,7 @@ export function usePeerSettings(
     staticPeers,
     bannedPeers,
     loading: loading || loadedNetwork !== network,
+    connectedPeersLoading,
     settingsReady: currentSettingsReady,
     pending,
     error,

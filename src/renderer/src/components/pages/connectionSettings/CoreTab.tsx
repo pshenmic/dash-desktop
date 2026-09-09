@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/dash-ui-kit-enxtended'
 import ContextMenu, {type ContextMenuItem} from '@renderer/components/ui/ContextMenu'
 import DropdownField from '@renderer/components/ui/DropdownField'
+import Spinner from '@renderer/components/ui/Spinner'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {useConnectionModeContext} from '@renderer/contexts/ConnectionModeContext'
 import {
@@ -30,7 +31,9 @@ import {
   PEER_NETWORK_REQUIRED_LABEL,
   PEER_REMOVED_MESSAGE,
   PEER_SAVING_LABEL,
+  PEER_TABLE_ACTIVE_EMPTY_LABEL,
   PEER_TABLE_COLUMN_LABELS,
+  PEER_TABLE_CONNECTING_LABEL,
   PEER_TABLE_GRID_CLASS_NAMES,
   PEER_TABLE_ACTION_LABELS,
   PEER_TABLE_EMPTY_LABEL,
@@ -579,9 +582,23 @@ export default function CoreTab(): React.JSX.Element {
 
   const peerEmptyLabel = network === null
     ? PEER_NETWORK_REQUIRED_LABEL
-    : peerSettings.loading
+    : peerSettings.loading || (peerTab === 'active' && (
+      peerSettings.connectedPeersLoading || peerSettings.pending === 'set-mode'
+    ))
       ? PEER_TABLE_LOADING_LABEL
-      : PEER_TABLE_EMPTY_LABEL
+      : peerTab === 'active' && !syncInactive
+        ? PEER_TABLE_CONNECTING_LABEL
+        : peerTab === 'active'
+          ? PEER_TABLE_ACTIVE_EMPTY_LABEL
+          : PEER_TABLE_EMPTY_LABEL
+  const peerEmptyLoading = network !== null && (
+    peerSettings.loading
+    || (peerTab === 'active' && (
+      peerSettings.connectedPeersLoading
+      || peerSettings.pending === 'set-mode'
+      || !syncInactive
+    ))
+  )
 
   return (
     <div className="px-1 pb-2">
@@ -711,7 +728,13 @@ export default function CoreTab(): React.JSX.Element {
             />
           ))}
           {peerRows.length === 0 && !addPeerOpen && (
-            <div className="flex min-h-[3.625rem] items-center justify-center border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10">
+            <div
+              className="flex min-h-[3.625rem] items-center justify-center gap-2 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10"
+              role={peerEmptyLoading ? 'status' : undefined}
+            >
+              {peerEmptyLoading && (
+                <Spinner size={16} className="text-dash-brand dark:text-dash-mint" />
+              )}
               <Text size={14} weight="medium" color="brand" opacity={40}>
                 {peerEmptyLabel}
               </Text>
