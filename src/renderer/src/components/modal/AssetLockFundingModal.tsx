@@ -24,6 +24,7 @@ interface AssetLockFundingModalProps {
   resume: boolean
   kind: AssetLockFundingKind
   source?: CoreSpendSource
+  sourceValid?: boolean
   onSuccess: () => void
 }
 
@@ -117,9 +118,12 @@ export default function AssetLockFundingModal({
   resume,
   kind,
   source,
+  sourceValid = true,
   onSuccess,
 }: AssetLockFundingModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const { status } = useAuth()
   const network = status?.network ?? null
   const [password, setPassword] = useState('')
@@ -194,13 +198,17 @@ export default function AssetLockFundingModal({
   const running = started && state != null && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error && state.phase !== AssetLockFundingPhase.Resumable
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || started) return
+    if (!walletId || password.length === 0 || busy || started || !sourceValidRef.current) return
     setBusy(true)
     setPreError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+      if (!sourceValidRef.current) {
         setBusy(false)
         return
       }
@@ -225,6 +233,12 @@ export default function AssetLockFundingModal({
   const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
   const texts = TEXTS[kind]
   const phases = PHASE_LABELS[kind]
+  let modalTitle = texts.title
+  if (isDone) modalTitle = texts.doneTitle
+  else if (resume) modalTitle = texts.resumeTitle
+  let confirmLabel = texts.confirm
+  if (busy) confirmLabel = 'Starting…'
+  else if (resume) confirmLabel = 'Resume'
 
   return createPortal(
     <div
@@ -235,7 +249,7 @@ export default function AssetLockFundingModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {isDone ? texts.doneTitle : resume ? texts.resumeTitle : texts.title}
+            {modalTitle}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer"}
@@ -286,9 +300,9 @@ export default function AssetLockFundingModal({
               <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !sourceValid} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
-                {busy ? 'Starting…' : resume ? 'Resume' : texts.confirm}
+                {confirmLabel}
               </Button>
             </div>
           </div>
@@ -304,11 +318,9 @@ export default function AssetLockFundingModal({
                 const label = p.key === AssetLockFundingPhase.WaitingChainLock ? lockStepLabel(state, active) : p.label
                 return (
                   <div key={p.key} className={"flex items-center gap-2"}>
-                    {done
-                      ? <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
-                      : active
-                        ? <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-                        : <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
+                    {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
+                    {!done && active && <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />}
+                    {!done && !active && <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
                     <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{label}</Text>
                   </div>
                 )

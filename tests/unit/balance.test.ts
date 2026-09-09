@@ -1,7 +1,55 @@
 import { describe, it, expect } from 'vitest'
-import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, formatCompactCredits } from '../../src/renderer/src/utils/balance'
+import { compareBigIntsDescending, creditsToDash, creditsToDuffs, davToDash, davToDashCompact, dashToCredits, dashToDuffs, duffsToCredits, formatCompactCredits } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
+
+describe('exact Dash credit amounts', () => {
+  it.each<[bigint, string]>([
+    [0n, '0'],
+    [1n, '0.00000000001'],
+    [999n, '0.00000000999'],
+    [1_000n, '0.00000001'],
+    [100_000_000_000n, '1'],
+    [125_000_000_000n, '1.25'],
+    [100_000_000_001n, '1.00000000001'],
+    [9_007_199_254_740_993n, '90071.99254740993'],
+    [900719925474099300000000001n, '9007199254740993.00000000001'],
+  ])('displays and round-trips %s credits without truncation', (credits, dash) => {
+    expect(creditsToDash(credits)).toBe(dash)
+    expect(dashToCredits(dash)).toBe(credits)
+  })
+
+  it('formats negative balances without allowing negative input caps', () => {
+    expect(creditsToDash(-1n)).toBe('-0.00000000001')
+    expect(creditsToDash(-100_000_000_000n)).toBe('-1')
+    expect(dashToCredits('-0.00000000001')).toBeNull()
+  })
+
+  it.each<[string, bigint]>([
+    ['', 0n], ['.', 0n], ['0.', 0n], ['0.000', 0n], ['000', 0n],
+    ['1.', 100_000_000_000n], ['.5', 50_000_000_000n],
+    ['0.00100', 100_000_000n], ['001.2500', 125_000_000_000n],
+    ['1.00000000000', 100_000_000_000n],
+  ])('accepts decimal editing input %j', (value, credits) => {
+    expect(dashToCredits(value)).toBe(credits)
+  })
+
+  it.each([
+    '-100', '+100', '1e3', '0x10', '1_000', '12abc', ' 12', '12 ', '12\n', '١٢',
+    '1.2.3', '..', '1,5', '0.000000000001', '1.000000000000',
+  ])('rejects malformed or overprecise Dash input %j without rounding', value => {
+    expect(dashToCredits(value)).toBeNull()
+  })
+})
+
+describe('compareBigIntsDescending', () => {
+  it('orders close values beyond Number precision without disturbing equal values', () => {
+    expect([9_007_199_254_740_992n, 0n, 9_007_199_254_740_993n].sort(compareBigIntsDescending)).toEqual([
+      9_007_199_254_740_993n, 9_007_199_254_740_992n, 0n,
+    ])
+    expect(compareBigIntsDescending(9_007_199_254_740_993n, 9_007_199_254_740_993n)).toBe(0)
+  })
+})
 
 describe('creditsToDuffs', () => {
   it('converts at 1000 credits per duff', () => {

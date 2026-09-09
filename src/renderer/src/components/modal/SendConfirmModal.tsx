@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
@@ -22,6 +22,7 @@ interface SendConfirmModalProps {
   recipients: CoreRecipient[]
   amountFiat?: string
   source?: CoreSpendSource
+  sourceValid?: boolean
   onSuccess: () => void
 }
 
@@ -45,9 +46,12 @@ export default function SendConfirmModal({
   recipients,
   amountFiat,
   source,
+  sourceValid = true,
   onSuccess,
 }: SendConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const amountDuffs = recipients.reduce((sum, recipient) => sum + recipient.amountDuffs, 0n)
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
@@ -74,10 +78,10 @@ export default function SendConfirmModal({
     const poll = async (): Promise<void> => {
       const status: TxLockStatus | null = await API.getTxLockStatus(walletId, txid).catch(() => null)
       if (cancelled) return
-      const final: SendLockPhase | null = status?.instantLocked ? SendLockPhase.Instant
-        : status?.chainlocked ? SendLockPhase.Chainlocked
-        : status?.confirmed ? SendLockPhase.Confirmed
-        : null
+      let final: SendLockPhase | null = null
+      if (status?.instantLocked) final = SendLockPhase.Instant
+      else if (status?.chainlocked) final = SendLockPhase.Chainlocked
+      else if (status?.confirmed) final = SendLockPhase.Confirmed
       if (final) {
         setLockPhase(final)
         refreshTransactions(walletId)
@@ -98,15 +102,23 @@ export default function SendConfirmModal({
 
   const sending = phase === ConfirmModalPhase.Sending
   const lockFinal = lockPhase !== SendLockPhase.Waiting && lockPhase !== SendLockPhase.Fallback
+  let modalTitle = 'Confirm send'
+  if (phase === ConfirmModalPhase.Done) {
+    modalTitle = lockFinal ? 'Transaction confirmed' : 'Transaction sent'
+  }
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || sending) return
+    if (!walletId || password.length === 0 || sending || !sourceValidRef.current) return
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPhase(ConfirmModalPhase.Confirm)
+        return
+      }
+      if (!sourceValidRef.current) {
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
@@ -135,9 +147,7 @@ export default function SendConfirmModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === ConfirmModalPhase.Done
-              ? lockFinal ? 'Transaction confirmed' : 'Transaction sent'
-              : 'Confirm send'}
+            {modalTitle}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -215,7 +225,7 @@ export default function SendConfirmModal({
               <Button
                 type={"button"}
                 onClick={handleConfirm}
-                disabled={password.length === 0 || sending}
+                disabled={password.length === 0 || sending || !sourceValid}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
                 size={"sm"}

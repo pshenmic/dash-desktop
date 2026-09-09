@@ -41,38 +41,72 @@ function KindDropdown({kinds, selected, onSelect}: KindDropdownProps): React.JSX
 
 interface IdentitySelectProps {
   identities: IdentityApiDto[]
+  loading: boolean
+  error: string | null
   selected: IdentityApiDto | undefined
   onSelect: (identifier: string) => void
+  onRetry: () => void
 }
 
-function IdentitySelect({identities, selected, onSelect}: IdentitySelectProps): React.JSX.Element {
+function IdentitySelect({identities, loading, error, selected, onSelect, onRetry}: IdentitySelectProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useClickOutside(ref, () => setOpen(false))
+
+  let content: React.JSX.Element
+  if (selected) {
+    content = (
+      <div className={"flex flex-col items-start min-w-0"}>
+        <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>
+          {selected.alias ?? selected.identifier}
+        </Text>
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+          <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
+        </Text>
+      </div>
+    )
+  } else if (loading) {
+    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Loading identities…</Text>
+  } else if (error) {
+    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Identities</Text>
+  } else {
+    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
+  }
+
+  let action: React.JSX.Element | null = null
+  if (error) {
+    action = <Text size={12} weight={"medium"} color={"blue-mint"}>Try again</Text>
+  } else if (identities.length > 0) {
+    action = (
+      <ChevronIcon
+        size={12}
+        className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+      />
+    )
+  } else if (!loading) {
+    action = <Text size={12} weight={"medium"} color={"blue-mint"}>Try again</Text>
+  }
+
+  const handleClick = (): void => {
+    if (error || identities.length === 0) {
+      if (!loading) onRetry()
+      return
+    }
+    setOpen(value => !value)
+  }
 
   return (
     <div className={"relative"} ref={ref}>
       <button
         type={"button"}
-        onClick={() => identities.length > 0 && setOpen(v => !v)}
+        onClick={handleClick}
         className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
       >
-        {selected ? (
-          <div className={"flex flex-col items-start min-w-0"}>
-            <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>
-              {selected.alias ?? selected.identifier}
-            </Text>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-              <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
-            </Text>
-          </div>
-        ) : (
-          <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
-        )}
-        <ChevronIcon size={12} className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        {content}
+        {action}
       </button>
 
-      {open && (
+      {open && !loading && !error && (
         <div className={"absolute left-0 right-0 top-[calc(100%+.375rem)] z-20 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
           {identities.map(identity => (
             <button
@@ -107,11 +141,17 @@ interface SourcePickerProps {
   platformAddresses: PlatformAddressDto[]
   selectedPlatformAddress: PlatformAddressDto | undefined
   onPlatformAddressChange: (address: string) => void
+  platformAddressesLoading?: boolean
+  platformAddressesError?: string | null
+  onRetryPlatformAddresses?: () => void
   // Off while the inputs are being picked, which lists the same addresses.
   showPlatformAddress?: boolean
   identities: IdentityApiDto[]
+  identitiesLoading: boolean
+  identitiesError: string | null
   selectedIdentity: IdentityApiDto | undefined
   onIdentityChange: (identifier: string) => void
+  onRetryIdentities: () => void
 }
 
 export function SourcePicker({
@@ -122,16 +162,28 @@ export function SourcePicker({
   platformAddresses,
   selectedPlatformAddress,
   onPlatformAddressChange,
+  platformAddressesLoading = false,
+  platformAddressesError = null,
+  onRetryPlatformAddresses,
   showPlatformAddress = true,
   identities,
+  identitiesLoading,
+  identitiesError,
   selectedIdentity,
   onIdentityChange,
+  onRetryIdentities,
 }: SourcePickerProps): React.JSX.Element {
   return (
     <div className={"flex flex-col gap-2"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
-      {kind === SourceKind.PlatformAddress && showPlatformAddress && (
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && platformAddressesLoading && (
+        <Text size={12} weight={'medium'} color={'brand'} opacity={50}>Loading Platform addresses…</Text>
+      )}
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && platformAddressesError && (
+        <button type={'button'} onClick={onRetryPlatformAddresses} className={'dash-text-primary text-sm cursor-pointer self-start'}>Try again</button>
+      )}
+      {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && !platformAddressesError && (
         <PlatformAddressSelect
           addresses={platformAddresses}
           selected={selectedPlatformAddress}
@@ -139,7 +191,14 @@ export function SourcePicker({
         />
       )}
       {kind === SourceKind.Identity && (
-        <IdentitySelect identities={identities} selected={selectedIdentity} onSelect={onIdentityChange} />
+        <IdentitySelect
+          identities={identities}
+          loading={identitiesLoading}
+          error={identitiesError}
+          selected={selectedIdentity}
+          onSelect={onIdentityChange}
+          onRetry={onRetryIdentities}
+        />
       )}
     </div>
   )

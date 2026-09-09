@@ -1,4 +1,44 @@
-import { OperationFee } from '../api/types'
+import type { Network, OperationFee } from '../api/types'
+import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
+import { DestinationKind } from '../enums/DestinationKind'
+import { TransferOperation } from '../enums/TransferOperation'
+
+export const DESTINATION_PLACEHOLDERS: Record<DestinationKind, Record<Network, string>> = {
+  [DestinationKind.CoreAddress]: {mainnet: 'X… (Dash address)', testnet: 'y… (Dash address)'},
+  [DestinationKind.PlatformAddress]: {mainnet: 'dash1…', testnet: 'tdash1…'},
+  [DestinationKind.Identity]: {mainnet: 'Identity identifier', testnet: 'Identity identifier'},
+  [DestinationKind.Shielded]: {mainnet: 'shielded address', testnet: 'shielded address'},
+  [DestinationKind.NewIdentity]: {mainnet: 'shielded address', testnet: 'shielded address'},
+}
+
+export const INVALID_DESTINATION_MESSAGES: Record<DestinationKind, string> = {
+  [DestinationKind.CoreAddress]: 'Enter a valid Dash {network} address.',
+  [DestinationKind.PlatformAddress]: 'Enter a valid Platform {network} address.',
+  [DestinationKind.Identity]: 'Enter a valid identity identifier.',
+  [DestinationKind.Shielded]: 'Enter a valid shielded address.',
+  [DestinationKind.NewIdentity]: '',
+}
+
+export const UNFINISHED_FUNDING_LABELS: Record<AssetLockFundingKind, string> = {
+  [AssetLockFundingKind.Address]: 'Unfinished Platform address funding',
+  [AssetLockFundingKind.Shielded]: 'Unfinished L1 shielding',
+  [AssetLockFundingKind.Identity]: 'Unfinished identity registration',
+  [AssetLockFundingKind.IdentityTopUp]: 'Unfinished identity top-up',
+}
+
+export const SHIELDED_DESTINATION_LABELS: Partial<Record<TransferOperation, string>> = {
+  [TransferOperation.ShieldedTransfer]: 'To (shielded)',
+  [TransferOperation.Unshield]: 'To (Platform)',
+  [TransferOperation.IdentityCreateFromShielded]: 'Creates',
+  [TransferOperation.ShieldedWithdrawal]: 'To (Core L1)',
+}
+
+export const OPERATION_FUNDING_KINDS: Partial<Record<TransferOperation, AssetLockFundingKind>> = {
+  [TransferOperation.AssetLockFunding]: AssetLockFundingKind.Address,
+  [TransferOperation.AssetLockShield]: AssetLockFundingKind.Shielded,
+  [TransferOperation.IdentityRegister]: AssetLockFundingKind.Identity,
+  [TransferOperation.IdentityTopUpL1]: AssetLockFundingKind.IdentityTopUp,
+}
 
 export interface TransferPageType {
   header: {

@@ -1,10 +1,33 @@
-const DUFFS_PER_DASH = 100_000_000n
-const CREDITS_PER_DUFF = 1_000n
+import { CREDITS_PER_DASH, CREDITS_PER_DUFF, DASH_CREDIT_DECIMALS, DUFFS_PER_DASH } from '../constants/balance'
+
+export function creditsToDash(credits: bigint): string {
+  const sign = credits < 0n ? '-' : ''
+  const abs = credits < 0n ? -credits : credits
+  const whole = abs / CREDITS_PER_DASH
+  const fraction = abs % CREDITS_PER_DASH
+  if (fraction === 0n) return `${sign}${whole}`
+  const digits = fraction.toString().padStart(DASH_CREDIT_DECIMALS, '0').replace(/0+$/, '')
+  return `${sign}${whole}.${digits}`
+}
+
+export function dashToCredits(value: string): bigint | null {
+  if (/[^0-9.]/.test(value)) return null
+  const [whole = '', fraction = '', extra] = value.split('.')
+  if (extra !== undefined || fraction.length > DASH_CREDIT_DECIMALS) return null
+  return BigInt(whole || '0') * CREDITS_PER_DASH
+    + BigInt(fraction.padEnd(DASH_CREDIT_DECIMALS, '0'))
+}
 
 export function creditsToDuffs(credits: bigint): bigint {
   const sign = credits < 0n ? -1n : 1n
   const abs = credits < 0n ? -credits : credits
   return sign * (abs / CREDITS_PER_DUFF)
+}
+
+export function compareBigIntsDescending(a: bigint, b: bigint): number {
+  if (a < b) return 1
+  if (a > b) return -1
+  return 0
 }
 
 export function duffsToCredits(duffs: bigint): bigint {
