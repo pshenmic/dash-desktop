@@ -173,7 +173,10 @@ export class WalletService {
       return await this.providers
         .forWallet(wallet.walletId, wallet.network)
         .getConnectionStatus()
-    } catch {
+    } catch (err) {
+      // Neither provider's implementation throws, so anything landing here is
+      // the provider itself failing to build — not an offline indexer.
+      log.warn(`${wallet.walletId}: connection status unavailable:`, err)
       return 'unavailable'
     }
   }

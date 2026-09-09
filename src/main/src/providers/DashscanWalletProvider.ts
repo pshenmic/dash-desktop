@@ -19,6 +19,7 @@ import {
   DashscanXpubSummary,
 } from '../types/Dashscan'
 import {TxLockStatus} from '../types/TxLockStatus'
+import {Logger} from '../utils/logger'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
 import {ConnectionStatus} from '../types/ConnectionStatus'
@@ -35,6 +36,8 @@ import {
 
 const statusCache = new Map<Network, {status: ConnectionStatus, checkedAt: number}>()
 const statusProbes = new Set<Network>()
+
+const log = new Logger('dashscan')
 
 export class DashscanWalletProvider implements WalletProvider {
   private baseUrl: string
@@ -248,7 +251,10 @@ export class DashscanWalletProvider implements WalletProvider {
     try {
       await this.ensureReady()
       status = 'online'
-    } catch {
+    } catch (err) {
+      // 'unavailable' is all the renderer gets, and the probe is the only thing
+      // that ever saw the reason.
+      log.warn(`${this.network}: indexer probe failed:`, err)
       status = 'unavailable'
     }
 

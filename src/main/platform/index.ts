@@ -53,6 +53,8 @@ process.parentPort.on('message', ({data}) => {
 // Push the initial 'idle' state to the parent, then start the Halo2 key build
 // in the background. Nothing awaits it — its outcome rides on the status.
 process.parentPort.postMessage({type: 'status', status: service.getStatus()})
-service.warmup().catch(() => {
-  // Already reported as prover: 'error' on the status push.
+service.warmup().catch(err => {
+  // The status push carries the message to the UI but nothing records it, and
+  // a key build that failed at boot has no request to be logged against later.
+  log.error('prover warm-up failed:', err)
 })

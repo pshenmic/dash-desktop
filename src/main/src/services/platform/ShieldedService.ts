@@ -114,6 +114,7 @@ export class ShieldedService {
   }
 
   private failed(state: {phase: string; error: string | null}, e: unknown): void {
+    log.error(`${state.phase} failed:`, e)
     state.phase = 'error'
     state.error = e instanceof Error ? e.message : String(e)
   }

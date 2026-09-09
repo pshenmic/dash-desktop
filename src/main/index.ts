@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog, Menu, screen } from 'electron'
+import { app, shell, BrowserWindow, nativeTheme, dialog, Menu, screen } from 'electron'
 import { writeFile } from 'fs/promises'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
@@ -11,13 +11,22 @@ import { dataPath } from './src/utils/dataPath'
 import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
 import { WindowState } from './src/types/WindowState'
 import packageJSON from '../../package.json'
+import {registerHandler} from './src/utils/ipcHandler'
 import {Logger} from './src/utils/logger'
 
 const log = new Logger('startup')
 const shutdown = new Logger('shutdown')
 const windowState = new Logger('window-state')
+const crash = new Logger('crash')
 
 initLogTransport()
+
+process.on('uncaughtException', err => {
+  crash.error('uncaughtException:', err)
+})
+process.on('unhandledRejection', reason => {
+  crash.error('unhandledRejection:', reason)
+})
 
 const backend = new WalletBackend()
 
@@ -120,11 +129,11 @@ const createWindow = (): void => {
 }
 
 // Dark mode
-ipcMain.handle('dark-mode:get', () => {
+registerHandler('dark-mode:get', () => {
   return nativeTheme.shouldUseDarkColors
 })
 
-ipcMain.handle('dark-mode:system', () => {
+registerHandler('dark-mode:system', () => {
   nativeTheme.themeSource = 'system'
 })
 
@@ -136,7 +145,7 @@ nativeTheme.on('updated', () => {
 
 // false means the user dismissed the save dialog, which is not a failure — a
 // failed write throws instead.
-ipcMain.handle('saveTextFile', async (_event, defaultFileName: string, content: string): Promise<boolean> => {
+registerHandler('saveTextFile', async (_event, defaultFileName: string, content: string): Promise<boolean> => {
   const options = {
     defaultPath: defaultFileName,
     filters: [
