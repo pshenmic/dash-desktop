@@ -184,7 +184,7 @@ export default function CoinControlModal({
   const fixed = sourceKind == null
   const inputModeLabel = sourceKind == null ? 'Inputs' : INPUT_MODE_LABEL[sourceKind]
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
-  let fixedValue = identityLabel ?? identityId ?? 'No identity selected'
+  let fixedValue = identityId ?? identityLabel ?? 'No identity selected'
   if (operation === TransferOperation.Shield) {
     fixedValue = platformAddress?.platformAddress ?? 'No funded Platform address'
   } else if (operation === TransferOperation.IdentityCreateFromShielded) {
@@ -313,7 +313,7 @@ export default function CoinControlModal({
 
   return createPortal(
     <div className={'fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in'} role={'dialog'} aria-modal={'true'} aria-labelledby={'coin-control-title'}>
-      <div className={'w-full max-w-170 max-h-[calc(100vh-3rem)] overflow-clip rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in flex flex-col'}>
+      <div className={'w-full min-w-0 max-w-170 max-h-[calc(100vh-3rem)] overflow-clip rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in flex flex-col'}>
         <div className={'flex items-center justify-between gap-4'}>
           <div>
             <div id={'coin-control-title'}><Text size={24} weight={'extrabold'} color={'brand'}>Coin control</Text></div>
@@ -326,7 +326,7 @@ export default function CoinControlModal({
           </button>
         </div>
 
-        <div className={'mt-5 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
+        <div className={'mt-5 min-w-0 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
           {sourceLoading && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{coreSyncIncomplete && sourceKind === SourceKind.Core ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
           {!sourceLoading && sourceError && (
             <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>
@@ -334,6 +334,9 @@ export default function CoinControlModal({
           {fixed ? (
             <div className={'dash-block rounded-[.9375rem] p-4'}>
               <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{fixedCopy.title}</Text>
+              {sourceReady && fixedValue === identityId && identityLabel && identityLabel !== identityId && (
+                <Text size={12} weight={'medium'} color={'brand'} className={'mt-2 block break-all'}>{identityLabel}</Text>
+              )}
               {sourceReady && <Text size={14} weight={'medium'} color={'brand'} className={'mt-2 block font-mono break-all'}>{fixedValue}</Text>}
               <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-3 block leading-[140%]'}>
                 {fixedCopy.description}
@@ -443,7 +446,7 @@ export default function CoinControlModal({
                     return (
                       <CheckRow key={key} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
                         <DashLogo size={18} className={'shrink-0'} />
-                        <AddressValue address={`${utxo.txid.slice(0, 16)}…:${utxo.vout}`} detail={`${davToDashCompact(utxo.satoshis)} Dash · ${utxo.address.slice(0, 12)}…${utxo.height === 0 ? ' · pending' : ''}`} />
+                        <AddressValue address={key} detail={`${davToDashCompact(utxo.satoshis)} Dash · ${utxo.address}${utxo.height === 0 ? ' · pending' : ''}`} />
                       </CheckRow>
                     )
                   })}
@@ -514,7 +517,7 @@ export default function CoinControlModal({
                     return (
                       <CheckRow key={note.index} checked={checked} disabled={!checked && full} onChange={next => toggleShieldedNote(note.index, next)}>
                         <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
-                        <AddressValue address={`note #${note.index}`} detail={<><CreditsAmount credits={note.amount} /> · {note.address.slice(0, 14)}…</>} />
+                        <AddressValue address={`note #${note.index}`} detail={<><CreditsAmount credits={note.amount} /> · {note.address}</>} />
                       </CheckRow>
                     )
                   })}
@@ -557,17 +560,17 @@ function Empty({text}: CoinControlEmptyProps): React.JSX.Element {
 
 function AddressValue({address, detail}: CoinControlAddressValueProps): React.JSX.Element {
   return (
-    <span className={'min-w-0 flex flex-col items-start'}>
-      <Text reset size={12} weight={'medium'} color={'brand'} className={'font-mono break-all text-left'}>{address}</Text>
-      <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'text-left'}>{detail}</Text>
+    <span className={'min-w-0 flex-1 flex flex-col items-start'}>
+      <Text reset size={12} weight={'medium'} color={'brand'} className={'w-full font-mono whitespace-normal break-all text-left'}>{address}</Text>
+      <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'w-full whitespace-normal break-all text-left'}>{detail}</Text>
     </span>
   )
 }
 
 function ChoiceRow({checked, onChange, children}: CoinControlChoiceRowProps): React.JSX.Element {
   return (
-    <label className={`flex items-center gap-2.5 rounded-[.75rem] p-3 cursor-pointer ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
-      <input type={'radio'} checked={checked} onChange={onChange} className={'accent-dash-brand dark:accent-dash-mint'} />
+    <label className={`min-w-0 flex items-center gap-2.5 rounded-[.75rem] p-3 cursor-pointer ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
+      <input type={'radio'} checked={checked} onChange={onChange} className={'shrink-0 accent-dash-brand dark:accent-dash-mint'} />
       {children}
     </label>
   )
@@ -577,8 +580,8 @@ function CheckRow({checked, onChange, children, disabled = false, bare = false}:
   let rowClass = ''
   if (!bare) rowClass = `rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'}`
   return (
-    <div className={`${rowClass} ${disabled ? 'opacity-40' : ''}`}>
-      <Checkbox checked={checked} onChange={next => !disabled && onChange(next)} label={<span className={'flex items-center gap-2.5 min-w-0'}>{children}</span>} />
+    <div className={`min-w-0 ${rowClass} ${disabled ? 'opacity-40' : ''}`}>
+      <Checkbox className={'min-w-0 w-full'} checked={checked} onChange={next => !disabled && onChange(next)} label={<span className={'min-w-0 flex-1 flex items-center gap-2.5'}>{children}</span>} />
     </div>
   )
 }
