@@ -126,6 +126,7 @@ export class WalletSyncService {
     const scriptPath = path.join(__dirname, 'p2p.js')
     this.childOutputTail = ''
     const child = utilityProcess.fork(scriptPath, [], { serviceName: 'p2p', stdio: ['ignore', 'pipe', 'pipe'] })
+    log.info('utility process forked')
 
     // Mirror the worker's output to the main-process streams (preserving the
     // previous 'inherit' visibility) while retaining a tail for crash reports.
@@ -201,7 +202,18 @@ export class WalletSyncService {
 
   private handleP2PEvent(data: P2PEvent): void {
     if (data.type === 'status') {
+      const previous = this.status
       this.status = data.status
+      if (data.status.phase !== previous.phase) {
+        log.info(
+          `phase ${previous.phase} -> ${data.status.phase} ` +
+          `(peers=${data.status.peerCount} lockPeers=${data.status.lockPeerCount} tip=${data.status.tipHeight})` +
+          (data.status.lastError != null ? ` lastError: ${data.status.lastError}` : ''),
+        )
+      }
+      if (data.status.peerMode !== previous.peerMode) {
+        log.info(`peer mode ${previous.peerMode ?? 'none'} -> ${data.status.peerMode ?? 'none'}`)
+      }
       this.notifyPhase(data.status.phase)
     } else if (data.type === 'blockApplied') {
       this.persistAppliedBlock(data.block)
@@ -313,6 +325,7 @@ export class WalletSyncService {
     const network = wallet.network as 'mainnet' | 'testnet'
 
     if (this.activeWalletId && this.activeWalletId !== walletId) {
+      log.info(`wallet changed ${this.activeWalletId} -> ${walletId} — stopping the running sync`)
       this.send({ type: 'stop' })
     }
 
@@ -340,6 +353,10 @@ export class WalletSyncService {
       throw new Error(`Failed to create chain.db directory: ${message}`)
     }
 
+    log.info(
+      `start ${walletId} on ${network}: ${watchAddresses.length} watched address(es), ` +
+      `${seedUtxos.length} utxo(s), cursor=${cfilterCursor ?? 'none'}, mode=${this.preferences.network.mode}`,
+    )
     this.send({
       type: 'start',
       network,
@@ -360,6 +377,7 @@ export class WalletSyncService {
     this.stopRebroadcastLoop()
     this.activeNetwork = null
     if (!this.child) return
+    log.info(`stop requested (wallet=${this.activeWalletId ?? 'none'})`)
     this.send({ type: 'stop' })
     this.activeWalletId = null
   }
@@ -484,8 +502,15 @@ export class WalletSyncService {
   // only takes effect by rebuilding the session holding them: the sync layer
   // comes down first, because in static mode it runs on the pool being replaced.
   reloadPeerPreferences = async (): Promise<void> => {
-    if (!this.child) return
+    if (!this.child) {
+      log.info('peer preferences changed — no utility process to rebuild')
+      return
+    }
     const walletId = this.activeWalletId
+    log.info(
+      `peer preferences changed — rebuilding session (mode=${this.preferences.network.mode}, ` +
+      `wallet=${walletId ?? 'none'}, lockNetwork=${this.lockListenNetwork ?? 'none'})`,
+    )
     if (walletId) this.send({type: 'stop'})
     if (this.lockListenNetwork) await this.sendLockListen(this.lockListenNetwork, this.lockListenWalletId)
     if (walletId) await this.startSync(walletId)
@@ -496,7 +521,9 @@ export class WalletSyncService {
   // child is not on lands when it next listens.
   reloadBannedPeers = async (): Promise<void> => {
     if (!this.child || !this.lockListenNetwork) return
-    this.send({type: 'banPeers', banned: this.preferences.network[this.lockListenNetwork].bannedPeers})
+    const banned = this.preferences.network[this.lockListenNetwork].bannedPeers
+    locks.info(`applying ${banned.length} banned peer(s) on ${this.lockListenNetwork}`)
+    this.send({type: 'banPeers', banned})
   }
 
   private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
@@ -506,6 +533,10 @@ export class WalletSyncService {
     // cannot tell whether a mempool tx pays us.
     const grouped = walletId ? await this.addressDAO.getAddressesByWalletId(walletId) : null
     const watchAddresses = grouped ? [...grouped.receiving, ...grouped.change].map(toWatchAddress) : undefined
+    locks.info(
+      `listen on ${network} (wallet=${walletId ?? 'none'}, ${watchAddresses?.length ?? 0} address(es), ` +
+      `mode=${this.preferences.network.mode})`,
+    )
     this.send({
       type: 'listen',
       network,
@@ -831,6 +862,7 @@ export class WalletSyncService {
   }
 
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {
+    log.info(`reset ${network} — stopping the utility process and wiping chain.db and scanned rows`)
     await this.shutdown()
     // Queued writes outlive the child: one still retrying here would land after
     // the wipe, re-creating the cursor at its block's height so the next scan
@@ -844,6 +876,7 @@ export class WalletSyncService {
   shutdown = async (): Promise<void> => {
     this.stopLockWatchSweep()
     if (!this.child) return
+    log.info('shutting down the utility process')
     const child = this.child
     const exited = new Promise<void>((resolve) => {
       child.once('exit', () => resolve())

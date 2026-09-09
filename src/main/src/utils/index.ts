@@ -50,9 +50,6 @@ const inlineMigrationSource = {
   getMigrationName: (m: typeof migrations[number]) => m.name,
   getMigration: (m: typeof migrations[number]) => Promise.resolve(m.migration),
 }
-import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
-import {DashPlatformSDK} from "dash-platform-sdk";
-import {Network} from "../types/Network";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
 export function calibratePBKDF2Iterations(targetMs: number): number {

@@ -164,7 +164,10 @@ export class SyncService {
   private startLockCore = (network: Network, overrides?: PeerOverrides): void => {
     if (overrides) this.setBannedPeers(overrides.bannedPeers)
     const overridesKey = peerOverridesKey(overrides)
-    if (this.lockPool && this.lockNetwork === network && this.lockOverridesKey === overridesKey) return
+    if (this.lockPool && this.lockNetwork === network && this.lockOverridesKey === overridesKey) {
+      locks.info(`listen ${network}: pool settings unchanged, keeping ${this.lockPool.readyPeers.size} peer(s)`)
+      return
+    }
 
     this.teardownLock()
     this.lockNetwork = network

@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import {z} from 'zod'
 import {GeneralPreferences, GeneralPreferencesJSON, GeneralPreferencesSchema} from "./general";
 import {NetworkPreferences, NetworkPreferencesSchema, renameLegacyPeerFields} from "./network";
+import {describePreferenceChanges} from '../utils/preferenceChanges'
 import {Logger} from '../utils/logger'
 
 const log = new Logger('preferences')
@@ -143,8 +144,15 @@ export class Preferences {
       throw new Error(parsed.error.issues.map(issue => issue.message).join(', '))
     }
 
+    const changes = describePreferenceChanges(
+      {general: this.general, network: this.network},
+      parsed.data,
+    )
+
     this.general = GeneralPreferences.fromObject(parsed.data.general)
     this.network = NetworkPreferences.fromObject(parsed.data.network)
+
+    if (changes.length > 0) log.info(`changed — ${changes.join('; ')}`)
 
     await this.update()
   }
