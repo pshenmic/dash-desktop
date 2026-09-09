@@ -80,6 +80,7 @@ export default function CoinControlModal({
   useEffect(() => {
     if (!isOpen) return
     setDraft(selection)
+    setFilterDust(false)
     setOnlySelected(false)
   }, [isOpen, selection])
 
