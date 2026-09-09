@@ -22,6 +22,12 @@ export interface SyncProgressTooltipProps {
   percent: number
 }
 
+export interface CompletedSyncSnapshot {
+  walletId: string
+  tipHeight: number
+  cfilterScanHeight: number
+}
+
 export type WalletSyncAction = 'start' | 'stop'
 
 export type ConnectionSettingsTab = 'core' | 'platform'

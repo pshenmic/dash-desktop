@@ -8,8 +8,10 @@ import { invalidateAllAsyncCaches } from './useAsyncWithCache'
 import {
   isWalletSyncInactive,
   isWalletSyncIncomplete,
+  shouldSuppressNearTipSyncProgress,
   shouldShowWalletSyncUI,
 } from '@renderer/utils/walletSync'
+import type {CompletedSyncSnapshot} from '@renderer/types/connection'
 import {
   isWalletSyncEnabled,
   readDesiredConnectionMode,
@@ -31,6 +33,26 @@ export function useConnectionMode(): UseConnectionMode {
   const activeSyncWalletId = status?.walletSync.walletId ?? null
   const [desired, setDesiredState] = useState<ConnectionType>(readDesiredConnectionMode)
   const [ready, setReady] = useState(false)
+  const completedSyncRef = useRef<CompletedSyncSnapshot | null>(null)
+
+  useEffect(() => {
+    if (activeSyncWalletId === null) {
+      completedSyncRef.current = null
+    } else if (status?.walletSync.phase === WalletSyncPhase.Synced) {
+      completedSyncRef.current = {
+        walletId: activeSyncWalletId,
+        tipHeight: status.walletSync.tipHeight,
+        cfilterScanHeight: status.walletSync.cfilterScanHeight,
+      }
+    } else if (completedSyncRef.current?.walletId !== activeSyncWalletId) {
+      completedSyncRef.current = null
+    }
+  }, [
+    activeSyncWalletId,
+    status?.walletSync.cfilterScanHeight,
+    status?.walletSync.phase,
+    status?.walletSync.tipHeight,
+  ])
 
   const phaseRef = useRef<WalletSyncPhase | undefined>(phase)
   useEffect(() => { phaseRef.current = phase }, [phase])
@@ -96,11 +118,13 @@ export function useConnectionMode(): UseConnectionMode {
   }, [desired])
 
   const syncIncomplete = isWalletSyncIncomplete(desired, phase)
+  const showSyncUI = shouldShowWalletSyncUI(phase)
+    && !shouldSuppressNearTipSyncProgress(status?.walletSync, completedSyncRef.current)
 
   return {
     desired,
     ready,
-    showSyncUI: shouldShowWalletSyncUI(phase),
+    showSyncUI,
     syncIncomplete,
     setDesired,
   }
