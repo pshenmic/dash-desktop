@@ -1,21 +1,12 @@
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { useFiat } from '@renderer/hooks/useFiat'
-import { creditsToDuffs, davToDash, formatCompactCredits, formatCredits } from '@renderer/utils/balance'
-
-interface CreditsAmountProps {
-  credits: bigint
-  compact?: boolean
-  unit?: string | null
-  showFiat?: boolean
-  align?: 'start' | 'end' | 'center'
-  amountClassName?: string
-  unitClassName?: string
-  className?: string
-}
+import type { CreditsAmountProps } from '@renderer/types/Amount'
+import { creditsToDash, creditsToDuffs, davToDash, formatCompactCredits, formatCredits } from '@renderer/utils/balance'
 
 export default function CreditsAmount({
   credits,
   compact = false,
+  exact = false,
   unit = 'credits',
   showFiat = true,
   align = 'start',
@@ -28,8 +19,15 @@ export default function CreditsAmount({
   const fiat = showFiat && rateReady ? formatFiat(duffs) : null
 
   const face = 'col-start-1 row-start-1 whitespace-nowrap transition-[opacity,transform] duration-200 motion-reduce:transition-none'
-  const items = align === 'end' ? 'items-end' : align === 'center' ? 'items-center' : 'items-start'
-  const justifyItems = align === 'end' ? 'justify-items-end' : align === 'center' ? 'justify-items-center' : 'justify-items-start'
+  let items = 'items-start'
+  let justifyItems = 'justify-items-start'
+  if (align === 'end') {
+    items = 'items-end'
+    justifyItems = 'justify-items-end'
+  } else if (align === 'center') {
+    items = 'items-center'
+    justifyItems = 'justify-items-center'
+  }
 
   return (
     <span
@@ -37,7 +35,7 @@ export default function CreditsAmount({
     >
       <span className={`relative inline-grid align-baseline ${justifyItems}`}>
         <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
-          <DashBigNumber className={amountClassName}>{davToDash(duffs)}</DashBigNumber>
+          <DashBigNumber className={amountClassName}>{exact ? creditsToDash(credits) : davToDash(duffs)}</DashBigNumber>
           <span className={unitClassName}>{' Dash'}</span>
         </span>
         <span

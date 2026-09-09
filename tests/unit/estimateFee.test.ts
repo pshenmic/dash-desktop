@@ -7,8 +7,14 @@ import {PlatformWorkerService} from '../../src/main/src/services/platform/Platfo
 import {Preferences} from '../../src/main/src/preferences'
 import {FeeOperation, FeeParams} from '../../src/main/platform/types/messages'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
+import {ShieldedSpendSource} from '../../src/main/src/types/ShieldedNoteSelection'
 import {FeeQuoteParams} from '../../src/main/platform/types/messages'
-import {CORE_TRANSFER_FEE_DUFFS} from '../../src/main/src/constants/chain'
+import {Script} from 'dash-core-sdk'
+import {AddressDAO} from '../../src/main/src/database/AddressDAO'
+import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
+import {UTXO} from '../../src/main/src/types/UTXO'
+import {ASSET_LOCK_PAYLOAD_BYTES} from '../../src/main/src/constants/chain'
+import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
 import {
   DEFAULT_CORE_FEE_MULTIPLIER,
   DEFAULT_PLATFORM_FEE_MULTIPLIER,
@@ -18,6 +24,22 @@ import {
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
 const BASE_FEE = 1_000_000n
+const CORE_ADDRESS = 'yPx8DNt1oQt3yubB2Sh73vAQRQ1AoyyLCS'
+const ONE_DASH = 100_000_000n
+
+const CORE_FEE = (inputsCount: number): bigint =>
+  coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true)
+const CORE_FEE_FOR = (inputsCount: number, outputsCount: number): bigint =>
+  coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, outputsCount, true)
+const ASSET_LOCK_FEE = (inputsCount: number): bigint =>
+  coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, 1, true, ASSET_LOCK_PAYLOAD_BYTES)
+
+function utxo(satoshis: bigint, index: number): UTXO {
+  return {address: CORE_ADDRESS, txId: `${index}`.padStart(64, '0'), vOut: 0, satoshis, script: new Script(), height: 1}
+}
+
+const outpoint = (index: number): {txid: string; vout: number} =>
+  ({txid: `${index}`.padStart(64, '0'), vout: 0})
 
 function candidate(platformAddress: string, balanceCredits: bigint, hashByte: number): PlatformSourceCandidate {
   const addressBytes = new Uint8Array(21)
@@ -25,7 +47,7 @@ function candidate(platformAddress: string, balanceCredits: bigint, hashByte: nu
   return {platformAddress, addressBytes, index: 0, balanceCredits, nonce: 0}
 }
 
-function service(candidates: PlatformSourceCandidate[] = []): {
+function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = []): {
   service: FeeService
   request: ReturnType<typeof vi.fn>
   estimateSpendFee: ReturnType<typeof vi.fn>
@@ -33,17 +55,24 @@ function service(candidates: PlatformSourceCandidate[] = []): {
   const request = vi.fn(async (kind: string) => (kind === 'addressInfos'
     ? {infos: candidates.map(c => ({address: c.platformAddress, balance: c.balanceCredits, nonce: c.nonce}))}
     : {feeCredits: BASE_FEE, metered: true}))
-  const estimateSpendFee = vi.fn(async () => ({feeCredits: 7n, feeDuffs: null, maxPerTx: 90n, noteLimit: 6}))
+  const estimateSpendFee = vi.fn(async () => ({feeCredits: 7n, feeDuffs: null, maxDuffs: null, maxPerTx: 90n, noteLimit: 6}))
   const walletDAO = {
     getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet', platformXpub: 'xpub-test'}),
     getPlatformAddressCount: vi.fn().mockResolvedValue(candidates.length),
   }
 
+  const addressDAO = {
+    getAddressesByWalletId: async () => ({receiving: [{address: CORE_ADDRESS}], change: []}),
+  }
+  const providers = {forWallet: () => ({getWalletUtxos: async () => utxos})}
+
   const svc = new FeeService(
     walletDAO as unknown as WalletDAO,
+    addressDAO as unknown as AddressDAO,
     {loadCandidates: async () => candidates} as unknown as PlatformAddressService,
     {request} as unknown as PlatformWorkerService,
     {estimateSpendFee} as unknown as ShieldedService,
+    providers as unknown as WalletProviderFactory,
     Preferences.default(),
   )
 
@@ -51,7 +80,7 @@ function service(candidates: PlatformSourceCandidate[] = []): {
 }
 
 function params(overrides: Partial<FeeParams> = {}): FeeParams {
-  return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', sourceAddress: null, identityId: IDENTITY, noteIndexes: null, ...overrides}
+  return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', platformSource: null, identityId: IDENTITY, shieldedSource: null, ...overrides}
 }
 
 function feeCalls(request: ReturnType<typeof vi.fn>): Array<{operation: string; params: FeeQuoteParams}> {
@@ -120,9 +149,9 @@ describe('estimateFee', () => {
     for (const operation of ['identityToAddress', 'identityToIdentity', 'identityWithdrawal'] as FeeOperation[]) {
       const {service: svc, request} = service()
       expect(await svc.estimateFee(WALLET, operation, params({identityId: null}))).toEqual(
-        {feeCredits: null, feeDuffs: null, maxPerTx: null, noteLimit: null})
+        {feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null})
       expect(await svc.estimateFee(WALLET, operation, params({amountCredits: 0n}))).toEqual(
-        {feeCredits: null, feeDuffs: null, maxPerTx: null, noteLimit: null})
+        {feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null})
       expect(request).not.toHaveBeenCalled()
     }
   })
@@ -133,32 +162,205 @@ describe('estimateFee', () => {
     const operations: FeeOperation[] = ['shieldedTransfer', 'unshield', 'shieldedWithdrawal', 'identityCreateFromShielded']
     for (const operation of operations) {
       const {service: svc, estimateSpendFee} = service()
-      const fee = await svc.estimateFee(WALLET, operation, params({noteIndexes: [2, 5]}))
-      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, [2, 5])
-      expect(fee).toEqual({feeCredits: 7n, feeDuffs: null, maxPerTx: 90n, noteLimit: 6})
+      const source: ShieldedSpendSource = {kind: 'address', noteIndexes: [2, 5]}
+      const fee = await svc.estimateFee(WALLET, operation, params({shieldedSource: source}))
+      expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, operation, 1_000_000n, source, 1)
+      expect(fee).toEqual({feeCredits: 7n, feeDuffs: null, maxDuffs: null, maxPerTx: 90n, noteLimit: 6})
     }
+  })
+
+  // The fan-out lands on the action count, which is the only thing the shielded
+  // fee follows, so a quote that ignored it would underprice every bundle.
+  it('tells the shielded service how many addresses a transfer pays', async () => {
+    const {service: svc, estimateSpendFee} = service()
+
+    await svc.estimateFee(WALLET, 'shieldedTransfer', params({
+      recipient: ['addr-a', 'addr-b', 'addr-c'],
+    }))
+
+    expect(estimateSpendFee).toHaveBeenCalledWith(WALLET, 'shieldedTransfer', 1_000_000n, null, 3)
   })
 
   // The L1 fee used to bypass this method and ride the status poll instead.
   it('prices a Core send in duffs, from the same method', async () => {
-    const {service: svc, request} = service()
-    expect(await svc.estimateFee(WALLET, 'coreSend', params())).toEqual({
+    const {service: svc, request} = service([], [utxo(ONE_DASH, 1)])
+    expect(await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 1_000n}))).toEqual({
       feeCredits: null,
-      feeDuffs: CORE_TRANSFER_FEE_DUFFS * BigInt(DEFAULT_CORE_FEE_MULTIPLIER),
+      feeDuffs: CORE_FEE(1),
+      maxDuffs: ONE_DASH - CORE_FEE(1),
       maxPerTx: null,
       noteLimit: null,
     })
     expect(request).not.toHaveBeenCalled()
   })
 
+  // Quoting one input while the send signed however many the amount needed is
+  // what let the fee shown and the fee charged disagree.
+  it('prices a Core send for the inputs the amount actually takes', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2), utxo(20_000n, 3)]
+    const {service: svc} = service([], utxos)
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 50_000n}))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE(3))
+  })
+
+  // Max offers this number, so a send of exactly it has to be one the selection
+  // can still fund at the price it just quoted.
+  it('offers a maximum the send can fund', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2), utxo(20_000n, 3)]
+    const {service: svc} = service([], utxos)
+
+    const {maxDuffs} = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 0n}))
+    const atMax = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: maxDuffs}))
+
+    expect(maxDuffs).toBe(60_000n - CORE_FEE(3))
+    expect(maxDuffs! + atMax.feeDuffs!).toBe(60_000n)
+  })
+
+  // An amount nothing can fund still has to answer, because the quote runs
+  // while the user is still typing one.
+  it('falls back to the one-input floor for an amount the selection refuses', async () => {
+    const {service: svc} = service([], [utxo(20_000n, 1)])
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 900_000n}))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE(1))
+    expect(fee.maxDuffs).toBe(20_000n - CORE_FEE(1))
+  })
+
+  // A picked set is spent whole, so the quote cannot price the prefix the
+  // automatic selection would have stopped at.
+  it('prices a Core send for every coin the user picked', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2), utxo(20_000n, 3)]
+    const {service: svc} = service([], utxos)
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 1_000n,
+      coreSource: {kind: 'outpoints', outpoints: [outpoint(1), outpoint(2)]},
+    }))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE(2))
+    expect(fee.maxDuffs).toBe(40_000n - CORE_FEE(2))
+  })
+
+  // The same amount over the same wallet, priced for one input, is what the
+  // automatic selection answers — the pick is what makes the difference.
+  it('prices a picked set apart from what the automatic selection would take', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2), utxo(20_000n, 3)]
+    const {service: svc} = service([], utxos)
+
+    const auto = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 1_000n}))
+
+    expect(auto.feeDuffs).toBe(CORE_FEE(1))
+    expect(auto.maxDuffs).toBe(60_000n - CORE_FEE(3))
+  })
+
+  // The pick decides the input count, so an amount nothing can fund is still
+  // priced for the coins that would go in rather than a one-input floor.
+  it('holds the picked count for an amount the pick cannot cover', async () => {
+    const utxos = [utxo(20_000n, 1), utxo(20_000n, 2)]
+    const {service: svc} = service([], utxos)
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 900_000n,
+      coreSource: {kind: 'outpoints', outpoints: [outpoint(1), outpoint(2)]},
+    }))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE(2))
+  })
+
+  // Every extra recipient is another output on the same transaction, and the
+  // fee is per byte, so quoting one output would underprice all but a plain send.
+  it('prices a Core send for every output it carries', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const fee = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 1_000n,
+      recipient: [CORE_ADDRESS, CORE_ADDRESS, CORE_ADDRESS],
+    }))
+
+    expect(fee.feeDuffs).toBe(CORE_FEE_FOR(1, 3))
+    expect(fee.feeDuffs).toBeGreaterThan(CORE_FEE(1))
+  })
+
+  // Max is what the send can still fund, and the outputs it will carry are part
+  // of that price.
+  it('offers a smaller maximum the more outputs the send carries', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const one = await svc.estimateFee(WALLET, 'coreSend', params({amountDuffs: 0n}))
+    const many = await svc.estimateFee(WALLET, 'coreSend', params({
+      amountDuffs: 0n,
+      recipient: [CORE_ADDRESS, CORE_ADDRESS, CORE_ADDRESS],
+    }))
+
+    expect(one.maxDuffs).toBe(ONE_DASH - CORE_FEE_FOR(1, 1))
+    expect(many.maxDuffs).toBe(ONE_DASH - CORE_FEE_FOR(1, 3))
+  })
+
+  // An asset lock pays its burn output and its change, whatever the caller
+  // named, so the recipient list cannot move its price.
+  it('prices an asset lock for one output whatever the recipient list says', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    const fee = await svc.estimateFee(WALLET, 'assetLockFunding', params({
+      amountDuffs: 1_000n,
+      recipient: [CORE_ADDRESS, CORE_ADDRESS, CORE_ADDRESS],
+    }))
+
+    expect(fee.feeDuffs).toBe(ASSET_LOCK_FEE(1))
+  })
+
+  // An asset lock is funded by L1 coins, so a platform address names nothing it
+  // could spend — refused rather than ignored.
+  it('refuses a platform input pick on an asset lock', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1)])
+
+    await expect(svc.estimateFee(WALLET, 'identityRegister', params({
+      amountDuffs: 1_000n,
+      platformSource: {kind: 'address', address: 'tdash1qsourceplatformaddress'},
+    }))).rejects.toThrow('address-funded operations only')
+  })
+
+  // An asset lock is funded by L1 coins like any other send, and the link it
+  // writes between them and its L2 destination is the reason to choose them.
+  it('prices an asset lock for the coins the user picked', async () => {
+    for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as FeeOperation[]) {
+      const utxos = [utxo(20_000_000n, 1), utxo(20_000_000n, 2), utxo(20_000_000n, 3)]
+      const {service: svc} = service([], utxos)
+
+      const fee = await svc.estimateFee(WALLET, operation, params({
+        amountDuffs: 1_000n,
+        coreSource: {kind: 'outpoints', outpoints: [outpoint(1), outpoint(2)]},
+      }))
+
+      expect(fee.feeDuffs).toBe(ASSET_LOCK_FEE(2))
+      expect(fee.maxDuffs).toBe(40_000_000n - ASSET_LOCK_FEE(2))
+    }
+  })
+
+  // A pick names L1 coins, so an operation funded by platform credits, an
+  // identity balance or the pool has nothing to apply it to.
+  it('refuses to price an L2-funded operation from a picked set', async () => {
+    for (const operation of ['identityCreate', 'identityWithdrawal', 'shield', 'shieldedTransfer'] as FeeOperation[]) {
+      const {service: svc} = service([candidate('tdash1qsource', 10_000_000n, 1)], [utxo(ONE_DASH, 1)])
+
+      await expect(svc.estimateFee(WALLET, operation, params({
+        coreSource: {kind: 'outpoints', outpoints: [outpoint(1)]},
+      }))).rejects.toThrow('L1-funded operations only')
+    }
+  })
+
   // An L1 -> L2 transfer is two transactions, and quoting only the lock left the
   // transition its proof funds unpriced.
   it('prices both halves of a transfer that locks on L1 and settles on L2', async () => {
     for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as FeeOperation[]) {
-      const {service: svc, request} = service()
-      expect(await svc.estimateFee(WALLET, operation, params())).toEqual({
+      const {service: svc, request} = service([], [utxo(ONE_DASH, 1)])
+      expect(await svc.estimateFee(WALLET, operation, params({amountDuffs: 1_000n}))).toEqual({
         feeCredits: BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER),
-        feeDuffs: CORE_TRANSFER_FEE_DUFFS * BigInt(DEFAULT_CORE_FEE_MULTIPLIER),
+        feeDuffs: ASSET_LOCK_FEE(1),
+        maxDuffs: ONE_DASH - ASSET_LOCK_FEE(1),
         maxPerTx: null,
         noteLimit: null,
       })

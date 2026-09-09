@@ -25,6 +25,7 @@ interface ShieldedSpendModalProps {
   feeCredits: bigint | null
   proverReady: boolean
   start: (password: string) => Promise<ShieldedSpendState>
+  sourceValid?: boolean
   onSuccess: () => void
   successNote?: string
 }
@@ -51,10 +52,13 @@ export default function ShieldedSpendModal({
   feeCredits,
   proverReady,
   start,
+  sourceValid = true,
   onSuccess,
   successNote,
 }: ShieldedSpendModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const { status } = useAuth()
   const network = status?.network ?? null
   const [password, setPassword] = useState('')
@@ -111,13 +115,17 @@ export default function ShieldedSpendModal({
   const running = started && spend != null && spend.phase !== ShieldedSpendPhase.Done && spend.phase !== ShieldedSpendPhase.Error
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || !proverReady || started) return
+    if (!walletId || password.length === 0 || busy || !proverReady || started || !sourceValidRef.current) return
     setBusy(true)
     setPreError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+      if (!sourceValidRef.current) {
         setBusy(false)
         return
       }
@@ -148,7 +156,11 @@ export default function ShieldedSpendModal({
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = BigInt(sentAmount || amountCredits || '0')
-  const confirmLabel = busy ? 'Starting…' : !proverReady ? 'Preparing…' : 'Confirm & Send'
+  let confirmLabel = 'Confirm & Send'
+  if (busy) confirmLabel = 'Starting…'
+  else if (!proverReady) confirmLabel = 'Preparing…'
+  let modalTitle = title
+  if (isDone) modalTitle = spend?.identityId ? 'Identity created' : 'Sent privately'
 
   return createPortal(
     <div
@@ -159,7 +171,7 @@ export default function ShieldedSpendModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {isDone ? (spend?.identityId ? 'Identity created' : 'Sent privately') : title}
+            {modalTitle}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -215,7 +227,7 @@ export default function ShieldedSpendModal({
               <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady || !sourceValid} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
                 {confirmLabel}
               </Button>
@@ -233,11 +245,9 @@ export default function ShieldedSpendModal({
                 return (
                   <div key={p.key} className={"flex flex-col gap-1.5"}>
                     <div className={"flex items-center gap-2"}>
-                      {done
-                        ? <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
-                        : active
-                          ? <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-                          : <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
+                      {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
+                      {!done && active && <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />}
+                      {!done && !active && <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
                       <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{p.label}</Text>
                     </div>
                     {active && p.key === ShieldedSpendPhase.Syncing && spend.total > 0 && (

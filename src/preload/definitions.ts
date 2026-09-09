@@ -2,6 +2,39 @@
 // and the union on others let an unchecked value reach the IPC boundary.
 type Network = 'mainnet' | 'testnet'
 
+// Mirrors src/main/src/types/CoinSelection, which the bundles do not share: an
+// address narrows the automatic selection, a picked outpoint list is spent whole.
+type CoreSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
+
+// Mirrors the CoreRecipient in src/main/src/types/CoreTransaction: one
+// transaction can pay many addresses, each its own amount.
+type CoreRecipient = { address: string; amountDuffs: bigint }
+
+// Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
+// automatic note selection, a picked note list is spent whole.
+type ShieldedSpendSource =
+  | { kind: 'address'; noteIndexes: number[] }
+  | { kind: 'notes'; noteIndexes: number[] }
+
+// Mirrors the ShieldedRecipient in the same file: one bundle pays several
+// Orchard addresses, each its own amount.
+type ShieldedRecipient = { address: string; amountCredits: bigint }
+
+// Mirrors src/main/src/types/PlatformTransfer: one address to draw from, or
+// every address it may draw on, how much of each, and which one is charged.
+type PlatformPickedInput = { address: string; credits: bigint }
+type PlatformFeeStep =
+  | { kind: 'deductFromInput'; address: string }
+  | { kind: 'reduceOutput'; index: number }
+// Mirrors the Recipient in src/main/platform/types/messages: one transition can
+// pay many addresses, each its own amount.
+type PlatformRecipient = { address: string; amountCredits: bigint }
+type PlatformSpendSource =
+  | { kind: 'address'; address: string }
+  | { kind: 'inputs'; inputs: PlatformPickedInput[]; feeStrategy: PlatformFeeStep[] }
+
 export const apiDefinitions = (ipcRenderer) => ({
   createWallet: (seedphrase: string, network: Network, password: string) => ipcRenderer.invoke('createWallet', seedphrase, network, password),
   deleteWallet: (walletId: string) => ipcRenderer.invoke('deleteWallet', walletId),
@@ -26,17 +59,17 @@ export const apiDefinitions = (ipcRenderer) => ({
   addPlatformAddress: (walletId: string) => ipcRenderer.invoke('addPlatformAddress', walletId),
   setAddressLabel: (walletId: string, address: string, label: string) => ipcRenderer.invoke('setAddressLabel', walletId, address, label),
   setWalletLabel: (walletId: string, label: string | null) => ipcRenderer.invoke('setWalletLabel', walletId, label),
-  sendTransaction: (walletId: string, toAddress: string, amountDuffs: bigint, password: string, fromAddress?: string) => ipcRenderer.invoke('sendTransaction', walletId, toAddress, amountDuffs, password, fromAddress),
+  sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource) => ipcRenderer.invoke('sendTransaction', walletId, recipients, password, source),
   getTxLockStatus: (walletId: string, txid: string) => ipcRenderer.invoke('getTxLockStatus', walletId, txid),
   estimateFee: (walletId: string, operation: string, params: unknown) => ipcRenderer.invoke('estimateFee', walletId, operation, params),
-  sendPlatformTransfer: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, fromAddress, toAddress, amountCredits, password),
-  topUpIdentityFromAddresses: (walletId: string, identityId: string, fromAddress: string | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, fromAddress, amountCredits, password),
-  withdrawPlatformCredits: (walletId: string, fromAddress: string | null, toCoreAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, fromAddress, toCoreAddress, amountCredits, password),
+  sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => ipcRenderer.invoke('sendPlatformTransfer', walletId, source, recipients, password),
+  topUpIdentityFromAddresses: (walletId: string, identityId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('topUpIdentityFromAddresses', walletId, identityId, source, amountCredits, password),
+  withdrawPlatformCredits: (walletId: string, source: PlatformSpendSource | null, toCoreAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('withdrawPlatformCredits', walletId, source, toCoreAddress, amountCredits, password),
   sendIdentityCredits: (walletId: string, identityId: string, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('sendIdentityCredits', walletId, identityId, toAddress, amountCredits, password),
   transferIdentityCredits: (walletId: string, fromIdentityId: string, toIdentityId: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('transferIdentityCredits', walletId, fromIdentityId, toIdentityId, amountCredits, password),
   withdrawIdentityCredits: (walletId: string, identityId: string, toCoreAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('withdrawIdentityCredits', walletId, identityId, toCoreAddress, amountCredits, password),
-  createIdentityFromAddresses: (walletId: string, fromAddress: string | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('createIdentityFromAddresses', walletId, fromAddress, amountCredits, password),
-  startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string) => ipcRenderer.invoke('startAssetLockFunding', walletId, toPlatformAddress, amountDuffs, password, kind),
+  createIdentityFromAddresses: (walletId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => ipcRenderer.invoke('createIdentityFromAddresses', walletId, source, amountCredits, password),
+  startAssetLockFunding: (walletId: string, toPlatformAddress: string, amountDuffs: bigint, password: string, kind?: string, source?: CoreSpendSource) => ipcRenderer.invoke('startAssetLockFunding', walletId, toPlatformAddress, amountDuffs, password, kind, source),
   getAssetLockFundingState: (walletId: string) => ipcRenderer.invoke('getAssetLockFundingState', walletId),
   resumeAssetLockFunding: (walletId: string, password: string) => ipcRenderer.invoke('resumeAssetLockFunding', walletId, password),
   dismissAssetLockFunding: (walletId: string) => ipcRenderer.invoke('dismissAssetLockFunding', walletId),
@@ -64,7 +97,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),
   stopWalletSync: () => ipcRenderer.invoke('stopWalletSync'),
   resetWalletSync: (network: Network) => ipcRenderer.invoke('resetWalletSync', network),
-  getUtxos: () => ipcRenderer.invoke('getUtxos'),
+  getUtxos: (walletId: string) => ipcRenderer.invoke('getUtxos', walletId),
   hasSyncProgress: (walletId: string) => ipcRenderer.invoke('hasSyncProgress', walletId),
   broadcastTransaction: (txHex: string) => ipcRenderer.invoke('broadcastTransaction', txHex),
 
@@ -84,9 +117,10 @@ export const apiDefinitions = (ipcRenderer) => ({
   getShieldedNotesInfo: (walletId: string) => ipcRenderer.invoke('getShieldedNotesInfo', walletId),
   startShieldedSync: (walletId: string, password: string) => ipcRenderer.invoke('startShieldedSync', walletId, password),
   getShieldedSyncState: (walletId: string) => ipcRenderer.invoke('getShieldedSyncState', walletId),
-  startShieldedTransfer: (walletId: string, recipient: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipient, amountCredits, password, noteIndexes),
-  startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedUnshield', walletId, outputAddress, amountCredits, password, noteIndexes),
-  startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, noteIndexes?: number[]) => ipcRenderer.invoke('startShieldedWithdrawal', walletId, coreAddress, amountCredits, password, noteIndexes),
+  refreshShieldedSpentNotes: (walletId: string) => ipcRenderer.invoke('refreshShieldedSpentNotes', walletId),
+  startShieldedTransfer: (walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedTransfer', walletId, recipients, password, source),
+  startShieldedUnshield: (walletId: string, outputAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedUnshield', walletId, outputAddress, amountCredits, password, source),
+  startShieldedWithdrawal: (walletId: string, coreAddress: string, amountCredits: bigint, password: string, source?: ShieldedSpendSource) => ipcRenderer.invoke('startShieldedWithdrawal', walletId, coreAddress, amountCredits, password, source),
   startShieldedIdentityCreate: (walletId: string, denominationCredits: bigint, password: string) => ipcRenderer.invoke('startShieldedIdentityCreate', walletId, denominationCredits, password),
   getShieldedSpendState: (walletId: string) => ipcRenderer.invoke('getShieldedSpendState', walletId),
   getShieldedAddress: (walletId: string, password?: string) => ipcRenderer.invoke('getShieldedAddress', walletId, password),

@@ -1,0 +1,1 @@
+export const CORE_DUST_FILTER_DUFFS = 100_000n

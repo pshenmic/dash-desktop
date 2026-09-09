@@ -8,10 +8,9 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
   return {
     isCoreOperation: false,
     amount: '0.00001',
-    totalFeeDuffs: 10_000n,
+    coreMaxDuffs: null,
     operation: TransferOperation.AddressFundsTransfer,
     amountDuffs: 1_000n,
-    balanceDuffs: 0n,
     amountCredits: 1_000_000n,
     minCredits: 500_000n,
     availableCredits: 900_000_000n,
@@ -23,39 +22,50 @@ function params(overrides: Partial<AmountValidationParams> = {}): AmountValidati
 }
 
 describe('amountErrorFor', () => {
-  it('accepts a Dash amount with room for the fixed network fee', () => {
+  it('accepts a Dash amount the selection can fund', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,
       amount: '0.9999',
       amountDuffs: 99_990_000n,
-      balanceDuffs: 100_000_000n,
+      coreMaxDuffs: 99_990_000n,
       amountCredits: 0n,
     }))).toBeNull()
   })
 
-  // An L1 -> L2 transfer locks the L2 fee alongside the amount, so both fees
-  // reach here already summed into one Dash figure.
+  // An L1 -> L2 transfer locks the L2 fee alongside the amount, so the ceiling
+  // reaching here is already net of both.
   it('reports the max after both fees on an L1 -> L2 transfer', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,
       operation: TransferOperation.AssetLockFunding,
       amount: '1',
       amountDuffs: 100_000_000n,
-      balanceDuffs: 100_000_000n,
-      totalFeeDuffs: 66_000n,
+      coreMaxDuffs: 99_934_000n,
       amountCredits: 0n,
       feeCredits: 56_000_000n,
     }))).toBe('Max sendable is 0.99934 Dash after fees.')
   })
 
-  it('reports the max Dash amount after the fixed network fee', () => {
+  it('reports the max Dash amount the selection can fund', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,
       amount: '1',
       amountDuffs: 100_000_000n,
-      balanceDuffs: 100_000_000n,
+      coreMaxDuffs: 99_990_000n,
       amountCredits: 0n,
     }))).toBe('Max sendable is 0.9999 Dash after fees.')
+  })
+
+  // The quote that prices the selection is still in flight, and a ceiling
+  // nobody has drawn yet is not one an amount can be over.
+  it('holds its verdict on an L1 amount that is not priced yet', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      amount: '1',
+      amountDuffs: 100_000_000n,
+      coreMaxDuffs: null,
+      amountCredits: 0n,
+    }))).toBeNull()
   })
 
   it('is silent while nothing has been typed', () => {

@@ -1,6 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { PlatformTransferService } from '../../services/platform/PlatformTransferService'
 import { PlatformSendResult } from '../../types/PlatformSendResult'
+import { PlatformSpendSource } from '../../types/PlatformTransfer'
 
 export class TopUpIdentityFromAddressesHandler {
   private platformTransferService: PlatformTransferService
@@ -13,10 +14,10 @@ export class TopUpIdentityFromAddressesHandler {
     _event: IpcMainInvokeEvent,
     walletId: string,
     identityId: string,
-    fromAddress: string | null,
+    source: PlatformSpendSource | null,
     amountCredits: bigint,
     password: string,
   ): Promise<PlatformSendResult> => {
-    return this.platformTransferService.topUpIdentityFromAddresses(walletId, identityId, fromAddress, amountCredits, password)
+    return this.platformTransferService.topUpIdentityFromAddresses(walletId, identityId, source, amountCredits, password)
   }
 }

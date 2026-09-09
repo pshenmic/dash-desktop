@@ -94,6 +94,7 @@ describe('bulk inserts past the compound-select limit', () => {
       amount: 1000n,
       address: `shielded-${index}`,
       spent: false,
+      nullifier: null,
     })))
 
     expect(await dao.getOwnedNotes(WALLET)).toHaveLength(OVER_LIMIT)
@@ -174,6 +175,7 @@ describe('address batches past the bind-variable limit', () => {
       amount: 1000n,
       address: `shielded-${index}`,
       spent: false,
+      nullifier: null,
     })))
 
     await dao.markSpent(WALLET, Array.from({length: OVER_BINDINGS}, (_, index) => index))

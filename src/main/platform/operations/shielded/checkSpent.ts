@@ -2,6 +2,7 @@ import {DashPlatformSDK} from 'dash-platform-sdk'
 import {RecoveredNoteWASM} from 'pshenmic-dpp'
 
 import {CheckedNote} from '../../types/service'
+import {nullifierStatuses} from './reads/nullifierStatuses'
 
 const hex = (bytes: Uint8Array): string => Buffer.from(bytes).toString('hex')
 
@@ -14,7 +15,7 @@ export async function checkSpent(
 ): Promise<CheckedNote[]> {
   if (recovered.length === 0) return []
 
-  const statuses = await sdk.shielded.getShieldedNullifiers(recovered.map(note => note.nullifier))
+  const statuses = await nullifierStatuses(sdk, recovered.map(note => note.nullifier))
   const byNullifier = new Map(statuses.map(status => [hex(status.nullifier), status.isSpent]))
 
   return recovered.map(recoveredNote => ({recoveredNote, spent: byNullifier.get(hex(recoveredNote.nullifier)) === true}))

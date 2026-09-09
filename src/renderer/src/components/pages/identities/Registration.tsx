@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, ChainSmallIcon, InfoCircleIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, ChainSmallIcon, InfoCircleIcon, KeyIcon, SettingsIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import AssetLockFundingModal from '@renderer/components/modal/AssetLockFundingModal'
 import ShieldedSpendModal from '@renderer/components/modal/ShieldedSpendModal'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import TransferConfirmModal from '@renderer/components/modal/TransferConfirmModal'
 import AmountField from '@renderer/components/pages/transfer/AmountField'
 import AmountSlider from '@renderer/components/pages/transfer/AmountSlider'
+import CoinControlModal from '@renderer/components/pages/transfer/CoinControlModal'
 import ProverPill from '@renderer/components/pages/shielded/ProverPill'
 import { SourcePicker } from '@renderer/components/pages/transfer/EndpointPicker'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
@@ -15,7 +16,7 @@ import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import { API } from '@renderer/api'
-import { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
+import type { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
 import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
@@ -26,14 +27,30 @@ import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { useAdresses } from '@renderer/hooks/useAdresses'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
+import { useErrorToast } from '@renderer/hooks/useErrorToast'
+import { useWalletUtxos } from '@renderer/hooks/useWalletUtxos'
+import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshPlatformAddresses, usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { refreshBalance, useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { amountErrorFor } from '@renderer/utils/amountValidation'
 import { creditsToDuffs, davToDash, dashToDuffs, duffsToCredits, formatCredits } from '@renderer/utils/balance'
+import {
+  automaticCoinControl,
+  buildCoinControlInventory,
+  coinControlSelectionSummary,
+  coinControlSelectionTotals,
+  isCoinControlSelectionValid,
+  normalizeCoinControlSelection,
+  toCoreSpendSource,
+  toPlatformSpendSource,
+} from '@renderer/utils/coinControl'
+import { COIN_CONTROL_INVALID_MESSAGE } from '@renderer/constants/coinControl'
+import { toast } from '@renderer/components/ui/Toast'
 import {
   identityRegistrationAmountError,
   identityRegistrationMaxDuffs,
@@ -44,6 +61,7 @@ import {
   POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
 } from '@renderer/utils/transferMatrix'
+import type { CoinControlSelection } from '@renderer/types/CoinControl'
 
 export default function IdentityRegistration(): React.JSX.Element {
   const navigate = useNavigate()
@@ -51,20 +69,28 @@ export default function IdentityRegistration(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? null
   const { syncIncomplete } = useConnectionModeContext()
   const { balance, loading: balanceLoading, err: balanceError } = useWalletBalance(walletId ?? undefined)
+  const { receiving, change, loading: coreAddressesLoading, err: coreAddressesError } = useAdresses(walletId ?? undefined)
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const prover = useShieldedStatus()
   const { format: formatFiat, rateReady } = useFiat()
 
   const [fromKind, setFromKind] = useState(SourceKind.Core)
-  const [fromAddress, setFromAddress] = useState('')
   const [amount, setAmount] = useState(IDENTITY_REGISTRATION_DEFAULT_AMOUNT)
+  const { utxos, loading: utxosLoading, error: utxosError, retry: retryUtxos } = useWalletUtxos()
+  const [coinControl, setCoinControl] = useState<CoinControlSelection>(automaticCoinControl)
+  const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [fundingState, setFundingState] = useState<AssetLockFundingState | null>(null)
   const [fundingLoading, setFundingLoading] = useState(true)
   const [fundingError, setFundingError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const successful = useRef(false)
+  useErrorToast(utxosError)
+  useErrorToast(fundingError)
+  useErrorToast(balanceError)
+  useErrorToast(coreAddressesError)
+  useErrorToast(platformAddressesError)
 
   const loadFundingState = useCallback(async (): Promise<void> => {
     if (!walletId) {
@@ -90,8 +116,9 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   useEffect(() => {
     setFromKind(SourceKind.Core)
-    setFromAddress('')
     setAmount(IDENTITY_REGISTRATION_DEFAULT_AMOUNT)
+    setCoinControl(automaticCoinControl())
+    setCoinControlOpen(false)
     setModalOpen(false)
     setNotesUnlockOpen(false)
     successful.current = false
@@ -100,75 +127,154 @@ export default function IdentityRegistration(): React.JSX.Element {
   const balanceDuffs = balance.dash.amount
   const amountDuffs = useMemo(() => dashToDuffs(amount), [amount])
   const amountCredits = duffsToCredits(amountDuffs)
-  const operation = fromKind === SourceKind.Core
-    ? TransferOperation.IdentityRegister
-    : fromKind === SourceKind.PlatformAddress
-      ? TransferOperation.IdentityCreate
-      : TransferOperation.IdentityCreateFromShielded
+  let operation = TransferOperation.IdentityRegister
+  switch (fromKind) {
+    case SourceKind.PlatformAddress:
+      operation = TransferOperation.IdentityCreate
+      break
+    case SourceKind.Shielded:
+      operation = TransferOperation.IdentityCreateFromShielded
+      break
+  }
   const info = operationInfo(operation)
 
+  const coreAddresses = useMemo(
+    () => [...receiving, ...change]
+      .filter(address => address.balance > 0n)
+      .sort((a, b) => {
+        if (a.balance < b.balance) return 1
+        if (a.balance > b.balance) return -1
+        return 0
+      }),
+    [receiving, change],
+  )
   const fundedAddresses = useMemo(
     () => platformAddresses.filter(address => BigInt(address.balanceCredits) > 0n),
     [platformAddresses],
   )
-  const defaultSource = useMemo(
-    () => fundedAddresses.reduce<(typeof fundedAddresses)[number] | undefined>(
-      (best, address) => best == null || BigInt(address.balanceCredits) > BigInt(best.balanceCredits) ? address : best,
-      undefined,
-    ),
-    [fundedAddresses],
-  )
-  const selectedSource = fundedAddresses.find(address => address.platformAddress === fromAddress) ?? defaultSource
   const shieldedBalance = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? BigInt(shieldedSync.balance)
     : null
-  const availableCredits = fromKind === SourceKind.PlatformAddress
-    ? BigInt(selectedSource?.balanceCredits ?? 0n)
-    : fromKind === SourceKind.Shielded
-      ? shieldedBalance
-      : null
+  const coinControlFunds = useMemo(() => ({
+    coreAddresses, utxos, platformAddresses: fundedAddresses, shieldedNotes: [],
+  }), [coreAddresses, utxos, fundedAddresses])
+  const coinControlInventory = useMemo(() => buildCoinControlInventory(coinControlFunds), [coinControlFunds])
+  const appliedCoinControl = useMemo(
+    () => normalizeCoinControlSelection(coinControl, operation),
+    [coinControl, operation],
+  )
+  const coinControlLoading = {
+    automatic: false,
+    coreAddress: coreAddressesLoading,
+    coreOutpoints: utxosLoading || syncIncomplete,
+    platformAddress: platformAddressesLoading,
+    platformInputs: platformAddressesLoading,
+    shieldedAddress: false,
+    shieldedNotes: false,
+  }[appliedCoinControl.kind]
+  let sourceInventoryError: string | null = null
+  if (fromKind === SourceKind.Core) {
+    sourceInventoryError = balanceError ?? coreAddressesError
+    if (appliedCoinControl.kind === 'coreOutpoints') sourceInventoryError ??= utxosError
+  } else if (fromKind === SourceKind.PlatformAddress) {
+    sourceInventoryError = platformAddressesError
+  }
+  const coinControlValid = !coinControlLoading && !sourceInventoryError
+    && isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
-  const { feeCredits, feeDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError } = useOperationFee(walletId, operation, {
+  useEffect(() => {
+    if (!coinControlLoading && !sourceInventoryError && !coinControlValid && !successful.current) toast.error(COIN_CONTROL_INVALID_MESSAGE)
+  }, [coinControlLoading, sourceInventoryError, coinControlValid])
+
+  useEffect(() => {
+    setCoinControlOpen(false)
+  }, [fromKind])
+
+  useEffect(() => {
+    if (appliedCoinControl !== coinControl) setCoinControl(appliedCoinControl)
+  }, [appliedCoinControl, coinControl])
+
+  const coreSpendSource = useMemo(
+    () => toCoreSpendSource(appliedCoinControl, utxos),
+    [appliedCoinControl, utxos],
+  )
+  const platformSource = useMemo(
+    () => toPlatformSpendSource(appliedCoinControl),
+    [appliedCoinControl],
+  )
+
+  const selectedTotals = coinControlSelectionTotals(appliedCoinControl, coinControlFunds)
+  let selectedCoreDuffs = balanceDuffs
+  if (appliedCoinControl.kind === 'coreAddress' || appliedCoinControl.kind === 'coreOutpoints') {
+    selectedCoreDuffs = selectedTotals.duffs
+  }
+
+  let availableCredits: bigint | null = null
+  if (fromKind === SourceKind.PlatformAddress) {
+    if (appliedCoinControl.kind === 'platformAddress' || appliedCoinControl.kind === 'platformInputs') {
+      availableCredits = selectedTotals.credits
+    } else {
+      availableCredits = fundedAddresses.reduce((sum, address) => sum + address.balanceCredits, 0n)
+    }
+  } else if (fromKind === SourceKind.Shielded) {
+    availableCredits = shieldedBalance
+  }
+
+  const { feeCredits, feeDuffs, maxDuffs: coreSelectableDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeError, retry: retryFee } = useOperationFee(walletId, coinControlValid ? operation : null, {
     destinationValid: true,
     recipient: '',
     amountCredits,
-    sourceAddress: selectedSource?.platformAddress ?? null,
+    amountDuffs: fromKind === SourceKind.Core ? amountDuffs : null,
+    coreSource: coreSpendSource ?? null,
+    platformSource,
     identityId: null,
-    noteIndexes: null,
+    shieldedSource: null,
   })
+  useErrorToast(feeError)
 
   // The Core fee is paid on top of the amount, and an L1 registration locks the
   // identity-create fee on top of that so the amount typed is what is credited.
   const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
-  const coreMaxDuffs = identityRegistrationMaxDuffs(balanceDuffs, totalFeeDuffs)
-  const platformMaxDuffs = maxPerTx !== null
-    ? creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
-    : feeCredits !== null && availableCredits !== null
-      ? creditsToDuffs(availableCredits > feeCredits ? availableCredits - feeCredits : 0n)
-      : null
-  const maxDuffs = fromKind === SourceKind.Core ? coreMaxDuffs : platformMaxDuffs
-  const amountError = fromKind === SourceKind.Core
-    ? identityRegistrationAmountError(amount, amountDuffs, balanceDuffs, totalFeeDuffs)
-    : amountErrorFor({
-        isCoreOperation: false,
-        amount,
-        totalFeeDuffs,
-        operation,
-        amountDuffs,
-        balanceDuffs,
-        amountCredits,
-        minCredits: info.minCredits ?? 0n,
-        availableCredits,
-        feeCredits,
-        maxPerTx,
-        noteLimit,
-      })
-  const sourceReady = fromKind === SourceKind.Core
-    ? !balanceLoading && !balanceError
-    : fromKind === SourceKind.PlatformAddress
-      ? !platformAddressesLoading && !platformAddressesError && selectedSource != null
-      : shieldedBalance !== null
+  const coreMaxDuffs = coreSelectableDuffs === null
+    ? null
+    : identityRegistrationMaxDuffs(coreSelectableDuffs, creditsToDuffs(feeCredits ?? 0n))
+  let platformMaxDuffs: bigint | null = null
+  if (maxPerTx !== null) {
+    const cappedCredits = maxPerTx > 0n ? maxPerTx : 0n
+    platformMaxDuffs = creditsToDuffs(cappedCredits)
+  } else if (feeCredits !== null && availableCredits !== null) {
+    const spendableCredits = availableCredits > feeCredits ? availableCredits - feeCredits : 0n
+    platformMaxDuffs = creditsToDuffs(spendableCredits)
+  }
+
+  let maxDuffs = platformMaxDuffs
+  if (fromKind === SourceKind.Core) maxDuffs = coreMaxDuffs
+
+  let amountError = amountErrorFor({
+    isCoreOperation: false,
+    amount,
+    coreMaxDuffs,
+    operation,
+    amountDuffs,
+    amountCredits,
+    minCredits: info.minCredits ?? 0n,
+    availableCredits,
+    feeCredits,
+    maxPerTx,
+    noteLimit,
+  })
+  if (fromKind === SourceKind.Core) {
+    amountError = identityRegistrationAmountError(amount, amountDuffs, coreMaxDuffs)
+  }
+  let sourceReady = shieldedBalance !== null
+  if (fromKind === SourceKind.Core) {
+    sourceReady = !balanceLoading && !balanceError
+  } else if (fromKind === SourceKind.PlatformAddress) {
+    sourceReady = !platformAddressesLoading && !platformAddressesError && fundedAddresses.length > 0
+  }
   const amountReady = sourceReady
+    && coinControlValid
+    && !feeLoading && !feeError
     && amount.length > 0
     && amountError === null
     && (fromKind === SourceKind.Core || feeCredits !== null)
@@ -179,6 +285,8 @@ export default function IdentityRegistration(): React.JSX.Element {
   const unfinishedFunding = fundingState != null && isUnfinishedAssetLockFunding(fundingState.phase)
     ? fundingState
     : null
+
+  const coinControlSummary = coinControlSelectionSummary(appliedCoinControl, selectedTotals, true)
 
   const sliderPercent = useMemo(() => {
     if (maxDuffs === null || maxDuffs <= 0n || amountDuffs <= 0n) return 0
@@ -197,6 +305,7 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
 
   const openNewRegistration = (): void => {
+    if (!amountReady) return
     successful.current = false
     setModalOpen(true)
   }
@@ -246,7 +355,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const runPlatformRegistration = (password: string) => {
     if (!walletId) return Promise.reject(new Error('No wallet selected'))
-    return API.createIdentityFromAddresses(walletId, selectedSource?.platformAddress ?? null, amountCredits, password)
+    return API.createIdentityFromAddresses(walletId, platformSource, amountCredits, password)
       .then(result => ({
         stHash: result.stHash,
         amountCredits: result.amountCredits,
@@ -307,10 +416,8 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex flex-col items-center gap-4 rounded-3xl dash-card-base p-8 text-center"}>
-          <Text size={16} weight={"bold"} color={"brand"}>Could not check funding progress</Text>
-          <Text size={12} weight={"medium"} color={"red"} className={"break-all"}>{fundingError}</Text>
-          <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Try again</Button>
+        <div className={"mx-12 mt-8 flex justify-center"}>
+          <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
         </div>
       </div>
     )
@@ -426,6 +533,43 @@ export default function IdentityRegistration(): React.JSX.Element {
     </>
   )
 
+  let sourceBalanceLabel = 'Shielded balance'
+  let sourceBalanceValue = (
+    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Sync notes to load</Text>
+  )
+  if (fromKind === SourceKind.Core) {
+    sourceBalanceLabel = 'Available Core funds'
+    sourceBalanceValue = (
+      <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(selectedCoreDuffs)} Dash</Text>
+    )
+  } else if (fromKind === SourceKind.PlatformAddress) {
+    sourceBalanceLabel = 'Available Platform funds'
+    sourceBalanceValue = (
+      <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(creditsToDuffs(availableCredits ?? 0n))} Dash</Text>
+    )
+  } else if (availableCredits !== null) {
+    sourceBalanceValue = (
+      <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(creditsToDuffs(availableCredits))} Dash</Text>
+    )
+  }
+
+  let fundingFeeLabel = 'Reserved for Platform fee'
+  let fundingFeeValue = (
+    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
+  )
+  if (fromKind === SourceKind.Core) {
+    fundingFeeLabel = 'Reserved for fees'
+    fundingFeeValue = (
+      <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
+    )
+  } else if (feeError === null && feeCredits !== null) {
+    fundingFeeValue = (
+      <Text size={12} weight={"medium"} color={"brand"}>{davToDash(creditsToDuffs(feeCredits))} Dash</Text>
+    )
+  } else if (feeError === null && feeLoading) {
+    fundingFeeValue = <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
+  }
+
   const amountStep = (
     <>
       <div className={"flex flex-col gap-1"}>
@@ -438,19 +582,38 @@ export default function IdentityRegistration(): React.JSX.Element {
         kind={fromKind}
         onKindChange={(kind) => {
           setFromKind(kind)
-          setAmount(kind === SourceKind.Shielded
-            ? davToDash(creditsToDuffs(POOL_IDENTITY_DENOMINATIONS[0]))
-            : IDENTITY_REGISTRATION_DEFAULT_AMOUNT)
+          if (kind === SourceKind.Shielded) {
+            setAmount(davToDash(creditsToDuffs(POOL_IDENTITY_DENOMINATIONS[0])))
+          } else {
+            setAmount(IDENTITY_REGISTRATION_DEFAULT_AMOUNT)
+          }
         }}
         kinds={SOURCE_KINDS.filter(source => source.kind !== SourceKind.Identity)}
         label={"Funding source"}
         platformAddresses={fundedAddresses}
-        selectedPlatformAddress={selectedSource}
-        onPlatformAddressChange={setFromAddress}
+        selectedPlatformAddress={undefined}
+        onPlatformAddressChange={() => {}}
+        showPlatformAddress={false}
         identities={[]}
+        identitiesLoading={false}
+        identitiesError={null}
         selectedIdentity={undefined}
         onIdentityChange={() => {}}
+        onRetryIdentities={() => {}}
       />
+      {fromKind !== SourceKind.Shielded && (
+        <button
+          type={"button"}
+          onClick={() => setCoinControlOpen(true)}
+          className={"w-full flex items-center justify-between gap-3 px-4 py-3 rounded-[.875rem] dash-block hover:dash-block-accent-10 transition-colors cursor-pointer"}
+        >
+          <span className={"flex items-center gap-2"}>
+            <SettingsIcon size={14} className={"dash-text-default"} />
+            <Text size={12} weight={"extrabold"} color={"brand"}>Coin control</Text>
+          </span>
+          <Text size={12} weight={"medium"} color={"blue-mint"} className={"text-right"}>{coinControlSummary}</Text>
+        </button>
+      )}
       {fromKind === SourceKind.Shielded && (
         <div className={"flex flex-col gap-2"}>
           <div className={"flex flex-wrap gap-2"}>
@@ -486,30 +649,12 @@ export default function IdentityRegistration(): React.JSX.Element {
       )}
       <div className={"flex flex-col gap-2 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
         <div className={"flex items-center justify-between gap-4"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            {fromKind === SourceKind.Core ? 'Core balance' : fromKind === SourceKind.PlatformAddress ? 'Address balance' : 'Shielded balance'}
-          </Text>
-          {fromKind === SourceKind.Core ? (
-            <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(balanceDuffs)} Dash</Text>
-          ) : availableCredits !== null ? (
-            <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(creditsToDuffs(availableCredits))} Dash</Text>
-          ) : (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Sync notes to load</Text>
-          )}
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{sourceBalanceLabel}</Text>
+          {sourceBalanceValue}
         </div>
         <div className={"flex items-center justify-between gap-4"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            {fromKind === SourceKind.Core ? 'Reserved for fees' : 'Reserved for Platform fee'}
-          </Text>
-          {fromKind === SourceKind.Core ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
-          ) : feeError === null && feeCredits !== null ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(creditsToDuffs(feeCredits))} Dash</Text>
-          ) : feeError === null && feeLoading ? (
-            <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-          ) : (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
-          )}
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{fundingFeeLabel}</Text>
+          {fundingFeeValue}
         </div>
         {amountFiat && (
           <div className={"flex items-center justify-between gap-4"}>
@@ -519,9 +664,16 @@ export default function IdentityRegistration(): React.JSX.Element {
         )}
       </div>
       {amountError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{amountError}</Text>}
-      {fromKind === SourceKind.Core && balanceError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{balanceError}</Text>}
-      {fromKind === SourceKind.PlatformAddress && platformAddressesError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{platformAddressesError}</Text>}
-      {feeError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{feeError}</Text>}
+      {fromKind === SourceKind.Core && (balanceError || coreAddressesError) && (
+        <button type={'button'} onClick={() => {
+          invalidateAsyncCache('addresses', walletId)
+          void refreshBalance(walletId)
+        }} className={'dash-text-primary text-sm cursor-pointer'}>Retry Core balances</button>
+      )}
+      {fromKind === SourceKind.PlatformAddress && platformAddressesError && (
+        <button type={'button'} onClick={() => { void refreshPlatformAddresses(walletId) }} className={'dash-text-primary text-sm cursor-pointer'}>Retry Platform addresses</button>
+      )}
+      {feeError && <button type={'button'} onClick={retryFee} className={'dash-text-primary text-sm cursor-pointer'}>Retry fee estimate</button>}
       {fromKind === SourceKind.Core && syncIncomplete && <P2pSyncAlert />}
       {fromKind === SourceKind.Shielded && (
         <>
@@ -536,6 +688,29 @@ export default function IdentityRegistration(): React.JSX.Element {
     </>
   )
 
+  let reviewFrom = 'Your shielded balance'
+  let reviewFundingLabel = 'Identity denomination'
+  let reviewFeeLabel = 'Reserved for Platform fee'
+  let reviewFeeValue = (
+    <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
+  )
+  if (fromKind === SourceKind.Core) {
+    reviewFrom = 'Dash Core (L1)'
+    reviewFundingLabel = 'Amount to lock'
+    reviewFeeLabel = 'Network fees'
+    reviewFeeValue = (
+      <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
+    )
+  } else if (fromKind === SourceKind.PlatformAddress) {
+    reviewFrom = 'Dash Platform'
+    reviewFundingLabel = 'Identity funding'
+  }
+  if (fromKind !== SourceKind.Core && feeCredits !== null) {
+    reviewFeeValue = (
+      <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
+    )
+  }
+
   const reviewStep = (
     <>
       <div className={"flex flex-col gap-1"}>
@@ -547,18 +722,16 @@ export default function IdentityRegistration(): React.JSX.Element {
       <div className={"flex flex-col gap-3 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
-          <Text size={12} weight={"medium"} color={"brand"} className={fromKind === SourceKind.PlatformAddress ? 'font-mono break-all text-right' : ''}>
-            {fromKind === SourceKind.Core
-              ? 'Dash Core (L1)'
-              : fromKind === SourceKind.PlatformAddress
-                ? selectedSource?.platformAddress
-                : 'Your shielded balance'}
-          </Text>
+          <Text size={12} weight={"medium"} color={"brand"}>{reviewFrom}</Text>
         </div>
+        {fromKind !== SourceKind.Shielded && (
+          <div className={"flex items-center justify-between gap-4"}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Coin control</Text>
+            <Text size={12} weight={"medium"} color={"brand"} className={"text-right"}>{coinControlSummary}</Text>
+          </div>
+        )}
         <div className={"flex items-center justify-between gap-4"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            {fromKind === SourceKind.Core ? 'Amount to lock' : fromKind === SourceKind.Shielded ? 'Identity denomination' : 'Identity funding'}
-          </Text>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{reviewFundingLabel}</Text>
           {fromKind === SourceKind.Core ? (
             <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs)} Dash</Text>
           ) : (
@@ -572,16 +745,8 @@ export default function IdentityRegistration(): React.JSX.Element {
           </div>
         )}
         <div className={"flex items-center justify-between gap-4"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-            {fromKind === SourceKind.Core ? 'Network fees' : 'Reserved for Platform fee'}
-          </Text>
-          {fromKind === SourceKind.Core ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
-          ) : feeCredits !== null ? (
-            <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
-          ) : (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
-          )}
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{reviewFeeLabel}</Text>
+          {reviewFeeValue}
         </div>
         <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
         <div className={"flex items-center justify-between gap-4"}>
@@ -617,6 +782,30 @@ export default function IdentityRegistration(): React.JSX.Element {
         submitLabel={"Register identity"}
         submitDisabled={!amountReady || (fromKind === SourceKind.Core && syncIncomplete) || (fromKind === SourceKind.Shielded && !prover.ready)}
       />
+      <CoinControlModal
+        isOpen={coinControlOpen}
+        operation={operation}
+        selection={appliedCoinControl}
+        coreAddresses={coreAddresses}
+        coreAddressesLoading={coreAddressesLoading}
+        coreAddressesError={coreAddressesError}
+        onRetryCoreAddresses={() => invalidateAsyncCache('addresses', walletId)}
+        utxos={utxos}
+        utxosLoading={utxosLoading}
+        utxosError={utxosError}
+        coreSyncIncomplete={syncIncomplete}
+        platformAddresses={fundedAddresses}
+        platformAddressesLoading={platformAddressesLoading}
+        platformAddressesError={platformAddressesError}
+        onRetryPlatformAddresses={() => { void refreshPlatformAddresses(walletId) }}
+        shieldedNotes={[]}
+        identityLabel={null}
+        identityId={null}
+        platformAddress={undefined}
+        onRetryUtxos={retryUtxos}
+        onClose={() => setCoinControlOpen(false)}
+        onApply={setCoinControl}
+      />
       {fromKind === SourceKind.Core && (
         <AssetLockFundingModal
           isOpen={modalOpen}
@@ -626,6 +815,8 @@ export default function IdentityRegistration(): React.JSX.Element {
           amountDuffs={amountDuffs.toString()}
           resume={false}
           kind={AssetLockFundingKind.Identity}
+          source={coreSpendSource}
+          sourceValid={amountReady}
           onSuccess={handleCoreSuccess}
         />
       )}
@@ -636,12 +827,13 @@ export default function IdentityRegistration(): React.JSX.Element {
           title={"Register identity"}
           successTitle={"Identity registered"}
           rows={[
-            { label: 'From', value: selectedSource?.platformAddress ?? '', mono: true },
+            { label: 'From', value: coinControlSummary },
             { label: 'Identity funding', value: <CreditsAmount credits={amountCredits} showFiat={false} align={"end"} /> },
             ...(feeCredits !== null ? [{ label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} showFiat={false} align={"end"} /> }] : []),
             { label: 'Creates', value: 'New Platform identity with 4 keys' },
           ]}
           run={runPlatformRegistration}
+          sourceValid={amountReady}
           onSuccess={handlePlatformSuccess}
         />
       )}
@@ -657,6 +849,7 @@ export default function IdentityRegistration(): React.JSX.Element {
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedRegistration}
+          sourceValid={amountReady}
           onSuccess={handleShieldedSuccess}
         />
       )}

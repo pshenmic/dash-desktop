@@ -8,6 +8,7 @@ import {
   CREDITS_PER_DUFF,
   SHIELD_FUNDING_FEE_RESERVE_CREDITS,
 } from '../../src/main/src/constants/credits'
+import { ASSET_LOCK_PAYLOAD_BYTES } from '../../src/main/src/constants/chain'
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')
 const AMOUNT = 100_000n
@@ -17,6 +18,14 @@ describe('buildAssetLockOutputs', () => {
     const {burnOutput} = buildAssetLockOutputs(AMOUNT, creditAddress)
     expect(burnOutput.satoshis).toBe(AMOUNT)
     expect(burnOutput.hex()).toBe('a086010000000000026a00')
+  })
+
+  // The fee charges for these bytes before the payload exists, so the constant
+  // it charges by has to be the size this builds.
+  it('builds the payload the fee constant is sized for', () => {
+    const {extraPayload} = buildAssetLockOutputs(AMOUNT, creditAddress)
+    const payload = extraPayload.bytes().length
+    expect(payload + sdkUtils.getCompactVariableSize(payload)).toBe(ASSET_LOCK_PAYLOAD_BYTES)
   })
 
   it('builds a version-1 payload with a single p2pkh credit output', () => {

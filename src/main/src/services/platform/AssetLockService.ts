@@ -156,7 +156,7 @@ export class AssetLockService {
     const {walletId, amountDuffs, seed} = params
 
     state.phase = 'broadcastingL1'
-    const built = await this.funder.buildAssetLock(walletId, amountDuffs, seed, params.credit)
+    const built = await this.funder.buildAssetLock(walletId, amountDuffs, seed, params.credit, params.source)
     state.txid = built.txid
 
     await this.assetLockDAO.insertFunding({

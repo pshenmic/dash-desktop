@@ -11,7 +11,7 @@ import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {Network} from '../../types/Network'
 import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX} from '../../constants/addresses'
-import {SEQUENCE_FINAL} from '../../constants/chain'
+import {DUST_THRESHOLD_DUFFS, SEQUENCE_FINAL} from '../../constants/chain'
 import {BuildSignedTransferParams, RecipientType, TransferInput} from '../../types/CoreTransaction'
 import {buildAssetLockOutputs} from '../../utils/assetLockTx'
 
@@ -60,10 +60,11 @@ export class CoreTransactionService {
     creditAddress: string
     changeAddress: string
     inputTotal: bigint
+    feeDuffs: bigint
     seed: Uint8Array
     network: Network
   }): Promise<SDKTransaction> {
-    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, seed, network} = params
+    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, feeDuffs, seed, network} = params
 
     const {burnOutput, extraPayload} = buildAssetLockOutputs(amountDuffs, creditAddress)
     const transaction = new SDKTransaction(undefined, undefined, undefined, 3, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
@@ -71,26 +72,40 @@ export class CoreTransactionService {
     const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
 
     transaction.addOutput(burnOutput)
-    transaction.generateChange(changeAddress, inputTotal)
+    this.addChange(transaction, inputTotal - amountDuffs - feeDuffs, changeAddress)
     transaction.sign(privateKeys)
 
     return transaction
   }
 
+  private addChange(transaction: SDKTransaction, change: bigint, changeAddress: string): void {
+    if (change < 0n) {
+      throw new Error('Selected inputs do not cover the amount and network fee')
+    }
+    if (change >= DUST_THRESHOLD_DUFFS) {
+      transaction.addOutput(Output.createP2PKH(change, changeAddress))
+    }
+  }
+
   async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
-    const {inputs, toAddress, recipientType, amount, changeAddress, inputTotal, seed, network} = params
+    const {inputs, outputs, changeAddress, inputTotal, feeDuffs, seed, network} = params
 
     const transaction = new SDKTransaction()
     const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
 
-    const recipientOutput = new Output(amount)
-    if (recipientType === 'p2sh') {
-      recipientOutput.script = this.p2shScript(toAddress)
-    } else {
-      recipientOutput.generateP2PKH(toAddress)
+    let outputTotal = 0n
+    for (const output of outputs) {
+      const recipientOutput = new Output(output.amountDuffs)
+      if (output.recipientType === 'p2sh') {
+        recipientOutput.script = this.p2shScript(output.address)
+      } else {
+        recipientOutput.generateP2PKH(output.address)
+      }
+      transaction.addOutput(recipientOutput)
+      outputTotal += output.amountDuffs
     }
-    transaction.addOutput(recipientOutput)
-    transaction.generateChange(changeAddress, inputTotal)
+
+    this.addChange(transaction, inputTotal - outputTotal - feeDuffs, changeAddress)
     transaction.sign(privateKeys)
 
     return transaction

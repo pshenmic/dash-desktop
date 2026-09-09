@@ -1,5 +1,8 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
+import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {Network} from '../../src/types/Network'
+import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
+import {ShieldedSpendSource} from '../../src/types/ShieldedNoteSelection'
 
 // Wire protocol for the dash-platform utility process. Envelope only — payload
 // shapes live with their operations. Every terminal event echoes back the
@@ -48,6 +51,9 @@ export interface NoteSnapshot {
   amount: bigint
   spent: boolean
   address: string
+  // Derived from the seed, so only a sync can produce it. Persisted so that a
+  // locked wallet can still ask the chain whether the note is still spendable.
+  nullifier: Uint8Array
 }
 
 export interface ShieldSource {
@@ -99,7 +105,6 @@ export type PoolSpendOperation =
   | 'identityCreateFromShielded'
 
 export type TransitionFeeOperation =
-  | 'addressFundsTransfer'
   | 'shield'
   | 'identityToAddress'
   | 'identityToIdentity'
@@ -118,6 +123,7 @@ export type BuiltTransitionOperation = Exclude<
 // Funded by platform addresses, so the fee scales with the inputs the selection
 // takes and the two have to resolve together.
 export type SelectionFeeOperation =
+  | 'addressFundsTransfer'
   | 'addressWithdrawal'
   | 'identityCreate'
   | 'identityTopUp'
@@ -131,12 +137,19 @@ export interface FeeParams {
   // identity or a Core address. A list only where an operation pays several,
   // because each extra output costs the same again.
   recipient: string | string[]
+  // L1 quotes only: the fee scales with the inputs the amount takes.
+  amountDuffs?: bigint | null
+  // L1 quotes only: narrows the funding to one Core address, or to coins the
+  // user picked. Kept apart from platformSource, which names platform addresses
+  // and so matches no L1 coin at all.
+  coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them, and a caller spelling
   // out which fields it does not use says nothing about the fee.
-  sourceAddress?: string | null
+  platformSource?: PlatformSpendSource | null
   identityId?: string | null
-  // Pool spends only: restricts the spend to one shielded address's notes.
-  noteIndexes?: number[] | null
+  // Pool spends only: narrows the spend to one shielded address's notes, or
+  // names the notes themselves.
+  shieldedSource?: ShieldedSpendSource | null
 }
 
 // The same params, plus the two numbers only main can supply: how many inputs
@@ -186,11 +199,14 @@ export interface PlatformOperations {
     payload: {
       seed: Uint8Array
       kind: PoolSpendOperation
-      recipient: string
+      // A pool-to-pool transfer pays several; the two payouts pay one; creating
+      // an identity pays none. Every payout amount is read from its own entry.
+      recipients: Recipient[]
+      // What leaves the pool, which is what the note selection has to cover: the
+      // sum of the recipients, or the denomination when there are none.
       amountCredits: bigint
       notes: EncryptedNotePayload[]
-      // Restricts selection to specific pool indexes when the user picked notes.
-      noteIndexes: number[] | null
+      source: ShieldedSpendSource | null
       // identityCreate only.
       identityIndex: number | null
       failureAddress: string | null
@@ -227,8 +243,8 @@ export interface PlatformOperations {
     payload: {operation: TransitionFeeOperation; params: FeeQuoteParams}
     result: FeeQuote
   }
-  // Every note count a spend may settle on, so the caller can resolve the fee
-  // and the count together without a round trip per candidate count.
+  // Every action count a spend may settle on, so the caller can resolve the fee,
+  // the note count and the recipient count together without a round trip each.
   spendFeeCurve: {
     payload: {kind: PoolSpendOperation}
     result: {feeCredits: bigint[]}
@@ -240,19 +256,24 @@ export interface PlatformOperations {
     result: {infos: AddressInfo[]}
   }
   addressTransfer: {
-    payload: {seed: Uint8Array; input: AddressInput; recipient: string; amountCredits: bigint}
+    payload: {
+      seed: Uint8Array
+      inputs: AddressInput[]
+      feeStrategy: FeeStrategyStep[]
+      recipients: Recipient[]
+    }
     result: {stHash: string}
   }
   addressWithdrawal: {
-    payload: {seed: Uint8Array; inputs: AddressInput[]; coreAddress: string; coreFeePerByte: number}
+    payload: {seed: Uint8Array; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]; coreAddress: string; coreFeePerByte: number}
     result: {stHash: string}
   }
   identityCreateFromAddresses: {
-    payload: {seed: Uint8Array; identityIndex: number; inputs: AddressInput[]}
+    payload: {seed: Uint8Array; identityIndex: number; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]}
     result: {stHash: string; identifier: string}
   }
   identityTopUpFromAddresses: {
-    payload: {seed: Uint8Array; identifier: string; inputs: AddressInput[]}
+    payload: {seed: Uint8Array; identifier: string; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]}
     result: {stHash: string}
   }
   identityCreditsToAddresses: {
@@ -312,6 +333,12 @@ export interface PlatformOperations {
   encryptedNotes: {
     payload: {startIndex: number; count: number}
     result: {notes: EncryptedNotePayload[]}
+  }
+  // Which of these notes have since been spent. Takes no seed: the nullifiers
+  // were derived at sync time, and checking one needs no key.
+  checkNullifiers: {
+    payload: {nullifiers: Uint8Array[]}
+    result: {spent: Uint8Array[]}
   }
 }
 

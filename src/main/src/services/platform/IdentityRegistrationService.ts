@@ -3,6 +3,7 @@ import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {WalletDAO} from '../../database/WalletDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {AssetLockFundingState} from '../../types/AssetLockFunding'
+import {CoreSpendSource} from '../../types/CoinSelection'
 import {Network} from '../../types/Network'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
@@ -71,7 +72,7 @@ export class IdentityRegistrationService {
   // on Platform — skips indices taken by the same seed used elsewhere.
   // amountDuffs is what the identity ends up with, so the lock also carries the
   // fee the IdentityCreateTransition takes out of it.
-  async startIdentityCreate(walletId: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+  async startIdentityCreate(walletId: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<AssetLockFundingState> {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
       const {identityIndex, credit} = await this.prepareRegistration(walletId, unlocked)
@@ -80,7 +81,7 @@ export class IdentityRegistrationService {
       const state = await this.assetLock.begin(walletId, 'identity', '', lockDuffs)
       return this.run(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'identity', destination: '', amountDuffs: lockDuffs, seed: unlocked.seed, credit, identityIndex,
+          walletId, kind: 'identity', destination: '', amountDuffs: lockDuffs, seed: unlocked.seed, credit, source, identityIndex,
         })
         await this.settleCreate(walletId, unlocked, state, acquired, identityIndex)
       })
@@ -90,7 +91,7 @@ export class IdentityRegistrationService {
     }
   }
 
-  async startIdentityTopUp(walletId: string, identityId: string, amountDuffs: bigint, password: string): Promise<AssetLockFundingState> {
+  async startIdentityTopUp(walletId: string, identityId: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<AssetLockFundingState> {
     if (identityId.trim().length === 0) {
       throw new Error('Identity identifier is required')
     }
@@ -103,7 +104,7 @@ export class IdentityRegistrationService {
       return this.run(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
           walletId, kind: 'identityTopUp', destination: identityId, amountDuffs: lockDuffs, seed: unlocked.seed,
-          credit, identityIndex: topUpIndex,
+          credit, source, identityIndex: topUpIndex,
         })
         await this.settleTopUp(unlocked, state, acquired)
       })

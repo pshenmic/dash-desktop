@@ -1,4 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
+import {ShieldedRecipient, ShieldedSpendSource} from '../../types/ShieldedNoteSelection'
 import {ShieldedService} from '../../services/platform/ShieldedService'
 import {ShieldedSpendState} from '../../types/Shielded'
 export class StartShieldedTransferHandler {
@@ -8,7 +9,7 @@ export class StartShieldedTransferHandler {
     this.shieldedService = shieldedService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string, recipient: string, amountCredits: bigint, password: string, noteIndexes?: number[]): Promise<ShieldedSpendState> => {
-    return this.shieldedService.startTransfer(walletId, password, recipient, amountCredits, noteIndexes)
+  handle = async (_event: IpcMainInvokeEvent, walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> => {
+    return this.shieldedService.startTransfer(walletId, password, recipients, source)
   }
 }

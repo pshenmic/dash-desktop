@@ -26,10 +26,12 @@ import {
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
 } from '../../constants/addresses'
-import {coreFeeDuffs} from '../../utils/coreFeeRate'
+import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
 import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";
-import {selectTransferInputs} from '../../utils/transferInputs'
+import {CoreSpendSource, SelectableUtxo} from '../../types/CoinSelection'
+import {CoreRecipient} from '../../types/CoreTransaction'
+import {requireCoreRecipients, selectableTransferUtxos, selectTransferInputs} from '../../utils/transferInputs'
 import {Preferences} from '../../preferences'
 import {ConnectionStatus} from '../../types/ConnectionStatus'
 
@@ -260,6 +262,19 @@ export class WalletService {
     return provider.getWalletTransactions()
   }
 
+  // Guarded like a send rather than like a read: a picker fed a partial set does
+  // not under-display, it narrows what the user can pick to coins they cannot
+  // tell are only some of theirs.
+  async getUtxos(walletId: string): Promise<SelectableUtxo[]> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+
+    const provider = this.providers.forWallet(wallet.walletId, wallet.network)
+    await provider.ensureReady()
+    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
+
+    return selectableTransferUtxos(grouped, await provider.getWalletUtxos())
+  }
+
   async getTransactionByHash(hash: string, network: Network): Promise<Transaction> {
     if (network !== 'mainnet' && network !== 'testnet') {
       throw new Error('Invalid network ("mainnet", "testnet")')
@@ -303,39 +318,41 @@ export class WalletService {
     return await provider.getBalance(address)
   }
 
+  // One transaction pays many addresses: each recipient is another output, which
+  // costs another slice of the per-byte fee rather than another transaction.
   async sendTransaction(
     walletId: string,
-    toAddress: string,
-    amountDuffs: bigint,
+    recipients: CoreRecipient[],
     password: string,
-    fromAddress?: string,
+    source?: CoreSpendSource,
   ): Promise<SendResult> {
-    if (amountDuffs <= 0n) {
-      throw new Error('Send amount must be greater than zero')
-    }
+    const amountDuffs = requireCoreRecipients(recipients)
 
     const {tx, inputTotal, changeAddress} = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
       const network = wallet.network
-      const recipientType = this.coreTransactionService.classifyRecipientAddress(toAddress, network)
+      const outputs = recipients.map(recipient => ({
+        ...recipient,
+        recipientType: this.coreTransactionService.classifyRecipientAddress(recipient.address, network),
+      }))
       const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
       const provider = this.providers.forWallet(walletId, network)
       await provider.ensureReady()
-      const {transferInputs, inputTotal, changeAddress} =
+      const {coreFeeMultiplier} = this.preferences.general
+      const {transferInputs, inputTotal, changeAddress, feeDuffs} =
         selectTransferInputs(
           grouped,
           await provider.getWalletUtxos(),
           amountDuffs,
-          coreFeeDuffs(this.preferences.general.coreFeeMultiplier),
-          fromAddress,
+          inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, outputs.length, true),
+          source,
         )
 
       const tx = await this.coreTransactionService.buildSignedTransfer({
         inputs: transferInputs,
-        toAddress,
-        recipientType,
-        amount: amountDuffs,
+        outputs,
         changeAddress,
         inputTotal,
+        feeDuffs,
         seed,
         network,
       })
@@ -346,13 +363,12 @@ export class WalletService {
 
     const outputTotal = tx.outputs.reduce((sum, output) => sum + output.satoshis, 0n)
     const actualFee = inputTotal - outputTotal
-    const hasChange = tx.outputs.length > 1
+    const hasChange = tx.outputs.length > recipients.length
 
     return {
       txid: broadcast.txid,
       amount: amountDuffs,
       fee: actualFee,
-      toAddress,
       changeAddress: hasChange ? changeAddress : null,
       peersAcked: broadcast.peersDelivered.length,
     }

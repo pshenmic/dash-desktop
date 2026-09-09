@@ -3,7 +3,8 @@ import { API } from '@renderer/api'
 import { OperationFee, OperationFeeParams } from '@renderer/api/types'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { NO_OPERATION_FEE, TRANSITION_FEE_DEBOUNCE_MS, TRANSITION_FEE_ERROR } from '@renderer/constants'
-import { useAsyncWithCache } from './useAsyncWithCache'
+import { invalidateAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
+import { coreSpendSourceKey, platformSpendSourceKey } from '@renderer/utils/coinControl'
 
 // Every fee comes from the backend. This only decides when to ask: not before
 // the destination parses, and not on every keystroke.
@@ -11,21 +12,24 @@ export function useOperationFee(
   walletId: string | null,
   operation: TransferOperation | null,
   params: OperationFeeParams,
-): OperationFee & { loading: boolean; err: string | null } {
-  const { destinationValid, amountCredits, recipient, sourceAddress, identityId, noteIndexes } = params
+): OperationFee & { loading: boolean; err: string | null; retry: () => void } {
+  const { destinationValid, amountCredits, amountDuffs, recipient, coreSource, platformSource, identityId, shieldedSource } = params
 
-  const noteKey = noteIndexes?.join(',') ?? ''
+  const noteKey = shieldedSource == null ? '' : `${shieldedSource.kind}:${shieldedSource.noteIndexes.join(',')}`
+  const platformSourceKey = platformSpendSourceKey(platformSource)
+  const coreSourceKey = coreSpendSourceKey(coreSource)
 
   const pending = useMemo(
     () => {
       if (walletId === null || operation === null || !destinationValid) return null
-      const feeParams = { amountCredits, recipient, sourceAddress, identityId, noteIndexes }
-      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${recipient}:${sourceAddress}:${identityId}:${noteKey}` }
+      const feeParams = { amountCredits, amountDuffs, recipient, coreSource, platformSource, identityId, shieldedSource }
+      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${coreSourceKey}:${platformSourceKey}:${identityId}:${noteKey}` }
     },
-    // noteIndexes is keyed by noteKey: a fresh array of the same indexes is the
-    // same quote, and re-running on identity would re-ask on every render.
+    // shieldedSource and coreSource are keyed by their string forms: a fresh array
+    // or object holding the same pick is the same quote, and re-running on
+    // identity would re-ask on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletId, operation, destinationValid, amountCredits, recipient, sourceAddress, identityId, noteKey],
+    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipient, coreSourceKey, platformSourceKey, identityId, noteKey],
   )
 
   const [settled, setSettled] = useState<typeof pending>(null)
@@ -49,5 +53,8 @@ export function useOperationFee(
 
   const debouncing = pending !== null && pending.key !== settled?.key
 
-  return { ...quote.data, loading: quote.loading || debouncing, err: quote.err }
+  const retry = (): void => {
+    if (settled) invalidateAsyncCache('operation-fee', settled.key)
+  }
+  return { ...quote.data, loading: quote.loading || debouncing, err: quote.err, retry }
 }
