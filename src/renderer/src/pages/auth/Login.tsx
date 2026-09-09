@@ -107,6 +107,7 @@ export default function LoginPage(): React.JSX.Element {
                   type={"password"}
                   placeholder={form.passwordPlaceholder}
                   value={password}
+                  autoFocus
                   variant={"outlined"}
                   onChange={(e) => setPassword(e.target.value)}
                   className={"h-full rounded-[1.25rem] bg-transparent!"}

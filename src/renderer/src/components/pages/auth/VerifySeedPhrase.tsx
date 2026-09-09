@@ -1,26 +1,22 @@
 import { useState, useEffect } from "react"
 import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
-import { TypeUseCreateWallet } from "@renderer/hooks/useCreateWallet";
+import type { UseCreateWalletState } from '@renderer/types/auth'
 import SeedPhraseWarning from "./SeedPhraseWarning";
-import { BaseTexts, FillInYourSeedPhraseTexts, WALLET_CREATE_SLOW_NOTICE_MS } from "@renderer/constants";
-import { useDelayedVisible } from "@renderer/hooks/useDelayedVisible";
+import { BaseTexts, FillInYourSeedPhraseTexts } from "@renderer/constants";
 
 type VerifySeedPhraseData = Pick<
   FillInYourSeedPhraseTexts,
   'buttonContinue'
 > & {
   seedPhraseWarning: BaseTexts
-  slowCreationNotice: string
 }
 
-type VerifySeedPhraseProps = Pick<TypeUseCreateWallet, 'verifyPhrase' | 'verifyMissingWords'> & {
+type VerifySeedPhraseProps = Pick<UseCreateWalletState, 'verifyPhrase' | 'verifyMissingWords'> & {
   data: VerifySeedPhraseData
 }
 
 export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, data } : VerifySeedPhraseProps): React.JSX.Element {
   const [answers, setAnswers] = useState<string[]>(() => [...verifyPhrase])
-  const [loading, setLoading] = useState(false)
-  const showSlowNotice = useDelayedVisible(loading, WALLET_CREATE_SLOW_NOTICE_MS)
 
   useEffect(() => {
     setAnswers([...verifyPhrase])
@@ -34,14 +30,8 @@ export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, dat
     })
   }
 
-  const handleContinue = async () => {
-    if (loading) return
-    setLoading(true)
-    try {
-      await verifyMissingWords(answers)
-    } finally {
-      setLoading(false)
-    }
+  const handleContinue = (): void => {
+    void verifyMissingWords(answers)
   }
 
   return (
@@ -68,8 +58,7 @@ export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, dat
                 <input
                   value={word}
                   onChange={e => handleChange(index, e.target.value)}
-                  disabled={loading}
-                  className={"bg-transparent text-[.875rem] dash-text-default w-full disabled:opacity-60"}
+                  className={"bg-transparent text-[.875rem] dash-text-default w-full"}
                 />
               ) : (
                 <Text size={14} weight={"medium"} color={"default"} className={"leading-[164%]"}>
@@ -90,40 +79,10 @@ export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, dat
           size={"sm"}
           className={"flex-1 p-4.5 gap-2"}
           onClick={handleContinue}
-          disabled={loading}
         >
-          {loading && (
-            <svg
-              className={"animate-spin size-4"}
-              xmlns={"http://www.w3.org/2000/svg"}
-              fill={"none"}
-              viewBox={"0 0 24 24"}
-              aria-hidden={"true"}
-            >
-              <circle
-                className={"opacity-25"}
-                cx={"12"}
-                cy={"12"}
-                r={"10"}
-                stroke={"currentColor"}
-                strokeWidth={"4"}
-              />
-              <path
-                className={"opacity-75"}
-                fill={"currentColor"}
-                d={"M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"}
-              />
-            </svg>
-          )}
           {data.buttonContinue}
         </Button>
       </div>
-
-      {showSlowNotice &&
-        <Text as={"p"} size={14} weight={"medium"} color={"brand"} opacity={50} className={"text-center"}>
-          {data.slowCreationNotice}
-        </Text>
-      }
     </div>
   )
 }

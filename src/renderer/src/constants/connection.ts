@@ -1,4 +1,41 @@
-import { ConnectionStatus, ConnectionType, WalletSyncPhase } from '@renderer/api/types'
+import { ConnectionStatus, ConnectionType, Network, WalletSyncPhase } from '@renderer/api/types'
+import type {
+  ConnectionModeDetails,
+  ConnectionSelectOption,
+  ConnectionSettingsTabDefinition,
+  PeerTableTab,
+  PeerTableTabDefinition,
+} from '@renderer/types/connection'
+
+export const WALLET_CONNECTION_MODE_STORAGE_KEY = 'wallet.connection.desired'
+
+export const WALLET_SYNC_ENABLED_STORAGE_KEY = 'wallet.sync.enabled'
+
+export const P2P_SWITCH_PROMPT_DISMISSED_STORAGE_PREFIX = 'wallet.p2p-switch-prompt.dismissed'
+
+export const WALLET_CONNECTION_MODES: readonly ConnectionType[] = ['rpc', 'p2p']
+
+export const WALLET_CONNECTION_MODE_DETAILS: Record<ConnectionType, ConnectionModeDetails> = {
+  p2p: {
+    title: 'P2P Network',
+    highlight: 'More private',
+    description: 'Connect directly to the Dash network without sending wallet queries through a third-party service.',
+    timing: 'Requires an initial synchronization before your wallet data is ready.',
+  },
+  rpc: {
+    title: 'Dashscan RPC',
+    highlight: 'Ready immediately',
+    description: 'Use Dashscan to access your wallet immediately while your requests are handled by a third-party service.',
+    timing: 'Faster to start, but less private than a direct P2P connection.',
+  },
+}
+
+export const P2P_READY_PROMPT = {
+  title: 'Your private P2P connection is ready',
+  description: 'Synchronization is complete. Switch from Dashscan RPC to P2P to use your locally synchronized wallet data.',
+  confirm: 'Switch to P2P',
+  dismiss: 'Not now',
+} as const
 
 export const CONNECTION_LABELS: Record<ConnectionType, string> = {
   p2p: 'Dash P2P',
@@ -65,6 +102,160 @@ export const REFRESH_FAILED_MESSAGE = '**Refresh incomplete** Some data could no
 
 export const RPC_CONNECTION_NAME = 'dashscan.io'
 
+export const CONNECTION_SETTINGS_TABS: ConnectionSettingsTabDefinition[] = [
+  {value: 'core', label: 'Core'},
+  // {value: 'platform', label: 'Platform'},
+]
+
+export const CONNECTION_SETTINGS_DESCRIPTION =
+  'Here you can change your connection settings with flexible options. Turning on RPC and P2P Modes for Core at the same time will result in synchronization with both of those options. (You can use wallet while P2P data synchronizes)'
+
+export const CORE_CONNECTION_MODE_LABELS: Record<ConnectionType, string> = {
+  p2p: 'P2P',
+  rpc: 'RPC',
+}
+
+export const CORE_CONNECTION_MODE_OPTIONS: ConnectionType[] = ['p2p', 'rpc']
+
+export const RPC_CONNECTION_OPTIONS: ConnectionSelectOption[] = [
+  {value: RPC_CONNECTION_NAME, label: RPC_CONNECTION_NAME},
+]
+
+export const PLATFORM_EXPLORER_CONNECTION_NAME = 'platform-explorer.pshenmic.dev'
+
+export const PLATFORM_EXPLORER_CONNECTION_OPTIONS: ConnectionSelectOption[] = [
+  {value: PLATFORM_EXPLORER_CONNECTION_NAME, label: PLATFORM_EXPLORER_CONNECTION_NAME},
+]
+
+export const PEER_TABLE_TABS: PeerTableTabDefinition[] = [
+  {value: 'active', label: 'Active'},
+  {value: 'banned', label: 'Banned'},
+  {value: 'static', label: 'Static'},
+]
+
+export const PEER_TABLE_COLUMN_LABELS: Record<PeerTableTab, readonly string[]> = {
+  active: ['Peers', 'User Agent', 'Ping Time'],
+  static: ['Peers', 'Status', 'Connection Details'],
+  banned: ['Peers', 'Status'],
+}
+
+export const PEER_TABLE_GRID_CLASS_NAMES: Record<PeerTableTab, string> = {
+  active: 'grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem]',
+  static: 'grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)]',
+  banned: 'grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]',
+}
+
+export const PEER_TABLE_ACTION_LABELS: Record<PeerTableTab, string> = {
+  active: 'Add Peer',
+  banned: 'Ban Peer',
+  static: 'Add Peer',
+}
+
+export const PEER_ACTION_MENU_TITLE = 'Peer Actions'
+
+export const PEER_ACTION_LABELS = {
+  ban: 'Ban Peer',
+  addStatic: 'Add to Static List',
+  remove: 'Remove Peer',
+  unban: 'Unban Peer',
+} as const
+
+export const ADD_PEER_PLACEHOLDER = 'Enter IP:Port'
+
+export const PEER_TABLE_EMPTY_LABEL = 'No peers in this list.'
+
+export const PEER_TABLE_LOADING_LABEL = 'Loading peers…'
+
+export const PEER_TABLE_CONNECTING_LABEL = 'Connecting to peers…'
+
+export const PEER_TABLE_ACTIVE_EMPTY_LABEL = 'No connected peers.'
+
+export const PEER_CHECKING_LABEL = 'Checking peer…'
+
+export const PEER_SAVING_LABEL = 'Saving peer…'
+
+export const PEER_NETWORK_REQUIRED_LABEL = 'Select a wallet to manage peers.'
+
+export const PEER_EMPTY_STATE_DISPLAY = {
+  networkRequired: {label: PEER_NETWORK_REQUIRED_LABEL, loading: false},
+  loading: {label: PEER_TABLE_LOADING_LABEL, loading: true},
+  connecting: {label: PEER_TABLE_CONNECTING_LABEL, loading: true},
+  activeEmpty: {label: PEER_TABLE_ACTIVE_EMPTY_LABEL, loading: false},
+  empty: {label: PEER_TABLE_EMPTY_LABEL, loading: false},
+} as const
+
+export const STATIC_PEER_REQUIRED_MESSAGE =
+  'Add a static peer for this network before enabling static peer mode.'
+
+export const STATIC_PEER_ADDED_MESSAGE = 'Static peer added.'
+
+export const STATIC_PEER_ALREADY_ADDED_MESSAGE =
+  'This peer is already in the static peers list.'
+
+export const STATIC_PEER_READY_MESSAGE =
+  'Static peer added. Turn on Use Static Peers to enable static peer mode.'
+
+export const DYNAMIC_PEER_ADDED_MESSAGE = 'Peer added to the dynamic peers list.'
+
+export const DYNAMIC_PEER_ALREADY_ADDED_MESSAGE =
+  'This peer is already in the dynamic peers list.'
+
+export const PEER_REMOVED_MESSAGE = 'Peer removed.'
+
+export const PEER_BANNED_MESSAGE = 'Peer banned.'
+
+export const PEER_ALREADY_BANNED_MESSAGE = 'This peer is already banned.'
+
+export const PEER_UNBANNED_MESSAGE = 'Peer unbanned.'
+
+export const STATIC_PEER_MODE_ENABLED_MESSAGE = 'Static peer mode enabled.'
+
+export const DYNAMIC_PEER_MODE_ENABLED_MESSAGE = 'Dynamic peer mode enabled.'
+
+export const PEER_UNAVAILABLE_LABEL = '—'
+
+export const STATIC_PEER_STATE_DISPLAY = {
+  dynamic: {
+    connected: {status: 'Connected dynamically', details: 'Waiting for handshake'},
+    disconnected: {status: 'Saved', details: 'Used when Static mode is enabled'},
+  },
+  static: {
+    connected: {status: 'Connected', details: 'Waiting for handshake'},
+    disconnected: {status: 'Not connected', details: 'Connection not established'},
+  },
+} as const
+
+export const BANNED_PEER_STATUS_LABEL = 'Banned'
+
+export const PEER_POLL_INTERVAL_MS = 4_000
+
+export const DEFAULT_PEER_PORTS: Record<Network, number> = {
+  mainnet: 9999,
+  testnet: 19999,
+}
+
+export const PLATFORM_ROW_LABELS = {
+  dapi: 'Enable GRPC',
+  explorer: 'Enable Platform Explorer API',
+} as const
+
+export const CONNECTION_SETTINGS_TOOLTIPS = {
+  general:
+    'Choose whether the wallet displays Core data from Dashscan RPC or locally synchronized P2P data.',
+  p2p:
+    'P2P synchronization downloads wallet data in the background. It can keep running in parallel while RPC remains the wallet display source.',
+  rpc:
+    'RPC supplies the wallet data shown in the app when RPC mode is selected. Background P2P synchronization can remain enabled at the same time.',
+  peers:
+    'View connected peers and manage per-network dynamic, banned, and static peer lists. Static peer mode applies to the whole app, while each network keeps its own peer list.',
+  dapi:
+    'DAPI is used to query decentralized Platform data, including balances and documents. This switch is visual only for now.',
+  platformExplorer:
+    'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups. These controls are visual only for now.',
+} as const
+
 export const SYNC_PROGRESS_COMPLETE_HOLD_MS = 500
 
 export const SYNC_PROGRESS_FADE_MS = 300
+
+export const SYNC_PROGRESS_BACKGROUND_MAX_NEW_BLOCKS = 1

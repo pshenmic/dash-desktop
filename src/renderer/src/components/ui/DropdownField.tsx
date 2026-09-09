@@ -31,7 +31,7 @@ export default function DropdownField({
           {renderIcon?.(value)}
           <Text size={textSize} weight="medium" color="brand" className="truncate">{selected?.label ?? value}</Text>
         </div>
-        <ChevronIcon size={12} color="currentColor" className={`dash-text-primary shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <ChevronIcon size={12} color="currentColor" className={`dash-text-default shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
