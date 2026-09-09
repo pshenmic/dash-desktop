@@ -9,6 +9,7 @@ import ConnectionButton from './ui/ConnectionButton'
 import SyncProgressBar from './ui/SyncProgressBar'
 import RefreshButton from './ui/RefreshButton'
 import DataRefreshNotice from './ui/DataRefreshNotice'
+import P2pReadyNotice from './ui/P2pReadyNotice'
 import ScrollIndicator from './ui/ScrollIndicator'
 import WalletUnlockModal from './modal/WalletUnlockModal'
 import { API } from '@renderer/api'
@@ -102,6 +103,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
       </header>
 
       <main className={`flex-1 mt-12 ${showSyncUI && status?.walletSync.phase !== 'synced' ? 'pb-28' : ''}`}>
+        <P2pReadyNotice />
         <DataRefreshNotice />
         {children}
       </main>

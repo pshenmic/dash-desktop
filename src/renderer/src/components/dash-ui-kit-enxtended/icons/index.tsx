@@ -433,6 +433,29 @@ export const CrossIcon: React.FC<IconProps> = ({
   </svg>
 )
 
+export const CloseIcon: React.FC<IconProps> = ({
+  color = 'currentColor',
+  size = 11,
+  className = '',
+  onClick
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='2.43066 2.93066 11.13864 11.13864'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+    className={className}
+    onClick={onClick}
+    color={color}
+  >
+    <path
+      d='M13.5693 3.40266L13.0973 2.93066L8 8.02866L2.90266 2.93066L2.43066 3.40266L7.52866 8.5L2.43066 13.5973L2.90266 14.0693L8 8.97133L13.0973 14.0693L13.5693 13.5973L8.47133 8.5L13.5693 3.40266Z'
+      fill='currentColor'
+    />
+  </svg>
+)
+
 export const WalletIcon: React.FC<IconProps> = ({
   color = '#0C1C33',
   size = 16,
@@ -477,6 +500,53 @@ export const PlusIcon: React.FC<IconProps> = ({
     <path
       d='M15.1667 7.66665H8.83337V1.33331H8.16671V7.66665H1.83337V8.33331H8.16671V14.6666H8.83337V8.33331H15.1667V7.66665Z'
       fill='currentColor'
+    />
+  </svg>
+)
+
+export const AddIcon: React.FC<IconProps> = ({
+  color = 'currentColor',
+  size = 13,
+  className = '',
+  onClick
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='1.83337 1.33331 13.33333 13.33333'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+    className={className}
+    onClick={onClick}
+    color={color}
+  >
+    <path
+      d='M15.1667 7.66665H8.83337V1.33331H8.16671V7.66665H1.83337V8.33331H8.16671V14.6666H8.83337V8.33331H15.1667V7.66665Z'
+      fill='currentColor'
+    />
+  </svg>
+)
+
+export const TurnOffIcon: React.FC<IconProps> = ({
+  color = 'currentColor',
+  size = 11,
+  className = '',
+  onClick
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='0 0 11 11'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+    className={className}
+    onClick={onClick}
+    color={color}
+  >
+    <path
+      d='M9.03553 1.65075C9.73479 2.37572 10.211 3.29938 10.4039 4.30493C10.5969 5.31048 10.4978 6.35276 10.1194 7.29997C9.74096 8.24718 9.1001 9.05678 8.27785 9.62638C7.4556 10.196 6.48891 10.5 5.5 10.5C4.51109 10.5 3.54439 10.196 2.72215 9.62638C1.8999 9.05678 1.25904 8.24718 0.880604 7.29997C0.502166 6.35276 0.40315 5.31048 0.596076 4.30493C0.789002 3.29937 1.26521 2.37571 1.96447 1.65075M5.5 5.55706V0.5'
+      stroke='currentColor'
+      strokeLinecap='round'
     />
   </svg>
 )

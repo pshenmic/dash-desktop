@@ -1,4 +1,6 @@
-import {ConnectionType, WalletSyncPhase} from '@renderer/api/types'
+import {ConnectionType, WalletSyncPhase, type WalletSyncStatus} from '@renderer/api/types'
+import {SYNC_PROGRESS_BACKGROUND_MAX_NEW_BLOCKS} from '@renderer/constants/connection'
+import type {CompletedSyncSnapshot} from '@renderer/types/connection'
 
 export function isWalletSyncInactive(phase: WalletSyncPhase | undefined): boolean {
   return phase === undefined || phase === WalletSyncPhase.Stopped || phase === WalletSyncPhase.Idle
@@ -8,11 +10,43 @@ export function shouldShowWalletSyncUI(phase: WalletSyncPhase | undefined): bool
   return !isWalletSyncInactive(phase)
 }
 
+export function shouldSuppressNearTipSyncProgress(
+  sync: WalletSyncStatus | undefined,
+  completed: CompletedSyncSnapshot | null,
+): boolean {
+  if (
+    sync === undefined
+    || completed === null
+    || sync.walletId !== completed.walletId
+    || sync.phase !== WalletSyncPhase.SyncingCfilters
+    || sync.lastError !== null
+  ) return false
+
+  const networkHeight = Math.max(sync.tipHeight, sync.estimatedChainHeight)
+  return networkHeight - completed.tipHeight <= SYNC_PROGRESS_BACKGROUND_MAX_NEW_BLOCKS
+    && sync.cfilterScanHeight >= completed.cfilterScanHeight
+}
+
 export function isWalletSyncIncomplete(
   connectionType: ConnectionType,
   phase: WalletSyncPhase | undefined,
 ): boolean {
   return connectionType === 'p2p' && phase !== WalletSyncPhase.Synced
+}
+
+export function shouldOfferP2pSwitch(
+  connectionType: ConnectionType,
+  phase: WalletSyncPhase | undefined,
+  syncWalletId: string | null | undefined,
+  selectedWalletId: string | null | undefined,
+  dismissed: boolean,
+): boolean {
+  return connectionType === 'rpc'
+    && phase === WalletSyncPhase.Synced
+    && selectedWalletId !== null
+    && selectedWalletId !== undefined
+    && syncWalletId === selectedWalletId
+    && !dismissed
 }
 
 export function formatSyncEta(ms: number | null | undefined): string {
