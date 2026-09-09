@@ -41,34 +41,48 @@ export function coinControlSourceKind(operation: TransferOperation | null): Sour
 export function normalizeCoinControlSelection(
   selection: CoinControlSelection,
   operation: TransferOperation | null,
-  inventory: CoinControlInventory,
 ): CoinControlSelection {
   const sourceKind = coinControlSourceKind(operation)
-  if (selection.kind === 'automatic') return selection
+  switch (selection.kind) {
+    case 'coreAddress':
+    case 'coreOutpoints':
+      if (sourceKind === SourceKind.Core) return selection
+      break
+    case 'platformAddress':
+    case 'platformInputs':
+      if (sourceKind === SourceKind.PlatformAddress) return selection
+      break
+    case 'shieldedAddress':
+    case 'shieldedNotes':
+      if (sourceKind === SourceKind.Shielded) return selection
+      break
+    case 'automatic':
+      return selection
+  }
+  return automaticCoinControl()
+}
+
+export function isCoinControlSelectionValid(
+  selection: CoinControlSelection,
+  inventory: CoinControlInventory,
+): boolean {
+  if (selection.kind === 'automatic') return true
 
   if (selection.kind === 'coreAddress') {
-    return sourceKind === SourceKind.Core && inventory.coreAddresses.includes(selection.address)
-      ? selection
-      : automaticCoinControl()
+    return inventory.coreAddresses.includes(selection.address)
   }
   if (selection.kind === 'coreOutpoints') {
     const available = new Set(inventory.coreOutpoints)
-    return sourceKind === SourceKind.Core
-      && selection.outpoints.length > 0
+    return selection.outpoints.length > 0
       && new Set(selection.outpoints).size === selection.outpoints.length
       && selection.outpoints.every(outpoint => available.has(outpoint))
-      ? selection
-      : automaticCoinControl()
   }
   if (selection.kind === 'platformAddress') {
-    return sourceKind === SourceKind.PlatformAddress && inventory.platformBalances[selection.address] != null
-      ? selection
-      : automaticCoinControl()
+    return inventory.platformBalances[selection.address] != null
   }
   if (selection.kind === 'platformInputs') {
     const addresses = selection.inputs.map(input => input.address)
-    const valid = sourceKind === SourceKind.PlatformAddress
-      && selection.inputs.length > 0
+    return selection.inputs.length > 0
       && selection.inputs.length <= PLATFORM_INPUT_LIMIT
       && new Set(addresses).size === addresses.length
       && addresses.includes(selection.feeAddress)
@@ -76,22 +90,16 @@ export function normalizeCoinControlSelection(
         const balance = inventory.platformBalances[input.address]
         return balance != null && input.credits > 0n && input.credits <= balance
       })
-    return valid ? selection : automaticCoinControl()
   }
   if (selection.kind === 'shieldedAddress') {
-    return sourceKind === SourceKind.Shielded && inventory.shieldedAddresses.includes(selection.address)
-      ? selection
-      : automaticCoinControl()
+    return inventory.shieldedAddresses.includes(selection.address)
   }
 
   const available = new Set(inventory.shieldedNoteIndexes)
-  return sourceKind === SourceKind.Shielded
-    && selection.noteIndexes.length > 0
+  return selection.noteIndexes.length > 0
     && selection.noteIndexes.length <= SHIELDED_NOTE_LIMIT
     && new Set(selection.noteIndexes).size === selection.noteIndexes.length
     && selection.noteIndexes.every(index => available.has(index))
-    ? selection
-    : automaticCoinControl()
 }
 
 export function toCoreSpendSource(

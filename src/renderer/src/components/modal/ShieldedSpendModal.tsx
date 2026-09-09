@@ -25,6 +25,7 @@ interface ShieldedSpendModalProps {
   feeCredits: bigint | null
   proverReady: boolean
   start: (password: string) => Promise<ShieldedSpendState>
+  sourceValid?: boolean
   onSuccess: () => void
   successNote?: string
 }
@@ -51,10 +52,13 @@ export default function ShieldedSpendModal({
   feeCredits,
   proverReady,
   start,
+  sourceValid = true,
   onSuccess,
   successNote,
 }: ShieldedSpendModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const { status } = useAuth()
   const network = status?.network ?? null
   const [password, setPassword] = useState('')
@@ -111,13 +115,17 @@ export default function ShieldedSpendModal({
   const running = started && spend != null && spend.phase !== ShieldedSpendPhase.Done && spend.phase !== ShieldedSpendPhase.Error
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || !proverReady || started) return
+    if (!walletId || password.length === 0 || busy || !proverReady || started || !sourceValidRef.current) return
     setBusy(true)
     setPreError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+      if (!sourceValidRef.current) {
         setBusy(false)
         return
       }
@@ -215,7 +223,7 @@ export default function ShieldedSpendModal({
               <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !proverReady || !sourceValid} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
                 {confirmLabel}
               </Button>

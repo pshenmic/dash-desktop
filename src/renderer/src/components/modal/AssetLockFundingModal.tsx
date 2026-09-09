@@ -24,6 +24,7 @@ interface AssetLockFundingModalProps {
   resume: boolean
   kind: AssetLockFundingKind
   source?: CoreSpendSource
+  sourceValid?: boolean
   onSuccess: () => void
 }
 
@@ -117,9 +118,12 @@ export default function AssetLockFundingModal({
   resume,
   kind,
   source,
+  sourceValid = true,
   onSuccess,
 }: AssetLockFundingModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const { status } = useAuth()
   const network = status?.network ?? null
   const [password, setPassword] = useState('')
@@ -194,13 +198,17 @@ export default function AssetLockFundingModal({
   const running = started && state != null && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error && state.phase !== AssetLockFundingPhase.Resumable
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || started) return
+    if (!walletId || password.length === 0 || busy || started || !sourceValidRef.current) return
     setBusy(true)
     setPreError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+      if (!sourceValidRef.current) {
         setBusy(false)
         return
       }
@@ -286,7 +294,7 @@ export default function AssetLockFundingModal({
               <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
               </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
+              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !sourceValid} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
                 {busy && <Spinner size={16} />}
                 {busy ? 'Starting…' : resume ? 'Resume' : texts.confirm}
               </Button>

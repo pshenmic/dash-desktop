@@ -30,6 +30,7 @@ import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistrati
 import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
 import {
   automaticCoinControl,
+  isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   outpointKey,
   toCoreSpendSource,
@@ -56,6 +57,7 @@ import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, ShieldedSpendState, WalletAddressDto } from "@renderer/api/types";
 import type { SendDraft } from "@renderer/types/SendDraft";
 import type { CoinControlSelection } from "@renderer/types/CoinControl";
+import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
@@ -232,13 +234,14 @@ function WalletTransferHub(): React.JSX.Element {
     shieldedNoteIndexes: spendableNotes.map(note => note.index),
   }), [coreAddresses, utxos, fundedAddresses, shieldedAddressBalances, spendableNotes])
   const appliedCoinControl = useMemo(
-    () => normalizeCoinControlSelection(coinControl, operation, coinControlInventory),
-    [coinControl, operation, coinControlInventory],
+    () => normalizeCoinControlSelection(coinControl, operation),
+    [coinControl, operation],
   )
+  const coinControlValid = isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
   useEffect(() => {
-    setCoinControl(automaticCoinControl())
-  }, [operation])
+    if (!coinControlValid) toast.error(COIN_CONTROL_INVALID_MESSAGE)
+  }, [coinControlValid])
 
   useEffect(() => {
     if (appliedCoinControl !== coinControl) setCoinControl(appliedCoinControl)
@@ -393,7 +396,7 @@ function WalletTransferHub(): React.JSX.Element {
   const needsAck = operation === TransferOperation.ShieldedWithdrawal
   const destinationReady = destinationValid && !selfSend && (!needsAck || acked)
   const coreSourceGated = fromKind === SourceKind.Core && syncIncomplete
-  const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated
+  const routeReady = operation != null && sourceReady && destinationReady && !coreSourceGated && coinControlValid
 
   const amountReady = isCoreOperation
     ? amountDuffs > 0n && coreMaxDuffs !== null && amountDuffs <= coreMaxDuffs
@@ -930,10 +933,10 @@ function WalletTransferHub(): React.JSX.Element {
         key={wizardKey}
         steps={[
           { label: 'From & To', content: routeStep, canAdvance: routeReady },
-          { label: 'Amount', content: amountStep, canAdvance: amountReady },
+          { label: 'Amount', content: amountStep, canAdvance: amountReady && coinControlValid },
           { label: 'Confirm', content: confirmStep },
         ]}
-        onSubmit={() => setConfirmOpen(true)}
+        onSubmit={() => { if (canSubmit) setConfirmOpen(true) }}
         submitLabel={info?.submitLabel ?? 'Send'}
         submitDisabled={!canSubmit}
       />
@@ -966,6 +969,7 @@ function WalletTransferHub(): React.JSX.Element {
           recipients={[{ address: trimmedTo, amountDuffs }]}
           amountFiat={amountFiat}
           source={coreSpendSource}
+          sourceValid={coinControlValid}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1002,6 +1006,7 @@ function WalletTransferHub(): React.JSX.Element {
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
+          sourceValid={coinControlValid}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.ShieldedWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
@@ -1017,6 +1022,7 @@ function WalletTransferHub(): React.JSX.Element {
           resume={false}
           kind={operation === TransferOperation.AssetLockShield ? AssetLockFundingKind.Shielded : operation === TransferOperation.IdentityRegister ? AssetLockFundingKind.Identity : operation === TransferOperation.IdentityTopUpL1 ? AssetLockFundingKind.IdentityTopUp : AssetLockFundingKind.Address}
           source={coreSpendSource}
+          sourceValid={coinControlValid}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1064,6 +1070,7 @@ function WalletTransferHub(): React.JSX.Element {
             {label: 'To', value: toDisplay, mono: true},
           ]}
           run={runPlatformOperation}
+          sourceValid={coinControlValid}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />

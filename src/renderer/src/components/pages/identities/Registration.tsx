@@ -38,11 +38,14 @@ import { amountErrorFor } from '@renderer/utils/amountValidation'
 import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, formatCredits } from '@renderer/utils/balance'
 import {
   automaticCoinControl,
+  isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   outpointKey,
   toCoreSpendSource,
   toPlatformSpendSource,
 } from '@renderer/utils/coinControl'
+import { COIN_CONTROL_INVALID_MESSAGE } from '@renderer/constants/coinControl'
+import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
 import {
   identityRegistrationAmountError,
@@ -185,12 +188,16 @@ export default function IdentityRegistration(): React.JSX.Element {
     shieldedNoteIndexes: [],
   }), [coreAddresses, utxos, fundedAddresses])
   const appliedCoinControl = useMemo(
-    () => normalizeCoinControlSelection(coinControl, operation, coinControlInventory),
-    [coinControl, operation, coinControlInventory],
+    () => normalizeCoinControlSelection(coinControl, operation),
+    [coinControl, operation],
   )
+  const coinControlValid = isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
   useEffect(() => {
-    setCoinControl(automaticCoinControl())
+    if (!coinControlValid && !successful.current) toast.error(COIN_CONTROL_INVALID_MESSAGE)
+  }, [coinControlValid])
+
+  useEffect(() => {
     setCoinControlOpen(false)
   }, [fromKind])
 
@@ -284,6 +291,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     sourceReady = !platformAddressesLoading && !platformAddressesError && fundedAddresses.length > 0
   }
   const amountReady = sourceReady
+    && coinControlValid
     && amount.length > 0
     && amountError === null
     && (fromKind === SourceKind.Core || feeCredits !== null)
@@ -343,6 +351,7 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
 
   const openNewRegistration = (): void => {
+    if (!amountReady) return
     successful.current = false
     setModalOpen(true)
   }
@@ -843,6 +852,7 @@ export default function IdentityRegistration(): React.JSX.Element {
           resume={false}
           kind={AssetLockFundingKind.Identity}
           source={coreSpendSource}
+          sourceValid={coinControlValid}
           onSuccess={handleCoreSuccess}
         />
       )}
@@ -859,6 +869,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             { label: 'Creates', value: 'New Platform identity with 4 keys' },
           ]}
           run={runPlatformRegistration}
+          sourceValid={coinControlValid}
           onSuccess={handlePlatformSuccess}
         />
       )}

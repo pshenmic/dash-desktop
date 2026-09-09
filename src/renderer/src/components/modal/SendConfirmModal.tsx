@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
@@ -22,6 +22,7 @@ interface SendConfirmModalProps {
   recipients: CoreRecipient[]
   amountFiat?: string
   source?: CoreSpendSource
+  sourceValid?: boolean
   onSuccess: () => void
 }
 
@@ -45,9 +46,12 @@ export default function SendConfirmModal({
   recipients,
   amountFiat,
   source,
+  sourceValid = true,
   onSuccess,
 }: SendConfirmModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
+  const sourceValidRef = useRef(sourceValid)
+  sourceValidRef.current = sourceValid
   const amountDuffs = recipients.reduce((sum, recipient) => sum + recipient.amountDuffs, 0n)
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
@@ -100,13 +104,17 @@ export default function SendConfirmModal({
   const lockFinal = lockPhase !== SendLockPhase.Waiting && lockPhase !== SendLockPhase.Fallback
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || sending) return
+    if (!walletId || password.length === 0 || sending || !sourceValidRef.current) return
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
         setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPhase(ConfirmModalPhase.Confirm)
+        return
+      }
+      if (!sourceValidRef.current) {
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
@@ -215,7 +223,7 @@ export default function SendConfirmModal({
               <Button
                 type={"button"}
                 onClick={handleConfirm}
-                disabled={password.length === 0 || sending}
+                disabled={password.length === 0 || sending || !sourceValid}
                 variant={"solid"}
                 colorScheme={"lightBlue-mint"}
                 size={"sm"}

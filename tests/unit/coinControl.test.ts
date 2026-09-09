@@ -7,6 +7,7 @@ import type { CoinControlInventory, CoinControlSelection } from '../../src/rende
 import {
   automaticCoinControl,
   coinControlSourceKind,
+  isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   toCoreSpendSource,
   toPlatformSpendSource,
@@ -89,14 +90,49 @@ describe('coin control', () => {
     })
   })
 
-  it('resets an incompatible route or disappeared input to automatic', () => {
+  it('resets only an incompatible route to automatic', () => {
     const core: CoinControlSelection = {kind: 'coreOutpoints', outpoints: ['tx-a:0']}
-    expect(normalizeCoinControlSelection(core, TransferOperation.AddressFundsTransfer, inventory)).toEqual(automaticCoinControl())
-    expect(normalizeCoinControlSelection(
-      {kind: 'shieldedNotes', noteIndexes: [99]},
-      TransferOperation.ShieldedTransfer,
-      inventory,
-    )).toEqual(automaticCoinControl())
+    expect(normalizeCoinControlSelection(core, TransferOperation.AddressFundsTransfer)).toEqual(automaticCoinControl())
+    expect(normalizeCoinControlSelection(core, TransferOperation.AssetLockFunding)).toBe(core)
+    expect(normalizeCoinControlSelection(core, null)).toEqual(automaticCoinControl())
+  })
+
+  it('preserves manual UTXOs while inventory is empty and validates them again after reload', () => {
+    const selection: CoinControlSelection = {kind: 'coreOutpoints', outpoints: ['tx-a:0']}
+    const applied = normalizeCoinControlSelection(selection, TransferOperation.CoreSend)
+    expect(applied).toBe(selection)
+    expect(isCoinControlSelectionValid(applied, {...inventory, coreOutpoints: []})).toBe(false)
+    expect(isCoinControlSelectionValid(applied, inventory)).toBe(true)
+    expect(toCoreSpendSource(applied, [])).toEqual({kind: 'outpoints', outpoints: []})
+  })
+
+  it('preserves Platform caps when a balance decreases rather than authorizing automatic funding', () => {
+    const selection: CoinControlSelection = {
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 5_000_000n}],
+      feeAddress: 'platform-a',
+    }
+    const applied = normalizeCoinControlSelection(selection, TransferOperation.AddressFundsTransfer)
+    expect(applied).toBe(selection)
+    expect(isCoinControlSelectionValid(applied, inventory)).toBe(true)
+    expect(isCoinControlSelectionValid(applied, {
+      ...inventory,
+      platformBalances: {'platform-a': 4_999_999n},
+    })).toBe(false)
+    expect(toPlatformSpendSource(applied)?.kind).toBe('inputs')
+  })
+
+  it.each<CoinControlSelection>([
+    {kind: 'coreAddress', address: 'missing'},
+    {kind: 'coreOutpoints', outpoints: ['tx-a:0', 'missing:1']},
+    {kind: 'platformAddress', address: 'missing'},
+    {kind: 'shieldedAddress', address: 'missing'},
+    {kind: 'shieldedNotes', noteIndexes: [4, 99]},
+    {kind: 'coreOutpoints', outpoints: ['tx-a:0', 'tx-a:0']},
+    {kind: 'shieldedNotes', noteIndexes: [4, 4]},
+    {kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 1n}], feeAddress: 'platform-b'},
+  ])('invalidates unavailable, duplicate, or incomplete manual selection $kind', selection => {
+    expect(isCoinControlSelectionValid(selection, inventory)).toBe(false)
   })
 
   it('rejects selections beyond route limits and invalid Platform input caps', () => {
@@ -108,24 +144,24 @@ describe('coin control', () => {
       ...inventory,
       platformBalances: Object.fromEntries(platformInputs.map(input => [input.address, 1n])),
     }
-    expect(normalizeCoinControlSelection({
+    expect(isCoinControlSelectionValid({
       kind: 'platformInputs',
       inputs: platformInputs,
       feeAddress: platformInputs[0].address,
-    }, TransferOperation.AddressFundsTransfer, platformInventory)).toEqual(automaticCoinControl())
+    }, platformInventory)).toBe(false)
 
-    expect(normalizeCoinControlSelection({
+    expect(isCoinControlSelectionValid({
       kind: 'platformInputs',
       inputs: [{address: 'platform-a', credits: 5_000_001n}],
       feeAddress: 'platform-a',
-    }, TransferOperation.AddressFundsTransfer, inventory)).toEqual(automaticCoinControl())
+    }, inventory)).toBe(false)
 
-    expect(normalizeCoinControlSelection({
+    expect(isCoinControlSelectionValid({
       kind: 'shieldedNotes',
       noteIndexes: Array.from({length: SHIELDED_NOTE_LIMIT + 1}, (_, index) => index),
-    }, TransferOperation.ShieldedTransfer, {
+    }, {
       ...inventory,
       shieldedNoteIndexes: Array.from({length: SHIELDED_NOTE_LIMIT + 1}, (_, index) => index),
-    })).toEqual(automaticCoinControl())
+    })).toBe(false)
   })
 })
