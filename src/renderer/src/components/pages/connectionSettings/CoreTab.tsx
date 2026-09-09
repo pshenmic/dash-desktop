@@ -292,7 +292,6 @@ function PeerRow({
       id: 'remove-dynamic',
       label: PEER_ACTION_LABELS.remove,
       icon: <DeleteIcon size={10} color="currentColor" />,
-      tone: 'danger',
       onSelect: () => onAction('remove-dynamic', row),
     })
   } else if (tab === 'static') {
@@ -300,7 +299,6 @@ function PeerRow({
       id: 'remove-static',
       label: PEER_ACTION_LABELS.remove,
       icon: <DeleteIcon size={10} color="currentColor" />,
-      tone: 'danger',
       onSelect: () => onAction('remove-static', row),
     })
   } else if (tab === 'banned') {
