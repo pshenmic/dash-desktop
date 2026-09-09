@@ -47,10 +47,10 @@ describe('peer table rows', () => {
       network: 'mainnet',
       connectedPeers: [
         {pool: 'lock-pool', host: '127.0.0.1', port: 9999, userAgent: '/Dash Core:23.0.2/', pingMs: 12.6},
-        {pool: 'bulk-pool', host: '2001:db8::2', port: 9999, userAgent: null, pingMs: null},
+        {pool: 'bulk-pool', host: '2001:db8::2', port: 9999, userAgent: '/Dash Core:22.1.0/', pingMs: 48.4},
       ],
       dynamicPeers: ['127.0.0.1', '127.0.0.3'],
-      staticPeers: ['[2001:db8::4]:9999'],
+      staticPeers: ['[2001:db8::2]:9999', '[2001:db8::4]:9999'],
       bannedPeers: ['127.0.0.5:9999'],
     })
 
@@ -65,8 +65,8 @@ describe('peer table rows', () => {
     expect(rows.active[1]).toMatchObject({
       id: expect.stringContaining('active:connected:bulk-pool:'),
       peer: '[2001:db8::2]:9999',
-      userAgent: '—',
-      pingTime: '—',
+      userAgent: '/Dash Core:22.1.0/',
+      pingTime: '48 ms',
       configuredList: null,
     })
     expect(rows.active[2]).toMatchObject({
@@ -79,7 +79,18 @@ describe('peer table rows', () => {
     })
     expect(rows.static[0]).toMatchObject({
       id: expect.stringContaining('static:'),
+      peer: '[2001:db8::2]:9999',
+      connected: true,
+      pool: 'bulk-pool',
+      userAgent: '/Dash Core:22.1.0/',
+      pingTime: '48 ms',
+      configuredList: 'static',
+    })
+    expect(rows.static[1]).toMatchObject({
+      id: expect.stringContaining('static:'),
       peer: '[2001:db8::4]:9999',
+      connected: false,
+      pool: null,
       configuredList: 'static',
     })
     expect(rows.banned[0]).toMatchObject({

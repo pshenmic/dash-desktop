@@ -133,6 +133,18 @@ export const PEER_TABLE_TABS: PeerTableTabDefinition[] = [
   {value: 'static', label: 'Static'},
 ]
 
+export const PEER_TABLE_COLUMN_LABELS: Record<PeerTableTab, readonly string[]> = {
+  active: ['Peers', 'User Agent', 'Ping Time'],
+  static: ['Peers', 'Status', 'Connection Details'],
+  banned: ['Peers', 'Status'],
+}
+
+export const PEER_TABLE_GRID_CLASS_NAMES: Record<PeerTableTab, string> = {
+  active: 'grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem]',
+  static: 'grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)_minmax(0,1fr)]',
+  banned: 'grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]',
+}
+
 export const PEER_TABLE_ACTION_LABELS: Record<PeerTableTab, string> = {
   active: 'Add Peer',
   banned: 'Ban Peer',
@@ -189,6 +201,21 @@ export const STATIC_PEER_MODE_ENABLED_MESSAGE = 'Static peer mode enabled.'
 export const DYNAMIC_PEER_MODE_ENABLED_MESSAGE = 'Dynamic peer mode enabled.'
 
 export const PEER_UNAVAILABLE_LABEL = '—'
+
+export const STATIC_PEER_STATUS_LABELS = {
+  connected: 'Connected',
+  connectedDynamic: 'Connected dynamically',
+  saved: 'Saved',
+  disconnected: 'Not connected',
+} as const
+
+export const STATIC_PEER_DETAILS_LABELS = {
+  pending: 'Waiting for handshake',
+  saved: 'Used when Static mode is enabled',
+  disconnected: 'Connection not established',
+} as const
+
+export const BANNED_PEER_STATUS_LABEL = 'Banned'
 
 export const PEER_POLL_INTERVAL_MS = 4_000
 

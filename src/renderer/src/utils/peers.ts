@@ -1,4 +1,4 @@
-import type {Network} from '@renderer/api/types'
+import type {Network, PeerInfo} from '@renderer/api/types'
 import {DEFAULT_PEER_PORTS, PEER_UNAVAILABLE_LABEL} from '@renderer/constants/connection'
 import type {PeerTableRow, PeerTableSources, PeerTableTab} from '@renderer/types/connection'
 
@@ -84,12 +84,14 @@ export function buildPeerTableRows({
     uniqueDynamicPeers.map(entry => [peerIdentity(entry, network), entry]),
   )
   const connectedIdentities = new Set<string>()
+  const connectedByIdentity = new Map<string, PeerInfo>()
 
   const active = connectedPeers.map((peer): PeerTableRow => {
     const address = formatPeerAddress(peer.host, peer.port)
     const identity = peerIdentity(address, network)
     const dynamicEntry = dynamicByIdentity.get(identity) ?? null
     connectedIdentities.add(identity)
+    connectedByIdentity.set(identity, peer)
     return {
       id: dynamicEntry === null
         ? `active:connected:${peer.pool}:${identity}`
@@ -124,16 +126,24 @@ export function buildPeerTableRows({
   const configuredRows = (
     entries: string[],
     tab: 'static' | 'banned',
-  ): PeerTableRow[] => dedupePeerEntries(entries, network).map(entry => ({
-    id: `${tab}:${peerIdentity(entry, network)}`,
-    entry,
-    peer: formatPeerEntry(entry, network),
-    userAgent: PEER_UNAVAILABLE_LABEL,
-    pingTime: PEER_UNAVAILABLE_LABEL,
-    pool: null,
-    connected: false,
-    configuredList: tab,
-  }))
+  ): PeerTableRow[] => dedupePeerEntries(entries, network).map(entry => {
+    const identity = peerIdentity(entry, network)
+    const connectedPeer = tab === 'static' ? connectedByIdentity.get(identity) : undefined
+    return {
+      id: `${tab}:${identity}`,
+      entry,
+      peer: formatPeerEntry(entry, network),
+      userAgent: connectedPeer?.userAgent ?? PEER_UNAVAILABLE_LABEL,
+      pingTime: connectedPeer?.pingMs === null
+        || connectedPeer?.pingMs === undefined
+        || !Number.isFinite(connectedPeer.pingMs)
+        ? PEER_UNAVAILABLE_LABEL
+        : `${Math.round(connectedPeer.pingMs)} ms`,
+      pool: connectedPeer?.pool ?? null,
+      connected: connectedPeer !== undefined,
+      configuredList: tab,
+    }
+  })
 
   return {
     active,

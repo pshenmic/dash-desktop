@@ -15,6 +15,7 @@ import {useAuth} from '@renderer/contexts/AuthContext'
 import {useConnectionModeContext} from '@renderer/contexts/ConnectionModeContext'
 import {
   ADD_PEER_PLACEHOLDER,
+  BANNED_PEER_STATUS_LABEL,
   CONNECTION_SETTINGS_TOOLTIPS,
   CORE_CONNECTION_MODE_LABELS,
   CORE_CONNECTION_MODE_OPTIONS,
@@ -29,20 +30,25 @@ import {
   PEER_NETWORK_REQUIRED_LABEL,
   PEER_REMOVED_MESSAGE,
   PEER_SAVING_LABEL,
+  PEER_TABLE_COLUMN_LABELS,
+  PEER_TABLE_GRID_CLASS_NAMES,
   PEER_TABLE_ACTION_LABELS,
   PEER_TABLE_EMPTY_LABEL,
   PEER_TABLE_LOADING_LABEL,
   PEER_TABLE_TABS,
   PEER_UNBANNED_MESSAGE,
+  PEER_UNAVAILABLE_LABEL,
   RPC_CONNECTION_NAME,
   RPC_CONNECTION_OPTIONS,
   STATIC_PEER_ADDED_MESSAGE,
   STATIC_PEER_ALREADY_ADDED_MESSAGE,
+  STATIC_PEER_DETAILS_LABELS,
   STATIC_PEER_MODE_ENABLED_MESSAGE,
   STATIC_PEER_READY_MESSAGE,
   STATIC_PEER_REQUIRED_MESSAGE,
+  STATIC_PEER_STATUS_LABELS,
 } from '@renderer/constants/connection'
-import {WalletSyncPhase} from '@renderer/api/types'
+import {WalletSyncPhase, type PeerMode} from '@renderer/api/types'
 import {API} from '@renderer/api'
 import {toast} from '@renderer/components/ui/Toast'
 import {isWalletSyncInactive} from '@renderer/utils/walletSync'
@@ -183,10 +189,12 @@ function WalletConnectionSelector({
 
 function AddPeerForm({
   pendingLabel,
+  tab,
   onClose,
   onSubmit,
 }: {
   pendingLabel: string
+  tab: PeerTableTab
   onClose: () => void
   onSubmit: (peer: string) => Promise<void>
 }): React.JSX.Element {
@@ -211,7 +219,7 @@ function AddPeerForm({
         event.preventDefault()
         void submit()
       }}
-      className="grid min-h-[3.625rem] grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10"
+      className={`grid min-h-[3.625rem] ${PEER_TABLE_GRID_CLASS_NAMES[tab]} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10`}
     >
       <div className="flex min-w-0 items-center gap-2">
         <input
@@ -252,11 +260,13 @@ function AddPeerForm({
 }
 
 function PeerRow({
+  configuredMode,
   disabled,
   row,
   tab,
   onAction,
 }: {
+  configuredMode: PeerMode | null
   disabled: boolean
   row: PeerTableRow
   tab: PeerTableTab
@@ -305,13 +315,35 @@ function PeerRow({
   const offlineDynamic = tab === 'active'
     && row.configuredList === 'dynamic'
     && !row.connected
+  const liveDetails = [row.userAgent, row.pingTime]
+    .filter(value => value !== PEER_UNAVAILABLE_LABEL)
+    .join(' · ')
+  const staticStatus = row.connected
+    ? configuredMode === 'dynamic'
+      ? STATIC_PEER_STATUS_LABELS.connectedDynamic
+      : STATIC_PEER_STATUS_LABELS.connected
+    : configuredMode === 'dynamic'
+      ? STATIC_PEER_STATUS_LABELS.saved
+      : STATIC_PEER_STATUS_LABELS.disconnected
+  const staticDetails = row.connected
+    ? liveDetails || STATIC_PEER_DETAILS_LABELS.pending
+    : configuredMode === 'dynamic'
+      ? STATIC_PEER_DETAILS_LABELS.saved
+      : STATIC_PEER_DETAILS_LABELS.disconnected
+  const rowAriaLabel = tab === 'static'
+    ? `${row.peer}, ${staticStatus}`
+    : tab === 'banned'
+      ? `${row.peer}, ${BANNED_PEER_STATUS_LABEL.toLowerCase()}`
+      : offlineDynamic
+        ? `${row.peer}, configured but not connected`
+        : row.peer
   const content = (
     <div
       tabIndex={disabled ? -1 : 0}
-      aria-label={offlineDynamic ? `${row.peer}, configured but not connected` : row.peer}
+      aria-label={rowAriaLabel}
       title={offlineDynamic ? 'Configured dynamic peer is not connected' : undefined}
       className={`
-        grid min-h-[3.625rem] grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 outline-none transition-colors dark:border-white/10
+        grid min-h-[3.625rem] ${PEER_TABLE_GRID_CLASS_NAMES[tab]} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 outline-none transition-colors dark:border-white/10
         ${disabled ? 'cursor-wait opacity-60' : 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'}
         ${offlineDynamic ? 'bg-dash-orange/8 dark:bg-dash-orange/10' : ''}
       `}
@@ -324,12 +356,43 @@ function PeerRow({
       >
         {row.peer}
       </Text>
-      <Text size={14} weight="medium" color="brand" className="truncate">
-        {row.userAgent}
-      </Text>
-      <Text size={14} weight="medium" color="brand" className="justify-self-end whitespace-nowrap">
-        {row.pingTime}
-      </Text>
+      {tab === 'active' && (
+        <>
+          <Text size={14} weight="medium" color="brand" className="truncate">
+            {row.userAgent}
+          </Text>
+          <Text size={14} weight="medium" color="brand" className="justify-self-end whitespace-nowrap">
+            {row.pingTime}
+          </Text>
+        </>
+      )}
+      {tab === 'static' && (
+        <>
+          <Text
+            size={12}
+            weight="medium"
+            className={`inline-flex w-fit rounded-full px-2.5 py-1 ${row.connected ? 'bg-dash-green-15 text-dash-green!' : 'bg-dash-orange/10 text-dash-orange!'}`}
+          >
+            {staticStatus}
+          </Text>
+          <div className="truncate" title={staticDetails}>
+            <Text size={12} weight="medium" color="brand" opacity={60}>
+              {staticDetails}
+            </Text>
+          </div>
+        </>
+      )}
+      {tab === 'banned' && (
+        <Text
+          size={12}
+          weight="medium"
+          color="brand"
+          opacity={60}
+          className="inline-flex w-fit rounded-full bg-dash-primary-dark-blue/8 px-2.5 py-1 dark:bg-white/8"
+        >
+          {BANNED_PEER_STATUS_LABEL}
+        </Text>
+      )}
     </div>
   )
 
@@ -349,7 +412,7 @@ export default function CoreTab(): React.JSX.Element {
   const [peerTab, setPeerTab] = useState<PeerTableTab>('active')
   const [rpcConnection, setRpcConnection] = useState(RPC_CONNECTION_NAME)
   const [addPeerOpen, setAddPeerOpen] = useState(false)
-  const peerSettings = usePeerSettings(network, peerTab === 'active')
+  const peerSettings = usePeerSettings(network, peerTab !== 'banned')
   const syncPending = pendingSyncAction !== null
   const peerMutationPending = peerSettings.pending !== null
   const peerRows = useMemo(() => {
@@ -615,20 +678,24 @@ export default function CoreTab(): React.JSX.Element {
         )}
 
         <div className="overflow-hidden rounded-[1.25rem] border border-dash-primary-dark-blue/15 dark:border-white/15">
-          <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_5.5rem] items-center gap-3 px-[.9375rem] py-3">
-            <Text size={12} weight="normal" color="brand" opacity={50}>
-              Peers
-            </Text>
-            <Text size={12} weight="normal" color="brand" opacity={50}>
-              User Agent
-            </Text>
-            <Text size={12} weight="normal" color="brand" opacity={50} className="justify-self-end whitespace-nowrap">
-              Ping Time
-            </Text>
+          <div className={`grid ${PEER_TABLE_GRID_CLASS_NAMES[peerTab]} items-center gap-3 px-[.9375rem] py-3`}>
+            {PEER_TABLE_COLUMN_LABELS[peerTab].map((label, index) => (
+              <Text
+                key={label}
+                size={12}
+                weight="normal"
+                color="brand"
+                opacity={50}
+                className={peerTab === 'active' && index === 2 ? 'justify-self-end whitespace-nowrap' : ''}
+              >
+                {label}
+              </Text>
+            ))}
           </div>
           {addPeerOpen && (
             <AddPeerForm
               pendingLabel={peerTab === 'static' ? PEER_CHECKING_LABEL : PEER_SAVING_LABEL}
+              tab={peerTab}
               onClose={() => setAddPeerOpen(false)}
               onSubmit={handleAddPeer}
             />
@@ -636,6 +703,7 @@ export default function CoreTab(): React.JSX.Element {
           {peerRows.map((row) => (
             <PeerRow
               key={row.id}
+              configuredMode={peerSettings.configuredMode}
               disabled={peerMutationPending}
               row={row}
               tab={peerTab}
