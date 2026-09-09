@@ -15,11 +15,6 @@ import { creditsToDuffs, davToDashCompact, duffsToCredits } from './balance'
 
 export const automaticCoinControl = (): CoinControlSelection => ({kind: 'automatic'})
 
-export function parsePlatformInputCredits(value: string): bigint | null {
-  if (/[^0-9]/.test(value)) return null
-  return BigInt(value || '0')
-}
-
 export function buildCoinControlInventory(funds: CoinControlFunds): CoinControlInventory {
   const notes = funds.shieldedNotes.filter(note => !note.spent)
   return {

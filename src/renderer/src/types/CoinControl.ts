@@ -78,6 +78,13 @@ export interface CoinControlEmptyProps {
   text: string
 }
 
+export interface CoinControlAmountInputProps {
+  id: string
+  credits: bigint
+  invalid: boolean
+  onChange: (credits: bigint) => void
+}
+
 export interface CoinControlAddressValueProps {
   address: string
   detail: ReactNode
