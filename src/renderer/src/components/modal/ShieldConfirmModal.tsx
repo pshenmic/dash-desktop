@@ -93,7 +93,9 @@ export default function ShieldConfirmModal({
     onClose()
   }
 
-  const confirmLabel = shielding ? 'Shielding…' : !proverReady ? 'Preparing…' : 'Confirm & Shield'
+  let confirmLabel = 'Confirm & Shield'
+  if (shielding) confirmLabel = 'Shielding…'
+  else if (!proverReady) confirmLabel = 'Preparing…'
 
   return createPortal(
     <div

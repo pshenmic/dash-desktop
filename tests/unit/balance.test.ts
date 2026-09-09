@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, formatCompactCredits } from '../../src/renderer/src/utils/balance'
+import { compareBigIntsDescending, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, formatCompactCredits } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
+
+describe('compareBigIntsDescending', () => {
+  it('orders close values beyond Number precision without disturbing equal values', () => {
+    expect([9_007_199_254_740_992n, 0n, 9_007_199_254_740_993n].sort(compareBigIntsDescending)).toEqual([
+      9_007_199_254_740_993n, 9_007_199_254_740_992n, 0n,
+    ])
+    expect(compareBigIntsDescending(9_007_199_254_740_993n, 9_007_199_254_740_993n)).toBe(0)
+  })
+})
 
 describe('creditsToDuffs', () => {
   it('converts at 1000 credits per duff', () => {

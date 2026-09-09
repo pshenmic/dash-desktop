@@ -156,7 +156,11 @@ export default function ShieldedSpendModal({
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = BigInt(sentAmount || amountCredits || '0')
-  const confirmLabel = busy ? 'Starting…' : !proverReady ? 'Preparing…' : 'Confirm & Send'
+  let confirmLabel = 'Confirm & Send'
+  if (busy) confirmLabel = 'Starting…'
+  else if (!proverReady) confirmLabel = 'Preparing…'
+  let modalTitle = title
+  if (isDone) modalTitle = spend?.identityId ? 'Identity created' : 'Sent privately'
 
   return createPortal(
     <div
@@ -167,7 +171,7 @@ export default function ShieldedSpendModal({
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
-            {isDone ? (spend?.identityId ? 'Identity created' : 'Sent privately') : title}
+            {modalTitle}
           </Text>
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
@@ -241,11 +245,9 @@ export default function ShieldedSpendModal({
                 return (
                   <div key={p.key} className={"flex flex-col gap-1.5"}>
                     <div className={"flex items-center gap-2"}>
-                      {done
-                        ? <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
-                        : active
-                          ? <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-                          : <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
+                      {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
+                      {!done && active && <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />}
+                      {!done && !active && <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
                       <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{p.label}</Text>
                     </div>
                     {active && p.key === ShieldedSpendPhase.Syncing && spend.total > 0 && (

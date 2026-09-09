@@ -10,9 +10,11 @@ import {
   coinControlSelectionSummary,
   coinControlSelectionTotals,
   coinControlSourceKind,
+  coreSpendSourceKey,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   parsePlatformInputCredits,
+  platformSpendSourceKey,
   toCoreSpendSource,
   toPlatformSpendSource,
   toShieldedSpendSource,
@@ -47,6 +49,22 @@ const funds: CoinControlFunds = {
 }
 
 describe('coin control', () => {
+  it('preserves Core fee-cache keys for automatic, address and ordered outpoint sources', () => {
+    expect(coreSpendSourceKey(null)).toBe('')
+    expect(coreSpendSourceKey({kind: 'address', address: 'core-a'})).toBe('core-a')
+    expect(coreSpendSourceKey({kind: 'outpoints', outpoints: [{txid: 'tx-b', vout: 1}, {txid: 'tx-a', vout: 0}]})).toBe('tx-b:1,tx-a:0')
+  })
+
+  it('preserves Platform fee-cache keys including exact caps and ordered fee strategies', () => {
+    expect(platformSpendSourceKey(null)).toBe('')
+    expect(platformSpendSourceKey({kind: 'address', address: 'platform-a'})).toBe('platform-a')
+    expect(platformSpendSourceKey({
+      kind: 'inputs',
+      inputs: [{address: 'platform-b', credits: 9_007_199_254_740_993n}, {address: 'platform-a', credits: 1n}],
+      feeStrategy: [{kind: 'reduceOutput', index: 0}, {kind: 'deductFromInput', address: 'platform-b'}],
+    })).toBe('platform-b:9007199254740993,platform-a:1|0,platform-b')
+  })
+
   it('builds validation inventory without spent notes and duplicate shielded addresses', () => {
     expect(buildCoinControlInventory(funds)).toEqual(inventory)
   })

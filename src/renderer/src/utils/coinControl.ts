@@ -214,6 +214,23 @@ export function toCoreSpendSource(
   }
 }
 
+export function coreSpendSourceKey(source: CoreSpendSource | null): string {
+  if (source == null) return ''
+  if (source.kind === 'address') return source.address
+  return source.outpoints.map(outpointKey).join(',')
+}
+
+export function platformSpendSourceKey(source: PlatformSpendSource | null): string {
+  if (source == null) return ''
+  if (source.kind === 'address') return source.address
+  const inputs = source.inputs.map(input => `${input.address}:${input.credits}`).join(',')
+  const feeStrategy = source.feeStrategy.map(step => {
+    if (step.kind === 'deductFromInput') return step.address
+    return step.index
+  }).join(',')
+  return `${inputs}|${feeStrategy}`
+}
+
 export function toPlatformSpendSource(selection: CoinControlSelection): PlatformSpendSource | null {
   if (selection.kind === 'platformAddress') return {kind: 'address', address: selection.address}
   if (selection.kind !== 'platformInputs') return null

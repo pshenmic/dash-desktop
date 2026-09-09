@@ -7,6 +7,12 @@ export function creditsToDuffs(credits: bigint): bigint {
   return sign * (abs / CREDITS_PER_DUFF)
 }
 
+export function compareBigIntsDescending(a: bigint, b: bigint): number {
+  if (a < b) return 1
+  if (a > b) return -1
+  return 0
+}
+
 export function duffsToCredits(duffs: bigint): bigint {
   return duffs * CREDITS_PER_DUFF
 }

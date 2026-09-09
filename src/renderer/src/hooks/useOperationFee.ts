@@ -4,6 +4,7 @@ import { OperationFee, OperationFeeParams } from '@renderer/api/types'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { NO_OPERATION_FEE, TRANSITION_FEE_DEBOUNCE_MS, TRANSITION_FEE_ERROR } from '@renderer/constants'
 import { invalidateAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
+import { coreSpendSourceKey, platformSpendSourceKey } from '@renderer/utils/coinControl'
 
 // Every fee comes from the backend. This only decides when to ask: not before
 // the destination parses, and not on every keystroke.
@@ -15,17 +16,8 @@ export function useOperationFee(
   const { destinationValid, amountCredits, amountDuffs, recipient, coreSource, platformSource, identityId, shieldedSource } = params
 
   const noteKey = shieldedSource == null ? '' : `${shieldedSource.kind}:${shieldedSource.noteIndexes.join(',')}`
-  const platformSourceKey = platformSource == null
-    ? ''
-    : platformSource.kind === 'address'
-      ? platformSource.address
-      : platformSource.inputs.map(input => `${input.address}:${input.credits}`).join(',')
-      + `|${platformSource.feeStrategy.map(step => step.kind === 'deductFromInput' ? step.address : step.index).join(',')}`
-  const coreSourceKey = coreSource == null
-    ? ''
-    : coreSource.kind === 'address'
-      ? coreSource.address
-      : coreSource.outpoints.map(outpoint => `${outpoint.txid}:${outpoint.vout}`).join(',')
+  const platformSourceKey = platformSpendSourceKey(platformSource)
+  const coreSourceKey = coreSpendSourceKey(coreSource)
 
   const pending = useMemo(
     () => {
