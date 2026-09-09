@@ -182,18 +182,15 @@ function AddPeerForm({
 }): React.JSX.Element {
   const [peer, setPeer] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [submissionError, setSubmissionError] = useState<string | null>(null)
 
   const submit = async (): Promise<void> => {
     const trimmed = peer.trim()
     if (trimmed.length === 0 || submitting) return
     setSubmitting(true)
-    setSubmissionError(null)
     try {
       await onSubmit(trimmed)
       onClose()
-    } catch (error) {
-      setSubmissionError(getErrorMessage(error))
+    } catch {
       setSubmitting(false)
     }
   }
@@ -210,8 +207,6 @@ function AddPeerForm({
         <input
           type="text"
           aria-label="Peer address"
-          aria-invalid={submissionError !== null}
-          aria-describedby={submissionError === null ? undefined : 'peer-form-error'}
           placeholder={ADD_PEER_PLACEHOLDER}
           value={peer}
           disabled={submitting}
@@ -237,20 +232,9 @@ function AddPeerForm({
           <CloseIcon size={10} color="currentColor" />
         </button>
       </div>
-      <div
-        id="peer-form-error"
-        aria-live="polite"
-        className="truncate"
-        title={submissionError ?? undefined}
-      >
-        <Text
-          as="p"
-          size={12}
-          weight="medium"
-          color="brand"
-          className={`truncate ${submissionError === null ? '' : 'text-dash-red!'}`}
-        >
-          {submissionError ?? (submitting ? pendingLabel : '')}
+      <div aria-live="polite" className="truncate">
+        <Text as="p" size={12} weight="medium" color="brand" className="truncate">
+          {submitting ? pendingLabel : ''}
         </Text>
       </div>
     </form>
@@ -468,7 +452,7 @@ export default function CoreTab(): React.JSX.Element {
       }
     } catch (error) {
       console.error('add peer failed', error)
-      toast.error(`**Could not add peer** ${getErrorMessage(error)}`)
+      toast.error(getErrorMessage(error))
       throw error
     }
   }
