@@ -31,7 +31,10 @@ const readWindowState = (): WindowState | null => {
 
 const saveWindowState = (window: BrowserWindow): void => {
   try {
-    const state: WindowState = { ...window.getNormalBounds(), maximized: window.isMaximized() }
+    const maximized = window.isMinimized()
+      ? readWindowState()?.maximized ?? false
+      : window.isMaximized()
+    const state: WindowState = { ...window.getNormalBounds(), maximized }
     writeFileSync(windowStatePath, JSON.stringify(state))
   } catch (err) {
     console.error('[window-state] save failed:', err)
@@ -62,13 +65,22 @@ const createWindow = (): void => {
       mainWindow?.maximize()
     }
     mainWindow?.show()
-  })
-
-  mainWindow.on('close', () => {
     if (mainWindow) {
       saveWindowState(mainWindow)
     }
   })
+
+  const persistWindowState = (): void => {
+    if (mainWindow) {
+      saveWindowState(mainWindow)
+    }
+  }
+  mainWindow.on('moved', persistWindowState)
+  mainWindow.on('resized', persistWindowState)
+  mainWindow.on('maximize', persistWindowState)
+  mainWindow.on('unmaximize', persistWindowState)
+  mainWindow.on('close', persistWindowState)
+  mainWindow.on('session-end', persistWindowState)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
