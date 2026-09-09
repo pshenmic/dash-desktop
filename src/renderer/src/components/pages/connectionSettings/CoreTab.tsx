@@ -18,17 +18,27 @@ import {
   CONNECTION_SETTINGS_TOOLTIPS,
   CORE_CONNECTION_MODE_LABELS,
   CORE_CONNECTION_MODE_OPTIONS,
+  DYNAMIC_PEER_ADDED_MESSAGE,
+  DYNAMIC_PEER_ALREADY_ADDED_MESSAGE,
+  DYNAMIC_PEER_MODE_ENABLED_MESSAGE,
   PEER_ACTION_LABELS,
   PEER_ACTION_MENU_TITLE,
+  PEER_ALREADY_BANNED_MESSAGE,
+  PEER_BANNED_MESSAGE,
   PEER_CHECKING_LABEL,
   PEER_NETWORK_REQUIRED_LABEL,
+  PEER_REMOVED_MESSAGE,
   PEER_SAVING_LABEL,
   PEER_TABLE_ACTION_LABELS,
   PEER_TABLE_EMPTY_LABEL,
   PEER_TABLE_LOADING_LABEL,
   PEER_TABLE_TABS,
+  PEER_UNBANNED_MESSAGE,
   RPC_CONNECTION_NAME,
   RPC_CONNECTION_OPTIONS,
+  STATIC_PEER_ADDED_MESSAGE,
+  STATIC_PEER_ALREADY_ADDED_MESSAGE,
+  STATIC_PEER_MODE_ENABLED_MESSAGE,
   STATIC_PEER_READY_MESSAGE,
   STATIC_PEER_REQUIRED_MESSAGE,
 } from '@renderer/constants/connection'
@@ -310,7 +320,7 @@ function PeerRow({
         size={14}
         weight="medium"
         color="brand"
-        className={`truncate ${offlineDynamic ? 'text-dash-orange!' : ''}`}
+        className={`cursor-text select-text truncate ${offlineDynamic ? 'text-dash-orange!' : ''}`}
       >
         {row.peer}
       </Text>
@@ -339,7 +349,6 @@ export default function CoreTab(): React.JSX.Element {
   const [peerTab, setPeerTab] = useState<PeerTableTab>('active')
   const [rpcConnection, setRpcConnection] = useState(RPC_CONNECTION_NAME)
   const [addPeerOpen, setAddPeerOpen] = useState(false)
-  const [peerInstruction, setPeerInstruction] = useState<string | null>(null)
   const peerSettings = usePeerSettings(network, peerTab === 'active')
   const syncPending = pendingSyncAction !== null
   const peerMutationPending = peerSettings.pending !== null
@@ -372,8 +381,11 @@ export default function CoreTab(): React.JSX.Element {
 
   useEffect(() => {
     setAddPeerOpen(false)
-    setPeerInstruction(null)
   }, [network])
+
+  useEffect(() => {
+    if (peerSettings.error !== null) toast.error(peerSettings.error)
+  }, [peerSettings.error])
 
   const handleStartSync = async (): Promise<void> => {
     if (!walletId || syncPending || !syncInactive) return
@@ -415,7 +427,6 @@ export default function CoreTab(): React.JSX.Element {
     if (enabling && peerSettings.staticPeers.length === 0) {
       setPeerTab('static')
       setAddPeerOpen(true)
-      setPeerInstruction(STATIC_PEER_REQUIRED_MESSAGE)
       toast.warning(`**Static peer required** ${STATIC_PEER_REQUIRED_MESSAGE}`)
       return
     }
@@ -423,14 +434,15 @@ export default function CoreTab(): React.JSX.Element {
     peerSettings.clearError()
     try {
       await peerSettings.setMode(enabling ? 'static' : 'dynamic')
-      setPeerInstruction(null)
+      toast.success(
+        enabling ? STATIC_PEER_MODE_ENABLED_MESSAGE : DYNAMIC_PEER_MODE_ENABLED_MESSAGE,
+      )
       if (enabling) {
         setPeerTab('static')
         setAddPeerOpen(false)
       }
     } catch (error) {
       console.error('set peer mode failed', error)
-      toast.error(`**Could not change peer mode** ${getErrorMessage(error)}`)
     }
   }
 
@@ -443,16 +455,28 @@ export default function CoreTab(): React.JSX.Element {
   const handleAddPeer = async (peer: string): Promise<void> => {
     peerSettings.clearError()
     try {
-      if (peerTab === 'active') await peerSettings.addDynamicPeer(peer)
-      else if (peerTab === 'static') await peerSettings.addStaticPeer(peer)
-      else await peerSettings.banPeer(peer)
-
-      if (peerTab === 'static' && peerSettings.configuredMode !== 'static') {
-        setPeerInstruction(STATIC_PEER_READY_MESSAGE)
+      if (peerTab === 'active') {
+        const added = await peerSettings.addDynamicPeer(peer)
+        if (added) toast.success(DYNAMIC_PEER_ADDED_MESSAGE)
+        else toast.warning(DYNAMIC_PEER_ALREADY_ADDED_MESSAGE)
+      } else if (peerTab === 'static') {
+        const added = await peerSettings.addStaticPeer(peer)
+        if (!added) {
+          toast.warning(STATIC_PEER_ALREADY_ADDED_MESSAGE)
+          return
+        }
+        toast.success(
+          peerSettings.configuredMode === 'static'
+            ? STATIC_PEER_ADDED_MESSAGE
+            : STATIC_PEER_READY_MESSAGE,
+        )
+      } else {
+        const banned = await peerSettings.banPeer(peer)
+        if (banned) toast.success(PEER_BANNED_MESSAGE)
+        else toast.warning(PEER_ALREADY_BANNED_MESSAGE)
       }
     } catch (error) {
       console.error('add peer failed', error)
-      toast.error(getErrorMessage(error))
       throw error
     }
   }
@@ -460,14 +484,33 @@ export default function CoreTab(): React.JSX.Element {
   const handlePeerAction = async (action: PeerRowAction, row: PeerTableRow): Promise<void> => {
     peerSettings.clearError()
     try {
-      if (action === 'ban') await peerSettings.banPeer(row.peer)
-      else if (action === 'add-static') await peerSettings.addStaticPeer(row.peer)
-      else if (action === 'remove-dynamic') await peerSettings.removeDynamicPeer(row.entry)
-      else if (action === 'remove-static') await peerSettings.removeStaticPeer(row.entry)
-      else await peerSettings.unbanPeer(row.entry)
+      if (action === 'ban') {
+        const banned = await peerSettings.banPeer(row.peer)
+        if (banned) toast.success(PEER_BANNED_MESSAGE)
+        else toast.warning(PEER_ALREADY_BANNED_MESSAGE)
+      } else if (action === 'add-static') {
+        const added = await peerSettings.addStaticPeer(row.peer)
+        if (!added) {
+          toast.warning(STATIC_PEER_ALREADY_ADDED_MESSAGE)
+          return
+        }
+        toast.success(
+          peerSettings.configuredMode === 'static'
+            ? STATIC_PEER_ADDED_MESSAGE
+            : STATIC_PEER_READY_MESSAGE,
+        )
+      } else if (action === 'remove-dynamic') {
+        await peerSettings.removeDynamicPeer(row.entry)
+        toast.success(PEER_REMOVED_MESSAGE)
+      } else if (action === 'remove-static') {
+        await peerSettings.removeStaticPeer(row.entry)
+        toast.success(PEER_REMOVED_MESSAGE)
+      } else {
+        await peerSettings.unbanPeer(row.entry)
+        toast.success(PEER_UNBANNED_MESSAGE)
+      }
     } catch (error) {
       console.error('peer action failed', error)
-      toast.error(`**Could not update peer** ${getErrorMessage(error)}`)
     }
   }
 
@@ -563,35 +606,6 @@ export default function CoreTab(): React.JSX.Element {
           </Button>
         </div>
 
-        {peerInstruction !== null && (
-          <div
-            role="status"
-            className="mb-3 rounded-[.75rem] border border-dash-orange/40 bg-dash-orange/8 px-4 py-2 dark:bg-dash-orange/10"
-          >
-            <Text as="p" size={12} weight="medium" className="text-dash-orange!">
-              {peerInstruction}
-            </Text>
-          </div>
-        )}
-        {peerSettings.error !== null && (
-          <div
-            role="alert"
-            className="mb-3 flex items-center justify-between gap-3 rounded-[.75rem] border border-dash-red/30 bg-dash-red/5 px-4 py-2 dark:bg-dash-red/10"
-          >
-            <Text as="p" size={12} weight="medium" className="text-dash-red!">
-              {peerSettings.error}
-            </Text>
-            {!peerSettings.settingsReady && network !== null && (
-              <button
-                type="button"
-                onClick={peerSettings.reload}
-                className="shrink-0 cursor-pointer text-xs font-medium text-dash-red underline"
-              >
-                Retry
-              </button>
-            )}
-          </div>
-        )}
         {peerSettings.pending === 'add-static' && !addPeerOpen && (
           <div className="mb-3 px-1" role="status">
             <Text size={12} weight="medium" color="brand" opacity={50}>

@@ -85,11 +85,11 @@ export interface UsePeerSettingsResult {
   clearError: () => void
   reload: () => void
   setMode: (mode: PeerMode) => Promise<void>
-  addDynamicPeer: (peer: string) => Promise<void>
+  addDynamicPeer: (peer: string) => Promise<boolean>
   removeDynamicPeer: (peer: string) => Promise<void>
-  addStaticPeer: (peer: string) => Promise<void>
+  addStaticPeer: (peer: string) => Promise<boolean>
   removeStaticPeer: (peer: string) => Promise<void>
-  banPeer: (peer: string) => Promise<void>
+  banPeer: (peer: string) => Promise<boolean>
   unbanPeer: (peer: string) => Promise<void>
 }
 

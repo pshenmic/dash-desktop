@@ -163,8 +163,30 @@ export const PEER_NETWORK_REQUIRED_LABEL = 'Select a wallet to manage peers.'
 export const STATIC_PEER_REQUIRED_MESSAGE =
   'Add a static peer for this network before enabling static peer mode.'
 
+export const STATIC_PEER_ADDED_MESSAGE = 'Static peer added.'
+
+export const STATIC_PEER_ALREADY_ADDED_MESSAGE =
+  'This peer is already in the static peers list.'
+
 export const STATIC_PEER_READY_MESSAGE =
   'Static peer added. Turn on Use Static Peers to enable static peer mode.'
+
+export const DYNAMIC_PEER_ADDED_MESSAGE = 'Peer added to the dynamic peers list.'
+
+export const DYNAMIC_PEER_ALREADY_ADDED_MESSAGE =
+  'This peer is already in the dynamic peers list.'
+
+export const PEER_REMOVED_MESSAGE = 'Peer removed.'
+
+export const PEER_BANNED_MESSAGE = 'Peer banned.'
+
+export const PEER_ALREADY_BANNED_MESSAGE = 'This peer is already banned.'
+
+export const PEER_UNBANNED_MESSAGE = 'Peer unbanned.'
+
+export const STATIC_PEER_MODE_ENABLED_MESSAGE = 'Static peer mode enabled.'
+
+export const DYNAMIC_PEER_MODE_ENABLED_MESSAGE = 'Dynamic peer mode enabled.'
 
 export const PEER_UNAVAILABLE_LABEL = '—'
 

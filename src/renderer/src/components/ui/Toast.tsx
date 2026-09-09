@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { ErrorIcon, ExclamationIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { Text } from '../dash-ui-kit-enxtended'
 import { renderBoldText } from '@renderer/utils/renderBoldText'
 import type { ToastItem, ToastVariant } from '@renderer/types/Toast'
@@ -38,6 +38,7 @@ function removeToast(id: number): void {
 
 export const toast = {
   error: (text: string) => addToast('error', text),
+  success: (text: string) => addToast('success', text),
   warning: (text: string) => addToast('warning', text),
 }
 
@@ -49,6 +50,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
   const [visible, setVisible] = useState(false)
   const [exiting, setExiting] = useState(false)
   const warning = item.variant === 'warning'
+  const success = item.variant === 'success'
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -70,8 +72,8 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
 
   return (
     <div
-      role={warning ? 'status' : 'alert'}
-      aria-live={warning ? 'polite' : 'assertive'}
+      role={warning || success ? 'status' : 'alert'}
+      aria-live={warning || success ? 'polite' : 'assertive'}
       className={`
         flex items-start gap-3 p-3
         rounded-[.9375rem]
@@ -81,9 +83,11 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
         max-w-88
         cursor-pointer
         transition-all ease-out
-        ${warning
-          ? 'border-dash-orange/40 bg-dash-orange/15 dark:bg-dash-orange/20'
-          : 'border-[rgba(205,46,0,0.24)] bg-[rgba(205,46,0,0.24)]'}
+        ${success
+          ? 'border-dash-green/40 bg-dash-green-15 dark:bg-dash-green/20'
+          : warning
+            ? 'border-dash-orange/40 bg-dash-orange/15 dark:bg-dash-orange/20'
+            : 'border-[rgba(205,46,0,0.24)] bg-[rgba(205,46,0,0.24)]'}
         ${isShown
           ? 'opacity-100 translate-x-0'
           : 'opacity-0 translate-x-8'}
@@ -91,7 +95,9 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
       style={{ transitionDuration: `${ANIMATION_MS}ms` }}
       onClick={dismiss}
     >
-      {warning
+      {success
+        ? <SuccessIcon size={27} color="currentColor" className="shrink-0 text-dash-green" />
+        : warning
         ? (
           <span className="flex size-[1.6875rem] shrink-0 items-center justify-center rounded-full bg-dash-orange/20 text-dash-orange">
             <ExclamationIcon size={14} color="currentColor" />
@@ -102,7 +108,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
         <Text
           size={12}
           weight="medium"
-          className={`leading-[120%] whitespace-pre-wrap ${warning ? 'text-dash-orange!' : 'text-white!'}`}
+          className={`leading-[120%] whitespace-pre-wrap ${success ? 'text-dash-green!' : warning ? 'text-dash-orange!' : 'text-white!'}`}
         >
           {renderBoldText(item.text)}
         </Text>

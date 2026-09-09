@@ -189,7 +189,7 @@ export function usePeerSettings(
     }
   }, [beginMutation, configuredMode, failMutation, finishMutation, loadedNetwork, network, refreshConnectedPeers, settingsReady])
 
-  const addDynamicPeer = useCallback(async (peer: string): Promise<void> => {
+  const addDynamicPeer = useCallback(async (peer: string): Promise<boolean> => {
     if (network === null || loadedNetwork !== network || !settingsReady) {
       throw new Error('Wait for peer settings to load before adding a peer.')
     }
@@ -197,7 +197,7 @@ export function usePeerSettings(
     const next = appendPeerEntry(current, peer, network)
     if (next.length === current.length) {
       setDynamicPeers(current)
-      return
+      return false
     }
 
     const mutation: PeerMutation = 'add-dynamic'
@@ -207,6 +207,7 @@ export function usePeerSettings(
       await API.setDynamicPeers(network, next)
       if (mountedRef.current && generationRef.current === generation) setDynamicPeers(next)
       await refreshConnectedPeers()
+      return true
     } catch (mutationError) {
       await API.getDynamicPeers(network)
         .then(peers => {
@@ -251,12 +252,12 @@ export function usePeerSettings(
     }
   }, [beginMutation, dynamicPeers, failMutation, finishMutation, loadedNetwork, network, refreshConnectedPeers, settingsReady])
 
-  const addStaticPeer = useCallback(async (peer: string): Promise<void> => {
+  const addStaticPeer = useCallback(async (peer: string): Promise<boolean> => {
     if (network === null || loadedNetwork !== network || !settingsReady) {
       throw new Error('Wait for peer settings to load before adding a static peer.')
     }
     const target = peerIdentity(peer, network)
-    if (staticPeers.some(entry => peerIdentity(entry, network) === target)) return
+    if (staticPeers.some(entry => peerIdentity(entry, network) === target)) return false
 
     const mutation: PeerMutation = 'add-static'
     const generation = generationRef.current
@@ -265,6 +266,7 @@ export function usePeerSettings(
       const next = await API.pushStaticPeer(network, peer.trim())
       if (mountedRef.current && generationRef.current === generation) setStaticPeers(next)
       await refreshConnectedPeers()
+      return true
     } catch (mutationError) {
       await API.getStaticPeers(network)
         .then(peers => {
@@ -306,7 +308,7 @@ export function usePeerSettings(
     }
   }, [beginMutation, failMutation, finishMutation, loadedNetwork, network, refreshConnectedPeers, settingsReady])
 
-  const banPeer = useCallback(async (peer: string): Promise<void> => {
+  const banPeer = useCallback(async (peer: string): Promise<boolean> => {
     if (network === null || loadedNetwork !== network || !settingsReady) {
       throw new Error('Wait for peer settings to load before banning a peer.')
     }
@@ -314,7 +316,7 @@ export function usePeerSettings(
     const next = appendPeerEntry(current, peer, network)
     if (next.length === current.length) {
       setBannedPeers(current)
-      return
+      return false
     }
 
     const mutation: PeerMutation = 'ban'
@@ -324,6 +326,7 @@ export function usePeerSettings(
       await API.setBannedPeers(network, next)
       if (mountedRef.current && generationRef.current === generation) setBannedPeers(next)
       await refreshConnectedPeers()
+      return true
     } catch (mutationError) {
       await API.getBannedPeers(network)
         .then(peers => {
