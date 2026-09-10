@@ -127,6 +127,102 @@
     @apply text-dash-brand dark:text-dash-mint;
   }
 
+  .sensitive-value {
+    display: inline-flex;
+    flex: none;
+    overflow: hidden;
+    vertical-align: middle;
+    border-radius: 0.375rem;
+    color: color-mix(in srgb, var(--color-dash-primary-dark-blue) 78%, white);
+    background: color-mix(in srgb, currentColor 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent);
+  }
+
+  .dark .sensitive-value--default {
+    color: color-mix(in srgb, white 72%, var(--color-dash-primary-dark-blue));
+  }
+
+  .sensitive-value--accent {
+    color: color-mix(in srgb, var(--color-dash-brand) 76%, white);
+  }
+
+  .dark .sensitive-value--accent {
+    color: color-mix(in srgb, var(--color-dash-mint) 68%, white);
+  }
+
+  .sensitive-value--inverse {
+    color: color-mix(in srgb, white 72%, var(--color-dash-brand));
+  }
+
+  .sensitive-value--hero {
+    width: 16rem;
+    height: 3rem;
+    border-radius: 0.75rem;
+  }
+
+  .sensitive-value--card {
+    width: 9.333rem;
+    height: 1.75rem;
+  }
+
+  .sensitive-value--sidebar {
+    width: 7.333rem;
+    height: 1.375rem;
+  }
+
+  .sensitive-value--compact {
+    width: 6rem;
+    height: 1.125rem;
+    border-radius: 0.3125rem;
+  }
+
+  .sensitive-value--subtext {
+    width: 4rem;
+    height: 0.75rem;
+    border-radius: 0.25rem;
+  }
+
+  .sensitive-value__mosaic {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .sensitive-value__mosaic > span {
+    background: currentColor;
+    opacity: 0.38;
+  }
+
+  .sensitive-value__mosaic > span:nth-child(8n + 1),
+  .sensitive-value__mosaic > span:nth-child(8n + 6) {
+    opacity: 0.2;
+  }
+
+  .sensitive-value__mosaic > span:nth-child(8n + 2),
+  .sensitive-value__mosaic > span:nth-child(8n + 5) {
+    opacity: 0.52;
+  }
+
+  .sensitive-value__mosaic > span:nth-child(8n + 3),
+  .sensitive-value__mosaic > span:nth-child(8n + 8) {
+    opacity: 0.3;
+  }
+
+  .sensitive-value__mosaic > span:nth-child(8n + 4),
+  .sensitive-value__mosaic > span:nth-child(8n + 7) {
+    opacity: 0.66;
+  }
+
+  .sensitive-value__mosaic > span:nth-child(3n + 1) {
+    filter: brightness(0.86);
+  }
+
+  .sensitive-value__mosaic > span:nth-child(5n + 2) {
+    filter: brightness(1.16);
+  }
+
   .dark .dash-bg-gradient {
     background: linear-gradient(180deg, var(--color-dash-primary-dark-blue) 0%, var(--color-dash-blue-800) 100%);
   }

@@ -4,6 +4,8 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { platformAddressUrl, openExternal } from '@renderer/utils/explorer'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
+import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 
 export default function PlatformAddressCard({
   platformAddress,
@@ -11,6 +13,7 @@ export default function PlatformAddressCard({
   nonce,
 }: PlatformAddressDto): React.JSX.Element {
   const { status: appStatus } = useAuth()
+  const { isBalanceVisible } = useBalanceVisibility()
   const network = appStatus?.network ?? null
 
   return (
@@ -37,9 +40,11 @@ export default function PlatformAddressCard({
       </div>
 
       <div className={"flex items-center gap-2 shrink-0"}>
-        <Text size={14} weight={"medium"} color={"brand"}>
-          <CreditsAmount credits={balanceCredits} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
-        </Text>
+        <SensitiveValue hidden={!isBalanceVisible} size={"card"} tone={"accent"}>
+          <Text size={14} weight={"medium"} color={"brand"}>
+            <CreditsAmount credits={balanceCredits} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
+          </Text>
+        </SensitiveValue>
       </div>
     </div>
   )

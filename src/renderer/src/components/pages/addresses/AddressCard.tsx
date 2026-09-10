@@ -10,7 +10,9 @@ import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
+import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 
 export default function AddressCard({
   address,
@@ -19,6 +21,7 @@ export default function AddressCard({
 }: WalletAddressDto): React.JSX.Element {
   const [isQrOpen, setIsQrOpen] = useState(false)
   const { format: formatFiat, rateReady } = useFiat()
+  const { isBalanceVisible } = useBalanceVisibility()
   const { status: appStatus } = useAuth()
   const network = appStatus?.network ?? null
 
@@ -53,13 +56,15 @@ export default function AddressCard({
 
       <div className={"flex flex-col items-end gap-1"}>
         <div className={"flex items-center gap-2"}>
-          <Text size={14} weight={"medium"} color={"brand"}>
-            <span className={"font-bold"}>
-              <DashBigNumber>{davToDashCompact(balance).toString()}</DashBigNumber>
-            </span>
-            {' Dash'}
-          </Text>
-          {rateReady && <CustomBadge text={`~ ${formatFiat(balance)}`} variant="default" size="xs" />}
+          <SensitiveValue hidden={!isBalanceVisible} size={"card"}>
+            <Text size={14} weight={"medium"} color={"brand"}>
+              <span className={"font-bold"}>
+                <DashBigNumber>{davToDashCompact(balance).toString()}</DashBigNumber>
+              </span>
+              {' Dash'}
+            </Text>
+            {rateReady && <CustomBadge text={`~ ${formatFiat(balance)}`} variant="default" size="xs" />}
+          </SensitiveValue>
         </div>
       </div>
     </div>

@@ -9,7 +9,9 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import NoResults from '@renderer/components/ui/NoResults'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { davToDashCompact } from '@renderer/utils/balance'
+import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import {
   TxFilter,
   computeTxTotals,
@@ -32,6 +34,7 @@ export default function TransactionsList({
     transactions: { title, filters }
   } = transactionsPage
   const { status } = useAuth()
+  const { isBalanceVisible } = useBalanceVisibility()
 
   const { groups, loading, err } = useWalletTransactions(status?.selectedWalletId ?? undefined)
 
@@ -104,7 +107,9 @@ export default function TransactionsList({
                   {filters.totals.received}:
                 </Text>
                 <Text size={12} weight={"medium"} color={"blue-mint"}>
-                  +{davToDashCompact(totals.received)} Dash
+                  <SensitiveValue hidden={!isBalanceVisible} size={"compact"} tone={"accent"}>
+                    +{davToDashCompact(totals.received)} Dash
+                  </SensitiveValue>
                 </Text>
               </div>
               <div className={"flex items-center gap-1.5"}>
@@ -112,7 +117,9 @@ export default function TransactionsList({
                   {filters.totals.sent}:
                 </Text>
                 <Text size={12} weight={"medium"} color={"brand"}>
-                  -{davToDashCompact(totals.sent)} Dash
+                  <SensitiveValue hidden={!isBalanceVisible} size={"compact"}>
+                    -{davToDashCompact(totals.sent)} Dash
+                  </SensitiveValue>
                 </Text>
               </div>
             </div>

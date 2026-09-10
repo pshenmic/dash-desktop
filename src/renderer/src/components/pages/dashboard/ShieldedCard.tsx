@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Text, ArrowIcon, ShieldSmallIcon, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import Spinner from '@renderer/components/ui/Spinner'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { dashboardPage, SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from '@renderer/constants'
@@ -30,7 +31,6 @@ export default function ShieldedCard(): React.JSX.Element {
   const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
   const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const syncBusy = syncStarting || syncRunning
-  const blur = isBalanceVisible ? '' : 'blur-sm select-none pointer-events-none'
 
   useEffect(() => {
     setSyncStarting(false)
@@ -87,8 +87,10 @@ export default function ShieldedCard(): React.JSX.Element {
             {labels.balance}
           </Text>
           {shieldedReady ? (
-            <Text size={20} weight={"extrabold"} color={"blue-mint"} className={`leading-[140%] ${blur}`}>
-              <CreditsAmount credits={sync.balance ?? 0n} compact />
+            <Text size={20} weight={"extrabold"} color={"blue-mint"} className={"leading-[140%]"}>
+              <SensitiveValue hidden={!isBalanceVisible} size={"card"} tone={"accent"}>
+                <CreditsAmount credits={sync.balance ?? 0n} compact />
+              </SensitiveValue>
             </Text>
           ) : syncBusy ? (
             <div className={"flex items-center gap-2"}>
