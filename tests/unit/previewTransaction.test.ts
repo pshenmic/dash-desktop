@@ -1,7 +1,8 @@
 import {describe, it, expect, vi} from 'vitest'
-import {Script} from 'dash-core-sdk'
+import {Script, Transaction, TransactionType} from 'dash-core-sdk'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
+import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
@@ -12,8 +13,8 @@ import {UTXO} from '../../src/main/src/types/UTXO'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {PreviewEntry, PreviewParams} from '../../src/main/src/types/TransactionPreview'
 import {ShieldedSpendPlan, ShieldedSyncState} from '../../src/main/src/types/Shielded'
-import {FeeQuoteParams} from '../../src/main/platform/types/messages'
-import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
+import {FeeQuoteParams, UnsignedTransition} from '../../src/main/platform/types/messages'
+import {coreFeeDuffsFor, coreFeePerByte} from '../../src/main/src/utils/coreFeeRate'
 import {lockedDuffsFor} from '../../src/main/src/utils/assetLockTx'
 import {ASSET_LOCK_PAYLOAD_BYTES, DUST_THRESHOLD_DUFFS} from '../../src/main/src/constants/chain'
 import {
@@ -24,17 +25,22 @@ import {
 
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
-const RECEIVING = 'yPx8DNt1oQt3yubB2Sh73vAQRQ1AoyyLCS'
-const CHANGE = 'yWc2Zk1p5RVWNyCUgNBSGvhqvBhqxJ2rrN'
-const CREDIT = 'yTgSPRhJ3XCbTKaebeFrJnrTNKUEmoLLGa'
-const EXTERNAL = 'yUCBc5wgtnJgvsCiQeDpZKqM8n8vP4B4bB'
-const TO = 'yZ2rLVczRqPa1RmYcVQFbDPTvcJgBaeGGB'
+// Real testnet addresses: an output is scripted from the address it pays, so a
+// stand-in string would not survive the build the preview serializes.
+const RECEIVING = 'yQiUHtSrejqnhAxijLPNGCADwCDmUFeZes'
+const CHANGE = 'yU6snsYKe7q92nua8jw4FGcZkQ99dc6zmK'
+const CREDIT = 'yXVHHrdndVpVNQrRY9TeVycGnYgT7DRspb'
+const EXTERNAL = 'yasgnqjFcsoqhucFCM2a3PuANSqsENrs3w'
+const TO = 'yeG6Hppic58vd6R1jrVHJRSJCXfHgD2Lpm'
+const P2SH = '8f4mJsc4Cg9xYLRJK1BupqBVcCTW5j6iKk'
 const PLATFORM_A = 'tdash1qplatformaaa'
 const PLATFORM_B = 'tdash1qplatformbbb'
 const SHIELDED = 'tdash1shieldedrecipient'
 
 const ONE_DASH = 100_000_000n
 const BASE_FEE = 1_000_000n
+const NONCE = 7n
+const TRANSITION_HEX = 'deadbeef'
 const METERED_FEE = BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER)
 
 const coreFee = (inputsCount: number, outputsCount: number): bigint =>
@@ -58,7 +64,13 @@ const total = (entries: PreviewEntry[]): bigint =>
   entries.reduce((sum, entry) => sum + entry.amount, 0n)
 
 function service(options: {utxos?: UTXO[]; candidates?: PlatformSourceCandidate[]; plan?: ShieldedSpendPlan} = {}) {
-  const request = vi.fn(async () => ({feeCredits: BASE_FEE, metered: true}))
+  const request = vi.fn(async (kind: string) => {
+    switch (kind) {
+      case 'previewTransition': return {unsignedHex: TRANSITION_HEX}
+      case 'identityNonce': return {nonce: NONCE}
+      default: return {feeCredits: BASE_FEE, metered: true}
+    }
+  })
   const planSpend = vi.fn(async () => options.plan)
   const ensureReady = vi.fn(async () => {})
 
@@ -80,6 +92,7 @@ function service(options: {utxos?: UTXO[]; candidates?: PlatformSourceCandidate[
     {loadCandidates: async () => options.candidates ?? []} as unknown as PlatformAddressService,
     {request} as unknown as PlatformWorkerService,
     {planSpend} as unknown as ShieldedService,
+    new CoreTransactionService(),
     providers as unknown as WalletProviderFactory,
     Preferences.default(),
   )
@@ -101,6 +114,9 @@ function params(overrides: Partial<PreviewParams> = {}): PreviewParams {
 
 const quoteParams = (request: ReturnType<typeof vi.fn>): FeeQuoteParams =>
   (request.mock.calls[0][2] as {params: FeeQuoteParams}).params
+
+const builtTransition = (request: ReturnType<typeof vi.fn>): UnsignedTransition | undefined =>
+  request.mock.calls.find(call => call[0] === 'previewTransition')?.[2] as UnsignedTransition | undefined
 
 describe('previewTransaction — Core sends', () => {
   it('names the coins the send will spend and what each one holds', async () => {
@@ -345,6 +361,133 @@ describe('previewTransaction — identities and the pool', () => {
   })
 })
 
+describe('previewTransaction — the transaction it previews', () => {
+  it('serializes the transaction the send would sign, output for output', async () => {
+    const {svc} = service({utxos: [utxo(ONE_DASH, 2)]})
+
+    const preview = await svc.previewTransaction(WALLET, 'coreSend', params())
+    const unsigned = Transaction.fromHex(preview.unsignedHex!)
+
+    expect(unsigned.inputs).toHaveLength(preview.inputs.length)
+    expect(unsigned.outputs.map(output => output.getAddress('testnet')))
+      .toEqual(preview.outputs.map(output => output.address))
+    expect(unsigned.outputs.map(output => output.satoshis))
+      .toEqual(preview.outputs.map(output => output.amount))
+  })
+
+  // The entries and the bytes come from one build, so a change output the
+  // review does not list is one the transaction does not carry either.
+  it('leaves out the change output it reported as fee', async () => {
+    const {svc} = service({utxos: [utxo(ONE_DASH, 1)]})
+    const amount = ONE_DASH - coreFee(1, 1) - (DUST_THRESHOLD_DUFFS - 1n)
+
+    const preview = await svc.previewTransaction(WALLET, 'coreSend', params({recipients: [{address: TO, amount}]}))
+    const unsigned = Transaction.fromHex(preview.unsignedHex!)
+
+    expect(unsigned.outputs).toHaveLength(1)
+    expect(unsigned.getOutputAmount()).toBe(ONE_DASH - preview.feeDuffs!)
+  })
+
+  it('serializes an asset lock as one, carrying the credit output in its payload', async () => {
+    const {svc} = service({utxos: [utxo(ONE_DASH, 1)]})
+    const amountDuffs = ONE_DASH / 2n
+
+    const preview = await svc.previewTransaction(WALLET, 'assetLockFunding', params({
+      recipients: [{address: PLATFORM_A, amount: amountDuffs}],
+    }))
+    const unsigned = Transaction.fromHex(preview.unsignedHex!)
+
+    expect(unsigned.type).toBe(TransactionType.TRANSACTION_ASSET_LOCK)
+    expect(unsigned.outputs[0].satoshis).toBe(lockedDuffsFor(amountDuffs, METERED_FEE))
+    expect(unsigned.extraPayload).toBeDefined()
+  })
+
+  // Paying a script hash with the pubkey-hash script its address decodes to
+  // would burn the output, and the bytes are the only place that shows.
+  it('pays a P2SH recipient with a P2SH output', async () => {
+    const {svc} = service({utxos: [utxo(ONE_DASH, 1)]})
+
+    const preview = await svc.previewTransaction(WALLET, 'coreSend', params({
+      recipients: [{address: P2SH, amount: ONE_DASH / 2n}],
+    }))
+    const unsigned = Transaction.fromHex(preview.unsignedHex!)
+
+    expect(unsigned.outputs[0].script.ASMString()).toMatch(/^OP_HASH160 .+ OP_EQUAL$/)
+  })
+
+  // The worker builds what the send would submit and stops there, so what main
+  // has to get right is the transition it asks for.
+  it('asks the worker for the transition its own selection settled on', async () => {
+    const {svc, request} = service({candidates: [candidate(PLATFORM_A, 10_000_000n, 1)]})
+
+    const preview = await svc.previewTransaction(WALLET, 'addressFundsTransfer', params({
+      amountCredits: 1_000_000n,
+      recipients: [{address: PLATFORM_B, amount: 1_000_000n}],
+    }))
+
+    expect(builtTransition(request)).toEqual({
+      kind: 'addressFundsTransfer',
+      inputs: [{platformAddress: PLATFORM_A, index: 0, nonce: 0, credits: 1_000_000n}],
+      feeStrategy: [{kind: 'deductFromInput', index: 0}],
+      recipients: [{address: PLATFORM_B, amountCredits: 1_000_000n}],
+    })
+    expect(preview.unsignedHex).toBe(TRANSITION_HEX)
+  })
+
+  // Consensus orders a transition by the nonce after the one the identity is at,
+  // which is the one the send submits it under.
+  it('builds an identity transition against the nonce after the one it is at', async () => {
+    const {svc, request} = service()
+
+    await svc.previewTransaction(WALLET, 'identityToIdentity', params({
+      amountCredits: 1_000_000n,
+      identityId: IDENTITY,
+      recipients: [{address: PLATFORM_A, amount: 1_000_000n}],
+    }))
+
+    expect(builtTransition(request)).toEqual({
+      kind: 'identityCreditTransfer',
+      identifier: IDENTITY,
+      nonce: NONCE + 1n,
+      recipientIdentifier: PLATFORM_A,
+      amountCredits: 1_000_000n,
+    })
+  })
+
+  it('withdraws to a Core address at the rate consensus will accept', async () => {
+    const {svc, request} = service()
+
+    await svc.previewTransaction(WALLET, 'identityWithdrawal', params({
+      amountCredits: 1_000_000n,
+      identityId: IDENTITY,
+      recipients: [{address: TO, amount: 1_000_000n}],
+    }))
+
+    expect(builtTransition(request)).toMatchObject({
+      kind: 'identityWithdrawal',
+      coreAddress: TO,
+      coreFeePerByte: coreFeePerByte(DEFAULT_CORE_FEE_MULTIPLIER),
+    })
+  })
+
+  // Creating an identity signs proofs of possession over keys only the seed can
+  // derive, and a pool spend needs a proof that costs seconds.
+  it.each(['identityCreate', 'shieldedTransfer'] as const)('has no bytes to show for %s', async operation => {
+    const {svc, request} = service({
+      candidates: [candidate(PLATFORM_A, 10_000_000n, 1)],
+      plan: {notes: [], feeCredits: 400_000n, totalCredits: 2_000_000n},
+    })
+
+    const preview = await svc.previewTransaction(WALLET, operation, params({
+      amountCredits: 1_000_000n,
+      recipients: [{address: PLATFORM_B, amount: 1_000_000n}],
+    }))
+
+    expect(preview.unsignedHex).toBeNull()
+    expect(builtTransition(request)).toBeUndefined()
+  })
+})
+
 describe('previewTransaction — refusals a send would make', () => {
   it('rejects coin control on an operation L1 does not fund', async () => {
     const {svc} = service()
@@ -353,6 +496,23 @@ describe('previewTransaction — refusals a send would make', () => {
       identityId: IDENTITY,
       coreSource: {kind: 'address', address: RECEIVING},
     }))).rejects.toThrow('Coin control applies to L1-funded operations only')
+  })
+
+  it('rejects a recipient that is not an address on this network', async () => {
+    const {svc} = service({utxos: [utxo(ONE_DASH, 1)]})
+
+    await expect(svc.previewTransaction(WALLET, 'coreSend', params({
+      recipients: [{address: 'yNotAnAddress', amount: ONE_DASH / 2n}],
+    }))).rejects.toThrow('Invalid address')
+  })
+
+  // Change is paid to a P2PKH output by construction, so a P2SH change address
+  // would lock it to a script no one can spend.
+  it('rejects a change address the change output cannot pay', async () => {
+    const {svc} = service({utxos: [utxo(ONE_DASH, 1)]})
+
+    await expect(svc.previewTransaction(WALLET, 'coreSend', params({changeTo: P2SH})))
+      .rejects.toThrow('Change address must be a P2PKH address')
   })
 
   it('rejects picked platform inputs on a Core send', async () => {

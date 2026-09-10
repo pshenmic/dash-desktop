@@ -1,8 +1,9 @@
-import {AddressFundsTransferTransitionWASM, OutputAddressWASM} from 'dash-platform-sdk/types.js'
+import {AddressFundsTransferTransitionWASM} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
-import {signInputs, toFeeStrategy, toInputAddresses} from './signInputs'
+import {unsignedTransition} from '../unsignedTransition'
+import {signInputs} from './signInputs'
 
 type Payload = PlatformOperations['addressTransfer']['payload']
 type Result = PlatformOperations['addressTransfer']['result']
@@ -18,13 +19,7 @@ export async function addressTransfer(payload: Payload, ctx: OperationContext): 
   }
 
   ctx.progress('signing', 0, 0)
-  const unsigned = sdk.platformAddresses.createStateTransition('addressFundsTransfer', {
-    inputs: toInputAddresses(inputs),
-    feeStrategy: toFeeStrategy(payload.feeStrategy),
-    userFeeIncrease: 0,
-    inputWitness: [],
-    outputs: recipients.map(recipient => new OutputAddressWASM(recipient.address, recipient.amountCredits)),
-  })
+  const unsigned = unsignedTransition({kind: 'addressFundsTransfer', inputs, feeStrategy: payload.feeStrategy, recipients}, ctx)
 
   const transition = AddressFundsTransferTransitionWASM.fromStateTransition(unsigned)
   transition.inputWitness = await signInputs(sdk, unsigned.getSignableBytes(), inputs, seed, network)

@@ -180,6 +180,13 @@ export interface TransactionPreview {
   outputs: PreviewEntry[]
   feeDuffs: bigint | null
   feeCredits: bigint | null
+  // The transaction or transition the send would submit, serialized before
+  // anything signs it. Null only where those bytes cannot exist yet: creating an
+  // identity carries keys the seed derives, anything the pool proves needs that
+  // seed and seconds of proving, and an asset lock's L2 half spends a proof the
+  // lock has not created — which is why a lock carries its L1 half here. Not a
+  // txid: the missing signatures are part of what a hash covers.
+  unsignedHex: string | null
 }
 
 // One output as the caller named it, in the unit that operation's send takes:

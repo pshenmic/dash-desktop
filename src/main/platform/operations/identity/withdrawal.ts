@@ -1,7 +1,7 @@
-import {coreAddressToScript} from '../../../src/utils/coreScript'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
+import {unsignedTransition} from '../unsignedTransition'
 import {applySignature, signingKey} from './signingKey'
 
 type Payload = PlatformOperations['identityWithdrawal']['payload']
@@ -15,14 +15,14 @@ export async function identityWithdrawal(payload: Payload, ctx: OperationContext
   const identityNonce = await sdk.identities.getIdentityNonce(identifier) + 1n
 
   ctx.progress('signing', 0, 0)
-  const st = sdk.identities.createStateTransition('withdrawal', {
-    identityId: identifier,
-    amount: amountCredits,
+  const st = unsignedTransition({
+    kind: 'identityWithdrawal',
+    identifier,
+    nonce: identityNonce,
+    amountCredits,
+    coreAddress,
     coreFeePerByte: payload.coreFeePerByte,
-    pooling: 'Never',
-    identityNonce,
-    outputScript: coreAddressToScript(coreAddress, network),
-  })
+  }, ctx)
   applySignature(st, privateKey, publicKey)
 
   return {stHash: await broadcast(sdk, st, ctx)}

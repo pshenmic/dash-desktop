@@ -105,11 +105,16 @@ export type PoolSpendOperation =
   | 'shieldedWithdrawal'
   | 'identityCreateFromShielded'
 
-export type TransitionFeeOperation =
-  | 'shield'
+// Funded by an identity's own balance, so there is no selection to run and the
+// operation itself is all that tells them apart.
+export type IdentityFeeOperation =
   | 'identityToAddress'
   | 'identityToIdentity'
   | 'identityWithdrawal'
+
+export type TransitionFeeOperation =
+  | 'shield'
+  | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
 
@@ -152,6 +157,23 @@ export interface FeeParams {
   // names the notes themselves.
   shieldedSource?: ShieldedSpendSource | null
 }
+
+// Everything a transition is made of before anything signs it. The sends build
+// theirs from these same members, so a preview is the transition that will be
+// broadcast with its signatures still to come rather than a second reading of
+// what one would look like.
+//
+// Creating an identity from addresses is deliberately absent: its transition
+// carries proofs of possession over public keys only the seed can derive, so
+// there are no bytes to show until the wallet is unlocked.
+export type UnsignedTransition =
+  | {kind: 'addressFundsTransfer'; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]; recipients: Recipient[]}
+  | {kind: 'addressWithdrawal'; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]; coreAddress: string; coreFeePerByte: number}
+  | {kind: 'identityTopUpFromAddresses'; identifier: string; inputs: AddressInput[]; feeStrategy: FeeStrategyStep[]}
+  // The nonce that orders the transition, which is the identity's next one.
+  | {kind: 'identityCreditsToAddresses'; identifier: string; nonce: bigint; recipients: Recipient[]}
+  | {kind: 'identityCreditTransfer'; identifier: string; nonce: bigint; recipientIdentifier: string; amountCredits: bigint}
+  | {kind: 'identityWithdrawal'; identifier: string; nonce: bigint; amountCredits: bigint; coreAddress: string; coreFeePerByte: number}
 
 // The same params, plus the two numbers only main can supply: how many inputs
 // the selection settled on, and the Core rate the user's multiplier snapped to.
@@ -243,6 +265,11 @@ export interface PlatformOperations {
   transitionFee: {
     payload: {operation: TransitionFeeOperation; params: FeeQuoteParams}
     result: FeeQuote
+  }
+  // Builds a transition and stops, so a caller can show what it would submit.
+  previewTransition: {
+    payload: UnsignedTransition
+    result: {unsignedHex: string}
   }
   // Every action count a spend may settle on, so the caller can resolve the fee,
   // the note count and the recipient count together without a round trip each.

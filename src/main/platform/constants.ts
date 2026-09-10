@@ -73,6 +73,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
       return `${request.network}:identity:${request.payload.identifier}`
 
     case 'transitionFee':
+    case 'previewTransition':
     case 'spendFeeCurve':
     case 'addressInfos':
     case 'identityExists':
