@@ -1,4 +1,5 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 
 interface AssetCardProps {
   title: string
@@ -21,7 +22,6 @@ export default function AssetCard({
   loading,
   hidden
 }: AssetCardProps): React.JSX.Element {
-  const blur = hidden ? 'blur-sm select-none pointer-events-none' : ''
   const surface =
     variant === 'core'
       ? 'bg-dash-brand'
@@ -49,14 +49,18 @@ export default function AssetCard({
             <div className={"h-8 w-40 rounded-lg animate-pulse bg-white/15"} />
           ) : (
             <div className={"flex items-center gap-2.5 flex-wrap"}>
-              <Text size={24} weight={"extrabold"} color={"white"} className={`leading-[120%] ${blur}`}>
-                {amount}
+              <Text size={24} weight={"extrabold"} color={"white"} className={"leading-[120%]"}>
+                <SensitiveValue hidden={hidden} size={"card"} tone={"inverse"}>
+                  {amount}
+                </SensitiveValue>
               </Text>
-              {badge != null && (
-                <span className={`flex items-center rounded-full px-3 py-1 ${badgeSurface} ${blur}`}>
-                  <Text size={12} weight={"medium"} color={"white"} opacity={90} className={"whitespace-nowrap"}>
-                    {badge}
-                  </Text>
+              {(badge != null || hidden) && (
+                <span className={`flex items-center rounded-full px-3 py-1 ${badgeSurface}`}>
+                  <SensitiveValue hidden={hidden} size={"compact"} tone={"inverse"} label={"Fiat balance hidden"}>
+                    <Text size={12} weight={"medium"} color={"white"} opacity={90} className={"whitespace-nowrap"}>
+                      {badge}
+                    </Text>
+                  </SensitiveValue>
                 </span>
               )}
             </div>

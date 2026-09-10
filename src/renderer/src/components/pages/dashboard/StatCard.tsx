@@ -1,5 +1,6 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { IconProps } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 
 export type StatTone = 'brand' | 'green' | 'orange'
 
@@ -28,8 +29,6 @@ export default function StatCard({
   hidden = false,
   tone = 'brand'
 }: StatCardProps): React.JSX.Element {
-  const blur = hidden ? 'blur-sm select-none pointer-events-none' : ''
-
   return (
     <div className={"flex flex-col gap-3 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)]"}>
       <div className={"flex items-center gap-2.5"}>
@@ -41,12 +40,16 @@ export default function StatCard({
         </Text>
       </div>
       <div className={"flex flex-col gap-1"}>
-        <Text size={20} weight={"extrabold"} color={"brand"} className={`leading-[120%] ${blur}`}>
-          {value}
+        <Text size={20} weight={"extrabold"} color={"brand"} className={"leading-[120%]"}>
+          <SensitiveValue hidden={hidden} size={"card"}>
+            {value}
+          </SensitiveValue>
         </Text>
-        {sub !== undefined && (
-          <Text size={10} weight={"medium"} color={"brand"} opacity={30} className={`leading-[120%] ${blur}`}>
-            {sub}
+        {(sub !== undefined || hidden) && (
+          <Text size={10} weight={"medium"} color={"brand"} opacity={30} className={"leading-[120%]"}>
+            <SensitiveValue hidden={hidden} size={"subtext"} label={"Statistic detail hidden"}>
+              {sub}
+            </SensitiveValue>
           </Text>
         )}
       </div>
