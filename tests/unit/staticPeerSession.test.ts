@@ -3,6 +3,14 @@ import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest'
 const captured = vi.hoisted(() => ({
   pools: [] as Array<{options: Record<string, unknown>; stopped: boolean; bans: string[][]; lent: string[][]; returned: string[][]}>,
   headerPools: [] as unknown[],
+  dialled: [] as string[],
+}))
+
+vi.mock('../../src/main/p2p/net/peerProbe', () => ({
+  dialProbe: (entry: string) => {
+    captured.dialled.push(entry)
+    return Promise.resolve({ok: false, error: 'closed before the handshake'})
+  },
 }))
 
 vi.mock('../../src/main/p2p/store/ChainStore', () => ({
@@ -117,6 +125,7 @@ describe('static peers run one pool', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     captured.pools.length = 0
     captured.headerPools.length = 0
+    captured.dialled.length = 0
     service = new SyncService(noopEvents)
   })
   afterEach(() => vi.restoreAllMocks())
@@ -154,6 +163,25 @@ describe('static peers run one pool', () => {
 
     expect(captured.pools).toHaveLength(2)
     expect(captured.pools[1]!.options).toMatchObject({label: 'bulk-pool', relay: false, dnsSeed: false})
+  })
+
+  // The probe dials outside the registry the pools claim their sockets in, so a
+  // second connection to a node one of them holds would have Core drop both —
+  // and the peer table offers this on the rows that are connected.
+  it('answers for a peer a pool is connected to without dialling it', async () => {
+    await start(service, PINNED)
+
+    expect(await service.probePeer('1.2.3.4:19999', 'testnet')).toEqual({ok: true, error: null})
+    expect(await service.probePeer('1.2.3.4', 'testnet')).toEqual({ok: true, error: null})
+    expect(captured.dialled).toEqual([])
+  })
+
+  it('dials a peer no pool is holding', async () => {
+    await start(service, PINNED)
+
+    expect(await service.probePeer('5.6.7.8:19999', 'testnet'))
+      .toEqual({ok: false, error: 'closed before the handshake'})
+    expect(captured.dialled).toEqual(['5.6.7.8:19999'])
   })
 
   // The pool is built from the settings, so an edit only lands by replacing it.

@@ -35,7 +35,7 @@ vi.mock('dash-core-p2p', async () => {
   }
 })
 
-import {probePeer} from '../../src/main/p2p/net/peerProbe'
+import {dialProbe} from '../../src/main/p2p/net/peerProbe'
 import {PEER_PROBE_TIMEOUT_MS} from '../../src/main/p2p/constants'
 
 describe('probing a peer before it is pinned', () => {
@@ -48,7 +48,7 @@ describe('probing a peer before it is pinned', () => {
   })
 
   it('accepts a peer that answers the version handshake, and drops the socket after', async () => {
-    const probe = probePeer('1.2.3.4:19999', 'testnet')
+    const probe = dialProbe('1.2.3.4:19999', 'testnet')
     dialled.peers[0].emit('ready')
 
     expect(await probe).toEqual({ok: true, error: null})
@@ -58,14 +58,14 @@ describe('probing a peer before it is pinned', () => {
   // A TCP connect is answered by anything listening on the port, so the
   // handshake is the whole test — a node that hangs up during it is not usable.
   it('refuses a peer that closes before the handshake', async () => {
-    const probe = probePeer('1.2.3.4:19999', 'testnet')
+    const probe = dialProbe('1.2.3.4:19999', 'testnet')
     dialled.peers[0].emit('disconnect')
 
     expect(await probe).toEqual({ok: false, error: 'closed before the handshake'})
   })
 
   it('reports the socket error as the reason', async () => {
-    const probe = probePeer('1.2.3.4:19999', 'testnet')
+    const probe = dialProbe('1.2.3.4:19999', 'testnet')
     dialled.peers[0].emit('error', new Error('connect ECONNREFUSED'))
 
     expect(await probe).toEqual({ok: false, error: 'connect ECONNREFUSED'})
@@ -75,14 +75,14 @@ describe('probing a peer before it is pinned', () => {
   // this a dial to a host that is not there never ends.
   it('gives up on a peer that answers nothing', async () => {
     vi.useFakeTimers()
-    const probe = probePeer('1.2.3.4:19999', 'testnet')
+    const probe = dialProbe('1.2.3.4:19999', 'testnet')
     vi.advanceTimersByTime(PEER_PROBE_TIMEOUT_MS)
 
     expect(await probe).toEqual({ok: false, error: `no handshake within ${PEER_PROBE_TIMEOUT_MS}ms`})
   })
 
   it('dials the network default port for an entry without one', async () => {
-    const probe = probePeer('1.2.3.4', 'testnet')
+    const probe = dialProbe('1.2.3.4', 'testnet')
     dialled.peers[0].emit('ready')
     await probe
 
@@ -90,7 +90,7 @@ describe('probing a peer before it is pinned', () => {
   })
 
   it('refuses an entry it cannot parse without opening a socket', async () => {
-    expect(await probePeer('1.2.3.4:99999', 'mainnet')).toEqual({ok: false, error: 'not a host or host:port'})
+    expect(await dialProbe('1.2.3.4:99999', 'mainnet')).toEqual({ok: false, error: 'not a host or host:port'})
     expect(dialled.peers).toEqual([])
   })
 })

@@ -5,9 +5,10 @@ import {parsePeerAddress} from './peerAddress'
 import {PeerProbeResult} from '../types/pool'
 
 // Available means the version handshake answered: a bare TCP connect is
-// answered by anything listening on the port. Off the pools — the entry is in
-// no address book yet, and one dial must not disturb a running session.
-export function probePeer(entry: string, network: Network): Promise<PeerProbeResult> {
+// answered by anything listening on the port. Off the pools and outside the
+// registry, so a node one of them already holds must never reach here: Core
+// sees the second connection from this host and drops both.
+export function dialProbe(entry: string, network: Network): Promise<PeerProbeResult> {
   const addr = parsePeerAddress(entry, DEFAULT_PEER_PORT[network])
   const host = addr?.ip.v4 ?? addr?.ip.v6
   if (addr == null || host == null) {
