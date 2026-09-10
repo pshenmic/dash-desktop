@@ -65,7 +65,7 @@ import type { CoinControlSelection } from "@renderer/types/CoinControl";
 import type { SendTransactionReview } from "@renderer/types/SendTransactionPreview";
 import { sendPreviewChangeAddress, sendPreviewInputs, sendPreviewOutputRows, sendPreviewOutputs, sendPreviewSourceKey, sendPreviewTotals } from "@renderer/utils/sendTransactionPreview";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
-import { coreSendChangeTo, hasUnallocatedCoreFunds } from "@renderer/utils/changeAddress";
+import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import { DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
 import AmountField from "./AmountField";
@@ -462,9 +462,25 @@ function WalletTransferHub(): React.JSX.Element {
       && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
   const recipientsReady = !advancedMulti || (activeRecipients.length <= recipientLimit && recipientErrors.every(error => !error.address && !error.amount))
-  const changeTo = coreSendChangeTo({advanced, operation, amountDuffs, maxDuffs: coreMaxDuffs, change, selected: advancedRoute.changeAddress})
+  const changeTo = coreSendChangeTo({advanced, customChangeEnabled: advancedRoute.customChangeEnabled, operation, amountDuffs, maxDuffs: coreMaxDuffs, change, selected: advancedRoute.changeAddress})
   const changeAddressValid = changeTo === undefined || isValidDashChangeAddress(changeTo, network ?? undefined)
   const canSubmit = routeReady && amountReady && recipientsReady && feeSourceValid && quoteReady && changeAddressValid
+  const canCustomizeChange = advanced && isCoreOperation && allocationReady && coinControlValid
+    && coreMaxDuffs !== null && coreMaxDuffs > 0n && amountDuffs < coreMaxDuffs
+  const customChangeControl = canCustomizeChange ? <Checkbox
+    checked={advancedRoute.customChangeEnabled ?? false}
+    onChange={customChangeEnabled => updateAdvancedRoute({customChangeEnabled})}
+    label={<Text size={12} weight="medium" color="brand">Custom change address</Text>}
+  /> : null
+  const customChangeField = canCustomizeChange && advancedRoute.customChangeEnabled ? <ChangeAddressField
+    change={change}
+    value={advancedRoute.changeAddress}
+    loading={coreAddressesLoading}
+    error={coreAddressesError}
+    previewOnly={operation !== TransferOperation.CoreSend}
+    onChange={changeAddress => updateAdvancedRoute({changeAddress})}
+    onRetry={() => { if (walletId) invalidateAsyncCache('addresses', walletId) }}
+  /> : null
 
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
 
@@ -1072,20 +1088,18 @@ function WalletTransferHub(): React.JSX.Element {
                 feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
                 feeCredits={feeCredits}
                 budgetIsEstimate={!allocationReady}
+                headerAction={customChangeControl}
+                beforeRecipients={customChangeField}
                 onChange={recipients => updateAdvancedRoute({recipients})}
               /> : <>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <Text size={16} weight="extrabold" color="brand">Recipients (1/1)</Text>
+                  {customChangeControl}
+                </div>
+                {customChangeField}
                 <Text size={12} weight="medium" color="brand" opacity={50}>This route supports one recipient.</Text>
                 {amountStep}
               </>}
-              {isCoreOperation && quoteReady && coinControlValid && hasUnallocatedCoreFunds(amountDuffs, coreMaxDuffs) && <ChangeAddressField
-                change={change}
-                value={advancedRoute.changeAddress}
-                loading={coreAddressesLoading}
-                error={coreAddressesError}
-                previewOnly={operation !== TransferOperation.CoreSend}
-                onChange={changeAddress => updateAdvancedRoute({changeAddress})}
-                onRetry={() => { if (walletId) invalidateAsyncCache('addresses', walletId) }}
-              />}
             </div>
             <TransactionSummary
               operation={operation}

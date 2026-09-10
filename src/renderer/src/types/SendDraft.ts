@@ -14,6 +14,7 @@ export interface AdvancedSendRoute {
   subtractFee: boolean
   feeRecipientId: string | null
   changeAddress?: string
+  customChangeEnabled?: boolean
 }
 
 export interface SendDraft {

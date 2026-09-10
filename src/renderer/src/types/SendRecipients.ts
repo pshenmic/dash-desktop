@@ -3,6 +3,7 @@ import type { DestinationKind } from '../enums/DestinationKind'
 import type { TransferOperation } from '../enums/TransferOperation'
 import type { SendRecipientDraft } from './SendDraft'
 import type { TransferPageType } from '../constants'
+import type { ReactNode } from 'react'
 
 export interface RecipientInputProps {
   value: string
@@ -28,6 +29,8 @@ export interface SendRecipientValidation {
 }
 
 export interface SendRecipientsEditorProps {
+  headerAction?: ReactNode
+  beforeRecipients?: ReactNode
   recipients: SendRecipientDraft[]
   errors: SendRecipientError[]
   limit: number

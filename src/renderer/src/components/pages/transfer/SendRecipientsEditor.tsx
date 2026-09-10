@@ -13,7 +13,7 @@ import AmountSlider from './AmountSlider'
 import RecipientInput from './RecipientInput'
 
 export default function SendRecipientsEditor({
-  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, onChange,
+  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, headerAction, beforeRecipients, onChange,
 }: SendRecipientsEditorProps): React.JSX.Element {
   const {status} = useAuth()
   const {format, rateReady} = useFiat()
@@ -28,12 +28,16 @@ export default function SendRecipientsEditor({
     <div className="flex flex-col gap-3 min-w-0">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Text size={16} weight="extrabold" color="brand">Recipients ({recipients.length}/{limit})</Text>
-        {recipients.length > 1 && (
-          <button type="button" onClick={() => onChange(splitRecipientTotal(recipients))} className="text-sm dash-text-primary cursor-pointer">
-            Split entered total equally
-          </button>
-        )}
+        <div className="flex items-center justify-end gap-3 flex-wrap">
+          {recipients.length > 1 && (
+            <button type="button" onClick={() => onChange(splitRecipientTotal(recipients))} className="text-sm dash-text-primary cursor-pointer">
+              Split entered total equally
+            </button>
+          )}
+          {headerAction}
+        </div>
       </div>
+      {beforeRecipients}
       {recipients.map((recipient, index) => {
         const amount = dashToDuffs(recipient.amount)
         const remaining = budgetDuffs == null ? null : recipientRemainingDuffs(recipients, recipient.id, budgetDuffs)

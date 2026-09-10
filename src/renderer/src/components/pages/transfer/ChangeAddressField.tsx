@@ -18,8 +18,8 @@ export default function ChangeAddressField({change, value, loading, error, previ
   const selectedDescription = options.find(option => option.value === selected?.trim())?.description
 
   return (
-    <section className="dash-block rounded-2xl p-4 flex flex-col gap-2">
-      <Text size={14} weight="bold" color="brand">Change address</Text>
+    <section className="flex flex-col gap-2">
+      <Text size={12} weight="medium" color="brand" opacity={50}>Change address</Text>
       <DropdownField
         ariaLabel="Change address"
         value={selected ?? ''}

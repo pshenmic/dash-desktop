@@ -70,7 +70,7 @@ describe('Core send confirmation change address', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it.each([true, false])('passes the effective fifth IPC argument in advanced=%s without leaking another mode’s draft', async advanced => {
-    const changeTo = coreSendChangeTo({advanced, operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n, change: [], selected: '  custom-address  '})
+    const changeTo = coreSendChangeTo({advanced, customChangeEnabled: true, operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n, change: [], selected: '  custom-address  '})
     const props = modalProps(changeTo)
     const button = findSignButton(render(props))
     expect(button).toBeDefined()
@@ -89,5 +89,12 @@ describe('Core send confirmation change address', () => {
     await pending
     expect(harness.send).not.toHaveBeenCalled()
     expect(props.onSuccess).not.toHaveBeenCalled()
+  })
+
+  it('sends automatically after custom change is disabled while retaining the address draft', async () => {
+    const changeTo = coreSendChangeTo({advanced: true, customChangeEnabled: false, operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n, change: [], selected: 'retained-address'})
+    const props = modalProps(changeTo)
+    await findSignButton(render(props))!.props.onClick()
+    expect(harness.send).toHaveBeenCalledWith('wallet', props.recipients, 'password', props.source, undefined)
   })
 })
