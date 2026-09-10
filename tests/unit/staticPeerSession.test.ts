@@ -87,7 +87,11 @@ vi.mock('../../src/main/p2p/sync/workers/CFilterSyncWorker', async () => {
 })
 
 import {SyncService} from '../../src/main/p2p/sync/SyncService'
+import type {PeerRegistry} from '../../src/main/p2p/net/peerRegistry'
 import type {PeerOverrides} from '../../src/main/p2p/types/pool'
+
+// The registry SyncService built and handed to every pool it started.
+const registryOf = (pool: number): PeerRegistry => captured.pools[pool]!.options.registry as PeerRegistry
 
 const PINNED: PeerOverrides = {mode: 'static', dnsSeeds: [], staticPeers: ['1.2.3.4:19999'], dynamicPeers: [], bannedPeers: []}
 const DYNAMIC: PeerOverrides = {mode: 'dynamic', dnsSeeds: [], staticPeers: [], dynamicPeers: [], bannedPeers: []}
@@ -165,9 +169,8 @@ describe('static peers run one pool', () => {
     expect(captured.pools[1]!.options).toMatchObject({label: 'bulk-pool', relay: false, dnsSeed: false})
   })
 
-  // The probe dials outside the registry the pools claim their sockets in, so a
-  // second connection to a node one of them holds would have Core drop both —
-  // and the peer table offers this on the rows that are connected.
+  // A second connection to a node this process already holds has Core drop
+  // both — and the peer table offers a probe on the rows that are connected.
   it('answers for a peer a pool is connected to without dialling it', async () => {
     await start(service, PINNED)
 
@@ -182,6 +185,38 @@ describe('static peers run one pool', () => {
     expect(await service.probePeer('5.6.7.8:19999', 'testnet'))
       .toEqual({ok: false, error: 'closed before the handshake'})
     expect(captured.dialled).toEqual(['5.6.7.8:19999'])
+  })
+
+  // A pool claims its target when it starts dialling, and is not ready until
+  // the handshake answers — so the connected set alone cannot see this one.
+  it('refuses a peer a pool has claimed but not finished dialling', async () => {
+    await start(service, PINNED)
+    const owner = {}
+    registryOf(0).claim('5.6.7.8:19999', owner, owner)
+
+    expect(await service.probePeer('5.6.7.8:19999', 'testnet'))
+      .toEqual({ok: false, error: 'already connected from this host'})
+    expect(captured.dialled).toEqual([])
+  })
+
+  // The pools hold the network the session is on, and the same node on the
+  // other network is a handshake it has not answered.
+  it('dials rather than answering from the connected set of another network', async () => {
+    await start(service, PINNED)
+
+    expect(await service.probePeer('1.2.3.4:19999', 'mainnet'))
+      .toEqual({ok: false, error: 'closed before the handshake'})
+    expect(captured.dialled).toEqual(['1.2.3.4:19999'])
+  })
+
+  // Held only for the dial: the pools skip a target another owner claimed, so
+  // a probe that kept it would keep them off that node for the whole session.
+  it('releases the claim it took for the dial', async () => {
+    await start(service, PINNED)
+    await service.probePeer('5.6.7.8:19999', 'testnet')
+
+    const owner = {}
+    expect(registryOf(0).claim('5.6.7.8:19999', owner, owner)).toBe(true)
   })
 
   // The pool is built from the settings, so an edit only lands by replacing it.

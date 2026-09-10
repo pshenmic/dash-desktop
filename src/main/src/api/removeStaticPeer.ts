@@ -44,7 +44,7 @@ export class RemoveStaticPeerHandler {
       },
     })
 
-    if (preferences.network.mode === 'static') await this.walletSyncService.reloadPeerPreferences()
+    await this.walletSyncService.reloadPeerPreferences()
     return next
   }
 }

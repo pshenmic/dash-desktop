@@ -117,13 +117,24 @@ export class SyncService {
     ...this.bulkPool?.peerInfo() ?? [],
   ]
 
-  // A ready peer has already answered the handshake the probe asks for, and
-  // dialling it again from this host would make Core drop the connection we
-  // hold — the probe runs outside the registry that otherwise prevents that.
-  probePeer = (peer: string, network: Network): Promise<PeerProbeResult> => {
+  // A ready peer answered this handshake already, on the network the pools are
+  // running. Anything else is claimed for the dial rather than probed around
+  // the registry: a claim held here is a socket open or opening, and Core drops
+  // both connections when it sees a second one from this host.
+  probePeer = async (peer: string, network: Network): Promise<PeerProbeResult> => {
     const target = entryTarget(peer, DEFAULT_PEER_PORT[network])
-    const connected = this.getConnectedPeers().some(info => `${info.host}:${info.port}` === target)
-    return connected ? Promise.resolve({ok: true, error: null}) : dialProbe(peer, network)
+    if (this.lockNetwork === network && this.getConnectedPeers().some(info => `${info.host}:${info.port}` === target)) {
+      return {ok: true, error: null}
+    }
+
+    if (!this.peerRegistry.claim(target, this, this)) {
+      return {ok: false, error: 'already connected from this host'}
+    }
+    try {
+      return await dialProbe(peer, network)
+    } finally {
+      this.peerRegistry.release(target, this)
+    }
   }
 
   setBannedPeers = (banned: string[]): void => {

@@ -21,6 +21,7 @@ import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} f
 import {PeerInfo, PeerProbeResult} from '../../../p2p/types/pool'
 import {randomUUID} from 'crypto'
 import {GENESIS} from '../../../p2p/constants'
+import {peerOverridesKey} from '../../../p2p/net/peerOverrides'
 import {ScanCursorGate} from '../../utils/scanCursorGate'
 import {Preferences} from '../../preferences'
 import {Network} from '../../types/Network'
@@ -102,6 +103,9 @@ export class WalletSyncService {
   private armedLockTxids = new Map<string, number>()
   private lockListenNetwork: 'mainnet' | 'testnet' | null = null
   private lockListenWalletId: string | undefined = undefined
+  // The peer settings the child is already running, per network, so an edit it
+  // cannot read costs no rebuild.
+  private sentPeerOverrides = new Map<Network, string>()
   // The worker emits cursorAdvanced at the end of every scan regardless of what
   // landed, so without this the resume marker steps over a block that failed to
   // reach SQL and its coins are gone until a full resetSync.
@@ -357,6 +361,8 @@ export class WalletSyncService {
       `start ${walletId} on ${network}: ${watchAddresses.length} watched address(es), ` +
       `${seedUtxos.length} utxo(s), cursor=${cfilterCursor ?? 'none'}, mode=${this.preferences.network.mode}`,
     )
+    const peerOverrides = this.preferences.network.settingsFor(network)
+    this.sentPeerOverrides.set(network, peerOverridesKey(peerOverrides))
     this.send({
       type: 'start',
       network,
@@ -366,7 +372,7 @@ export class WalletSyncService {
       gapLimit: CORE_ADDRESS_WINDOW.gapLimit,
       seedUtxos,
       cfilterCursor,
-      peerOverrides: this.preferences.network.settingsFor(network),
+      peerOverrides,
       // birthdayHeight is intentionally undefined — defaults to genesis in the
       // utility process. Replace with a per-wallet birthday once the wallet
       // schema captures it.
@@ -506,6 +512,19 @@ export class WalletSyncService {
       log.info('peer preferences changed — no utility process to rebuild')
       return
     }
+    // Static mode dials the pinned list and nothing else, dynamic mode dials
+    // the seeds and the dynamic list, and each ignores the other's entries —
+    // so an edit outside what the running network dials would cost a cold
+    // start (chain.db reopened, the chain index rebuilt) to arrive at the
+    // pools the child already has.
+    const network = this.lockListenNetwork ?? this.activeNetwork
+    if (network) {
+      const key = peerOverridesKey(this.preferences.network.settingsFor(network))
+      if (this.sentPeerOverrides.get(network) === key) {
+        log.info(`peer preferences changed — nothing the ${network} session dials, keeping it`)
+        return
+      }
+    }
     const walletId = this.activeWalletId
     log.info(
       `peer preferences changed — rebuilding session (mode=${this.preferences.network.mode}, ` +
@@ -537,12 +556,14 @@ export class WalletSyncService {
       `listen on ${network} (wallet=${walletId ?? 'none'}, ${watchAddresses?.length ?? 0} address(es), ` +
       `mode=${this.preferences.network.mode})`,
     )
+    const peerOverrides = this.preferences.network.settingsFor(network)
+    this.sentPeerOverrides.set(network, peerOverridesKey(peerOverrides))
     this.send({
       type: 'listen',
       network,
       walletId,
       watchAddresses,
-      peerOverrides: this.preferences.network.settingsFor(network),
+      peerOverrides,
     })
     this.startLockWatchSweep()
   }

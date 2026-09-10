@@ -55,10 +55,7 @@ export class PushStaticPeerHandler {
       },
     })
 
-    // Dynamic mode never dials this list, and it is not in the pools' overrides
-    // key either, so rebuilding the session would drop every peer and re-run the
-    // whole cold start to arrive at the pools it already had.
-    if (preferences.network.mode === 'static') await this.walletSyncService.reloadPeerPreferences()
+    await this.walletSyncService.reloadPeerPreferences()
     return next
   }
 }
