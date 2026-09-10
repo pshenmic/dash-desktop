@@ -118,7 +118,7 @@ export default function TransferConfirmModal({
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
     >
       <div
-        className={"w-full max-w-140 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
+        className={"w-full max-w-170 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
