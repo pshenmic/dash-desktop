@@ -37,6 +37,16 @@ type PlatformSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'inputs'; inputs: PlatformPickedInput[]; feeStrategy: PlatformFeeStep[] }
 
+// Mirrors src/main/src/types/TransactionPreview: one side of a send previewed
+// before it is signed, counted in the unit its layer charges in.
+interface PreviewEntry {
+  role: 'input' | 'feeInput' | 'recipient' | 'change' | 'credit'
+  address: string
+  amount: bigint
+  unit: 'duffs' | 'credits'
+  reference: string | null
+}
+
 // Every coin a send can draw on: what getUtxos lists and what an outpoints
 // source picks from.
 interface SelectableUtxoDTO {
@@ -120,6 +130,7 @@ declare global {
       sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource, changeTo?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
+      previewTransaction: (walletId: string, operation: string, params: unknown) => Promise<{ inputs: PreviewEntry[]; outputs: PreviewEntry[]; feeDuffs: bigint | null; feeCredits: bigint | null }>
       sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, source: PlatformSpendSource | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>
