@@ -25,7 +25,7 @@ export default function SendRecipientsEditor({
   }
 
   return (
-    <div className="flex flex-col gap-4 min-w-0">
+    <div className="flex flex-col gap-3 min-w-0">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Text size={16} weight="extrabold" color="brand">Recipients ({recipients.length}/{limit})</Text>
         {recipients.length > 1 && (
@@ -61,7 +61,7 @@ export default function SendRecipientsEditor({
         }
 
         return (
-          <section key={recipient.id} className="dash-block rounded-2xl p-4 flex flex-col gap-3 min-w-0">
+          <section key={recipient.id} className="dash-block rounded-2xl p-3 flex flex-col gap-2 min-w-0">
             <div className="flex justify-between items-center gap-3">
               <Text size={12} weight="extrabold" color="brand">Recipient {index + 1}</Text>
               {recipients.length > 1 && (
@@ -76,11 +76,10 @@ export default function SendRecipientsEditor({
               )}
             </div>
             {destination === DestinationKind.CoreAddress ? (
-              <RecipientInput value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
+              <RecipientInput compact ariaLabel={`Recipient ${index + 1} address`} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
             ) : (
               <label className="flex flex-col gap-2">
-                <Text size={12} weight="medium" color="brand" opacity={50}>Address</Text>
-                <span className={`dash-input-block rounded-[.875rem] px-4 py-3.5 ${addressError ? 'outline outline-1 outline-dash-red' : ''}`}>
+                <span className={`dash-input-block rounded-[.875rem] px-3 py-2.5 ${addressError ? 'outline outline-1 outline-dash-red' : ''}`}>
                   <input
                     aria-label={`Recipient ${index + 1} address`}
                     value={recipient.address}
@@ -95,6 +94,8 @@ export default function SendRecipientsEditor({
               <Text size={12} weight="medium" color="red">{addressError}</Text>
             )}
             <AmountField
+              compact
+              caption={fiatAmount != null && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {fiatAmount}</Text>}
               ariaLabel={`Recipient ${index + 1} amount`}
               value={recipient.amount}
               disabled={budgetDuffs == null}
@@ -104,8 +105,8 @@ export default function SendRecipientsEditor({
               maxDisabled={remaining == null || budgetIsEstimate}
               unit={<Text size={12} weight="medium" color="brand">DASH</Text>}
             />
-            {fiatAmount != null && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {fiatAmount}</Text>}
             <AmountSlider
+              compact
               percent={percent}
               onPercentChange={changePercent}
               disabled={budgetDuffs == null || budgetDuffs <= 0n}

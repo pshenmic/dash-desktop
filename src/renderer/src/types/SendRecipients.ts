@@ -2,6 +2,15 @@ import type { Network } from '../api/types'
 import type { DestinationKind } from '../enums/DestinationKind'
 import type { TransferOperation } from '../enums/TransferOperation'
 import type { SendRecipientDraft } from './SendDraft'
+import type { TransferPageType } from '../constants'
+
+export interface RecipientInputProps {
+  value: string
+  onChange: (value: string) => void
+  data: TransferPageType['recipient']
+  compact?: boolean
+  ariaLabel?: string
+}
 
 export interface SendRecipientError {
   address: string | null

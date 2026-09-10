@@ -9,6 +9,16 @@ export interface AmountFieldProps {
   ariaLabel?: string
   maxLabel?: string
   maxDisabled?: boolean
+  compact?: boolean
+  caption?: ReactNode
+}
+
+export interface AmountSliderProps {
+  percent: number
+  onPercentChange: (percent: number) => void
+  disabled?: boolean
+  label?: string
+  compact?: boolean
 }
 
 export interface CreditsAmountProps {
