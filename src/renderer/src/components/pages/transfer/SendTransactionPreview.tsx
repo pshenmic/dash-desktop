@@ -78,7 +78,6 @@ export default function SendTransactionPreview({
           <PreviewRows rows={data.outputs} isCoreOperation={data.isCoreOperation} />
           {data.outputNote && <Text size={12} weight="medium" color="brand" opacity={50}>{data.outputNote}</Text>}
         </section>
-      {!valid && <Text size={14} weight="medium" color="red">Transaction data changed or is temporarily unavailable. Refresh the preview before signing.</Text>}
       <div className="flex gap-3 justify-end pt-2">
         <Button type="button" onClick={onBack} variant="outline" colorScheme="primary-light" size="md" className="rounded-xl">Back to send</Button>
         {!valid && <Button type="button" onClick={onRetry} disabled={!canRefresh} variant="outline" colorScheme="primary-light" size="md" className="rounded-xl">Refresh preview</Button>}
