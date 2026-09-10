@@ -19,46 +19,123 @@ export default function SendRecipientsEditor({
   const update = (id: string, field: 'address' | 'amount', value: string): void => {
     onChange(recipients.map(recipient => recipient.id === id ? {...recipient, [field]: value} : recipient))
   }
+  const addRecipient = (): void => {
+    onChange([...recipients, {id: crypto.randomUUID(), address: '', amount: ''}])
+  }
+
   return (
     <div className="flex flex-col gap-4 min-w-0">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Text size={16} weight="extrabold" color="brand">Recipients ({recipients.length}/{limit})</Text>
-        {recipients.length > 1 && <button type="button" onClick={() => onChange(splitRecipientTotal(recipients))} className="text-sm dash-text-primary cursor-pointer">Split entered total equally</button>}
+        {recipients.length > 1 && (
+          <button type="button" onClick={() => onChange(splitRecipientTotal(recipients))} className="text-sm dash-text-primary cursor-pointer">
+            Split entered total equally
+          </button>
+        )}
       </div>
       {recipients.map((recipient, index) => {
         const amount = dashToDuffs(recipient.amount)
         const remaining = budgetDuffs == null ? null : recipientRemainingDuffs(recipients, recipient.id, budgetDuffs)
+        const percent = recipientPercent(amount, budgetDuffs)
+        const fiatAmount = rateReady && amount > 0n ? format(amount) : null
+        const isFeeRecipient = feeRecipientId === recipient.id && feeCredits != null
+        const receivedCredits = duffsToCredits(amount) - (feeCredits ?? 0n)
+        let allocationHint = 'Share of available funds'
+        if (budgetIsEstimate) allocationHint += ' · Fee not included yet'
+        else if (remaining != null) allocationHint += ` · Up to ${davToDash(remaining)} Dash for this recipient`
+
+        const changeAmount = (event: React.ChangeEvent<HTMLInputElement>): void => {
+          const value = event.target.value
+          if (SEND_AMOUNT_PATTERN.test(value)) update(recipient.id, 'amount', value)
+        }
+        const useRemaining = (): void => {
+          if (remaining != null) update(recipient.id, 'amount', davToDash(remaining))
+        }
+        const changePercent = (percent: number): void => {
+          if (budgetDuffs == null) return
+          update(recipient.id, 'amount', recipientSliderAmount(recipients, recipient.id, budgetDuffs, percent))
+        }
+
         return (
           <section key={recipient.id} className="dash-block rounded-2xl p-4 flex flex-col gap-3 min-w-0">
             <div className="flex justify-between items-center gap-3">
               <Text size={12} weight="extrabold" color="brand">Recipient {index + 1}</Text>
-              {recipients.length > 1 && <button type="button" aria-label={`Remove recipient ${index + 1}`} onClick={() => onChange(recipients.filter(row => row.id !== recipient.id))} className="text-xs dash-text-primary cursor-pointer">Remove</button>}
+              {recipients.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={`Remove recipient ${index + 1}`}
+                  onClick={() => onChange(recipients.filter(row => row.id !== recipient.id))}
+                  className="text-xs dash-text-primary cursor-pointer"
+                >
+                  Remove
+                </button>
+              )}
             </div>
             {destination === DestinationKind.CoreAddress ? (
               <RecipientInput value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
             ) : (
               <label className="flex flex-col gap-1">
                 <Text size={12} weight="medium" color="brand" opacity={50}>Address</Text>
-                <input aria-label={`Recipient ${index + 1} address`} value={recipient.address} onChange={event => update(recipient.id, 'address', event.target.value)} placeholder={DESTINATION_PLACEHOLDERS[destination][status?.network ?? 'testnet']} className="w-full min-w-0 rounded-xl border border-dash-primary-dark-blue/15 dark:border-white/15 p-3 bg-transparent font-mono text-sm dash-text-default" />
+                <input
+                  aria-label={`Recipient ${index + 1} address`}
+                  value={recipient.address}
+                  onChange={event => update(recipient.id, 'address', event.target.value)}
+                  placeholder={DESTINATION_PLACEHOLDERS[destination][status?.network ?? 'testnet']}
+                  className="w-full min-w-0 rounded-xl border border-dash-primary-dark-blue/15 dark:border-white/15 p-3 bg-transparent font-mono text-sm dash-text-default"
+                />
               </label>
             )}
-            {recipient.address.length > 0 && errors[index]?.address && <Text size={12} weight="medium" color="red">{errors[index].address}</Text>}
+            {recipient.address.length > 0 && errors[index]?.address && (
+              <Text size={12} weight="medium" color="red">{errors[index].address}</Text>
+            )}
             <div className="flex items-end gap-3">
               <label className="flex-1 min-w-0 flex flex-col gap-1">
                 <Text size={12} weight="medium" color="brand" opacity={50}>Amount · DASH</Text>
-                <input aria-label={`Recipient ${index + 1} amount`} inputMode="decimal" value={recipient.amount} onChange={event => { if (SEND_AMOUNT_PATTERN.test(event.target.value)) update(recipient.id, 'amount', event.target.value) }} placeholder="0" className="w-full rounded-xl border border-dash-primary-dark-blue/15 dark:border-white/15 p-3 bg-transparent text-xl dash-text-default" />
+                <input
+                  aria-label={`Recipient ${index + 1} amount`}
+                  inputMode="decimal"
+                  value={recipient.amount}
+                  onChange={changeAmount}
+                  placeholder="0"
+                  className="w-full rounded-xl border border-dash-primary-dark-blue/15 dark:border-white/15 p-3 bg-transparent text-xl dash-text-default"
+                />
               </label>
-              <button type="button" disabled={remaining == null || budgetIsEstimate} onClick={() => { if (remaining != null) update(recipient.id, 'amount', davToDash(remaining)) }} className="mb-1 px-3 py-2 rounded-xl dash-block-accent-10 text-xs dash-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-default">Use remaining</button>
+              <button
+                type="button"
+                disabled={remaining == null || budgetIsEstimate}
+                onClick={useRemaining}
+                className="mb-1 px-3 py-2 rounded-xl dash-block-accent-10 text-xs dash-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-default"
+              >
+                Use remaining
+              </button>
             </div>
-            {rateReady && amount > 0n && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {format(amount)}</Text>}
-            <AmountSlider percent={recipientPercent(amount, budgetDuffs)} onPercentChange={percent => { if (budgetDuffs != null) update(recipient.id, 'amount', recipientSliderAmount(recipients, recipient.id, budgetDuffs, percent)) }} disabled={budgetDuffs == null || budgetDuffs <= 0n} label={`Recipient ${index + 1} amount percentage`} />
-            <Text size={12} weight="medium" color="brand" opacity={50}>Share of available funds{budgetIsEstimate ? ' · Fee not included yet' : remaining != null ? ` · Up to ${davToDash(remaining)} Dash for this recipient` : ''}</Text>
-            {feeRecipientId === recipient.id && feeCredits != null && <Text size={12} weight="medium" color="brand">Estimated receives: <CreditsAmount credits={duffsToCredits(amount) - feeCredits} exact /> (fee deducted)</Text>}
-            {recipient.amount.length > 0 && errors[index]?.amount && <Text size={12} weight="medium" color="red">{errors[index].amount}</Text>}
+            {fiatAmount != null && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {fiatAmount}</Text>}
+            <AmountSlider
+              percent={percent}
+              onPercentChange={changePercent}
+              disabled={budgetDuffs == null || budgetDuffs <= 0n}
+              label={`Recipient ${index + 1} amount percentage`}
+            />
+            <Text size={12} weight="medium" color="brand" opacity={50}>{allocationHint}</Text>
+            {isFeeRecipient && (
+              <Text size={12} weight="medium" color="brand">
+                Estimated receives: <CreditsAmount credits={receivedCredits} exact /> (fee deducted)
+              </Text>
+            )}
+            {recipient.amount.length > 0 && errors[index]?.amount && (
+              <Text size={12} weight="medium" color="red">{errors[index].amount}</Text>
+            )}
           </section>
         )
       })}
-      <button type="button" disabled={recipients.length >= limit} onClick={() => onChange([...recipients, {id: crypto.randomUUID(), address: '', amount: ''}])} className="self-start px-4 py-3 rounded-xl dash-block-accent-10 text-sm dash-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-default">+ Add recipient</button>
+      <button
+        type="button"
+        disabled={recipients.length >= limit}
+        onClick={addRecipient}
+        className="self-start px-4 py-3 rounded-xl dash-block-accent-10 text-sm dash-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-default"
+      >
+        + Add recipient
+      </button>
     </div>
   )
 }

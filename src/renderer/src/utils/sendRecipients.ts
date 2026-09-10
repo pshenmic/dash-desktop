@@ -18,7 +18,8 @@ export function recipientAllocationBudget(available: bigint | null, quotedMax: b
   if (available == null) return null
   if (available <= 0n) return 0n
   if (!quoteReady || quotedMax == null) return available
-  return quotedMax < 0n ? 0n : quotedMax < available ? quotedMax : available
+  if (quotedMax < 0n) return 0n
+  return quotedMax < available ? quotedMax : available
 }
 
 export function recipientRemainingDuffs(recipients: SendRecipientDraft[], id: string, budget: bigint): bigint {
@@ -54,8 +55,14 @@ export function validateSendRecipients(params: SendRecipientValidation): SendRec
   return recipients.map((recipient, index) => {
     const address = addresses[index]
     let addressError: string | null = null
-    const valid = destination === DestinationKind.CoreAddress ? isValidDashAddress(address, network ?? undefined)
-      : platform ? isValidPlatformAddress(recipient.address.trim(), network ?? undefined) : isLikelyShieldedAddress(address)
+    let valid: boolean
+    if (destination === DestinationKind.CoreAddress) {
+      valid = isValidDashAddress(address, network ?? undefined)
+    } else if (platform) {
+      valid = isValidPlatformAddress(recipient.address.trim(), network ?? undefined)
+    } else {
+      valid = isLikelyShieldedAddress(address)
+    }
     if (!valid) addressError = 'Enter a valid recipient address for this network.'
     else if (platform && addresses.indexOf(address) !== index) addressError = 'Each Platform recipient can appear only once.'
     else if (operation === TransferOperation.AddressFundsTransfer && fundingAddresses.some(source => source.toLowerCase() === address)) {

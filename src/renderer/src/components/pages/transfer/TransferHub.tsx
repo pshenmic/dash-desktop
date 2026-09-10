@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
-import { Button, Text, ShieldSmallIcon, SettingsIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text, ShieldSmallIcon, SettingsIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
-import DropdownField from "@renderer/components/ui/DropdownField";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
 import { toast } from "@renderer/components/ui/Toast";
@@ -69,6 +68,7 @@ import { DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDI
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import SendRecipientsEditor from "./SendRecipientsEditor";
+import TransactionSummary from "./TransactionSummary";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
@@ -390,8 +390,11 @@ function WalletTransferHub(): React.JSX.Element {
     [SourceKind.Identity]: selectedIdentity != null,
     [SourceKind.Shielded]: true,
   }[fromKind]
-  const allocationAvailableDuffs = !coinControlValid || !sourceReady ? null
-    : isCoreOperation ? balanceDuffs : availableCredits == null ? null : creditsToDuffs(availableCredits)
+  let allocationAvailableDuffs: bigint | null = null
+  if (coinControlValid && sourceReady) {
+    if (isCoreOperation) allocationAvailableDuffs = balanceDuffs
+    else if (availableCredits != null) allocationAvailableDuffs = creditsToDuffs(availableCredits)
+  }
   const allocationBudgetDuffs = recipientAllocationBudget(allocationAvailableDuffs, sliderMaxAmount, quoteReady)
 
   const selfSend =
@@ -487,6 +490,20 @@ function WalletTransferHub(): React.JSX.Element {
     }
   }
 
+  const coreRecipientInput = !advancedMulti && toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend
+  const changeDestinationKind = (kind: DestinationKind): void => {
+    setToKind(kind)
+    if (!advancedMulti) setToValue('')
+    setAcked(false)
+  }
+  const changeSendMode = (mode: boolean): void => {
+    updateDraft(current => setSendAdvanced(current, mode))
+    setWizardKey(key => key + 1)
+  }
+  const reviewTransaction = (): void => {
+    if (canSubmit) setConfirmOpen(true)
+  }
+
   const routeStep = (
     <>
       <SourcePicker
@@ -529,35 +546,22 @@ function WalletTransferHub(): React.JSX.Element {
         <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
       )}
 
-      {advancedMulti ? (
-        <DestinationPicker kind={toKind} kinds={destinationKinds} onKindChange={k => { setToKind(k); setAcked(false) }} value={toValue} onValueChange={setToValue} placeholder={destinationPlaceholder} error={null} showValueInput={false} />
-      ) : toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend ? (
-        <div className={"flex flex-col gap-2"}>
-          <DestinationPicker
-            kind={toKind}
-            kinds={destinationKinds}
-            onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
-            value={trimmedTo}
-            onValueChange={setToValue}
-            placeholder={destinationPlaceholder}
-            error={destinationError}
-            showValueInput={false}
-          />
-          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} />
-          {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
-        </div>
-      ) : (
+      <div className="flex flex-col gap-2">
         <DestinationPicker
           kind={toKind}
           kinds={destinationKinds}
-          onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
-          value={toValue}
+          onKindChange={changeDestinationKind}
+          value={coreRecipientInput ? trimmedTo : toValue}
           onValueChange={setToValue}
           placeholder={destinationPlaceholder}
-          error={destinationError}
-          showValueInput={operation != null}
+          error={advancedMulti ? null : destinationError}
+          showValueInput={!advancedMulti && !coreRecipientInput && operation != null}
         />
-      )}
+        {coreRecipientInput && <>
+          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} />
+          {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
+        </>}
+      </div>
 
       {coreSourceGated && <P2pSyncAlert />}
 
@@ -871,7 +875,17 @@ function WalletTransferHub(): React.JSX.Element {
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <div className="flex gap-1 dash-block p-1 rounded-xl" aria-label="Send mode">
-            {[false, true].map(mode => <button key={String(mode)} type="button" aria-pressed={advanced === mode} onClick={() => { updateDraft(current => setSendAdvanced(current, mode)); setWizardKey(key => key + 1) }} className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer ${advanced === mode ? 'dash-bg-inverse text-dash-brand dark:text-dash-mint' : 'dash-text-default'}`}>{mode ? 'Advanced' : 'Simple'}</button>)}
+            {[false, true].map(mode => (
+              <button
+                key={String(mode)}
+                type="button"
+                aria-pressed={advanced === mode}
+                onClick={() => changeSendMode(mode)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer ${advanced === mode ? 'dash-bg-inverse text-dash-brand dark:text-dash-mint' : 'dash-text-default'}`}
+              >
+                {mode ? 'Advanced' : 'Simple'}
+              </button>
+            ))}
           </div>
           {shieldedInvolved && <ProverPill status={prover} />}
         </div>
@@ -939,47 +953,23 @@ function WalletTransferHub(): React.JSX.Element {
                 {amountStep}
               </>}
             </div>
-            <aside className="xl:sticky xl:top-0 dash-block rounded-2xl p-5 flex flex-col gap-4 min-w-0" aria-label="Transaction summary">
-              <Text size={16} weight="extrabold" color="brand">Transaction summary</Text>
+            <TransactionSummary
+              operation={operation}
+              isCoreOperation={isCoreOperation}
+              amountDuffs={amountDuffs}
+              maxAmountDuffs={sliderMaxAmount}
+              fee={{credits: feeCredits, totalDuffs: totalFeeDuffs, ready: quoteReady, loading: feeLoading, error: feeErr}}
+              route={advancedRoute}
+              hasManualPlatformInputs={appliedCoinControl.kind === 'platformInputs'}
+              amountError={amountError}
+              canSubmit={canSubmit}
+              onRouteChange={updateAdvancedRoute}
+              onCoinControl={() => setCoinControlOpen(true)}
+              onRetryFee={retryFee}
+              onReview={reviewTransaction}
+            >
               {sourceBalanceDisplay}
-              <div className="flex justify-between gap-3 items-start">
-                <Text size={12} weight="medium" color="brand" opacity={50}>{subtractFee ? 'Estimated recipients receive' : 'Recipients receive'}</Text>
-                <Text size={14} weight="medium" color="brand" className="text-right">{subtractFee && !quoteReady ? '—' : isCoreOperation ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits - (subtractFee ? feeCredits ?? 0n : 0n)} align="end" exact />}</Text>
-              </div>
-              <div className="flex justify-between gap-3 items-center"><Text size={12} weight="medium" color="brand" opacity={50}>Network fee</Text>{feeLoading ? <Spinner size={14} /> : quoteReady ? feeDisplay : <Text size={12} weight="medium" color="brand" opacity={50}>—</Text>}</div>
-              {operation === TransferOperation.AddressFundsTransfer && <div className="flex flex-col gap-3">
-                <Checkbox checked={subtractFee} onChange={checked => updateAdvancedRoute({subtractFee: checked, feeRecipientId: checked ? advancedRoute.feeRecipientId ?? activeRecipients[0]?.id ?? null : advancedRoute.feeRecipientId})} label={<Text size={12} weight="medium" color="brand">Subtract fee from outputs</Text>} />
-                {subtractFee && <>
-                  <div className="flex flex-col gap-1">
-                    <Text size={12} weight="medium" color="brand" opacity={50}>Take fee from</Text>
-                    <DropdownField
-                      ariaLabel="Recipient paying the fee"
-                      value={activeRecipients.some(recipient => recipient.id === advancedRoute.feeRecipientId) ? advancedRoute.feeRecipientId ?? '' : ''}
-                      onChange={value => updateAdvancedRoute({feeRecipientId: value || null})}
-                      options={[
-                        {value: '', label: 'Select recipient'},
-                        ...activeRecipients.map((recipient, index) => ({
-                          value: recipient.id,
-                          label: `Recipient ${index + 1} · ${recipient.address.slice(0, 16) || 'No address'}`,
-                        })),
-                      ]}
-                      triggerClassName="dash-block rounded-[.875rem] px-4 py-3.5"
-                    />
-                  </div>
-                  {appliedCoinControl.kind !== 'platformInputs' && <button type="button" onClick={() => setCoinControlOpen(true)} className="text-left text-sm dash-text-primary cursor-pointer">Select inputs in Coin Control to deduct the fee from an output.</button>}
-                  <Text size={12} weight="medium" color="brand" opacity={50}>The selected recipient receives less by the actual network fee.</Text>
-                </>}
-              </div>}
-              <div className="border-t border-dash-primary-dark-blue/10 dark:border-white/10 pt-3 flex justify-between gap-3 items-start">
-                <Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text>
-                <Text size={16} weight="extrabold" color="brand" className="text-right">{!quoteReady ? '—' : isCoreOperation ? `${davToDash(amountDuffs + totalFeeDuffs)} Dash` : <CreditsAmount credits={totalDebitCredits} align="end" exact />}</Text>
-              </div>
-              {quoteReady && sliderMaxAmount != null && <div className="flex justify-between gap-3"><Text size={12} weight="medium" color="brand" opacity={50}>Available to allocate</Text><Text size={12} weight="medium" color="brand">{davToDash(sliderMaxAmount > amountDuffs ? sliderMaxAmount - amountDuffs : 0n)} Dash</Text></div>}
-              {amountError && <Text size={12} weight="medium" color="red">{amountError}</Text>}
-              {subtractFee && feeOutputIndex == null && <Text size={12} weight="medium" color="red">Choose the recipient paying the fee.</Text>}
-              {feeErr && <button type="button" onClick={retryFee} className="text-sm dash-text-primary cursor-pointer">Retry fee estimate</button>}
-              <Button type="button" onClick={() => { if (canSubmit) setConfirmOpen(true) }} disabled={!canSubmit} size="md" className="w-full rounded-xl">Review transaction</Button>
-            </aside>
+            </TransactionSummary>
           </div>
         </div>
       ) : <>
@@ -991,7 +981,7 @@ function WalletTransferHub(): React.JSX.Element {
           { label: 'Amount', content: amountStep, canAdvance: canSubmit },
           { label: 'Confirm', content: confirmStep },
         ]}
-        onSubmit={() => { if (canSubmit) setConfirmOpen(true) }}
+        onSubmit={reviewTransaction}
         submitLabel={info?.submitLabel ?? 'Send'}
         submitDisabled={!canSubmit}
       />
