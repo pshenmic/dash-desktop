@@ -1,5 +1,4 @@
 import {Logger, configureLogger} from '../src/utils/logger'
-import {probePeer} from './net/peerProbe'
 import {SyncService} from './sync/SyncService'
 import {P2PCommand, P2PEvent} from './types/messages'
 
@@ -101,10 +100,8 @@ process.parentPort.on('message', ({data}) => {
     case 'getConnectedPeers':
       process.parentPort.postMessage({type: 'peers', requestId: data.requestId, peers: sync.getConnectedPeers()})
       return
-    // Straight to the dialler: a probe touches no pool and no chain state, so
-    // routing it through SyncService would only rename the call.
     case 'probePeer':
-      probePeer(data.peer, data.network).then(result =>
+      sync.probePeer(data.peer, data.network).then(result =>
         process.parentPort.postMessage({type: 'peerProbe', requestId: data.requestId, result}))
       return
   }

@@ -3,6 +3,7 @@ import {ChainStore} from '../store/ChainStore'
 import {reverseHex, wireToDisplayHex} from '../utils/byteOrder'
 import {isFatalChainDbError} from '../store/chainDbError'
 import {
+  DEFAULT_PEER_PORT,
   GENESIS,
   LOCK_POOL_MAX_CONNECTIONS,
   LOCK_POOL_MIN_PEERS,
@@ -12,7 +13,9 @@ import {
 } from '../constants'
 import {PoolService} from '../net/PoolService'
 import {PeerRegistry} from '../net/peerRegistry'
+import {entryTarget} from '../net/peerAddress'
 import {bulkPeerShare, peerOverridesKey} from '../net/peerOverrides'
+import {dialProbe} from '../net/peerProbe'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
 import type {HeaderSyncWorkerStatus} from '../types/headerSync'
@@ -25,7 +28,7 @@ import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from '../types/chainStore'
 import {SyncServiceEvents} from '../types/sync'
-import {PeerInfo, PeerOverrides, PoolServiceOptions} from '../types/pool'
+import {PeerInfo, PeerOverrides, PeerProbeResult, PoolServiceOptions} from '../types/pool'
 import {Logger} from '../../src/utils/logger'
 
 const log = new Logger('p2p')
@@ -113,6 +116,26 @@ export class SyncService {
     ...this.lockPool?.peerInfo() ?? [],
     ...this.bulkPool?.peerInfo() ?? [],
   ]
+
+  // A ready peer answered this handshake already, on the network the pools are
+  // running. Anything else is claimed for the dial rather than probed around
+  // the registry: a claim held here is a socket open or opening, and Core drops
+  // both connections when it sees a second one from this host.
+  probePeer = async (peer: string, network: Network): Promise<PeerProbeResult> => {
+    const target = entryTarget(peer, DEFAULT_PEER_PORT[network])
+    if (this.lockNetwork === network && this.getConnectedPeers().some(info => `${info.host}:${info.port}` === target)) {
+      return {ok: true, error: null}
+    }
+
+    if (!this.peerRegistry.claim(target, this, this)) {
+      return {ok: false, error: 'already connected from this host'}
+    }
+    try {
+      return await dialProbe(peer, network)
+    } finally {
+      this.peerRegistry.release(target, this)
+    }
+  }
 
   setBannedPeers = (banned: string[]): void => {
     this.banned = banned
