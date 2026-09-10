@@ -25,16 +25,24 @@ import {Preferences} from '../../preferences'
 import { lockedDuffsFor, shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
+  ShieldedNoteInfo,
   ShieldedPoolInfo,
   ShieldedNotesInfo,
   ShieldedSpendPhase,
+  ShieldedSpendPlan,
   ShieldedSpendState,
   ShieldedStatus,
   ShieldedSyncPhase,
   ShieldedSyncState,
 } from '../../types/Shielded'
 import {OperationFee} from '../../types/Fee'
-import {ShieldedRecipient, ShieldedSpendSource} from '../../types/ShieldedNoteSelection'
+import {
+  NoteSelectionResult,
+  SelectableNote,
+  ShieldedRecipient,
+  ShieldedSpendSource,
+  SpendFeeForCount,
+} from '../../types/ShieldedNoteSelection'
 import {
   bundleActions,
   maxSpendableCredits,
@@ -656,22 +664,8 @@ export class ShieldedService {
     source: ShieldedSpendSource | null,
     outputCount = 1,
   ): Promise<OperationFee> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-    const curve = await this.spendFeeCurve(wallet.network, kind)
-    // Only a pool-to-pool transfer writes its payouts as Orchard outputs.
-    const outputs = kind === 'shieldedTransfer' ? outputCount : 0
-    const feeForCount = (numSpends: number): bigint =>
-      curve[Math.min(bundleActions(numSpends, outputs), curve.length) - 1]
-
-    const candidates = selectableNotes(
-      (this.syncStates.get(walletId)?.notes ?? [])
-        .map(note => ({index: note.index, value: note.amount, spent: note.spent})),
-      source,
-    )
-
-    const selection = amountCredits > 0n
-      ? selectSpendNotes(candidates, amountCredits, MAX_SPEND_NOTES, feeForCount, source)
-      : null
+    const {candidates, feeForCount, selection} =
+      await this.spendSelection(walletId, kind, amountCredits, source, outputCount)
 
     return {
       feeCredits: selection?.feeCredits ?? feeForCount(1),
@@ -680,6 +674,70 @@ export class ShieldedService {
       maxPerTx: maxSpendableCredits(candidates, MAX_SPEND_NOTES, feeForCount, source),
       noteLimit: MAX_SPEND_NOTES,
     }
+  }
+
+  // The same selection reported rather than priced. A quote answers an amount
+  // it cannot fund with a floor; a preview of one has no notes to show, so it
+  // refuses in the words the spend itself would.
+  async planSpend(
+    walletId: string,
+    kind: PoolSpendOperation,
+    amountCredits: bigint,
+    source: ShieldedSpendSource | null,
+    outputCount = 1,
+  ): Promise<ShieldedSpendPlan> {
+    const {notes, candidates, feeForCount, selection} =
+      await this.spendSelection(walletId, kind, amountCredits, source, outputCount)
+
+    if (selection === null) {
+      const max = maxSpendableCredits(candidates, MAX_SPEND_NOTES, feeForCount, source)
+      throw new Error(
+        `Amount plus the network fee exceeds what ${MAX_SPEND_NOTES} notes can cover; the most spendable now is ${max} credits`,
+      )
+    }
+
+    const addressOf = new Map(notes.map(note => [note.index, note.address]))
+    return {
+      notes: selection.selected.map(note => ({
+        index: note.index,
+        address: addressOf.get(note.index) ?? '',
+        amountCredits: note.value,
+      })),
+      feeCredits: selection.feeCredits,
+      totalCredits: selection.total,
+    }
+  }
+
+  private async spendSelection(
+    walletId: string,
+    kind: PoolSpendOperation,
+    amountCredits: bigint,
+    source: ShieldedSpendSource | null,
+    outputCount: number,
+  ): Promise<{
+    notes: ShieldedNoteInfo[]
+    candidates: SelectableNote[]
+    feeForCount: SpendFeeForCount
+    selection: NoteSelectionResult | null
+  }> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const curve = await this.spendFeeCurve(wallet.network, kind)
+    // Only a pool-to-pool transfer writes its payouts as Orchard outputs.
+    const outputs = kind === 'shieldedTransfer' ? outputCount : 0
+    const feeForCount = (numSpends: number): bigint =>
+      curve[Math.min(bundleActions(numSpends, outputs), curve.length) - 1]
+
+    const notes = this.syncStates.get(walletId)?.notes ?? []
+    const candidates = selectableNotes(
+      notes.map(note => ({index: note.index, value: note.amount, spent: note.spent})),
+      source,
+    )
+
+    const selection = amountCredits > 0n
+      ? selectSpendNotes(candidates, amountCredits, MAX_SPEND_NOTES, feeForCount, source)
+      : null
+
+    return {notes, candidates, feeForCount, selection}
   }
 
   // Fixed per network and spend kind: the protocol minimum for each note count.

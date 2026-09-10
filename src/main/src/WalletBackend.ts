@@ -36,6 +36,7 @@ import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
 import {GetTxLockStatusHandler} from "./api/wallet/getTxLockStatus";
 import {EstimateFeeHandler} from "./api/wallet/estimateFee";
+import {PreviewTransactionHandler} from "./api/wallet/previewTransaction";
 import {FeeService} from './services/wallet/FeeService'
 import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
 import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromAddresses";
@@ -177,6 +178,7 @@ export class WalletBackend {
     registerHandler('sendTransaction', new SendTransactionHandler(this.walletService).handle)
     registerHandler('getTxLockStatus', new GetTxLockStatusHandler(this.coreLockService).handle)
     registerHandler('estimateFee', new EstimateFeeHandler(this.feeService).handle)
+    registerHandler('previewTransaction', new PreviewTransactionHandler(this.feeService).handle)
     registerHandler('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformTransferService).handle)
     registerHandler('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformTransferService).handle)
     registerHandler('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformTransferService).handle)

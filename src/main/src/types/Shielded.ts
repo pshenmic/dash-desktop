@@ -26,6 +26,21 @@ export interface ShieldedNoteInfo {
   address: string
 }
 
+export interface ShieldedPlannedNote {
+  index: number
+  address: string
+  amountCredits: bigint
+}
+
+// The notes a spend will take, what they hold together, and what the pool
+// charges for taking that many. The worker picks the same set again against
+// live nullifiers; our own spent flags are the one thing that can differ.
+export interface ShieldedSpendPlan {
+  notes: ShieldedPlannedNote[]
+  feeCredits: bigint
+  totalCredits: bigint
+}
+
 export interface ShieldedSyncState {
   phase: ShieldedSyncPhase
   fetched: number
