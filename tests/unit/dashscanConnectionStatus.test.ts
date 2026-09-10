@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {Network} from '../../src/main/src/types/Network'
-import {DASHSCAN_STATUS_INTERVAL_MS} from '../../src/main/src/constants'
+import {DASHSCAN_STATUS_INTERVAL_MS} from '../../src/main/src/constants/dashscan'
 
 const mocks = vi.hoisted(() => ({fetch: vi.fn()}))
 
