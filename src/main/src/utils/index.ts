@@ -50,9 +50,6 @@ const inlineMigrationSource = {
   getMigrationName: (m: typeof migrations[number]) => m.name,
   getMigration: (m: typeof migrations[number]) => Promise.resolve(m.migration),
 }
-import {IdentityWASM, PrivateKeyWASM} from "dash-platform-sdk/types.js";
-import {DashPlatformSDK} from "dash-platform-sdk";
-import {Network} from "../types/Network";
 import {createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes} from "node:crypto";
 
 export function calibratePBKDF2Iterations(targetMs: number): number {
@@ -151,46 +148,4 @@ export function getKnex (path?: string): Knex {
 
 export async function migrateKnex (knex: Knex): Promise<void> {
   await knex.migrate.latest({ migrationSource: inlineMigrationSource })
-}
-
-export const fetchIdentitiesBySeed = async (seed: Uint8Array, sdk: DashPlatformSDK, network: Network): Promise<IdentityWASM[]> => {
-  const walletHDKey = sdk.keyPair.seedToHdKey(seed, network)
-
-  const identities = []
-
-  let identity = null
-  let identityIndex = 0
-
-  do {
-    const hdKey = sdk.keyPair.deriveIdentityPrivateKey(walletHDKey, identityIndex, 0, network)
-    const privateKey = hdKey.privateKey
-
-    if (privateKey == null) {
-      throw new Error('Could not derive private key from wallet hd key')
-    }
-
-    const pkh = PrivateKeyWASM.fromBytes(privateKey, network).getPublicKeyHash()
-
-    let uniqueIdentity
-
-    try {
-      uniqueIdentity = await sdk.identities.getIdentityByPublicKeyHash(pkh)
-    } catch { /* empty */ }
-
-    let nonUniqueIdentity
-
-    try {
-      nonUniqueIdentity = await sdk.identities.getIdentityByNonUniquePublicKeyHash(pkh)
-    } catch { /* empty */ }
-
-    [identity] = [uniqueIdentity, nonUniqueIdentity].filter(e => e != null)
-
-    if (identity != null) {
-      identities.push(identity)
-    }
-
-    identityIndex = identityIndex + 1
-  } while (identity != null)
-
-  return identities
 }

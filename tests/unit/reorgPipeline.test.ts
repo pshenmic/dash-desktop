@@ -91,7 +91,7 @@ vi.mock('electron', () => ({
     }),
   },
 }))
-vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+vi.mock('../../src/main/src/logTransport', () => ({logChildOutput: vi.fn()}))
 vi.mock('fs', () => {
   const mocked = {mkdirSync: vi.fn(), promises: {rm: vi.fn().mockResolvedValue(undefined)}}
   return {...mocked, default: mocked}
@@ -244,7 +244,8 @@ describe('WalletSyncService reorg persistence', () => {
     await tick()
 
     expect(transactionDAO.rewindToHeight).toHaveBeenCalledWith(WALLET, 80)
-    expect(sentToChild).toEqual([{type: 'reseedUtxos', walletId: WALLET, utxos: [utxo(1)]}])
+    expect(sentToChild.filter(m => (m as {type: string}).type !== 'setLogLevel'))
+      .toEqual([{type: 'reseedUtxos', walletId: WALLET, utxos: [utxo(1)]}])
   })
 
   it('reads the utxo set only after the rewind has landed', async () => {
@@ -280,7 +281,7 @@ describe('WalletSyncService reorg persistence', () => {
     await tick()
 
     expect(transactionDAO.getUtxos).not.toHaveBeenCalled()
-    expect(sentToChild).toEqual([])
+    expect(sentToChild.filter(m => (m as {type: string}).type !== 'setLogLevel')).toEqual([])
   })
 })
 

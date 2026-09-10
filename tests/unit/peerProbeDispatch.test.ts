@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 
 vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
-vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+vi.mock('../../src/main/src/logTransport', () => ({logChildOutput: vi.fn()}))
 vi.mock('fs', () => {
   const mocked = {mkdirSync: vi.fn(), promises: {rm: vi.fn().mockResolvedValue(undefined)}}
   return {...mocked, default: mocked}
@@ -38,15 +38,17 @@ describe('probing a peer through the utility process', () => {
     vi.restoreAllMocks()
   })
 
-  const sentRequestId = (): string => child.postMessage.mock.calls[0][0].requestId
+  // Forking the child also posts its log level, so the probe is not call zero.
+  const sentProbe = (): {requestId: string} =>
+    child.postMessage.mock.calls.map(call => call[0]).find(msg => msg.type === 'probePeer')
 
   it('answers the caller with what the child found', async () => {
     const probe = service.probePeer('testnet', '1.2.3.4:19999')
 
-    expect(child.postMessage.mock.calls[0][0]).toMatchObject({
+    expect(sentProbe()).toMatchObject({
       type: 'probePeer', network: 'testnet', peer: '1.2.3.4:19999',
     })
-    listeners.get('message')?.({type: 'peerProbe', requestId: sentRequestId(), result: {ok: true, error: null}} as never)
+    listeners.get('message')?.({type: 'peerProbe', requestId: sentProbe().requestId, result: {ok: true, error: null}} as never)
 
     await expect(probe).resolves.toEqual({ok: true, error: null})
   })

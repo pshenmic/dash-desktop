@@ -9,6 +9,9 @@ import {PendingTx} from '../types/PendingTx'
 import {COINBASE_PREV_TXID} from '../constants/chain'
 import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
+import {Logger} from '../utils/logger'
+
+const log = new Logger('walletSync')
 export class TransactionDAO {
   constructor(private readonly knex: Knex) {}
 
@@ -122,7 +125,7 @@ export class TransactionDAO {
           .whereIn('address', [...usedAddresses])
           .andWhere('is_used', false)
           .update({is_used: true})
-        console.log(`[walletSync] marked ${updated} address(es) used at h=${block.height} (${usedAddresses.size} candidate(s))`)
+        log.info(`marked ${updated} address(es) used at h=${block.height} (${usedAddresses.size} candidate(s))`)
       }
 
       if (advanceCursor) {

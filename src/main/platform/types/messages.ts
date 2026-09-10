@@ -1,5 +1,6 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
+import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
 import {ShieldedSpendSource} from '../../src/types/ShieldedNoteSelection'
@@ -363,7 +364,14 @@ export interface PlatformCancel {
   requestId: string
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel
+// Mirrors the user's log-level preference into the child, which keeps its own
+// threshold so suppressed lines never cross the pipe.
+export interface PlatformSetLogLevel {
+  type: 'setLogLevel'
+  level: LogLevel
+}
+
+export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}

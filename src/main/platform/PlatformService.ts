@@ -1,4 +1,5 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
+import {Logger} from '../src/utils/logger'
 import {KeyedLane, Lane} from './Lane'
 import {laneFor, PROVER_LANE} from './constants'
 import {SdkSource} from './types/sdk'
@@ -32,7 +33,7 @@ import {spend} from './operations/shielded/spend/spend'
 import {sync} from './operations/shielded/sync'
 import {
   emptyPlatformStatus,
-  PlatformCommand,
+  PlatformCancel,
   PlatformError,
   PlatformErrorCode,
   PlatformEvent,
@@ -42,6 +43,8 @@ import {
 } from './types/messages'
 import {ERROR_CODES} from './constants'
 import {InFlight} from './types/service'
+
+const log = new Logger('platform')
 
 // Orchestrator for the platform utility process: owns the SDKs and the lanes,
 // dispatches commands, and aggregates status. Mirrors p2p/sync/SyncService — it
@@ -66,7 +69,7 @@ export class PlatformService {
     return this.status
   }
 
-  handle(command: PlatformCommand): void {
+  handle(command: PlatformRequestMessage | PlatformCancel): void {
     if (command.type === 'cancel') {
       this.cancel(command.requestId)
       return
@@ -130,7 +133,10 @@ export class PlatformService {
     this.publishStatus()
     work.then(
       result => this.finish(request.requestId, record, {ok: true, result}),
-      err => this.finish(request.requestId, record, {ok: false, error: toPlatformError(err)}),
+      err => {
+        if (!record.settled) log.error(`${request.kind} ${request.requestId} failed:`, err)
+        this.finish(request.requestId, record, {ok: false, error: toPlatformError(err)})
+      },
     )
   }
 

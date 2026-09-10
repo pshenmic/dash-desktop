@@ -3,8 +3,6 @@ import type {Network} from '../src/types/Network'
 
 export const PROVER_LANE = 'prover'
 
-export const MB = 1024 * 1024
-
 export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
 
 export const ERROR_CODES: readonly string[] =
@@ -12,6 +10,9 @@ export const ERROR_CODES: readonly string[] =
 
 // Trailing base64 blob of a serialized consensus error.
 export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
+
+// DAPI rejects a miss and an outage alike; this is what the miss says.
+export const IDENTITY_NOT_FOUND = /not found/i
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 

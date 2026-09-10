@@ -13,12 +13,6 @@ export const WINDOW_MIN_WIDTH = 1200
 export const WINDOW_MIN_HEIGHT = 700
 export const WINDOW_MIN_VISIBLE_PX = 100
 
-// Rotate the current day's log file once it grows past this, and delete daily
-// log files older than this many days on startup.
-export const LOG_FILE_MAX_SIZE = 5 * 1024 * 1024
-export const LOG_RETENTION_DAYS = 14
-export const LOG_FILE_NAME_PATTERN = /^wallet-\d{4}-\d{2}-\d{2}(?:\.old)?\.log$/
-
 export const PBKDF2_KEY_LENGTH = 32
 export const PBKDF2_DIGEST = 'sha512'
 export const PBKDF2_SALT_LENGTH = 32

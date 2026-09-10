@@ -12,7 +12,7 @@ vi.mock('fs', () => ({
 vi.mock('../../src/main/src/utils/dataPath', () => ({
   dataPath: (filename: string) => filename,
 }))
-vi.mock('../../src/main/src/logger', () => ({ initLogger: vi.fn() }))
+vi.mock('../../src/main/src/logTransport', () => ({ initLogTransport: vi.fn() }))
 vi.mock('../../src/main/src/WalletBackend', () => ({
   WalletBackend: class {
     start = async (): Promise<void> => {}

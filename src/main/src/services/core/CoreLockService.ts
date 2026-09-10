@@ -13,6 +13,9 @@ import {Preferences} from '../../preferences'
 import {requireWallet} from '../../utils/requireWallet'
 import {CoreTransactionService} from './CoreTransactionService'
 import {WalletSyncService} from './WalletSyncService'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('coreLock')
 
 export class CoreLockService implements AssetLockFunder {
   private walletDAO: WalletDAO
@@ -90,7 +93,7 @@ export class CoreLockService implements AssetLockFunder {
     try {
       await this.walletSyncService.broadcastTransaction(txHex)
     } catch (error) {
-      console.error('Asset lock broadcast failed, rawtx:', txHex)
+      log.error('asset lock broadcast failed, rawtx:', txHex)
       throw error
     }
   }

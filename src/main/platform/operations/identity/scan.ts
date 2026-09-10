@@ -1,6 +1,7 @@
 import {PrivateKeyWASM} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError, throwIfAborted} from '../types'
+import {lookupIdentity} from '../identityLookup'
 
 type Payload = PlatformOperations['identityScan']['payload']
 type Result = PlatformOperations['identityScan']['result']
@@ -28,8 +29,8 @@ export async function identityScan(payload: Payload, ctx: OperationContext): Pro
     const pkh = PrivateKeyWASM.fromBytes(derived.privateKey, network).getPublicKeyHash()
 
     const existing =
-      await sdk.identities.getIdentityByPublicKeyHash(pkh).catch(() => null) ??
-      await sdk.identities.getIdentityByNonUniquePublicKeyHash(pkh).catch(() => null)
+      await lookupIdentity(sdk.identities.getIdentityByPublicKeyHash(pkh), `index ${index}`) ??
+      await lookupIdentity(sdk.identities.getIdentityByNonUniquePublicKeyHash(pkh), `index ${index}`)
 
     if (existing == null) {
       nextFreeIndex ??= index

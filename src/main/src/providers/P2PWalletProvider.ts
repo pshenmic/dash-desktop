@@ -11,6 +11,9 @@ import {TxLockStatus} from '../types/TxLockStatus'
 import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {ConnectionStatus} from '../types/ConnectionStatus'
+import {Logger} from '../utils/logger'
+
+const log = new Logger('prevout')
 
 const {addressToPublicKeyHash} = sdkUtils
 
@@ -47,7 +50,7 @@ export class P2PWalletProvider implements WalletProvider {
     // The list view can live with blank senders until the sweep reaches them;
     // this is the view that cannot.
     await this.prevOutService.resolveTransaction(this.walletId, txId).catch(err =>
-      console.warn(`[prevout] on-demand resolution for ${txId} failed:`, err))
+      log.warn(`on-demand resolution for ${txId} failed:`, err))
 
     const tx = await this.transactionDAO.getTransactionByTxid(this.walletId, txId)
     if (!tx) throw new Error(`Tx ${txId} not found in p2p store`)

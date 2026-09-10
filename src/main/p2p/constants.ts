@@ -7,8 +7,6 @@ export const HEIGHT_KEY_WIDTH = 12
 
 export const HASH_LEN = 32
 
-export const MB = 1024 * 1024
-
 export const POW_LIMIT_BITS = 0x1e0fffff
 export const MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60
 

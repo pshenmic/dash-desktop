@@ -9,6 +9,7 @@ function accepts(multiplier: number): boolean {
     connectionType: 'rpc',
     platformFeeMultiplier: multiplier,
     coreFeeMultiplier: multiplier,
+    logLevel: 'info',
   }).success
 }
 

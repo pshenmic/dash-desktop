@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 
 vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
-vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+vi.mock('../../src/main/src/logTransport', () => ({logChildOutput: vi.fn()}))
 // resetSync removes the on-disk chain store; the real call would delete the
 // developer's actual ~/.dash-desktop chain database.
 vi.mock('fs', () => {

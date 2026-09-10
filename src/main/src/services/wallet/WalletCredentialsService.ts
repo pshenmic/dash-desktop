@@ -6,10 +6,13 @@ import {COIN_TYPE, PLATFORM_ACCOUNT} from '../../constants/addresses'
 import {decryptMnemonic, encryptMnemonic} from '../../utils'
 import {coreAccountPath} from '../../utils/addressDiscovery'
 import {requireWallet} from '../../utils/requireWallet'
+import {Logger} from '../../utils/logger'
 
 // The mnemonic and the password never leave this class. Nothing here reaches a
 // chain: it is the local wallet record, its encryption, and the derivation used
 // to prove a seed belongs to it.
+const log = new Logger('credentials')
+
 export class WalletCredentialsService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
@@ -105,7 +108,10 @@ export class WalletCredentialsService {
       }
 
       return this.keyPair.p2pkhAddress(key.publicKey, network) === referenceWalletAddress.address
-    } catch {
+    } catch (err) {
+      // The caller reports this as a wrong password, which is what a derivation
+      // failure would silently masquerade as.
+      log.warn(`${walletId}: mnemonic check failed to derive:`, err)
       return false
     }
   }

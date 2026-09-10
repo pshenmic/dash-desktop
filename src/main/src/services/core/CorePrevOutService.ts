@@ -6,6 +6,9 @@ import {ParentRead, PrevOutPassResult, PrevOutRef, ResolvedPrevOut} from '../../
 import {PREVOUT_RESOLVE_BATCH, PREVOUT_RESOLVE_CONCURRENCY} from '../../constants/chain'
 import {chunk} from '../../utils/chunk'
 import {coreSDK} from '../../utils/coreSDK'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('prevout')
 
 // Parents come from DAPI, not our own peers: Dash Core answers getdata(MSG_TX)
 // out of the mempool and the relay pool only, so a confirmed one is `notfound`
@@ -41,8 +44,8 @@ export class CorePrevOutService {
     }
 
     if (resolved === 0 && unanswered === 0) return
-    console.log(
-      `[prevout] resolved ${resolved} input(s) across ${transactions.size} transaction(s)` +
+    log.info(
+      `resolved ${resolved} input(s) across ${transactions.size} transaction(s)` +
       (unanswered > 0 ? `, ${unanswered} unanswered${error != null ? ` (${error})` : ''}` : ''),
     )
   }
@@ -58,7 +61,7 @@ export class CorePrevOutService {
 
     const pass = await this.resolveRefs(walletId, wallet.network, refs)
     if (pass.unanswered > 0) {
-      console.warn(`[prevout] ${txid}: ${pass.unanswered} input(s) unanswered${pass.error != null ? ` (${pass.error})` : ''}`)
+      log.warn(`${txid}: ${pass.unanswered} input(s) unanswered${pass.error != null ? ` (${pass.error})` : ''}`)
     }
   }
 

@@ -1,18 +1,32 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, dialog, Menu, screen } from 'electron'
+import { app, shell, BrowserWindow, nativeTheme, dialog, Menu, screen } from 'electron'
 import { writeFile } from 'fs/promises'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
-import { initLogger } from './src/logger'
+import { initLogTransport } from './src/logTransport'
 import { WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
 import { dataPath } from './src/utils/dataPath'
 import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
 import { WindowState } from './src/types/WindowState'
 import packageJSON from '../../package.json'
+import {registerHandler} from './src/utils/ipcHandler'
+import {Logger} from './src/utils/logger'
 
-initLogger()
+const log = new Logger('startup')
+const shutdown = new Logger('shutdown')
+const windowState = new Logger('window-state')
+const crash = new Logger('crash')
+
+initLogTransport()
+
+process.on('uncaughtException', err => {
+  crash.error('uncaughtException:', err)
+})
+process.on('unhandledRejection', reason => {
+  crash.error('unhandledRejection:', reason)
+})
 
 const backend = new WalletBackend()
 
@@ -37,7 +51,7 @@ const saveWindowState = (window: BrowserWindow): void => {
     const state: WindowState = { ...window.getNormalBounds(), maximized }
     writeFileSync(windowStatePath, JSON.stringify(state))
   } catch (err) {
-    console.error('[window-state] save failed:', err)
+    windowState.error('save failed:', err)
   }
 }
 
@@ -115,11 +129,11 @@ const createWindow = (): void => {
 }
 
 // Dark mode
-ipcMain.handle('dark-mode:get', () => {
+registerHandler('dark-mode:get', () => {
   return nativeTheme.shouldUseDarkColors
 })
 
-ipcMain.handle('dark-mode:system', () => {
+registerHandler('dark-mode:system', () => {
   nativeTheme.themeSource = 'system'
 })
 
@@ -131,7 +145,7 @@ nativeTheme.on('updated', () => {
 
 // false means the user dismissed the save dialog, which is not a failure — a
 // failed write throws instead.
-ipcMain.handle('saveTextFile', async (_event, defaultFileName: string, content: string): Promise<boolean> => {
+registerHandler('saveTextFile', async (_event, defaultFileName: string, content: string): Promise<boolean> => {
   const options = {
     defaultPath: defaultFileName,
     filters: [
@@ -161,7 +175,7 @@ app.whenReady().then(() => {
   backend.start()
     .then(createWindow)
     .catch((err) => {
-      console.error(err)
+      log.error(err)
       dialog.showErrorBox('Startup failed', String(err))
     })
 
@@ -170,7 +184,7 @@ app.whenReady().then(() => {
       backend.start()
         .then(createWindow)
         .catch((err) => {
-          console.error(err)
+          log.error(err)
           dialog.showErrorBox('Startup failed', String(err))
         })
     }
@@ -192,6 +206,6 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   backendStopped = true
   backend.shutdown()
-    .catch((err) => console.error('[shutdown] backend shutdown failed:', err))
+    .catch((err) => shutdown.error('backend shutdown failed:', err))
     .finally(() => app.quit())
 })

@@ -22,6 +22,9 @@ import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../../constants/
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, ASSET_LOCK_DISMISSED_ERROR} from '../../constants/credits'
 import {requireWallet} from '../../utils/requireWallet'
 import {coreSDK} from '../../utils/coreSDK'
+import {Logger} from '../../utils/logger'
+
+const log = new Logger('assetLock')
 
 // Locks L1 coins and produces the proof that funds a platform state transition.
 // Deliberately knows nothing about what the proof is spent on — identities,
@@ -110,7 +113,7 @@ export class AssetLockService {
       amountDuffs,
     }
     this.states.set(walletId, state)
-    console.log(`[assetLock] ${walletId}: begin ${kind} ${amountDuffs} duffs -> ${destination}`)
+    log.info(`${walletId}: begin ${kind} ${amountDuffs} duffs -> ${destination}`)
     return state
   }
 
@@ -126,7 +129,7 @@ export class AssetLockService {
       amountDuffs: row.amountDuffs,
     }
     this.states.set(walletId, state)
-    console.log(`[assetLock] ${row.txid}: resuming ${row.kind} from ${row.status}`)
+    log.info(`${row.txid}: resuming ${row.kind} from ${row.status}`)
     return state
   }
 
@@ -134,19 +137,19 @@ export class AssetLockService {
   fail(state: AssetLockFundingState, error: unknown): void {
     state.error = error instanceof Error ? error.message : String(error)
     state.phase = state.txid != null ? 'resumable' : 'error'
-    console.error(`[assetLock] ${state.txid ?? state.kind}: ${state.phase} — ${state.error}`)
+    log.error(`${state.txid ?? state.kind}: ${state.phase} — ${state.error}`)
   }
 
   async markBroadcastingSt(state: AssetLockFundingState, row: AssetLockFundingRow): Promise<void> {
     state.phase = 'broadcastingST'
-    console.log(`[assetLock] ${row.txid}: broadcasting state transition`)
+    log.info(`${row.txid}: broadcasting state transition`)
     await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.StBroadcast)
   }
 
   async done(state: AssetLockFundingState, row: AssetLockFundingRow, stHash: string): Promise<void> {
     state.stHash = stHash
     state.phase = 'done'
-    console.log(`[assetLock] ${row.txid}: done st=${stHash}`)
+    log.info(`${row.txid}: done st=${stHash}`)
     await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.Done, {stHash})
   }
 
@@ -176,7 +179,7 @@ export class AssetLockService {
     // Losing the response does not prove peers missed the transaction: the
     // transport can exit after delivery but before reporting propagation.
     await this.funder.broadcastAssetLock(built.tx.hex())
-    console.log(`[assetLock] ${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
+    log.info(`${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
 
     const row = await this.assetLockDAO.getActiveFunding(walletId)
     if (row == null) {
@@ -200,7 +203,7 @@ export class AssetLockService {
   ): Promise<AssetLockProofParams> {
     if (row.assetLockProof != null) {
       this.applyLockKind(state, row.assetLockProof)
-      console.log(`[assetLock] ${row.txid}: reusing stored ${row.assetLockProof.type} proof`)
+      log.info(`${row.txid}: reusing stored ${row.assetLockProof.type} proof`)
       return row.assetLockProof
     }
 
@@ -232,7 +235,7 @@ export class AssetLockService {
     }
 
     this.applyLockKind(state, proof)
-    console.log(`[assetLock] ${row.txid}: settled by ${proof.type}`)
+    log.info(`${row.txid}: settled by ${proof.type}`)
     await this.assetLockDAO.saveProof(row.walletId, row.txid, proof)
     await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.ChainLocked)
 
@@ -261,9 +264,9 @@ export class AssetLockService {
 
     // Best-effort: peers that already hold the transaction never request it, so
     // a rebroadcast of a live funding reports no propagation and lands here.
-    console.log(`[assetLock] ${row.txid}: no confirmation or lock on record — rebroadcasting`)
+    log.info(`${row.txid}: no confirmation or lock on record — rebroadcasting`)
     await this.funder.broadcastAssetLock(tx.hex()).catch(err =>
-      console.warn(`[assetLock] ${row.txid}: rebroadcast did not propagate:`, err))
+      log.warn(`${row.txid}: rebroadcast did not propagate:`, err))
   }
 
   // Only a positive answer is actionable: a source that cannot say who spent an
@@ -331,12 +334,12 @@ export class AssetLockService {
           const platformHeight = await this.platform.request('nodeStatus', network, {})
             .then(({chain}) => chain?.coreChainLockedHeight ?? 0)
             .catch(err => {
-              console.warn(`[assetLock] ${txid}: platform node status unavailable:`, err)
+              log.warn(`${txid}: platform node status unavailable:`, err)
               return 0
             })
 
           if (platformHeight >= dapiTx.height) {
-            console.log(`[assetLock] ${txid}: chainlocked at h=${dapiTx.height}, platform at h=${platformHeight} — building proof`)
+            log.info(`${txid}: chainlocked at h=${dapiTx.height}, platform at h=${platformHeight} — building proof`)
             return coreUtils.createAssetLockProof({
               transaction: assetLockTx,
               coreChainLockedHeight: dapiTx.height,
@@ -346,7 +349,7 @@ export class AssetLockService {
         }
 
         const seen = this.funder.chainlockedHeight(network)
-        console.log(`[assetLock] ${txid}: not chainlocked yet (tx ${dapiTx == null ? 'not on DAPI' : `h=${dapiTx.height}`}) — waiting past h=${seen}`)
+        log.info(`${txid}: not chainlocked yet (tx ${dapiTx == null ? 'not on DAPI' : `h=${dapiTx.height}`}) — waiting past h=${seen}`)
         const remaining = Math.max(0, deadline - Date.now())
         await this.funder.waitForChainLock(network, seen + 1, Math.min(remaining, CHAIN_LOCK_BACKSTOP_MS))
       }

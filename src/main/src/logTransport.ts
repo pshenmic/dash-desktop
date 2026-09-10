@@ -1,8 +1,11 @@
 import log from 'electron-log/main'
 import fs from 'fs'
 import path from 'path'
-import {LOG_FILE_MAX_SIZE, LOG_RETENTION_DAYS, LogsFolderName} from './constants/app'
+import {LogsFolderName} from './constants/app'
+import {LOG_FILE_MAX_SIZE, LOG_LEVELS, LOG_RETENTION_DAYS} from './constants/logging'
+import {LogLevel} from './types/Log'
 import {dataPath} from './utils/dataPath'
+import {configureLogger, replaceSecrets} from './utils/logger'
 
 const logsDir = dataPath(LogsFolderName)
 
@@ -32,11 +35,11 @@ let initialized = false
 
 /**
  * Route all main-process logging to a dated file under the wallet folder while
- * keeping terminal output. Patches `console.*` so existing call sites are
- * captured without changes. Utility-process output is forwarded via
- * {@link logChildOutput}. Safe to call more than once.
+ * keeping terminal output. Patches `console.*` so third-party output (SDK,
+ * Knex) is captured alongside {@link Logger} call sites. Utility-process output
+ * is forwarded via {@link logChildOutput}. Safe to call more than once.
  */
-export function initLogger (): void {
+export function initLogTransport (): void {
   if (initialized) return
   initialized = true
 
@@ -48,11 +51,30 @@ export function initLogger (): void {
   log.transports.file.maxSize = LOG_FILE_MAX_SIZE
   log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}]{scope} {text}'
 
+  // Catches what a Logger call site cannot: console.* from dependencies, and
+  // child output that reached us as raw bytes rather than through a Logger.
+  log.hooks.push(message => {
+    message.data = message.data.map(item => typeof item === 'string' ? replaceSecrets(item) : item)
+    return message
+  })
+
   log.initialize()
 
   // Capture existing console.* call sites across the main process.
   Object.assign(console, log.functions)
 }
+
+/**
+ * Set the level for everything the main process writes — both {@link Logger}
+ * call sites and the third-party `console.*` output electron-log captures.
+ */
+export function applyLogLevel(level: LogLevel): void {
+  configureLogger({level})
+  log.transports.file.level = level
+  log.transports.console.level = level
+}
+
+const CHILD_LEVEL_PATTERN = new RegExp(`^\\[(${LOG_LEVELS.join('|')})\\] `)
 
 /**
  * Forward a chunk of a utility process's stdout/stderr to the same log file
@@ -67,7 +89,11 @@ export function logChildOutput (scope: 'p2p' | 'platform', text: string, isError
   // logging the chunk whole stamps only the first — the rest land bare, so the
   // file cannot be filtered by time or level.
   for (const line of trimmed.split('\n')) {
-    if (isError) scoped.error(line)
+    // A child's own level survives as a prefix its Logger stamped; the stream
+    // it arrived on only distinguishes error from everything else.
+    const match = line.match(CHILD_LEVEL_PATTERN)
+    if (match) scoped[match[1] as LogLevel](line.slice(match[0].length))
+    else if (isError) scoped.error(line)
     else scoped.info(line)
   }
 }

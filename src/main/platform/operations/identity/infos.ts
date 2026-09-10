@@ -1,5 +1,6 @@
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, throwIfAborted} from '../types'
+import {lookupIdentity} from '../identityLookup'
 
 type Payload = PlatformOperations['identityInfos']['payload']
 type Result = PlatformOperations['identityInfos']['result']
@@ -17,7 +18,7 @@ export async function identityInfos(payload: Payload, ctx: OperationContext): Pr
   throwIfAborted(ctx.signal)
 
   const resolved = await Promise.all(payload.identifiers.map(async identifier => {
-    const identity = await sdk.identities.getIdentityByIdentifier(identifier).catch(() => null)
+    const identity = await lookupIdentity(sdk.identities.getIdentityByIdentifier(identifier), identifier)
     if (identity == null) return null
 
     return {

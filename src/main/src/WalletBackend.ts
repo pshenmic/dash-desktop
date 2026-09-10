@@ -1,8 +1,8 @@
 import {calibratePBKDF2Iterations, getKnex, migrateKnex} from './utils'
 import {dataPath, ensureDataFolder} from './utils/dataPath'
+import {applyLogLevel} from './logTransport'
 import {LogsFolderName, PBKDF2_TARGET_MS, PreferencesFilename, StorageFilename} from './constants/app'
 import {SHIELDED_NOTES_CHECK_INTERVAL_MS} from './constants/credits'
-import { ipcMain } from 'electron'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
@@ -57,6 +57,7 @@ import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
 import {VerifyWalletMnemonicHandler} from "./api/wallet/verifyWalletMnemonic";
 import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
 import {SetLanguageHandler} from "./api/setLanguage";
+import {SetLogLevelHandler} from "./api/setLogLevel";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {GetConnectedPeersHandler} from "./api/getConnectedPeers";
@@ -118,7 +119,13 @@ import {LogService} from './services/app/LogService'
 import {ListLogFiles} from './api/logs/listLogFiles'
 import {GetLogFileHandler} from './api/logs/getLogFile'
 import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
+import {registerHandler} from './utils/ipcHandler'
+import {Logger} from './utils/logger'
 
+const prevout = new Logger('prevout')
+const locks = new Logger('locks')
+const discoveryLog = new Logger('discovery')
+const shielded = new Logger('shielded')
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -144,93 +151,94 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
-    ipcMain.handle('createWallet', new CreateWalletHandler(this.walletService, this.shieldedService).handle)
-    ipcMain.handle('deleteWallet', new DeleteWalletHandler(this.walletService).handle)
-    ipcMain.handle('getAllWallets', new GetAllWalletsHandler(this.walletService).handle)
-    ipcMain.handle('selectWallet', new SelectWallet(this.walletService, this.coreDiscoveryService).handle)
-    ipcMain.handle('getWalletBalance', new GetWalletBalance(this.walletService).handle)
-    ipcMain.handle('getAddresses', new GetWalletAddressesHandler(this.walletService).handle)
-    ipcMain.handle('addWalletAddress', new AddWalletAddressHandler(this.walletService).handle)
-    ipcMain.handle('getReceiveAddress', new GetReceiveAddressHandler(this.walletService).handle)
-    ipcMain.handle('getStatus', new GetStatusHandler(this.walletService, this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('getTransactions', new GetTransactionsHandler(this.walletService).handle)
-    ipcMain.handle('getBalance', new GetBalance(this.walletService).handle)
-    ipcMain.handle("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
-    ipcMain.handle('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
-    ipcMain.handle('getIdentityBalance', new GetIdentityBalance(this.identityService).handle)
-    ipcMain.handle('getIdentityNonce', new GetIdentityNonce(this.identityService).handle)
-    ipcMain.handle('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
-    ipcMain.handle('addPlatformAddress', new AddPlatformAddressHandler(this.platformAddressService).handle)
-    ipcMain.handle('setAddressLabel', new SetAddressLabel(this.walletService).handle)
-    ipcMain.handle('setWalletLabel', new SetWalletLabel(this.walletService).handle)
-    ipcMain.handle('sendTransaction', new SendTransactionHandler(this.walletService).handle)
-    ipcMain.handle('getTxLockStatus', new GetTxLockStatusHandler(this.coreLockService).handle)
-    ipcMain.handle('estimateFee', new EstimateFeeHandler(this.feeService).handle)
-    ipcMain.handle('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformTransferService).handle)
-    ipcMain.handle('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformTransferService).handle)
-    ipcMain.handle('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformTransferService).handle)
-    ipcMain.handle('sendIdentityCredits', new SendIdentityCreditsHandler(this.platformTransferService).handle)
-    ipcMain.handle('transferIdentityCredits', new TransferIdentityCreditsHandler(this.platformTransferService).handle)
-    ipcMain.handle('withdrawIdentityCredits', new WithdrawIdentityCreditsHandler(this.platformTransferService).handle)
-    ipcMain.handle('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformTransferService).handle)
-    ipcMain.handle('startAssetLockFunding', new StartAssetLockFundingHandler(this.platformTransferService, this.shieldedService, this.identityRegistrationService).handle)
-    ipcMain.handle('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
-    ipcMain.handle('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformTransferService, this.shieldedService, this.identityRegistrationService).handle)
-    ipcMain.handle('dismissAssetLockFunding', new DismissAssetLockFundingHandler(this.assetLockService).handle)
-    ipcMain.handle('shieldToPool', new ShieldToPoolHandler(this.platformTransferService).handle)
-    ipcMain.handle('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletCredentialsService).handle)
-    ipcMain.handle('exportMnemonic', new ExportMnemonicHandler(this.walletCredentialsService).handle)
-    ipcMain.handle('verifyWalletMnemonic', new VerifyWalletMnemonicHandler(this.walletCredentialsService).handle)
-    ipcMain.handle('resetWalletPassword', new ResetWalletPasswordHandler(this.walletCredentialsService).handle)
-    ipcMain.handle('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
-    ipcMain.handle('setLanguage', new SetLanguageHandler(this.applicationService).handle)
-    ipcMain.handle('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
-    ipcMain.handle('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
-    ipcMain.handle('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
-    ipcMain.handle('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
-    ipcMain.handle('getConnectedPeers', new GetConnectedPeersHandler(this.walletSyncService).handle)
-    ipcMain.handle('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('pushStaticPeer', new PushStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('removeStaticPeer', new RemoveStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('getStaticPeers', new GetStaticPeersHandler(this.applicationService).handle)
-    ipcMain.handle('setBannedPeers', new SetBannedPeersHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('getBannedPeers', new GetBannedPeersHandler(this.applicationService).handle)
-    ipcMain.handle('setDnsSeeds', new SetDnsSeedsHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('getDnsSeeds', new GetDnsSeedsHandler(this.applicationService).handle)
-    ipcMain.handle('setDynamicPeers', new SetDynamicPeersHandler(this.applicationService, this.walletSyncService).handle)
-    ipcMain.handle('getDynamicPeers', new GetDynamicPeersHandler(this.applicationService).handle)
-    ipcMain.handle('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
-    ipcMain.handle('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
-    ipcMain.handle('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
-    ipcMain.handle('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
-    ipcMain.handle('getUtxos', new GetUtxosHandler(this.walletService).handle)
-    ipcMain.handle('hasSyncProgress', new HasSyncProgressHandler(this.walletSyncService).handle)
-    ipcMain.handle('broadcastTransaction', new BroadcastTransactionHandler(this.walletSyncService).handle)
-    ipcMain.handle('getExchangeRates', new GetExchangeRatesHandler(this.ratesService).handle)
-    ipcMain.handle('getContacts', new GetContactsHandler(this.contactService).handle)
-    ipcMain.handle('addContact', new AddContactHandler(this.contactService).handle)
-    ipcMain.handle('deleteContact', new DeleteContactHandler(this.contactService).handle)
-    ipcMain.handle('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
-    ipcMain.handle('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
-    ipcMain.handle('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)
-    ipcMain.handle('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
-    ipcMain.handle('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
-    ipcMain.handle('refreshShieldedSpentNotes', new RefreshShieldedSpentNotesHandler(this.shieldedService).handle)
-    ipcMain.handle('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
-    ipcMain.handle('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
-    ipcMain.handle('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
-    ipcMain.handle('startShieldedIdentityCreate', new StartShieldedIdentityCreateHandler(this.shieldedService).handle)
-    ipcMain.handle('getShieldedSpendState', new GetShieldedSpendStateHandler(this.shieldedService).handle)
-    ipcMain.handle('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
-    ipcMain.handle('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
-    ipcMain.handle('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
-    ipcMain.handle('listLogFiles', new ListLogFiles(this.logService).handle)
-    ipcMain.handle('getLogFile', new GetLogFileHandler(this.logService).handle)
-    ipcMain.handle('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
+    registerHandler('createWallet', new CreateWalletHandler(this.walletService, this.shieldedService).handle)
+    registerHandler('deleteWallet', new DeleteWalletHandler(this.walletService).handle)
+    registerHandler('getAllWallets', new GetAllWalletsHandler(this.walletService).handle)
+    registerHandler('selectWallet', new SelectWallet(this.walletService, this.coreDiscoveryService).handle)
+    registerHandler('getWalletBalance', new GetWalletBalance(this.walletService).handle)
+    registerHandler('getAddresses', new GetWalletAddressesHandler(this.walletService).handle)
+    registerHandler('addWalletAddress', new AddWalletAddressHandler(this.walletService).handle)
+    registerHandler('getReceiveAddress', new GetReceiveAddressHandler(this.walletService).handle)
+    registerHandler('getStatus', new GetStatusHandler(this.walletService, this.applicationService, this.walletSyncService).handle)
+    registerHandler('getTransactions', new GetTransactionsHandler(this.walletService).handle)
+    registerHandler('getBalance', new GetBalance(this.walletService).handle)
+    registerHandler("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
+    registerHandler('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
+    registerHandler('getIdentityBalance', new GetIdentityBalance(this.identityService).handle)
+    registerHandler('getIdentityNonce', new GetIdentityNonce(this.identityService).handle)
+    registerHandler('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
+    registerHandler('addPlatformAddress', new AddPlatformAddressHandler(this.platformAddressService).handle)
+    registerHandler('setAddressLabel', new SetAddressLabel(this.walletService).handle)
+    registerHandler('setWalletLabel', new SetWalletLabel(this.walletService).handle)
+    registerHandler('sendTransaction', new SendTransactionHandler(this.walletService).handle)
+    registerHandler('getTxLockStatus', new GetTxLockStatusHandler(this.coreLockService).handle)
+    registerHandler('estimateFee', new EstimateFeeHandler(this.feeService).handle)
+    registerHandler('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformTransferService).handle)
+    registerHandler('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformTransferService).handle)
+    registerHandler('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformTransferService).handle)
+    registerHandler('sendIdentityCredits', new SendIdentityCreditsHandler(this.platformTransferService).handle)
+    registerHandler('transferIdentityCredits', new TransferIdentityCreditsHandler(this.platformTransferService).handle)
+    registerHandler('withdrawIdentityCredits', new WithdrawIdentityCreditsHandler(this.platformTransferService).handle)
+    registerHandler('createIdentityFromAddresses', new CreateIdentityFromAddressesHandler(this.platformTransferService).handle)
+    registerHandler('startAssetLockFunding', new StartAssetLockFundingHandler(this.platformTransferService, this.shieldedService, this.identityRegistrationService).handle)
+    registerHandler('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
+    registerHandler('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformTransferService, this.shieldedService, this.identityRegistrationService).handle)
+    registerHandler('dismissAssetLockFunding', new DismissAssetLockFundingHandler(this.assetLockService).handle)
+    registerHandler('shieldToPool', new ShieldToPoolHandler(this.platformTransferService).handle)
+    registerHandler('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletCredentialsService).handle)
+    registerHandler('exportMnemonic', new ExportMnemonicHandler(this.walletCredentialsService).handle)
+    registerHandler('verifyWalletMnemonic', new VerifyWalletMnemonicHandler(this.walletCredentialsService).handle)
+    registerHandler('resetWalletPassword', new ResetWalletPasswordHandler(this.walletCredentialsService).handle)
+    registerHandler('getPreferences', new GetPreferencesHandler(this.applicationService).handle)
+    registerHandler('setLanguage', new SetLanguageHandler(this.applicationService).handle)
+    registerHandler('setLogLevel', new SetLogLevelHandler(this.applicationService, this.walletSyncService, this.platformWorkerService).handle)
+    registerHandler('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
+    registerHandler('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
+    registerHandler('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
+    registerHandler('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
+    registerHandler('getConnectedPeers', new GetConnectedPeersHandler(this.walletSyncService).handle)
+    registerHandler('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
+    registerHandler('pushStaticPeer', new PushStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
+    registerHandler('removeStaticPeer', new RemoveStaticPeerHandler(this.applicationService, this.walletSyncService).handle)
+    registerHandler('getStaticPeers', new GetStaticPeersHandler(this.applicationService).handle)
+    registerHandler('setBannedPeers', new SetBannedPeersHandler(this.applicationService, this.walletSyncService).handle)
+    registerHandler('getBannedPeers', new GetBannedPeersHandler(this.applicationService).handle)
+    registerHandler('setDnsSeeds', new SetDnsSeedsHandler(this.applicationService, this.walletSyncService).handle)
+    registerHandler('getDnsSeeds', new GetDnsSeedsHandler(this.applicationService).handle)
+    registerHandler('setDynamicPeers', new SetDynamicPeersHandler(this.applicationService, this.walletSyncService).handle)
+    registerHandler('getDynamicPeers', new GetDynamicPeersHandler(this.applicationService).handle)
+    registerHandler('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
+    registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
+    registerHandler('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
+    registerHandler('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
+    registerHandler('getUtxos', new GetUtxosHandler(this.walletService).handle)
+    registerHandler('hasSyncProgress', new HasSyncProgressHandler(this.walletSyncService).handle)
+    registerHandler('broadcastTransaction', new BroadcastTransactionHandler(this.walletSyncService).handle)
+    registerHandler('getExchangeRates', new GetExchangeRatesHandler(this.ratesService).handle)
+    registerHandler('getContacts', new GetContactsHandler(this.contactService).handle)
+    registerHandler('addContact', new AddContactHandler(this.contactService).handle)
+    registerHandler('deleteContact', new DeleteContactHandler(this.contactService).handle)
+    registerHandler('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
+    registerHandler('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
+    registerHandler('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)
+    registerHandler('startShieldedSync', new StartShieldedSyncHandler(this.shieldedService).handle)
+    registerHandler('getShieldedSyncState', new GetShieldedSyncStateHandler(this.shieldedService).handle)
+    registerHandler('refreshShieldedSpentNotes', new RefreshShieldedSpentNotesHandler(this.shieldedService).handle)
+    registerHandler('startShieldedTransfer', new StartShieldedTransferHandler(this.shieldedService).handle)
+    registerHandler('startShieldedUnshield', new StartShieldedUnshieldHandler(this.shieldedService).handle)
+    registerHandler('startShieldedWithdrawal', new StartShieldedWithdrawalHandler(this.shieldedService).handle)
+    registerHandler('startShieldedIdentityCreate', new StartShieldedIdentityCreateHandler(this.shieldedService).handle)
+    registerHandler('getShieldedSpendState', new GetShieldedSpendStateHandler(this.shieldedService).handle)
+    registerHandler('getShieldedAddress', new GetShieldedAddressHandler(this.shieldedService).handle)
+    registerHandler('getShieldedAddresses', new GetShieldedAddressesHandler(this.shieldedService).handle)
+    registerHandler('addShieldedAddress', new AddShieldedAddressHandler(this.shieldedService).handle)
+    registerHandler('listLogFiles', new ListLogFiles(this.logService).handle)
+    registerHandler('getLogFile', new GetLogFileHandler(this.logService).handle)
+    registerHandler('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
   }
 
   async start(): Promise<void> {
@@ -240,6 +248,10 @@ export class WalletBackend {
     const calibratedIterations = calibratePBKDF2Iterations(PBKDF2_TARGET_MS)
 
     const preferences = await Preferences.init(dataPath(PreferencesFilename))
+
+    // The bootstrap in main/index.ts runs before preferences exist, so until
+    // here everything is logged at the default level.
+    applyLogLevel(preferences.general.logLevel)
 
     const knex = getKnex(dataPath(StorageFilename))
 
@@ -295,7 +307,7 @@ export class WalletBackend {
       if (applicationService.preferences.general.connectionType !== 'p2p' || resolvingPrevOuts) return
       resolvingPrevOuts = true
       prevOuts.resolveBacklog(walletId)
-        .catch(err => console.error('[prevout] input resolution failed:', err))
+        .catch(err => prevout.error('input resolution failed:', err))
         .finally(() => { resolvingPrevOuts = false })
     }
     const discoverSelected = async (): Promise<void> => {
@@ -307,25 +319,25 @@ export class WalletBackend {
       try {
         await walletSyncService.startLockListen(selected.network, selected.walletId)
       } catch (err) {
-        console.error('[locks] failed to start lock listener:', err)
+        locks.error('failed to start lock listener:', err)
       }
       await discovery.discoverCoreAddresses(selected.walletId)
       resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
       discovery.discoverCoreAddresses(walletId).catch(err =>
-        console.error('[discovery] post-sync address discovery failed:', err))
+        discoveryLog.error('post-sync address discovery failed:', err))
       resolvePrevOuts(walletId)
     }
     // The scan is stopped until this answers, so it must not join a discovery
     // run that started before the block that exhausted the gap was persisted.
     this.walletSyncService.onGapExhausted = (gap) => {
       discovery.rediscoverCoreAddresses(gap.walletId).catch(err =>
-        console.error('[discovery] gap-exhausted address discovery failed:', err))
+        discoveryLog.error('gap-exhausted address discovery failed:', err))
     }
-    discoverSelected().catch(err => console.error('[discovery] startup address discovery failed:', err))
+    discoverSelected().catch(err => discoveryLog.error('startup address discovery failed:', err))
     setInterval(() => {
-      discoverSelected().catch(err => console.error('[discovery] periodic address discovery failed:', err))
+      discoverSelected().catch(err => discoveryLog.error('periodic address discovery failed:', err))
     }, DISCOVERY_INTERVAL_MS).unref()
 
     const shieldedService = this.shieldedService
@@ -335,9 +347,9 @@ export class WalletBackend {
         await shieldedService.prefetchNotes(selected.walletId, selected.network)
       }
     }
-    fetchShieldedNotes().catch(err => console.error('[shielded] startup note fetch failed:', err))
+    fetchShieldedNotes().catch(err => shielded.error('startup note fetch failed:', err))
     setInterval(() => {
-      fetchShieldedNotes().catch(err => console.error('[shielded] periodic note fetch failed:', err))
+      fetchShieldedNotes().catch(err => shielded.error('periodic note fetch failed:', err))
     }, SHIELDED_NOTES_CHECK_INTERVAL_MS).unref()
 
     this.applicationService.markReady()

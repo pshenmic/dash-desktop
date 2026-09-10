@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 
 vi.mock('electron', () => ({utilityProcess: {fork: vi.fn()}}))
-vi.mock('../../src/main/src/logger', () => ({logChildOutput: vi.fn()}))
+vi.mock('../../src/main/src/logTransport', () => ({logChildOutput: vi.fn()}))
 vi.mock('fs', () => {
   const mocked = {mkdirSync: vi.fn(), promises: {rm: vi.fn().mockResolvedValue(undefined)}}
   return {...mocked, default: mocked}
@@ -231,7 +231,7 @@ describe('observability of the crossing into main', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     logged = []
-    vi.spyOn(console, 'log').mockImplementation((msg: unknown) => { logged.push(String(msg)) })
+    vi.spyOn(console, 'info').mockImplementation((msg: unknown) => { logged.push(String(msg)) })
     const transactionDAO = {markChainlockedUpTo: vi.fn().mockResolvedValue(undefined)}
     service = new WalletSyncService({} as never, {} as never, transactionDAO as never, Preferences.default())
   })

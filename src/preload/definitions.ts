@@ -77,6 +77,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),
   setLanguage: (language: string) => ipcRenderer.invoke('setLanguage', language),
+  setLogLevel: (level: string) => ipcRenderer.invoke('setLogLevel', level),
   setFiatCurrency: (currency: string) => ipcRenderer.invoke('setFiatCurrency', currency),
   setConnectionType: (connectionType: 'p2p' | 'rpc') => ipcRenderer.invoke('setConnectionType', connectionType),
   setPlatformFeeMultiplier: (platformFeeMultiplier: number) => ipcRenderer.invoke('setPlatformFeeMultiplier', platformFeeMultiplier),
