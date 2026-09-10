@@ -6,6 +6,7 @@ import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import Checkbox from "@renderer/components/ui/Checkbox";
+import DropdownField from "@renderer/components/ui/DropdownField";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
 import { toast } from "@renderer/components/ui/Toast";
@@ -949,12 +950,22 @@ function WalletTransferHub(): React.JSX.Element {
               {operation === TransferOperation.AddressFundsTransfer && <div className="flex flex-col gap-3">
                 <Checkbox checked={subtractFee} onChange={checked => updateAdvancedRoute({subtractFee: checked, feeRecipientId: checked ? advancedRoute.feeRecipientId ?? activeRecipients[0]?.id ?? null : advancedRoute.feeRecipientId})} label={<Text size={12} weight="medium" color="brand">Subtract fee from outputs</Text>} />
                 {subtractFee && <>
-                  <label className="flex flex-col gap-1"><Text size={12} weight="medium" color="brand" opacity={50}>Take fee from</Text>
-                    <select aria-label="Recipient paying the fee" value={activeRecipients.some(recipient => recipient.id === advancedRoute.feeRecipientId) ? advancedRoute.feeRecipientId ?? '' : ''} onChange={event => updateAdvancedRoute({feeRecipientId: event.target.value || null})} className="rounded-xl p-3 text-sm dash-text-default bg-white dark:bg-dash-primary-dark-blue border border-dash-primary-dark-blue/15 dark:border-white/15">
-                      <option value="">Select recipient</option>
-                      {activeRecipients.map((recipient, index) => <option key={recipient.id} value={recipient.id}>Recipient {index + 1} · {recipient.address.slice(0, 16) || 'No address'}</option>)}
-                    </select>
-                  </label>
+                  <div className="flex flex-col gap-1">
+                    <Text size={12} weight="medium" color="brand" opacity={50}>Take fee from</Text>
+                    <DropdownField
+                      ariaLabel="Recipient paying the fee"
+                      value={activeRecipients.some(recipient => recipient.id === advancedRoute.feeRecipientId) ? advancedRoute.feeRecipientId ?? '' : ''}
+                      onChange={value => updateAdvancedRoute({feeRecipientId: value || null})}
+                      options={[
+                        {value: '', label: 'Select recipient'},
+                        ...activeRecipients.map((recipient, index) => ({
+                          value: recipient.id,
+                          label: `Recipient ${index + 1} · ${recipient.address.slice(0, 16) || 'No address'}`,
+                        })),
+                      ]}
+                      triggerClassName="dash-block rounded-[.875rem] px-4 py-3.5"
+                    />
+                  </div>
                   {appliedCoinControl.kind !== 'platformInputs' && <button type="button" onClick={() => setCoinControlOpen(true)} className="text-left text-sm dash-text-primary cursor-pointer">Select inputs in Coin Control to deduct the fee from an output.</button>}
                   <Text size={12} weight="medium" color="brand" opacity={50}>The selected recipient receives less by the actual network fee.</Text>
                 </>}
