@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
+import type { ConnectionType, PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
 import type { TransferOperation } from '../enums/TransferOperation'
 
 export type CoinControlSelection =
@@ -90,6 +90,20 @@ export interface CoinControlInputDetailsProps {
   label: string
   amount: ReactNode
   address: string
+}
+
+export interface WalletUtxosRequest {
+  walletId: string | null
+  syncIncomplete: boolean
+  connectionType: ConnectionType
+  refreshKey: number
+  reload: number
+}
+
+export interface WalletUtxosSnapshot {
+  request: WalletUtxosRequest
+  utxos: SelectableUtxo[]
+  error: string | null
 }
 
 export interface CoinControlCheckRowProps {
