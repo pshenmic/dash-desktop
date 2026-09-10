@@ -15,6 +15,25 @@ import { creditsToDuffs, davToDashCompact, duffsToCredits } from './balance'
 
 export const automaticCoinControl = (): CoinControlSelection => ({kind: 'automatic'})
 
+export function expandAddressCoinControlSelection(selection: CoinControlSelection, funds: CoinControlFunds): CoinControlSelection {
+  switch (selection.kind) {
+    case 'coreAddress':
+      return {kind: 'coreOutpoints', outpoints: funds.utxos.filter(utxo => utxo.address === selection.address).map(outpointKey)}
+    case 'platformAddress': {
+      const entry = funds.platformAddresses.find(entry => entry.platformAddress === selection.address)
+      const inputs = entry == null ? [] : [{address: entry.platformAddress, credits: entry.balanceCredits}]
+      return {kind: 'platformInputs', inputs, feeAddress: selection.address}
+    }
+    case 'shieldedAddress':
+      return {
+        kind: 'shieldedNotes',
+        noteIndexes: funds.shieldedNotes.filter(note => !note.spent && note.address === selection.address).map(note => note.index),
+      }
+    default:
+      return selection
+  }
+}
+
 export function buildCoinControlInventory(funds: CoinControlFunds): CoinControlInventory {
   const notes = funds.shieldedNotes.filter(note => !note.spent)
   return {

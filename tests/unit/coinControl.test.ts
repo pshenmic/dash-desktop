@@ -11,6 +11,7 @@ import {
   coinControlSelectionTotals,
   coinControlSourceKind,
   coreSpendSourceKey,
+  expandAddressCoinControlSelection,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   platformSpendSourceKey,
@@ -48,6 +49,62 @@ const funds: CoinControlFunds = {
 }
 
 describe('coin control', () => {
+  it('expands address selections into only the manual funds belonging to that address', () => {
+    const available = {
+      ...funds,
+      utxos: [...funds.utxos, {txid: 'other', vout: 0, satoshis: 1n, address: 'core-other', height: 1}],
+      shieldedNotes: [
+        ...funds.shieldedNotes,
+        {index: 10, address: 'shielded-other', amount: 1n, spent: false},
+        {index: 11, address: 'shielded-a', amount: 1n, spent: true},
+      ],
+    }
+    expect(expandAddressCoinControlSelection({kind: 'coreAddress', address: 'core-a'}, available)).toEqual({
+      kind: 'coreOutpoints', outpoints: ['tx-a:0', 'tx-b:1'],
+    })
+    expect(expandAddressCoinControlSelection({kind: 'platformAddress', address: 'platform-b'}, available)).toEqual({
+      kind: 'platformInputs', inputs: [{address: 'platform-b', credits: 7_000_000n}], feeAddress: 'platform-b',
+    })
+    expect(expandAddressCoinControlSelection({kind: 'shieldedAddress', address: 'shielded-a'}, available)).toEqual({
+      kind: 'shieldedNotes', noteIndexes: [4, 8],
+    })
+  })
+
+  it.each<CoinControlSelection>([
+    {kind: 'coreAddress', address: 'missing'},
+    {kind: 'platformAddress', address: 'missing'},
+    {kind: 'shieldedAddress', address: 'missing'},
+  ])('keeps a missing $kind invalid instead of substituting other funds', selection => {
+    const expanded = expandAddressCoinControlSelection(selection, funds)
+    expect(expanded.kind).not.toBe('automatic')
+    expect(coinControlSelectionTotals(expanded, funds).count).toBe(0)
+    expect(isCoinControlSelectionValid(expanded, inventory)).toBe(false)
+  })
+
+  it('expands a restored address once its inventory arrives without replacing manual edits', () => {
+    const selection: CoinControlSelection = {kind: 'coreAddress', address: 'core-a'}
+    expect(expandAddressCoinControlSelection(selection, {...funds, utxos: []})).toEqual({kind: 'coreOutpoints', outpoints: []})
+    expect(expandAddressCoinControlSelection(selection, funds)).toEqual({kind: 'coreOutpoints', outpoints: ['tx-a:0', 'tx-b:1']})
+    const edited: CoinControlSelection = {kind: 'coreOutpoints', outpoints: ['tx-b:1']}
+    expect(expandAddressCoinControlSelection(edited, funds)).toBe(edited)
+    const automatic = automaticCoinControl()
+    expect(expandAddressCoinControlSelection(automatic, funds)).toBe(automatic)
+  })
+
+  it('preserves exact Platform balances and requires explicit reduction of oversized note selections', () => {
+    const available = {
+      ...funds,
+      platformAddresses: [{platformAddress: 'platform-a', balanceCredits: 9_007_199_254_740_993n, nonce: 0}],
+      shieldedNotes: Array.from({length: SHIELDED_NOTE_LIMIT + 1}, (_, index) => ({index, address: 'shielded-a', amount: 1n, spent: false})),
+    }
+    expect(expandAddressCoinControlSelection({kind: 'platformAddress', address: 'platform-a'}, available)).toEqual({
+      kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 9_007_199_254_740_993n}], feeAddress: 'platform-a',
+    })
+    const notes = expandAddressCoinControlSelection({kind: 'shieldedAddress', address: 'shielded-a'}, available)
+    expect(coinControlSelectionTotals(notes, available).count).toBe(SHIELDED_NOTE_LIMIT + 1)
+    expect(isCoinControlSelectionValid(notes, buildCoinControlInventory(available))).toBe(false)
+  })
+
   it('preserves Core fee-cache keys for automatic, address and ordered outpoint sources', () => {
     expect(coreSpendSourceKey(null)).toBe('')
     expect(coreSpendSourceKey(undefined)).toBe('')

@@ -91,12 +91,6 @@ export interface CoinControlAddressValueProps {
   detail: ReactNode
 }
 
-export interface CoinControlChoiceRowProps {
-  checked: boolean
-  onChange: () => void
-  children: ReactNode
-}
-
 export interface CoinControlCheckRowProps {
   checked: boolean
   onChange: (checked: boolean) => void

@@ -17,7 +17,6 @@ import { CoinControlMode } from '@renderer/enums/CoinControlMode'
 import type {
   CoinControlAddressValueProps,
   CoinControlCheckRowProps,
-  CoinControlChoiceRowProps,
   CoinControlEmptyProps,
   CoinControlModalProps,
   CoinControlSelection,
@@ -28,12 +27,12 @@ import {
   coinControlInputLabel,
   coinControlSelectionTotals,
   coinControlSourceKind,
+  expandAddressCoinControlSelection,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   outpointKey,
 } from '@renderer/utils/coinControl'
 import { duffsToCredits } from '@renderer/utils/balance'
-import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 
 export default function CoinControlModal({
   isOpen,
@@ -61,7 +60,7 @@ export default function CoinControlModal({
   onApply,
 }: CoinControlModalProps): React.JSX.Element | null {
   const {theme} = useTheme()
-  const [draft, setDraft] = useState<CoinControlSelection>(selection)
+  const [draftSelection, setDraft] = useState<CoinControlSelection>(selection)
   const [filterDust, setFilterDust] = useState(false)
   const [onlySelected, setOnlySelected] = useState(false)
 
@@ -75,16 +74,10 @@ export default function CoinControlModal({
   if (!isOpen || operation == null) return null
 
   const sourceKind = coinControlSourceKind(operation)
-  const shieldedBalances = shieldedBalancesByAddress(shieldedNotes)
-  const shieldedAddresses = [...shieldedBalances.keys()]
-  const nonDustShieldedAddresses = [...shieldedBalances.entries()]
-    .filter(([, credits]) => credits >= SHIELDED_DUST_FILTER_CREDITS)
-    .map(([address]) => address)
-  const visibleShieldedAddresses = filterDust ? nonDustShieldedAddresses : shieldedAddresses
+  const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
+  const draft = expandAddressCoinControlSelection(draftSelection, funds)
   const nonDustShieldedNotes = shieldedNotes.filter(note => note.amount >= SHIELDED_DUST_FILTER_CREDITS)
   const visibleShieldedNotes = filterDust ? nonDustShieldedNotes : shieldedNotes
-  const nonDustCoreAddresses = coreAddresses.filter(address => address.balance >= CORE_DUST_FILTER_DUFFS)
-  const visibleCoreAddresses = filterDust ? nonDustCoreAddresses : coreAddresses
   const nonDustUtxos = utxos.filter(utxo => utxo.satoshis >= CORE_DUST_FILTER_DUFFS)
   const visibleUtxos = filterDust ? nonDustUtxos : utxos
   const selectedOutpoints = draft.kind === 'coreOutpoints' ? new Set(draft.outpoints) : new Set<string>()
@@ -104,7 +97,6 @@ export default function CoinControlModal({
   const displayedShieldedNotes = onlySelected && selectedShieldedNotes.length > 0
     ? selectedShieldedNotes
     : visibleShieldedNotes
-  const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
   const {count: selectedCount, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
   const selectedItemLabel = coinControlInputLabel(sourceKind, selectedCount)
   const canApply = normalizeCoinControlSelection(draft, operation) === draft
@@ -119,40 +111,18 @@ export default function CoinControlModal({
 
     switch (sourceKind) {
       case SourceKind.Core:
-        if (nextMode === CoinControlMode.Address) {
-          setDraft({kind: 'coreAddress', address: visibleCoreAddresses[0]?.address ?? ''})
-        } else {
-          setDraft({kind: 'coreOutpoints', outpoints: []})
-        }
+        setDraft({kind: 'coreOutpoints', outpoints: []})
         break
       case SourceKind.PlatformAddress:
-        if (nextMode === CoinControlMode.Address) {
-          setDraft({kind: 'platformAddress', address: visiblePlatformAddresses[0]?.platformAddress ?? ''})
-        } else {
-          setDraft({kind: 'platformInputs', inputs: [], feeAddress: ''})
-        }
+        setDraft({kind: 'platformInputs', inputs: [], feeAddress: ''})
         break
       case SourceKind.Shielded:
-        if (nextMode === CoinControlMode.Address) {
-          setDraft({kind: 'shieldedAddress', address: visibleShieldedAddresses[0] ?? ''})
-        } else {
-          setDraft({kind: 'shieldedNotes', noteIndexes: []})
-        }
+        setDraft({kind: 'shieldedNotes', noteIndexes: []})
         break
     }
   }
 
-  let mode = CoinControlMode.Inputs
-  switch (draft.kind) {
-    case 'automatic':
-      mode = CoinControlMode.Automatic
-      break
-    case 'coreAddress':
-    case 'platformAddress':
-    case 'shieldedAddress':
-      mode = CoinControlMode.Address
-      break
-  }
+  const mode = draft.kind === 'automatic' ? CoinControlMode.Automatic : CoinControlMode.Inputs
 
   const modeButton = (value: CoinControlMode, label: string): React.JSX.Element => (
     <button
@@ -209,11 +179,6 @@ export default function CoinControlModal({
     if (!checked) return
 
     switch (draft.kind) {
-      case 'coreAddress':
-        if (!nonDustCoreAddresses.some(address => address.address === draft.address)) {
-          setDraft({kind: 'coreAddress', address: nonDustCoreAddresses[0]?.address ?? ''})
-        }
-        break
       case 'coreOutpoints': {
         const visibleOutpoints = new Set(nonDustUtxos.map(outpointKey))
         const outpoints = draft.outpoints.filter(outpoint => visibleOutpoints.has(outpoint))
@@ -224,11 +189,6 @@ export default function CoinControlModal({
         })
         break
       }
-      case 'platformAddress':
-        if (!nonDustPlatformAddresses.some(address => address.platformAddress === draft.address)) {
-          setDraft({kind: 'platformAddress', address: nonDustPlatformAddresses[0]?.platformAddress ?? ''})
-        }
-        break
       case 'platformInputs': {
         const visibleAddresses = new Set(nonDustPlatformAddresses.map(address => address.platformAddress))
         const inputs = draft.inputs.filter(input => visibleAddresses.has(input.address))
@@ -238,11 +198,6 @@ export default function CoinControlModal({
         setDraft({kind: 'platformInputs', inputs, feeAddress})
         break
       }
-      case 'shieldedAddress':
-        if (!nonDustShieldedAddresses.includes(draft.address)) {
-          setDraft({kind: 'shieldedAddress', address: nonDustShieldedAddresses[0] ?? ''})
-        }
-        break
       case 'shieldedNotes': {
         const visibleNoteIndexes = new Set(nonDustShieldedNotes.map(note => note.index))
         setDraft({
@@ -383,54 +338,6 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.Core && (
-                <div className={'mt-4 flex flex-col gap-1'}>
-                  {coreAddresses.length === 0 && <Empty text={'No funded Core addresses'} />}
-                  {coreAddresses.length > 0 && visibleCoreAddresses.length === 0 && (
-                    <Empty text={'All Core addresses are below the dust threshold.'} />
-                  )}
-                  {visibleCoreAddresses.map(entry => (
-                    <ChoiceRow key={entry.address} checked={draft.kind === 'coreAddress' && draft.address === entry.address} onChange={() => setDraft({kind: 'coreAddress', address: entry.address})}>
-                      <DashLogo size={18} className={'shrink-0'} />
-                      <AddressValue address={entry.address} detail={<CreditsAmount credits={duffsToCredits(entry.balance)} exact showFiat={false} />} />
-                    </ChoiceRow>
-                  ))}
-                </div>
-              )}
-
-              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.PlatformAddress && (
-                <div className={'mt-4 flex flex-col gap-1'}>
-                  {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
-                  {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
-                    <Empty text={'All Platform addresses are below the dust threshold.'} />
-                  )}
-                  {visiblePlatformAddresses.map(entry => (
-                    <ChoiceRow key={entry.platformAddress} checked={draft.kind === 'platformAddress' && draft.address === entry.platformAddress} onChange={() => setDraft({kind: 'platformAddress', address: entry.platformAddress})}>
-                      <CreditsIcon size={18} className={'shrink-0'} />
-                      <AddressValue address={entry.platformAddress} detail={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} />} />
-                    </ChoiceRow>
-                  ))}
-                </div>
-              )}
-
-              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.Shielded && (
-                <div className={'mt-4 flex flex-col gap-1'}>
-                  {shieldedAddresses.length === 0 && <Empty text={'No spendable shielded addresses'} />}
-                  {shieldedAddresses.length > 0 && visibleShieldedAddresses.length === 0 && (
-                    <Empty text={'All shielded addresses are below the dust threshold.'} />
-                  )}
-                  {visibleShieldedAddresses.map(address => {
-                    const total = shieldedBalances.get(address) ?? 0n
-                    return (
-                      <ChoiceRow key={address} checked={draft.kind === 'shieldedAddress' && draft.address === address} onChange={() => setDraft({kind: 'shieldedAddress', address})}>
-                        <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
-                        <AddressValue address={address} detail={<CreditsAmount credits={total} exact showFiat={false} />} />
-                      </ChoiceRow>
-                    )
-                  })}
-                </div>
-              )}
-
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
@@ -560,15 +467,6 @@ function AddressValue({address, detail}: CoinControlAddressValueProps): React.JS
       <Text reset size={12} weight={'medium'} color={'brand'} className={'w-full font-mono whitespace-normal break-all text-left'}>{address}</Text>
       <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'w-full whitespace-normal break-all text-left'}>{detail}</Text>
     </span>
-  )
-}
-
-function ChoiceRow({checked, onChange, children}: CoinControlChoiceRowProps): React.JSX.Element {
-  return (
-    <label className={`min-w-0 flex items-center gap-2.5 rounded-[.75rem] p-3 cursor-pointer ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
-      <input type={'radio'} checked={checked} onChange={onChange} className={'shrink-0 accent-dash-brand dark:accent-dash-mint'} />
-      {children}
-    </label>
   )
 }
 
