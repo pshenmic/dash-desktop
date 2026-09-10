@@ -179,12 +179,24 @@ function WalletTransferHub(): React.JSX.Element {
     },
   }))
   const activeRecipients = useMemo(() => advancedMulti ? advancedRoute.recipients : [{id: 'simple', address: toValue, amount}], [advancedMulti, advancedRoute.recipients, toValue, amount])
-  const submittedRecipients = useMemo(() => operation === TransferOperation.AddressFundsTransfer ? orderPlatformRecipients(activeRecipients) : activeRecipients, [operation, activeRecipients])
-  const coreRecipients = useMemo(() => submittedRecipients.map(recipient => ({address: recipient.address.trim(), amountDuffs: dashToDuffs(recipient.amount)})), [submittedRecipients])
-  const platformRecipients = useMemo(() => coreRecipients.map(recipient => ({address: recipient.address, amountCredits: duffsToCredits(recipient.amountDuffs)})), [coreRecipients])
-  const displayPlatformRecipients = useMemo(() => activeRecipients.map(recipient => ({address: recipient.address.trim(), amountCredits: duffsToCredits(dashToDuffs(recipient.amount))})), [activeRecipients])
+  const orderedRecipients = useMemo(
+    () => operation === TransferOperation.AddressFundsTransfer ? orderPlatformRecipients(activeRecipients) : activeRecipients,
+    [operation, activeRecipients],
+  )
+  const recipientsDuffs = useMemo(
+    () => orderedRecipients.map(recipient => ({address: recipient.address.trim(), amountDuffs: dashToDuffs(recipient.amount)})),
+    [orderedRecipients],
+  )
+  const recipientsCredits = useMemo(
+    () => recipientsDuffs.map(recipient => ({address: recipient.address, amountCredits: duffsToCredits(recipient.amountDuffs)})),
+    [recipientsDuffs],
+  )
+  const displayRecipientsCredits = useMemo(
+    () => activeRecipients.map(recipient => ({address: recipient.address.trim(), amountCredits: duffsToCredits(dashToDuffs(recipient.amount))})),
+    [activeRecipients],
+  )
   const subtractFee = advancedMulti && operation === TransferOperation.AddressFundsTransfer && advancedRoute.subtractFee
-  const feeOutputPosition = submittedRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId)
+  const feeOutputPosition = orderedRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId)
   const feeOutputIndex = subtractFee && feeOutputPosition >= 0 ? feeOutputPosition : undefined
   const displayFeeOutputIndex = subtractFee ? activeRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId) : undefined
   const reason = unsupportedReason(fromKind, toKind)
@@ -338,7 +350,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr, retry: retryFee } = useOperationFee(walletId, coinControlValid ? operation : null, {
     destinationValid,
-    recipient: advancedMulti ? submittedRecipients.map(recipient => recipient.address.trim()) : trimmedTo,
+    recipient: advancedMulti ? orderedRecipients.map(recipient => recipient.address.trim()) : trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
@@ -814,7 +826,7 @@ function WalletTransferHub(): React.JSX.Element {
     if (operation === TransferOperation.ShieldedTransfer) {
       return API.startShieldedTransfer(
         walletId,
-        platformRecipients,
+        recipientsCredits,
         password,
         shieldedSpendSource,
       )
@@ -830,7 +842,7 @@ function WalletTransferHub(): React.JSX.Element {
       return API.sendPlatformTransfer(
         walletId,
         platformSource,
-        platformRecipients,
+        recipientsCredits,
         password,
       )
     }
@@ -1019,7 +1031,7 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           network={network}
-          recipients={coreRecipients}
+          recipients={recipientsDuffs}
           feeDuffs={feeDuffs}
           amountFiat={amountFiat}
           source={coreSpendSource}
@@ -1057,7 +1069,7 @@ function WalletTransferHub(): React.JSX.Element {
           title={info?.title ?? 'Send'}
           toLabel={SHIELDED_DESTINATION_LABELS[operation ?? TransferOperation.ShieldedWithdrawal] ?? 'To (Core L1)'}
           toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
-          recipients={operation === TransferOperation.ShieldedTransfer ? platformRecipients : undefined}
+          recipients={operation === TransferOperation.ShieldedTransfer ? recipientsCredits : undefined}
           amountCredits={amountCredits.toString()}
           feeCredits={feeCredits}
           proverReady={prover.ready}
@@ -1119,7 +1131,7 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
-          recipients={operation === TransferOperation.AddressFundsTransfer ? displayPlatformRecipients : undefined}
+          recipients={operation === TransferOperation.AddressFundsTransfer ? displayRecipientsCredits : undefined}
           feeOutputIndex={displayFeeOutputIndex}
           feeCredits={feeCredits}
           rows={[
