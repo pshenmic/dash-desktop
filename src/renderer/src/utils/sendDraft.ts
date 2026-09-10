@@ -83,6 +83,6 @@ export function setSendAdvanced(draft: SendDraft, advanced: boolean): SendDraft 
 export function resetCurrentSendRoute(draft: SendDraft): SendDraft {
   const operation = resolveOperation(draft.fromKind, draft.toKind)
   const advancedRoutes = {...draft.advancedRoutes}
-  if (operation != null) delete advancedRoutes[operation]
+  if (draft.advanced && operation != null) delete advancedRoutes[operation]
   return {...draft, toValue: '', amount: '', acked: false, coinControl: automaticCoinControl(), advancedRoutes}
 }

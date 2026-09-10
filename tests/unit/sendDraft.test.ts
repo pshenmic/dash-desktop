@@ -157,6 +157,34 @@ describe('send drafts', () => {
     expect(simple.advancedRoutes).toEqual({})
   })
 
+  it('preserves unfinished advanced recipients after sending in simple mode', () => {
+    const route = {
+      recipients: [
+        {id: 'first', address: 'first-recipient', amount: '0.75'},
+        {id: 'second', address: 'second-recipient', amount: '0.5'},
+      ],
+      subtractFee: true,
+      feeRecipientId: 'second',
+    }
+    const advanced = {
+      ...setSendAdvanced(createSendDraft(), true),
+      advancedRoutes: {[TransferOperation.CoreSend]: route},
+    }
+    const simple = {
+      ...setSendAdvanced(advanced, false),
+      toValue: 'simple-recipient',
+      amount: '3',
+      acked: true,
+    }
+
+    const reset = resetCurrentSendRoute(simple)
+
+    expect(reset).toMatchObject({advanced: false, toValue: '', amount: '', acked: false, coinControl: {kind: 'automatic'}})
+    expect(getAdvancedSendRoute(setSendAdvanced(reset, true), TransferOperation.CoreSend)).toEqual(route)
+    expect(simple.toValue).toBe('simple-recipient')
+    expect(simple.advancedRoutes[TransferOperation.CoreSend]).toEqual(route)
+  })
+
   it('clears only the sent route and preserves other unfinished recipients', () => {
     const draft = setSendAdvanced({...createSendDraft(), toValue: 'sent', amount: '1'}, true)
     const other = {recipients: [{id: 'other', address: 'unfinished', amount: '2'}], subtractFee: true, feeRecipientId: 'other'}
