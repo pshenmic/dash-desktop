@@ -1,7 +1,11 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { ExclamationIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 
-export default function P2pSyncAlert(): React.JSX.Element {
+export default function P2pSyncAlert(): React.JSX.Element | null {
+  const { showSyncWarning } = useConnectionModeContext()
+  if (!showSyncWarning) return null
+
   return (
     <div className={"flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10"}>
       <div className={"flex flex-col gap-[.375rem]"}>

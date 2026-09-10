@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'dash-ui-kit/react'
+import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, CreditsIcon, CrossIcon, ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CopyButton from '@renderer/components/ui/CopyButton'
@@ -60,6 +61,7 @@ export default function CoinControlModal({
   onApply,
 }: CoinControlModalProps): React.JSX.Element | null {
   const {theme} = useTheme()
+  const {showSyncWarning} = useConnectionModeContext()
   const [draftSelection, setDraft] = useState<CoinControlSelection>(selection)
   const [filterDust, setFilterDust] = useState(false)
   const [onlySelected, setOnlySelected] = useState(false)
@@ -164,6 +166,8 @@ export default function CoinControlModal({
     retrySource = onRetryPlatformAddresses
   }
   const sourceReady = !sourceLoading && sourceError == null
+  const waitingForCoreSync = coreSyncIncomplete && sourceKind === SourceKind.Core
+  const showLoadingMessage = sourceLoading && (!waitingForCoreSync || showSyncWarning)
 
   const fixed = sourceKind == null
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
@@ -293,7 +297,7 @@ export default function CoinControlModal({
         </div>
 
         <div className={'mt-5 min-w-0 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
-          {sourceLoading && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{coreSyncIncomplete && sourceKind === SourceKind.Core ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
+          {showLoadingMessage && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{waitingForCoreSync ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
           {!sourceLoading && sourceError && (
             <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>
           )}

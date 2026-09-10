@@ -34,6 +34,15 @@ export function isWalletSyncIncomplete(
   return connectionType === 'p2p' && phase !== WalletSyncPhase.Synced
 }
 
+export function shouldShowWalletSyncWarning(
+  connectionType: ConnectionType,
+  sync: WalletSyncStatus | undefined,
+  completed: CompletedSyncSnapshot | null,
+): boolean {
+  return isWalletSyncIncomplete(connectionType, sync?.phase)
+    && !shouldSuppressNearTipSyncProgress(sync, completed)
+}
+
 export function shouldOfferP2pSwitch(
   connectionType: ConnectionType,
   phase: WalletSyncPhase | undefined,

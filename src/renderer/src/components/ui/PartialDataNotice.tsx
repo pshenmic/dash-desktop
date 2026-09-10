@@ -2,9 +2,9 @@ import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 
 export default function PartialDataNotice(): React.JSX.Element | null {
-  const { syncIncomplete } = useConnectionModeContext()
+  const { showSyncWarning } = useConnectionModeContext()
 
-  if (!syncIncomplete) return null
+  if (!showSyncWarning) return null
 
   return (
     <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3 self-start"}>

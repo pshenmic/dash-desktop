@@ -10,6 +10,7 @@ import {
   isWalletSyncIncomplete,
   shouldSuppressNearTipSyncProgress,
   shouldShowWalletSyncUI,
+  shouldShowWalletSyncWarning,
 } from '@renderer/utils/walletSync'
 import type {CompletedSyncSnapshot} from '@renderer/types/connection'
 import {
@@ -22,6 +23,7 @@ export interface UseConnectionMode {
   desired: ConnectionType
   ready: boolean
   showSyncUI: boolean
+  showSyncWarning: boolean
   syncIncomplete: boolean
   setDesired: (next: ConnectionType) => void
 }
@@ -125,6 +127,7 @@ export function useConnectionMode(): UseConnectionMode {
     desired,
     ready,
     showSyncUI,
+    showSyncWarning: shouldShowWalletSyncWarning(desired, status?.walletSync, completedSyncRef.current),
     syncIncomplete,
     setDesired,
   }
