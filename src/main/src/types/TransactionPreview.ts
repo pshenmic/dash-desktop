@@ -32,6 +32,16 @@ export interface TransactionPreview {
   // L2 takes out of it, null where that layer is not involved.
   feeDuffs: bigint | null
   feeCredits: bigint | null
+  // The transaction or transition the send would submit, serialized before
+  // anything signs it. Null only where those bytes cannot exist yet: creating an
+  // identity carries public keys the seed derives, anything the pool proves —
+  // a shield or a spend — needs that seed and seconds of proving, and the L2
+  // half of an asset lock spends a proof the lock has not created, which is why
+  // a lock carries its L1 half here.
+  //
+  // Not a txid to check against later: the signatures still missing are part of
+  // what both a Core txid and a transition hash cover.
+  unsignedHex: string | null
 }
 
 // One output as the caller named it, in the unit that operation's send method

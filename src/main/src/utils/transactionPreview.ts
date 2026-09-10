@@ -1,10 +1,17 @@
 import {DUST_THRESHOLD_DUFFS} from '../constants/chain'
-import {CoreRecipient, TransferInput} from '../types/CoreTransaction'
-import {FeeStrategyStep, PlatformInputPlan} from '../types/PlatformTransfer'
+import {CoreRecipient, TransferInput, TransferInputSelection} from '../types/CoreTransaction'
+import {PlatformInputPlan} from '../types/PlatformTransfer'
 import {ShieldedSpendPlan} from '../types/Shielded'
 import {PreviewEntry, PreviewParams, PreviewRecipient, PreviewRole, PreviewUnit} from '../types/TransactionPreview'
 import {UTXO} from '../types/UTXO'
-import {FeeParams, Recipient} from '../../platform/types/messages'
+import {toAddressInput} from './platformTransfer'
+import {
+  FeeParams,
+  IdentityFeeOperation,
+  Recipient,
+  SelectionFeeOperation,
+  UnsignedTransition,
+} from '../../platform/types/messages'
 
 const outpoint = (txid: string, vout: number): string => `${txid}:${vout}`
 
@@ -26,7 +33,7 @@ export function previewFeeParams(params: PreviewParams): FeeParams {
   return {...priced, recipient: recipients.map(recipient => recipient.address)}
 }
 
-export function previewTotal(recipients: PreviewRecipient[]): bigint {
+export function recipientTotal(recipients: PreviewRecipient[]): bigint {
   return recipients.reduce((sum, recipient) => sum + recipient.amount, 0n)
 }
 
@@ -56,33 +63,26 @@ export function coreInputEntries(inputs: TransferInput[], utxos: UTXO[]): Previe
   })
 }
 
-// Change follows the transaction builder rather than the arithmetic: what is
-// left below the dust threshold is written as no output at all, so the miner
-// takes it and the transaction pays more than the selection quoted.
+// The change output, and what the transaction really pays to write it. Change
+// follows the builder rather than the arithmetic: below the dust threshold it is
+// written as no output at all, so the miner takes it and the send costs more
+// than the selection quoted.
 export function coreChangeAndFee(
-  changeAddress: string,
-  changeDuffs: bigint,
-  feeDuffs: bigint,
+  selection: TransferInputSelection,
+  paidDuffs: bigint,
 ): {change: PreviewEntry[]; feeDuffs: bigint} {
+  const changeDuffs = selection.inputTotal - paidDuffs - selection.feeDuffs
   return changeDuffs >= DUST_THRESHOLD_DUFFS
-    ? {change: [previewEntry('change', changeAddress, changeDuffs, 'duffs')], feeDuffs}
-    : {change: [], feeDuffs: feeDuffs + changeDuffs}
+    ? {change: [previewEntry('change', selection.changeAddress, changeDuffs, 'duffs')], feeDuffs: selection.feeDuffs}
+    : {change: [], feeDuffs: selection.feeDuffs + changeDuffs}
 }
 
 // Consensus can take the fee out of an output instead of an input, in which
-// case that recipient is paid less than the caller named it.
-export function reducedRecipientEntries(
-  recipients: PreviewRecipient[],
-  feeCredits: bigint,
-  feeStrategy: FeeStrategyStep[],
-): PreviewEntry[] {
-  const reduced = feeStrategy.find(step => step.kind === 'reduceOutput')?.index
-  return recipients.map((recipient, index) => previewEntry(
-    'recipient',
-    recipient.address,
-    index === reduced ? recipient.amount - feeCredits : recipient.amount,
-    'credits',
-  ))
+// case that recipient is paid less than the caller named.
+export function reducedRecipients(recipients: PreviewRecipient[], plan: PlatformInputPlan): PreviewRecipient[] {
+  const reduced = plan.feeStrategy.find(step => step.kind === 'reduceOutput')?.index
+  return recipients.map((recipient, index) =>
+    index === reduced ? {...recipient, amount: recipient.amount - plan.feeCredits} : recipient)
 }
 
 // Which input pays is a position in the inputs as they are submitted, which is
@@ -97,6 +97,62 @@ export function platformInputEntries(plan: PlatformInputPlan): PreviewEntry[] {
     index === charged ? input.credits + plan.feeCredits : input.credits,
     'credits',
   ))
+}
+
+// Which transition an address-funded operation would submit, in the shape the
+// worker builds it from. Creating an identity has none to show: its transition
+// carries public keys only the seed can derive.
+export function addressFundedTransition(
+  operation: SelectionFeeOperation,
+  params: PreviewParams,
+  plan: PlatformInputPlan,
+  coreFeePerByte: number,
+): UnsignedTransition | null {
+  const inputs = plan.inputs.map(({candidate, credits}) => toAddressInput(candidate, credits))
+  const {feeStrategy} = plan
+
+  switch (operation) {
+    case 'addressFundsTransfer':
+      return {kind: 'addressFundsTransfer', inputs, feeStrategy, recipients: platformRecipients(params.recipients)}
+    case 'addressWithdrawal':
+      return {kind: 'addressWithdrawal', inputs, feeStrategy, coreAddress: params.recipients[0].address, coreFeePerByte}
+    case 'identityTopUp':
+      return {kind: 'identityTopUpFromAddresses', identifier: params.recipients[0].address, inputs, feeStrategy}
+    case 'identityCreate':
+      return null
+  }
+}
+
+// The same for the three an identity funds out of its own balance, which is why
+// each one is ordered by a nonce rather than by the inputs it spends.
+export function identityFundedTransition(
+  operation: IdentityFeeOperation,
+  params: PreviewParams,
+  identifier: string,
+  nonce: bigint,
+  coreFeePerByte: number,
+): UnsignedTransition {
+  switch (operation) {
+    case 'identityToAddress':
+      return {kind: 'identityCreditsToAddresses', identifier, nonce, recipients: platformRecipients(params.recipients)}
+    case 'identityToIdentity':
+      return {
+        kind: 'identityCreditTransfer',
+        identifier,
+        nonce,
+        recipientIdentifier: params.recipients[0].address,
+        amountCredits: params.amountCredits,
+      }
+    case 'identityWithdrawal':
+      return {
+        kind: 'identityWithdrawal',
+        identifier,
+        nonce,
+        amountCredits: params.amountCredits,
+        coreAddress: params.recipients[0].address,
+        coreFeePerByte,
+      }
+  }
 }
 
 export function shieldedInputEntries(plan: ShieldedSpendPlan): PreviewEntry[] {

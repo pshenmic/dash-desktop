@@ -2,6 +2,7 @@ import {describe, it, expect, vi} from 'vitest'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
+import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {Preferences} from '../../src/main/src/preferences'
@@ -75,6 +76,7 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
     {loadCandidates: async () => candidates} as unknown as PlatformAddressService,
     {request} as unknown as PlatformWorkerService,
     {estimateSpendFee} as unknown as ShieldedService,
+    new CoreTransactionService(),
     providers as unknown as WalletProviderFactory,
     Preferences.default(),
   )

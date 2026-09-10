@@ -12,7 +12,14 @@ import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {Network} from '../../types/Network'
 import {ADDRESS_DECODED_LENGTH, ADDRESS_PREFIX} from '../../constants/addresses'
 import {DUST_THRESHOLD_DUFFS, SEQUENCE_FINAL} from '../../constants/chain'
-import {BuildSignedTransferParams, RecipientType, TransferInput} from '../../types/CoreTransaction'
+import {
+  BuildAssetLockParams,
+  BuildSignedAssetLockParams,
+  BuildSignedTransferParams,
+  BuildTransferParams,
+  RecipientType,
+  TransferInput,
+} from '../../types/CoreTransaction'
 import {buildAssetLockOutputs} from '../../utils/assetLockTx'
 
 
@@ -46,13 +53,20 @@ export class CoreTransactionService {
     }
   }
 
-  private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], seed: Uint8Array, network: Network): Promise<PrivateKey[]> {
+  // An input carries the script of the output it spends, which is what sighash
+  // reads; signing replaces each one with the signature script. So an unsigned
+  // transaction is these bytes with that substitution still to come.
+  private addInputs(transaction: SDKTransaction, inputs: TransferInput[]): void {
+    for (const input of inputs) {
+      transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
+    }
+  }
+
+  private async privateKeys(inputs: TransferInput[], seed: Uint8Array, network: Network): Promise<PrivateKey[]> {
     const hdKey = this.keyPair.seedToHdKey(seed, network)
 
     const privateKeys: PrivateKey[] = []
     for (const input of inputs) {
-      transaction.addInput(new Input(input.txId, input.vOut, input.script, SEQUENCE_FINAL))
-
       const derived = await this.keyPair.derivePath(hdKey, input.derivationPath)
       if (!derived.privateKey) {
         throw new Error(`Failed to derive private key for ${input.address}`)
@@ -62,26 +76,22 @@ export class CoreTransactionService {
     return privateKeys
   }
 
-  async buildSignedAssetLock(params: {
-    inputs: TransferInput[]
-    amountDuffs: bigint
-    creditAddress: string
-    changeAddress: string
-    inputTotal: bigint
-    feeDuffs: bigint
-    seed: Uint8Array
-    network: Network
-  }): Promise<SDKTransaction> {
-    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, feeDuffs, seed, network} = params
+  buildAssetLock(params: BuildAssetLockParams): SDKTransaction {
+    const {inputs, amountDuffs, creditAddress, changeAddress, inputTotal, feeDuffs} = params
 
     const {burnOutput, extraPayload} = buildAssetLockOutputs(amountDuffs, creditAddress)
     const transaction = new SDKTransaction(undefined, undefined, undefined, 3, TransactionType.TRANSACTION_ASSET_LOCK, extraPayload)
 
-    const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
-
+    this.addInputs(transaction, inputs)
     transaction.addOutput(burnOutput)
     this.addChange(transaction, inputTotal - amountDuffs - feeDuffs, changeAddress)
-    transaction.sign(privateKeys)
+
+    return transaction
+  }
+
+  async buildSignedAssetLock(params: BuildSignedAssetLockParams): Promise<SDKTransaction> {
+    const transaction = this.buildAssetLock(params)
+    transaction.sign(await this.privateKeys(params.inputs, params.seed, params.network))
 
     return transaction
   }
@@ -95,11 +105,11 @@ export class CoreTransactionService {
     }
   }
 
-  async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
-    const {inputs, outputs, changeAddress, inputTotal, feeDuffs, seed, network} = params
+  buildTransfer(params: BuildTransferParams): SDKTransaction {
+    const {inputs, outputs, changeAddress, inputTotal, feeDuffs} = params
 
     const transaction = new SDKTransaction()
-    const privateKeys = await this.addSignableInputs(transaction, inputs, seed, network)
+    this.addInputs(transaction, inputs)
 
     let outputTotal = 0n
     for (const output of outputs) {
@@ -114,7 +124,13 @@ export class CoreTransactionService {
     }
 
     this.addChange(transaction, inputTotal - outputTotal - feeDuffs, changeAddress)
-    transaction.sign(privateKeys)
+
+    return transaction
+  }
+
+  async buildSignedTransfer(params: BuildSignedTransferParams): Promise<SDKTransaction> {
+    const transaction = this.buildTransfer(params)
+    transaction.sign(await this.privateKeys(params.inputs, params.seed, params.network))
 
     return transaction
   }

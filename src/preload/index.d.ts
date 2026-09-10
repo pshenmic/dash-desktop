@@ -130,7 +130,7 @@ declare global {
       sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource, changeTo?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
-      previewTransaction: (walletId: string, operation: string, params: unknown) => Promise<{ inputs: PreviewEntry[]; outputs: PreviewEntry[]; feeDuffs: bigint | null; feeCredits: bigint | null }>
+      previewTransaction: (walletId: string, operation: string, params: unknown) => Promise<{ inputs: PreviewEntry[]; outputs: PreviewEntry[]; feeDuffs: bigint | null; feeCredits: bigint | null; unsignedHex: string | null }>
       sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => Promise<unknown>
       topUpIdentityFromAddresses: (walletId: string, identityId: string, source: PlatformSpendSource | null, amountCredits: bigint, password: string) => Promise<unknown>
       withdrawPlatformCredits: (walletId: string, source: PlatformSpendSource | null, toCoreAddress: string, amountCredits: bigint, password: string) => Promise<unknown>

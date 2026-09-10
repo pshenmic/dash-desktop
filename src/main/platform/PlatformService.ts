@@ -9,6 +9,7 @@ import {nodeStatus} from './operations/nodeStatus'
 import {spendFeeCurve, transitionFee} from './operations/fee'
 import {addressInfos} from './operations/address/infos'
 import {addressTransfer} from './operations/address/transfer'
+import {previewTransition} from './operations/unsignedTransition'
 import {addressWithdrawal} from './operations/address/withdrawal'
 import {identityCreateFromAddresses} from './operations/address/createIdentity'
 import {identityTopUpFromAddresses} from './operations/address/topUpIdentity'
@@ -206,6 +207,7 @@ export class PlatformService {
       case 'identityCreateFromAssetLock': return identityCreateFromAssetLock(request.payload, ctx)
       case 'identityTopUpFromAssetLock': return identityTopUpFromAssetLock(request.payload, ctx)
       case 'transitionFee': return transitionFee(request.payload, ctx)
+      case 'previewTransition': return previewTransition(request.payload, ctx)
       case 'spendFeeCurve': return spendFeeCurve(request.payload)
       case 'addressInfos': return addressInfos(request.payload, ctx)
       case 'addressTransfer': return addressTransfer(request.payload, ctx)
