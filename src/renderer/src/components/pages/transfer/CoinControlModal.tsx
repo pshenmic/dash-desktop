@@ -7,7 +7,7 @@ import Checkbox from '@renderer/components/ui/Checkbox'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CoinControlAmountInput from './CoinControlAmountInput'
 import type { PlatformAddressDto } from '@renderer/api/types'
-import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY, INPUT_MODE_LABEL } from '@renderer/constants/coinControl'
+import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
@@ -183,7 +183,6 @@ export default function CoinControlModal({
   const sourceReady = !sourceLoading && sourceError == null
 
   const fixed = sourceKind == null
-  const inputModeLabel = sourceKind == null ? 'Inputs' : INPUT_MODE_LABEL[sourceKind]
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
   let fixedValue = identityId ?? identityLabel ?? 'No identity selected'
   if (operation === TransferOperation.Shield) {
@@ -345,8 +344,7 @@ export default function CoinControlModal({
             <>
               <div className={'flex gap-2'}>
                 {modeButton(CoinControlMode.Automatic, 'Automatic')}
-                {modeButton(CoinControlMode.Address, 'One address')}
-                {modeButton(CoinControlMode.Inputs, inputModeLabel)}
+                {modeButton(CoinControlMode.Inputs, 'Manual')}
               </div>
 
               {sourceKind != null && mode !== CoinControlMode.Automatic && (
