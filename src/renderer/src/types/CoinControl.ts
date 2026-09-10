@@ -86,9 +86,10 @@ export interface CoinControlAmountInputProps {
   onChange: (credits: bigint) => void
 }
 
-export interface CoinControlAddressValueProps {
-  address: string
-  detail: ReactNode
+export interface CoinControlInputDetailsProps {
+  label: string
+  amount: ReactNode
+  children: ReactNode
 }
 
 export interface CoinControlCheckRowProps {

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'dash-ui-kit/react'
 import { Button, CreditsIcon, CrossIcon, ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { DashLogo } from 'dash-ui-kit/react'
 import Checkbox from '@renderer/components/ui/Checkbox'
+import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CoinControlAmountInput from './CoinControlAmountInput'
 import type { PlatformAddressDto } from '@renderer/api/types'
@@ -15,7 +15,7 @@ import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
 import type {
-  CoinControlAddressValueProps,
+  CoinControlInputDetailsProps,
   CoinControlCheckRowProps,
   CoinControlEmptyProps,
   CoinControlModalProps,
@@ -32,7 +32,7 @@ import {
   normalizeCoinControlSelection,
   outpointKey,
 } from '@renderer/utils/coinControl'
-import { duffsToCredits } from '@renderer/utils/balance'
+import { davToDash, duffsToCredits } from '@renderer/utils/balance'
 
 export default function CoinControlModal({
   isOpen,
@@ -71,6 +71,17 @@ export default function CoinControlModal({
     setOnlySelected(false)
   }, [isOpen, selection])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [isOpen, onClose])
+
   if (!isOpen || operation == null) return null
 
   const sourceKind = coinControlSourceKind(operation)
@@ -97,7 +108,8 @@ export default function CoinControlModal({
   const displayedShieldedNotes = onlySelected && selectedShieldedNotes.length > 0
     ? selectedShieldedNotes
     : visibleShieldedNotes
-  const {count: selectedCount, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
+  const {count: selectedCount, duffs: selectedAmountDuffs, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
+  const isCoreSend = operation === TransferOperation.CoreSend
   const selectedItemLabel = coinControlInputLabel(sourceKind, selectedCount)
   const canApply = normalizeCoinControlSelection(draft, operation) === draft
     && isCoinControlSelectionValid(draft, buildCoinControlInventory(funds))
@@ -128,7 +140,8 @@ export default function CoinControlModal({
     <button
       type={'button'}
       onClick={() => chooseMode(value)}
-      className={`flex-1 rounded-[.75rem] px-3 py-2 cursor-pointer transition-colors ${mode === value ? 'dash-bg-inverse' : 'dash-block hover:dash-block-accent-10'}`}
+      aria-pressed={mode === value}
+      className={`flex-1 rounded-[.75rem] px-3 py-2 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40 transition-colors ${mode === value ? 'dash-bg-inverse' : 'dash-block hover:dash-block-accent-10'}`}
     >
       <Text size={12} weight={'extrabold'} color={mode === value ? 'blue-mint' : 'brand'}>{label}</Text>
     </button>
@@ -307,7 +320,9 @@ export default function CoinControlModal({
                   {mode === CoinControlMode.Inputs && (
                     <div className={'flex flex-wrap items-center gap-3'}>
                       <Text size={12} weight={'medium'} color={'brand'} opacity={50}>
-                        Selected: {selectedCount} {selectedItemLabel} · <CreditsAmount credits={selectedAmountCredits} exact showFiat={false} />
+                        Selected: {selectedCount} {selectedItemLabel} · {isCoreSend
+                          ? `${davToDash(selectedAmountDuffs)} Dash`
+                          : <CreditsAmount credits={selectedAmountCredits} exact showFiat={false} />}
                       </Text>
                       {selectedCount > 0 && (
                         <Checkbox
@@ -339,7 +354,7 @@ export default function CoinControlModal({
               )}
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
-                <div className={'mt-4 flex flex-col gap-1'}>
+                <div className={'mt-4 flex flex-col gap-2'}>
                   {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
                   {utxos.length > 0 && visibleUtxos.length === 0 && (
                     <Empty text={'All UTXOs are below the dust threshold.'} />
@@ -348,17 +363,32 @@ export default function CoinControlModal({
                     const key = outpointKey(utxo)
                     const checked = draft.kind === 'coreOutpoints' && draft.outpoints.includes(key)
                     return (
-                      <CheckRow key={key} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
-                        <DashLogo size={18} className={'shrink-0'} />
-                        <AddressValue address={key} detail={<><CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} /> · {utxo.address}{utxo.height === 0 ? ' · pending' : ''}</>} />
-                      </CheckRow>
+                      <div key={key} className={`rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
+                        <CheckRow bare checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
+                          <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
+                            <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
+                            <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
+                              {isCoreSend
+                                ? `${davToDash(utxo.satoshis)} Dash`
+                                : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
+                            </Text>
+                          </span>
+                        </CheckRow>
+                        <div className={'mt-1.5 ml-7 flex items-center gap-2'}>
+                          <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 font-mono break-all'}>{key}</Text>
+                          <span title={'Copy transaction ID'} className={'ml-auto shrink-0'}>
+                            <CopyButton text={utxo.txid} />
+                          </span>
+                        </div>
+                        {utxo.height === 0 && <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-1 ml-7 block'}>Pending</Text>}
+                      </div>
                     )
                   })}
                 </div>
               )}
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
-                <div className={'mt-4 flex flex-col gap-1'}>
+                <div className={'mt-4 flex flex-col gap-2'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Up to {PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.</Text>
                   {feeFromOutput && <Text size={12} weight="medium" color="brand" opacity={50}>The network fee will be deducted from the recipient selected on Send.</Text>}
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
@@ -373,7 +403,9 @@ export default function CoinControlModal({
                       <div key={entry.platformAddress} className={`rounded-[.75rem] p-3 ${selected ? 'dash-block-accent-5' : 'dash-block'} ${!selected && full ? 'opacity-40' : ''}`}>
                         <CheckRow bare checked={selected != null} onChange={checked => togglePlatformInput(entry, checked)}>
                           <CreditsIcon size={18} className={'shrink-0'} />
-                          <AddressValue address={entry.platformAddress} detail={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} />} />
+                          <InputDetails label={'Platform input'} amount={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} align={'end'} />}>
+                            <Text reset size={12} weight={'medium'} color={'brand'} className={'block font-mono break-all'}>{entry.platformAddress}</Text>
+                          </InputDetails>
                         </CheckRow>
                         {selected && (
                           <div className={'mt-3 ml-7 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
@@ -407,7 +439,7 @@ export default function CoinControlModal({
               )}
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Shielded && (
-                <div className={'mt-4 flex flex-col gap-1'}>
+                <div className={'mt-4 flex flex-col gap-2'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Choose up to {SHIELDED_NOTE_LIMIT} notes.</Text>
                   {shieldedNotes.length === 0 && <Empty text={'No spendable shielded notes'} />}
                   {shieldedNotes.length > 0 && visibleShieldedNotes.length === 0 && (
@@ -420,7 +452,9 @@ export default function CoinControlModal({
                     return (
                       <CheckRow key={note.index} checked={checked} disabled={!checked && full} onChange={next => toggleShieldedNote(note.index, next)}>
                         <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
-                        <AddressValue address={`note #${note.index}`} detail={<><CreditsAmount credits={note.amount} exact showFiat={false} /> · {note.address}</>} />
+                        <InputDetails label={`Note #${note.index}`} amount={<CreditsAmount credits={note.amount} exact showFiat={false} align={'end'} />}>
+                          <Text reset size={12} weight={'medium'} color={'brand'} className={'block font-mono text-[.6875rem]! break-all'}>{note.address}</Text>
+                        </InputDetails>
                       </CheckRow>
                     )
                   })}
@@ -461,11 +495,14 @@ function Empty({text}: CoinControlEmptyProps): React.JSX.Element {
   return <div className={'dash-block rounded-[.75rem] p-4'}><Text size={12} weight={'medium'} color={'brand'} opacity={50}>{text}</Text></div>
 }
 
-function AddressValue({address, detail}: CoinControlAddressValueProps): React.JSX.Element {
+function InputDetails({label, amount, children}: CoinControlInputDetailsProps): React.JSX.Element {
   return (
-    <span className={'min-w-0 flex-1 flex flex-col items-start'}>
-      <Text reset size={12} weight={'medium'} color={'brand'} className={'w-full font-mono whitespace-normal break-all text-left'}>{address}</Text>
-      <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'w-full whitespace-normal break-all text-left'}>{detail}</Text>
+    <span className={'min-w-0 flex-1 flex flex-col gap-1.5 text-left'}>
+      <span className={'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
+        <Text reset size={12} weight={'medium'} color={'brand'} opacity={50}>{label}</Text>
+        <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto text-right tabular-nums'}>{amount}</Text>
+      </span>
+      <span className={'flex flex-col gap-1'}>{children}</span>
     </span>
   )
 }

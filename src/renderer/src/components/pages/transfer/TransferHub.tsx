@@ -985,7 +985,6 @@ function WalletTransferHub(): React.JSX.Element {
           </div>
         </div>
       ) : <>
-      {advancedRoute.recipients.length > 1 && <Text size={12} weight="medium" color="brand" opacity={50} className="px-12 mt-3">Your Advanced draft with {advancedRoute.recipients.length} recipients is saved.</Text>}
       <TransferWizard
         key={wizardKey}
         steps={[
