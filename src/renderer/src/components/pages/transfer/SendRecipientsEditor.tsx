@@ -6,7 +6,7 @@ import { DESTINATION_PLACEHOLDERS, sendPageData } from '@renderer/constants/send
 import { SEND_AMOUNT_PATTERN } from '@renderer/constants/sendRecipients'
 import type { SendRecipientsEditorProps } from '@renderer/types/SendRecipients'
 import { dashToDuffs, davToDash, duffsToCredits } from '@renderer/utils/balance'
-import { recipientPercent, recipientRemainingDuffs, recipientSliderAmount, splitRecipientTotal } from '@renderer/utils/sendRecipients'
+import { capSendAmount, recipientPercent, recipientRemainingDuffs, recipientSliderAmount, splitRecipientTotal } from '@renderer/utils/sendRecipients'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import AmountField from './AmountField'
 import AmountSlider from './AmountSlider'
@@ -48,7 +48,9 @@ export default function SendRecipientsEditor({
 
         const changeAmount = (event: React.ChangeEvent<HTMLInputElement>): void => {
           const value = event.target.value
-          if (SEND_AMOUNT_PATTERN.test(value)) update(recipient.id, 'amount', value)
+          if (SEND_AMOUNT_PATTERN.test(value)) {
+            update(recipient.id, 'amount', remaining == null || budgetIsEstimate ? value : capSendAmount(value, remaining))
+          }
         }
         const useRemaining = (): void => {
           if (remaining != null) update(recipient.id, 'amount', davToDash(remaining))
@@ -95,6 +97,7 @@ export default function SendRecipientsEditor({
             <AmountField
               ariaLabel={`Recipient ${index + 1} amount`}
               value={recipient.amount}
+              disabled={budgetDuffs == null}
               onChange={changeAmount}
               onMax={useRemaining}
               maxLabel="Use remaining"

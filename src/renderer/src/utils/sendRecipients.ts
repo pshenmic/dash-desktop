@@ -27,6 +27,21 @@ export function recipientRemainingDuffs(recipients: SendRecipientDraft[], id: st
   return remaining > 0n ? remaining : 0n
 }
 
+export function capSendAmount(amount: string, maximum: bigint): string {
+  const limit = maximum > 0n ? maximum : 0n
+  return dashToDuffs(amount) > limit ? davToDash(limit) : amount
+}
+
+export function capRecipientAmounts(recipients: SendRecipientDraft[], budget: bigint): SendRecipientDraft[] {
+  let remaining = budget > 0n ? budget : 0n
+  const capped = recipients.map(recipient => {
+    const amount = capSendAmount(recipient.amount, remaining)
+    remaining -= dashToDuffs(amount)
+    return amount === recipient.amount ? recipient : {...recipient, amount}
+  })
+  return capped.every((recipient, index) => recipient === recipients[index]) ? recipients : capped
+}
+
 export function recipientSliderAmount(recipients: SendRecipientDraft[], id: string, budget: bigint, percent: number): string {
   const requested = budget * BigInt(Math.round(Math.max(0, Math.min(100, percent)))) / 100n
   const remaining = recipientRemainingDuffs(recipients, id, budget)

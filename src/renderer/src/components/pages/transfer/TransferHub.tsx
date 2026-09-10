@@ -30,7 +30,7 @@ import { amountErrorFor } from "@renderer/utils/amountValidation";
 import { getErrorMessage } from "@renderer/utils/error";
 import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistration";
 import { getAdvancedSendRoute, getOrCreateSendDraft, resetCurrentSendRoute, saveSendDraft, setSendAdvanced } from "@renderer/utils/sendDraft";
-import { orderPlatformRecipients, recipientAllocationBudget, recipientTotalDuffs, validateSendRecipients, withOutputFee } from "@renderer/utils/sendRecipients";
+import { capRecipientAmounts, capSendAmount, orderPlatformRecipients, recipientAllocationBudget, recipientTotalDuffs, validateSendRecipients, withOutputFee } from "@renderer/utils/sendRecipients";
 import { SEND_RECIPIENT_LIMITS } from "@renderer/constants/sendRecipients";
 import {
   buildCoinControlInventory,
@@ -360,7 +360,8 @@ function WalletTransferHub(): React.JSX.Element {
   })
   useErrorToast(feeErr)
   const recipientErrors = validateSendRecipients({...recipientValidation, feeCredits})
-  const quoteReady = destinationValid && !feeLoading && !feeErr && (isCoreOperation ? feeDuffs !== null : feeCredits !== null)
+  const quoteReady = (operation === TransferOperation.CoreSend || destinationValid)
+    && !feeLoading && !feeErr && (isCoreOperation ? feeDuffs !== null : feeCredits !== null)
   const feeSourceValid = !subtractFee || (platformSource?.kind === 'inputs' && feeOutputIndex != null)
   const totalDebitCredits = amountCredits + (subtractFee ? 0n : feeCredits ?? 0n)
 
@@ -391,8 +392,9 @@ function WalletTransferHub(): React.JSX.Element {
   }, [sliderMaxAmount, amountDuffs])
 
   const handleSliderPercent = (percent: number): void => {
-    if (sliderMaxAmount === null) return
-    const value = (sliderMaxAmount * BigInt(percent)) / 100n
+    const maximum = operation === TransferOperation.CoreSend ? allocationBudgetDuffs : sliderMaxAmount
+    if (maximum === null) return
+    const value = (maximum * BigInt(percent)) / 100n
     setAmount(davToDash(value))
   }
 
@@ -407,7 +409,20 @@ function WalletTransferHub(): React.JSX.Element {
     if (isCoreOperation) allocationAvailableDuffs = balanceDuffs
     else if (availableCredits != null) allocationAvailableDuffs = creditsToDuffs(availableCredits)
   }
-  const allocationBudgetDuffs = recipientAllocationBudget(allocationAvailableDuffs, sliderMaxAmount, quoteReady)
+  const allocationReady = operation === TransferOperation.CoreSend ? coreMaxDuffs !== null && !feeErr : quoteReady
+  const allocationBudgetDuffs = operation === TransferOperation.CoreSend && !allocationReady
+    ? null : recipientAllocationBudget(allocationAvailableDuffs, sliderMaxAmount, allocationReady)
+
+  useEffect(() => {
+    if (operation !== TransferOperation.CoreSend || allocationBudgetDuffs == null) return
+    if (advancedMulti) {
+      const recipients = capRecipientAmounts(activeRecipients, allocationBudgetDuffs)
+      if (recipients !== activeRecipients) updateAdvancedRoute({recipients})
+    } else {
+      const capped = capSendAmount(amount, allocationBudgetDuffs)
+      if (capped !== amount) setAmount(capped)
+    }
+  }, [operation, advancedMulti, activeRecipients, amount, allocationBudgetDuffs])
 
   const selfSend =
     (operation === TransferOperation.AddressFundsTransfer && destinationValid
@@ -449,10 +464,15 @@ function WalletTransferHub(): React.JSX.Element {
     const parts = val.split('.')
     if (parts.length > 2) return
     if (parts[1] && parts[1].length > 8) return
-    setAmount(val)
+    setAmount(operation === TransferOperation.CoreSend && allocationBudgetDuffs != null
+      ? capSendAmount(val, allocationBudgetDuffs) : val)
   }
 
   const handleMax = (): void => {
+    if (operation === TransferOperation.CoreSend) {
+      if (allocationBudgetDuffs !== null) setAmount(davToDash(allocationBudgetDuffs))
+      return
+    }
     if (isCoreOperation) {
       if (coreMaxDuffs !== null) setAmount(davToDash(coreMaxDuffs))
       return
@@ -705,13 +725,14 @@ function WalletTransferHub(): React.JSX.Element {
         value={amount}
         onChange={handleAmount}
         onMax={handleMax}
+        disabled={operation === TransferOperation.CoreSend && allocationBudgetDuffs == null}
         unit={<DashLogo size={20} />}
       />
       {operation !== TransferOperation.IdentityCreateFromShielded && sliderMaxAmount !== null && (
         <AmountSlider
           percent={sliderPercent}
           onPercentChange={handleSliderPercent}
-          disabled={sliderMaxAmount === 0n}
+          disabled={sliderMaxAmount === 0n || (operation === TransferOperation.CoreSend && allocationBudgetDuffs == null)}
         />
       )}
       {amountError && (
@@ -958,7 +979,7 @@ function WalletTransferHub(): React.JSX.Element {
                 budgetDuffs={allocationBudgetDuffs}
                 feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
                 feeCredits={feeCredits}
-                budgetIsEstimate={!quoteReady}
+                budgetIsEstimate={!allocationReady}
                 onChange={recipients => updateAdvancedRoute({recipients})}
               /> : <>
                 <Text size={12} weight="medium" color="brand" opacity={50}>This route supports one recipient.</Text>

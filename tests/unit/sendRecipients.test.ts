@@ -8,6 +8,8 @@ import type {SendRecipientDraft} from '../../src/renderer/src/types/SendDraft'
 import type {SendRecipientValidation} from '../../src/renderer/src/types/SendRecipients'
 import {dashToDuffs} from '../../src/renderer/src/utils/balance'
 import {
+  capRecipientAmounts,
+  capSendAmount,
   orderPlatformRecipients,
   recipientAllocationBudget,
   recipientPercent,
@@ -41,6 +43,29 @@ function validation(recipients: SendRecipientDraft[], overrides: Partial<SendRec
 }
 
 describe('recipient allocation', () => {
+  it('caps typing and pasted amounts at the remaining funds after fees', () => {
+    const rows = [recipient('a', '1'), recipient('b', '2')]
+    const remaining = recipientRemainingDuffs(rows, 'a', 299_999_000n)
+    expect(capSendAmount('1', remaining)).toBe('0.99999')
+    expect(capSendAmount('999999999999999999999999', remaining)).toBe('0.99999')
+    expect(capSendAmount('0.50', remaining)).toBe('0.50')
+    expect(capSendAmount('', remaining)).toBe('')
+    expect(capSendAmount('0.', remaining)).toBe('0.')
+    expect(capSendAmount('1', -1n)).toBe('0')
+  })
+
+  it('reduces the last allocated amounts when a new output fee or smaller source lowers the budget', () => {
+    const rows = [recipient('a', '1'), recipient('b', '1.99999'), recipient('c', '', '')]
+    const capped = capRecipientAmounts(rows, 299_998_000n)
+    expect(capped.map(row => row.amount)).toEqual(['1', '1.99998', ''])
+    expect(capped[0]).toBe(rows[0])
+    expect(capped[2]).toBe(rows[2])
+    expect(rows[1].amount).toBe('1.99999')
+    expect(capRecipientAmounts(capped, 299_998_000n)).toBe(capped)
+    expect(capRecipientAmounts(rows, 50_000_000n).map(row => row.amount)).toEqual(['0.5', '0', ''])
+    expect(capRecipientAmounts(rows, 0n).map(row => row.amount)).toEqual(['0', '0', ''])
+  })
+
   it('allows allocation before addresses are complete and while a fee quote is pending', () => {
     const rows = [recipient('a', '', ''), recipient('b', '1', '')]
     const budget = recipientAllocationBudget(500_000_000n, null, false)
