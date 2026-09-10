@@ -37,6 +37,13 @@ export function isValidDashAddress(address: string, network?: AddressNetwork): b
   return ALL_VERSION_BYTES.has(version)
 }
 
+export function isValidDashChangeAddress(address: string, network?: AddressNetwork): boolean {
+  const version = decodeVersion(address)
+  if (version === null) return false
+  return network ? version === VERSION_BYTES[network].p2pkh
+    : Object.values(VERSION_BYTES).some(prefixes => version === prefixes.p2pkh)
+}
+
 export function dashAddressNetwork(address: string): AddressNetwork | null {
   const version = decodeVersion(address)
   if (version === null) return null

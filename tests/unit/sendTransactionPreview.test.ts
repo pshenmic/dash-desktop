@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import type {CoinControlFunds} from '../../src/renderer/src/types/CoinControl'
-import {sendPreviewInputs, sendPreviewOutputs, sendPreviewSourceKey, sendPreviewTotals} from '../../src/renderer/src/utils/sendTransactionPreview'
+import {sendPreviewChangeAddress, sendPreviewInputs, sendPreviewOutputRows, sendPreviewOutputs, sendPreviewSourceKey, sendPreviewTotals} from '../../src/renderer/src/utils/sendTransactionPreview'
+import {TransferOperation} from '../../src/renderer/src/enums/TransferOperation'
 import {duffsToCredits} from '../../src/renderer/src/utils/balance'
 
 function funds(): CoinControlFunds {
@@ -85,5 +86,31 @@ describe('send transaction preview', () => {
     expect(sendPreviewSourceKey({network: 'testnet', shieldedSource: {kind: 'address', noteIndexes: [1, 3]}})).not.toBe(first)
     expect(sendPreviewSourceKey({network: 'testnet', fixedAddress: 'identity-a'}))
       .not.toBe(sendPreviewSourceKey({network: 'testnet', fixedAddress: 'identity-b'}))
+  })
+
+  it('invalidates the reviewed default when a newly suggested change address replaces it', () => {
+    const reviewed = sendPreviewSourceKey({network: 'testnet', changeTo: 'first-unused'})
+    expect(sendPreviewSourceKey({network: 'testnet', changeTo: 'next-unused'})).not.toBe(reviewed)
+    expect(sendPreviewSourceKey({network: 'testnet'})).not.toBe(reviewed)
+  })
+
+  it('shows custom change separately from recipient totals and represents automatic selection explicitly', () => {
+    const params = {operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n}
+    expect(sendPreviewChangeAddress({...params, changeTo: 'external'})).toBe('external')
+    expect(sendPreviewChangeAddress(params)).toBeNull()
+    expect(sendPreviewChangeAddress({...params, amountDuffs: 100n, changeTo: 'hidden'})).toBeUndefined()
+    expect(sendPreviewChangeAddress({...params, operation: TransferOperation.AssetLockFunding})).toBeUndefined()
+  })
+
+  it('adds known change to output rows without changing payment recipients or inventing a change amount', () => {
+    const recipients = sendPreviewOutputs({recipients: [{address: 'recipient', amountDuffs: 90n}], feeCredits: 0n, newIdentity: false})
+    const totals = sendPreviewTotals(recipients, duffsToCredits(1n))
+    expect(sendPreviewOutputRows(recipients, 'change-address')).toEqual([
+      ...recipients, {address: 'change-address', amountCredits: null, label: 'Change'},
+    ])
+    expect(recipients).toHaveLength(1)
+    expect(totals).toEqual({amountCredits: duffsToCredits(90n), feeCredits: duffsToCredits(1n), totalDebitCredits: duffsToCredits(91n)})
+    expect(sendPreviewOutputRows(recipients, null)).toBe(recipients)
+    expect(sendPreviewOutputRows(recipients, undefined)).toBe(recipients)
   })
 })

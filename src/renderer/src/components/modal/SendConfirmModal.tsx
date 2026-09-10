@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { useTheme } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
-import { CoreRecipient, CoreSpendSource, Network, SendResult, TxLockStatus } from '@renderer/api/types'
+import { CoreRecipient, SendResult, TxLockStatus } from '@renderer/api/types'
+import type { SendConfirmModalProps } from '@renderer/types/SendConfirmModal'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
@@ -14,19 +15,6 @@ import HashField from '@renderer/components/ui/HashField'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-
-interface SendConfirmModalProps {
-  isOpen: boolean
-  onClose: () => void
-  walletId: string | null
-  network: Network | null
-  recipients: CoreRecipient[]
-  amountFiat?: string
-  feeDuffs?: bigint | null
-  source?: CoreSpendSource
-  sourceValid?: boolean
-  onSuccess: () => void
-}
 
 const LOCK_POLL_INTERVAL_MS = 2_000
 const FALLBACK_POLL_INTERVAL_MS = 10_000
@@ -49,6 +37,7 @@ export default function SendConfirmModal({
   amountFiat,
   feeDuffs,
   source,
+  changeTo,
   sourceValid = true,
   onSuccess,
 }: SendConfirmModalProps): React.JSX.Element | null {
@@ -129,7 +118,7 @@ export default function SendConfirmModal({
       }
       const submittedRecipients = recipients.map(recipient => ({ ...recipient }))
       setSentRecipients(submittedRecipients)
-      const res = await API.sendTransaction(walletId, submittedRecipients, password, source)
+      const res = await API.sendTransaction(walletId, submittedRecipients, password, source, changeTo)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()

@@ -1,12 +1,23 @@
-import type { SendPreviewInputsParams, SendPreviewOutputsParams, SendPreviewRow, SendPreviewSourceParams } from '../types/SendTransactionPreview'
+import type { SendPreviewChangeParams, SendPreviewInputsParams, SendPreviewOutputsParams, SendPreviewRow, SendPreviewSourceParams } from '../types/SendTransactionPreview'
+import { TransferOperation } from '../enums/TransferOperation'
+import { hasUnallocatedCoreFunds } from './changeAddress'
 import { duffsToCredits } from './balance'
 import { coreSpendSourceKey, outpointKey, platformSpendSourceKey } from './coinControl'
 
-export function sendPreviewSourceKey({network, coreSource, platformSource, shieldedSource, fixedAddress}: SendPreviewSourceParams): string {
+export function sendPreviewSourceKey({network, coreSource, platformSource, shieldedSource, fixedAddress, changeTo}: SendPreviewSourceParams): string {
   return JSON.stringify([
     network, coreSpendSourceKey(coreSource), platformSpendSourceKey(platformSource),
-    shieldedSource?.kind, shieldedSource?.noteIndexes, fixedAddress,
+    shieldedSource?.kind, shieldedSource?.noteIndexes, fixedAddress, changeTo,
   ])
+}
+
+export function sendPreviewChangeAddress({operation, amountDuffs, maxDuffs, changeTo}: SendPreviewChangeParams): string | null | undefined {
+  if (operation !== TransferOperation.CoreSend || !hasUnallocatedCoreFunds(amountDuffs, maxDuffs)) return undefined
+  return changeTo ?? null
+}
+
+export function sendPreviewOutputRows(recipients: SendPreviewRow[], changeAddress: string | null | undefined): SendPreviewRow[] {
+  return changeAddress ? [...recipients, {address: changeAddress, amountCredits: null, label: 'Change'}] : recipients
 }
 
 export function sendPreviewTotals(outputs: SendPreviewRow[], feeCredits: bigint) {

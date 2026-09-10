@@ -69,12 +69,12 @@ export default function SendTransactionPreview({
           </div>
         </section>
         <section className="dash-card-base rounded-[.9375rem] p-4 flex flex-col gap-4">
-          <div className="flex items-center gap-2"><Text size={14} weight="medium" color="brand">{data.inputNote ? 'Funding sources' : 'Inputs'}</Text>{data.inputs.length > 0 && <CustomBadge text={String(data.inputs.length)} variant="muted" size="xs" />}</div>
+          <div className="flex items-center gap-2"><Text size={14} weight="medium" color="brand">Inputs</Text>{data.inputs.length > 0 && <CustomBadge text={String(data.inputs.length)} variant="muted" size="xs" />}</div>
           <PreviewRows rows={data.inputs} isCoreOperation={data.isCoreOperation} />
           {data.inputNote && <Text size={12} weight="medium" color="brand" opacity={50}>{data.inputNote}</Text>}
         </section>
         <section className="dash-card-base rounded-[.9375rem] p-4 flex flex-col gap-4">
-          <div className="flex items-center gap-2"><Text size={14} weight="medium" color="brand">Recipients</Text><CustomBadge text={String(data.outputs.length)} variant="muted" size="xs" /></div>
+          <div className="flex items-center gap-2"><Text size={14} weight="medium" color="brand">Outputs</Text><CustomBadge text={String(data.outputs.length)} variant="muted" size="xs" /></div>
           <PreviewRows rows={data.outputs} isCoreOperation={data.isCoreOperation} />
           {data.outputNote && <Text size={12} weight="medium" color="brand" opacity={50}>{data.outputNote}</Text>}
         </section>

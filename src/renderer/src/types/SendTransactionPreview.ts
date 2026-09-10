@@ -1,6 +1,7 @@
 import type { CoreRecipient, CoreSpendSource, Network, PlatformSpendSource, ShieldedSpendSource } from '../api/types'
 import type { CoinControlFunds, CoinControlSelection } from './CoinControl'
 import type { SendDraft } from './SendDraft'
+import type { TransferOperation } from '../enums/TransferOperation'
 
 export interface SendPreviewRow {
   address: string
@@ -40,6 +41,14 @@ export interface SendPreviewSourceParams {
   platformSource?: PlatformSpendSource | null
   shieldedSource?: ShieldedSpendSource
   fixedAddress?: string
+  changeTo?: string
+}
+
+export interface SendPreviewChangeParams {
+  operation: TransferOperation | null
+  amountDuffs: bigint
+  maxDuffs: bigint | null
+  changeTo?: string
 }
 
 export interface SendTransactionPreviewData {

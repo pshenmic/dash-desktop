@@ -195,6 +195,25 @@ describe('send drafts', () => {
     expect(draft.advancedRoutes[TransferOperation.CoreSend]?.recipients[0].address).toBe('sent')
   })
 
+  it('keeps change address choices per route and wallet, across mode switches, until the route resets', () => {
+    const core = setSendAdvanced(createSendDraft(), true)
+    const draft = {
+      ...core,
+      advancedRoutes: {
+        [TransferOperation.CoreSend]: {...getAdvancedSendRoute(core, TransferOperation.CoreSend), changeAddress: 'core-change'},
+        [TransferOperation.AssetLockFunding]: {...getAdvancedSendRoute(core, TransferOperation.AssetLockFunding), changeAddress: 'lock-change'},
+      },
+    }
+    saveSendDraft('wallet-a', setSendAdvanced(draft, false))
+    const restored = setSendAdvanced(getOrCreateSendDraft('wallet-a', null, null), true)
+    expect(getAdvancedSendRoute(restored, TransferOperation.CoreSend).changeAddress).toBe('core-change')
+    expect(getAdvancedSendRoute(restored, TransferOperation.AssetLockFunding).changeAddress).toBe('lock-change')
+    expect(getAdvancedSendRoute(getOrCreateSendDraft('wallet-b', null, null), TransferOperation.CoreSend).changeAddress).toBeUndefined()
+    const reset = resetCurrentSendRoute(restored)
+    expect(getAdvancedSendRoute(reset, TransferOperation.CoreSend).changeAddress).toBeUndefined()
+    expect(getAdvancedSendRoute(reset, TransferOperation.AssetLockFunding).changeAddress).toBe('lock-change')
+  })
+
   it('preserves independent advanced route drafts and payer selection across wallets', () => {
     const core = setSendAdvanced({...createSendDraft(), toValue: 'core-recipient', amount: '1'}, true)
     saveSendDraft('wallet-a', core)

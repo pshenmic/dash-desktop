@@ -13,6 +13,7 @@ export interface AdvancedSendRoute {
   recipients: SendRecipientDraft[]
   subtractFee: boolean
   feeRecipientId: string | null
+  changeAddress?: string
 }
 
 export interface SendDraft {
