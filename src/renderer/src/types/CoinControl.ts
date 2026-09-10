@@ -89,13 +89,13 @@ export interface CoinControlAmountInputProps {
 export interface CoinControlInputDetailsProps {
   label: string
   amount: ReactNode
-  children: ReactNode
+  address: string
 }
 
 export interface CoinControlCheckRowProps {
+  label: string
   checked: boolean
   onChange: (checked: boolean) => void
   children: ReactNode
   disabled?: boolean
-  bare?: boolean
 }

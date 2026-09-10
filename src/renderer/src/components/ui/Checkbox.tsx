@@ -5,14 +5,16 @@ type CheckboxProps = {
   onChange: (checked: boolean) => void
   label: React.ReactNode
   className?: string
+  disabled?: boolean
 }
 
-export default function Checkbox({ checked, onChange, label, className = '' }: CheckboxProps): React.JSX.Element {
+export default function Checkbox({ checked, onChange, label, className = '', disabled = false }: CheckboxProps): React.JSX.Element {
   return (
     <label className={`flex items-center gap-2.5 cursor-pointer select-none ${className}`}>
       <input
         type={"checkbox"}
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         className={"peer sr-only"}
       />

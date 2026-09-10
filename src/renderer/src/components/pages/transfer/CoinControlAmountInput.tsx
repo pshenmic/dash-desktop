@@ -26,7 +26,7 @@ export default function CoinControlAmountInput({id, credits, invalid, onChange}:
         value={value}
         onChange={event => handleChange(event.target.value)}
         aria-invalid={invalid}
-        className={`col-start-1 row-start-2 min-w-0 w-full rounded-[.625rem] px-3 py-2 dash-input-block dash-text-default outline-none text-[.75rem] font-mono ${invalid ? 'ring-1 ring-dash-red' : ''}`}
+        className={`pointer-events-auto col-start-1 row-start-2 min-w-0 w-full rounded-[.625rem] px-3 py-2 dash-input-block dash-text-default outline-none text-[.75rem] font-mono ${invalid ? 'ring-1 ring-dash-red' : ''}`}
       />
     </Tooltip>
   )

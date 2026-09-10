@@ -367,25 +367,23 @@ export default function CoinControlModal({
                     const key = outpointKey(utxo)
                     const checked = draft.kind === 'coreOutpoints' && draft.outpoints.includes(key)
                     return (
-                      <div key={key} className={`rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
-                        <CheckRow bare checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
+                      <CheckRow key={key} label={`Select ${utxo.address}, output ${key}`} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
                           <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
-                            <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
+                            <span className={'min-w-0 flex items-center gap-2'}>
+                              <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
+                              <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
+                            </span>
                             <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
                               {isCoreSend
                                 ? `${davToDash(utxo.satoshis)} Dash`
                                 : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
                             </Text>
                           </span>
-                        </CheckRow>
-                        <div className={'mt-1.5 ml-7 flex items-center gap-2'}>
+                        <div className={'mt-1.5 flex items-center gap-2'}>
                           <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 font-mono break-all'}>{key}</Text>
-                          <span title={'Copy transaction ID'} className={'ml-auto shrink-0'}>
-                            <CopyButton text={utxo.txid} />
-                          </span>
                         </div>
-                        {utxo.height === 0 && <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-1 ml-7 block'}>Pending</Text>}
-                      </div>
+                        {utxo.height === 0 && <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-1 block'}>Pending</Text>}
+                      </CheckRow>
                     )
                   })}
                 </div>
@@ -404,18 +402,16 @@ export default function CoinControlModal({
                     const full = selectedPlatformInputs.length >= PLATFORM_INPUT_LIMIT
                     const invalid = selected != null && (selected.credits <= 0n || selected.credits > entry.balanceCredits)
                     return (
-                      <div key={entry.platformAddress} className={`rounded-[.75rem] p-3 ${selected ? 'dash-block-accent-5' : 'dash-block'} ${!selected && full ? 'opacity-40' : ''}`}>
-                        <CheckRow bare checked={selected != null} onChange={checked => togglePlatformInput(entry, checked)}>
+                      <CheckRow key={entry.platformAddress} label={`Select ${entry.platformAddress}`} checked={selected != null} disabled={!selected && full} onChange={checked => togglePlatformInput(entry, checked)}>
+                        <div className={'flex items-center gap-2.5'}>
                           <CreditsIcon size={18} className={'shrink-0'} />
-                          <InputDetails label={'Platform input'} amount={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} align={'end'} />}>
-                            <Text reset size={12} weight={'medium'} color={'brand'} className={'block font-mono break-all'}>{entry.platformAddress}</Text>
-                          </InputDetails>
-                        </CheckRow>
+                          <InputDetails label={'Platform input'} address={entry.platformAddress} amount={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} align={'end'} />} />
+                        </div>
                         {selected && (
-                          <div className={'mt-3 ml-7 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
+                          <div className={'mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
                             <label
                               htmlFor={`coin-control-amount-${entry.platformAddress}`}
-                              className={'col-start-1 row-start-1'}
+                              className={'pointer-events-auto col-start-1 row-start-1'}
                             >
                               <Text size={10} weight={'medium'} color={invalid ? 'red' : 'brand'} opacity={invalid ? 100 : 50}>Dash from this input</Text>
                             </label>
@@ -425,7 +421,7 @@ export default function CoinControlModal({
                               invalid={invalid}
                               onChange={credits => setPlatformInputCredits(entry.platformAddress, credits)}
                             />
-                            {!feeFromOutput && <label className={'col-start-2 row-start-2 self-center flex items-center gap-1.5 cursor-pointer select-none shrink-0'}>
+                            {!feeFromOutput && <label className={'pointer-events-auto col-start-2 row-start-2 self-center flex items-center gap-1.5 cursor-pointer select-none shrink-0'}>
                               <input
                                 type={'radio'}
                                 checked={draft.kind === 'platformInputs' && draft.feeAddress === entry.platformAddress}
@@ -436,7 +432,7 @@ export default function CoinControlModal({
                             </label>}
                           </div>
                         )}
-                      </div>
+                      </CheckRow>
                     )
                   })}
                 </div>
@@ -454,11 +450,11 @@ export default function CoinControlModal({
                     const checked = picked.includes(note.index)
                     const full = picked.length >= SHIELDED_NOTE_LIMIT
                     return (
-                      <CheckRow key={note.index} checked={checked} disabled={!checked && full} onChange={next => toggleShieldedNote(note.index, next)}>
-                        <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
-                        <InputDetails label={`Note #${note.index}`} amount={<CreditsAmount credits={note.amount} exact showFiat={false} align={'end'} />}>
-                          <Text reset size={12} weight={'medium'} color={'brand'} className={'block font-mono text-[.6875rem]! break-all'}>{note.address}</Text>
-                        </InputDetails>
+                      <CheckRow key={note.index} label={`Select note ${note.index}, ${note.address}`} checked={checked} disabled={!checked && full} onChange={next => toggleShieldedNote(note.index, next)}>
+                        <div className={'flex items-center gap-2.5'}>
+                          <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
+                          <InputDetails label={`Note #${note.index}`} address={note.address} amount={<CreditsAmount credits={note.amount} exact showFiat={false} align={'end'} />} />
+                        </div>
                       </CheckRow>
                     )
                   })}
@@ -499,24 +495,26 @@ function Empty({text}: CoinControlEmptyProps): React.JSX.Element {
   return <div className={'dash-block rounded-[.75rem] p-4'}><Text size={12} weight={'medium'} color={'brand'} opacity={50}>{text}</Text></div>
 }
 
-function InputDetails({label, amount, children}: CoinControlInputDetailsProps): React.JSX.Element {
+function InputDetails({label, amount, address}: CoinControlInputDetailsProps): React.JSX.Element {
   return (
     <span className={'min-w-0 flex-1 flex flex-col gap-1.5 text-left'}>
       <span className={'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
         <Text reset size={12} weight={'medium'} color={'brand'} opacity={50}>{label}</Text>
         <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto text-right tabular-nums'}>{amount}</Text>
       </span>
-      <span className={'flex flex-col gap-1'}>{children}</span>
+      <span className={'flex items-center gap-2'}>
+        <Text reset size={12} weight={'medium'} color={'brand'} className={'min-w-0 font-mono break-all'}>{address}</Text>
+        <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={address} /></span>
+      </span>
     </span>
   )
 }
 
-function CheckRow({checked, onChange, children, disabled = false, bare = false}: CoinControlCheckRowProps): React.JSX.Element {
-  let rowClass = ''
-  if (!bare) rowClass = `rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'}`
+function CheckRow({label, checked, onChange, children, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
   return (
-    <div className={`min-w-0 ${rowClass} ${disabled ? 'opacity-40' : ''}`}>
-      <Checkbox className={'min-w-0 w-full'} checked={checked} onChange={next => !disabled && onChange(next)} label={<span className={'min-w-0 flex-1 flex items-center gap-2.5'}>{children}</span>} />
+    <div className={`relative min-w-0 rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'} ${disabled ? 'opacity-40' : ''}`}>
+      <Checkbox className={`absolute inset-0 items-start! p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
+      <div className={'relative pointer-events-none min-w-0 ml-7'}>{children}</div>
     </div>
   )
 }
