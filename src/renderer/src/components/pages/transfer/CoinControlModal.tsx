@@ -37,6 +37,7 @@ import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 
 export default function CoinControlModal({
   isOpen,
+  feeFromOutput = false,
   operation,
   selection,
   coreAddresses,
@@ -454,6 +455,7 @@ export default function CoinControlModal({
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
                 <div className={'mt-4 flex flex-col gap-1'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Up to {PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.</Text>
+                  {feeFromOutput && <Text size={12} weight="medium" color="brand" opacity={50}>The network fee will be deducted from the recipient selected on Send.</Text>}
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
                   {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
                     <Empty text={'All Platform inputs are below the dust threshold.'} />
@@ -482,7 +484,7 @@ export default function CoinControlModal({
                               invalid={invalid}
                               onChange={credits => setPlatformInputCredits(entry.platformAddress, credits)}
                             />
-                            <label className={'col-start-2 row-start-2 self-center flex items-center gap-1.5 cursor-pointer select-none shrink-0'}>
+                            {!feeFromOutput && <label className={'col-start-2 row-start-2 self-center flex items-center gap-1.5 cursor-pointer select-none shrink-0'}>
                               <input
                                 type={'radio'}
                                 checked={draft.kind === 'platformInputs' && draft.feeAddress === entry.platformAddress}
@@ -490,7 +492,7 @@ export default function CoinControlModal({
                                 className={'accent-dash-brand dark:accent-dash-mint'}
                               />
                               <Text size={12} weight={'medium'} color={'brand'}>Pays fee</Text>
-                            </label>
+                            </label>}
                           </div>
                         )}
                       </div>

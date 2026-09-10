@@ -1,13 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
 import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
+import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
 import type { CoinControlSelection } from '../../src/renderer/src/types/CoinControl'
 import { isCoinControlSelectionValid } from '../../src/renderer/src/utils/coinControl'
 import {
   clearSendDraft,
   createSendDraft,
   getOrCreateSendDraft,
+  getAdvancedSendRoute,
   saveSendDraft,
+  setSendAdvanced,
+  resetCurrentSendRoute,
 } from '../../src/renderer/src/utils/sendDraft'
 
 describe('send drafts', () => {
@@ -130,5 +134,65 @@ describe('send drafts', () => {
       amount: '1.25',
       coinControl: {kind: 'automatic'},
     })
+  })
+
+  it('seeds advanced recipients once and preserves them across mode toggles', () => {
+    const simple = {...createSendDraft(), toValue: 'first-recipient', amount: '1.25'}
+    const advanced = setSendAdvanced(simple, true)
+    expect(getAdvancedSendRoute(advanced, TransferOperation.CoreSend).recipients).toEqual([
+      {id: 'first', address: 'first-recipient', amount: '1.25'},
+    ])
+    const route = {
+      recipients: [
+        {id: 'first', address: 'first-recipient', amount: '0.75'},
+        {id: 'second', address: 'second-recipient', amount: '0.5'},
+      ],
+      subtractFee: false,
+      feeRecipientId: null,
+    }
+    const edited = {...advanced, advancedRoutes: {[TransferOperation.CoreSend]: route}}
+    const toggled = setSendAdvanced({...setSendAdvanced(edited, false), toValue: 'simple-edit', amount: '9'}, true)
+    expect(getAdvancedSendRoute(toggled, TransferOperation.CoreSend)).toEqual(route)
+    expect(toggled).toMatchObject({advanced: true, toValue: 'simple-edit', amount: '9'})
+    expect(simple.advancedRoutes).toEqual({})
+  })
+
+  it('clears only the sent route and preserves other unfinished recipients', () => {
+    const draft = setSendAdvanced({...createSendDraft(), toValue: 'sent', amount: '1'}, true)
+    const other = {recipients: [{id: 'other', address: 'unfinished', amount: '2'}], subtractFee: true, feeRecipientId: 'other'}
+    const reset = resetCurrentSendRoute({...draft, advancedRoutes: {...draft.advancedRoutes, [TransferOperation.AddressFundsTransfer]: other}})
+    expect(reset).toMatchObject({advanced: true, toValue: '', amount: '', coinControl: {kind: 'automatic'}})
+    expect(reset.advancedRoutes[TransferOperation.CoreSend]).toBeUndefined()
+    expect(reset.advancedRoutes[TransferOperation.AddressFundsTransfer]).toEqual(other)
+    expect(draft.advancedRoutes[TransferOperation.CoreSend]?.recipients[0].address).toBe('sent')
+  })
+
+  it('preserves independent advanced route drafts and payer selection across wallets', () => {
+    const core = setSendAdvanced({...createSendDraft(), toValue: 'core-recipient', amount: '1'}, true)
+    saveSendDraft('wallet-a', core)
+    const platform = setSendAdvanced({
+      ...getOrCreateSendDraft('wallet-a', SourceKind.PlatformAddress, DestinationKind.PlatformAddress),
+      toValue: 'platform-recipient',
+      amount: '2',
+    }, true)
+    const platformRoute = {
+      ...getAdvancedSendRoute(platform, TransferOperation.AddressFundsTransfer),
+      subtractFee: true,
+      feeRecipientId: 'first',
+    }
+    saveSendDraft('wallet-a', {
+      ...platform,
+      advancedRoutes: {...platform.advancedRoutes, [TransferOperation.AddressFundsTransfer]: platformRoute},
+    })
+    expect(getOrCreateSendDraft('wallet-b', null, null)).toMatchObject({advanced: false, advancedRoutes: {}})
+    const restored = getOrCreateSendDraft('wallet-a', SourceKind.Core, DestinationKind.CoreAddress)
+    expect(restored.advanced).toBe(true)
+    expect(getAdvancedSendRoute(restored, TransferOperation.CoreSend).recipients[0]).toMatchObject({address: 'core-recipient', amount: '1'})
+    expect(getAdvancedSendRoute(restored, TransferOperation.AddressFundsTransfer)).toEqual(platformRoute)
+    expect(getAdvancedSendRoute(restored, TransferOperation.ShieldedTransfer)).toEqual({
+      recipients: [{id: 'first', address: '', amount: ''}], subtractFee: false, feeRecipientId: null,
+    })
+    clearSendDraft('wallet-a')
+    expect(getOrCreateSendDraft('wallet-a', null, null).advancedRoutes).toEqual({})
   })
 })

@@ -51,6 +51,7 @@ export interface CoinControlFixedSourceCopy {
 
 export interface CoinControlModalProps {
   isOpen: boolean
+  feeFromOutput?: boolean
   operation: TransferOperation | null
   selection: CoinControlSelection
   coreAddresses: WalletAddressDto[]

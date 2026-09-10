@@ -4,13 +4,15 @@ import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxt
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import { useTheme } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { PlatformSendResult } from '@renderer/api/types'
+import { PlatformRecipient, PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import RecipientSummary from '@renderer/components/ui/RecipientSummary'
+import type { RecipientSummaryProps } from '@renderer/types/RecipientSummary'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
@@ -26,6 +28,9 @@ interface TransferConfirmModalProps {
   title: string
   successTitle: string
   rows: TransferConfirmRow[]
+  recipients?: PlatformRecipient[]
+  feeOutputIndex?: number
+  feeCredits?: bigint | null
   run: (password: string) => Promise<PlatformSendResult>
   sourceValid?: boolean
   onSuccess: () => void
@@ -39,6 +44,9 @@ export default function TransferConfirmModal({
   title,
   successTitle,
   rows,
+  recipients,
+  feeOutputIndex,
+  feeCredits,
   run,
   sourceValid = true,
   onSuccess,
@@ -54,6 +62,7 @@ export default function TransferConfirmModal({
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<PlatformSendResult | null>(null)
+  const [sentRecipients, setSentRecipients] = useState<RecipientSummaryProps | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -61,6 +70,7 @@ export default function TransferConfirmModal({
       setPhase(ConfirmModalPhase.Confirm)
       setError(null)
       setResult(null)
+      setSentRecipients(null)
     }
   }, [isOpen])
 
@@ -83,6 +93,11 @@ export default function TransferConfirmModal({
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
+      setSentRecipients(recipients ? {
+        recipients: recipients.map(recipient => ({ ...recipient })),
+        feeOutputIndex,
+        feeCredits,
+      } : null)
       const res = await run(password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
@@ -103,7 +118,7 @@ export default function TransferConfirmModal({
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
     >
       <div
-        className={"w-full max-w-140 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
+        className={"w-full max-w-140 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
@@ -129,6 +144,7 @@ export default function TransferConfirmModal({
                   </Text>
                 </div>
               ))}
+              {recipients && <RecipientSummary recipients={recipients} feeOutputIndex={feeOutputIndex} feeCredits={feeCredits} />}
             </div>
 
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
@@ -193,6 +209,11 @@ export default function TransferConfirmModal({
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
                 {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
               </Text>
+              {sentRecipients?.feeOutputIndex !== undefined && (
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+                  Total debited, including the fee deducted from a recipient.
+                </Text>
+              )}
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
                 Broadcast to Platform. It will confirm shortly.
               </Text>
@@ -211,13 +232,15 @@ export default function TransferConfirmModal({
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.fromAddress}</Text>
               </div>
-              <div className={"flex justify-between items-center gap-4"}>
+              {sentRecipients ? <RecipientSummary {...sentRecipients} feeCredits={result?.feeCredits ?? sentRecipients.feeCredits} /> : <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.toAddress}</Text>
-              </div>
-              {result?.feeCredits && (
+              </div>}
+              {result?.feeCredits != null && (
                 <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                    {sentRecipients?.feeOutputIndex === undefined ? 'Reserved for fee' : `Fee reserve from recipient ${sentRecipients.feeOutputIndex + 1}`}
+                  </Text>
                   <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
                 </div>
               )}

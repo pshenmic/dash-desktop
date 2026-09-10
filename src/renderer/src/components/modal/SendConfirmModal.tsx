@@ -11,6 +11,7 @@ import { transactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
+import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
@@ -21,6 +22,7 @@ interface SendConfirmModalProps {
   network: Network | null
   recipients: CoreRecipient[]
   amountFiat?: string
+  feeDuffs?: bigint | null
   source?: CoreSpendSource
   sourceValid?: boolean
   onSuccess: () => void
@@ -45,6 +47,7 @@ export default function SendConfirmModal({
   network,
   recipients,
   amountFiat,
+  feeDuffs,
   source,
   sourceValid = true,
   onSuccess,
@@ -58,6 +61,7 @@ export default function SendConfirmModal({
   const [lockPhase, setLockPhase] = useState<SendLockPhase>(SendLockPhase.Waiting)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SendResult | null>(null)
+  const [sentRecipients, setSentRecipients] = useState<CoreRecipient[]>([])
 
   useEffect(() => {
     if (isOpen) {
@@ -66,6 +70,7 @@ export default function SendConfirmModal({
       setLockPhase(SendLockPhase.Waiting)
       setError(null)
       setResult(null)
+      setSentRecipients([])
     }
   }, [isOpen])
 
@@ -122,7 +127,9 @@ export default function SendConfirmModal({
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
-      const res = await API.sendTransaction(walletId, recipients, password, source)
+      const submittedRecipients = recipients.map(recipient => ({ ...recipient }))
+      setSentRecipients(submittedRecipients)
+      const res = await API.sendTransaction(walletId, submittedRecipients, password, source)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
@@ -143,7 +150,7 @@ export default function SendConfirmModal({
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
     >
       <div
-        className={"w-full max-w-105 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
+        className={"w-full max-w-140 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
@@ -171,16 +178,11 @@ export default function SendConfirmModal({
                   <Text size={12} weight={"medium"} color={"blue-mint"}>{amountFiat}</Text>
                 </div>
               )}
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <div className={"min-w-0 flex flex-col items-end gap-1"}>
-                  {recipients.map((recipient, index) => (
-                    <Text key={index} size={12} weight={"medium"} color={"brand"} className={"font-mono break-all text-right"}>
-                      {recipient.address}
-                    </Text>
-                  ))}
-                </div>
-              </div>
+              <RecipientSummary recipients={recipients} />
+              {feeDuffs != null && <>
+                <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Estimated network fee</Text><Text size={12} weight="medium" color="brand">{davToDash(feeDuffs)} Dash</Text></div>
+                <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text><Text size={14} weight="extrabold" color="brand">{davToDash(amountDuffs + feeDuffs)} Dash</Text></div>
+              </>}
             </div>
 
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
@@ -261,16 +263,7 @@ export default function SendConfirmModal({
             </div>
 
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <div className={"min-w-0 flex flex-col items-end gap-1"}>
-                  {recipients.map((recipient, index) => (
-                    <Text key={index} size={12} weight={"medium"} color={"brand"} className={"font-mono break-all text-right"}>
-                      {recipient.address}
-                    </Text>
-                  ))}
-                </div>
-              </div>
+              <RecipientSummary recipients={sentRecipients} />
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
                 <Text size={12} weight={"medium"} color={"brand"}>{result ? davToDash(result.fee) : ''} Dash</Text>

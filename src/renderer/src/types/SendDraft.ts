@@ -1,6 +1,19 @@
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
 import type { CoinControlSelection } from './CoinControl'
+import type { TransferOperation } from '../enums/TransferOperation'
+
+export interface SendRecipientDraft {
+  id: string
+  address: string
+  amount: string
+}
+
+export interface AdvancedSendRoute {
+  recipients: SendRecipientDraft[]
+  subtractFee: boolean
+  feeRecipientId: string | null
+}
 
 export interface SendDraft {
   fromKind: SourceKind
@@ -11,4 +24,6 @@ export interface SendDraft {
   amount: string
   acked: boolean
   coinControl: CoinControlSelection
+  advanced: boolean
+  advancedRoutes: Partial<Record<TransferOperation, AdvancedSendRoute>>
 }

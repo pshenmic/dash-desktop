@@ -11,9 +11,10 @@ interface AmountSliderProps {
   percent: number
   onPercentChange: (percent: number) => void
   disabled?: boolean
+  label?: string
 }
 
-export default function AmountSlider({percent, onPercentChange, disabled = false}: AmountSliderProps): React.JSX.Element {
+export default function AmountSlider({percent, onPercentChange, disabled = false, label = 'Amount percentage'}: AmountSliderProps): React.JSX.Element {
   return (
     <div className={`mt-3 px-1 flex flex-col gap-1 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
       <div className={"relative h-4 flex items-center"}>
@@ -28,6 +29,7 @@ export default function AmountSlider({percent, onPercentChange, disabled = false
         ))}
         <input
           type={"range"}
+          aria-label={label}
           min={0}
           max={100}
           step={1}

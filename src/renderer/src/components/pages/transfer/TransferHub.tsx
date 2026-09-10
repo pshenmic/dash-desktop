@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
-import { Text, ShieldSmallIcon, SettingsIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button, Text, ShieldSmallIcon, SettingsIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
@@ -29,9 +29,10 @@ import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import { getErrorMessage } from "@renderer/utils/error";
 import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistration";
-import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
+import { getAdvancedSendRoute, getOrCreateSendDraft, resetCurrentSendRoute, saveSendDraft, setSendAdvanced } from "@renderer/utils/sendDraft";
+import { orderPlatformRecipients, recipientAllocationBudget, recipientTotalDuffs, validateSendRecipients, withOutputFee } from "@renderer/utils/sendRecipients";
+import { SEND_RECIPIENT_LIMITS } from "@renderer/constants/sendRecipients";
 import {
-  automaticCoinControl,
   buildCoinControlInventory,
   coinControlSelectionSummary,
   coinControlSelectionTotals,
@@ -59,13 +60,14 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import type { SendDraft } from "@renderer/types/SendDraft";
+import type { AdvancedSendRoute, SendDraft } from "@renderer/types/SendDraft";
 import type { CoinControlSelection } from "@renderer/types/CoinControl";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import { DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
+import SendRecipientsEditor from "./SendRecipientsEditor";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
@@ -93,7 +95,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
-  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, coinControl } = draft
+  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, coinControl, advanced } = draft
   const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
     const next = update(draftRef.current)
     draftRef.current = next
@@ -165,6 +167,25 @@ function WalletTransferHub(): React.JSX.Element {
   useErrorToast(shieldedSync.error)
 
   const operation = resolveOperation(fromKind, toKind)
+  const recipientLimit = operation == null ? 1 : SEND_RECIPIENT_LIMITS[operation] ?? 1
+  const advancedMulti = advanced && recipientLimit > 1
+  const advancedRoute = useMemo(() => getAdvancedSendRoute(draft, operation), [draft.advancedRoutes, operation])
+  const updateAdvancedRoute = (update: Partial<AdvancedSendRoute>): void => updateDraft(current => ({
+    ...current,
+    advancedRoutes: operation == null ? current.advancedRoutes : {
+      ...current.advancedRoutes,
+      [operation]: {...getAdvancedSendRoute(current, operation), ...update},
+    },
+  }))
+  const activeRecipients = useMemo(() => advancedMulti ? advancedRoute.recipients : [{id: 'simple', address: toValue, amount}], [advancedMulti, advancedRoute.recipients, toValue, amount])
+  const submittedRecipients = useMemo(() => operation === TransferOperation.AddressFundsTransfer ? orderPlatformRecipients(activeRecipients) : activeRecipients, [operation, activeRecipients])
+  const coreRecipients = useMemo(() => submittedRecipients.map(recipient => ({address: recipient.address.trim(), amountDuffs: dashToDuffs(recipient.amount)})), [submittedRecipients])
+  const platformRecipients = useMemo(() => coreRecipients.map(recipient => ({address: recipient.address, amountCredits: duffsToCredits(recipient.amountDuffs)})), [coreRecipients])
+  const displayPlatformRecipients = useMemo(() => activeRecipients.map(recipient => ({address: recipient.address.trim(), amountCredits: duffsToCredits(dashToDuffs(recipient.amount))})), [activeRecipients])
+  const subtractFee = advancedMulti && operation === TransferOperation.AddressFundsTransfer && advancedRoute.subtractFee
+  const feeOutputPosition = submittedRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId)
+  const feeOutputIndex = subtractFee && feeOutputPosition >= 0 ? feeOutputPosition : undefined
+  const displayFeeOutputIndex = subtractFee ? activeRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId) : undefined
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
@@ -245,7 +266,7 @@ function WalletTransferHub(): React.JSX.Element {
   }, [appliedCoinControl, coinControl])
 
   const coreSpendSource = useMemo(() => toCoreSpendSource(appliedCoinControl, utxos), [appliedCoinControl, utxos])
-  const platformSource = useMemo(() => toPlatformSpendSource(appliedCoinControl), [appliedCoinControl])
+  const platformSource = useMemo(() => withOutputFee(toPlatformSpendSource(appliedCoinControl), feeOutputIndex), [appliedCoinControl, feeOutputIndex])
   const shieldedSpendSource = useMemo(
     () => toShieldedSpendSource(appliedCoinControl, spendableNotes),
     [appliedCoinControl, spendableNotes],
@@ -283,7 +304,7 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const isCoreOperation = fromKind === SourceKind.Core
-  const amountDuffs = useMemo(() => dashToDuffs(amount), [amount])
+  const amountDuffs = useMemo(() => recipientTotalDuffs(activeRecipients), [activeRecipients])
   const minCredits = info?.minCredits ?? 0n
   const trimmedTo = toValue.trim()
 
@@ -308,9 +329,15 @@ function WalletTransferHub(): React.JSX.Element {
       break
   }
 
+  const recipientValidation = {
+    recipients: activeRecipients, operation, destination: toKind, network, fundingAddresses,
+    feeRecipientId: subtractFee ? advancedRoute.feeRecipientId : null,
+  }
+  if (advancedMulti) destinationValid = activeRecipients.length > 0 && validateSendRecipients({...recipientValidation, feeCredits: null}).every(error => error.address == null)
+
   const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr, retry: retryFee } = useOperationFee(walletId, coinControlValid ? operation : null, {
     destinationValid,
-    recipient: trimmedTo,
+    recipient: advancedMulti ? submittedRecipients.map(recipient => recipient.address.trim()) : trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
@@ -319,6 +346,10 @@ function WalletTransferHub(): React.JSX.Element {
     shieldedSource: shieldedSpendSource ?? null,
   })
   useErrorToast(feeErr)
+  const recipientErrors = validateSendRecipients({...recipientValidation, feeCredits})
+  const quoteReady = destinationValid && !feeLoading && !feeErr && (isCoreOperation ? feeDuffs !== null : feeCredits !== null)
+  const feeSourceValid = !subtractFee || (platformSource?.kind === 'inputs' && feeOutputIndex != null)
+  const totalDebitCredits = amountCredits + (subtractFee ? 0n : feeCredits ?? 0n)
 
   // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
   // L2 fee on top of that, so the amount typed is the amount that arrives.
@@ -335,9 +366,9 @@ function WalletTransferHub(): React.JSX.Element {
     if (isCoreOperation) return coreMaxDuffs
     if (maxPerTx !== null) return creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     if (availableCredits === null || feeCredits === null) return null
-    const spendable = availableCredits - feeCredits
+    const spendable = availableCredits - (subtractFee ? 0n : feeCredits)
     return creditsToDuffs(spendable > 0n ? spendable : 0n)
-  }, [isCoreOperation, coreMaxDuffs, maxPerTx, availableCredits, feeCredits])
+  }, [isCoreOperation, coreMaxDuffs, maxPerTx, availableCredits, feeCredits, subtractFee])
 
   const sliderPercent = useMemo(() => {
     if (sliderMaxAmount === null || sliderMaxAmount === 0n) return 0
@@ -358,10 +389,13 @@ function WalletTransferHub(): React.JSX.Element {
     [SourceKind.Identity]: selectedIdentity != null,
     [SourceKind.Shielded]: true,
   }[fromKind]
+  const allocationAvailableDuffs = !coinControlValid || !sourceReady ? null
+    : isCoreOperation ? balanceDuffs : availableCredits == null ? null : creditsToDuffs(availableCredits)
+  const allocationBudgetDuffs = recipientAllocationBudget(allocationAvailableDuffs, sliderMaxAmount, quoteReady)
 
   const selfSend =
     (operation === TransferOperation.AddressFundsTransfer && destinationValid
-      && fundingAddresses.includes(trimmedTo))
+      && !advancedMulti && fundingAddresses.includes(trimmedTo))
     || (operation === TransferOperation.IdentityToIdentity && destinationValid && selectedIdentity != null && trimmedTo === selectedIdentity.identifier)
 
   let destinationError: string | null = null
@@ -385,11 +419,12 @@ function WalletTransferHub(): React.JSX.Element {
     ? amountDuffs > 0n && coreMaxDuffs !== null && amountDuffs <= coreMaxDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
-      && availableCredits !== null && amountCredits + feeCredits <= availableCredits
+      && availableCredits !== null && totalDebitCredits <= availableCredits
       && (maxPerTx === null || amountCredits <= maxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
-  const canSubmit = routeReady && amountReady && !feeLoading && !feeErr
+  const recipientsReady = !advancedMulti || (activeRecipients.length <= recipientLimit && recipientErrors.every(error => !error.address && !error.amount))
+  const canSubmit = routeReady && amountReady && recipientsReady && feeSourceValid && quoteReady
 
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
 
@@ -419,14 +454,14 @@ function WalletTransferHub(): React.JSX.Element {
 
   const amountError = amountErrorFor({
     isCoreOperation,
-    amount,
+    amount: advancedMulti ? davToDash(amountDuffs) : amount,
     coreMaxDuffs,
     operation,
     amountDuffs,
     amountCredits,
     minCredits,
     availableCredits,
-    feeCredits,
+    feeCredits: subtractFee ? 0n : feeCredits,
     maxPerTx,
     noteLimit,
   })
@@ -440,10 +475,10 @@ function WalletTransferHub(): React.JSX.Element {
   if (operation === TransferOperation.Shield) coinControlSummary = 'Fixed address'
 
   const resetForm = (): void => {
-    const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false, coinControl: automaticCoinControl() }
+    const resetDraft = resetCurrentSendRoute(draftRef.current)
     draftRef.current = resetDraft
     setDraftState(resetDraft)
-    if (walletId) clearSendDraft(walletId)
+    if (walletId) saveSendDraft(walletId, resetDraft)
     setWizardKey(k => k + 1)
     if (walletId) {
       refreshPlatformAddresses(walletId)
@@ -493,7 +528,9 @@ function WalletTransferHub(): React.JSX.Element {
         <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
       )}
 
-      {toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend ? (
+      {advancedMulti ? (
+        <DestinationPicker kind={toKind} kinds={destinationKinds} onKindChange={k => { setToKind(k); setAcked(false) }} value={toValue} onValueChange={setToValue} placeholder={destinationPlaceholder} error={null} showValueInput={false} />
+      ) : toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend ? (
         <div className={"flex flex-col gap-2"}>
           <DestinationPicker
             kind={toKind}
@@ -772,7 +809,7 @@ function WalletTransferHub(): React.JSX.Element {
     if (operation === TransferOperation.ShieldedTransfer) {
       return API.startShieldedTransfer(
         walletId,
-        [{ address: trimmedTo, amountCredits }],
+        platformRecipients,
         password,
         shieldedSpendSource,
       )
@@ -788,7 +825,7 @@ function WalletTransferHub(): React.JSX.Element {
       return API.sendPlatformTransfer(
         walletId,
         platformSource,
-        [{ address: trimmedTo, amountCredits }],
+        platformRecipients,
         password,
       )
     }
@@ -823,7 +860,7 @@ function WalletTransferHub(): React.JSX.Element {
   const isShieldedSpendOperation = info?.spendKind != null
 
   return (
-    <div className={"relative flex flex-col h-full pb-4"}>
+    <div className={"relative flex flex-col h-full pb-4"} inert={confirmOpen || coinControlOpen || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
       <div className={"flex items-end justify-between gap-6 px-12 pt-2"}>
         <div className={"flex flex-col gap-3"}>
           <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Send</Text>
@@ -831,7 +868,12 @@ function WalletTransferHub(): React.JSX.Element {
             Move funds between your Dash Core, Platform addresses, identities and the shielded pool. Pick where the funds come from and where they go.
           </Text>
         </div>
-        {shieldedInvolved && <ProverPill status={prover} />}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex gap-1 dash-block p-1 rounded-xl" aria-label="Send mode">
+            {[false, true].map(mode => <button key={String(mode)} type="button" aria-pressed={advanced === mode} onClick={() => { updateDraft(current => setSendAdvanced(current, mode)); setWizardKey(key => key + 1) }} className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer ${advanced === mode ? 'dash-bg-inverse text-dash-brand dark:text-dash-mint' : 'dash-text-default'}`}>{mode ? 'Advanced' : 'Simple'}</button>)}
+          </div>
+          {shieldedInvolved && <ProverPill status={prover} />}
+        </div>
       </div>
 
       {resumableFunding && (
@@ -876,6 +918,61 @@ function WalletTransferHub(): React.JSX.Element {
         </div>
       )}
 
+      {advanced ? (
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 xl:px-12 mt-6 pb-6">
+          <div className="mx-auto max-w-280 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
+            <div className="flex flex-col gap-5 min-w-0">
+              <div className="flex flex-col gap-4">{routeStep}</div>
+              {advancedMulti ? <SendRecipientsEditor
+                recipients={activeRecipients}
+                errors={recipientErrors}
+                limit={recipientLimit}
+                destination={toKind}
+                budgetDuffs={allocationBudgetDuffs}
+                feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
+                feeCredits={feeCredits}
+                budgetIsEstimate={!quoteReady}
+                onChange={recipients => updateAdvancedRoute({recipients})}
+              /> : <>
+                <Text size={12} weight="medium" color="brand" opacity={50}>This route supports one recipient.</Text>
+                {amountStep}
+              </>}
+            </div>
+            <aside className="xl:sticky xl:top-0 dash-block rounded-2xl p-5 flex flex-col gap-4 min-w-0" aria-label="Transaction summary">
+              <Text size={16} weight="extrabold" color="brand">Transaction summary</Text>
+              {sourceBalanceDisplay}
+              <div className="flex justify-between gap-3 items-start">
+                <Text size={12} weight="medium" color="brand" opacity={50}>{subtractFee ? 'Estimated recipients receive' : 'Recipients receive'}</Text>
+                <Text size={14} weight="medium" color="brand" className="text-right">{subtractFee && !quoteReady ? '—' : isCoreOperation ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits - (subtractFee ? feeCredits ?? 0n : 0n)} align="end" exact />}</Text>
+              </div>
+              <div className="flex justify-between gap-3 items-center"><Text size={12} weight="medium" color="brand" opacity={50}>Network fee</Text>{feeLoading ? <Spinner size={14} /> : quoteReady ? feeDisplay : <Text size={12} weight="medium" color="brand" opacity={50}>—</Text>}</div>
+              {operation === TransferOperation.AddressFundsTransfer && <div className="flex flex-col gap-3">
+                <Checkbox checked={subtractFee} onChange={checked => updateAdvancedRoute({subtractFee: checked, feeRecipientId: checked ? advancedRoute.feeRecipientId ?? activeRecipients[0]?.id ?? null : advancedRoute.feeRecipientId})} label={<Text size={12} weight="medium" color="brand">Subtract fee from outputs</Text>} />
+                {subtractFee && <>
+                  <label className="flex flex-col gap-1"><Text size={12} weight="medium" color="brand" opacity={50}>Take fee from</Text>
+                    <select aria-label="Recipient paying the fee" value={activeRecipients.some(recipient => recipient.id === advancedRoute.feeRecipientId) ? advancedRoute.feeRecipientId ?? '' : ''} onChange={event => updateAdvancedRoute({feeRecipientId: event.target.value || null})} className="rounded-xl p-3 text-sm dash-text-default bg-white dark:bg-dash-primary-dark-blue border border-dash-primary-dark-blue/15 dark:border-white/15">
+                      <option value="">Select recipient</option>
+                      {activeRecipients.map((recipient, index) => <option key={recipient.id} value={recipient.id}>Recipient {index + 1} · {recipient.address.slice(0, 16) || 'No address'}</option>)}
+                    </select>
+                  </label>
+                  {appliedCoinControl.kind !== 'platformInputs' && <button type="button" onClick={() => setCoinControlOpen(true)} className="text-left text-sm dash-text-primary cursor-pointer">Select inputs in Coin Control to deduct the fee from an output.</button>}
+                  <Text size={12} weight="medium" color="brand" opacity={50}>The selected recipient receives less by the actual network fee.</Text>
+                </>}
+              </div>}
+              <div className="border-t border-dash-primary-dark-blue/10 dark:border-white/10 pt-3 flex justify-between gap-3 items-start">
+                <Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text>
+                <Text size={16} weight="extrabold" color="brand" className="text-right">{!quoteReady ? '—' : isCoreOperation ? `${davToDash(amountDuffs + totalFeeDuffs)} Dash` : <CreditsAmount credits={totalDebitCredits} align="end" exact />}</Text>
+              </div>
+              {quoteReady && sliderMaxAmount != null && <div className="flex justify-between gap-3"><Text size={12} weight="medium" color="brand" opacity={50}>Available to allocate</Text><Text size={12} weight="medium" color="brand">{davToDash(sliderMaxAmount > amountDuffs ? sliderMaxAmount - amountDuffs : 0n)} Dash</Text></div>}
+              {amountError && <Text size={12} weight="medium" color="red">{amountError}</Text>}
+              {subtractFee && feeOutputIndex == null && <Text size={12} weight="medium" color="red">Choose the recipient paying the fee.</Text>}
+              {feeErr && <button type="button" onClick={retryFee} className="text-sm dash-text-primary cursor-pointer">Retry fee estimate</button>}
+              <Button type="button" onClick={() => { if (canSubmit) setConfirmOpen(true) }} disabled={!canSubmit} size="md" className="w-full rounded-xl">Review transaction</Button>
+            </aside>
+          </div>
+        </div>
+      ) : <>
+      {advancedRoute.recipients.length > 1 && <Text size={12} weight="medium" color="brand" opacity={50} className="px-12 mt-3">Your Advanced draft with {advancedRoute.recipients.length} recipients is saved.</Text>}
       <TransferWizard
         key={wizardKey}
         steps={[
@@ -887,9 +984,11 @@ function WalletTransferHub(): React.JSX.Element {
         submitLabel={info?.submitLabel ?? 'Send'}
         submitDisabled={!canSubmit}
       />
+      </>}
 
       <CoinControlModal
         isOpen={coinControlOpen}
+        feeFromOutput={subtractFee}
         operation={operation}
         selection={appliedCoinControl}
         coreAddresses={coreAddresses}
@@ -919,7 +1018,8 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           network={network}
-          recipients={[{ address: trimmedTo, amountDuffs }]}
+          recipients={coreRecipients}
+          feeDuffs={feeDuffs}
           amountFiat={amountFiat}
           source={coreSpendSource}
           sourceValid={canSubmit}
@@ -956,6 +1056,7 @@ function WalletTransferHub(): React.JSX.Element {
           title={info?.title ?? 'Send'}
           toLabel={SHIELDED_DESTINATION_LABELS[operation ?? TransferOperation.ShieldedWithdrawal] ?? 'To (Core L1)'}
           toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
+          recipients={operation === TransferOperation.ShieldedTransfer ? platformRecipients : undefined}
           amountCredits={amountCredits.toString()}
           feeCredits={feeCredits}
           proverReady={prover.ready}
@@ -1017,11 +1118,15 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
+          recipients={operation === TransferOperation.AddressFundsTransfer ? displayPlatformRecipients : undefined}
+          feeOutputIndex={displayFeeOutputIndex}
+          feeCredits={feeCredits}
           rows={[
             {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
             ...(feeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} align={"end"} />}] : []),
+            {label: 'Total debit', value: <CreditsAmount credits={totalDebitCredits} align={"end"} />},
             {label: 'From', value: fromDisplay, mono: true},
-            {label: 'To', value: toDisplay, mono: true},
+            ...(operation === TransferOperation.AddressFundsTransfer ? [] : [{label: 'To', value: toDisplay, mono: true}]),
           ]}
           run={runPlatformOperation}
           sourceValid={canSubmit}

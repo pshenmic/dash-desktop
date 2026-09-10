@@ -18,18 +18,19 @@ export function useOperationFee(
   const noteKey = shieldedSource == null ? '' : `${shieldedSource.kind}:${shieldedSource.noteIndexes.join(',')}`
   const platformSourceKey = platformSpendSourceKey(platformSource)
   const coreSourceKey = coreSpendSourceKey(coreSource)
+  const recipientKey = JSON.stringify(recipient)
 
   const pending = useMemo(
     () => {
       if (walletId === null || operation === null || !destinationValid) return null
       const feeParams = { amountCredits, amountDuffs, recipient, coreSource, platformSource, identityId, shieldedSource }
-      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${coreSourceKey}:${platformSourceKey}:${identityId}:${noteKey}` }
+      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipientKey}:${coreSourceKey}:${platformSourceKey}:${identityId}:${noteKey}` }
     },
     // shieldedSource and coreSource are keyed by their string forms: a fresh array
     // or object holding the same pick is the same quote, and re-running on
     // identity would re-ask on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipient, coreSourceKey, platformSourceKey, identityId, noteKey],
+    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipientKey, coreSourceKey, platformSourceKey, identityId, noteKey],
   )
 
   const [settled, setSettled] = useState<typeof pending>(null)
