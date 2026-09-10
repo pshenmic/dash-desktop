@@ -196,7 +196,7 @@ export default function TransferConfirmModal({
                 className={"flex-1 rounded-[.9375rem] gap-2"}
               >
                 {sending && <Spinner size={16} />}
-                {sending ? 'Sending…' : 'Confirm & Send'}
+                {sending ? 'Sending…' : 'Sign & Send'}
               </Button>
             </div>
           </div>

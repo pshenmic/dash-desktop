@@ -93,7 +93,7 @@ export default function ShieldConfirmModal({
     onClose()
   }
 
-  let confirmLabel = 'Confirm & Shield'
+  let confirmLabel = 'Sign & Send'
   if (shielding) confirmLabel = 'Shielding…'
   else if (!proverReady) confirmLabel = 'Preparing…'
 

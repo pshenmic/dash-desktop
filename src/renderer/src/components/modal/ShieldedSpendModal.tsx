@@ -162,7 +162,7 @@ export default function ShieldedSpendModal({
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = BigInt(sentAmount || amountCredits || '0')
-  let confirmLabel = 'Confirm & Send'
+  let confirmLabel = 'Sign & Send'
   if (busy) confirmLabel = 'Starting…'
   else if (!proverReady) confirmLabel = 'Preparing…'
   let modalTitle = title

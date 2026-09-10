@@ -62,6 +62,8 @@ import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import type { AdvancedSendRoute, SendDraft } from "@renderer/types/SendDraft";
 import type { CoinControlSelection } from "@renderer/types/CoinControl";
+import type { SendTransactionReview } from "@renderer/types/SendTransactionPreview";
+import { sendPreviewInputs, sendPreviewOutputs, sendPreviewSourceKey, sendPreviewTotals } from "@renderer/utils/sendTransactionPreview";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import { DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
@@ -69,6 +71,7 @@ import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import SendRecipientsEditor from "./SendRecipientsEditor";
 import TransactionSummary from "./TransactionSummary";
+import SendTransactionPreview from "./SendTransactionPreview";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
@@ -113,6 +116,8 @@ function WalletTransferHub(): React.JSX.Element {
   const setCoinControl = (coinControl: CoinControlSelection): void => updateDraft(current => ({ ...current, coinControl }))
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [review, setReview] = useState<SendTransactionReview | null>(null)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
   const { utxos, loading: utxosLoading, error: utxosError, retry: retryUtxos } = useWalletUtxos(wizardKey)
@@ -511,6 +516,8 @@ function WalletTransferHub(): React.JSX.Element {
   if (operation === TransferOperation.Shield) coinControlSummary = 'Fixed address'
 
   const resetForm = (): void => {
+    setPreviewOpen(false)
+    setReview(null)
     const resetDraft = resetCurrentSendRoute(draftRef.current)
     draftRef.current = resetDraft
     setDraftState(resetDraft)
@@ -532,10 +539,6 @@ function WalletTransferHub(): React.JSX.Element {
     updateDraft(current => setSendAdvanced(current, mode))
     setWizardKey(key => key + 1)
   }
-  const reviewTransaction = (): void => {
-    if (canSubmit) setConfirmOpen(true)
-  }
-
   const routeStep = (
     <>
       <SourcePicker
@@ -779,6 +782,77 @@ function WalletTransferHub(): React.JSX.Element {
 
   const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
 
+  const previewFixedAddress = fromKind === SourceKind.Identity ? selectedIdentity?.identifier
+    : operation === TransferOperation.Shield ? selectedSource?.platformAddress : undefined
+  const previewSourceKey = sendPreviewSourceKey({
+    network, coreSource: coreSpendSource, platformSource, shieldedSource: shieldedSpendSource,
+    fixedAddress: previewFixedAddress,
+  })
+  const reviewCurrent = review != null && review.draft === draft && review.source === previewSourceKey
+    && review.feeCredits === (feeCredits ?? 0n) && review.feeDuffs === totalFeeDuffs
+  const signingSourceValid = canSubmit && (!previewOpen || reviewCurrent)
+
+  const closePreview = (): void => {
+    setPreviewOpen(false)
+    setReview(null)
+  }
+
+  const showPreview = (): void => {
+    if (!canSubmit || !walletId || !info) return
+    setPreviewOpen(true)
+    const outputs = sendPreviewOutputs({
+      recipients: recipientsDuffs,
+      feeCredits: feeCredits ?? 0n,
+      feeOutputIndex: operation === TransferOperation.IdentityCreateFromShielded ? 0 : feeOutputIndex,
+      newIdentity: toKind === DestinationKind.NewIdentity,
+    })
+    const totals = sendPreviewTotals(outputs, isCoreOperation ? duffsToCredits(totalFeeDuffs) : feeCredits ?? 0n)
+    const preview: SendTransactionReview = {
+      draft,
+      source: previewSourceKey,
+      feeCredits: feeCredits ?? 0n,
+      feeDuffs: totalFeeDuffs,
+      data: {
+        title: info.title,
+        from: fromDisplay,
+        isCoreOperation,
+        receivedIsEstimate: subtractFee || operation === TransferOperation.IdentityCreateFromShielded,
+        ...totals,
+        inputs: sendPreviewInputs({
+          selection: appliedCoinControl,
+          funds: coinControlFunds,
+          feeFromOutput: subtractFee,
+          fixedAddress: previewFixedAddress,
+          fixedCredits: previewFixedAddress ? totals.totalDebitCredits : undefined,
+        }),
+        outputs,
+        inputNote: previewFixedAddress ? null
+          : appliedCoinControl.kind === 'automatic'
+          ? 'Inputs are selected automatically when signing.'
+          : appliedCoinControl.kind === 'platformInputs' ? 'Selected input amounts are spending limits. Only the amount needed is debited; the rest stays at each address.'
+          : appliedCoinControl.kind === 'coreOutpoints' || appliedCoinControl.kind === 'shieldedNotes' ? null
+          : 'Inputs are selected from this address when signing.',
+        outputNote: operation === TransferOperation.IdentityCreateFromShielded
+          ? 'The identity receives the selected denomination minus the network fee.'
+          : subtractFee
+          ? 'The selected recipient’s amount includes the estimated fee deduction. The actual network fee determines the final amount.'
+          : operation === TransferOperation.CoreSend ? 'Recipient outputs. Any change is returned to your wallet when signing.'
+          : isCoreOperation ? 'The asset lock and change outputs are created when signing.'
+          : fromKind === SourceKind.Shielded ? 'Any remaining funds return to your shielded balance.' : null,
+      },
+    }
+    setReview(preview)
+  }
+
+  const signTransaction = (): void => {
+    if (signingSourceValid) setConfirmOpen(true)
+  }
+
+  const reviewTransaction = (): void => {
+    if (advanced) showPreview()
+    else signTransaction()
+  }
+
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
       <div className={"dash-block rounded-[.875rem] p-4 flex flex-col gap-3"}>
@@ -837,6 +911,7 @@ function WalletTransferHub(): React.JSX.Element {
         )}
       </div>
       {coreSourceGated && <P2pSyncAlert />}
+      <button type="button" onClick={showPreview} disabled={!canSubmit} className="w-full rounded-xl px-4 py-3 dash-block text-sm font-medium dash-text-default opacity-70 cursor-pointer hover:opacity-100 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-white/40 disabled:opacity-40 disabled:cursor-default">Transaction details</button>
     </div>
   )
 
@@ -899,6 +974,15 @@ function WalletTransferHub(): React.JSX.Element {
 
   return (
     <div className={"relative flex flex-col h-full pb-4"} inert={confirmOpen || coinControlOpen || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
+      {previewOpen && review && <SendTransactionPreview
+        data={review.data}
+        valid={signingSourceValid}
+        canRefresh={canSubmit}
+        onBack={closePreview}
+        onRetry={showPreview}
+        onSign={signTransaction}
+      />}
+      <div className={previewOpen ? 'hidden' : 'contents'}>
       <div className={"flex items-end justify-between gap-6 px-12 pt-2"}>
         <div className={"flex flex-col gap-3"}>
           <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Send</Text>
@@ -1014,10 +1098,11 @@ function WalletTransferHub(): React.JSX.Element {
           { label: 'Confirm', content: confirmStep },
         ]}
         onSubmit={reviewTransaction}
-        submitLabel={info?.submitLabel ?? 'Send'}
+        submitLabel="Sign & Send"
         submitDisabled={!canSubmit}
       />
       </>}
+      </div>
 
       <CoinControlModal
         isOpen={coinControlOpen}
@@ -1055,7 +1140,7 @@ function WalletTransferHub(): React.JSX.Element {
           feeDuffs={feeDuffs}
           amountFiat={amountFiat}
           source={coreSpendSource}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1072,7 +1157,7 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           fromAddress={selectedSource?.platformAddress ?? ''}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
           feeCredits={feeCredits}
@@ -1094,7 +1179,7 @@ function WalletTransferHub(): React.JSX.Element {
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.ShieldedWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
@@ -1110,7 +1195,7 @@ function WalletTransferHub(): React.JSX.Element {
           resume={false}
           kind={OPERATION_FUNDING_KINDS[operation] ?? AssetLockFundingKind.Address}
           source={coreSpendSource}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1162,7 +1247,7 @@ function WalletTransferHub(): React.JSX.Element {
             ...(operation === TransferOperation.AddressFundsTransfer ? [] : [{label: 'To', value: toDisplay, mono: true}]),
           ]}
           run={runPlatformOperation}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
