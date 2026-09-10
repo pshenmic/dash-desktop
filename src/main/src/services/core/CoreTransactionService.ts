@@ -21,21 +21,29 @@ export class CoreTransactionService {
   // evonode list to do local maths.
   private keyPair = new KeyPairController()
 
-  classifyRecipientAddress(address: string, network: Network): RecipientType {
+  classifyAddress(address: string, network: Network): RecipientType {
     let decoded: Uint8Array
     try {
       decoded = Base58Check.decode(address)
     } catch {
-      throw new Error('Invalid recipient address')
+      throw new Error(`Invalid address: ${address}`)
     }
     if (decoded.length !== ADDRESS_DECODED_LENGTH) {
-      throw new Error('Invalid recipient address')
+      throw new Error(`Invalid address: ${address}`)
     }
     const prefixes = ADDRESS_PREFIX[network]
     const version = decoded[0]
     if (version === prefixes.p2pkh) return 'p2pkh'
     if (version === prefixes.p2sh) return 'p2sh'
-    throw new Error(`Recipient address is not a valid ${network} address`)
+    throw new Error(`${address} is not a valid ${network} address`)
+  }
+
+  // Change is paid to a P2PKH output by construction, so a P2SH address named
+  // as change would lock the change to a pubkey-hash script no one can spend.
+  requireChangeAddress(address: string, network: Network): void {
+    if (this.classifyAddress(address, network) !== 'p2pkh') {
+      throw new Error('Change address must be a P2PKH address')
+    }
   }
 
   private async addSignableInputs(transaction: SDKTransaction, inputs: TransferInput[], seed: Uint8Array, network: Network): Promise<PrivateKey[]> {

@@ -117,7 +117,7 @@ declare global {
       getWalletBalance: (walletId: string) => Promise<unknown>
       setAddressLabel: (walletId: string, address: string, label: string) => Promise<void>
       setWalletLabel: (walletId: string, label: string | null) => Promise<void>
-      sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource) => Promise<unknown>
+      sendTransaction: (walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource, changeTo?: string) => Promise<unknown>
       getTxLockStatus: (walletId: string, txid: string) => Promise<unknown>
       estimateFee: (walletId: string, operation: string, params: unknown) => Promise<{ feeCredits: bigint | null; feeDuffs: bigint | null; maxDuffs: bigint | null; maxPerTx: bigint | null; noteLimit: number | null }>
       sendPlatformTransfer: (walletId: string, source: PlatformSpendSource | null, recipients: PlatformRecipient[], password: string) => Promise<unknown>

@@ -1,27 +1,48 @@
 import {describe, it, expect} from 'vitest'
 import {Output, Script, TransactionType, utils as sdkUtils} from 'dash-core-sdk'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
+import {Base58Check} from 'dash-core-sdk/src/base58check.js'
 import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {TransferInput} from '../../src/main/src/types/CoreTransaction'
+import {ADDRESS_PREFIX} from '../../src/main/src/constants/addresses'
 const service = new CoreTransactionService()
 
 const publicKeyHash = new Uint8Array(20).fill(1)
 const testnetAddress = sdkUtils.publicKeyHashToAddress(publicKeyHash, 'testnet')
 const mainnetAddress = sdkUtils.publicKeyHashToAddress(publicKeyHash, 'mainnet')
 
-describe('CoreTransactionService.classifyRecipientAddress', () => {
+describe('CoreTransactionService.classifyAddress', () => {
   it('accepts a well-formed address for the matching network', () => {
-    expect(() => service.classifyRecipientAddress(testnetAddress, 'testnet')).not.toThrow()
-    expect(() => service.classifyRecipientAddress(mainnetAddress, 'mainnet')).not.toThrow()
+    expect(() => service.classifyAddress(testnetAddress, 'testnet')).not.toThrow()
+    expect(() => service.classifyAddress(mainnetAddress, 'mainnet')).not.toThrow()
   })
 
   it('rejects a malformed address', () => {
-    expect(() => service.classifyRecipientAddress('not-an-address', 'testnet')).toThrow('Invalid recipient address')
+    expect(() => service.classifyAddress('not-an-address', 'testnet')).toThrow('Invalid address')
   })
 
   it('rejects an address from the wrong network', () => {
-    expect(() => service.classifyRecipientAddress(mainnetAddress, 'testnet')).toThrow('not a valid testnet address')
-    expect(() => service.classifyRecipientAddress(testnetAddress, 'mainnet')).toThrow('not a valid mainnet address')
+    expect(() => service.classifyAddress(mainnetAddress, 'testnet')).toThrow('not a valid testnet address')
+    expect(() => service.classifyAddress(testnetAddress, 'mainnet')).toThrow('not a valid mainnet address')
+  })
+})
+
+describe('CoreTransactionService.requireChangeAddress', () => {
+  const testnetP2SH = Base58Check.encode(new Uint8Array([ADDRESS_PREFIX.testnet.p2sh, ...publicKeyHash]))
+
+  it('accepts a P2PKH address on the send network', () => {
+    expect(() => service.requireChangeAddress(testnetAddress, 'testnet')).not.toThrow()
+  })
+
+  // addChange builds a P2PKH output, which would pay the script hash as if it
+  // were a pubkey hash.
+  it('refuses a P2SH address', () => {
+    expect(() => service.requireChangeAddress(testnetP2SH, 'testnet')).toThrow('must be a P2PKH address')
+  })
+
+  it('refuses an address the send network cannot pay', () => {
+    expect(() => service.requireChangeAddress(mainnetAddress, 'testnet')).toThrow('not a valid testnet address')
+    expect(() => service.requireChangeAddress('not-an-address', 'testnet')).toThrow('Invalid address')
   })
 })
 

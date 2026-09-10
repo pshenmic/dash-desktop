@@ -142,6 +142,24 @@ describe('choosing where the leftovers go', () => {
   it('throws when there is nowhere in the wallet to send change', () => {
     expect(() => pickChangeAddress(grouped([], []))).toThrow('no change address')
   })
+
+  it('pays a caller-named address instead of an unused one of its own', () => {
+    expect(pickChangeAddress(wallet, FOREIGN)).toBe(FOREIGN)
+  })
+
+  it('takes the named address through the selection without narrowing the inputs', () => {
+    const {transferInputs, changeAddress} = selectTransferInputs(
+      wallet,
+      [utxo('recv-0', 50_000_000n, 'aa')],
+      1_000_000n,
+      FEE,
+      undefined,
+      FOREIGN,
+    )
+
+    expect(changeAddress).toBe(FOREIGN)
+    expect(transferInputs.map(i => i.txId)).toEqual(['aa'])
+  })
 })
 
 describe('choosing the asset lock credit address', () => {

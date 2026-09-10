@@ -207,8 +207,8 @@ export class API {
     return this.api.deleteContact(id)
   }
 
-  static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, recipients, password, source) as Promise<SendResult>
+  static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource, changeTo?: string): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, recipients, password, source, changeTo) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {

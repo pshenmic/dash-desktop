@@ -17,7 +17,8 @@ export class SendTransactionHandler {
     recipients: CoreRecipient[],
     password: string,
     source?: CoreSpendSource,
+    changeTo?: string,
   ): Promise<SendResult> => {
-    return this.walletService.sendTransaction(walletId, recipients, password, source)
+    return this.walletService.sendTransaction(walletId, recipients, password, source, changeTo)
   }
 }
