@@ -166,8 +166,10 @@ export default function CoinControlModal({
     retrySource = onRetryPlatformAddresses
   }
   const sourceReady = !sourceLoading && sourceError == null
+  const hasCoreInputs = sourceKind === SourceKind.Core && mode === CoinControlMode.Inputs && utxos.length > 0
+  const refreshingCoreInputs = hasCoreInputs && sourceLoading
   const waitingForCoreSync = coreSyncIncomplete && sourceKind === SourceKind.Core
-  const showLoadingMessage = sourceLoading && (!waitingForCoreSync || showSyncWarning)
+  const showLoadingMessage = sourceLoading && !hasCoreInputs && (!waitingForCoreSync || showSyncWarning)
 
   const fixed = sourceKind == null
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
@@ -357,8 +359,8 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
-                <div className={'mt-4 flex flex-col gap-2'}>
+              {(sourceReady || hasCoreInputs) && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
+                <div className={'mt-4 flex flex-col gap-2'} aria-busy={refreshingCoreInputs}>
                   {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
                   {utxos.length > 0 && visibleUtxos.length === 0 && (
                     <Empty text={'All UTXOs are below the dust threshold.'} />
@@ -481,7 +483,7 @@ export default function CoinControlModal({
             size={'sm'}
             className={'flex-1 rounded-[.9375rem]'}
           >
-            {fixed ? 'Done' : 'Apply'}
+            {fixed ? 'Done' : refreshingCoreInputs ? 'Updating…' : 'Apply'}
           </Button>
         </div>
       </div>
