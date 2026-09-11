@@ -1,12 +1,6 @@
 @import "tailwindcss";
 @import "dash-ui-kit/theme";
 @import "dash-ui-kit/styles";
-@import '@fontsource/manrope/300.css';
-@import '@fontsource/manrope/400.css';
-@import '@fontsource/manrope/500.css';
-@import '@fontsource/manrope/600.css';
-@import '@fontsource/manrope/700.css';
-@import '@fontsource/manrope/800.css';
 @import './theme.pcss';
 @import './styles.pcss';
 
