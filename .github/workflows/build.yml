@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - name: linux
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             script: build:linux
             artifacts: |
               dist/*.AppImage
