@@ -1,80 +1,95 @@
-import type { CoreRecipient, CoreSpendSource, Network, PlatformSpendSource, ShieldedSpendSource } from '../api/types'
-import type { CoinControlFunds, CoinControlSelection } from './CoinControl'
-import type { SendDraft } from './SendDraft'
+import type { CoreRecipient, CoreSpendSource, Network, PlatformSpendSource, PreviewEntry, PreviewParams, PreviewUnit, ShieldedSpendSource, TransactionPreview } from '../api/types'
 import type { TransferOperation } from '../enums/TransferOperation'
 
-export interface SendPreviewRow {
-  address: string
-  amountCredits: bigint | null
-  reference?: string
-  label?: string
+export interface SendPreviewParams {
+  operation: TransferOperation
+  recipients: CoreRecipient[]
+  coreSource?: CoreSpendSource
+  platformSource?: PlatformSpendSource | null
+  shieldedSource?: ShieldedSpendSource
+  identityId?: string
+  fromAddress?: string
+  changeTo?: string
 }
 
-export interface SendPreviewInputsParams {
-  selection: CoinControlSelection
-  funds: CoinControlFunds
-  fixedAddress?: string
-  fixedCredits?: bigint | null
-  feeFromOutput?: boolean
+export interface SendPreviewRequest {
+  id: number
+  key: string
+  walletId: string
+  operation: TransferOperation
+  params: PreviewParams
+  from: string
+}
+
+export interface SendPreviewKeyParams {
+  walletId: string | null
+  network: Network | null
+  operation: TransferOperation | null
+  params: PreviewParams | null
+}
+
+export interface SendPreviewRow extends PreviewEntry {
+  addressLabel: string
+}
+
+export interface SendPreviewOutputGroup {
+  title: string | null
+  rows: SendPreviewRow[]
+}
+
+export interface SendPreviewFee {
+  label: string
+  amount: bigint
+  unit: PreviewUnit
 }
 
 export interface SendPreviewRowsProps {
   rows: SendPreviewRow[]
-  isCoreOperation: boolean
 }
 
 export interface SendPreviewAmountProps {
-  credits: bigint
-  isCoreOperation: boolean
-}
-
-export interface SendPreviewOutputsParams {
-  recipients: CoreRecipient[]
-  feeCredits: bigint
-  feeOutputIndex?: number
-  newIdentity: boolean
-}
-
-export interface SendPreviewSourceParams {
-  network: Network | null
-  coreSource?: CoreSpendSource
-  platformSource?: PlatformSpendSource | null
-  shieldedSource?: ShieldedSpendSource
-  fixedAddress?: string
-  changeTo?: string
-}
-
-export interface SendPreviewChangeParams {
-  operation: TransferOperation | null
-  amountDuffs: bigint
-  maxDuffs: bigint | null
-  changeTo?: string
+  amount: bigint
+  unit: PreviewUnit
 }
 
 export interface SendTransactionPreviewData {
   title: string
   from: string
   isCoreOperation: boolean
-  receivedIsEstimate: boolean
   amountCredits: bigint
-  feeCredits: bigint
   totalDebitCredits: bigint
+  feeDuffs: bigint | null
+  feeCredits: bigint | null
+  fees: SendPreviewFee[]
   inputs: SendPreviewRow[]
-  outputs: SendPreviewRow[]
-  inputNote: string | null
-  outputNote: string | null
+  outputGroups: SendPreviewOutputGroup[]
+  unsignedHex: string | null
+  unsignedLabel: string
 }
 
-export interface SendTransactionReview {
-  draft: SendDraft
-  source: string
-  feeCredits: bigint
-  feeDuffs: bigint
-  data: SendTransactionPreviewData
+export interface SendPreviewState {
+  requestId: number | null
+  loading: boolean
+  error: string | null
+  data: SendTransactionPreviewData | null
+}
+
+export type SendPreviewAction =
+  | {type: 'start'; requestId: number}
+  | {type: 'loaded'; requestId: number; data: SendTransactionPreviewData}
+  | {type: 'failed'; requestId: number; error: string}
+  | {type: 'reset'}
+
+export interface SendPreviewMappingParams {
+  preview: TransactionPreview
+  operation: TransferOperation
+  from: string
 }
 
 export interface SendTransactionPreviewProps {
-  data: SendTransactionPreviewData
+  data: SendTransactionPreviewData | null
+  loading: boolean
+  error: string | null
   valid: boolean
   canRefresh: boolean
   onBack: () => void

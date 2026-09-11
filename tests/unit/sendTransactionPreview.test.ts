@@ -1,116 +1,231 @@
 import {describe, expect, it} from 'vitest'
-import type {CoinControlFunds} from '../../src/renderer/src/types/CoinControl'
-import {sendPreviewChangeAddress, sendPreviewInputs, sendPreviewOutputRows, sendPreviewOutputs, sendPreviewSourceKey, sendPreviewTotals} from '../../src/renderer/src/utils/sendTransactionPreview'
+import type {PreviewEntry, TransactionPreview} from '../../src/renderer/src/api/types'
+import {SEND_PREVIEW_INITIAL_STATE} from '../../src/renderer/src/constants/sendTransactionPreview'
 import {TransferOperation} from '../../src/renderer/src/enums/TransferOperation'
+import {mapSendTransactionPreview, sendPreviewParams, sendPreviewReducer, sendPreviewRequestKey} from '../../src/renderer/src/utils/sendTransactionPreview'
 import {duffsToCredits} from '../../src/renderer/src/utils/balance'
 
-function funds(): CoinControlFunds {
-  return {coreAddresses: [], utxos: [], platformAddresses: [], shieldedNotes: []}
+function entry(role: PreviewEntry['role'], amount: bigint, unit: PreviewEntry['unit'] = 'credits', address = 'address', reference: string | null = null): PreviewEntry {
+  return {role, address, amount, unit, reference}
 }
 
-describe('send transaction preview', () => {
-  it('preserves duplicate recipient outputs and deducts the fee only from its selected output', () => {
-    const outputs = sendPreviewOutputs({
+function preview(overrides: Partial<TransactionPreview> = {}): TransactionPreview {
+  return {
+    inputs: [entry('input', 102000n)], outputs: [entry('recipient', 100000n)],
+    feeDuffs: null, feeCredits: 2000n, unsignedHex: 'aabb', ...overrides,
+  }
+}
+
+describe('send preview request parameters', () => {
+  it.each([
+    [TransferOperation.CoreSend, true],
+    [TransferOperation.AssetLockFunding, true],
+    [TransferOperation.AssetLockShield, true],
+    [TransferOperation.IdentityRegister, true],
+    [TransferOperation.IdentityTopUpL1, true],
+    [TransferOperation.AddressFundsTransfer, false],
+    [TransferOperation.IdentityTopUp, false],
+    [TransferOperation.IdentityCreate, false],
+    [TransferOperation.AddressWithdrawal, false],
+    [TransferOperation.Shield, false],
+    [TransferOperation.IdentityToAddress, false],
+    [TransferOperation.IdentityToIdentity, false],
+    [TransferOperation.IdentityWithdrawal, false],
+    [TransferOperation.ShieldedTransfer, false],
+    [TransferOperation.Unshield, false],
+    [TransferOperation.ShieldedWithdrawal, false],
+    [TransferOperation.IdentityCreateFromShielded, false],
+  ] as const)('uses the send amount unit for %s', (operation, core) => {
+    const params = sendPreviewParams({operation, recipients: [{address: 'recipient', amountDuffs: 123n}]})
+    expect(params.recipients[0].amount).toBe(core ? 123n : duffsToCredits(123n))
+    expect(params.amountDuffs).toBe(core ? 123n : null)
+    expect(params.amountCredits).toBe(core ? 0n : duffsToCredits(123n))
+  })
+
+  it('preserves duplicate Core outputs, manual outpoints and custom change', () => {
+    const params = sendPreviewParams({
+      operation: TransferOperation.CoreSend,
       recipients: [{address: 'same', amountDuffs: 10n}, {address: 'same', amountDuffs: 20n}],
-      feeCredits: 1001n,
-      feeOutputIndex: 1,
-      newIdentity: false,
+      coreSource: {kind: 'outpoints', outpoints: [{txid: 'tx', vout: 3}]}, changeTo: 'custom-change',
     })
-    expect(outputs).toEqual([
-      {address: 'same', amountCredits: duffsToCredits(10n), label: undefined},
-      {address: 'same', amountCredits: duffsToCredits(20n) - 1001n, label: 'Fee deducted'},
+    expect(params.recipients).toEqual([{address: 'same', amount: 10n}, {address: 'same', amount: 20n}])
+    expect(params.amountDuffs).toBe(30n)
+    expect(params.coreSource).toEqual({kind: 'outpoints', outpoints: [{txid: 'tx', vout: 3}]})
+    expect(params.changeTo).toBe('custom-change')
+  })
+
+  it('keeps Platform recipient ordering and the selected output fee index aligned', () => {
+    const params = sendPreviewParams({
+      operation: TransferOperation.AddressFundsTransfer,
+      recipients: [{address: 'first', amountDuffs: 10n}, {address: 'second', amountDuffs: 20n}],
+      platformSource: {
+        kind: 'inputs', inputs: [{address: 'source', credits: 30000n}],
+        feeStrategy: [{kind: 'reduceOutput', index: 1}],
+      },
+    })
+    expect(params.recipients).toEqual([{address: 'first', amount: 10000n}, {address: 'second', amount: 20000n}])
+    expect(params.platformSource).toEqual({
+      kind: 'inputs', inputs: [{address: 'source', credits: 30000n}], feeStrategy: [{kind: 'reduceOutput', index: 1}],
+    })
+  })
+
+  it('passes a fixed Shield source through fromAddress instead of Platform coin control', () => {
+    const params = sendPreviewParams({
+      operation: TransferOperation.Shield, recipients: [{address: 'shielded', amountDuffs: 5n}],
+      fromAddress: 'fixed-source', platformSource: {kind: 'address', address: 'old-source'},
+    })
+    expect(params.fromAddress).toBe('fixed-source')
+    expect(params.platformSource).toBeUndefined()
+  })
+
+  it('passes the selected identity and shielded note indexes only on their own routes', () => {
+    const common = {recipients: [{address: 'destination', amountDuffs: 5n}], identityId: 'identity', shieldedSource: {kind: 'notes' as const, noteIndexes: [2, 7]}}
+    const identity = sendPreviewParams({...common, operation: TransferOperation.IdentityToIdentity})
+    expect(identity.identityId).toBe('identity')
+    expect(identity.shieldedSource).toBeUndefined()
+    const shielded = sendPreviewParams({...common, operation: TransferOperation.ShieldedTransfer})
+    expect(shielded.identityId).toBeUndefined()
+    expect(shielded.shieldedSource).toEqual({kind: 'notes', noteIndexes: [2, 7]})
+  })
+
+  it.each([TransferOperation.IdentityRegister, TransferOperation.IdentityCreate, TransferOperation.IdentityCreateFromShielded])('does not reuse a previous destination for %s', operation => {
+    const params = sendPreviewParams({operation, recipients: [{address: 'previous-destination', amountDuffs: 100n}]})
+    expect(params.recipients[0].address).toBe('')
+  })
+
+  it('does not pass a Core change address to an asset lock', () => {
+    const params = sendPreviewParams({operation: TransferOperation.AssetLockFunding, recipients: [{address: 'recipient', amountDuffs: 10n}], changeTo: 'old-change'})
+    expect(params.changeTo).toBeUndefined()
+  })
+})
+
+describe('backend preview display mapping', () => {
+  it('uses returned automatic Core inputs, actual change and dust-inclusive fee', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.CoreSend, from: 'Core', preview: preview({
+      inputs: [entry('input', 10000n, 'duffs', 'source', 'tx:2')],
+      outputs: [entry('recipient', 9500n, 'duffs', 'recipient')], feeDuffs: 500n, feeCredits: null, unsignedHex: 'deadbeef',
+    })})
+    expect(data.inputs[0]).toMatchObject({amount: 10000n, unit: 'duffs', reference: 'tx:2'})
+    expect(data.outputGroups[0].rows).toHaveLength(1)
+    expect(data.amountCredits).toBe(duffsToCredits(9500n))
+    expect(data.totalDebitCredits).toBe(duffsToCredits(10000n))
+    expect(data.feeDuffs).toBe(500n)
+    expect(data.unsignedHex).toBe('deadbeef')
+  })
+
+  it('keeps actual change separate from recipients and total debit', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.CoreSend, from: 'Core', preview: preview({
+      inputs: [entry('input', 20000n, 'duffs')],
+      outputs: [entry('recipient', 10000n, 'duffs'), entry('change', 9500n, 'duffs', 'custom-change')],
+      feeDuffs: 500n, feeCredits: null,
+    })})
+    expect(data.amountCredits).toBe(10000000n)
+    expect(data.totalDebitCredits).toBe(10500000n)
+    expect(data.outputGroups[0].rows[1]).toMatchObject({role: 'change', address: 'custom-change', amount: 9500n})
+  })
+
+  it('does not double count asset lock credit or reconstruct debit from rounded L2 fees', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.AssetLockFunding, from: 'Core', preview: preview({
+      inputs: [entry('input', 20000n, 'duffs')],
+      outputs: [entry('recipient', 10000n, 'duffs', 'platform'), entry('credit', 10002n, 'duffs', 'credit'), entry('change', 9498n, 'duffs', 'change')],
+      feeDuffs: 500n, feeCredits: 1001n,
+    })})
+    expect(data.amountCredits).toBe(10000000n)
+    expect(data.totalDebitCredits).toBe(10502000n)
+    expect(data.fees).toEqual([
+      {label: 'L1 network fee', amount: 500n, unit: 'duffs'},
+      {label: 'Platform network fee', amount: 1001n, unit: 'credits'},
     ])
+    expect(data.outputGroups.map(group => group.rows.map(row => row.role))).toEqual([['credit', 'change'], ['recipient']])
+    expect(data.unsignedLabel).toBe('Unsigned L1 asset lock')
   })
 
-  it('does not invent an address for an identity that has not been created', () => {
-    expect(sendPreviewOutputs({
-      recipients: [{address: '', amountDuffs: 100n}], feeCredits: 0n, newIdentity: true,
-    })).toEqual([{address: '', amountCredits: duffsToCredits(100n), label: 'New Platform identity'}])
+  it('uses Platform debits including feeInput and preserves already reduced recipients', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: 'Platform', preview: preview({
+      inputs: [entry('feeInput', 51000n), entry('input', 49000n)],
+      outputs: [entry('recipient', 10000n, 'credits', 'same'), entry('recipient', 88000n, 'credits', 'same')],
+      feeCredits: 2000n,
+    })})
+    expect(data.amountCredits).toBe(98000n)
+    expect(data.totalDebitCredits).toBe(100000n)
+    expect(data.outputGroups[0].rows.map(row => row.amount)).toEqual([10000n, 88000n])
+    expect(data.inputs[0].role).toBe('feeInput')
   })
 
-  it('shows only manually selected Core outpoints', () => {
-    const inventory = funds()
-    inventory.utxos = [
-      {txid: 'a', vout: 1, address: 'A', satoshis: 10n, height: 1},
-      {txid: 'b', vout: 2, address: 'B', satoshis: 20n, height: 1},
-    ]
-    expect(sendPreviewInputs({selection: {kind: 'coreOutpoints', outpoints: ['b:2']}, funds: inventory}))
-      .toEqual([{address: 'B', amountCredits: duffsToCredits(20n), reference: 'b:2'}])
+  it('keeps exact credit amounts and unnamed shielded change without inventing unsigned bytes', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.ShieldedTransfer, from: 'Shielded', preview: preview({
+      inputs: [entry('input', 100005n, 'credits', 'shielded-source', 'note 7')],
+      outputs: [entry('recipient', 50000n, 'credits', 'shielded-recipient'), entry('change', 48004n, 'credits', '')],
+      feeCredits: 2001n, unsignedHex: null,
+    })})
+    expect(data.totalDebitCredits).toBe(52001n)
+    expect(data.outputGroups[0].rows[1]).toMatchObject({address: '', addressLabel: 'Your shielded balance', role: 'change', amount: 48004n})
+    expect(data.unsignedHex).toBeNull()
   })
 
-  it('does not present all available coins as the automatic spend set', () => {
-    const inventory = funds()
-    inventory.utxos = [{txid: 'a', vout: 0, address: 'A', satoshis: 10n, height: 1}]
-    expect(sendPreviewInputs({selection: {kind: 'automatic'}, funds: inventory})).toEqual([])
+  it('uses the backend net identity credit, leaving the denomination fee counted once', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.IdentityCreateFromShielded, from: 'Shielded', preview: preview({
+      inputs: [entry('input', 120000n)], outputs: [entry('recipient', 98000n, 'credits', ''), entry('change', 20000n, 'credits', '')],
+      feeCredits: 2000n, unsignedHex: null,
+    })})
+    expect(data.amountCredits).toBe(98000n)
+    expect(data.totalDebitCredits).toBe(100000n)
+    expect(data.outputGroups[0].rows[0].addressLabel).toBe('New Platform identity')
   })
 
-  it('keeps Platform input amounts exact and identifies the fee source', () => {
-    const selection = {kind: 'platformInputs' as const, inputs: [{address: 'A', credits: 1001n}], feeAddress: 'A'}
-    expect(sendPreviewInputs({selection, funds: funds()})).toEqual([{address: 'A', amountCredits: 1001n, label: 'Fee input'}])
-    expect(sendPreviewInputs({selection, funds: funds(), feeFromOutput: true})).toEqual([{address: 'A', amountCredits: 1001n, label: undefined}])
+  it('keeps a shielded note reference when its stored address is unavailable', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.ShieldedTransfer, from: 'Shielded', preview: preview({
+      inputs: [entry('input', 102000n, 'credits', '', 'note 3')], unsignedHex: null,
+    })})
+    expect(data.inputs[0]).toMatchObject({address: '', addressLabel: 'Address unavailable', reference: 'note 3'})
+  })
+})
+
+describe('preview request identity and asynchronous results', () => {
+  it('matches equivalent refreshed params and changes for a recipient, wallet, network or change address', () => {
+    const params = sendPreviewParams({operation: TransferOperation.CoreSend, recipients: [{address: 'to', amountDuffs: 123n}], changeTo: 'change'})
+    const request = {walletId: 'wallet', network: 'testnet' as const, operation: TransferOperation.CoreSend, params}
+    const key = sendPreviewRequestKey(request)
+    expect(sendPreviewRequestKey({...request, params: {...params, recipients: params.recipients.map(recipient => ({...recipient}))}})).toBe(key)
+    expect(sendPreviewRequestKey({...request, walletId: 'other'})).not.toBe(key)
+    expect(sendPreviewRequestKey({...request, network: 'mainnet'})).not.toBe(key)
+    expect(sendPreviewRequestKey({...request, params: {...params, changeTo: 'other-change'}})).not.toBe(key)
+    expect(sendPreviewRequestKey({...request, params: {...params, recipients: [{address: 'other', amount: 123n}]}})).not.toBe(key)
+    expect(params.recipients[0].amount).toBe(123n)
   })
 
-  it('omits spent and unselected shielded notes', () => {
-    const inventory = funds()
-    inventory.shieldedNotes = [
-      {index: 1, address: 'A', amount: 1001n, spent: false},
-      {index: 2, address: 'B', amount: 2001n, spent: true},
-      {index: 3, address: 'C', amount: 3001n, spent: false},
-    ]
-    expect(sendPreviewInputs({selection: {kind: 'shieldedNotes', noteIndexes: [1, 2]}, funds: inventory}))
-      .toEqual([{address: 'A', amountCredits: 1001n, reference: 'Note 1'}])
+  it('rejects a late success or failure from the previous request', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: 'Platform', preview: preview()})
+    const first = sendPreviewReducer(SEND_PREVIEW_INITIAL_STATE, {type: 'start', requestId: 1})
+    const second = sendPreviewReducer(first, {type: 'start', requestId: 2})
+    expect(sendPreviewReducer(second, {type: 'loaded', requestId: 1, data})).toBe(second)
+    expect(sendPreviewReducer(second, {type: 'failed', requestId: 1, error: 'old error'})).toBe(second)
+    expect(sendPreviewReducer(second, {type: 'loaded', requestId: 2, data})).toMatchObject({requestId: 2, loading: false, error: null, data})
   })
 
-  it('shows the actual fixed identity source rather than an automatic selection', () => {
-    expect(sendPreviewInputs({selection: {kind: 'automatic'}, funds: funds(), fixedAddress: 'identity', fixedCredits: 4001n}))
-      .toEqual([{address: 'identity', amountCredits: 4001n}])
-  })
-
-  it('counts a fee deducted from a denomination once in the total debit', () => {
-    const outputs = sendPreviewOutputs({
-      recipients: [{address: '', amountDuffs: 100_000n}], feeCredits: 1001n, feeOutputIndex: 0, newIdentity: true,
+  it('tracks selected input amounts and fee strategy without depending on object identity', () => {
+    const params = sendPreviewParams({
+      operation: TransferOperation.AddressFundsTransfer, recipients: [{address: 'to', amountDuffs: 20n}],
+      platformSource: {kind: 'inputs', inputs: [{address: 'source', credits: 22000n}], feeStrategy: [{kind: 'deductFromInput', address: 'source'}]},
     })
-    expect(sendPreviewTotals(outputs, 1001n)).toEqual({
-      amountCredits: duffsToCredits(100_000n) - 1001n, feeCredits: 1001n, totalDebitCredits: duffsToCredits(100_000n),
-    })
+    const request = {walletId: 'wallet', network: 'testnet' as const, operation: TransferOperation.AddressFundsTransfer, params}
+    const key = sendPreviewRequestKey(request)
+    expect(sendPreviewRequestKey({...request, params: {...params, platformSource: {
+      kind: 'inputs', inputs: [{address: 'source', credits: 22000n}], feeStrategy: [{kind: 'deductFromInput', address: 'source'}],
+    }}})).toBe(key)
+    expect(sendPreviewRequestKey({...request, params: {...params, platformSource: {
+      kind: 'inputs', inputs: [{address: 'source', credits: 20000n}], feeStrategy: [{kind: 'reduceOutput', index: 0}],
+    }}})).not.toBe(key)
   })
 
-  it('adds the fee to recipients that receive their full entered amount', () => {
-    const outputs = sendPreviewOutputs({recipients: [{address: 'A', amountDuffs: 100n}], feeCredits: 2001n, newIdentity: false})
-    expect(sendPreviewTotals(outputs, 2001n).totalDebitCredits).toBe(duffsToCredits(100n) + 2001n)
-  })
-
-  it('tracks effective source changes without depending on refreshed object identity', () => {
-    const first = sendPreviewSourceKey({network: 'testnet', shieldedSource: {kind: 'address', noteIndexes: [1, 2]}})
-    expect(sendPreviewSourceKey({network: 'testnet', shieldedSource: {kind: 'address', noteIndexes: [1, 2]}})).toBe(first)
-    expect(sendPreviewSourceKey({network: 'testnet', shieldedSource: {kind: 'address', noteIndexes: [1, 3]}})).not.toBe(first)
-    expect(sendPreviewSourceKey({network: 'testnet', fixedAddress: 'identity-a'}))
-      .not.toBe(sendPreviewSourceKey({network: 'testnet', fixedAddress: 'identity-b'}))
-  })
-
-  it('invalidates the reviewed default when a newly suggested change address replaces it', () => {
-    const reviewed = sendPreviewSourceKey({network: 'testnet', changeTo: 'first-unused'})
-    expect(sendPreviewSourceKey({network: 'testnet', changeTo: 'next-unused'})).not.toBe(reviewed)
-    expect(sendPreviewSourceKey({network: 'testnet'})).not.toBe(reviewed)
-  })
-
-  it('shows custom change separately from recipient totals and represents automatic selection explicitly', () => {
-    const params = {operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n}
-    expect(sendPreviewChangeAddress({...params, changeTo: 'external'})).toBe('external')
-    expect(sendPreviewChangeAddress(params)).toBeNull()
-    expect(sendPreviewChangeAddress({...params, amountDuffs: 100n, changeTo: 'hidden'})).toBeUndefined()
-    expect(sendPreviewChangeAddress({...params, operation: TransferOperation.AssetLockFunding})).toBeUndefined()
-  })
-
-  it('adds known change to output rows without changing payment recipients or inventing a change amount', () => {
-    const recipients = sendPreviewOutputs({recipients: [{address: 'recipient', amountDuffs: 90n}], feeCredits: 0n, newIdentity: false})
-    const totals = sendPreviewTotals(recipients, duffsToCredits(1n))
-    expect(sendPreviewOutputRows(recipients, 'change-address')).toEqual([
-      ...recipients, {address: 'change-address', amountCredits: null, label: 'Change'},
-    ])
-    expect(recipients).toHaveLength(1)
-    expect(totals).toEqual({amountCredits: duffsToCredits(90n), feeCredits: duffsToCredits(1n), totalDebitCredits: duffsToCredits(91n)})
-    expect(sendPreviewOutputRows(recipients, null)).toBe(recipients)
-    expect(sendPreviewOutputRows(recipients, undefined)).toBe(recipients)
+  it('clears a failed result for retry and ignores completion after closing', () => {
+    const data = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: 'Platform', preview: preview()})
+    const pending = sendPreviewReducer(SEND_PREVIEW_INITIAL_STATE, {type: 'start', requestId: 1})
+    const failed = sendPreviewReducer(pending, {type: 'failed', requestId: 1, error: 'network error'})
+    expect(failed).toMatchObject({loading: false, error: 'network error', data: null})
+    const retry = sendPreviewReducer(failed, {type: 'start', requestId: 2})
+    expect(retry).toMatchObject({loading: true, error: null, data: null})
+    const closed = sendPreviewReducer(retry, {type: 'reset'})
+    expect(sendPreviewReducer(closed, {type: 'loaded', requestId: 2, data})).toBe(closed)
   })
 })

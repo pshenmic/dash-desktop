@@ -19,6 +19,7 @@ import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
+import { useSendTransactionPreview } from "@renderer/hooks/useSendTransactionPreview";
 import { useErrorToast } from "@renderer/hooks/useErrorToast";
 import { useWalletUtxos } from "@renderer/hooks/useWalletUtxos";
 import { invalidateAsyncCache } from "@renderer/hooks/useAsyncWithCache";
@@ -62,8 +63,8 @@ import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
 import type { AdvancedSendRoute, SendDraft } from "@renderer/types/SendDraft";
 import type { CoinControlSelection } from "@renderer/types/CoinControl";
-import type { SendTransactionReview } from "@renderer/types/SendTransactionPreview";
-import { sendPreviewChangeAddress, sendPreviewInputs, sendPreviewOutputRows, sendPreviewOutputs, sendPreviewSourceKey, sendPreviewTotals } from "@renderer/utils/sendTransactionPreview";
+import type { SendPreviewRequest } from "@renderer/types/SendTransactionPreview";
+import { sendPreviewParams, sendPreviewRequestKey } from "@renderer/utils/sendTransactionPreview";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
@@ -119,7 +120,9 @@ function WalletTransferHub(): React.JSX.Element {
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [review, setReview] = useState<SendTransactionReview | null>(null)
+  const [review, setReview] = useState<SendPreviewRequest | null>(null)
+  const previewSequence = useRef(0)
+  const preview = useSendTransactionPreview(review)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
   const { utxos, loading: utxosLoading, error: utxosError, retry: retryUtxos } = useWalletUtxos(wizardKey)
@@ -802,16 +805,23 @@ function WalletTransferHub(): React.JSX.Element {
 
   const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
 
-  const previewFixedAddress = fromKind === SourceKind.Identity ? selectedIdentity?.identifier
-    : operation === TransferOperation.Shield ? selectedSource?.platformAddress : undefined
-  const previewSourceKey = sendPreviewSourceKey({
-    network, coreSource: coreSpendSource, platformSource, shieldedSource: shieldedSpendSource,
-    fixedAddress: previewFixedAddress,
+  const previewParams = operation == null ? null : sendPreviewParams({
+    operation,
+    recipients: recipientsDuffs,
+    coreSource: coreSpendSource,
+    platformSource,
+    shieldedSource: shieldedSpendSource,
+    identityId: selectedIdentity?.identifier,
+    fromAddress: selectedSource?.platformAddress,
     changeTo,
   })
-  const reviewCurrent = review != null && review.draft === draft && review.source === previewSourceKey
-    && review.feeCredits === (feeCredits ?? 0n) && review.feeDuffs === totalFeeDuffs
+  const previewKey = sendPreviewRequestKey({walletId, network, operation, params: previewParams})
+  const reviewCurrent = review?.key === previewKey && preview.data != null && !preview.loading && !preview.error
   const signingSourceValid = canSubmit && (!previewOpen || reviewCurrent)
+  const confirmationPreview = previewOpen ? preview.data : null
+  const confirmationFeeDuffs = confirmationPreview?.feeDuffs ?? feeDuffs
+  const confirmationFeeCredits = confirmationPreview?.feeCredits ?? feeCredits
+  const confirmationDebitCredits = confirmationPreview?.totalDebitCredits ?? totalDebitCredits
 
   const closePreview = (): void => {
     setPreviewOpen(false)
@@ -819,53 +829,16 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const showPreview = (): void => {
-    if (!canSubmit || !walletId || !info) return
+    if (!canSubmit || !walletId || !operation || !previewParams) return
     setPreviewOpen(true)
-    const outputs = sendPreviewOutputs({
-      recipients: recipientsDuffs,
-      feeCredits: feeCredits ?? 0n,
-      feeOutputIndex: operation === TransferOperation.IdentityCreateFromShielded ? 0 : feeOutputIndex,
-      newIdentity: toKind === DestinationKind.NewIdentity,
+    setReview({
+      id: ++previewSequence.current,
+      key: previewKey,
+      walletId,
+      operation,
+      params: previewParams,
+      from: fromDisplay,
     })
-    const totals = sendPreviewTotals(outputs, isCoreOperation ? duffsToCredits(totalFeeDuffs) : feeCredits ?? 0n)
-    const previewChangeAddress = sendPreviewChangeAddress({operation, amountDuffs, maxDuffs: coreMaxDuffs, changeTo})
-    const preview: SendTransactionReview = {
-      draft,
-      source: previewSourceKey,
-      feeCredits: feeCredits ?? 0n,
-      feeDuffs: totalFeeDuffs,
-      data: {
-        title: info.title,
-        from: fromDisplay,
-        isCoreOperation,
-        receivedIsEstimate: subtractFee || operation === TransferOperation.IdentityCreateFromShielded,
-        ...totals,
-        inputs: sendPreviewInputs({
-          selection: appliedCoinControl,
-          funds: coinControlFunds,
-          feeFromOutput: subtractFee,
-          fixedAddress: previewFixedAddress,
-          fixedCredits: previewFixedAddress ? totals.totalDebitCredits : undefined,
-        }),
-        outputs: sendPreviewOutputRows(outputs, previewChangeAddress),
-        inputNote: previewFixedAddress ? null
-          : appliedCoinControl.kind === 'automatic'
-          ? 'Inputs are selected automatically when signing.'
-          : appliedCoinControl.kind === 'platformInputs' ? 'Selected input amounts are spending limits. Only the amount needed is debited; the rest stays at each address.'
-          : appliedCoinControl.kind === 'coreOutpoints' || appliedCoinControl.kind === 'shieldedNotes' ? null
-          : 'Inputs are selected from this address when signing.',
-        outputNote: operation === TransferOperation.IdentityCreateFromShielded
-          ? 'The identity receives the selected denomination minus the network fee.'
-          : subtractFee
-          ? 'The selected recipient’s amount includes the estimated fee deduction. The actual network fee determines the final amount.'
-          : operation === TransferOperation.CoreSend
-          ? previewChangeAddress === null ? 'The change address is selected automatically when signing.'
-            : previewChangeAddress ? 'The change amount is determined when signing; a change output is included only if needed.' : null
-          : isCoreOperation ? 'The asset lock and change outputs are created when signing.'
-          : fromKind === SourceKind.Shielded ? 'Any remaining funds return to your shielded balance.' : null,
-      },
-    }
-    setReview(preview)
   }
 
   const signTransaction = (): void => {
@@ -999,9 +972,11 @@ function WalletTransferHub(): React.JSX.Element {
   return (
     <div className={"relative flex flex-col h-full pb-4"} inert={confirmOpen || coinControlOpen || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
       {previewOpen && review && <SendTransactionPreview
-        data={review.data}
+        data={preview.data}
+        loading={preview.loading}
+        error={preview.error}
         valid={signingSourceValid}
-        canRefresh={canSubmit}
+        canRefresh={canSubmit && !preview.loading}
         onBack={closePreview}
         onRetry={showPreview}
         onSign={signTransaction}
@@ -1168,7 +1143,7 @@ function WalletTransferHub(): React.JSX.Element {
           walletId={walletId}
           network={network}
           recipients={recipientsDuffs}
-          feeDuffs={feeDuffs}
+          feeDuffs={confirmationFeeDuffs}
           amountFiat={amountFiat}
           source={coreSpendSource}
           changeTo={changeTo}
@@ -1192,7 +1167,7 @@ function WalletTransferHub(): React.JSX.Element {
           sourceValid={signingSourceValid}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
-          feeCredits={feeCredits}
+          feeCredits={confirmationFeeCredits}
           proverReady={prover.ready}
           onSuccess={resetForm}
         />
@@ -1208,7 +1183,7 @@ function WalletTransferHub(): React.JSX.Element {
           toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
           recipients={operation === TransferOperation.ShieldedTransfer ? recipientsCredits : undefined}
           amountCredits={amountCredits.toString()}
-          feeCredits={feeCredits}
+          feeCredits={confirmationFeeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
           sourceValid={signingSourceValid}
@@ -1270,11 +1245,11 @@ function WalletTransferHub(): React.JSX.Element {
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
           recipients={operation === TransferOperation.AddressFundsTransfer ? displayRecipientsCredits : undefined}
           feeOutputIndex={displayFeeOutputIndex}
-          feeCredits={feeCredits}
+          feeCredits={confirmationFeeCredits}
           rows={[
             {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
-            ...(feeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} align={"end"} />}] : []),
-            {label: 'Total debit', value: <CreditsAmount credits={totalDebitCredits} align={"end"} />},
+            ...(confirmationFeeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={confirmationFeeCredits} align={"end"} />}] : []),
+            {label: 'Total debit', value: <CreditsAmount credits={confirmationDebitCredits} align={"end"} />},
             {label: 'From', value: fromDisplay, mono: true},
             ...(operation === TransferOperation.AddressFundsTransfer ? [] : [{label: 'To', value: toDisplay, mono: true}]),
           ]}

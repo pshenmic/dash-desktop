@@ -1,64 +1,89 @@
-import type { SendPreviewChangeParams, SendPreviewInputsParams, SendPreviewOutputsParams, SendPreviewRow, SendPreviewSourceParams } from '../types/SendTransactionPreview'
+import type { PreviewEntry, PreviewParams } from '../api/types'
+import { SEND_PREVIEW_INITIAL_STATE } from '../constants/sendTransactionPreview'
+import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
-import { hasUnallocatedCoreFunds } from './changeAddress'
+import type { SendPreviewAction, SendPreviewFee, SendPreviewKeyParams, SendPreviewMappingParams, SendPreviewParams, SendPreviewRow, SendPreviewState, SendTransactionPreviewData } from '../types/SendTransactionPreview'
 import { duffsToCredits } from './balance'
-import { coreSpendSourceKey, outpointKey, platformSpendSourceKey } from './coinControl'
+import { coinControlSourceKind } from './coinControl'
+import { operationInfo } from './transferMatrix'
 
-export function sendPreviewSourceKey({network, coreSource, platformSource, shieldedSource, fixedAddress, changeTo}: SendPreviewSourceParams): string {
-  return JSON.stringify([
-    network, coreSpendSourceKey(coreSource), platformSpendSourceKey(platformSource),
-    shieldedSource?.kind, shieldedSource?.noteIndexes, fixedAddress, changeTo,
-  ])
-}
-
-export function sendPreviewChangeAddress({operation, amountDuffs, maxDuffs, changeTo}: SendPreviewChangeParams): string | null | undefined {
-  if (operation !== TransferOperation.CoreSend || !hasUnallocatedCoreFunds(amountDuffs, maxDuffs)) return undefined
-  return changeTo ?? null
-}
-
-export function sendPreviewOutputRows(recipients: SendPreviewRow[], changeAddress: string | null | undefined): SendPreviewRow[] {
-  return changeAddress ? [...recipients, {address: changeAddress, amountCredits: null, label: 'Change'}] : recipients
-}
-
-export function sendPreviewTotals(outputs: SendPreviewRow[], feeCredits: bigint) {
-  const amountCredits = outputs.reduce((sum, output) => sum + (output.amountCredits ?? 0n), 0n)
-  return {amountCredits, feeCredits, totalDebitCredits: amountCredits + feeCredits}
-}
-
-export function sendPreviewInputs({selection, funds, fixedAddress, fixedCredits, feeFromOutput}: SendPreviewInputsParams): SendPreviewRow[] {
-  if (fixedAddress) return [{address: fixedAddress, amountCredits: fixedCredits ?? null}]
-  switch (selection.kind) {
-    case 'coreOutpoints': {
-      const selected = new Set(selection.outpoints)
-      return funds.utxos.filter(input => selected.has(outpointKey(input))).map(input => ({
-        address: input.address, amountCredits: duffsToCredits(input.satoshis), reference: outpointKey(input),
-      }))
-    }
-    case 'coreAddress':
-      return [{address: selection.address, amountCredits: null}]
-    case 'platformInputs':
-      return selection.inputs.map(input => ({
-        address: input.address, amountCredits: input.credits,
-        label: !feeFromOutput && input.address === selection.feeAddress ? 'Fee input' : undefined,
-      }))
-    case 'platformAddress':
-    case 'shieldedAddress':
-      return [{address: selection.address, amountCredits: null}]
-    case 'shieldedNotes': {
-      const selected = new Set(selection.noteIndexes)
-      return funds.shieldedNotes.filter(note => !note.spent && selected.has(note.index)).map(note => ({
-        address: note.address, amountCredits: note.amount, reference: `Note ${note.index}`,
-      }))
-    }
-    default:
-      return []
+export function sendPreviewParams({operation, recipients, coreSource, platformSource, shieldedSource, identityId, fromAddress, changeTo}: SendPreviewParams): PreviewParams {
+  const isCoreOperation = coinControlSourceKind(operation) === SourceKind.Core
+  const amountDuffs = recipients.reduce((sum, recipient) => sum + recipient.amountDuffs, 0n)
+  const createsIdentity = operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityCreate
+    || operation === TransferOperation.IdentityCreateFromShielded
+  return {
+    recipients: recipients.map(recipient => ({
+      address: createsIdentity ? '' : recipient.address,
+      amount: isCoreOperation ? recipient.amountDuffs : duffsToCredits(recipient.amountDuffs),
+    })),
+    amountCredits: isCoreOperation ? 0n : duffsToCredits(amountDuffs),
+    amountDuffs: isCoreOperation ? amountDuffs : null,
+    coreSource: isCoreOperation ? coreSource : undefined,
+    platformSource: coinControlSourceKind(operation) === SourceKind.PlatformAddress ? platformSource : undefined,
+    shieldedSource: coinControlSourceKind(operation) === SourceKind.Shielded ? shieldedSource : undefined,
+    identityId: operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity
+      || operation === TransferOperation.IdentityWithdrawal ? identityId : undefined,
+    fromAddress: operation === TransferOperation.Shield ? fromAddress : undefined,
+    changeTo: operation === TransferOperation.CoreSend ? changeTo : undefined,
   }
 }
 
-export function sendPreviewOutputs({recipients, feeCredits, feeOutputIndex, newIdentity}: SendPreviewOutputsParams): SendPreviewRow[] {
-  return recipients.map((recipient, index) => ({
-    address: newIdentity ? '' : recipient.address,
-    amountCredits: duffsToCredits(recipient.amountDuffs) - (feeOutputIndex === index ? feeCredits : 0n),
-    label: newIdentity ? 'New Platform identity' : feeOutputIndex === index ? 'Fee deducted' : undefined,
-  }))
+export function sendPreviewRequestKey(params: SendPreviewKeyParams): string {
+  return JSON.stringify(params, (_key, value) => typeof value === 'bigint' ? `${value}n` : value)
+}
+
+export function previewEntryCredits(entry: PreviewEntry): bigint {
+  return entry.unit === 'duffs' ? duffsToCredits(entry.amount) : entry.amount
+}
+
+export function sendPreviewRow(entry: PreviewEntry): SendPreviewRow {
+  let addressLabel = entry.address
+  if (!addressLabel) {
+    if (entry.role === 'change') addressLabel = 'Your shielded balance'
+    else if (entry.role === 'recipient') addressLabel = 'New Platform identity'
+    else addressLabel = 'Address unavailable'
+  }
+  return {
+    ...entry,
+    addressLabel,
+  }
+}
+
+export function mapSendTransactionPreview({preview, operation, from}: SendPreviewMappingParams): SendTransactionPreviewData {
+  const isCoreOperation = coinControlSourceKind(operation) === SourceKind.Core
+  const assetLock = preview.outputs.some(output => output.role === 'credit')
+  const recipients = preview.outputs.filter(output => output.role === 'recipient')
+  const amountCredits = recipients.reduce((sum, output) => sum + previewEntryCredits(output), 0n)
+  const inputCredits = preview.inputs.reduce((sum, input) => sum + previewEntryCredits(input), 0n)
+  const changeCredits = preview.outputs.filter(output => output.role === 'change')
+    .reduce((sum, output) => sum + previewEntryCredits(output), 0n)
+  const fees: SendPreviewFee[] = []
+  if (preview.feeDuffs != null) fees.push({label: assetLock ? 'L1 network fee' : 'Network fee', amount: preview.feeDuffs, unit: 'duffs'})
+  if (preview.feeCredits != null) fees.push({label: assetLock ? 'Platform network fee' : 'Network fee', amount: preview.feeCredits, unit: 'credits'})
+  return {
+    title: operationInfo(operation).title,
+    from,
+    isCoreOperation,
+    amountCredits,
+    totalDebitCredits: inputCredits - changeCredits,
+    feeDuffs: preview.feeDuffs,
+    feeCredits: preview.feeCredits,
+    fees,
+    inputs: preview.inputs.map(sendPreviewRow),
+    outputGroups: assetLock ? [
+      {title: 'L1 asset lock', rows: preview.outputs.filter(output => output.role !== 'recipient').map(sendPreviewRow)},
+      {title: 'Platform recipients', rows: recipients.map(sendPreviewRow)},
+    ] : [{title: null, rows: preview.outputs.map(sendPreviewRow)}],
+    unsignedHex: preview.unsignedHex,
+    unsignedLabel: assetLock ? 'Unsigned L1 asset lock' : isCoreOperation ? 'Unsigned transaction' : 'Unsigned state transition',
+  }
+}
+
+export function sendPreviewReducer(state: SendPreviewState, action: SendPreviewAction): SendPreviewState {
+  if (action.type === 'reset') return SEND_PREVIEW_INITIAL_STATE
+  if (action.type === 'start') return {requestId: action.requestId, loading: true, error: null, data: null}
+  if (action.requestId !== state.requestId) return state
+  if (action.type === 'loaded') return {...state, loading: false, error: null, data: action.data}
+  return {...state, loading: false, error: action.error, data: null}
 }
