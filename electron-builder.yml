@@ -3,6 +3,7 @@ productName: Dash Desktop
 directories:
   buildResources: buildResources
 afterPack: build/pruneForeignBinaries.cjs
+buildDependenciesFromSource: true
 # A platform-specific `files` list would be normalized into a second matcher
 # that never receives electron-builder's own exclusions, so dist/ and .git/
 # would be packaged. Everything platform-dependent lives in the afterPack hook.
