@@ -1104,7 +1104,7 @@ function WalletTransferHub(): React.JSX.Element {
           { label: 'Confirm', content: confirmStep },
         ]}
         onSubmit={reviewTransaction}
-        submitLabel="Sign & Send"
+        submitLabel="Send"
         submitDisabled={!canSubmit}
       />
       </>}
