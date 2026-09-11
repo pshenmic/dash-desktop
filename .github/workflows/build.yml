@@ -44,8 +44,6 @@ jobs:
         cache: yarn
     - name: Install dependencies
       run: yarn --frozen-lockfile
-      env:
-        npm_config_build_from_source: true
     - name: Build
       run: yarn ${{ matrix.script }}
     - name: Upload installers

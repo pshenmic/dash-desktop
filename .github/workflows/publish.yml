@@ -17,8 +17,6 @@ jobs:
         node-version: 24.x
     - name: Install dependencies
       run: yarn --frozen-lockfile
-      env:
-        npm_config_build_from_source: true
     - name: Build Linux
       run: yarn build:linux
     - name: Upload Linux artifacts
