@@ -52,7 +52,7 @@ describe('coin control', () => {
   it('expands address selections into only the manual funds belonging to that address', () => {
     const available = {
       ...funds,
-      utxos: [...funds.utxos, {txid: 'other', vout: 0, satoshis: 1n, address: 'core-other', height: 1}],
+      utxos: [...funds.utxos, {txid: 'other', vout: 0, satoshis: 1n, address: 'core-other', height: 1, timestamp: null, confirmations: 1}],
       shieldedNotes: [
         ...funds.shieldedNotes,
         {index: 10, address: 'shielded-other', amount: 1n, spent: false},

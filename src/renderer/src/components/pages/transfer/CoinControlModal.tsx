@@ -34,6 +34,7 @@ import {
   outpointKey,
 } from '@renderer/utils/coinControl'
 import { davToDash, duffsToCredits } from '@renderer/utils/balance'
+import { formatTimestamp } from '@renderer/utils/date'
 
 export default function CoinControlModal({
   isOpen,
@@ -390,6 +391,9 @@ export default function CoinControlModal({
                         <div className={'mt-1.5 flex items-center gap-2'}>
                           <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 font-mono break-all'}>{key}</Text>
                         </div>
+                        <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-1 block'}>
+                          {`Timestamp: ${formatTimestamp(utxo.timestamp)}`}
+                        </Text>
                       </CheckRow>
                     )
                   })}

@@ -28,8 +28,8 @@ describe('locally saved P2P UTXOs', () => {
       output({n: 3, address: 'external'}),
     ]})], addresses)
     expect(result).toEqual([
-      {txid: 'tx', vout: 0, address: 'receiving', satoshis: 1n, height: 10},
-      {txid: 'tx', vout: 2, address: 'change', satoshis: 9_007_199_254_740_993n, height: 10},
+      {txid: 'tx', vout: 0, address: 'receiving', satoshis: 1n, height: 10, timestamp: new Date(0), confirmations: 1},
+      {txid: 'tx', vout: 2, address: 'change', satoshis: 9_007_199_254_740_993n, height: 10, timestamp: new Date(0), confirmations: 1},
     ])
   })
 
@@ -37,8 +37,8 @@ describe('locally saved P2P UTXOs', () => {
     const result = localWalletUtxos('wallet-a', [transaction({vout: [
       output({spentTxId: 'confirmed-spend', spentHeight: 20}),
       output({n: 1, spentTxId: 'pending-spend', spentHeight: 0}),
-    ]}), transaction({txid: 'incoming', blockHeight: 0, status: 'Pending'})], addresses)
-    expect(result).toEqual([{txid: 'incoming', vout: 0, address: 'receiving', satoshis: 100_000_000n, height: 0}])
+    ]}), transaction({txid: 'incoming', blockHeight: 0, status: 'Pending', date: new Date('2026-09-11T09:15:00Z'), confirmations: 0})], addresses)
+    expect(result).toEqual([{txid: 'incoming', vout: 0, address: 'receiving', satoshis: 100_000_000n, height: 0, timestamp: new Date('2026-09-11T09:15:00Z'), confirmations: 0}])
   })
 
   it('deduplicates outpoints and never resurrects a spent duplicate', () => {

@@ -51,7 +51,7 @@ const assetLockFee = (inputsCount: number): bigint =>
 const txid = (index: number): string => `${index}`.padStart(64, '0')
 
 function utxo(satoshis: bigint, index: number): UTXO {
-  return {address: RECEIVING, txId: txid(index), vOut: 0, satoshis, script: new Script(), height: 1}
+  return {address: RECEIVING, txId: txid(index), vOut: 0, satoshis, script: new Script(), height: 1, timestamp: null, confirmations: 1}
 }
 
 function candidate(platformAddress: string, balanceCredits: bigint, hashByte: number): PlatformSourceCandidate {

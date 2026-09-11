@@ -62,8 +62,8 @@ vi.mock('@renderer/contexts/ConnectionModeContext', () => ({
 
 import { useWalletUtxos } from '../../src/renderer/src/hooks/useWalletUtxos'
 
-const selectedUtxo: SelectableUtxo = {txid: 'selected', vout: 0, satoshis: 100_000n, address: 'address-a', height: 0}
-const otherUtxo: SelectableUtxo = {txid: 'other', vout: 1, satoshis: 200_000n, address: 'address-b', height: 10}
+const selectedUtxo: SelectableUtxo = {txid: 'selected', vout: 0, satoshis: 100_000n, address: 'address-a', height: 0, timestamp: null, confirmations: 0}
+const otherUtxo: SelectableUtxo = {txid: 'other', vout: 1, satoshis: 200_000n, address: 'address-b', height: 10, timestamp: null, confirmations: 1}
 
 function render(refreshKey = 0): WalletUtxosResult {
   harness.index = 0
@@ -115,7 +115,7 @@ describe('spendable UTXO refresh readiness', () => {
     harness.phase = phase
     harness.syncIncomplete = true
     harness.getTransactions.mockResolvedValueOnce([{
-      walletId: 'wallet-a', txid: 'saved', blockHeight: 20,
+      walletId: 'wallet-a', txid: 'saved', blockHeight: 20, date: new Date('2026-09-11T09:15:00Z'), confirmations: 0,
       vout: [{n: 2, address: 'own', value: '0.00000001', spentTxId: ''}],
     }])
     harness.getAddresses.mockResolvedValueOnce({receiving: [{walletId: 'wallet-a', address: 'own'}], change: []})
@@ -123,7 +123,7 @@ describe('spendable UTXO refresh readiness', () => {
     commitEffects()
     await flushPromises()
     expect(render()).toMatchObject({
-      utxos: [{txid: 'saved', vout: 2, address: 'own', satoshis: 1n, height: 20}],
+      utxos: [{txid: 'saved', vout: 2, address: 'own', satoshis: 1n, height: 20, timestamp: new Date('2026-09-11T09:15:00Z'), confirmations: 0}],
       loading: false, localSnapshot: true, error: null,
     })
     expect(selectionStatus(render()).canSubmit).toBe(false)

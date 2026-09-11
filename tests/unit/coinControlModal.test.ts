@@ -41,7 +41,7 @@ function modalProps(): CoinControlModalProps {
     isOpen: true, operation: TransferOperation.CoreSend,
     selection: {kind: 'coreOutpoints', outpoints: ['coin:0']},
     coreAddresses: [], coreAddressesLoading: false, coreAddressesError: null,
-    utxos: [{txid: 'coin', vout: 0, address: 'address', satoshis: 100_000n, height: 10}],
+    utxos: [{txid: 'coin', vout: 0, address: 'address', satoshis: 100_000n, height: 10, timestamp: null, confirmations: 1}],
     utxosLoading: false, utxosLocalSnapshot: false, utxosError: null, coreSyncIncomplete: false,
     platformAddresses: [], platformAddressesLoading: false, platformAddressesError: null,
     shieldedNotes: [], identityLabel: null, identityId: null, platformAddress: undefined,
@@ -57,6 +57,22 @@ describe('coin control UTXO refresh', () => {
     vi.stubGlobal('React', React)
   })
   afterEach(() => vi.unstubAllGlobals())
+
+  it('updates the timestamp on an existing selected row when a pending coin confirms', () => {
+    const props = modalProps()
+    const pending = {...props.utxos[0], height: 0, confirmations: 0, timestamp: new Date(2026, 8, 11, 9, 15)}
+    const initialRow = render({...props, utxos: [pending]}).find(node => node.key === 'coin:0')!
+    expect(elements(initialRow).some(node => node.props.children === 'Timestamp: 11 Sept 2026, 09:15')).toBe(true)
+    const confirmed = {...pending, height: 10, confirmations: 1, timestamp: new Date(2026, 8, 11, 9, 20)}
+    const updatedRow = render({...props, utxos: [confirmed]}).find(node => node.key === 'coin:0')!
+    expect(updatedRow.type).toBe(initialRow.type)
+    expect(updatedRow.props.checked).toBe(true)
+    expect(elements(updatedRow).some(node => node.props.children === 'Timestamp: 11 Sept 2026, 09:20')).toBe(true)
+  })
+
+  it('shows an unknown timestamp when the source cannot date a coin', () => {
+    expect(render(modalProps()).some(node => node.props.children === 'Timestamp: Unknown')).toBe(true)
+  })
 
   it.each([
     {utxosLoading: true, coreSyncIncomplete: false},
