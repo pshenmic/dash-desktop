@@ -26,9 +26,11 @@ export function requireCoreRecipients(recipients: CoreRecipient[]): bigint {
   return recipients.reduce((sum, recipient) => sum + recipient.amountDuffs, 0n)
 }
 
-// Falls back to the last change address, then to a receiving one, so change
-// never leaves the wallet.
-export function pickChangeAddress(grouped: GroupedAddresses): string {
+// A caller-named address is paid as given: coin control may send change out of
+// the wallet on purpose. Without one, change falls back to the last change
+// address and then to a receiving one, so it never leaves by accident.
+export function pickChangeAddress(grouped: GroupedAddresses, requested?: string): string {
+  if (requested != null) return requested
   const unusedChange = grouped.change.find(a => !a.isUsed)
   if (unusedChange) return unusedChange.address
   if (grouped.change.length > 0) return grouped.change[grouped.change.length - 1].address
@@ -82,6 +84,7 @@ export function selectTransferInputs(
   amountDuffs: bigint,
   feeForInputs: CoreFeeForInputs,
   source?: CoreSpendSource,
+  changeTo?: string,
 ): TransferInputSelection {
   const pathByAddress = new Map(
     [...grouped.receiving, ...grouped.change].map(a => [a.address, a.derivationPath]),
@@ -119,5 +122,5 @@ export function selectTransferInputs(
     }
   })
 
-  return {transferInputs, inputTotal: selection.inputTotal, changeAddress: pickChangeAddress(grouped), feeDuffs: selection.fee}
+  return {transferInputs, inputTotal: selection.inputTotal, changeAddress: pickChangeAddress(grouped, changeTo), feeDuffs: selection.fee}
 }

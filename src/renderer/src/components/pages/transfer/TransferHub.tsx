@@ -16,22 +16,27 @@ import { useWalletBalance, refreshBalance } from "@renderer/hooks/useWalletBalan
 import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
 import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useAdresses } from "@renderer/hooks/useAdresses";
+import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
+import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
+import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
+import { useSendTransactionPreview } from "@renderer/hooks/useSendTransactionPreview";
 import { useErrorToast } from "@renderer/hooks/useErrorToast";
 import { useWalletUtxos } from "@renderer/hooks/useWalletUtxos";
 import { invalidateAsyncCache } from "@renderer/hooks/useAsyncWithCache";
 import { compareBigIntsDescending, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits } from "@renderer/utils/balance";
-import { isValidDashAddress } from "@renderer/utils/address";
+import { isValidDashAddress, isValidDashChangeAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import { getErrorMessage } from "@renderer/utils/error";
 import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistration";
-import { clearSendDraft, getOrCreateSendDraft, saveSendDraft } from "@renderer/utils/sendDraft";
+import { getAdvancedSendRoute, getOrCreateSendDraft, resetCurrentSendRoute, saveSendDraft, setSendAdvanced } from "@renderer/utils/sendDraft";
+import { capRecipientAmounts, capSendAmount, orderPlatformRecipients, recipientAllocationBudget, recipientTotalDuffs, validateSendRecipients, withOutputFee } from "@renderer/utils/sendRecipients";
+import { SEND_RECIPIENT_LIMITS } from "@renderer/constants/sendRecipients";
 import {
-  automaticCoinControl,
   buildCoinControlInventory,
   coinControlSelectionSummary,
   coinControlSelectionTotals,
@@ -59,13 +64,20 @@ import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
-import type { SendDraft } from "@renderer/types/SendDraft";
+import type { AdvancedSendRoute, SendDraft } from "@renderer/types/SendDraft";
 import type { CoinControlSelection } from "@renderer/types/CoinControl";
+import type { SendPreviewRequest } from "@renderer/types/SendTransactionPreview";
+import { sendPreviewParams, sendPreviewRequestKey } from "@renderer/utils/sendTransactionPreview";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
+import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import { DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
+import SendRecipientsEditor from "./SendRecipientsEditor";
+import ChangeAddressField from "./ChangeAddressField";
+import TransactionSummary from "./TransactionSummary";
+import SendTransactionPreview from "./SendTransactionPreview";
 import TransferWizard from "./TransferWizard";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
@@ -93,7 +105,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
-  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, coinControl } = draft
+  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, coinControl, advanced } = draft
   const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
     const next = update(draftRef.current)
     draftRef.current = next
@@ -110,9 +122,13 @@ function WalletTransferHub(): React.JSX.Element {
   const setCoinControl = (coinControl: CoinControlSelection): void => updateDraft(current => ({ ...current, coinControl }))
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [review, setReview] = useState<SendPreviewRequest | null>(null)
+  const previewSequence = useRef(0)
+  const preview = useSendTransactionPreview(review)
   const [notesUnlockOpen, setNotesUnlockOpen] = useState(false)
   const [wizardKey, setWizardKey] = useState(0)
-  const { utxos, loading: utxosLoading, error: utxosError, retry: retryUtxos } = useWalletUtxos(wizardKey)
+  const { utxos, loading: utxosLoading, localSnapshot: utxosLocalSnapshot, error: utxosError, retry: retryUtxos } = useWalletUtxos(wizardKey)
   const [fundingRefresh, setFundingRefresh] = useState(0)
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
@@ -157,6 +173,13 @@ function WalletTransferHub(): React.JSX.Element {
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
+  const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
+  const shieldedRecipientBalances = useMemo(() => shieldedSync.phase === ShieldedSyncPhase.Done
+    ? shieldedBalancesByAddress(shieldedSync.notes) : null, [shieldedSync.phase, shieldedSync.notes])
+  const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
+    receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
+    shieldedBalances: shieldedRecipientBalances,
+  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedRecipientBalances])
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
   useErrorToast(coreAddressesError)
@@ -165,6 +188,37 @@ function WalletTransferHub(): React.JSX.Element {
   useErrorToast(shieldedSync.error)
 
   const operation = resolveOperation(fromKind, toKind)
+  const recipientLimit = operation == null ? 1 : SEND_RECIPIENT_LIMITS[operation] ?? 1
+  const advancedMulti = advanced && recipientLimit > 1
+  const advancedRoute = useMemo(() => getAdvancedSendRoute(draft, operation), [draft.advancedRoutes, operation])
+  const updateAdvancedRoute = (update: Partial<AdvancedSendRoute>): void => updateDraft(current => ({
+    ...current,
+    advancedRoutes: operation == null ? current.advancedRoutes : {
+      ...current.advancedRoutes,
+      [operation]: {...getAdvancedSendRoute(current, operation), ...update},
+    },
+  }))
+  const activeRecipients = useMemo(() => advancedMulti ? advancedRoute.recipients : [{id: 'simple', address: toValue, amount}], [advancedMulti, advancedRoute.recipients, toValue, amount])
+  const orderedRecipients = useMemo(
+    () => operation === TransferOperation.AddressFundsTransfer ? orderPlatformRecipients(activeRecipients) : activeRecipients,
+    [operation, activeRecipients],
+  )
+  const recipientsDuffs = useMemo(
+    () => orderedRecipients.map(recipient => ({address: recipient.address.trim(), amountDuffs: dashToDuffs(recipient.amount)})),
+    [orderedRecipients],
+  )
+  const recipientsCredits = useMemo(
+    () => recipientsDuffs.map(recipient => ({address: recipient.address, amountCredits: duffsToCredits(recipient.amountDuffs)})),
+    [recipientsDuffs],
+  )
+  const displayRecipientsCredits = useMemo(
+    () => activeRecipients.map(recipient => ({address: recipient.address.trim(), amountCredits: duffsToCredits(dashToDuffs(recipient.amount))})),
+    [activeRecipients],
+  )
+  const subtractFee = advancedMulti && operation === TransferOperation.AddressFundsTransfer && advancedRoute.subtractFee
+  const feeOutputPosition = orderedRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId)
+  const feeOutputIndex = subtractFee && feeOutputPosition >= 0 ? feeOutputPosition : undefined
+  const displayFeeOutputIndex = subtractFee ? activeRecipients.findIndex(recipient => recipient.id === advancedRoute.feeRecipientId) : undefined
   const reason = unsupportedReason(fromKind, toKind)
   const info = operation ? operationInfo(operation) : null
   const shieldedInvolved = fromKind === SourceKind.Shielded || toKind === DestinationKind.Shielded
@@ -245,7 +299,7 @@ function WalletTransferHub(): React.JSX.Element {
   }, [appliedCoinControl, coinControl])
 
   const coreSpendSource = useMemo(() => toCoreSpendSource(appliedCoinControl, utxos), [appliedCoinControl, utxos])
-  const platformSource = useMemo(() => toPlatformSpendSource(appliedCoinControl), [appliedCoinControl])
+  const platformSource = useMemo(() => withOutputFee(toPlatformSpendSource(appliedCoinControl), feeOutputIndex), [appliedCoinControl, feeOutputIndex])
   const shieldedSpendSource = useMemo(
     () => toShieldedSpendSource(appliedCoinControl, spendableNotes),
     [appliedCoinControl, spendableNotes],
@@ -283,7 +337,7 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const isCoreOperation = fromKind === SourceKind.Core
-  const amountDuffs = useMemo(() => dashToDuffs(amount), [amount])
+  const amountDuffs = useMemo(() => recipientTotalDuffs(activeRecipients), [activeRecipients])
   const minCredits = info?.minCredits ?? 0n
   const trimmedTo = toValue.trim()
 
@@ -308,9 +362,15 @@ function WalletTransferHub(): React.JSX.Element {
       break
   }
 
+  const recipientValidation = {
+    recipients: activeRecipients, operation, destination: toKind, network, fundingAddresses,
+    feeRecipientId: subtractFee ? advancedRoute.feeRecipientId : null,
+  }
+  if (advancedMulti) destinationValid = activeRecipients.length > 0 && validateSendRecipients({...recipientValidation, feeCredits: null}).every(error => error.address == null)
+
   const { feeCredits, feeDuffs, maxDuffs, maxPerTx, noteLimit, loading: feeLoading, err: feeErr, retry: retryFee } = useOperationFee(walletId, coinControlValid ? operation : null, {
     destinationValid,
-    recipient: trimmedTo,
+    recipient: advancedMulti ? orderedRecipients.map(recipient => recipient.address.trim()) : trimmedTo,
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
@@ -319,6 +379,11 @@ function WalletTransferHub(): React.JSX.Element {
     shieldedSource: shieldedSpendSource ?? null,
   })
   useErrorToast(feeErr)
+  const recipientErrors = validateSendRecipients({...recipientValidation, feeCredits})
+  const quoteReady = (operation === TransferOperation.CoreSend || destinationValid)
+    && !feeLoading && !feeErr && (isCoreOperation ? feeDuffs !== null : feeCredits !== null)
+  const feeSourceValid = !subtractFee || (platformSource?.kind === 'inputs' && feeOutputIndex != null)
+  const totalDebitCredits = amountCredits + (subtractFee ? 0n : feeCredits ?? 0n)
 
   // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
   // L2 fee on top of that, so the amount typed is the amount that arrives.
@@ -335,9 +400,9 @@ function WalletTransferHub(): React.JSX.Element {
     if (isCoreOperation) return coreMaxDuffs
     if (maxPerTx !== null) return creditsToDuffs(maxPerTx > 0n ? maxPerTx : 0n)
     if (availableCredits === null || feeCredits === null) return null
-    const spendable = availableCredits - feeCredits
+    const spendable = availableCredits - (subtractFee ? 0n : feeCredits)
     return creditsToDuffs(spendable > 0n ? spendable : 0n)
-  }, [isCoreOperation, coreMaxDuffs, maxPerTx, availableCredits, feeCredits])
+  }, [isCoreOperation, coreMaxDuffs, maxPerTx, availableCredits, feeCredits, subtractFee])
 
   const sliderPercent = useMemo(() => {
     if (sliderMaxAmount === null || sliderMaxAmount === 0n) return 0
@@ -347,8 +412,9 @@ function WalletTransferHub(): React.JSX.Element {
   }, [sliderMaxAmount, amountDuffs])
 
   const handleSliderPercent = (percent: number): void => {
-    if (sliderMaxAmount === null) return
-    const value = (sliderMaxAmount * BigInt(percent)) / 100n
+    const maximum = operation === TransferOperation.CoreSend ? allocationBudgetDuffs : sliderMaxAmount
+    if (maximum === null) return
+    const value = (maximum * BigInt(percent)) / 100n
     setAmount(davToDash(value))
   }
 
@@ -358,10 +424,29 @@ function WalletTransferHub(): React.JSX.Element {
     [SourceKind.Identity]: selectedIdentity != null,
     [SourceKind.Shielded]: true,
   }[fromKind]
+  let allocationAvailableDuffs: bigint | null = null
+  if (coinControlValid && sourceReady) {
+    if (isCoreOperation) allocationAvailableDuffs = balanceDuffs
+    else if (availableCredits != null) allocationAvailableDuffs = creditsToDuffs(availableCredits)
+  }
+  const allocationReady = operation === TransferOperation.CoreSend ? coreMaxDuffs !== null && !feeErr : quoteReady
+  const allocationBudgetDuffs = operation === TransferOperation.CoreSend && !allocationReady
+    ? null : recipientAllocationBudget(allocationAvailableDuffs, sliderMaxAmount, allocationReady)
+
+  useEffect(() => {
+    if (operation !== TransferOperation.CoreSend || allocationBudgetDuffs == null) return
+    if (advancedMulti) {
+      const recipients = capRecipientAmounts(activeRecipients, allocationBudgetDuffs)
+      if (recipients !== activeRecipients) updateAdvancedRoute({recipients})
+    } else {
+      const capped = capSendAmount(amount, allocationBudgetDuffs)
+      if (capped !== amount) setAmount(capped)
+    }
+  }, [operation, advancedMulti, activeRecipients, amount, allocationBudgetDuffs])
 
   const selfSend =
     (operation === TransferOperation.AddressFundsTransfer && destinationValid
-      && fundingAddresses.includes(trimmedTo))
+      && !advancedMulti && fundingAddresses.includes(trimmedTo))
     || (operation === TransferOperation.IdentityToIdentity && destinationValid && selectedIdentity != null && trimmedTo === selectedIdentity.identifier)
 
   let destinationError: string | null = null
@@ -385,11 +470,30 @@ function WalletTransferHub(): React.JSX.Element {
     ? amountDuffs > 0n && coreMaxDuffs !== null && amountDuffs <= coreMaxDuffs
     : amountCredits >= minCredits && amountCredits > 0n
       && feeCredits !== null
-      && availableCredits !== null && amountCredits + feeCredits <= availableCredits
+      && availableCredits !== null && totalDebitCredits <= availableCredits
       && (maxPerTx === null || amountCredits <= maxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
-  const canSubmit = routeReady && amountReady && !feeLoading && !feeErr
+  const recipientsReady = !advancedMulti || (activeRecipients.length <= recipientLimit && recipientErrors.every(error => !error.address && !error.amount))
+  const changeTo = coreSendChangeTo({advanced, customChangeEnabled: advancedRoute.customChangeEnabled, operation, amountDuffs, maxDuffs: coreMaxDuffs, change, selected: advancedRoute.changeAddress})
+  const changeAddressValid = changeTo === undefined || isValidDashChangeAddress(changeTo, network ?? undefined)
+  const canSubmit = routeReady && amountReady && recipientsReady && feeSourceValid && quoteReady && changeAddressValid
+  const canCustomizeChange = advanced && isCoreOperation && allocationReady && coinControlValid
+    && coreMaxDuffs !== null && coreMaxDuffs > 0n && amountDuffs < coreMaxDuffs
+  const customChangeControl = canCustomizeChange ? <Checkbox
+    checked={advancedRoute.customChangeEnabled ?? false}
+    onChange={customChangeEnabled => updateAdvancedRoute({customChangeEnabled})}
+    label={<Text size={12} weight="medium" color="brand">Custom change address</Text>}
+  /> : null
+  const customChangeField = canCustomizeChange && advancedRoute.customChangeEnabled ? <ChangeAddressField
+    change={change}
+    value={advancedRoute.changeAddress}
+    loading={coreAddressesLoading}
+    error={coreAddressesError}
+    previewOnly={operation !== TransferOperation.CoreSend}
+    onChange={changeAddress => updateAdvancedRoute({changeAddress})}
+    onRetry={() => { if (walletId) invalidateAsyncCache('addresses', walletId) }}
+  /> : null
 
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : undefined
 
@@ -398,10 +502,15 @@ function WalletTransferHub(): React.JSX.Element {
     const parts = val.split('.')
     if (parts.length > 2) return
     if (parts[1] && parts[1].length > 8) return
-    setAmount(val)
+    setAmount(operation === TransferOperation.CoreSend && allocationBudgetDuffs != null
+      ? capSendAmount(val, allocationBudgetDuffs) : val)
   }
 
   const handleMax = (): void => {
+    if (operation === TransferOperation.CoreSend) {
+      if (allocationBudgetDuffs !== null) setAmount(davToDash(allocationBudgetDuffs))
+      return
+    }
     if (isCoreOperation) {
       if (coreMaxDuffs !== null) setAmount(davToDash(coreMaxDuffs))
       return
@@ -419,14 +528,14 @@ function WalletTransferHub(): React.JSX.Element {
 
   const amountError = amountErrorFor({
     isCoreOperation,
-    amount,
+    amount: advancedMulti ? davToDash(amountDuffs) : amount,
     coreMaxDuffs,
     operation,
     amountDuffs,
     amountCredits,
     minCredits,
     availableCredits,
-    feeCredits,
+    feeCredits: subtractFee ? 0n : feeCredits,
     maxPerTx,
     noteLimit,
   })
@@ -440,10 +549,12 @@ function WalletTransferHub(): React.JSX.Element {
   if (operation === TransferOperation.Shield) coinControlSummary = 'Fixed address'
 
   const resetForm = (): void => {
-    const resetDraft = { ...draftRef.current, toValue: '', amount: '', acked: false, coinControl: automaticCoinControl() }
+    setPreviewOpen(false)
+    setReview(null)
+    const resetDraft = resetCurrentSendRoute(draftRef.current)
     draftRef.current = resetDraft
     setDraftState(resetDraft)
-    if (walletId) clearSendDraft(walletId)
+    if (walletId) saveSendDraft(walletId, resetDraft)
     setWizardKey(k => k + 1)
     if (walletId) {
       refreshPlatformAddresses(walletId)
@@ -451,6 +562,37 @@ function WalletTransferHub(): React.JSX.Element {
     }
   }
 
+  const coreRecipientInput = !advancedMulti && toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend
+  const ownRecipientsLoading = {
+    [DestinationKind.CoreAddress]: coreAddressesLoading,
+    [DestinationKind.PlatformAddress]: platformAddressesLoading,
+    [DestinationKind.Identity]: identitiesLoading,
+    [DestinationKind.Shielded]: savedShielded.loading,
+    [DestinationKind.NewIdentity]: false,
+  }[toKind]
+  const ownRecipientsError = {
+    [DestinationKind.CoreAddress]: coreAddressesError,
+    [DestinationKind.PlatformAddress]: platformAddressesError,
+    [DestinationKind.Identity]: identitiesError,
+    [DestinationKind.Shielded]: savedShielded.error,
+    [DestinationKind.NewIdentity]: null,
+  }[toKind]
+  const retryOwnRecipients = (): void => {
+    if (!walletId) return
+    if (toKind === DestinationKind.CoreAddress) invalidateAsyncCache('addresses', walletId)
+    else if (toKind === DestinationKind.PlatformAddress) void refreshPlatformAddresses(walletId)
+    else if (toKind === DestinationKind.Identity) reloadIdentities()
+    else if (toKind === DestinationKind.Shielded) savedShielded.retry()
+  }
+  const changeDestinationKind = (kind: DestinationKind): void => {
+    setToKind(kind)
+    if (!advancedMulti) setToValue('')
+    setAcked(false)
+  }
+  const changeSendMode = (mode: boolean): void => {
+    updateDraft(current => setSendAdvanced(current, mode))
+    setWizardKey(key => key + 1)
+  }
   const routeStep = (
     <>
       <SourcePicker
@@ -493,33 +635,36 @@ function WalletTransferHub(): React.JSX.Element {
         <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
       )}
 
-      {toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend ? (
-        <div className={"flex flex-col gap-2"}>
-          <DestinationPicker
-            kind={toKind}
-            kinds={destinationKinds}
-            onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
-            value={trimmedTo}
-            onValueChange={setToValue}
-            placeholder={destinationPlaceholder}
-            error={destinationError}
-            showValueInput={false}
-          />
-          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} />
-          {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
-        </div>
-      ) : (
+      <div className="flex flex-col gap-2">
         <DestinationPicker
           kind={toKind}
           kinds={destinationKinds}
-          onKindChange={k => { setToKind(k); setToValue(''); setAcked(false) }}
-          value={toValue}
+          onKindChange={changeDestinationKind}
+          value={coreRecipientInput ? trimmedTo : toValue}
           onValueChange={setToValue}
           placeholder={destinationPlaceholder}
-          error={destinationError}
-          showValueInput={operation != null}
+          error={advancedMulti ? null : destinationError}
+          showValueInput={!advancedMulti && !coreRecipientInput && operation != null}
+          ownOptions={!advanced ? ownRecipients : undefined}
         />
-      )}
+        {coreRecipientInput && <>
+          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} />
+          {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
+        </>}
+        {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
+          {ownRecipientsLoading && (
+            <Text size={12} weight="medium" color="brand" opacity={50}>Loading your recipients…</Text>
+          )}
+          {ownRecipientsError && (
+            <button type="button" onClick={retryOwnRecipients} className="self-start dash-text-primary text-xs cursor-pointer">Could not load your recipients. Try again</button>
+          )}
+          {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
+            <Text size={12} weight="medium" color="brand" opacity={50}>
+              {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.' : 'No saved addresses of this type in your wallet. Enter a recipient address manually.'}
+            </Text>
+          )}
+        </>}
+      </div>
 
       {coreSourceGated && <P2pSyncAlert />}
 
@@ -651,13 +796,14 @@ function WalletTransferHub(): React.JSX.Element {
         value={amount}
         onChange={handleAmount}
         onMax={handleMax}
+        disabled={operation === TransferOperation.CoreSend && allocationBudgetDuffs == null}
         unit={<DashLogo size={20} />}
       />
       {operation !== TransferOperation.IdentityCreateFromShielded && sliderMaxAmount !== null && (
         <AmountSlider
           percent={sliderPercent}
           onPercentChange={handleSliderPercent}
-          disabled={sliderMaxAmount === 0n}
+          disabled={sliderMaxAmount === 0n || (operation === TransferOperation.CoreSend && allocationBudgetDuffs == null)}
         />
       )}
       {amountError && (
@@ -703,6 +849,51 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
+
+  const previewParams = operation == null ? null : sendPreviewParams({
+    operation,
+    recipients: recipientsDuffs,
+    coreSource: coreSpendSource,
+    platformSource,
+    shieldedSource: shieldedSpendSource,
+    identityId: selectedIdentity?.identifier,
+    fromAddress: selectedSource?.platformAddress,
+    changeTo,
+  })
+  const previewKey = sendPreviewRequestKey({walletId, network, operation, params: previewParams})
+  const reviewCurrent = review?.key === previewKey && preview.data != null && !preview.loading && !preview.error
+  const signingSourceValid = canSubmit && (!previewOpen || reviewCurrent)
+  const confirmationPreview = previewOpen ? preview.data : null
+  const confirmationFeeDuffs = confirmationPreview?.feeDuffs ?? feeDuffs
+  const confirmationFeeCredits = confirmationPreview?.feeCredits ?? feeCredits
+  const confirmationDebitCredits = confirmationPreview?.totalDebitCredits ?? totalDebitCredits
+
+  const closePreview = (): void => {
+    setPreviewOpen(false)
+    setReview(null)
+  }
+
+  const showPreview = (): void => {
+    if (!canSubmit || !walletId || !operation || !previewParams) return
+    setPreviewOpen(true)
+    setReview({
+      id: ++previewSequence.current,
+      key: previewKey,
+      walletId,
+      operation,
+      params: previewParams,
+      from: fromDisplay,
+    })
+  }
+
+  const signTransaction = (): void => {
+    if (signingSourceValid) setConfirmOpen(true)
+  }
+
+  const reviewTransaction = (): void => {
+    if (advanced) showPreview()
+    else signTransaction()
+  }
 
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
@@ -762,6 +953,7 @@ function WalletTransferHub(): React.JSX.Element {
         )}
       </div>
       {coreSourceGated && <P2pSyncAlert />}
+      <button type="button" onClick={showPreview} disabled={!canSubmit} className="w-full rounded-xl px-4 py-3 dash-block text-sm font-medium dash-text-default opacity-70 cursor-pointer hover:opacity-100 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-white/40 disabled:opacity-40 disabled:cursor-default">Transaction details</button>
     </div>
   )
 
@@ -772,7 +964,7 @@ function WalletTransferHub(): React.JSX.Element {
     if (operation === TransferOperation.ShieldedTransfer) {
       return API.startShieldedTransfer(
         walletId,
-        [{ address: trimmedTo, amountCredits }],
+        recipientsCredits,
         password,
         shieldedSpendSource,
       )
@@ -788,7 +980,7 @@ function WalletTransferHub(): React.JSX.Element {
       return API.sendPlatformTransfer(
         walletId,
         platformSource,
-        [{ address: trimmedTo, amountCredits }],
+        recipientsCredits,
         password,
       )
     }
@@ -823,7 +1015,18 @@ function WalletTransferHub(): React.JSX.Element {
   const isShieldedSpendOperation = info?.spendKind != null
 
   return (
-    <div className={"relative flex flex-col h-full pb-4"}>
+    <div className={"relative flex flex-col h-full pb-4"} inert={confirmOpen || coinControlOpen || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
+      {previewOpen && review && <SendTransactionPreview
+        data={preview.data}
+        loading={preview.loading}
+        error={preview.error}
+        valid={signingSourceValid}
+        canRefresh={canSubmit && !preview.loading}
+        onBack={closePreview}
+        onRetry={showPreview}
+        onSign={signTransaction}
+      />}
+      <div className={previewOpen ? 'hidden' : 'contents'}>
       <div className={"flex items-end justify-between gap-6 px-12 pt-2"}>
         <div className={"flex flex-col gap-3"}>
           <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Send</Text>
@@ -831,7 +1034,22 @@ function WalletTransferHub(): React.JSX.Element {
             Move funds between your Dash Core, Platform addresses, identities and the shielded pool. Pick where the funds come from and where they go.
           </Text>
         </div>
-        {shieldedInvolved && <ProverPill status={prover} />}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex gap-1 dash-block p-1 rounded-xl" aria-label="Send mode">
+            {[false, true].map(mode => (
+              <button
+                key={String(mode)}
+                type="button"
+                aria-pressed={advanced === mode}
+                onClick={() => changeSendMode(mode)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold cursor-pointer ${advanced === mode ? 'dash-bg-inverse text-dash-brand dark:text-dash-mint' : 'dash-text-default'}`}
+              >
+                {mode ? 'Advanced' : 'Simple'}
+              </button>
+            ))}
+          </div>
+          {shieldedInvolved && <ProverPill status={prover} />}
+        </div>
       </div>
 
       {resumableFunding && (
@@ -876,6 +1094,53 @@ function WalletTransferHub(): React.JSX.Element {
         </div>
       )}
 
+      {advanced ? (
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 xl:px-12 mt-6 pb-6">
+          <div className="mx-auto max-w-280 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
+            <div className="flex flex-col gap-5 min-w-0">
+              <div className="flex flex-col gap-4">{routeStep}</div>
+              {advancedMulti ? <SendRecipientsEditor
+                recipients={activeRecipients}
+                errors={recipientErrors}
+                limit={recipientLimit}
+                destination={toKind}
+                budgetDuffs={allocationBudgetDuffs}
+                feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
+                feeCredits={feeCredits}
+                budgetIsEstimate={!allocationReady}
+                headerAction={customChangeControl}
+                beforeRecipients={customChangeField}
+                onChange={recipients => updateAdvancedRoute({recipients})}
+              /> : <>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <Text size={16} weight="extrabold" color="brand">Recipients (1/1)</Text>
+                  {customChangeControl}
+                </div>
+                {customChangeField}
+                <Text size={12} weight="medium" color="brand" opacity={50}>This route supports one recipient.</Text>
+                {amountStep}
+              </>}
+            </div>
+            <TransactionSummary
+              operation={operation}
+              isCoreOperation={isCoreOperation}
+              amountDuffs={amountDuffs}
+              maxAmountDuffs={sliderMaxAmount}
+              fee={{credits: feeCredits, totalDuffs: totalFeeDuffs, ready: quoteReady, loading: feeLoading, error: feeErr}}
+              route={advancedRoute}
+              hasManualPlatformInputs={appliedCoinControl.kind === 'platformInputs'}
+              amountError={amountError}
+              canSubmit={canSubmit}
+              onRouteChange={updateAdvancedRoute}
+              onCoinControl={() => setCoinControlOpen(true)}
+              onRetryFee={retryFee}
+              onReview={reviewTransaction}
+            >
+              {sourceBalanceDisplay}
+            </TransactionSummary>
+          </div>
+        </div>
+      ) : <>
       <TransferWizard
         key={wizardKey}
         steps={[
@@ -883,13 +1148,16 @@ function WalletTransferHub(): React.JSX.Element {
           { label: 'Amount', content: amountStep, canAdvance: canSubmit },
           { label: 'Confirm', content: confirmStep },
         ]}
-        onSubmit={() => { if (canSubmit) setConfirmOpen(true) }}
-        submitLabel={info?.submitLabel ?? 'Send'}
+        onSubmit={reviewTransaction}
+        submitLabel="Send"
         submitDisabled={!canSubmit}
       />
+      </>}
+      </div>
 
       <CoinControlModal
         isOpen={coinControlOpen}
+        feeFromOutput={subtractFee}
         operation={operation}
         selection={appliedCoinControl}
         coreAddresses={coreAddresses}
@@ -898,6 +1166,7 @@ function WalletTransferHub(): React.JSX.Element {
         onRetryCoreAddresses={() => { if (walletId) invalidateAsyncCache('addresses', walletId) }}
         utxos={utxos}
         utxosLoading={utxosLoading}
+        utxosLocalSnapshot={utxosLocalSnapshot}
         utxosError={utxosError}
         coreSyncIncomplete={syncIncomplete}
         platformAddresses={fundedAddresses}
@@ -919,10 +1188,12 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           network={network}
-          recipients={[{ address: trimmedTo, amountDuffs }]}
+          recipients={recipientsDuffs}
+          feeDuffs={confirmationFeeDuffs}
           amountFiat={amountFiat}
           source={coreSpendSource}
-          sourceValid={canSubmit}
+          changeTo={changeTo}
+          sourceValid={signingSourceValid}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -939,10 +1210,10 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           fromAddress={selectedSource?.platformAddress ?? ''}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
-          feeCredits={feeCredits}
+          feeCredits={confirmationFeeCredits}
           proverReady={prover.ready}
           onSuccess={resetForm}
         />
@@ -956,11 +1227,12 @@ function WalletTransferHub(): React.JSX.Element {
           title={info?.title ?? 'Send'}
           toLabel={SHIELDED_DESTINATION_LABELS[operation ?? TransferOperation.ShieldedWithdrawal] ?? 'To (Core L1)'}
           toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
+          recipients={operation === TransferOperation.ShieldedTransfer ? recipientsCredits : undefined}
           amountCredits={amountCredits.toString()}
-          feeCredits={feeCredits}
+          feeCredits={confirmationFeeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.ShieldedWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
@@ -976,7 +1248,7 @@ function WalletTransferHub(): React.JSX.Element {
           resume={false}
           kind={OPERATION_FUNDING_KINDS[operation] ?? AssetLockFundingKind.Address}
           source={coreSpendSource}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1017,14 +1289,18 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
+          recipients={operation === TransferOperation.AddressFundsTransfer ? displayRecipientsCredits : undefined}
+          feeOutputIndex={displayFeeOutputIndex}
+          feeCredits={confirmationFeeCredits}
           rows={[
             {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
-            ...(feeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} align={"end"} />}] : []),
+            ...(confirmationFeeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={confirmationFeeCredits} align={"end"} />}] : []),
+            {label: 'Total debit', value: <CreditsAmount credits={confirmationDebitCredits} align={"end"} />},
             {label: 'From', value: fromDisplay, mono: true},
-            {label: 'To', value: toDisplay, mono: true},
+            ...(operation === TransferOperation.AddressFundsTransfer ? [] : [{label: 'To', value: toDisplay, mono: true}]),
           ]}
           run={runPlatformOperation}
-          sourceValid={canSubmit}
+          sourceValid={signingSourceValid}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />

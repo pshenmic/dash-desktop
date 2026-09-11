@@ -2,22 +2,20 @@ import { useState, useRef, useEffect } from 'react'
 import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { Identifier } from 'dash-ui-kit/react'
-import { TransferPageType } from '@renderer/constants'
+import type { RecipientInputProps } from '@renderer/types/SendRecipients'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
-
-interface RecipientInputProps {
-  value: string
-  onChange: (value: string) => void
-  data: TransferPageType['recipient']
-}
+import DropdownField from '@renderer/components/ui/DropdownField'
 
 export default function RecipientInput({
   value,
   onChange,
   data,
+  compact = false,
+  ariaLabel,
+  ownOptions,
 }: RecipientInputProps) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -80,20 +78,41 @@ export default function RecipientInput({
 
   return (
     <div className={"flex flex-col gap-2"}>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
+      {!compact && <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
-      </Text>
-      <div className={"dash-input-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
-        <div
-          className={"flex items-center justify-between gap-1 px-4 py-3.5 [&>*:first-child]:flex-1"}
+      </Text>}
+      <div className={"dash-input-block rounded-[.875rem]"} ref={containerRef}>
+        {ownOptions ? <DropdownField
+          editable
+          ariaLabel={ariaLabel ?? data.label}
+          value={value}
+          onChange={onChange}
+          options={ownOptions}
+          menuHeading="Your addresses"
+          placeholder="Enter a recipient address or choose one of yours"
+          triggerClassName="px-4 py-3.5"
+          inputInvalid={trimmedValue.length > 0 && !isValidRecipient}
+          inputSuffix={<div className="flex items-center gap-3">
+            {trimmedValue.length > 0 && (isValidRecipient
+              ? <CheckIcon size={18} className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />
+              : <Text size={10} weight="medium" color="red">Invalid</Text>)}
+            <button type="button" aria-label={data.addressBook} title={data.addressBook} aria-expanded={open}
+              onClick={() => setOpen(current => !current)}
+              className="flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity">
+              <SearchIcon size={18} className={`dash-text-default ${open ? 'opacity-100' : 'opacity-40'}`} />
+            </button>
+          </div>}
+        /> : <div
+          className={`flex items-center justify-between gap-1 [&>*:first-child]:flex-1 ${compact ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}
           onClick={() => inputRef.current?.focus()}
         >
           <Input
             ref={inputRef}
             type={"text"}
+            aria-label={ariaLabel ?? data.label}
             value={value}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 p-0 w-full"}
+            className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 rounded-none! p-0 min-w-0 w-full"}
             placeholder={data.placeholder}
             colorScheme={"transparent"}
           />
@@ -112,7 +131,7 @@ export default function RecipientInput({
           >
             <SearchIcon size={18} className={`dash-text-default shrink-0 transition-opacity ${open ? 'opacity-100' : 'opacity-40'}`} />
           </button>
-        </div>
+        </div>}
 
         <div
           className={`

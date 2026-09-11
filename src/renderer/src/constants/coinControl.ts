@@ -20,13 +20,6 @@ export const FIXED_IDENTITY_SOURCE_COPY: CoinControlFixedSourceCopy = {
   description: 'Identity operations spend the selected identity balance. Change it in the From field.',
 }
 
-export const INPUT_MODE_LABEL: Record<SourceKind, string> = {
-  [SourceKind.Core]: 'UTXOs',
-  [SourceKind.PlatformAddress]: 'Inputs',
-  [SourceKind.Identity]: 'Inputs',
-  [SourceKind.Shielded]: 'Notes',
-}
-
 export const INPUT_ITEM_LABELS: Record<SourceKind, CoinControlInputLabel> = {
   [SourceKind.Core]: {singular: 'UTXO', plural: 'UTXOs'},
   [SourceKind.PlatformAddress]: {singular: 'input', plural: 'inputs'},

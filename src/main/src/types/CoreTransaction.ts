@@ -31,12 +31,32 @@ export interface TransferInputSelection {
   feeDuffs: bigint
 }
 
-export interface BuildSignedTransferParams {
+// Everything a transaction is made of. Signing needs the seed and the network
+// on top of it, and nothing else does — which is what lets the same build
+// answer a preview and a send.
+export interface BuildTransferParams {
   inputs: TransferInput[]
   outputs: TransferOutput[]
   changeAddress: string
   inputTotal: bigint
   feeDuffs: bigint
+}
+
+export interface BuildSignedTransferParams extends BuildTransferParams {
+  seed: Uint8Array
+  network: Network
+}
+
+export interface BuildAssetLockParams {
+  inputs: TransferInput[]
+  amountDuffs: bigint
+  creditAddress: string
+  changeAddress: string
+  inputTotal: bigint
+  feeDuffs: bigint
+}
+
+export interface BuildSignedAssetLockParams extends BuildAssetLockParams {
   seed: Uint8Array
   network: Network
 }

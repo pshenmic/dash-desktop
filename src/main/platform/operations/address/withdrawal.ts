@@ -1,9 +1,9 @@
 import {AddressCreditWithdrawalTransitionWASM} from 'dash-platform-sdk/types.js'
-import {coreAddressToScript} from '../../../src/utils/coreScript'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
-import {signInputs, toFeeStrategy, toInputAddresses} from './signInputs'
+import {unsignedTransition} from '../unsignedTransition'
+import {signInputs} from './signInputs'
 
 type Payload = PlatformOperations['addressWithdrawal']['payload']
 type Result = PlatformOperations['addressWithdrawal']['result']
@@ -13,15 +13,8 @@ export async function addressWithdrawal(payload: Payload, ctx: OperationContext)
   const {seed, inputs, coreAddress, coreFeePerByte} = payload
 
   ctx.progress('signing', 0, 0)
-  const unsigned = sdk.platformAddresses.createStateTransition('addressCreditWithdrawal', {
-    inputs: toInputAddresses(inputs),
-    feeStrategy: toFeeStrategy(payload.feeStrategy),
-    inputWitness: [],
-    userFeeIncrease: 0,
-    coreFeePerByte,
-    pooling: 'Never',
-    outputScript: coreAddressToScript(coreAddress, network),
-  })
+  const unsigned = unsignedTransition(
+    {kind: 'addressWithdrawal', inputs, feeStrategy: payload.feeStrategy, coreAddress, coreFeePerByte}, ctx)
 
   const transition = AddressCreditWithdrawalTransitionWASM.fromStateTransition(unsigned)
   transition.inputWitness = await signInputs(sdk, unsigned.getSignableBytes(), inputs, seed, network)

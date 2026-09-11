@@ -1,4 +1,5 @@
 import { Text } from "@renderer/components/dash-ui-kit-enxtended";
+import type { AmountSliderProps } from '@renderer/types/Amount'
 
 const SLIDER_STOPS = [0, 25, 50, 75, 100]
 const THUMB_SIZE_PX = 16
@@ -7,15 +8,9 @@ function trackOffset(percent: number): string {
   return `calc(${THUMB_SIZE_PX / 2}px + (100% - ${THUMB_SIZE_PX}px) * ${percent} / 100)`
 }
 
-interface AmountSliderProps {
-  percent: number
-  onPercentChange: (percent: number) => void
-  disabled?: boolean
-}
-
-export default function AmountSlider({percent, onPercentChange, disabled = false}: AmountSliderProps): React.JSX.Element {
+export default function AmountSlider({percent, onPercentChange, disabled = false, label = 'Amount percentage', compact = false}: AmountSliderProps): React.JSX.Element {
   return (
-    <div className={`mt-3 px-1 flex flex-col gap-1 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
+    <div className={`px-1 flex flex-col gap-1 ${compact ? '' : 'mt-3'} ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
       <div className={"relative h-4 flex items-center"}>
         <div className={"absolute h-1.5 rounded-full bg-dash-primary-dark-blue/10 dark:bg-white/10"} style={{left: THUMB_SIZE_PX / 2, right: THUMB_SIZE_PX / 2}} />
         <div className={"absolute h-1.5 rounded-full bg-dash-brand dark:bg-dash-mint"} style={{left: THUMB_SIZE_PX / 2, width: `calc((100% - ${THUMB_SIZE_PX}px) * ${percent} / 100)`}} />
@@ -28,6 +23,7 @@ export default function AmountSlider({percent, onPercentChange, disabled = false
         ))}
         <input
           type={"range"}
+          aria-label={label}
           min={0}
           max={100}
           step={1}

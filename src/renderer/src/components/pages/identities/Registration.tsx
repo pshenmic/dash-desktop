@@ -77,7 +77,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const [fromKind, setFromKind] = useState(SourceKind.Core)
   const [amount, setAmount] = useState(IDENTITY_REGISTRATION_DEFAULT_AMOUNT)
-  const { utxos, loading: utxosLoading, error: utxosError, retry: retryUtxos } = useWalletUtxos()
+  const { utxos, loading: utxosLoading, localSnapshot: utxosLocalSnapshot, error: utxosError, retry: retryUtxos } = useWalletUtxos()
   const [coinControl, setCoinControl] = useState<CoinControlSelection>(automaticCoinControl)
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [fundingState, setFundingState] = useState<AssetLockFundingState | null>(null)
@@ -792,6 +792,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         onRetryCoreAddresses={() => invalidateAsyncCache('addresses', walletId)}
         utxos={utxos}
         utxosLoading={utxosLoading}
+        utxosLocalSnapshot={utxosLocalSnapshot}
         utxosError={utxosError}
         coreSyncIncomplete={syncIncomplete}
         platformAddresses={fundedAddresses}

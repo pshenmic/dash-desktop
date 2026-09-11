@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 export interface DropdownFieldOption {
   value: string
   label: string
+  description?: string
+  metadata?: string[]
 }
 
 export interface DropdownFieldProps {
@@ -13,4 +15,9 @@ export interface DropdownFieldProps {
   triggerClassName: string
   textSize?: 12 | 14
   renderIcon?: (value: string) => ReactNode
+  editable?: boolean
+  placeholder?: string
+  inputInvalid?: boolean
+  inputSuffix?: ReactNode
+  menuHeading?: string
 }

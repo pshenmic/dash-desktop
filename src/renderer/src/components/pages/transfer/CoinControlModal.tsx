@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from 'dash-ui-kit/react'
+import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, CreditsIcon, CrossIcon, ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { DashLogo } from 'dash-ui-kit/react'
 import Checkbox from '@renderer/components/ui/Checkbox'
+import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CoinControlAmountInput from './CoinControlAmountInput'
 import type { PlatformAddressDto } from '@renderer/api/types'
-import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY, INPUT_MODE_LABEL } from '@renderer/constants/coinControl'
+import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
@@ -15,9 +16,8 @@ import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
 import type {
-  CoinControlAddressValueProps,
+  CoinControlInputDetailsProps,
   CoinControlCheckRowProps,
-  CoinControlChoiceRowProps,
   CoinControlEmptyProps,
   CoinControlModalProps,
   CoinControlSelection,
@@ -28,15 +28,17 @@ import {
   coinControlInputLabel,
   coinControlSelectionTotals,
   coinControlSourceKind,
+  expandAddressCoinControlSelection,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   outpointKey,
 } from '@renderer/utils/coinControl'
-import { duffsToCredits } from '@renderer/utils/balance'
-import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
+import { davToDash, duffsToCredits } from '@renderer/utils/balance'
+import { formatTimestamp } from '@renderer/utils/date'
 
 export default function CoinControlModal({
   isOpen,
+  feeFromOutput = false,
   operation,
   selection,
   coreAddresses,
@@ -45,6 +47,7 @@ export default function CoinControlModal({
   onRetryCoreAddresses,
   utxos,
   utxosLoading,
+  utxosLocalSnapshot,
   utxosError,
   coreSyncIncomplete,
   platformAddresses,
@@ -60,7 +63,8 @@ export default function CoinControlModal({
   onApply,
 }: CoinControlModalProps): React.JSX.Element | null {
   const {theme} = useTheme()
-  const [draft, setDraft] = useState<CoinControlSelection>(selection)
+  const {showSyncWarning} = useConnectionModeContext()
+  const [draftSelection, setDraft] = useState<CoinControlSelection>(selection)
   const [filterDust, setFilterDust] = useState(false)
   const [onlySelected, setOnlySelected] = useState(false)
 
@@ -71,19 +75,24 @@ export default function CoinControlModal({
     setOnlySelected(false)
   }, [isOpen, selection])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [isOpen, onClose])
+
   if (!isOpen || operation == null) return null
 
   const sourceKind = coinControlSourceKind(operation)
-  const shieldedBalances = shieldedBalancesByAddress(shieldedNotes)
-  const shieldedAddresses = [...shieldedBalances.keys()]
-  const nonDustShieldedAddresses = [...shieldedBalances.entries()]
-    .filter(([, credits]) => credits >= SHIELDED_DUST_FILTER_CREDITS)
-    .map(([address]) => address)
-  const visibleShieldedAddresses = filterDust ? nonDustShieldedAddresses : shieldedAddresses
+  const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
+  const draft = expandAddressCoinControlSelection(draftSelection, funds)
   const nonDustShieldedNotes = shieldedNotes.filter(note => note.amount >= SHIELDED_DUST_FILTER_CREDITS)
   const visibleShieldedNotes = filterDust ? nonDustShieldedNotes : shieldedNotes
-  const nonDustCoreAddresses = coreAddresses.filter(address => address.balance >= CORE_DUST_FILTER_DUFFS)
-  const visibleCoreAddresses = filterDust ? nonDustCoreAddresses : coreAddresses
   const nonDustUtxos = utxos.filter(utxo => utxo.satoshis >= CORE_DUST_FILTER_DUFFS)
   const visibleUtxos = filterDust ? nonDustUtxos : utxos
   const selectedOutpoints = draft.kind === 'coreOutpoints' ? new Set(draft.outpoints) : new Set<string>()
@@ -103,8 +112,8 @@ export default function CoinControlModal({
   const displayedShieldedNotes = onlySelected && selectedShieldedNotes.length > 0
     ? selectedShieldedNotes
     : visibleShieldedNotes
-  const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
-  const {count: selectedCount, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
+  const {count: selectedCount, duffs: selectedAmountDuffs, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
+  const isCoreSend = operation === TransferOperation.CoreSend
   const selectedItemLabel = coinControlInputLabel(sourceKind, selectedCount)
   const canApply = normalizeCoinControlSelection(draft, operation) === draft
     && isCoinControlSelectionValid(draft, buildCoinControlInventory(funds))
@@ -118,46 +127,25 @@ export default function CoinControlModal({
 
     switch (sourceKind) {
       case SourceKind.Core:
-        if (nextMode === CoinControlMode.Address) {
-          setDraft({kind: 'coreAddress', address: visibleCoreAddresses[0]?.address ?? ''})
-        } else {
-          setDraft({kind: 'coreOutpoints', outpoints: []})
-        }
+        setDraft({kind: 'coreOutpoints', outpoints: []})
         break
       case SourceKind.PlatformAddress:
-        if (nextMode === CoinControlMode.Address) {
-          setDraft({kind: 'platformAddress', address: visiblePlatformAddresses[0]?.platformAddress ?? ''})
-        } else {
-          setDraft({kind: 'platformInputs', inputs: [], feeAddress: ''})
-        }
+        setDraft({kind: 'platformInputs', inputs: [], feeAddress: ''})
         break
       case SourceKind.Shielded:
-        if (nextMode === CoinControlMode.Address) {
-          setDraft({kind: 'shieldedAddress', address: visibleShieldedAddresses[0] ?? ''})
-        } else {
-          setDraft({kind: 'shieldedNotes', noteIndexes: []})
-        }
+        setDraft({kind: 'shieldedNotes', noteIndexes: []})
         break
     }
   }
 
-  let mode = CoinControlMode.Inputs
-  switch (draft.kind) {
-    case 'automatic':
-      mode = CoinControlMode.Automatic
-      break
-    case 'coreAddress':
-    case 'platformAddress':
-    case 'shieldedAddress':
-      mode = CoinControlMode.Address
-      break
-  }
+  const mode = draft.kind === 'automatic' ? CoinControlMode.Automatic : CoinControlMode.Inputs
 
   const modeButton = (value: CoinControlMode, label: string): React.JSX.Element => (
     <button
       type={'button'}
       onClick={() => chooseMode(value)}
-      className={`flex-1 rounded-[.75rem] px-3 py-2 cursor-pointer transition-colors ${mode === value ? 'dash-bg-inverse' : 'dash-block hover:dash-block-accent-10'}`}
+      aria-pressed={mode === value}
+      className={`flex-1 rounded-[.75rem] px-3 py-2 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40 transition-colors ${mode === value ? 'dash-bg-inverse' : 'dash-block hover:dash-block-accent-10'}`}
     >
       <Text size={12} weight={'extrabold'} color={mode === value ? 'blue-mint' : 'brand'}>{label}</Text>
     </button>
@@ -167,7 +155,7 @@ export default function CoinControlModal({
   let sourceError: string | null = null
   let retrySource = onRetryUtxos
   if (sourceKind === SourceKind.Core) {
-    sourceLoading = utxosLoading || coreSyncIncomplete
+    sourceLoading = utxosLoading || (coreSyncIncomplete && !utxosLocalSnapshot)
     sourceError = utxosError
     if (mode !== CoinControlMode.Inputs) {
       sourceLoading = coreAddressesLoading
@@ -180,9 +168,12 @@ export default function CoinControlModal({
     retrySource = onRetryPlatformAddresses
   }
   const sourceReady = !sourceLoading && sourceError == null
+  const hasCoreInputs = sourceKind === SourceKind.Core && mode === CoinControlMode.Inputs && utxos.length > 0
+  const refreshingCoreInputs = hasCoreInputs && sourceLoading
+  const waitingForCoreSync = coreSyncIncomplete && !utxosLocalSnapshot && sourceKind === SourceKind.Core
+  const showLoadingMessage = sourceLoading && !hasCoreInputs && (!waitingForCoreSync || showSyncWarning)
 
   const fixed = sourceKind == null
-  const inputModeLabel = sourceKind == null ? 'Inputs' : INPUT_MODE_LABEL[sourceKind]
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
   let fixedValue = identityId ?? identityLabel ?? 'No identity selected'
   if (operation === TransferOperation.Shield) {
@@ -209,11 +200,6 @@ export default function CoinControlModal({
     if (!checked) return
 
     switch (draft.kind) {
-      case 'coreAddress':
-        if (!nonDustCoreAddresses.some(address => address.address === draft.address)) {
-          setDraft({kind: 'coreAddress', address: nonDustCoreAddresses[0]?.address ?? ''})
-        }
-        break
       case 'coreOutpoints': {
         const visibleOutpoints = new Set(nonDustUtxos.map(outpointKey))
         const outpoints = draft.outpoints.filter(outpoint => visibleOutpoints.has(outpoint))
@@ -224,11 +210,6 @@ export default function CoinControlModal({
         })
         break
       }
-      case 'platformAddress':
-        if (!nonDustPlatformAddresses.some(address => address.platformAddress === draft.address)) {
-          setDraft({kind: 'platformAddress', address: nonDustPlatformAddresses[0]?.platformAddress ?? ''})
-        }
-        break
       case 'platformInputs': {
         const visibleAddresses = new Set(nonDustPlatformAddresses.map(address => address.platformAddress))
         const inputs = draft.inputs.filter(input => visibleAddresses.has(input.address))
@@ -238,11 +219,6 @@ export default function CoinControlModal({
         setDraft({kind: 'platformInputs', inputs, feeAddress})
         break
       }
-      case 'shieldedAddress':
-        if (!nonDustShieldedAddresses.includes(draft.address)) {
-          setDraft({kind: 'shieldedAddress', address: nonDustShieldedAddresses[0] ?? ''})
-        }
-        break
       case 'shieldedNotes': {
         const visibleNoteIndexes = new Set(nonDustShieldedNotes.map(note => note.index))
         setDraft({
@@ -325,7 +301,12 @@ export default function CoinControlModal({
         </div>
 
         <div className={'mt-5 min-w-0 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
-          {sourceLoading && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{coreSyncIncomplete && sourceKind === SourceKind.Core ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
+          {utxosLocalSnapshot && sourceKind === SourceKind.Core && (
+            <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-3 block'}>
+              P2P sync is paused. UTXOs reflect the latest locally saved data. Resume sync before sending.
+            </Text>
+          )}
+          {showLoadingMessage && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{waitingForCoreSync ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
           {!sourceLoading && sourceError && (
             <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>
           )}
@@ -344,8 +325,7 @@ export default function CoinControlModal({
             <>
               <div className={'flex gap-2'}>
                 {modeButton(CoinControlMode.Automatic, 'Automatic')}
-                {modeButton(CoinControlMode.Address, 'One address')}
-                {modeButton(CoinControlMode.Inputs, inputModeLabel)}
+                {modeButton(CoinControlMode.Inputs, 'Manual')}
               </div>
 
               {sourceKind != null && mode !== CoinControlMode.Automatic && (
@@ -353,7 +333,9 @@ export default function CoinControlModal({
                   {mode === CoinControlMode.Inputs && (
                     <div className={'flex flex-wrap items-center gap-3'}>
                       <Text size={12} weight={'medium'} color={'brand'} opacity={50}>
-                        Selected: {selectedCount} {selectedItemLabel} · <CreditsAmount credits={selectedAmountCredits} exact showFiat={false} />
+                        Selected: {selectedCount} {selectedItemLabel} · {isCoreSend
+                          ? `${davToDash(selectedAmountDuffs)} Dash`
+                          : <CreditsAmount credits={selectedAmountCredits} exact showFiat={false} />}
                       </Text>
                       {selectedCount > 0 && (
                         <Checkbox
@@ -384,56 +366,8 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.Core && (
-                <div className={'mt-4 flex flex-col gap-1'}>
-                  {coreAddresses.length === 0 && <Empty text={'No funded Core addresses'} />}
-                  {coreAddresses.length > 0 && visibleCoreAddresses.length === 0 && (
-                    <Empty text={'All Core addresses are below the dust threshold.'} />
-                  )}
-                  {visibleCoreAddresses.map(entry => (
-                    <ChoiceRow key={entry.address} checked={draft.kind === 'coreAddress' && draft.address === entry.address} onChange={() => setDraft({kind: 'coreAddress', address: entry.address})}>
-                      <DashLogo size={18} className={'shrink-0'} />
-                      <AddressValue address={entry.address} detail={<CreditsAmount credits={duffsToCredits(entry.balance)} exact showFiat={false} />} />
-                    </ChoiceRow>
-                  ))}
-                </div>
-              )}
-
-              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.PlatformAddress && (
-                <div className={'mt-4 flex flex-col gap-1'}>
-                  {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
-                  {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
-                    <Empty text={'All Platform addresses are below the dust threshold.'} />
-                  )}
-                  {visiblePlatformAddresses.map(entry => (
-                    <ChoiceRow key={entry.platformAddress} checked={draft.kind === 'platformAddress' && draft.address === entry.platformAddress} onChange={() => setDraft({kind: 'platformAddress', address: entry.platformAddress})}>
-                      <CreditsIcon size={18} className={'shrink-0'} />
-                      <AddressValue address={entry.platformAddress} detail={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} />} />
-                    </ChoiceRow>
-                  ))}
-                </div>
-              )}
-
-              {sourceReady && mode === CoinControlMode.Address && sourceKind === SourceKind.Shielded && (
-                <div className={'mt-4 flex flex-col gap-1'}>
-                  {shieldedAddresses.length === 0 && <Empty text={'No spendable shielded addresses'} />}
-                  {shieldedAddresses.length > 0 && visibleShieldedAddresses.length === 0 && (
-                    <Empty text={'All shielded addresses are below the dust threshold.'} />
-                  )}
-                  {visibleShieldedAddresses.map(address => {
-                    const total = shieldedBalances.get(address) ?? 0n
-                    return (
-                      <ChoiceRow key={address} checked={draft.kind === 'shieldedAddress' && draft.address === address} onChange={() => setDraft({kind: 'shieldedAddress', address})}>
-                        <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
-                        <AddressValue address={address} detail={<CreditsAmount credits={total} exact showFiat={false} />} />
-                      </ChoiceRow>
-                    )
-                  })}
-                </div>
-              )}
-
-              {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
-                <div className={'mt-4 flex flex-col gap-1'}>
+              {(sourceReady || hasCoreInputs) && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
+                <div className={'mt-4 flex flex-col gap-2'} aria-busy={refreshingCoreInputs}>
                   {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
                   {utxos.length > 0 && visibleUtxos.length === 0 && (
                     <Empty text={'All UTXOs are below the dust threshold.'} />
@@ -442,9 +376,24 @@ export default function CoinControlModal({
                     const key = outpointKey(utxo)
                     const checked = draft.kind === 'coreOutpoints' && draft.outpoints.includes(key)
                     return (
-                      <CheckRow key={key} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
-                        <DashLogo size={18} className={'shrink-0'} />
-                        <AddressValue address={key} detail={<><CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} /> · {utxo.address}{utxo.height === 0 ? ' · pending' : ''}</>} />
+                      <CheckRow key={key} label={`Select ${utxo.address}, output ${key}`} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
+                          <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
+                            <span className={'min-w-0 flex items-center gap-2'}>
+                              <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
+                              <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
+                            </span>
+                            <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
+                              {isCoreSend
+                                ? `${davToDash(utxo.satoshis)} Dash`
+                                : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
+                            </Text>
+                          </span>
+                        <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
+                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
+                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
+                            {formatTimestamp(utxo.timestamp)}
+                          </Text>
+                        </div>
                       </CheckRow>
                     )
                   })}
@@ -452,8 +401,9 @@ export default function CoinControlModal({
               )}
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
-                <div className={'mt-4 flex flex-col gap-1'}>
+                <div className={'mt-4 flex flex-col gap-2'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Up to {PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.</Text>
+                  {feeFromOutput && <Text size={12} weight="medium" color="brand" opacity={50}>The network fee will be deducted from the recipient selected on Send.</Text>}
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
                   {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
                     <Empty text={'All Platform inputs are below the dust threshold.'} />
@@ -463,16 +413,16 @@ export default function CoinControlModal({
                     const full = selectedPlatformInputs.length >= PLATFORM_INPUT_LIMIT
                     const invalid = selected != null && (selected.credits <= 0n || selected.credits > entry.balanceCredits)
                     return (
-                      <div key={entry.platformAddress} className={`rounded-[.75rem] p-3 ${selected ? 'dash-block-accent-5' : 'dash-block'} ${!selected && full ? 'opacity-40' : ''}`}>
-                        <CheckRow bare checked={selected != null} onChange={checked => togglePlatformInput(entry, checked)}>
+                      <CheckRow key={entry.platformAddress} label={`Select ${entry.platformAddress}`} checked={selected != null} disabled={!selected && full} onChange={checked => togglePlatformInput(entry, checked)}>
+                        <div className={'flex items-center gap-2.5'}>
                           <CreditsIcon size={18} className={'shrink-0'} />
-                          <AddressValue address={entry.platformAddress} detail={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} />} />
-                        </CheckRow>
+                          <InputDetails label={'Platform input'} address={entry.platformAddress} amount={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} align={'end'} />} />
+                        </div>
                         {selected && (
-                          <div className={'mt-3 ml-7 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
+                          <div className={'mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
                             <label
                               htmlFor={`coin-control-amount-${entry.platformAddress}`}
-                              className={'col-start-1 row-start-1'}
+                              className={'pointer-events-auto col-start-1 row-start-1'}
                             >
                               <Text size={10} weight={'medium'} color={invalid ? 'red' : 'brand'} opacity={invalid ? 100 : 50}>Dash from this input</Text>
                             </label>
@@ -482,7 +432,7 @@ export default function CoinControlModal({
                               invalid={invalid}
                               onChange={credits => setPlatformInputCredits(entry.platformAddress, credits)}
                             />
-                            <label className={'col-start-2 row-start-2 self-center flex items-center gap-1.5 cursor-pointer select-none shrink-0'}>
+                            {!feeFromOutput && <label className={'pointer-events-auto col-start-2 row-start-2 self-center flex items-center gap-1.5 cursor-pointer select-none shrink-0'}>
                               <input
                                 type={'radio'}
                                 checked={draft.kind === 'platformInputs' && draft.feeAddress === entry.platformAddress}
@@ -490,17 +440,17 @@ export default function CoinControlModal({
                                 className={'accent-dash-brand dark:accent-dash-mint'}
                               />
                               <Text size={12} weight={'medium'} color={'brand'}>Pays fee</Text>
-                            </label>
+                            </label>}
                           </div>
                         )}
-                      </div>
+                      </CheckRow>
                     )
                   })}
                 </div>
               )}
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Shielded && (
-                <div className={'mt-4 flex flex-col gap-1'}>
+                <div className={'mt-4 flex flex-col gap-2'}>
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Choose up to {SHIELDED_NOTE_LIMIT} notes.</Text>
                   {shieldedNotes.length === 0 && <Empty text={'No spendable shielded notes'} />}
                   {shieldedNotes.length > 0 && visibleShieldedNotes.length === 0 && (
@@ -511,9 +461,11 @@ export default function CoinControlModal({
                     const checked = picked.includes(note.index)
                     const full = picked.length >= SHIELDED_NOTE_LIMIT
                     return (
-                      <CheckRow key={note.index} checked={checked} disabled={!checked && full} onChange={next => toggleShieldedNote(note.index, next)}>
-                        <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
-                        <AddressValue address={`note #${note.index}`} detail={<><CreditsAmount credits={note.amount} exact showFiat={false} /> · {note.address}</>} />
+                      <CheckRow key={note.index} label={`Select note ${note.index}, ${note.address}`} checked={checked} disabled={!checked && full} onChange={next => toggleShieldedNote(note.index, next)}>
+                        <div className={'flex items-center gap-2.5'}>
+                          <ShieldSmallIcon size={16} className={'shrink-0 text-dash-brand dark:text-dash-mint'} />
+                          <InputDetails label={`Note #${note.index}`} address={note.address} amount={<CreditsAmount credits={note.amount} exact showFiat={false} align={'end'} />} />
+                        </div>
                       </CheckRow>
                     )
                   })}
@@ -541,7 +493,7 @@ export default function CoinControlModal({
             size={'sm'}
             className={'flex-1 rounded-[.9375rem]'}
           >
-            {fixed ? 'Done' : 'Apply'}
+            {fixed ? 'Done' : refreshingCoreInputs ? 'Updating…' : 'Apply'}
           </Button>
         </div>
       </div>
@@ -554,30 +506,26 @@ function Empty({text}: CoinControlEmptyProps): React.JSX.Element {
   return <div className={'dash-block rounded-[.75rem] p-4'}><Text size={12} weight={'medium'} color={'brand'} opacity={50}>{text}</Text></div>
 }
 
-function AddressValue({address, detail}: CoinControlAddressValueProps): React.JSX.Element {
+function InputDetails({label, amount, address}: CoinControlInputDetailsProps): React.JSX.Element {
   return (
-    <span className={'min-w-0 flex-1 flex flex-col items-start'}>
-      <Text reset size={12} weight={'medium'} color={'brand'} className={'w-full font-mono whitespace-normal break-all text-left'}>{address}</Text>
-      <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'w-full whitespace-normal break-all text-left'}>{detail}</Text>
+    <span className={'min-w-0 flex-1 flex flex-col gap-1.5 text-left'}>
+      <span className={'flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
+        <Text reset size={12} weight={'medium'} color={'brand'} opacity={50}>{label}</Text>
+        <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto text-right tabular-nums'}>{amount}</Text>
+      </span>
+      <span className={'flex items-center gap-2'}>
+        <Text reset size={12} weight={'medium'} color={'brand'} className={'min-w-0 font-mono break-all'}>{address}</Text>
+        <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={address} /></span>
+      </span>
     </span>
   )
 }
 
-function ChoiceRow({checked, onChange, children}: CoinControlChoiceRowProps): React.JSX.Element {
+function CheckRow({label, checked, onChange, children, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
   return (
-    <label className={`min-w-0 flex items-center gap-2.5 rounded-[.75rem] p-3 cursor-pointer ${checked ? 'dash-block-accent-5' : 'dash-block'}`}>
-      <input type={'radio'} checked={checked} onChange={onChange} className={'shrink-0 accent-dash-brand dark:accent-dash-mint'} />
-      {children}
-    </label>
-  )
-}
-
-function CheckRow({checked, onChange, children, disabled = false, bare = false}: CoinControlCheckRowProps): React.JSX.Element {
-  let rowClass = ''
-  if (!bare) rowClass = `rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'}`
-  return (
-    <div className={`min-w-0 ${rowClass} ${disabled ? 'opacity-40' : ''}`}>
-      <Checkbox className={'min-w-0 w-full'} checked={checked} onChange={next => !disabled && onChange(next)} label={<span className={'min-w-0 flex-1 flex items-center gap-2.5'}>{children}</span>} />
+    <div className={`relative min-w-0 rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'} ${disabled ? 'opacity-40' : ''}`}>
+      <Checkbox className={`absolute inset-0 items-start! p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
+      <div className={'relative pointer-events-none min-w-0 ml-7'}>{children}</div>
     </div>
   )
 }

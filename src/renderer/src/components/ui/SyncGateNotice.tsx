@@ -1,6 +1,10 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 
-export default function SyncGateNotice({ className = '' }: { className?: string }): React.JSX.Element {
+export default function SyncGateNotice({ className = '' }: { className?: string }): React.JSX.Element | null {
+  const { showSyncWarning } = useConnectionModeContext()
+  if (!showSyncWarning) return null
+
   return (
     <div className={`flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3 ${className}`}>
       <Text size={14} weight={"extrabold"} color={"brand"}>

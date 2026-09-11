@@ -5,10 +5,11 @@ import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import { useTheme } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
-import { ShieldedSpendState } from '@renderer/api/types'
+import { PlatformRecipient, ShieldedSpendState } from '@renderer/api/types'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import Spinner from '@renderer/components/ui/Spinner'
@@ -23,6 +24,7 @@ interface ShieldedSpendModalProps {
   toValue: string
   amountCredits: string
   feeCredits: bigint | null
+  recipients?: PlatformRecipient[]
   proverReady: boolean
   start: (password: string) => Promise<ShieldedSpendState>
   sourceValid?: boolean
@@ -50,6 +52,7 @@ export default function ShieldedSpendModal({
   toValue,
   amountCredits,
   feeCredits,
+  recipients,
   proverReady,
   start,
   sourceValid = true,
@@ -67,6 +70,7 @@ export default function ShieldedSpendModal({
   const [started, setStarted] = useState(false)
   const [spend, setSpend] = useState<ShieldedSpendState | null>(null)
   const [sentAmount, setSentAmount] = useState('')
+  const [sentRecipients, setSentRecipients] = useState<PlatformRecipient[] | null>(null)
   const notified = useRef(false)
 
   useEffect(() => {
@@ -77,6 +81,7 @@ export default function ShieldedSpendModal({
       setStarted(false)
       setSpend(null)
       setSentAmount('')
+      setSentRecipients(null)
       notified.current = false
     }
   }, [isOpen])
@@ -130,6 +135,7 @@ export default function ShieldedSpendModal({
         return
       }
       setSentAmount(amountCredits)
+      setSentRecipients(recipients?.map(recipient => ({ ...recipient })) ?? null)
       const initial = await start(password)
       setSpend(initial)
       setStarted(true)
@@ -149,14 +155,14 @@ export default function ShieldedSpendModal({
   }
 
   const requestClose = (): void => {
-    if (running) return
+    if (running || busy) return
     onClose()
   }
 
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = BigInt(sentAmount || amountCredits || '0')
-  let confirmLabel = 'Confirm & Send'
+  let confirmLabel = 'Sign & Send'
   if (busy) confirmLabel = 'Starting…'
   else if (!proverReady) confirmLabel = 'Preparing…'
   let modalTitle = title
@@ -167,7 +173,7 @@ export default function ShieldedSpendModal({
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
     >
       <div
-        className={"w-full max-w-140 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
+        className={"w-full max-w-170 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>
@@ -176,7 +182,7 @@ export default function ShieldedSpendModal({
           <button
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
             onClick={requestClose}
-            disabled={running}
+            disabled={running || busy}
           >
             <CrossIcon size={16} color={"currentColor"} className={"dash-text-default"} />
           </button>
@@ -195,10 +201,11 @@ export default function ShieldedSpendModal({
                   <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
                 </div>
               )}
-              <div className={"flex justify-between items-center gap-4"}>
+              {recipients ? <RecipientSummary recipients={recipients} /> : <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{toLabel}</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toValue}</Text>
-              </div>
+              </div>}
+              {recipients && feeCredits != null && <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text><Text size={14} weight="extrabold" color="brand"><CreditsAmount credits={BigInt(amountCredits) + feeCredits} align="end" exact /></Text></div>}
             </div>
 
             <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
@@ -308,6 +315,7 @@ export default function ShieldedSpendModal({
               )}
             </div>
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+              {sentRecipients && <RecipientSummary recipients={sentRecipients} />}
               {spend?.identityId && <HashField hash={spend.identityId} label={"Identity"} />}
               {spend?.stHash && <HashField hash={spend.stHash} explorerUrl={network ? platformTransactionUrl(spend.stHash, network) : null} />}
             </div>

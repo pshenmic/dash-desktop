@@ -12,3 +12,8 @@ export function timePart(date: Date): string {
     minute: '2-digit',
   })
 }
+
+export function formatTimestamp(date: Date | null): string {
+  if (date === null || !Number.isFinite(date.getTime())) return 'Unknown'
+  return `${formatCreationDate(date)}, ${timePart(date)}`
+}

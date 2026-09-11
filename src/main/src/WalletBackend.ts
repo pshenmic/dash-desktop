@@ -36,6 +36,7 @@ import {SetWalletLabel} from "./api/wallet/setWalletLabel";
 import {SendTransactionHandler} from "./api/wallet/sendTransaction";
 import {GetTxLockStatusHandler} from "./api/wallet/getTxLockStatus";
 import {EstimateFeeHandler} from "./api/wallet/estimateFee";
+import {PreviewTransactionHandler} from "./api/wallet/previewTransaction";
 import {FeeService} from './services/wallet/FeeService'
 import {SendPlatformTransferHandler} from "./api/wallet/sendPlatformTransfer";
 import {TopUpIdentityFromAddressesHandler} from "./api/wallet/topUpIdentityFromAddresses";
@@ -177,6 +178,7 @@ export class WalletBackend {
     registerHandler('sendTransaction', new SendTransactionHandler(this.walletService).handle)
     registerHandler('getTxLockStatus', new GetTxLockStatusHandler(this.coreLockService).handle)
     registerHandler('estimateFee', new EstimateFeeHandler(this.feeService).handle)
+    registerHandler('previewTransaction', new PreviewTransactionHandler(this.feeService).handle)
     registerHandler('sendPlatformTransfer', new SendPlatformTransferHandler(this.platformTransferService).handle)
     registerHandler('topUpIdentityFromAddresses', new TopUpIdentityFromAddressesHandler(this.platformTransferService).handle)
     registerHandler('withdrawPlatformCredits', new WithdrawPlatformCreditsHandler(this.platformTransferService).handle)
@@ -286,7 +288,7 @@ export class WalletBackend {
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
     this.platformAddressService = new PlatformAddressService(walletDAO, new PlatformAddressDAO(knex), this.platformWorkerService)
-    this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, providers, preferences)
+    this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, coreTransactionService, providers, preferences)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
     this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformAddressService, this.platformWorkerService, this.shieldedService, this.feeService, preferences)
     this.walletDAO = walletDAO

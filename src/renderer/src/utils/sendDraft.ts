@@ -1,6 +1,7 @@
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
-import type { SendDraft } from '../types/SendDraft'
+import type { AdvancedSendRoute, SendDraft } from '../types/SendDraft'
+import type { TransferOperation } from '../enums/TransferOperation'
 import { automaticCoinControl, normalizeCoinControlSelection } from './coinControl'
 import { resolveOperation } from './transferMatrix'
 
@@ -24,6 +25,8 @@ export function createSendDraft(from: string | null = null, to: string | null = 
     amount: '',
     acked: false,
     coinControl: automaticCoinControl(),
+    advanced: false,
+    advancedRoutes: {},
   }
 }
 
@@ -50,4 +53,36 @@ export function saveSendDraft(walletId: string, draft: SendDraft): void {
 
 export function clearSendDraft(walletId: string): void {
   sendDrafts.delete(walletId)
+}
+
+export function getAdvancedSendRoute(draft: SendDraft, operation: TransferOperation | null): AdvancedSendRoute {
+  return (operation == null ? undefined : draft.advancedRoutes[operation]) ?? {
+    recipients: [{id: 'first', address: '', amount: ''}],
+    subtractFee: false,
+    feeRecipientId: null,
+  }
+}
+
+export function setSendAdvanced(draft: SendDraft, advanced: boolean): SendDraft {
+  const operation = resolveOperation(draft.fromKind, draft.toKind)
+  if (!advanced || operation == null || draft.advancedRoutes[operation]) return {...draft, advanced}
+  return {
+    ...draft,
+    advanced,
+    advancedRoutes: {
+      ...draft.advancedRoutes,
+      [operation]: {
+        recipients: [{id: 'first', address: draft.toValue, amount: draft.amount}],
+        subtractFee: false,
+        feeRecipientId: null,
+      },
+    },
+  }
+}
+
+export function resetCurrentSendRoute(draft: SendDraft): SendDraft {
+  const operation = resolveOperation(draft.fromKind, draft.toKind)
+  const advancedRoutes = {...draft.advancedRoutes}
+  if (draft.advanced && operation != null) delete advancedRoutes[operation]
+  return {...draft, toValue: '', amount: '', acked: false, coinControl: automaticCoinControl(), advancedRoutes}
 }

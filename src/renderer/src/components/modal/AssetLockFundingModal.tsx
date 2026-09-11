@@ -67,7 +67,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneNote: 'The locked Dash is now available as credits.',
     toLabel: 'To (Platform)',
     emptyTo: '',
-    confirm: 'Confirm & Fund',
+    confirm: 'Sign & Send',
   },
   shielded: {
     title: 'Shield from L1',
@@ -77,7 +77,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
     toLabel: 'To (Shielded)',
     emptyTo: '',
-    confirm: 'Confirm & Shield',
+    confirm: 'Sign & Send',
   },
   identity: {
     title: 'Register identity',
@@ -87,7 +87,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneNote: "The locked Dash is now this identity's credit balance.",
     toLabel: 'Creates',
     emptyTo: 'New Platform identity with 6 keys',
-    confirm: 'Confirm & Register',
+    confirm: 'Sign & Send',
   },
   identityTopUp: {
     title: 'Top up identity from L1',
@@ -97,7 +97,7 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneNote: "The locked Dash is now credits on the identity's balance.",
     toLabel: 'Identity',
     emptyTo: '',
-    confirm: 'Confirm & Top up',
+    confirm: 'Sign & Send',
   },
 }
 
@@ -245,7 +245,7 @@ export default function AssetLockFundingModal({
       className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
     >
       <div
-        className={"w-full max-w-140 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
+        className={"w-full max-w-170 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
       >
         <div className={"flex items-center justify-between"}>
           <Text size={24} weight={"extrabold"} color={"brand"}>

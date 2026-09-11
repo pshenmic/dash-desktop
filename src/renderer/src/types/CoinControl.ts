@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
+import type { ConnectionType, PlatformAddressDto, SelectableUtxo, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
 import type { TransferOperation } from '../enums/TransferOperation'
 
 export type CoinControlSelection =
@@ -40,6 +40,7 @@ export interface CoinControlInputLabel {
 export interface WalletUtxosResult {
   utxos: SelectableUtxo[]
   loading: boolean
+  localSnapshot: boolean
   error: string | null
   retry: () => void
 }
@@ -51,6 +52,7 @@ export interface CoinControlFixedSourceCopy {
 
 export interface CoinControlModalProps {
   isOpen: boolean
+  feeFromOutput?: boolean
   operation: TransferOperation | null
   selection: CoinControlSelection
   coreAddresses: WalletAddressDto[]
@@ -59,6 +61,7 @@ export interface CoinControlModalProps {
   onRetryCoreAddresses: () => void
   utxos: SelectableUtxo[]
   utxosLoading: boolean
+  utxosLocalSnapshot: boolean
   utxosError: string | null
   coreSyncIncomplete: boolean
   platformAddresses: PlatformAddressDto[]
@@ -85,21 +88,31 @@ export interface CoinControlAmountInputProps {
   onChange: (credits: bigint) => void
 }
 
-export interface CoinControlAddressValueProps {
+export interface CoinControlInputDetailsProps {
+  label: string
+  amount: ReactNode
   address: string
-  detail: ReactNode
 }
 
-export interface CoinControlChoiceRowProps {
-  checked: boolean
-  onChange: () => void
-  children: ReactNode
+export interface WalletUtxosRequest {
+  walletId: string | null
+  syncIncomplete: boolean
+  localSnapshot: boolean
+  connectionType: ConnectionType
+  refreshKey: number
+  reload: number
+}
+
+export interface WalletUtxosSnapshot {
+  request: WalletUtxosRequest
+  utxos: SelectableUtxo[]
+  error: string | null
 }
 
 export interface CoinControlCheckRowProps {
+  label: string
   checked: boolean
   onChange: (checked: boolean) => void
   children: ReactNode
   disabled?: boolean
-  bare?: boolean
 }

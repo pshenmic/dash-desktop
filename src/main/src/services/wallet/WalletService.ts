@@ -332,6 +332,7 @@ export class WalletService {
     recipients: CoreRecipient[],
     password: string,
     source?: CoreSpendSource,
+    changeTo?: string,
   ): Promise<SendResult> {
     const amountDuffs = requireCoreRecipients(recipients)
 
@@ -339,8 +340,9 @@ export class WalletService {
       const network = wallet.network
       const outputs = recipients.map(recipient => ({
         ...recipient,
-        recipientType: this.coreTransactionService.classifyRecipientAddress(recipient.address, network),
+        recipientType: this.coreTransactionService.classifyAddress(recipient.address, network),
       }))
+      if (changeTo != null) this.coreTransactionService.requireChangeAddress(changeTo, network)
       const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
       const provider = this.providers.forWallet(walletId, network)
       await provider.ensureReady()
@@ -352,6 +354,7 @@ export class WalletService {
           amountDuffs,
           inputsCount => coreFeeDuffsFor(coreFeeMultiplier, inputsCount, outputs.length, true),
           source,
+          changeTo,
         )
 
       const tx = await this.coreTransactionService.buildSignedTransfer({

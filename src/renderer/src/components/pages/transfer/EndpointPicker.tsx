@@ -10,6 +10,7 @@ import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 import DropdownField from "@renderer/components/ui/DropdownField";
+import type { DropdownFieldOption } from "@renderer/types/DropdownField";
 
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
 const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
@@ -213,6 +214,7 @@ interface DestinationPickerProps {
   placeholder: string
   error: string | null
   showValueInput: boolean
+  ownOptions?: DropdownFieldOption[]
 }
 
 export function DestinationPicker({
@@ -224,6 +226,7 @@ export function DestinationPicker({
   placeholder,
   error,
   showValueInput,
+  ownOptions,
 }: DestinationPickerProps): React.JSX.Element {
   return (
     <div className={"flex flex-col gap-2"}>
@@ -231,7 +234,17 @@ export function DestinationPicker({
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
       {showValueInput && kind !== DestinationKind.NewIdentity && (
         <>
-          <div className={`${inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
+          {ownOptions ? <DropdownField
+            editable
+            ariaLabel={kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'}
+            value={value}
+            onChange={onValueChange}
+            options={ownOptions}
+            menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
+            placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
+            inputInvalid={!!error}
+            triggerClassName={inputBox}
+          /> : <div className={`${inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
             <input
               type={"text"}
               value={value}
@@ -239,7 +252,7 @@ export function DestinationPicker({
               className={"w-full bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"}
               placeholder={placeholder}
             />
-          </div>
+          </div>}
           {error && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{error}</Text>}
         </>
       )}

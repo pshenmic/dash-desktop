@@ -3,6 +3,7 @@ import { createBase58check } from '@scure/base'
 import { sha256 } from '@noble/hashes/sha2.js'
 import {
   isValidDashAddress,
+  isValidDashChangeAddress,
   dashAddressNetwork,
 } from '../../src/renderer/src/utils/address'
 
@@ -80,5 +81,24 @@ describe('dashAddressNetwork', () => {
   it('returns null for invalid addresses', () => {
     expect(dashAddressNetwork('nope')).toBe(null)
     expect(dashAddressNetwork(makeAddress(99))).toBe(null)
+  })
+})
+
+describe('isValidDashChangeAddress', () => {
+  it('accepts P2PKH change only on the requested network', () => {
+    expect(isValidDashChangeAddress(MAINNET_P2PKH, 'mainnet')).toBe(true)
+    expect(isValidDashChangeAddress(TESTNET_P2PKH, 'testnet')).toBe(true)
+    expect(isValidDashChangeAddress(TESTNET_P2PKH, 'mainnet')).toBe(false)
+    expect(isValidDashChangeAddress(MAINNET_P2PKH, 'testnet')).toBe(false)
+    expect(isValidDashChangeAddress(`  ${MAINNET_P2PKH}  `)).toBe(true)
+  })
+
+  it('rejects P2SH change while keeping those addresses valid as recipients', () => {
+    for (const address of [MAINNET_P2SH, TESTNET_P2SH]) {
+      expect(isValidDashChangeAddress(address)).toBe(false)
+      expect(isValidDashAddress(address)).toBe(true)
+    }
+    expect(isValidDashChangeAddress('')).toBe(false)
+    expect(isValidDashChangeAddress('invalid')).toBe(false)
   })
 })

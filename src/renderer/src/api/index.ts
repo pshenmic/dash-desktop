@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -147,6 +147,14 @@ export class API {
     return this.api.estimateFee(walletId, operation, params) as Promise<OperationFee>
   }
 
+  static async previewTransaction(
+    walletId: string,
+    operation: TransferOperation,
+    params: PreviewParams,
+  ): Promise<TransactionPreview> {
+    return this.api.previewTransaction(walletId, operation, params) as Promise<TransactionPreview>
+  }
+
   static async deleteWallet(walletId: string): Promise<void> {
     return this.api.deleteWallet(walletId)
   }
@@ -207,8 +215,8 @@ export class API {
     return this.api.deleteContact(id)
   }
 
-  static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource): Promise<SendResult> {
-    return this.api.sendTransaction(walletId, recipients, password, source) as Promise<SendResult>
+  static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource, changeTo?: string): Promise<SendResult> {
+    return this.api.sendTransaction(walletId, recipients, password, source, changeTo) as Promise<SendResult>
   }
 
   static async getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus> {

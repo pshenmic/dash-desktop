@@ -2,7 +2,8 @@ import {IdentityTopUpFromAddressesTransitionWASM} from 'dash-platform-sdk/types.
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
 import {broadcast} from '../broadcast'
-import {signInputs, toFeeStrategy, toInputAddresses} from './signInputs'
+import {unsignedTransition} from '../unsignedTransition'
+import {signInputs} from './signInputs'
 
 type Payload = PlatformOperations['identityTopUpFromAddresses']['payload']
 type Result = PlatformOperations['identityTopUpFromAddresses']['result']
@@ -12,13 +13,8 @@ export async function identityTopUpFromAddresses(payload: Payload, ctx: Operatio
   const {seed, identifier, inputs} = payload
 
   ctx.progress('signing', 0, 0)
-  const unsigned = sdk.platformAddresses.createStateTransition('identityTopUpFromAddresses', {
-    identityId: identifier,
-    inputs: toInputAddresses(inputs),
-    feeStrategy: toFeeStrategy(payload.feeStrategy),
-    inputWitness: [],
-    userFeeIncrease: 0,
-  })
+  const unsigned = unsignedTransition(
+    {kind: 'identityTopUpFromAddresses', identifier, inputs, feeStrategy: payload.feeStrategy}, ctx)
 
   const transition = IdentityTopUpFromAddressesTransitionWASM.fromStateTransition(unsigned)
   transition.inputWitness = await signInputs(sdk, unsigned.getSignableBytes(), inputs, seed, network)

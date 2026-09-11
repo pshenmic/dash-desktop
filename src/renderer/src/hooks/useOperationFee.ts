@@ -1,36 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { OperationFee, OperationFeeParams } from '@renderer/api/types'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { NO_OPERATION_FEE, TRANSITION_FEE_DEBOUNCE_MS, TRANSITION_FEE_ERROR } from '@renderer/constants'
 import { invalidateAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
-import { coreSpendSourceKey, platformSpendSourceKey } from '@renderer/utils/coinControl'
+import { operationFeeRequest } from '@renderer/utils/operationFee'
 
-// Every fee comes from the backend. This only decides when to ask: not before
-// the destination parses, and not on every keystroke.
+// Core quotes need the output count; other routes may need parsed destinations.
 export function useOperationFee(
   walletId: string | null,
   operation: TransferOperation | null,
   params: OperationFeeParams,
 ): OperationFee & { loading: boolean; err: string | null; retry: () => void } {
-  const { destinationValid, amountCredits, amountDuffs, recipient, coreSource, platformSource, identityId, shieldedSource } = params
-
-  const noteKey = shieldedSource == null ? '' : `${shieldedSource.kind}:${shieldedSource.noteIndexes.join(',')}`
-  const platformSourceKey = platformSpendSourceKey(platformSource)
-  const coreSourceKey = coreSpendSourceKey(coreSource)
-
-  const pending = useMemo(
-    () => {
-      if (walletId === null || operation === null || !destinationValid) return null
-      const feeParams = { amountCredits, amountDuffs, recipient, coreSource, platformSource, identityId, shieldedSource }
-      return { feeParams, key: `${walletId}:${operation}:${amountCredits}:${amountDuffs}:${recipient}:${coreSourceKey}:${platformSourceKey}:${identityId}:${noteKey}` }
-    },
-    // shieldedSource and coreSource are keyed by their string forms: a fresh array
-    // or object holding the same pick is the same quote, and re-running on
-    // identity would re-ask on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [walletId, operation, destinationValid, amountCredits, amountDuffs, recipient, coreSourceKey, platformSourceKey, identityId, noteKey],
-  )
+  const pending = operationFeeRequest(walletId, operation, params)
 
   const [settled, setSettled] = useState<typeof pending>(null)
 
@@ -41,20 +23,28 @@ export function useOperationFee(
     }
     const timer = setTimeout(() => setSettled(pending), TRANSITION_FEE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [pending])
+  }, [pending?.key])
 
-  const quote = useAsyncWithCache<OperationFee>(
+  const quote = useAsyncWithCache<{ key: string; maxKey: string; fee: OperationFee } | null>(
     'operation-fee',
     settled?.key,
-    () => API.estimateFee(walletId!, operation!, settled!.feeParams),
-    NO_OPERATION_FEE,
+    async () => ({
+      key: settled!.key,
+      maxKey: settled!.maxKey,
+      fee: await API.estimateFee(settled!.walletId, settled!.operation, settled!.feeParams),
+    }),
+    null,
     { errorMessage: TRANSITION_FEE_ERROR },
   )
 
-  const debouncing = pending !== null && pending.key !== settled?.key
+  const loading = pending !== null && (quote.loading || pending.key !== settled?.key || (!quote.err && pending.key !== quote.data?.key))
+  const fee = pending == null ? NO_OPERATION_FEE : quote.data?.fee ?? NO_OPERATION_FEE
+  // Core's maximum depends on the funding set and output count, not the typed amount.
+  const maxDuffs = operation === TransferOperation.CoreSend && pending?.maxKey !== quote.data?.maxKey
+    ? null : fee.maxDuffs
 
   const retry = (): void => {
     if (settled) invalidateAsyncCache('operation-fee', settled.key)
   }
-  return { ...quote.data, loading: quote.loading || debouncing, err: quote.err, retry }
+  return { ...fee, maxDuffs, loading, err: quote.err, retry }
 }

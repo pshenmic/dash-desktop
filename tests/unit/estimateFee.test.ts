@@ -2,6 +2,7 @@ import {describe, it, expect, vi} from 'vitest'
 import {FeeService} from '../../src/main/src/services/wallet/FeeService'
 import {PlatformAddressService} from '../../src/main/src/services/platform/PlatformAddressService'
 import {ShieldedService} from '../../src/main/src/services/platform/ShieldedService'
+import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {Preferences} from '../../src/main/src/preferences'
@@ -13,6 +14,9 @@ import {Script} from 'dash-core-sdk'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
 import {UTXO} from '../../src/main/src/types/UTXO'
+import {TransferOperation} from '../../src/renderer/src/enums/TransferOperation'
+import {operationFeeRequest} from '../../src/renderer/src/utils/operationFee'
+import {capRecipientAmounts, recipientSliderAmount, recipientTotalDuffs} from '../../src/renderer/src/utils/sendRecipients'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../src/main/src/constants/chain'
 import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
 import {
@@ -72,6 +76,7 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
     {loadCandidates: async () => candidates} as unknown as PlatformAddressService,
     {request} as unknown as PlatformWorkerService,
     {estimateSpendFee} as unknown as ShieldedService,
+    new CoreTransactionService(),
     providers as unknown as WalletProviderFactory,
     Preferences.default(),
   )
@@ -90,6 +95,34 @@ function feeCalls(request: ReturnType<typeof vi.fn>): Array<{operation: string; 
 }
 
 describe('estimateFee', () => {
+  it('offers the same affordable Core maximum before and after entering an address', async () => {
+    const {service: svc} = service([], [utxo(ONE_DASH, 1), utxo(ONE_DASH, 2)])
+    const request = operationFeeRequest(WALLET, TransferOperation.CoreSend, {
+      ...params({recipient: [''], amountDuffs: 0n}), destinationValid: false,
+    })!
+    const emptyQuote = await svc.estimateFee(WALLET, 'coreSend', request.feeParams)
+    const rows = [{id: 'a', address: '', amount: ''}]
+    rows[0].amount = recipientSliderAmount(rows, 'a', emptyQuote.maxDuffs!, 100)
+    rows[0].address = CORE_ADDRESS
+    const addressedQuote = await svc.estimateFee(WALLET, 'coreSend', params({
+      recipient: [CORE_ADDRESS], amountDuffs: recipientTotalDuffs(rows),
+    }))
+    expect(addressedQuote.maxDuffs).toBe(emptyQuote.maxDuffs)
+    expect(recipientTotalDuffs(rows) + addressedQuote.feeDuffs!).toBe(2n * ONE_DASH)
+
+    rows.push({id: 'b', address: '', amount: ''})
+    const addedQuote = await svc.estimateFee(WALLET, 'coreSend', params({
+      recipient: rows.map(row => row.address), amountDuffs: recipientTotalDuffs(rows),
+    }))
+    expect(addedQuote.maxDuffs).toBeLessThan(emptyQuote.maxDuffs!)
+    const capped = capRecipientAmounts(rows, addedQuote.maxDuffs!)
+    expect(recipientTotalDuffs(capped)).toBe(addedQuote.maxDuffs)
+    const finalQuote = await svc.estimateFee(WALLET, 'coreSend', params({
+      recipient: capped.map(row => row.address), amountDuffs: recipientTotalDuffs(capped),
+    }))
+    expect(recipientTotalDuffs(capped) + finalQuote.feeDuffs!).toBe(2n * ONE_DASH)
+  })
+
   // Main decides which operations the worker prices and at what input count;
   // what each one costs is the worker's switch, tested through it.
   it('sends the operation and the params straight through, with no query in between', async () => {
