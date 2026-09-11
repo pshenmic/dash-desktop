@@ -73,6 +73,8 @@ export function selectableTransferUtxos(
       satoshis: utxo.satoshis,
       address: utxo.address,
       height: utxo.height,
+      timestamp: utxo.timestamp,
+      confirmations: utxo.confirmations,
     }))
 }
 

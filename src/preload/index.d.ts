@@ -55,6 +55,8 @@ interface SelectableUtxoDTO {
   satoshis: bigint
   address: string
   height: number
+  timestamp: Date | null
+  confirmations: number
 }
 
 // Hand-maintained alongside definitions.ts, and deliberately a second

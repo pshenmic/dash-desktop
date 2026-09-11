@@ -34,8 +34,8 @@ const funds: CoinControlFunds = {
     isChange: 0, isUsed: true, balance: 100_000_000n, txCount: 1, label: null, usdBalance: null,
   }],
   utxos: [
-    {txid: 'tx-a', vout: 0, satoshis: 1n, address: 'core-a', height: 1},
-    {txid: 'tx-b', vout: 1, satoshis: 99_999_999n, address: 'core-a', height: 1},
+    {txid: 'tx-a', vout: 0, satoshis: 1n, address: 'core-a', height: 1, timestamp: null, confirmations: 1},
+    {txid: 'tx-b', vout: 1, satoshis: 99_999_999n, address: 'core-a', height: 1, timestamp: null, confirmations: 1},
   ],
   platformAddresses: [
     {platformAddress: 'platform-a', balanceCredits: 5_000_000n, nonce: 0},
@@ -194,8 +194,8 @@ describe('coin control', () => {
       address: 'core-a',
     })
     expect(toCoreSpendSource({kind: 'coreOutpoints', outpoints: ['tx-b:1']}, [
-      {txid: 'tx-a', vout: 0, satoshis: 1n, address: 'core-a', height: 1},
-      {txid: 'tx-b', vout: 1, satoshis: 2n, address: 'core-a', height: 1},
+      {txid: 'tx-a', vout: 0, satoshis: 1n, address: 'core-a', height: 1, timestamp: null, confirmations: 1},
+      {txid: 'tx-b', vout: 1, satoshis: 2n, address: 'core-a', height: 1, timestamp: null, confirmations: 1},
     ])).toEqual({kind: 'outpoints', outpoints: [{txid: 'tx-b', vout: 1}]})
   })
 
