@@ -19,8 +19,13 @@ No single command says "is it good". A change is verified only when ALL of:
 4. `npx vitest run`
 5. `npx electron-vite build`
 
-`electron-vite build` emits many `@fontsource/manrope … didn't resolve at build
-time` warnings — pre-existing and harmless. Only non-font errors matter.
+The `@fontsource/manrope` faces are imported from `main.tsx`, not through
+`base.css`. `postcss-import` inlines a CSS `@import` without rebasing its
+`url()`, so importing them there resolved `./files/…` against
+`assets/styles/` — the woff2 files were silently never emitted and the build
+warned `didn't resolve at build time`. Any such warning means fonts are
+missing from the bundle again; a clean build emits them into
+`out/renderer/assets/`.
 
 **Step 3 exists because `tests/` is in neither app project.** vitest strips
 types rather than checking them, so a test can pass at runtime while being
