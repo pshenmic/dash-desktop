@@ -4,6 +4,7 @@ export interface DropdownFieldOption {
   value: string
   label: string
   description?: string
+  metadata?: string[]
 }
 
 export interface DropdownFieldProps {
@@ -18,4 +19,5 @@ export interface DropdownFieldProps {
   placeholder?: string
   inputInvalid?: boolean
   inputSuffix?: ReactNode
+  menuHeading?: string
 }

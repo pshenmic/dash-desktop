@@ -200,17 +200,20 @@ describe('send drafts', () => {
     const draft = {
       ...core,
       advancedRoutes: {
-        [TransferOperation.CoreSend]: {...getAdvancedSendRoute(core, TransferOperation.CoreSend), changeAddress: 'core-change'},
+        [TransferOperation.CoreSend]: {...getAdvancedSendRoute(core, TransferOperation.CoreSend), changeAddress: 'core-change', customChangeEnabled: true},
         [TransferOperation.AssetLockFunding]: {...getAdvancedSendRoute(core, TransferOperation.AssetLockFunding), changeAddress: 'lock-change'},
       },
     }
     saveSendDraft('wallet-a', setSendAdvanced(draft, false))
     const restored = setSendAdvanced(getOrCreateSendDraft('wallet-a', null, null), true)
     expect(getAdvancedSendRoute(restored, TransferOperation.CoreSend).changeAddress).toBe('core-change')
+    expect(getAdvancedSendRoute(restored, TransferOperation.CoreSend).customChangeEnabled).toBe(true)
     expect(getAdvancedSendRoute(restored, TransferOperation.AssetLockFunding).changeAddress).toBe('lock-change')
+    expect(getAdvancedSendRoute(restored, TransferOperation.AssetLockFunding).customChangeEnabled).toBeUndefined()
     expect(getAdvancedSendRoute(getOrCreateSendDraft('wallet-b', null, null), TransferOperation.CoreSend).changeAddress).toBeUndefined()
     const reset = resetCurrentSendRoute(restored)
     expect(getAdvancedSendRoute(reset, TransferOperation.CoreSend).changeAddress).toBeUndefined()
+    expect(getAdvancedSendRoute(reset, TransferOperation.CoreSend).customChangeEnabled).toBeUndefined()
     expect(getAdvancedSendRoute(reset, TransferOperation.AssetLockFunding).changeAddress).toBe('lock-change')
   })
 

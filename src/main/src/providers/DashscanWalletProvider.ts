@@ -221,6 +221,8 @@ export class DashscanWalletProvider implements WalletProvider {
         satoshis: BigInt(utxo.amount ?? '0'),
         script: Script.fromHex(utxo.scriptPubKeyHex as string),
         height: utxo.blockHeight ?? 0,
+        timestamp: utxo.timestamp != null ? new Date(utxo.timestamp) : null,
+        confirmations: utxo.confirmations ?? 0,
       }))
   }
 

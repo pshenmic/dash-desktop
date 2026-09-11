@@ -3,6 +3,19 @@ import type { DestinationKind } from '../enums/DestinationKind'
 import type { TransferOperation } from '../enums/TransferOperation'
 import type { SendRecipientDraft } from './SendDraft'
 import type { TransferPageType } from '../constants'
+import type { ReactNode } from 'react'
+import type { DropdownFieldOption } from './DropdownField'
+import type { PlatformAddressDto, WalletAddressDto } from '../api/types'
+import type { IdentityApiDto } from '../hooks/useIdentities'
+
+export interface OwnRecipientInventory {
+  receiving: WalletAddressDto[]
+  change: WalletAddressDto[]
+  platformAddresses: PlatformAddressDto[]
+  shieldedAddresses: string[]
+  shieldedBalances: Map<string, bigint> | null
+  identities: IdentityApiDto[]
+}
 
 export interface RecipientInputProps {
   value: string
@@ -10,6 +23,7 @@ export interface RecipientInputProps {
   data: TransferPageType['recipient']
   compact?: boolean
   ariaLabel?: string
+  ownOptions?: DropdownFieldOption[]
 }
 
 export interface SendRecipientError {
@@ -28,6 +42,8 @@ export interface SendRecipientValidation {
 }
 
 export interface SendRecipientsEditorProps {
+  headerAction?: ReactNode
+  beforeRecipients?: ReactNode
   recipients: SendRecipientDraft[]
   errors: SendRecipientError[]
   limit: number

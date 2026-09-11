@@ -40,6 +40,7 @@ export interface CoinControlInputLabel {
 export interface WalletUtxosResult {
   utxos: SelectableUtxo[]
   loading: boolean
+  localSnapshot: boolean
   error: string | null
   retry: () => void
 }
@@ -60,6 +61,7 @@ export interface CoinControlModalProps {
   onRetryCoreAddresses: () => void
   utxos: SelectableUtxo[]
   utxosLoading: boolean
+  utxosLocalSnapshot: boolean
   utxosError: string | null
   coreSyncIncomplete: boolean
   platformAddresses: PlatformAddressDto[]
@@ -95,6 +97,7 @@ export interface CoinControlInputDetailsProps {
 export interface WalletUtxosRequest {
   walletId: string | null
   syncIncomplete: boolean
+  localSnapshot: boolean
   connectionType: ConnectionType
   refreshKey: number
   reload: number

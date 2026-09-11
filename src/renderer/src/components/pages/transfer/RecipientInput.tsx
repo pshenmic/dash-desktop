@@ -7,6 +7,7 @@ import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
+import DropdownField from '@renderer/components/ui/DropdownField'
 
 export default function RecipientInput({
   value,
@@ -14,6 +15,7 @@ export default function RecipientInput({
   data,
   compact = false,
   ariaLabel,
+  ownOptions,
 }: RecipientInputProps) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -79,8 +81,28 @@ export default function RecipientInput({
       {!compact && <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>}
-      <div className={"dash-input-block rounded-[.875rem] overflow-hidden"} ref={containerRef}>
-        <div
+      <div className={"dash-input-block rounded-[.875rem]"} ref={containerRef}>
+        {ownOptions ? <DropdownField
+          editable
+          ariaLabel={ariaLabel ?? data.label}
+          value={value}
+          onChange={onChange}
+          options={ownOptions}
+          menuHeading="Your addresses"
+          placeholder="Enter a recipient address or choose one of yours"
+          triggerClassName="px-4 py-3.5"
+          inputInvalid={trimmedValue.length > 0 && !isValidRecipient}
+          inputSuffix={<div className="flex items-center gap-3">
+            {trimmedValue.length > 0 && (isValidRecipient
+              ? <CheckIcon size={18} className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />
+              : <Text size={10} weight="medium" color="red">Invalid</Text>)}
+            <button type="button" aria-label={data.addressBook} title={data.addressBook} aria-expanded={open}
+              onClick={() => setOpen(current => !current)}
+              className="flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity">
+              <SearchIcon size={18} className={`dash-text-default ${open ? 'opacity-100' : 'opacity-40'}`} />
+            </button>
+          </div>}
+        /> : <div
           className={`flex items-center justify-between gap-1 [&>*:first-child]:flex-1 ${compact ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}
           onClick={() => inputRef.current?.focus()}
         >
@@ -109,7 +131,7 @@ export default function RecipientInput({
           >
             <SearchIcon size={18} className={`dash-text-default shrink-0 transition-opacity ${open ? 'opacity-100' : 'opacity-40'}`} />
           </button>
-        </div>
+        </div>}
 
         <div
           className={`

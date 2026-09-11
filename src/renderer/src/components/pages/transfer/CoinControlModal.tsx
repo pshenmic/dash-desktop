@@ -34,6 +34,7 @@ import {
   outpointKey,
 } from '@renderer/utils/coinControl'
 import { davToDash, duffsToCredits } from '@renderer/utils/balance'
+import { formatTimestamp } from '@renderer/utils/date'
 
 export default function CoinControlModal({
   isOpen,
@@ -46,6 +47,7 @@ export default function CoinControlModal({
   onRetryCoreAddresses,
   utxos,
   utxosLoading,
+  utxosLocalSnapshot,
   utxosError,
   coreSyncIncomplete,
   platformAddresses,
@@ -153,7 +155,7 @@ export default function CoinControlModal({
   let sourceError: string | null = null
   let retrySource = onRetryUtxos
   if (sourceKind === SourceKind.Core) {
-    sourceLoading = utxosLoading || coreSyncIncomplete
+    sourceLoading = utxosLoading || (coreSyncIncomplete && !utxosLocalSnapshot)
     sourceError = utxosError
     if (mode !== CoinControlMode.Inputs) {
       sourceLoading = coreAddressesLoading
@@ -166,8 +168,10 @@ export default function CoinControlModal({
     retrySource = onRetryPlatformAddresses
   }
   const sourceReady = !sourceLoading && sourceError == null
-  const waitingForCoreSync = coreSyncIncomplete && sourceKind === SourceKind.Core
-  const showLoadingMessage = sourceLoading && (!waitingForCoreSync || showSyncWarning)
+  const hasCoreInputs = sourceKind === SourceKind.Core && mode === CoinControlMode.Inputs && utxos.length > 0
+  const refreshingCoreInputs = hasCoreInputs && sourceLoading
+  const waitingForCoreSync = coreSyncIncomplete && !utxosLocalSnapshot && sourceKind === SourceKind.Core
+  const showLoadingMessage = sourceLoading && !hasCoreInputs && (!waitingForCoreSync || showSyncWarning)
 
   const fixed = sourceKind == null
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
@@ -297,6 +301,11 @@ export default function CoinControlModal({
         </div>
 
         <div className={'mt-5 min-w-0 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
+          {utxosLocalSnapshot && sourceKind === SourceKind.Core && (
+            <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-3 block'}>
+              P2P sync is paused. UTXOs reflect the latest locally saved data. Resume sync before sending.
+            </Text>
+          )}
           {showLoadingMessage && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{waitingForCoreSync ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
           {!sourceLoading && sourceError && (
             <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>
@@ -357,8 +366,8 @@ export default function CoinControlModal({
                 </div>
               )}
 
-              {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
-                <div className={'mt-4 flex flex-col gap-2'}>
+              {(sourceReady || hasCoreInputs) && mode === CoinControlMode.Inputs && sourceKind === SourceKind.Core && (
+                <div className={'mt-4 flex flex-col gap-2'} aria-busy={refreshingCoreInputs}>
                   {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
                   {utxos.length > 0 && visibleUtxos.length === 0 && (
                     <Empty text={'All UTXOs are below the dust threshold.'} />
@@ -379,10 +388,12 @@ export default function CoinControlModal({
                                 : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
                             </Text>
                           </span>
-                        <div className={'mt-1.5 flex items-center gap-2'}>
-                          <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 font-mono break-all'}>{key}</Text>
+                        <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
+                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
+                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
+                            {formatTimestamp(utxo.timestamp)}
+                          </Text>
                         </div>
-                        {utxo.height === 0 && <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-1 block'}>Pending</Text>}
                       </CheckRow>
                     )
                   })}
@@ -482,7 +493,7 @@ export default function CoinControlModal({
             size={'sm'}
             className={'flex-1 rounded-[.9375rem]'}
           >
-            {fixed ? 'Done' : 'Apply'}
+            {fixed ? 'Done' : refreshingCoreInputs ? 'Updating…' : 'Apply'}
           </Button>
         </div>
       </div>

@@ -38,9 +38,11 @@ describe('change address draft', () => {
   })
 
   it('uses the selected or suggested change address only for an advanced partial Core send', () => {
-    const params = {advanced: true, operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n, change: [address('suggested')]}
+    const params = {advanced: true, customChangeEnabled: true, operation: TransferOperation.CoreSend, amountDuffs: 90n, maxDuffs: 100n, change: [address('suggested')]}
     expect(coreSendChangeTo(params)).toBe('suggested')
     expect(coreSendChangeTo({...params, selected: '  external  '})).toBe('external')
+    expect(coreSendChangeTo({...params, customChangeEnabled: false, selected: 'retained-custom'})).toBeUndefined()
+    expect(coreSendChangeTo({...params, customChangeEnabled: undefined, selected: 'legacy-draft'})).toBeUndefined()
     expect(coreSendChangeTo({...params, selected: ' '})).toBeUndefined()
     expect(coreSendChangeTo({...params, change: []})).toBeUndefined()
     expect(coreSendChangeTo({...params, advanced: false, selected: 'saved-advanced'})).toBeUndefined()

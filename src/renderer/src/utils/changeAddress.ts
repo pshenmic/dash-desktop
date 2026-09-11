@@ -16,7 +16,7 @@ export function hasUnallocatedCoreFunds(amountDuffs: bigint, maxDuffs: bigint | 
   return amountDuffs > 0n && maxDuffs !== null && amountDuffs < maxDuffs
 }
 
-export function coreSendChangeTo({advanced, operation, amountDuffs, maxDuffs, change, selected}: CoreSendChangeParams): string | undefined {
-  if (!advanced || operation !== TransferOperation.CoreSend || !hasUnallocatedCoreFunds(amountDuffs, maxDuffs)) return undefined
+export function coreSendChangeTo({advanced, customChangeEnabled, operation, amountDuffs, maxDuffs, change, selected}: CoreSendChangeParams): string | undefined {
+  if (!advanced || !customChangeEnabled || operation !== TransferOperation.CoreSend || !hasUnallocatedCoreFunds(amountDuffs, maxDuffs)) return undefined
   return selectedChangeAddress(change, selected)?.trim() || undefined
 }

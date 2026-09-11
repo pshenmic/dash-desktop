@@ -13,6 +13,7 @@ export interface ChangeAddressFieldProps {
 
 export interface CoreSendChangeParams {
   advanced: boolean
+  customChangeEnabled?: boolean
   operation: TransferOperation | null
   amountDuffs: bigint
   maxDuffs: bigint | null

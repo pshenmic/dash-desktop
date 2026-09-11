@@ -39,7 +39,7 @@ export default function TransactionSummary({
 
   let feeDisplay = <Text size={12} weight="medium" color="brand" opacity={50}>—</Text>
   if (fee.loading) {
-    feeDisplay = <Spinner size={14} />
+    feeDisplay = <Spinner size={14} className="text-dash-brand dark:text-dash-mint" />
   } else if (fee.ready) {
     const feeAmount = isCoreOperation
       ? `${davToDash(fee.totalDuffs)} Dash`
