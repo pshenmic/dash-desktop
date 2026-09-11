@@ -23,7 +23,7 @@ const p2pkhScript = (address: string): Script => {
 }
 
 const utxo = (address: string, satoshis: bigint, txId: string): UTXO =>
-  ({address, satoshis, txId, vOut: 0, script: p2pkhScript(address), height: 2_300_000})
+  ({address, satoshis, txId, vOut: 0, script: p2pkhScript(address), height: 2_300_000, timestamp: null, confirmations: 1})
 
 const providerStub = (utxos: UTXO[]): WalletProvider => ({
   getWalletUtxos: async () => utxos,

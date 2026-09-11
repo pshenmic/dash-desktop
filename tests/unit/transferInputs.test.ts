@@ -28,7 +28,7 @@ const address = (name: string, index: number, isChange: boolean, isUsed = false)
 })
 
 const utxo = (owner: string, satoshis: bigint, txId: string): UTXO =>
-  ({address: owner, satoshis, txId, vOut: 0, script: Script.fromHex(SCRIPT_HEX), height: 1})
+  ({address: owner, satoshis, txId, vOut: 0, script: Script.fromHex(SCRIPT_HEX), height: 1, timestamp: null, confirmations: 1})
 
 const grouped = (receiving: Address[], change: Address[]): GroupedAddresses => ({receiving, change})
 

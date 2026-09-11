@@ -6,6 +6,8 @@ export interface SelectableUtxo {
   satoshis: bigint
   address: string
   height: number
+  timestamp: Date | null
+  confirmations: number
 }
 
 export interface Outpoint {
