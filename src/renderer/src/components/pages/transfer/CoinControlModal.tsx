@@ -46,6 +46,7 @@ export default function CoinControlModal({
   onRetryCoreAddresses,
   utxos,
   utxosLoading,
+  utxosLocalSnapshot,
   utxosError,
   coreSyncIncomplete,
   platformAddresses,
@@ -153,7 +154,7 @@ export default function CoinControlModal({
   let sourceError: string | null = null
   let retrySource = onRetryUtxos
   if (sourceKind === SourceKind.Core) {
-    sourceLoading = utxosLoading || coreSyncIncomplete
+    sourceLoading = utxosLoading || (coreSyncIncomplete && !utxosLocalSnapshot)
     sourceError = utxosError
     if (mode !== CoinControlMode.Inputs) {
       sourceLoading = coreAddressesLoading
@@ -168,7 +169,7 @@ export default function CoinControlModal({
   const sourceReady = !sourceLoading && sourceError == null
   const hasCoreInputs = sourceKind === SourceKind.Core && mode === CoinControlMode.Inputs && utxos.length > 0
   const refreshingCoreInputs = hasCoreInputs && sourceLoading
-  const waitingForCoreSync = coreSyncIncomplete && sourceKind === SourceKind.Core
+  const waitingForCoreSync = coreSyncIncomplete && !utxosLocalSnapshot && sourceKind === SourceKind.Core
   const showLoadingMessage = sourceLoading && !hasCoreInputs && (!waitingForCoreSync || showSyncWarning)
 
   const fixed = sourceKind == null
@@ -299,6 +300,11 @@ export default function CoinControlModal({
         </div>
 
         <div className={'mt-5 min-w-0 min-h-0 max-h-[calc(100vh-15rem)] overflow-y-auto scrollbar-hide'}>
+          {utxosLocalSnapshot && sourceKind === SourceKind.Core && (
+            <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-3 block'}>
+              P2P sync is paused. UTXOs reflect the latest locally saved data. Resume sync before sending.
+            </Text>
+          )}
           {showLoadingMessage && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{waitingForCoreSync ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
           {!sourceLoading && sourceError && (
             <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>

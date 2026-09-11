@@ -42,7 +42,7 @@ function modalProps(): CoinControlModalProps {
     selection: {kind: 'coreOutpoints', outpoints: ['coin:0']},
     coreAddresses: [], coreAddressesLoading: false, coreAddressesError: null,
     utxos: [{txid: 'coin', vout: 0, address: 'address', satoshis: 100_000n, height: 10}],
-    utxosLoading: false, utxosError: null, coreSyncIncomplete: false,
+    utxosLoading: false, utxosLocalSnapshot: false, utxosError: null, coreSyncIncomplete: false,
     platformAddresses: [], platformAddressesLoading: false, platformAddressesError: null,
     shieldedNotes: [], identityLabel: null, identityId: null, platformAddress: undefined,
     onRetryCoreAddresses: vi.fn(), onRetryPlatformAddresses: vi.fn(), onRetryUtxos: vi.fn(),
@@ -93,6 +93,24 @@ describe('coin control UTXO refresh', () => {
     const retry = failed.find(node => node.type === 'button' && node.props.children === 'Try again')!
     ;(retry.props.onClick as () => void)()
     expect(props.onRetryUtxos).toHaveBeenCalledOnce()
+  })
+
+  it('allows a local selection while paused and identifies the saved snapshot without an updating spinner', () => {
+    const props = {...modalProps(), utxosLocalSnapshot: true, coreSyncIncomplete: true}
+    const nodes = render(props)
+    expect(nodes.some(node => node.key === 'coin:0')).toBe(true)
+    expect(nodes.some(node => typeof node.props.children === 'string' && node.props.children.startsWith('P2P sync is paused.'))).toBe(true)
+    expect(nodes.some(node => node.props['aria-busy'] === true)).toBe(false)
+    const apply = nodes.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    expect(apply.props.disabled).toBe(false)
+    ;(apply.props.onClick as () => void)()
+    expect(props.onApply).toHaveBeenCalledWith(props.selection)
+  })
+
+  it('reports an empty saved snapshot while paused after loading finishes', () => {
+    const props = {...modalProps(), utxos: [], utxosLocalSnapshot: true, coreSyncIncomplete: true}
+    expect(render({...props, utxosLoading: true}).some(node => node.props.children === 'Loading available funds…')).toBe(true)
+    expect(render(props).some(node => node.props.text === 'No spendable UTXOs')).toBe(true)
   })
 
   it('replaces spent rows after refresh and refuses the now-invalid selection', () => {
