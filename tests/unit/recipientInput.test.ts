@@ -34,7 +34,7 @@ vi.mock('@renderer/components/ui/Toast', () => ({toast: {error: vi.fn()}}))
 import RecipientInput from '../../src/renderer/src/components/pages/transfer/RecipientInput'
 import DropdownField from '../../src/renderer/src/components/ui/DropdownField'
 import { sendPageData } from '../../src/renderer/src/constants/sendPages'
-import type { DropdownFieldProps } from '../../src/renderer/src/types/DropdownField'
+import type { DropdownFieldOption, DropdownFieldProps } from '../../src/renderer/src/types/DropdownField'
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements)
@@ -42,7 +42,7 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...elements(node.props.children as ReactNode)]
 }
 
-function renderRecipient(value: string, onChange = vi.fn(), ownOptions = [{value: 'own', label: 'own'}]) {
+function renderRecipient(value: string, onChange = vi.fn(), ownOptions: DropdownFieldOption[] = [{value: 'own', label: 'own'}]) {
   harness.index = 0
   return RecipientInput({value, onChange, ownOptions, data: sendPageData.recipient})
 }
@@ -79,6 +79,23 @@ describe('Simple recipient input', () => {
     ;(option.props.onClick as () => void)()
     expect(onChange).toHaveBeenLastCalledWith('own')
     expect(harness.states[0]).toBe(false)
+  })
+
+  it('shows a heading and balance with transaction count beside each wallet address', () => {
+    const dropdown = elements(renderRecipient('', vi.fn(), [{
+      value: 'own', label: 'own', description: 'Your receiving address · Savings', metadata: ['1.25 Dash', 'Tx count: 4'],
+    }])).find(node => node.type === DropdownField)!
+    const props = dropdown.props as unknown as DropdownFieldProps
+    expect(props.menuHeading).toBe('Your addresses')
+    harness.index = 0
+    harness.states = [true]
+    const nodes = elements(DropdownField(props))
+    const heading = nodes.find(node => node.props.role === 'heading')!
+    expect(elements(heading).some(node => node.props.children === 'Your addresses')).toBe(true)
+    const option = nodes.find(node => node.key === 'own')!
+    const optionText = elements(option).map(node => node.props.children)
+    expect(optionText).toEqual(expect.arrayContaining(['own', 'Your receiving address · Savings', '1.25 Dash', 'Tx count: 4']))
+    expect(elements(heading).some(node => node.type === 'button')).toBe(false)
   })
 
   it('retains contact saving, selection and deletion alongside own address options', async () => {

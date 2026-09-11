@@ -88,6 +88,7 @@ export default function RecipientInput({
           value={value}
           onChange={onChange}
           options={ownOptions}
+          menuHeading="Your addresses"
           placeholder="Enter a recipient address or choose one of yours"
           triggerClassName="px-4 py-3.5"
           inputInvalid={trimmedValue.length > 0 && !isValidRecipient}

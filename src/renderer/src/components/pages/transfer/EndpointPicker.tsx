@@ -240,6 +240,7 @@ export function DestinationPicker({
             value={value}
             onChange={onValueChange}
             options={ownOptions}
+            menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
             placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
             inputInvalid={!!error}
             triggerClassName={inputBox}

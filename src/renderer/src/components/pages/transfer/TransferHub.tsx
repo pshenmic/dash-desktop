@@ -18,6 +18,7 @@ import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
 import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
+import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
@@ -173,9 +174,12 @@ function WalletTransferHub(): React.JSX.Element {
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
+  const shieldedRecipientBalances = useMemo(() => shieldedSync.phase === ShieldedSyncPhase.Done
+    ? shieldedBalancesByAddress(shieldedSync.notes) : null, [shieldedSync.phase, shieldedSync.notes])
   const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
     receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
-  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses])
+    shieldedBalances: shieldedRecipientBalances,
+  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedRecipientBalances])
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
   useErrorToast(coreAddressesError)

@@ -13,6 +13,7 @@ export interface OwnRecipientInventory {
   change: WalletAddressDto[]
   platformAddresses: PlatformAddressDto[]
   shieldedAddresses: string[]
+  shieldedBalances: Map<string, bigint> | null
   identities: IdentityApiDto[]
 }
 
