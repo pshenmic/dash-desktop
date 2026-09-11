@@ -16,6 +16,8 @@ import { useWalletBalance, refreshBalance } from "@renderer/hooks/useWalletBalan
 import { refreshTransactions } from "@renderer/hooks/useWalletTransactions";
 import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useAdresses } from "@renderer/hooks/useAdresses";
+import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
+import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
@@ -170,6 +172,10 @@ function WalletTransferHub(): React.JSX.Element {
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
+  const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
+  const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
+    receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
+  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses])
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
   useErrorToast(coreAddressesError)
@@ -553,6 +559,27 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const coreRecipientInput = !advancedMulti && toKind === DestinationKind.CoreAddress && operation === TransferOperation.CoreSend
+  const ownRecipientsLoading = {
+    [DestinationKind.CoreAddress]: coreAddressesLoading,
+    [DestinationKind.PlatformAddress]: platformAddressesLoading,
+    [DestinationKind.Identity]: identitiesLoading,
+    [DestinationKind.Shielded]: savedShielded.loading,
+    [DestinationKind.NewIdentity]: false,
+  }[toKind]
+  const ownRecipientsError = {
+    [DestinationKind.CoreAddress]: coreAddressesError,
+    [DestinationKind.PlatformAddress]: platformAddressesError,
+    [DestinationKind.Identity]: identitiesError,
+    [DestinationKind.Shielded]: savedShielded.error,
+    [DestinationKind.NewIdentity]: null,
+  }[toKind]
+  const retryOwnRecipients = (): void => {
+    if (!walletId) return
+    if (toKind === DestinationKind.CoreAddress) invalidateAsyncCache('addresses', walletId)
+    else if (toKind === DestinationKind.PlatformAddress) void refreshPlatformAddresses(walletId)
+    else if (toKind === DestinationKind.Identity) reloadIdentities()
+    else if (toKind === DestinationKind.Shielded) savedShielded.retry()
+  }
   const changeDestinationKind = (kind: DestinationKind): void => {
     setToKind(kind)
     if (!advancedMulti) setToValue('')
@@ -614,10 +641,24 @@ function WalletTransferHub(): React.JSX.Element {
           placeholder={destinationPlaceholder}
           error={advancedMulti ? null : destinationError}
           showValueInput={!advancedMulti && !coreRecipientInput && operation != null}
+          ownOptions={!advanced ? ownRecipients : undefined}
         />
         {coreRecipientInput && <>
-          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} />
+          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} />
           {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
+        </>}
+        {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
+          {ownRecipientsLoading && (
+            <Text size={12} weight="medium" color="brand" opacity={50}>Loading your recipients…</Text>
+          )}
+          {ownRecipientsError && (
+            <button type="button" onClick={retryOwnRecipients} className="self-start dash-text-primary text-xs cursor-pointer">Could not load your recipients. Try again</button>
+          )}
+          {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
+            <Text size={12} weight="medium" color="brand" opacity={50}>
+              {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.' : 'No saved addresses of this type in your wallet. Enter a recipient address manually.'}
+            </Text>
+          )}
         </>}
       </div>
 
