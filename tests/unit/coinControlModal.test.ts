@@ -62,16 +62,29 @@ describe('coin control UTXO refresh', () => {
     const props = modalProps()
     const pending = {...props.utxos[0], height: 0, confirmations: 0, timestamp: new Date(2026, 8, 11, 9, 15)}
     const initialRow = render({...props, utxos: [pending]}).find(node => node.key === 'coin:0')!
-    expect(elements(initialRow).some(node => node.props.children === 'Timestamp: 11 Sept 2026, 09:15')).toBe(true)
+    expect(elements(initialRow).some(node => node.props.children === '11 Sept 2026, 09:15')).toBe(true)
     const confirmed = {...pending, height: 10, confirmations: 1, timestamp: new Date(2026, 8, 11, 9, 20)}
     const updatedRow = render({...props, utxos: [confirmed]}).find(node => node.key === 'coin:0')!
     expect(updatedRow.type).toBe(initialRow.type)
     expect(updatedRow.props.checked).toBe(true)
-    expect(elements(updatedRow).some(node => node.props.children === 'Timestamp: 11 Sept 2026, 09:20')).toBe(true)
+    expect(elements(updatedRow).some(node => node.props.children === '11 Sept 2026, 09:20')).toBe(true)
   })
 
   it('shows an unknown timestamp when the source cannot date a coin', () => {
-    expect(render(modalProps()).some(node => node.props.children === 'Timestamp: Unknown')).toBe(true)
+    expect(render(modalProps()).some(node => node.props.children === 'Unknown')).toBe(true)
+  })
+
+  it('keeps the smaller timestamp beside the full outpoint', () => {
+    const nodes = render(modalProps())
+    const metadata = nodes.find(node => node.type === 'div' && React.Children.toArray(node.props.children as ReactNode)
+      .some(child => isValidElement<{children?: ReactNode}>(child) && child.props.children === 'coin:0'))!
+    const children = React.Children.toArray(metadata.props.children as ReactNode) as ReactElement<Record<string, unknown>>[]
+    expect(children).toHaveLength(2)
+    expect(children[0].props).toMatchObject({size: 10, children: 'coin:0'})
+    expect(children[0].props.className).toContain('break-all')
+    expect(children[1].props).toMatchObject({size: 10, children: 'Unknown'})
+    expect(children[1].props.className).toContain('shrink-0')
+    expect(children[1].props.className).toContain('text-right')
   })
 
   it.each([

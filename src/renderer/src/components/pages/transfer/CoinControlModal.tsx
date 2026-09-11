@@ -388,12 +388,12 @@ export default function CoinControlModal({
                                 : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
                             </Text>
                           </span>
-                        <div className={'mt-1.5 flex items-center gap-2'}>
-                          <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 font-mono break-all'}>{key}</Text>
+                        <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
+                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
+                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
+                            {formatTimestamp(utxo.timestamp)}
+                          </Text>
                         </div>
-                        <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'mt-1 block'}>
-                          {`Timestamp: ${formatTimestamp(utxo.timestamp)}`}
-                        </Text>
                       </CheckRow>
                     )
                   })}
