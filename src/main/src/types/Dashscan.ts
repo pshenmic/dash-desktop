@@ -66,6 +66,7 @@ export interface DashscanUTXO {
   scriptPubKeyHex: string | null
   blockHeight: number | null
   confirmations: number | null
+  timestamp?: string | null
 }
 
 // Only the field we trust. The same response carries `received` and `sent`,

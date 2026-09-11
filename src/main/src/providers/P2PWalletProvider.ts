@@ -8,6 +8,7 @@ import {CorePrevOutService} from '../services/core/CorePrevOutService'
 import {WalletSyncService} from '../services/core/WalletSyncService'
 import {WalletProvider} from './WalletProvider'
 import {TxLockStatus} from '../types/TxLockStatus'
+import {confirmationsAt} from '../utils/confirmations'
 import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {ConnectionStatus} from '../types/ConnectionStatus'
@@ -61,6 +62,7 @@ export class P2PWalletProvider implements WalletProvider {
     const {receiving, change} = await this.addressDAO.getAddressesByWalletId(this.walletId)
     const addresses = [...receiving, ...change].map(a => a.address)
     const utxos = await this.transactionDAO.getUtxosByAddresses(this.walletId, addresses)
+    const {tipHeight} = this.walletSyncService.getStatus()
     return utxos.map(u => ({
       address: u.address,
       txId: u.txid,
@@ -68,6 +70,8 @@ export class P2PWalletProvider implements WalletProvider {
       satoshis: BigInt(u.satoshis),
       script: this.p2pkhScript(u.address),
       height: u.height,
+      timestamp: new Date(u.blockTime * 1000),
+      confirmations: confirmationsAt(u.height, tipHeight),
     }))
   }
 

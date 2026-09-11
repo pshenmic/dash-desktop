@@ -7,7 +7,7 @@ const FEE = (inputsCount: number): bigint => coreFeeDuffsFor(1, inputsCount, 1, 
 const ONE_DASH = 100_000_000n
 
 function utxo(satoshis: bigint, n = 0): SelectableUtxo {
-  return { txid: `tx${n}`, vout: n, satoshis, address: `addr${n}`, height: 1 }
+  return { txid: `tx${n}`, vout: n, satoshis, address: `addr${n}`, height: 1, timestamp: null, confirmations: 1 }
 }
 
 const picked = (utxos: SelectableUtxo[]): CoreSpendSource =>

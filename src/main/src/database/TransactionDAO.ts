@@ -3,6 +3,7 @@ import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/wall
 import type {AddressInfo} from '../types/AddressInfo'
 import type {PrevOutRef, ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
+import type {UtxoRow} from '../types/UTXO'
 import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
@@ -358,15 +359,15 @@ export class TransactionDAO {
       await trx('addresses').whereIn('wallet_id', walletIds).update({is_used: false})
     })
   }
-  getUtxosByAddresses = async (walletId: string, addresses: string[]): Promise<WalletSyncUtxo[]> => {
-    const utxos: WalletSyncUtxo[] = []
+  getUtxosByAddresses = async (walletId: string, addresses: string[]): Promise<UtxoRow[]> => {
+    const utxos: UtxoRow[] = []
 
     for (const slice of chunk(addresses, SELECT_CHUNK_SIZE)) {
       const rows = await this.knex('transaction_outputs as o')
         .innerJoin('transactions as t', function() {
           this.on('t.wallet_id', '=', 'o.wallet_id').andOn('t.txid', '=', 'o.txid')
         })
-        .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height')
+        .select('o.txid', 'o.vout', 'o.address', 'o.satoshis', 't.block_height as height', 't.block_time as blockTime')
         .where('o.wallet_id', walletId)
         .whereIn('o.address', slice)
         .whereNull('o.spent_in_txid')
@@ -377,6 +378,7 @@ export class TransactionDAO {
         address: row.address as string,
         satoshis: row.satoshis,
         height: row.height,
+        blockTime: row.blockTime,
       })))
     }
 
