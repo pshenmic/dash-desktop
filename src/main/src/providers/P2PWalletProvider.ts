@@ -30,7 +30,11 @@ export class P2PWalletProvider implements WalletProvider {
   ) {}
 
   async getWalletTransactions(): Promise<Transaction[]> {
-    return dedupeTransactions(await this.transactionDAO.getTransactionsByWallet(this.walletId))
+    const {tipHeight} = this.walletSyncService.getStatus()
+    const transactions = await this.transactionDAO.getTransactionsByWallet(this.walletId)
+
+    return dedupeTransactions(transactions.map(tx =>
+      ({...tx, confirmations: confirmationsAt(tx.blockHeight, tipHeight)})))
   }
 
   async getAddressInfos(addresses: string[]): Promise<AddressInfo[]> {
@@ -55,7 +59,9 @@ export class P2PWalletProvider implements WalletProvider {
 
     const tx = await this.transactionDAO.getTransactionByTxid(this.walletId, txId)
     if (!tx) throw new Error(`Tx ${txId} not found in p2p store`)
-    return tx
+
+    const {tipHeight} = this.walletSyncService.getStatus()
+    return {...tx, confirmations: confirmationsAt(tx.blockHeight, tipHeight)}
   }
 
   async getWalletUtxos(): Promise<UTXO[]> {
