@@ -34,6 +34,7 @@ export default function SendConfirmModal({
   walletId,
   network,
   recipients,
+  advanced = false,
   amountFiat,
   feeDuffs,
   source,
@@ -136,16 +137,21 @@ export default function SendConfirmModal({
 
   return createPortal(
     <div
-      className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
+      className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center p-4 overlay-fade-in"}
     >
       <div
-        className={"w-full max-w-170 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="send-confirm-title"
+        className={"w-full max-w-140 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
       >
         <div className={"flex items-center justify-between"}>
-          <Text size={24} weight={"extrabold"} color={"brand"}>
-            {modalTitle}
-          </Text>
+          <h2 id="send-confirm-title">
+            <Text size={24} weight={"extrabold"} color={"brand"}>{modalTitle}</Text>
+          </h2>
           <button
+            type="button"
+            aria-label="Close confirmation"
             className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
             onClick={requestClose}
             disabled={sending}
@@ -156,32 +162,42 @@ export default function SendConfirmModal({
 
         {phase !== ConfirmModalPhase.Done ? (
           <div className={"phase-fade-in"} key={"confirm"}>
-            <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-                <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs)} Dash</Text>
+            <div className="mt-5 flex flex-col gap-4 rounded-2xl p-4 dash-block-3">
+              <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
+                <Text size={14} weight="medium" color="brand" opacity={50}>Sending</Text>
+                <div className="min-w-0 flex flex-col items-end gap-1 text-right">
+                  <Text size={24} weight="extrabold" color="brand" className="break-words">
+                    {davToDash(amountDuffs)} <span className="text-sm font-medium">Dash</span>
+                  </Text>
+                  {amountFiat && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {amountFiat}</Text>}
+                </div>
               </div>
-              {amountFiat && (
-                <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>≈ Fiat</Text>
-                  <Text size={12} weight={"medium"} color={"blue-mint"}>{amountFiat}</Text>
+              {!advanced && recipients.map((recipient, index) => (
+                <div key={`${index}-${recipient.address}`} className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
+                  <Text size={14} weight="medium" color="brand" opacity={50}>To</Text>
+                  <Text size={14} weight="medium" color="brand" className="break-all select-all text-right">{recipient.address}</Text>
+                </div>
+              ))}
+              {feeDuffs != null && (
+                <div className="flex flex-col gap-3 border-t border-dash-primary-dark-blue/10 pt-3 dark:border-white/10">
+                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
+                    <Text size={14} weight="medium" color="brand" opacity={50}>Network fee (est.)</Text>
+                    <Text size={12} weight="medium" color="brand" className="text-right">{davToDash(feeDuffs)} Dash</Text>
+                  </div>
+                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
+                    <Text size={14} weight="medium" color="brand" opacity={50}>Total</Text>
+                    <Text size={14} weight="extrabold" color="brand" className="text-right">{davToDash(amountDuffs + feeDuffs)} Dash</Text>
+                  </div>
                 </div>
               )}
-              <RecipientSummary recipients={recipients} />
-              {feeDuffs != null && <>
-                <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Estimated network fee</Text><Text size={12} weight="medium" color="brand">{davToDash(feeDuffs)} Dash</Text></div>
-                <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text><Text size={14} weight="extrabold" color="brand">{davToDash(amountDuffs + feeDuffs)} Dash</Text></div>
-              </>}
             </div>
 
-            <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-              Enter your wallet password to sign and broadcast.
-            </Text>
-            <div className={"mt-2"}>
+            <div className={"mt-5"}>
               <Input
                 id={"send-password"}
                 type={"password"}
                 placeholder={"Wallet password"}
+                aria-label="Wallet password"
                 value={password}
                 variant={"outlined"}
                 onChange={(e) => { setError(null); setPassword(e.target.value) }}

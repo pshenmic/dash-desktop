@@ -6,6 +6,7 @@ export interface SendConfirmModalProps {
   walletId: string | null
   network: Network | null
   recipients: CoreRecipient[]
+  advanced?: boolean
   amountFiat?: string
   feeDuffs?: bigint | null
   source?: CoreSpendSource

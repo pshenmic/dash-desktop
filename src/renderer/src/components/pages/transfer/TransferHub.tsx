@@ -1189,6 +1189,7 @@ function WalletTransferHub(): React.JSX.Element {
           walletId={walletId}
           network={network}
           recipients={recipientsDuffs}
+          advanced={advanced}
           feeDuffs={confirmationFeeDuffs}
           amountFiat={amountFiat}
           source={coreSpendSource}
