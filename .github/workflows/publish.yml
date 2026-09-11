@@ -9,14 +9,16 @@ permissions:
 
 jobs:
   build_linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
         node-version: 24.x
     - name: Install dependencies
-      run: yarn
+      run: yarn --frozen-lockfile
+      env:
+        npm_config_build_from_source: true
     - name: Build Linux
       run: yarn build:linux
     - name: Upload Linux artifacts
