@@ -53,3 +53,23 @@ jobs:
         path: ${{ matrix.artifacts }}
         if-no-files-found: error
         retention-days: 14
+  build_appx:
+    name: Build Appx
+    runs-on: windows-2022
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+        cache: yarn
+    - name: Install dependencies
+      run: yarn --frozen-lockfile
+    - name: Build
+      run: yarn build:appx
+    - name: Upload installers
+      uses: actions/upload-artifact@v4
+      with:
+        name: dash-desktop-prebuild-${{ matrix.name }}
+        path: ${{ matrix.artifacts }}
+        if-no-files-found: error
+        retention-days: 14
