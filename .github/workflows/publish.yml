@@ -49,9 +49,11 @@ jobs:
         node-version: 24.x
     - name: Install dependencies
       run: yarn
+    # One electron-builder run packs both targets, so the native modules are
+    # rebuilt from source once rather than per installer.
     - name: Build Windows
-      run: yarn build:win
+      run: yarn build && yarn electron-builder --win nsis appx --x64 --publish never
     - name: Upload Windows artifacts
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/*.exe
+        files: dist/*.{exe,appx}
