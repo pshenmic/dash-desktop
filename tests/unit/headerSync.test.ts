@@ -63,6 +63,7 @@ function makeChain(fromHash: string, count: number, nonce: number, nBits = POW_L
 }
 
 class FakeChainStore {
+  readonly network = 'mainnet' as const
   appended: PersistedHeader[][] = []
   deletedFrom: number[] = []
   state: ChainTipState = {tipHeight: 0, tipHash: null}

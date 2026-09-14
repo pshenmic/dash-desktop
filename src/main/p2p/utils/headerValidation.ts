@@ -1,36 +1,50 @@
-import {MAX_FUTURE_BLOCK_TIME} from '../constants'
-import {bitsToTarget, hashHeaderRaw, headerWork, POW_LIMIT_TARGET, rawPrevHash} from './pow'
+import {MAX_FUTURE_BLOCK_TIME, POW_LIMIT_TARGET} from '../constants'
+import {bitsToTarget, hashHeaderRaw, headerWork, rawPrevHash} from './pow'
+import {bitsAccepted, expectedBits, expectedBitsForRange} from './difficulty'
+import {Network} from '../../src/types/Network'
 import type {PersistedHeader} from '../types/chainStore'
+import type {DifficultyBlock, DifficultyLookup} from '../types/difficulty'
 import type {ValidatedHeaders} from '../types/headerSync'
 import {Logger} from '../../src/utils/logger'
 
 const log = new Logger('p2p')
 
-// DGWv3 difficulty validation is intentionally off: replicating Dash testnet's
-// early-chain edge cases (min-difficulty rule, encoded POW_LIMIT round-tripping)
-// is out of scope until a recent checkpoint anchors trust.
-//
 // All-or-nothing: a batch that fails anywhere is rejected whole, because a peer
 // that sent one bad header has not earned the ones before it.
 export function validateHeaders(
   rawHeaders: Uint8Array[],
   startHeight: number,
   startHash: string,
+  network: Network,
+  committed: DifficultyLookup,
 ): ValidatedHeaders | null {
+  // Read up front so the whole batch's difficulty can be answered in one call.
+  const batch: DifficultyBlock[] = []
+  for (const raw of rawHeaders) {
+    const height = startHeight + batch.length + 1
+    if (raw.length < 80) {
+      log.warn(`reject ~h=${height} short header (${raw.length} bytes)`)
+      return null
+    }
+    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
+    batch.push({height, time: view.getUint32(68, true), nBits: view.getUint32(72, true)})
+  }
+  // Every context block sits below the batch, so the committed window answers it
+  // even on a fork, where the heights above belong to another branch.
+  const ranged = expectedBitsForRange(network, startHeight, batch, committed)
+
   const futureLimit = Math.floor(Date.now() / 1000) + MAX_FUTURE_BLOCK_TIME
   let prevHash = startHash
   let h = startHeight
   let work = 0n
   const accepted: PersistedHeader[] = []
+  const pending = new Map<number, DifficultyBlock>()
+  const at: DifficultyLookup = height => pending.get(height) ?? committed(height)
 
-  for (const raw of rawHeaders) {
-    if (raw.length < 80) {
-      log.warn(`reject ~h=${h + 1} short header (${raw.length} bytes)`)
-      return null
-    }
-    const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
-    const time = dv.getUint32(68, true)
-    const nBits = dv.getUint32(72, true)
+  for (let i = 0; i < rawHeaders.length; i++) {
+    const raw = rawHeaders[i]!
+    const header = batch[i]!
+    const {time, nBits} = header
     const incomingPrev = rawPrevHash(raw)
 
     if (incomingPrev !== prevHash) {
@@ -54,8 +68,15 @@ export function validateHeaders(
       return null
     }
 
+    const required = ranged?.[i] ?? expectedBits(network, h, time, at)
+    if (required != null && !bitsAccepted(network, h + 1, nBits, required)) {
+      log.warn(`reject ~h=${h + 1} nBits=0x${nBits.toString(16)} want=0x${required.toString(16)}`)
+      return null
+    }
+
     h++
     accepted.push({height: h, hash: hashHex, prevHash, time, nBits, raw})
+    pending.set(h, header)
     work += headerWork(nBits)
     prevHash = hashHex
   }

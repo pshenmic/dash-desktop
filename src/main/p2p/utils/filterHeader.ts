@@ -1,7 +1,10 @@
-import {utils as sdkUtils} from 'dash-core-sdk'
+import {createHash} from 'node:crypto'
 import {HASH_LEN} from '../constants'
 
-const {doubleSHA256} = sdkUtils
+function doubleSHA256(data: Uint8Array): Uint8Array {
+  const once = createHash('sha256').update(data).digest()
+  return new Uint8Array(createHash('sha256').update(once).digest())
+}
 
 // BIP 157 links each filter to the one below it:
 //   header(h) = dSHA256( dSHA256(filter(h)) || header(h-1) )

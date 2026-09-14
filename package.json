@@ -36,7 +36,7 @@
     "class-variance-authority": "0.7.1",
     "classic-level": "^3.0.0",
     "dash-core-p2p": "https://github.com/pshenmic/dash-core-p2p#7c40475607faf2b9a68d2f897a862b8e249cb2cc",
-    "crypto-toothpick": "https://github.com/owl352/crypto-toothpick#900da4edf5df12eef28cfcb38059c4b69c8f4f77",
+    "crypto-toothpick": "https://github.com/owl352/crypto-toothpick#291ee3edc0cd63faa27fd79666281005a3e0f8e4",
     "dash-core-sdk": "1.1.3-dev.6",
     "dash-platform-sdk": "1.5.0-dev.10",
     "dash-ui-kit": "1.0.94",
