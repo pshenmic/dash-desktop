@@ -5,6 +5,7 @@ import {AddressInfo} from '../types/AddressInfo'
 import {WalletProvider} from './WalletProvider'
 import {Transaction} from '../types/Transaction'
 import {AddressDAO} from '../database/AddressDAO'
+import {TransactionDAO} from '../database/TransactionDAO'
 import {WalletDAO} from '../database/WalletDAO'
 import {dashscanToWalletTransactions} from '../utils/dashscanTransactions'
 import {dedupeTransactions} from '../utils/dedupeTransactions'
@@ -24,6 +25,7 @@ import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
 import {ConnectionStatus} from '../types/ConnectionStatus'
 import {CORE_ADDRESS_WINDOW} from '../constants/addresses'
+import {PENDING_SPEND_TTL_MS} from '../constants/chain'
 import {
   DASHSCAN_ADDRESS_CHUNK,
   DASHSCAN_BASE_URLS,
@@ -47,6 +49,7 @@ export class DashscanWalletProvider implements WalletProvider {
     private readonly walletId: string,
     private readonly addressDAO: AddressDAO,
     private readonly walletDAO: WalletDAO,
+    private readonly transactionDAO: TransactionDAO,
   ) {
     this.baseUrl = DASHSCAN_BASE_URLS[network]
   }
@@ -212,8 +215,15 @@ export class DashscanWalletProvider implements WalletProvider {
       if (resultSet.length < XPUB_PAGE_LIMIT || collected.length >= pagination.total) break
     }
 
+    // Dashscan keeps listing an outpoint as unspent until it indexes the
+    // transaction that spent it, so a second send within that window would
+    // reselect the same coins and every peer would drop it as a conflict.
+    const spends = await this.transactionDAO.getPendingSpends(this.walletId, Date.now() - PENDING_SPEND_TTL_MS)
+    const spent = new Set(spends.map(({txid, vout}) => `${txid}:${vout}`))
+
     return collected
       .filter(utxo => utxo.prevTxHash != null && utxo.vOutIndex != null && utxo.scriptPubKeyHex != null)
+      .filter(utxo => !spent.has(`${utxo.prevTxHash}:${utxo.vOutIndex}`))
       .map(utxo => ({
         address: utxo.address ?? '',
         txId: utxo.prevTxHash as string,

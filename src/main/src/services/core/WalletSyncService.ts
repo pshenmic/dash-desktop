@@ -777,8 +777,8 @@ export class WalletSyncService {
     // Recorded optimistically so the UTXO set reflects the spend immediately;
     // the cfilter scan reconciles it on confirmation. Best-effort — a record
     // failure must not turn a successful broadcast into an error.
-    if (this.activeWalletId && result.peersDelivered.length > 0) {
-      await this.recordOptimisticSpend(this.activeWalletId, txHex).catch(err =>
+    if (result.peersDelivered.length > 0) {
+      await this.recordOptimisticSpend(txHex).catch(err =>
         log.error('recordOptimisticSpend failed:', err))
     }
     return result
@@ -837,9 +837,15 @@ export class WalletSyncService {
 
   // Records a just-broadcast tx as pending: inputs become spent (dropping out
   // of getUtxos) and outputs including change become spendable, pre-confirmation.
-  private async recordOptimisticSpend(walletId: string, txHex: string): Promise<void> {
-    const network = this.activeNetwork
-    if (!network) return
+  // The wallet is resolved here rather than read off the running sync: rpc mode
+  // may have no sync at all, and its utxo source needs this record to stop
+  // offering the coins this transaction just spent.
+  private async recordOptimisticSpend(txHex: string): Promise<void> {
+    const wallet = this.activeWalletId != null
+      ? await this.walletDAO.getWalletById(this.activeWalletId)
+      : await this.walletDAO.getSelectedWallet()
+    if (wallet == null) return
+    const {walletId, network} = wallet
     let tx: SDKTransaction
     try {
       tx = SDKTransaction.fromHex(txHex)

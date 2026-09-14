@@ -44,6 +44,7 @@ export class WalletProviderFactory {
       walletId,
       this.addressDAO,
       this.walletDAO,
+      this.transactionDAO,
     )
   }
 }

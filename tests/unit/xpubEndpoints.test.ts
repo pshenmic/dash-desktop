@@ -14,6 +14,7 @@ vi.mock('electron', () => ({
 import {DashscanWalletProvider} from '../../src/main/src/providers/DashscanWalletProvider'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
+import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {DashscanTransaction} from '../../src/main/src/types/Dashscan'
 
 const OURS = 'yRd4FhXfVGHXpsuZXPNkMrfD9GVj46pnjt'
@@ -46,7 +47,7 @@ const tx = (hash: string, blockHeight: number | null): DashscanTransaction => ({
   multisig: false,
 })
 
-const daos = (): {addressDAO: AddressDAO; walletDAO: WalletDAO} => ({
+const daos = (): {addressDAO: AddressDAO; walletDAO: WalletDAO; transactionDAO: TransactionDAO} => ({
   addressDAO: {
     getAddressesByWalletId: async () => ({
       receiving: [{address: OURS}], change: [],
@@ -55,6 +56,9 @@ const daos = (): {addressDAO: AddressDAO; walletDAO: WalletDAO} => ({
   walletDAO: {
     getWalletById: async () => ({coreXpub: XPUB}),
   } as unknown as WalletDAO,
+  transactionDAO: {
+    getPendingSpends: async () => [],
+  } as unknown as TransactionDAO,
 })
 
 const bodyOf = (call: {init?: RequestInit}): Record<string, unknown> =>
@@ -67,9 +71,9 @@ describe('xpub transaction walk', () => {
 
   it('posts the xpub rather than putting it in the path', async () => {
     responder = () => json({resultSet: [tx('aa', 100)], pagination: {limit: 100, nextCursor: null}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletTransactions()
+    await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletTransactions()
 
     const [call] = fetches.calls
     expect(call.url).toContain('/xpub/transactions')
@@ -80,9 +84,9 @@ describe('xpub transaction walk', () => {
 
   it('starts without a cursor so pending transactions are included', async () => {
     responder = () => json({resultSet: [tx('aa', null)], pagination: {limit: 100, nextCursor: null}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const result = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletTransactions()
+    const result = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletTransactions()
 
     expect(bodyOf(fetches.calls[0]!).cursor).toBeUndefined()
     expect(result).toHaveLength(1)
@@ -97,9 +101,9 @@ describe('xpub transaction walk', () => {
     ]
     let page = 0
     responder = () => json(pages[page++])
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const result = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletTransactions()
+    const result = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletTransactions()
 
     expect(fetches.calls).toHaveLength(3)
     expect(bodyOf(fetches.calls[1]!).cursor).toBe('aa')
@@ -110,29 +114,29 @@ describe('xpub transaction walk', () => {
   // A server that keeps handing back the same marker would otherwise spin here.
   it('stops when the cursor stops advancing', async () => {
     responder = () => json({resultSet: [tx('aa', 100)], pagination: {limit: 100, nextCursor: 'stuck'}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletTransactions()
+    await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletTransactions()
 
     expect(fetches.calls).toHaveLength(2)
   })
 
   it('uses the same path on mainnet', async () => {
     responder = () => json({resultSet: [tx('aa', 100)], pagination: {limit: 100, nextCursor: null}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    await new DashscanWalletProvider('mainnet', 'w1', addressDAO, walletDAO).getWalletTransactions()
+    await new DashscanWalletProvider('mainnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletTransactions()
 
     expect(fetches.calls[0]!.url).toBe('https://dashscan.pshenmic.dev/xpub/transactions')
   })
 
   it('fails loudly when the wallet has no account xpub', async () => {
     responder = () => json({resultSet: [], pagination: {limit: 100, nextCursor: null}})
-    const {addressDAO} = daos()
+    const {addressDAO, transactionDAO} = daos()
     const walletDAO = {getWalletById: async () => ({coreXpub: null})} as unknown as WalletDAO
 
     await expect(
-      new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletTransactions(),
+      new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletTransactions(),
     ).rejects.toThrow('no account xpub')
     expect(fetches.calls).toHaveLength(0)
   })
@@ -155,9 +159,9 @@ describe('xpub address scan', () => {
       resultSet: [xpubAddress(0, 0, true), xpubAddress(0, 1, false), xpubAddress(1, 0, true)],
       pagination: {page: 1, limit: 100, total: 3},
     })
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const scan = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).scanAddressUsage(50)
+    const scan = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).scanAddressUsage(50)
 
     expect(scan).toEqual([
       {isChange: false, index: 0, isUsed: true},
@@ -170,9 +174,9 @@ describe('xpub address scan', () => {
 
   it('passes our own lookahead as the gap limit', async () => {
     responder = () => json({resultSet: [xpubAddress(0, 0, false)], pagination: {page: 1, limit: 100, total: 1}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).scanAddressUsage(50)
+    await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).scanAddressUsage(50)
 
     expect(bodyOf(fetches.calls[0]!).gap_limit).toBe(50)
   })
@@ -182,9 +186,9 @@ describe('xpub address scan', () => {
     responder = (_url, init) => json(JSON.parse(String(init?.body)).page === 1
       ? {resultSet: full, pagination: {page: 1, limit: 100, total: 101}}
       : {resultSet: [xpubAddress(1, 0, false)], pagination: {page: 2, limit: 100, total: 101}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const scan = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).scanAddressUsage(50)
+    const scan = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).scanAddressUsage(50)
 
     expect(fetches.calls).toHaveLength(2)
     expect(scan).toHaveLength(101)
@@ -192,9 +196,9 @@ describe('xpub address scan', () => {
 
   it('scans on mainnet too', async () => {
     responder = () => json({resultSet: [xpubAddress(0, 0, true)], pagination: {page: 1, limit: 100, total: 1}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const scan = await new DashscanWalletProvider('mainnet', 'w1', addressDAO, walletDAO).scanAddressUsage(50)
+    const scan = await new DashscanWalletProvider('mainnet', 'w1', addressDAO, walletDAO, transactionDAO).scanAddressUsage(50)
 
     expect(scan).toEqual([{isChange: false, index: 0, isUsed: true}])
     expect(fetches.calls[0]!.url).toBe('https://dashscan.pshenmic.dev/xpub/addresses')
@@ -218,9 +222,9 @@ describe('xpub utxo set', () => {
 
   it('posts the xpub and maps the wire shape', async () => {
     responder = () => json({resultSet: [utxo(OURS, '250000')], pagination: {page: 1, limit: 100, total: 1}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const utxos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletUtxos()
+    const utxos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletUtxos()
 
     expect(fetches.calls[0]!.url).toContain('/xpub/utxo')
     expect(bodyOf(fetches.calls[0]!).xpub).toBe(XPUB)
@@ -234,9 +238,9 @@ describe('xpub utxo set', () => {
     responder = (_url, init) => json(JSON.parse(String(init?.body)).page === 1
       ? {resultSet: full, pagination: {page: 1, limit: 100, total: 101}}
       : {resultSet: [utxo(OURS, '1000', 'last')], pagination: {page: 2, limit: 100, total: 101}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const utxos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletUtxos()
+    const utxos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletUtxos()
 
     expect(fetches.calls).toHaveLength(2)
     expect(utxos).toHaveLength(101)
@@ -247,9 +251,9 @@ describe('xpub utxo set', () => {
       resultSet: [utxo(OURS, '1000'), {...utxo(OURS, '2000', 'bb'), scriptPubKeyHex: null}],
       pagination: {page: 1, limit: 100, total: 2},
     })
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const utxos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletUtxos()
+    const utxos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletUtxos()
 
     expect(utxos).toHaveLength(1)
     expect(utxos[0]!.satoshis).toBe(1000n)
@@ -263,9 +267,9 @@ describe('wallet balance', () => {
 
   it('reads the summary balance in one call', async () => {
     responder = () => json({balance: '4820046182581', received: '9107800090158', sent: '9218003263407'})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const balance = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletBalance()
+    const balance = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletBalance()
 
     expect(balance).toBe(4820046182581n)
     expect(fetches.calls).toHaveLength(1)
@@ -277,9 +281,9 @@ describe('wallet balance', () => {
   // balance.
   it('ignores the gross flow figures beside it', async () => {
     responder = () => json({balance: '0', received: '3448058400', sent: '3448058400'})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const balance = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getWalletBalance()
+    const balance = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getWalletBalance()
 
     expect(balance).toBe(0n)
   })
@@ -298,9 +302,9 @@ describe('per-address info folded from wallet-wide results', () => {
     responder = (url) => url.includes('/xpub/utxo')
       ? json({resultSet: [utxo(OURS, '1000'), utxo(OURS, '2000', 'bb')], pagination: {page: 1, limit: 100, total: 2}})
       : json({resultSet: [paying], pagination: {limit: 100, nextCursor: null}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const infos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO)
+    const infos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO)
       .getAddressInfos([OURS, OTHER])
 
     // OURS is on both sides of the one transaction — still one.
@@ -312,9 +316,9 @@ describe('per-address info folded from wallet-wide results', () => {
 
   it('asks for nothing when given no addresses', async () => {
     responder = () => json({resultSet: [], pagination: {page: 1, limit: 100, total: -1}})
-    const {addressDAO, walletDAO} = daos()
+    const {addressDAO, walletDAO, transactionDAO} = daos()
 
-    const infos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO).getAddressInfos([])
+    const infos = await new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO).getAddressInfos([])
 
     expect(infos).toEqual([])
     expect(fetches.calls).toHaveLength(0)

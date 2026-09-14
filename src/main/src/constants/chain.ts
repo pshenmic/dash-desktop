@@ -52,3 +52,9 @@ export const LOCK_WATCH_SWEEP_INTERVAL_MS = 5 * 60 * 1000
 // waiter. Past it nothing is waiting and staying armed only makes the worker
 // fetch isdlock objects it will discard.
 export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
+
+// How long a locally-broadcast spend suppresses its inputs in rpc mode.
+// Dashscan lists an outpoint as unspent until it indexes the spending
+// transaction, and an rpc-mode wallet never applies blocks — so without a
+// cutoff a transaction that died would hide its inputs from selection for good.
+export const PENDING_SPEND_TTL_MS = 10 * 60 * 1000
