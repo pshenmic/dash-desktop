@@ -4,6 +4,7 @@ import type {AddressInfo} from '../types/AddressInfo'
 import type {PrevOutRef, ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {UtxoRow} from '../types/UTXO'
+import type {Outpoint} from '../types/CoinSelection'
 import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
@@ -279,6 +280,19 @@ export class TransactionDAO {
           .update({is_used: true})
       }
     })
+  }
+
+  getPendingSpends = async (walletId: string, sinceMs: number): Promise<Outpoint[]> => {
+    const rows = await this.knex('transaction_inputs as i')
+      .innerJoin('transactions as t', function() {
+        this.on('t.wallet_id', '=', 'i.wallet_id').andOn('t.txid', '=', 'i.txid')
+      })
+      .select('i.prev_txid', 'i.prev_vout')
+      .where('i.wallet_id', walletId)
+      .andWhere('t.block_height', 0)
+      .andWhere('t.first_seen_at', '>=', sinceMs)
+
+    return rows.map(row => ({txid: row.prev_txid as string, vout: row.prev_vout as number}))
   }
 
   // Unconfirmed (block_height = 0) txs — for rebroadcast and isdlock watching.

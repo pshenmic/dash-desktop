@@ -1,5 +1,6 @@
 import {Network} from '../src/types/Network'
 import type {ChainAnchor} from './types/chain'
+import type {DifficultyBlock} from './types/difficulty'
 import type {PoolServiceEventMap} from './types/pool'
 
 // Key width of the height-indexed header records in ChainStore.
@@ -8,6 +9,11 @@ export const HEIGHT_KEY_WIDTH = 12
 export const HASH_LEN = 32
 
 export const POW_LIMIT_BITS = 0x1e0fffff
+
+// powLimit itself (~uint256(0) >> 20), not the round-trip of POW_LIMIT_BITS —
+// that is smaller by its truncated mantissa and would reject targets Core takes.
+export const POW_LIMIT_TARGET = (1n << 236n) - 1n
+
 export const MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60
 
 export const INV_TYPE_NAMES: Record<number, string> = {
@@ -188,6 +194,10 @@ export const HEADER_STALL_CHECK_MS = 60_000
 // Cleared whenever headers land, so this only caps a run of unanswered chases.
 export const ANNOUNCE_DEDUPE_LIMIT = 256
 
+// Tips limit we have sent a `getheaders` from.
+// clean old
+export const LOCATOR_SEEN_LIMIT = 4_096
+
 // Mempool txids already fetched. Every lock-pool peer announces the same tx, so
 // without this each one costs a getdata; measured at ~9 duplicates per tx.
 export const MEMPOOL_SEEN_LIMIT = 20_000
@@ -227,7 +237,11 @@ export const CFILTER_BATCH_PEERS = 2
 // cursor — so restarting the range beats asking a 25th peer the same question.
 export const CFILTER_BATCH_MAX_STALLS = 6
 
-export const CFCHECKPT_RACE_PEERS = 5
+export const CFCHECKPT_RACE_PEERS = 8
+
+// Matching answers that mark the anchors confirmed. Too few peers serve
+// getcfcheckpt to require it, so one answer still proceeds — with a warning.
+export const CFCHECKPT_AGREE_PEERS = 2
 
 export const CFHEADERS_RACE_PEERS = 5
 
@@ -239,6 +253,13 @@ export const CFCHECKPT_RACE_TIMEOUT_MS = 5_000
 export const CFHEADERS_RACE_TIMEOUT_MS = 5_000
 export const CFILTER_BATCH_TIMEOUT_MS = 5_000
 export const BLOCK_REQUEST_TIMEOUT_MS = 5_000
+
+// Block requests that are no longer outstanding, delivered or abandoned. A
+// retry leaves two peers holding the same getdata and a rewind drops the lot,
+// so the late copies are the cost of those paths rather than a peer sending
+// what nobody asked for — which is worth seeing, and is what is left once
+// these are known.
+export const BLOCK_REQUEST_SEEN_LIMIT = 2_048
 
 // How far below the synced tip cf* stop hashes are capped. Dash Core silently
 // drops requests for blocks not in its active chain, so a stop hash peers have
@@ -254,6 +275,51 @@ export const REORG_MAX_DEPTH = 24
 
 // Consecutive tip heights in a getheaders locator before it starts doubling.
 export const LOCATOR_DENSE_HEIGHTS = 10
+
+// ── Difficulty ──────────────────────────────────────────────────────────────
+
+export const POW_TARGET_SPACING = 150
+export const POW_TARGET_TIMESPAN = 24 * 60 * 60
+export const DIFFICULTY_ADJUSTMENT_INTERVAL = POW_TARGET_TIMESPAN / POW_TARGET_SPACING
+
+// Where each era takes over. Testnet went straight from the interval retarget to
+// DGW, so KGW never runs there.
+export const KGW_ACTIVATION_HEIGHT: Record<Network, number> = {mainnet: 15200, testnet: 4002}
+export const DGW_ACTIVATION_HEIGHT: Record<Network, number> = {mainnet: 34140, testnet: 4002}
+
+export const KGW_PAST_BLOCKS_MIN = 14
+export const KGW_PAST_BLOCKS_MAX = 4032
+export const DGW_PAST_BLOCKS = 24
+
+// Testnet only, and two different rules: below KGW_ACTIVATION_HEIGHT a gap over
+// POW_TARGET_SPACING*2 mines at powLimit, above it the thresholds are these.
+export const ALLOW_MIN_DIFFICULTY: Record<Network, boolean> = {mainnet: false, testnet: true}
+export const MIN_DIFFICULTY_RESET_S = 2 * 60 * 60
+
+// Mainnet at or below this height is checked against a band rather than for
+// equality: DGW v1 and v2 produced those blocks in x87 long double, so no
+// reimplementation can reproduce them — Dash Core validates them the same way,
+// comparing difficulty as a double (validation.cpp ContextualCheckBlockHeader).
+export const DGW_TOLERANCE_HEIGHT: Record<Network, number> = {mainnet: 68589, testnet: 0}
+export const DGW_TOLERANCE = 0.5
+
+// KGW reaches furthest back of the three eras, and a branch may fork
+// REORG_MAX_DEPTH below the tip and still need its full context from there.
+export const DIFFICULTY_WINDOW_DEPTH = KGW_PAST_BLOCKS_MAX + REORG_MAX_DEPTH
+
+// Blocks 0 and 1. GENESIS anchors the chain at height 1, so neither ever arrives
+// over the wire, and the first header we validate — height 2 — needs block 1's
+// nBits while the first interval retarget at height 576 needs block 0's time.
+export const DIFFICULTY_SEED: Record<Network, DifficultyBlock[]> = {
+  mainnet: [
+    {height: 0, time: 1390095618, nBits: 0x1e0ffff0},
+    {height: 1, time: 1390103681, nBits: 0x1e0ffff0},
+  ],
+  testnet: [
+    {height: 0, time: 1390666206, nBits: 0x1e0ffff0},
+    {height: 1, time: 1398712771, nBits: 0x1e0fffff},
+  ],
+}
 
 // ── Broadcast ───────────────────────────────────────────────────────────────
 

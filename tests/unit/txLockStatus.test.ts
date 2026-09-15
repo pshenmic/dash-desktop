@@ -14,12 +14,13 @@ vi.mock('electron', () => ({
 import {DashscanWalletProvider} from '../../src/main/src/providers/DashscanWalletProvider'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
+import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 
 const TXID = 'a'.repeat(64)
 
 const provider = (): DashscanWalletProvider => {
   state.calls = 0
-  return new DashscanWalletProvider('testnet', 'w1', {} as AddressDAO, {} as WalletDAO)
+  return new DashscanWalletProvider('testnet', 'w1', {} as AddressDAO, {} as WalletDAO, {} as TransactionDAO)
 }
 
 const ok = (body: unknown): Response =>

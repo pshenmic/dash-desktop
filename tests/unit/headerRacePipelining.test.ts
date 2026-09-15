@@ -56,6 +56,7 @@ function makeChain(fromHash: string, count: number, nonce: number): Uint8Array[]
 }
 
 class FakeChainStore {
+  readonly network = 'mainnet' as const
   state: ChainTipState = {tipHeight: 0, tipHash: null}
   iterateHeadersInRange = async (): Promise<Array<{height: number; raw: Uint8Array}>> => []
   appendHeaders = async (_h: PersistedHeader[], nextState: ChainTipState): Promise<void> => {

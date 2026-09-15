@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
+import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {Network} from '../../src/main/src/types/Network'
 import {DASHSCAN_STATUS_INTERVAL_MS} from '../../src/main/src/constants/dashscan'
 
@@ -12,7 +13,7 @@ const response = (ok: boolean): Response => ({ok, status: ok ? 200 : 503} as Res
 
 const provider = async (network: Network = 'testnet') => {
   const {DashscanWalletProvider} = await import('../../src/main/src/providers/DashscanWalletProvider')
-  return new DashscanWalletProvider(network, 'w1', {} as AddressDAO, {} as WalletDAO)
+  return new DashscanWalletProvider(network, 'w1', {} as AddressDAO, {} as WalletDAO, {} as TransactionDAO)
 }
 
 const flushPromises = async (): Promise<void> => {

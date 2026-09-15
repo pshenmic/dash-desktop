@@ -1,9 +1,11 @@
 import {Inventory, Message, Peer} from 'dash-core-p2p'
 import {ChainStore} from '../../store/ChainStore'
+import {Network} from '../../../src/types/Network'
 import {PoolService} from '../../net/PoolService'
 import {buildLocatorHeights} from '../../utils/blockLocator'
 import {displayHexToWire, wireToDisplayHex} from '../../utils/byteOrder'
 import {ChainWindow} from '../../store/chainWindow'
+import {DifficultyWindow} from '../../store/difficultyWindow'
 import {formatChainDbError} from '../../store/chainDbError'
 import {validateHeaders} from '../../utils/headerValidation'
 import {PeerRotation} from '../../net/peerRotation'
@@ -11,11 +13,13 @@ import {headerWork, rawPrevHash} from '../../utils/pow'
 import {Worker} from './Worker'
 import {
   ANNOUNCE_DEDUPE_LIMIT,
+  DIFFICULTY_SEED,
   HEADER_RACE_PEERS,
   HEADER_STALL_CHECK_MS,
   HEADER_STALL_TIMEOUT_MS,
   HEADER_SYNC_TIMEOUT_MS,
   INV_TYPE_NAMES,
+  LOCATOR_SEEN_LIMIT,
   REORG_MAX_DEPTH,
 } from '../../constants'
 import type {
@@ -33,14 +37,15 @@ function typeName(t: number): string {
   return INV_TYPE_NAMES[t] ?? `UNKNOWN(${t})`
 }
 
-// Races `getheaders` against ready peers, validates PoW only (DGWv3 difficulty
-// is deliberately off — see processHeaders), and persists via ChainStore.
+// Races `getheaders` against ready peers, validates each header (link, time,
+// PoW and the retarget rule for its era), and persists via ChainStore.
 // 'chainExtended' is what CFilterSyncWorker follows to keep its in-memory chain
 // index current for live tip following.
 export class HeaderSyncWorker extends Worker {
   readonly name = 'HeaderSyncWorker'
 
   private chainStore: ChainStore
+  private readonly network: Network
   private peerPool: PoolService
 
   private chainTipHeight: number
@@ -49,6 +54,7 @@ export class HeaderSyncWorker extends Worker {
   private finalityHeight: number
 
   private readonly window: ChainWindow
+  private readonly difficulty = new DifficultyWindow()
   private readonly rotation: PeerRotation
 
   private currentRace: HeaderRace | null = null
@@ -57,6 +63,9 @@ export class HeaderSyncWorker extends Worker {
 
   // Chased announcements, so one block costs one getheaders across all peers.
   private announcedBlocks = new Set<string>()
+  // Tips we have asked from. A batch building on one of these is an answer to a
+  // question already settled, not a branch we cannot place.
+  private askedFrom = new Set<string>()
   // Non-tx inv hashes already logged. Every peer announces the same clsig —
   // measured at ~11 copies — and one line each buries the rest of the log.
   private loggedInv = new Set<string>()
@@ -75,6 +84,7 @@ export class HeaderSyncWorker extends Worker {
   constructor(opts: HeaderSyncWorkerOptions) {
     super()
     this.chainStore = opts.chainStore
+    this.network = opts.chainStore.network
     this.peerPool = opts.peerPool
     this.chainTipHeight = opts.initialTipHeight
     this.chainTipHash = opts.initialTipHash
@@ -91,6 +101,9 @@ export class HeaderSyncWorker extends Worker {
 
   start = async (): Promise<void> => {
     await this.window.load(this.chainStore, this.chainTipHash)
+    await this.difficulty.load(
+      this.chainStore, this.chainTipHeight, DIFFICULTY_SEED[this.network],
+    )
     this.peerPool.on('peerready', this.onPeerReady)
     this.peerPool.on('peerheaders', this.onPeerHeaders)
     this.peerPool.on('peerinv', this.onPeerInv)
@@ -206,8 +219,14 @@ export class HeaderSyncWorker extends Worker {
 
   private requestTipHeaders(peers: Peer[]): void {
     if (peers.length === 0) return
+    this.rememberAsked()
     const msg = this.getHeadersMsg(this.buildLocator())
     for (const peer of peers) peer.sendMessage(msg)
+  }
+
+  private rememberAsked(): void {
+    if (this.askedFrom.size >= LOCATOR_SEEN_LIMIT) this.askedFrom.clear()
+    this.askedFrom.add(this.chainTipHash)
   }
 
   // Backstop for the inv path: a peer set sending neither headers nor
@@ -331,6 +350,7 @@ export class HeaderSyncWorker extends Worker {
     const picks = this.rotation.pick(HEADER_RACE_PEERS)
     if (picks.length === 0) return
 
+    this.rememberAsked()
     const locator = this.buildLocator()
     const race: HeaderRace = {
       locator, expectedPrev: this.chainTipHash, racers: new Set(picks), zeroResponses: 0, timer: null,
@@ -378,7 +398,9 @@ export class HeaderSyncWorker extends Worker {
 
     const incomingPrev = rawPrevHash(rawHeaders[0]!)
     if (incomingPrev === this.chainTipHash) {
-      const validated = validateHeaders(rawHeaders, this.chainTipHeight, this.chainTipHash)
+      const validated = validateHeaders(
+        rawHeaders, this.chainTipHeight, this.chainTipHash, this.network, this.difficulty.at,
+      )
       return validated == null ? false : await this.commitHeaders(validated.accepted, from)
     }
 
@@ -386,14 +408,20 @@ export class HeaderSyncWorker extends Worker {
     // accepted lands here too, its parent now one below the tip.
     const connectsAt = this.window.heightOf(incomingPrev)
     if (connectsAt == null) {
-      log.warn(`reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+      // Silent for a tip we asked from: past 'synced' nothing filters the losing
+      // racers, and the drain is thousands of batches wide.
+      if (!this.askedFrom.has(incomingPrev)) {
+        log.warn(`reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+      }
       return false
     }
 
     const {rest, height, hash} = this.window.trimKnownPrefix(rawHeaders, connectsAt, incomingPrev)
     if (rest.length === 0) return false
     if (height === this.chainTipHeight) {
-      const validated = validateHeaders(rest, this.chainTipHeight, this.chainTipHash)
+      const validated = validateHeaders(
+        rest, this.chainTipHeight, this.chainTipHash, this.network, this.difficulty.at,
+      )
       return validated == null ? false : await this.commitHeaders(validated.accepted, from)
     }
     return await this.considerFork(rest, height, hash, from)
@@ -407,7 +435,9 @@ export class HeaderSyncWorker extends Worker {
       return false
     }
 
-    const validated = validateHeaders(rawHeaders, forkHeight, forkHash)
+    const validated = validateHeaders(
+      rawHeaders, forkHeight, forkHash, this.network, this.difficulty.at,
+    )
     if (validated == null) return false
 
     const ourWork = this.window.workAbove(forkHeight)
@@ -428,6 +458,7 @@ export class HeaderSyncWorker extends Worker {
     this.chainTipHash = forkHash
     this.window.setTip(forkHeight)
     this.window.prune()
+    this.difficulty.rewindTo(forkHeight)
 
     // Ordered before the winning branch's chainExtended so the filter scan and
     // SQL have dropped the orphaned blocks by the time replacements arrive.
@@ -443,7 +474,10 @@ export class HeaderSyncWorker extends Worker {
     this.chainTipHeight = last.height
     this.chainTipHash = last.hash
     this.window.setTip(last.height)
-    for (const header of accepted) this.window.record(header.height, header.hash, headerWork(header.nBits))
+    for (const header of accepted) {
+      this.window.record(header.height, header.hash, headerWork(header.nBits))
+      this.difficulty.record({height: header.height, time: header.time, nBits: header.nBits})
+    }
 
     this.lastHeaderAt = Date.now()
     log.debug(`tip h=${last.height} +${accepted.length} from ${from} phase=${this.phase}`)
