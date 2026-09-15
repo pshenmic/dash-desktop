@@ -50,9 +50,10 @@ jobs:
     - name: Install dependencies
       run: yarn
     # One electron-builder run packs both targets, so the native modules are
-    # rebuilt from source once rather than per installer.
+    # rebuilt from source once. AppX is stable-only: the Store drops the
+    # prerelease tag, so every beta of a version would share one package version.
     - name: Build Windows
-      run: yarn build && yarn electron-builder --win nsis appx --x64 --publish never
+      run: yarn build && yarn electron-builder --win ${{ github.event.release.prerelease && 'nsis' || 'nsis appx' }} --x64 --publish never
     - name: Upload Windows artifacts
       uses: softprops/action-gh-release@v2
       with:
