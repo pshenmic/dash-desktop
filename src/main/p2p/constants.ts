@@ -194,6 +194,10 @@ export const HEADER_STALL_CHECK_MS = 60_000
 // Cleared whenever headers land, so this only caps a run of unanswered chases.
 export const ANNOUNCE_DEDUPE_LIMIT = 256
 
+// Tips limit we have sent a `getheaders` from.
+// clean old
+export const LOCATOR_SEEN_LIMIT = 4_096
+
 // Mempool txids already fetched. Every lock-pool peer announces the same tx, so
 // without this each one costs a getdata; measured at ~9 duplicates per tx.
 export const MEMPOOL_SEEN_LIMIT = 20_000
@@ -245,6 +249,13 @@ export const CFCHECKPT_RACE_TIMEOUT_MS = 5_000
 export const CFHEADERS_RACE_TIMEOUT_MS = 5_000
 export const CFILTER_BATCH_TIMEOUT_MS = 5_000
 export const BLOCK_REQUEST_TIMEOUT_MS = 5_000
+
+// Block requests that are no longer outstanding, delivered or abandoned. A
+// retry leaves two peers holding the same getdata and a rewind drops the lot,
+// so the late copies are the cost of those paths rather than a peer sending
+// what nobody asked for — which is worth seeing, and is what is left once
+// these are known.
+export const BLOCK_REQUEST_SEEN_LIMIT = 2_048
 
 // How far below the synced tip cf* stop hashes are capped. Dash Core silently
 // drops requests for blocks not in its active chain, so a stop hash peers have

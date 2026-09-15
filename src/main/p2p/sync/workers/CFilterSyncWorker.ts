@@ -143,6 +143,10 @@ export class CFilterSyncWorker extends Worker {
 
   private matchedBlocks = new Map<number, Block>()
 
+  // Totals the last 'scan complete' line carried.
+  private reportedUtxos = -1
+  private reportedSatoshis = -1n
+
   // Bound peer-event listeners. Stable references kept for stop()'s off().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly peerListeners: Array<[string, (...args: any[]) => void]> = [
@@ -469,7 +473,11 @@ export class CFilterSyncWorker extends Worker {
 
     const height = this.blockFetcher.receive(peer, blockHashWire)
     if (height == null) {
-      log.warn(`peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
+      if (this.blockFetcher.wasRequested(blockHashWire)) {
+        log.debug(`peerblock from ${peer.host} ${blockHashHex.slice(0, 16)}… — request already settled`)
+      } else {
+        log.warn(`peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
+      }
       return
     }
     log.debug(`peerblock h=${height} from ${peer.host}  inflight-blocks=${this.blockFetcher.size}`)
@@ -905,7 +913,15 @@ export class CFilterSyncWorker extends Worker {
     }
     this.emit('cursorAdvanced', {walletId: this.walletId, height: this.effectiveScanTipHeight()})
     this.emitStatus('synced')
-    log.info(`scan complete utxos=${this.watchSet.utxoCount} balance=${this.watchSet.totalSatoshis()} sats`)
+
+    // Tip-follow re-enters the scan for every block, so the totals only say
+    // something on the completion that moved them.
+    const satoshis = this.watchSet.totalSatoshis()
+    if (this.watchSet.utxoCount !== this.reportedUtxos || satoshis !== this.reportedSatoshis) {
+      this.reportedUtxos = this.watchSet.utxoCount
+      this.reportedSatoshis = satoshis
+      log.info(`scan complete utxos=${this.reportedUtxos} balance=${satoshis} sats`)
+    }
   }
 
   private filterMatcher(): FilterMatcher {

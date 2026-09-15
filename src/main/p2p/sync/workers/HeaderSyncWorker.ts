@@ -19,6 +19,7 @@ import {
   HEADER_STALL_TIMEOUT_MS,
   HEADER_SYNC_TIMEOUT_MS,
   INV_TYPE_NAMES,
+  LOCATOR_SEEN_LIMIT,
   REORG_MAX_DEPTH,
 } from '../../constants'
 import type {
@@ -62,6 +63,9 @@ export class HeaderSyncWorker extends Worker {
 
   // Chased announcements, so one block costs one getheaders across all peers.
   private announcedBlocks = new Set<string>()
+  // Tips we have asked from. A batch building on one of these is an answer to a
+  // question already settled, not a branch we cannot place.
+  private askedFrom = new Set<string>()
   // Non-tx inv hashes already logged. Every peer announces the same clsig —
   // measured at ~11 copies — and one line each buries the rest of the log.
   private loggedInv = new Set<string>()
@@ -215,8 +219,14 @@ export class HeaderSyncWorker extends Worker {
 
   private requestTipHeaders(peers: Peer[]): void {
     if (peers.length === 0) return
+    this.rememberAsked()
     const msg = this.getHeadersMsg(this.buildLocator())
     for (const peer of peers) peer.sendMessage(msg)
+  }
+
+  private rememberAsked(): void {
+    if (this.askedFrom.size >= LOCATOR_SEEN_LIMIT) this.askedFrom.clear()
+    this.askedFrom.add(this.chainTipHash)
   }
 
   // Backstop for the inv path: a peer set sending neither headers nor
@@ -340,6 +350,7 @@ export class HeaderSyncWorker extends Worker {
     const picks = this.rotation.pick(HEADER_RACE_PEERS)
     if (picks.length === 0) return
 
+    this.rememberAsked()
     const locator = this.buildLocator()
     const race: HeaderRace = {
       locator, expectedPrev: this.chainTipHash, racers: new Set(picks), zeroResponses: 0, timer: null,
@@ -397,7 +408,11 @@ export class HeaderSyncWorker extends Worker {
     // accepted lands here too, its parent now one below the tip.
     const connectsAt = this.window.heightOf(incomingPrev)
     if (connectsAt == null) {
-      log.warn(`reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+      // Silent for a tip we asked from: past 'synced' nothing filters the losing
+      // racers, and the drain is thousands of batches wide.
+      if (!this.askedFrom.has(incomingPrev)) {
+        log.warn(`reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+      }
       return false
     }
 

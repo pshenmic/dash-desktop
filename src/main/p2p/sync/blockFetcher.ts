@@ -1,5 +1,5 @@
 import {Inventory, type Message, type Peer} from 'dash-core-p2p'
-import {BLOCK_REQUEST_TIMEOUT_MS} from '../constants'
+import {BLOCK_REQUEST_SEEN_LIMIT, BLOCK_REQUEST_TIMEOUT_MS} from '../constants'
 import type {PeerRotation} from '../net/peerRotation'
 import type {BlockRequest, BlockFetcherOptions} from '../types/cfilterSync'
 import {Logger} from '../../src/utils/logger'
@@ -18,6 +18,9 @@ function keyOf(hashWire: Uint8Array): string {
 // and no chain-wide hash→height map has to exist.
 export class BlockFetcher {
   private readonly inflight = new Map<string, BlockRequest>()
+  // Hashes that were ours and no longer are, so a late second copy can be told
+  // from a block nobody asked for.
+  private readonly retired = new Set<string>()
   private readonly rotation: PeerRotation
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly messages: any
@@ -70,7 +73,15 @@ export class BlockFetcher {
     if (!pending) return null
     if (pending.timer) clearTimeout(pending.timer)
     this.inflight.delete(key)
+    this.retire(key)
     return pending.height
+  }
+
+  // Whether this block was ever requested. A retry leaves two peers holding the
+  // same getdata and a rewind abandons the lot, so both deliver blocks nothing
+  // is waiting for — unlike one arriving unbidden.
+  wasRequested(hashWire: Uint8Array): boolean {
+    return this.retired.has(keyOf(hashWire))
   }
 
   // The peer answered, but with a block the caller could not verify. The
@@ -87,10 +98,16 @@ export class BlockFetcher {
   // Drops everything outstanding without ending the fetcher — a rewind
   // invalidates the requests but the worker keeps running.
   reset(): void {
-    for (const entry of this.inflight.values()) {
+    for (const [key, entry] of this.inflight) {
       if (entry.timer) clearTimeout(entry.timer)
+      this.retire(key)
     }
     this.inflight.clear()
+  }
+
+  private retire(key: string): void {
+    if (this.retired.size >= BLOCK_REQUEST_SEEN_LIMIT) this.retired.clear()
+    this.retired.add(key)
   }
 
   stop(): void {

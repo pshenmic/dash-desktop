@@ -25,7 +25,7 @@ const {HeaderSyncWorker} = await import('../../src/main/p2p/sync/workers/HeaderS
 const {hashHeaderRaw} = await import('../../src/main/p2p/utils/pow')
 const {
   POW_LIMIT_BITS, HEADER_STALL_TIMEOUT_MS, HEADER_STALL_CHECK_MS,
-  HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS,
+  HEADER_RACE_PEERS, HEADER_SYNC_TIMEOUT_MS, REORG_MAX_DEPTH,
 } = await import('../../src/main/p2p/constants')
 type PeerRotation = import('../../src/main/p2p/net/peerRotation').PeerRotation
 type ChainStore = import('../../src/main/p2p/store/ChainStore').ChainStore
@@ -286,6 +286,34 @@ describe('HeaderSyncWorker', () => {
     expect(extended).toEqual([])
     expect(rewound).toEqual([])
     expect(store.state.tipHeight).toBe(0)
+  })
+
+  // Nothing cancels the losing racers, so when the sync ends thousands of
+  // batches are still in flight, every one built on a tip the chain has since
+  // left behind. Reporting them buried every real warning the sync produced.
+  it('stays quiet about a batch answering a race the tip has already passed', async () => {
+    await push(peerA, makeChain(GENESIS_HASH, REORG_MAX_DEPTH + 1, 1))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await push(peerB, makeChain(GENESIS_HASH, 2, 500))
+
+    const lines = warn.mock.calls.map(args => String(args[0]))
+    warn.mockRestore()
+
+    expect(lines.filter(line => line.includes('reject batch'))).toEqual([])
+    expect(extended).toHaveLength(1)
+  })
+
+  it('still reports a batch built on a tip it never asked from', async () => {
+    const orphanParent = hashHeaderRaw(makeHeader('11'.repeat(32), 9999))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await push(peerA, makeChain(orphanParent, 2, 1))
+
+    const lines = warn.mock.calls.map(args => String(args[0]))
+    warn.mockRestore()
+
+    expect(lines.filter(line => line.includes('reject batch'))).toHaveLength(1)
   })
 
   it('asks for headers when a peer announces a block by inv', async () => {
