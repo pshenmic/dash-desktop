@@ -53,3 +53,30 @@ jobs:
         path: ${{ matrix.artifacts }}
         if-no-files-found: error
         retention-days: 14
+
+  build_flatpak_store:
+    name: flatpak
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+    - uses: actions/checkout@v4
+    - name: Lint manifest
+      run: flatpak-builder-lint manifest flatpak/io.github.pshenmic.dash-desktop.yml
+    - name: Build Flatpak
+      uses: flathub-infra/flatpak-github-actions/flatpak-builder@933e9e8ca36e85046ebca8e211f0785c6becac40
+      with:
+        manifest-path: flatpak/io.github.pshenmic.dash-desktop.yml
+        bundle: dash-desktop.flatpak
+        upload-artifact: false
+        cache: false
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: dash-desktop-prebuild-flatpak
+        path: dash-desktop.flatpak
+        if-no-files-found: error
+        retention-days: 14
+    - name: Lint build
+      run: flatpak-builder-lint builddir flatpak_app
