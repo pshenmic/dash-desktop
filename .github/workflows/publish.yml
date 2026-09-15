@@ -33,12 +33,71 @@ jobs:
         node-version: 24.x
     - name: Install dependencies
       run: yarn
+    - name: Write App Store Connect API key
+      run: echo "$APPLE_API_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+      env:
+        APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+    # forceCodeSigning fails the job on a missing certificate instead of
+    # publishing an unsigned DMG.
     - name: Build Mac
-      run: yarn build:mac
+      run: yarn build:mac -c.forceCodeSigning=true
+      env:
+        CSC_LINK: ${{ secrets.MAC_CERTS }}
+        CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+        APPLE_API_KEY: ${{ runner.temp }}/AuthKey.p8
+        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+    # electron-builder only warns when it skips notarization.
+    - name: Verify signature and notarization
+      run: |
+        for app in dist/mac*/*.app; do
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose "$app"
+        done
     - name: Upload Mac artifacts
       uses: softprops/action-gh-release@v2
       with:
         files: dist/*.dmg
+
+  publish_appstore:
+    needs: build_mac
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+    - name: Install dependencies
+      run: yarn
+    - name: Write provisioning profile and App Store Connect API key
+      run: |
+        echo "$MAS_PROVISIONING_PROFILE" | base64 --decode > buildResources/embedded.provisionprofile
+        mkdir -p ~/.appstoreconnect/private_keys
+        echo "$APPLE_API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY_ID.p8
+      env:
+        MAS_PROVISIONING_PROFILE: ${{ secrets.MAS_PROVISIONING_PROFILE }}
+        APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+    # App Store Connect rejects a pre-release suffix in the version string and
+    # an upload that reuses a build number, re-runs included.
+    - name: Build Mac App Store package
+      run: |
+        yarn build:mas -c.forceCodeSigning=true \
+          -c.mac.bundleShortVersion="$(node -p "require('./package.json').version.split('-')[0]")" \
+          -c.buildVersion="${{ github.run_number }}.${{ github.run_attempt }}"
+      env:
+        CSC_LINK: ${{ secrets.MAS_CERTS }}
+        CSC_KEY_PASSWORD: ${{ secrets.MAS_CERTS_PASSWORD }}
+        CSC_INSTALLER_LINK: ${{ secrets.MAS_INSTALLER_CERTS }}
+        CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.MAS_INSTALLER_CERTS_PASSWORD }}
+    - name: Upload to App Store Connect
+      run: |
+        xcrun altool --upload-app --type macos --file dist/*-mas.pkg \
+          --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+      env:
+        APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
   build_win:
     runs-on: windows-2022

@@ -43,11 +43,24 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  category: public.app-category.finance
   target:
     - target: dmg
       arch:
         - arm64
         - x64
+  entitlements: buildResources/entitlements.mac.plist
+  # Without it the helpers fall back to electron-builder's template, which
+  # also disables library validation.
+  entitlementsInherit: buildResources/entitlements.mac.plist
+# Built only by `build:mas`; the `mac.target` list above stays the DMG.
+mas:
+  entitlements: buildResources/entitlements.mas.plist
+  entitlementsInherit: buildResources/entitlements.mas.inherit.plist
+  # Not committed: CI writes it from a secret. osx-sign reads the team ID and
+  # app group entitlements out of it.
+  provisioningProfile: buildResources/embedded.provisionprofile
+  artifactName: ${name}-${version}-mas.${ext}
 dmg:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 linux:
