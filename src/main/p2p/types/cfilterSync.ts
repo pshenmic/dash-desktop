@@ -19,6 +19,7 @@ export interface CheckpointAnchorsOptions {
   messages: any
   stopHashAt: (height: number) => Uint8Array | undefined
   onReady: (headers: Uint8Array[], fromPeer: Peer) => void
+  poolCanGrow: () => boolean
 }
 
 export interface CFilterBatch {

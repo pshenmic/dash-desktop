@@ -184,6 +184,7 @@ export class CFilterSyncWorker extends Worker {
       messages: this.M,
       stopHashAt: height => this.blockHashIndex.get(height),
       onReady: (headers, fromPeer) => this.onCheckpointsReady(headers, fromPeer),
+      poolCanGrow: () => !this.peerPool.pinnedOnly,
     })
   }
 

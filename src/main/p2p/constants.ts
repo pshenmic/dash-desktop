@@ -237,7 +237,11 @@ export const CFILTER_BATCH_PEERS = 2
 // cursor — so restarting the range beats asking a 25th peer the same question.
 export const CFILTER_BATCH_MAX_STALLS = 6
 
-export const CFCHECKPT_RACE_PEERS = 5
+export const CFCHECKPT_RACE_PEERS = 8
+
+// Matching answers that mark the anchors confirmed. Too few peers serve
+// getcfcheckpt to require it, so one answer still proceeds — with a warning.
+export const CFCHECKPT_AGREE_PEERS = 2
 
 export const CFHEADERS_RACE_PEERS = 5
 
