@@ -49,12 +49,47 @@ jobs:
         node-version: 24.x
     - name: Install dependencies
       run: yarn
-    # One electron-builder run packs both targets, so the native modules are
-    # rebuilt from source once. AppX is stable-only: the Store drops the
-    # prerelease tag, so every beta of a version would share one package version.
+    # Pinned by hash: this archive signs every Windows release.
+    - name: Install CodeSignTool
+      shell: pwsh
+      env:
+        CODESIGNTOOL_VERSION: v1.3.2
+        CODESIGNTOOL_SHA256: 4afc32e8b7f79bbe1de7e4e7049aaad4e0f754357613b9bbec0e3052f06fd36b
+      run: |
+        $archive = Join-Path $env:RUNNER_TEMP 'CodeSignTool.zip'
+        $dir = Join-Path $env:RUNNER_TEMP 'CodeSignTool'
+        Invoke-WebRequest "https://github.com/SSLcom/CodeSignTool/releases/download/$env:CODESIGNTOOL_VERSION/CodeSignTool-$env:CODESIGNTOOL_VERSION-windows.zip" -OutFile $archive
+        if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:CODESIGNTOOL_SHA256) { throw 'CodeSignTool archive hash mismatch' }
+        Expand-Archive $archive -DestinationPath $dir
+        "CODE_SIGN_TOOL_PATH=$dir" >> $env:GITHUB_ENV
     - name: Build Windows
-      run: yarn build && yarn electron-builder --win ${{ github.event.release.prerelease && 'nsis' || 'nsis appx' }} --x64 --publish never
+      env:
+        ESIGNER_USERNAME: ${{ secrets.ESIGNER_USERNAME }}
+        ESIGNER_PASSWORD: ${{ secrets.ESIGNER_PASSWORD }}
+        ESIGNER_TOTP_SECRET: ${{ secrets.ESIGNER_TOTP_SECRET }}
+        ESIGNER_CREDENTIAL_ID: ${{ secrets.ESIGNER_CREDENTIAL_ID }}
+      run: yarn build && yarn electron-builder --win nsis --x64 --publish never -c.win.signtoolOptions.sign=./build/esignerSign.cjs
     - name: Upload Windows artifacts
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/*.{exe,appx}
+        files: dist/*.exe
+
+  # The Store signs this package itself, so it is built without the signing hook.
+  # Stable-only: the Store drops the prerelease tag, so every beta of a version
+  # would share one package version.
+  build_appx:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: windows-2022
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24.x
+    - name: Install dependencies
+      run: yarn
+    - name: Build AppX
+      run: yarn build && yarn electron-builder --win appx --x64 --publish never
+    - name: Upload AppX
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*.appx
