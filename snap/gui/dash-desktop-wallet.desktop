@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Dash Desktop Crypto Wallet
+Comment=Dash crypto wallet for desktop
+Exec=dash-desktop-wallet %U
+Icon=${SNAP}/meta/gui/icon.png
+Terminal=false
+Type=Application
+Categories=Office;Finance;
+Keywords=wallet;crypto;cryptocurrency;dash;bitcoin;blockchain

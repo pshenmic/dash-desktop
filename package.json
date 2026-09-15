@@ -5,7 +5,7 @@
   "main": "./out/main/index.js",
   "author": "pshenmic",
   "license": "MIT",
-  "homepage": "https://github.com/pshenmic/electron-desktop-wallet#readme",
+  "homepage": "https://github.com/pshenmic/dash-desktop#readme",
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
@@ -20,10 +20,10 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pshenmic/electron-desktop-wallet.git"
+    "url": "git+https://github.com/pshenmic/dash-desktop.git"
   },
   "bugs": {
-    "url": "https://github.com/pshenmic/electron-desktop-wallet/issues"
+    "url": "https://github.com/pshenmic/dash-desktop/issues"
   },
   "dependencies": {
     "@electron-toolkit/preload": "3.0.2",
