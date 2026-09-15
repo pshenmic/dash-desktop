@@ -1,6 +1,7 @@
 // The wallet has exactly two networks. Spelling it `string` on some signatures
 // and the union on others let an unchecked value reach the IPC boundary.
 type Network = 'mainnet' | 'testnet'
+type ContactKind = 'core' | 'platform' | 'shielded' | 'identity'
 
 // Mirrors src/main/src/types/CoinSelection, which the bundles do not share: an
 // address narrows the automatic selection, a picked outpoint list is spent whole.
@@ -111,8 +112,9 @@ export const apiDefinitions = (ipcRenderer) => ({
   showLogFileInFolder: (name: string) => ipcRenderer.invoke('showLogFileInFolder', name),
 
   getContacts: (network?: Network) => ipcRenderer.invoke('getContacts', network),
-  addContact: (label: string, address: string, network: Network) => ipcRenderer.invoke('addContact', label, address, network),
+  addContact: (label: string, address: string, network: Network, kind: ContactKind = 'core') => ipcRenderer.invoke('addContact', label, address, network, kind),
   deleteContact: (id: number) => ipcRenderer.invoke('deleteContact', id),
+  updateContact: (id: number, label: string, address: string, kind: ContactKind) => ipcRenderer.invoke('updateContact', id, label, address, kind),
 
   getShieldedStatus: () => ipcRenderer.invoke('getShieldedStatus'),
   getShieldedPoolInfo: (network: Network) => ipcRenderer.invoke('getShieldedPoolInfo', network),

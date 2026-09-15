@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ContactKind, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -207,12 +207,16 @@ export class API {
     return this.api.getContacts(network) as Promise<Contact[]>
   }
 
-  static async addContact(label: string, address: string, network: Network): Promise<void> {
-    return this.api.addContact(label, address, network)
+  static async addContact(label: string, address: string, network: Network, kind: ContactKind = 'core'): Promise<void> {
+    return this.api.addContact(label, address, network, kind)
   }
 
   static async deleteContact(id: number): Promise<void> {
     return this.api.deleteContact(id)
+  }
+
+  static async updateContact(id: number, label: string, address: string, kind: ContactKind): Promise<void> {
+    return this.api.updateContact(id, label, address, kind)
   }
 
   static async sendTransaction(walletId: string, recipients: CoreRecipient[], password: string, source?: CoreSpendSource, changeTo?: string): Promise<SendResult> {

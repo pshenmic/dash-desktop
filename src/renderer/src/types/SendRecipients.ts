@@ -24,6 +24,7 @@ export interface RecipientInputProps {
   compact?: boolean
   ariaLabel?: string
   ownOptions?: DropdownFieldOption[]
+  destination?: DestinationKind
 }
 
 export interface SendRecipientError {
@@ -42,6 +43,7 @@ export interface SendRecipientValidation {
 }
 
 export interface SendRecipientsEditorProps {
+  ownOptions?: DropdownFieldOption[]
   headerAction?: ReactNode
   beforeRecipients?: ReactNode
   recipients: SendRecipientDraft[]

@@ -3,6 +3,7 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 // Mirrors definitions.ts, which declares the same alias: the bundles do not
 // share types, so each spells the two networks out for itself.
 type Network = 'mainnet' | 'testnet'
+type ContactKind = 'core' | 'platform' | 'shielded' | 'identity'
 
 // Mirrors src/main/src/types/CoinSelection, which the bundles do not share: an
 // address narrows the automatic selection, a picked outpoint list is spent whole.
@@ -176,8 +177,9 @@ declare global {
       getLogFile: (name: string) => Promise<{ name: string; content: string; size: number; modifiedAt: number; rotated: boolean }>
       showLogFileInFolder: (name: string) => Promise<void>
       getContacts: (network?: Network) => Promise<unknown>
-      addContact: (label: string, address: string, network: Network) => Promise<void>
+      addContact: (label: string, address: string, network: Network, kind?: ContactKind) => Promise<void>
       deleteContact: (id: number) => Promise<void>
+      updateContact: (id: number, label: string, address: string, kind: ContactKind) => Promise<void>
       getShieldedStatus: () => Promise<{ prover: 'idle' | 'preparing' | 'ready' | 'error'; ready: boolean; error: string | null }>
       getShieldedPoolInfo: (network: Network) => Promise<{ poolState: bigint | null; notesCount: bigint | null }>
       getShieldedNotesInfo: (walletId: string) => Promise<{ undecodedCount: number }>

@@ -18,6 +18,7 @@ import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
 import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
+import { getAddressKind } from '@renderer/utils/addressBook';
 import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
@@ -101,7 +102,7 @@ function WalletTransferHub(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
@@ -168,12 +169,12 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const { format: formatFiat, rateReady } = useFiat()
-  const { balance } = useWalletBalance(walletId ?? undefined)
+  const { balance, loading: balanceLoading, err: balanceError } = useWalletBalance(walletId ?? undefined)
   const { receiving, change, loading: coreAddressesLoading, err: coreAddressesError } = useAdresses(walletId ?? undefined)
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
-  const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
+  const savedShielded = useSavedShieldedAddresses(toKind === DestinationKind.Shielded, shieldedSync.phase)
   const shieldedRecipientBalances = useMemo(() => shieldedSync.phase === ShieldedSyncPhase.Done
     ? shieldedBalancesByAddress(shieldedSync.notes) : null, [shieldedSync.phase, shieldedSync.notes])
   const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
@@ -182,6 +183,7 @@ function WalletTransferHub(): React.JSX.Element {
   }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedRecipientBalances])
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
+  useErrorToast(balanceError)
   useErrorToast(coreAddressesError)
   useErrorToast(platformAddressesError)
   useErrorToast(identitiesError)
@@ -419,7 +421,7 @@ function WalletTransferHub(): React.JSX.Element {
   }
 
   const sourceReady = {
-    [SourceKind.Core]: true,
+    [SourceKind.Core]: !balanceLoading && !balanceError,
     [SourceKind.PlatformAddress]: selectedSource != null,
     [SourceKind.Identity]: selectedIdentity != null,
     [SourceKind.Shielded]: true,
@@ -593,6 +595,22 @@ function WalletTransferHub(): React.JSX.Element {
     updateDraft(current => setSendAdvanced(current, mode))
     setWizardKey(key => key + 1)
   }
+  const bookRecipient = searchParams.get('recipient')
+  const bookKind = walletId && network && searchParams.get('wallet') === walletId && searchParams.get('network') === network
+    ? getAddressKind(bookRecipient ?? '', network) : null
+  const canApplyBookRecipient = bookKind != null && bookKind === toKind && operation != null
+  const dismissBookRecipient = (): void => {
+    const next = new URLSearchParams(searchParams)
+    for (const key of ['recipient', 'wallet', 'network']) next.delete(key)
+    setSearchParams(next, {replace: true})
+  }
+  const applyBookRecipient = (): void => {
+    if (!canApplyBookRecipient || !bookRecipient) return
+    if (advancedMulti) updateAdvancedRoute({recipients: activeRecipients.map((recipient, index) => index === 0 ? {...recipient, address: bookRecipient.trim()} : recipient)})
+    else setToValue(bookRecipient.trim())
+    setAcked(false)
+    dismissBookRecipient()
+  }
   const routeStep = (
     <>
       <SourcePicker
@@ -645,10 +663,10 @@ function WalletTransferHub(): React.JSX.Element {
           placeholder={destinationPlaceholder}
           error={advancedMulti ? null : destinationError}
           showValueInput={!advancedMulti && !coreRecipientInput && operation != null}
-          ownOptions={!advanced ? ownRecipients : undefined}
+          ownOptions={ownRecipients}
         />
         {coreRecipientInput && <>
-          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} />
+          <RecipientInput value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={ownRecipients} />
           {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
         </>}
         {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
@@ -1052,6 +1070,15 @@ function WalletTransferHub(): React.JSX.Element {
         </div>
       </div>
 
+      {bookRecipient != null && <div role="status" className="mx-12 mt-4 p-4 rounded-2xl dash-block flex flex-col gap-2">
+        <Text size={14} weight="extrabold" color="brand">Recipient from address book</Text>
+        <span className="text-xs font-mono break-all dash-text-default">{bookRecipient}</span>
+        <Text size={12} color="brand">{bookKind == null ? 'Check the recipient address, wallet and network.' : canApplyBookRecipient ? 'Apply this saved address to the current transfer.' : `Choose a compatible source and select ${DESTINATION_KINDS.find(kind => kind.kind === bookKind)?.label} in To.`}</Text>
+        <div className="flex gap-4">
+          <button type="button" disabled={!canApplyBookRecipient} onClick={applyBookRecipient} className="text-sm dash-text-primary cursor-pointer disabled:opacity-40 disabled:cursor-default">{advancedMulti ? 'Replace first recipient' : 'Replace recipient'}</button>
+          <button type="button" onClick={dismissBookRecipient} className="text-sm dash-text-primary cursor-pointer">Dismiss</button>
+        </div>
+      </div>}
       {resumableFunding && (
         <div className={"mx-12 mt-4 flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <div className={"flex flex-col gap-1 min-w-0"}>
@@ -1100,6 +1127,7 @@ function WalletTransferHub(): React.JSX.Element {
             <div className="flex flex-col gap-5 min-w-0">
               <div className="flex flex-col gap-4">{routeStep}</div>
               {advancedMulti ? <SendRecipientsEditor
+                ownOptions={ownRecipients}
                 recipients={activeRecipients}
                 errors={recipientErrors}
                 limit={recipientLimit}

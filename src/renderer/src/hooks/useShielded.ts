@@ -66,15 +66,15 @@ export function useShieldedPoolInfo(network: Network | undefined): {
 
 const INITIAL_NOTES_INFO: ShieldedNotesInfo = { undecodedCount: 0 }
 
-export function useShieldedNotesInfo(walletId: string | undefined): { info: ShieldedNotesInfo, loading: boolean } {
-  const { data, loading } = useAsyncWithCache<ShieldedNotesInfo>(
+export function useShieldedNotesInfo(walletId: string | undefined): { info: ShieldedNotesInfo, loading: boolean, err: string | null } {
+  const { data, loading, err } = useAsyncWithCache<ShieldedNotesInfo>(
     SHIELDED_NOTES_INFO_CACHE_NS,
     walletId,
     () => API.getShieldedNotesInfo(walletId!),
     INITIAL_NOTES_INFO,
     { errorMessage: 'Failed to load shielded notes info', refreshIntervalMs: SHIELDED_NOTES_INFO_POLL_MS }
   )
-  return { info: data, loading }
+  return { info: data, loading, err }
 }
 
 const INITIAL_SYNC_STATE: ShieldedSyncState = {

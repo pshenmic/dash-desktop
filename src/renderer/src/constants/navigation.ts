@@ -42,8 +42,8 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         id: 'addresses',
-        label: 'Addresses',
-        to: '/addresses'
+        label: 'Address book',
+        to: '/address-book'
       },
       {
         id: 'identities',

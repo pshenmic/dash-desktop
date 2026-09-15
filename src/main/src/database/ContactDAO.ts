@@ -1,10 +1,10 @@
 import type {Knex} from 'knex'
-import {Contact} from '../types/Contact'
+import {Contact, ContactKind} from '../types/Contact'
 import {Network} from '../types/Network'
 import {isConstraintViolation} from './errors'
 
-function fromRow({id, label, address, network, created_at}): Contact {
-  return {id, label, address, network, createdAt: created_at}
+function fromRow({id, label, address, network, kind, created_at}): Contact {
+  return {id, label, address, network, kind, createdAt: created_at}
 }
 
 export class ContactDAO {
@@ -16,7 +16,7 @@ export class ContactDAO {
 
   getContacts = async (network?: Network): Promise<Contact[]> => {
     const query = this.knex('contacts')
-      .select('id', 'label', 'address', 'network', 'created_at')
+      .select('id', 'label', 'address', 'network', 'kind', 'created_at')
       .orderBy('created_at', 'desc')
 
     if (network != null) {
@@ -32,9 +32,10 @@ export class ContactDAO {
     address: string,
     network: Network,
     createdAt: number,
+    kind: ContactKind = 'core',
   ): Promise<void> => {
     try {
-      await this.knex('contacts').insert({label, address, network, created_at: createdAt})
+      await this.knex('contacts').insert({label, address, network, kind, created_at: createdAt})
     } catch (error) {
       // The only constraint a well-formed insert can violate is the
       // (address, network) unique index — the rest are NOT NULL columns the
@@ -50,6 +51,18 @@ export class ContactDAO {
     const result = await this.knex('contacts').where('id', id).delete()
     if (result === 0) {
       throw new Error('Contact not found')
+    }
+  }
+
+  updateContact = async (id: number, label: string, address: string, kind: ContactKind): Promise<void> => {
+    try {
+      const result = await this.knex('contacts').where('id', id).update({label, address, kind})
+      if (result === 0) throw new Error('Contact not found')
+    } catch (error) {
+      if (isConstraintViolation(error)) {
+        throw new Error('This address is already in your address book')
+      }
+      throw error
     }
   }
 }

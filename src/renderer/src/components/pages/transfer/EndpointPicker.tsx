@@ -11,9 +11,10 @@ import { DestinationKind } from "@renderer/enums/DestinationKind";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 import DropdownField from "@renderer/components/ui/DropdownField";
 import type { DropdownFieldOption } from "@renderer/types/DropdownField";
+import RecipientInput from './RecipientInput';
+import { sendPageData } from '@renderer/constants/sendPages';
 
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
-const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
 
 function KindIcon({kind}: {kind: string}): React.JSX.Element {
   if (kind === SourceKind.Core || kind === DestinationKind.CoreAddress) return <DashLogo size={16} />
@@ -234,25 +235,15 @@ export function DestinationPicker({
       <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
       {showValueInput && kind !== DestinationKind.NewIdentity && (
         <>
-          {ownOptions ? <DropdownField
-            editable
+          <RecipientInput
+            compact
             ariaLabel={kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'}
             value={value}
             onChange={onValueChange}
-            options={ownOptions}
-            menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
-            placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
-            inputInvalid={!!error}
-            triggerClassName={inputBox}
-          /> : <div className={`${inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
-            <input
-              type={"text"}
-              value={value}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.value)}
-              className={"w-full bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"}
-              placeholder={placeholder}
-            />
-          </div>}
+            ownOptions={ownOptions}
+            destination={kind}
+            data={{...sendPageData.recipient, placeholder}}
+          />
           {error && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{error}</Text>}
         </>
       )}

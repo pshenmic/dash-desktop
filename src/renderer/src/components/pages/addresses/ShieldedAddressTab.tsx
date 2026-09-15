@@ -7,13 +7,15 @@ import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { API } from '@renderer/api'
-import { useShieldedSyncState } from '@renderer/hooks/useShielded'
+import { useShieldedNotesInfo, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import type { ShieldedAddressTabProps } from '@renderer/types/AddressBook'
+import { addressKey, matchesAddressUsage } from '@renderer/utils/addressBook'
 
-export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
+export default function ShieldedAddressTab({ walletId, usage = 'all', search = '', contacts = [], renderAction }: ShieldedAddressTabProps): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
   const [checking, setChecking] = useState(true)
   const [password, setPassword] = useState('')
@@ -23,8 +25,9 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const [syncOpen, setSyncOpen] = useState(false)
 
   const sync = useShieldedSyncState(walletId)
+  const notes = useShieldedNotesInfo(walletId)
   const { isBalanceVisible } = useBalanceVisibility()
-  const synced = sync.phase === ShieldedSyncPhase.Done
+  const synced = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null && !notes.loading && !notes.err && notes.info.undecodedCount === 0
   const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
 
@@ -143,8 +146,12 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     <>
     <div className={"flex flex-col gap-[.625rem]"}>
       <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
-      {addresses.map((address) => (
-        <div key={address} className={"flex w-max min-w-full items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
+      {Array.from(new Set([...addresses, ...sync.notes.map(note => note.address).filter((address): address is string => !!address)]))
+        .filter(address => `${address} ${contacts.find(contact => addressKey(contact.address) === addressKey(address))?.label ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()) && matchesAddressUsage(usage, synced ? balances.get(address) ?? 0n : null, sync.notes.some(note => note.address === address)))
+        .map((address) => (
+        <div key={address} className="flex items-center gap-2">
+        <div className="flex-1 min-w-0 overflow-x-auto">
+        <div className={"flex w-max min-w-full items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
           <div className={"flex items-center gap-2"}>
             <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
             <Text size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap"}>
@@ -163,6 +170,9 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
               <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
             )}
           </div>
+        </div>
+        </div>
+        {renderAction?.(address)}
         </div>
       ))}
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
