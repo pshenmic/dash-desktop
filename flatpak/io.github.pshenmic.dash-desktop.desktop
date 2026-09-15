@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Dash Desktop Wallet
+Comment=Desktop Crypto wallet for Dash network
+Exec=dash-desktop-wallet %U
+Icon=io.github.pshenmic.dash-desktop
+Terminal=false
+Type=Application
+Categories=Office;Finance;
+Keywords=wallet;crypto;cryptocurrency;dash;
+StartupWMClass=Dash Desktop
