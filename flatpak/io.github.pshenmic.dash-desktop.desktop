@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=Dash Desktop Crypto Wallet
-Comment=Dash crypto wallet for desktop
+Name=Dash Desktop Wallet
+Comment=Desktop Crypto wallet for Dash network
 Exec=dash-desktop-wallet %U
 Icon=io.github.pshenmic.dash-desktop
 Terminal=false

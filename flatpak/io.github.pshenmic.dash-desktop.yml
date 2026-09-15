@@ -4,6 +4,8 @@ runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '25.08'
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node24
 command: dash-desktop-wallet
 separate-locales: false
 finish-args:
@@ -18,34 +20,39 @@ finish-args:
 modules:
   - name: dash-desktop
     buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node24/bin
+      env:
+        HOME: /run/build/dash-desktop
+        # Where generated-sources.json places the Electron zip and node-gyp headers.
+        XDG_CACHE_HOME: /run/build/dash-desktop/flatpak-node/cache
     build-commands:
-      - bsdtar -Oxf dash-desktop.deb data.tar.xz | bsdtar -xf -
+      - yarn config --offline set yarn-offline-mirror "$FLATPAK_BUILDER_BUILDDIR/flatpak-node/yarn-mirror"
+      - yarn install --offline --frozen-lockfile
+      - yarn build
+      # @electron/rebuild reads Electron headers from ~/.electron-gyp, not the node-gyp cache.
+      - v=$(node -p "require('electron/package.json').version") && mkdir -p .electron-gyp && ln -sfn "$XDG_CACHE_HOME/node-gyp/$v" ".electron-gyp/$v"
+      - . flatpak-node/electron-builder-arch-args.sh && node_modules/.bin/electron-builder --linux dir $ELECTRON_BUILDER_ARCH_ARGS --publish never
       # zypak provides the Chromium sandbox inside Flatpak; the SUID helper cannot run.
-      - rm "opt/Dash Desktop/chrome-sandbox"
-      - cp -a "opt/Dash Desktop" "${FLATPAK_DEST}/dash-desktop"
+      - rm dist/linux*-unpacked/chrome-sandbox
+      - cp -a dist/linux*-unpacked "${FLATPAK_DEST}/dash-desktop"
       - install -Dm755 dash-desktop-wallet.sh "${FLATPAK_DEST}/bin/dash-desktop-wallet"
-      - install -Dm644 usr/share/icons/hicolor/512x512/apps/dash-desktop.png "${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png"
-      - install -Dm644 "${FLATPAK_ID}.desktop" -t "${FLATPAK_DEST}/share/applications"
-      - install -Dm644 "${FLATPAK_ID}.metainfo.xml" -t "${FLATPAK_DEST}/share/metainfo"
+      - install -Dm644 buildResources/icon.png "${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png"
+      - install -Dm644 "flatpak/${FLATPAK_ID}.desktop" -t "${FLATPAK_DEST}/share/applications"
+      - install -Dm644 "flatpak/${FLATPAK_ID}.metainfo.xml" -t "${FLATPAK_DEST}/share/metainfo"
     sources:
-      - type: file
-        dest-filename: dash-desktop.deb
-        url: https://github.com/pshenmic/dash-desktop/releases/download/1.0.0-beta.4/dash-desktop-1.0.0-beta.4-linux-amd64.deb
-        sha256: a389593121a00d6e66b872b6a94588650dfbcfd79e5f815ea44bf51e355b82df
-        only-arches:
-          - x86_64
-        x-checker-data:
-          type: json
-          url: https://api.github.com/repos/pshenmic/dash-desktop/releases
-          version-query: map(select(.draft | not)) | first | .tag_name
-          url-query: map(select(.draft | not)) | first | .assets[] | select(.name == "dash-desktop-" + $version + "-linux-amd64.deb") | .browser_download_url
-          timestamp-query: map(select(.draft | not)) | first | .published_at
-          is-main-source: true
+      - type: dir
+        path: ..
+        skip:
+          - .flatpak-builder
+          - .git
+          - flatpak_app
+          - repo
+          - node_modules
+          - out
+          - dist
+      - generated-sources.json
       - type: script
         dest-filename: dash-desktop-wallet.sh
         commands:
           - exec zypak-wrapper /app/dash-desktop/dash-desktop "$@"
-      - type: file
-        path: io.github.pshenmic.dash-desktop.desktop
-      - type: file
-        path: io.github.pshenmic.dash-desktop.metainfo.xml
