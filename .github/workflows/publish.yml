@@ -24,6 +24,34 @@ jobs:
       with:
         files: dist/*.{AppImage,deb}
 
+  build_flatpak:
+    needs: build_linux
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint manifest
+        run: flatpak-builder-lint manifest flatpak/io.github.pshenmic.dash-desktop.yml
+      # The committed manifest pins the previous release; the Flathub bot bumps it
+      # after this release is out, so build against the deb build_linux just uploaded.
+      - name: Use this release's deb
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          curl -fL --retry 3 -o flatpak/release.deb \
+            "https://github.com/${{ github.repository }}/releases/download/${TAG}/dash-desktop-${TAG}-linux-amd64.deb"
+          sed -i -e 's#^\(\s*\)url: .*-linux-amd64\.deb$#\1path: release.deb#' -e '/^\s*sha256: /d' flatpak/io.github.pshenmic.dash-desktop.yml
+      - name: Build Flatpak
+        uses: flathub-infra/flatpak-github-actions/flatpak-builder@933e9e8ca36e85046ebca8e211f0785c6becac40
+        with:
+          manifest-path: flatpak/io.github.pshenmic.dash-desktop.yml
+          build-bundle: false
+          cache: false
+      - name: Lint build
+        run: flatpak-builder-lint builddir flatpak_app
+
   build_mac:
     runs-on: macos-latest
     steps:
