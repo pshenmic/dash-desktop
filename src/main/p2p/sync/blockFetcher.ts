@@ -73,6 +73,17 @@ export class BlockFetcher {
     return pending.height
   }
 
+  // The peer answered, but with a block the caller could not verify. The
+  // request stays outstanding and moves to someone else now rather than waiting
+  // out the retry timer. Null when nobody asked for this hash.
+  reject(hashWire: Uint8Array): number | null {
+    const key = keyOf(hashWire)
+    const entry = this.inflight.get(key)
+    if (entry == null) return null
+    this.retry(key, entry, 'rejected')
+    return entry.height
+  }
+
   // Drops everything outstanding without ending the fetcher — a rewind
   // invalidates the requests but the worker keeps running.
   reset(): void {
@@ -91,6 +102,27 @@ export class BlockFetcher {
     return this.messages.GetData([{type: Inventory.TYPE.BLOCK, hash: hashWire}])
   }
 
+  // `reason` names what the last peer did, since a timeout and a block that
+  // failed verification recover the same way.
+  private retry(key: string, entry: BlockRequest, reason: string): void {
+    let next = this.rotation.first(entry.triedPeers)
+    if (!next) {
+      entry.triedPeers.clear()
+      next = this.rotation.first(entry.triedPeers)
+      if (!next) {
+        log.warn(`block h=${entry.height} ${reason} — no ready peers, re-arming`)
+        this.arm(key, entry)
+        return
+      }
+      log.warn(`block h=${entry.height} ${reason} — no fresh peers, re-asking ${next.host}`)
+    } else {
+      log.warn(`block h=${entry.height} ${reason} — retrying via ${next.host} (tried ${entry.triedPeers.size})`)
+    }
+    entry.triedPeers.add(next)
+    next.sendMessage(this.getData(entry.hashWire))
+    this.arm(key, entry)
+  }
+
   private arm(key: string, entry: BlockRequest): void {
     if (entry.timer) clearTimeout(entry.timer)
     entry.timer = setTimeout(() => {
@@ -98,23 +130,7 @@ export class BlockFetcher {
       // Whoever was asked did not deliver, so they stop being a first choice
       // here and on the cf* paths until they answer something.
       this.rotation.markSilent(entry.triedPeers)
-
-      let next = this.rotation.first(entry.triedPeers)
-      if (!next) {
-        entry.triedPeers.clear()
-        next = this.rotation.first(entry.triedPeers)
-        if (!next) {
-          log.warn(`block h=${entry.height} retry — no ready peers, re-arming`)
-          this.arm(key, entry)
-          return
-        }
-        log.warn(`block h=${entry.height} retry — no fresh peers, re-asking ${next.host}`)
-      } else {
-        log.warn(`block h=${entry.height} timeout — retrying via ${next.host} (tried ${entry.triedPeers.size})`)
-      }
-      entry.triedPeers.add(next)
-      next.sendMessage(this.getData(entry.hashWire))
-      this.arm(key, entry)
+      this.retry(key, entry, 'timeout')
     }, BLOCK_REQUEST_TIMEOUT_MS)
   }
 }

@@ -1,10 +1,5 @@
-import {createHash} from 'node:crypto'
 import {HASH_LEN} from '../constants'
-
-function doubleSHA256(data: Uint8Array): Uint8Array {
-  const once = createHash('sha256').update(data).digest()
-  return new Uint8Array(createHash('sha256').update(once).digest())
-}
+import {doubleSHA256} from './hash'
 
 // BIP 157 links each filter to the one below it:
 //   header(h) = dSHA256( dSHA256(filter(h)) || header(h-1) )

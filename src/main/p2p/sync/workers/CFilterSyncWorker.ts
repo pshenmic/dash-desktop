@@ -28,6 +28,8 @@ import {CheckpointAnchors} from '../checkpointAnchors'
 import {HashIndex} from '../../store/hashIndex'
 import {PeerRotation} from '../../net/peerRotation'
 import {x11Wire} from '../../utils/x11'
+import {doubleSHA256} from '../../utils/hash'
+import {merkleRoot} from '../../utils/merkle'
 import {deriveFilterHeader, hashFilter} from '../../utils/filterHeader'
 import {GENESIS, NO_PREV_FILTER_HEADER} from '../../constants'
 import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../../types/walletSync'
@@ -62,6 +64,13 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+// A txid is the double-SHA256 of the serialised transaction; the SDK's hash()
+// is that digest reversed for display, so the leaves are taken here instead.
+function txsMatchMerkleRoot(block: Block): boolean {
+  const root = merkleRoot(block.txs.map(tx => doubleSHA256(tx.bytes())))
+  return root != null && wireToDisplayHex(root) === block.blockHeader.merkleRoot
 }
 
 export class CFilterSyncWorker extends Worker {
@@ -444,7 +453,21 @@ export class CFilterSyncWorker extends Worker {
       return
     }
     const blockHashHex = block.hash()
-    const height = this.blockFetcher.receive(peer, displayHexToWire(blockHashHex))
+    const blockHashWire = displayHexToWire(blockHashHex)
+
+    // block.hash() covers the 80-byte header and nothing else, so matching the
+    // hash we asked for proves only that the header is ours. The transaction
+    // list underneath it is whatever the peer chose to attach until this runs.
+    if (!txsMatchMerkleRoot(block)) {
+      const owed = this.blockFetcher.reject(blockHashWire)
+      log.warn(
+        `block ${blockHashHex.slice(0, 16)}… from ${peer.host} does not match its merkle root` +
+        (owed == null ? ' (unsolicited)' : ` — re-requesting h=${owed}`),
+      )
+      return
+    }
+
+    const height = this.blockFetcher.receive(peer, blockHashWire)
     if (height == null) {
       log.warn(`peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
       return
