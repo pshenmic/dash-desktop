@@ -6,6 +6,7 @@ import SensitiveValue from "../ui/SensitiveValue";
 import { davToDash } from "@renderer/utils/balance";
 import { SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from "@renderer/constants";
 import { cva } from "class-variance-authority";
+import { Link } from "react-router-dom";
 
 const logoStyles = cva(
   `
@@ -31,7 +32,9 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
   const { theme } = useTheme()
 
   return (
-    <div
+    <Link
+      to={`/address-book/wallet?tab=${variant === 'dash' ? 'receiving' : variant === 'credits' ? 'platform' : 'shielded'}&usage=balance`}
+      aria-label={`View ${variant === 'dash' ? 'Core' : variant === 'credits' ? 'Platform and Identity' : 'Shielded'} addresses with funds`}
       className={`
         flex
         items-center
@@ -79,6 +82,6 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
           </Text>
         }
       </div>
-    </div>
+    </Link>
   )
 }

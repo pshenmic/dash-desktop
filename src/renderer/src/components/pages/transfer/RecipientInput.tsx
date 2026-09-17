@@ -4,10 +4,12 @@ import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon } from '@renderer/component
 import { Identifier } from 'dash-ui-kit/react'
 import type { RecipientInputProps } from '@renderer/types/SendRecipients'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
-import { isValidDashAddress } from '@renderer/utils/address'
+import { addressKey, getAddressKind, getContactKind } from '@renderer/utils/addressBook'
+import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
 import DropdownField from '@renderer/components/ui/DropdownField'
+import CustomBadge from '@renderer/components/ui/CustomBadge'
 
 export default function RecipientInput({
   value,
@@ -16,6 +18,7 @@ export default function RecipientInput({
   compact = false,
   ariaLabel,
   ownOptions,
+  destination = DestinationKind.CoreAddress,
 }: RecipientInputProps) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -26,15 +29,17 @@ export default function RecipientInput({
   const { contacts, network, addContact, deleteContact } = useAddressBook()
 
   const query = value.toLowerCase().trim()
+  const contactKind = destination === DestinationKind.CoreAddress ? 'core'
+    : destination === DestinationKind.PlatformAddress ? 'platform' : destination
   const filteredContacts = contacts.filter(
-    (c) =>
+    (c) => c.kind === contactKind && getAddressKind(c.address, network) === destination && (
       c.address.toLowerCase().includes(query) ||
-      c.label.toLowerCase().includes(query),
+      c.label.toLowerCase().includes(query)),
   )
 
   const trimmedValue = value.trim()
-  const isValidRecipient = isValidDashAddress(trimmedValue, network)
-  const alreadySaved = contacts.some((c) => c.address === trimmedValue)
+  const isValidRecipient = getAddressKind(trimmedValue, network) === destination
+  const alreadySaved = contacts.some((c) => addressKey(c.address) === addressKey(trimmedValue))
   const canSaveCurrent = isValidRecipient && !alreadySaved
 
   useEffect(() => {
@@ -48,19 +53,25 @@ export default function RecipientInput({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    setOpen(false)
+    setAdding(false)
+  }, [destination, network])
+
   const handleSelectAddress = (address: string): void => {
     onChange(address)
     setOpen(false)
   }
 
   const handleSaveContact = async (): Promise<void> => {
+    if (!canSaveCurrent) return
     const label = newLabel.trim()
     if (label.length === 0) {
       toast.error('**Name required** Enter a name for this contact.')
       return
     }
     try {
-      await addContact(label, trimmedValue)
+      await addContact(label, trimmedValue, getContactKind(trimmedValue, network)!)
       setAdding(false)
       setNewLabel('')
     } catch (err) {
@@ -88,8 +99,8 @@ export default function RecipientInput({
           value={value}
           onChange={onChange}
           options={ownOptions}
-          menuHeading="Your addresses"
-          placeholder="Enter a recipient address or choose one of yours"
+          menuHeading={destination === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
+          placeholder={destination === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
           triggerClassName="px-4 py-3.5"
           inputInvalid={trimmedValue.length > 0 && !isValidRecipient}
           inputSuffix={<div className="flex items-center gap-3">
@@ -173,6 +184,7 @@ export default function RecipientInput({
                 />
                 <button
                   onClick={handleSaveContact}
+                  disabled={!canSaveCurrent}
                   className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
                 >
                   <Text size={10} weight={"medium"} color={"blue-mint"}>Save</Text>
@@ -224,6 +236,8 @@ export default function RecipientInput({
                           {entry.label}
                         </Text>
                       </div>
+                      {ownOptions?.some(option => addressKey(option.value) === addressKey(entry.address)) &&
+                        <CustomBadge text="This wallet" variant="muted" size="xs" />}
                     </div>
                   </div>
                 ))

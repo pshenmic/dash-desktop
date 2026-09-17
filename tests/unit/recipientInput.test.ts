@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
 import { isValidElement, type ReactElement, type ReactNode } from 'react'
-import { createBase58check } from '@scure/base'
+import { base58, bech32m, createBase58check } from '@scure/base'
 import { sha256 } from '@noble/hashes/sha2.js'
+import type { ContactKind } from '../../src/renderer/src/api/types'
 
 const harness = vi.hoisted(() => ({
   index: 0,
   states: [] as unknown[],
-  contacts: [] as Array<{id: number; label: string; address: string}>,
+  contacts: [] as Array<{id: number; label: string; address: string; kind: ContactKind}>,
   addContact: vi.fn(),
   deleteContact: vi.fn(),
 }))
@@ -35,6 +36,15 @@ import RecipientInput from '../../src/renderer/src/components/pages/transfer/Rec
 import DropdownField from '../../src/renderer/src/components/ui/DropdownField'
 import { sendPageData } from '../../src/renderer/src/constants/sendPages'
 import type { DropdownFieldOption, DropdownFieldProps } from '../../src/renderer/src/types/DropdownField'
+import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
+import CustomBadge from '../../src/renderer/src/components/ui/CustomBadge'
+
+const recipientCases: Array<[DestinationKind, string, ContactKind]> = [
+  [DestinationKind.CoreAddress, createBase58check(sha256).encode(Uint8Array.from([140, ...Array(20).fill(1)])), 'core'],
+  [DestinationKind.PlatformAddress, bech32m.encode('tdash', bech32m.toWords(new Uint8Array(21))), 'platform'],
+  [DestinationKind.Shielded, bech32m.encode('tdash', bech32m.toWords(new Uint8Array([16, ...new Uint8Array(43)]))), 'shielded'],
+  [DestinationKind.Identity, base58.encode(new Uint8Array(32).fill(7)), 'identity'],
+]
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements)
@@ -42,9 +52,9 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...elements(node.props.children as ReactNode)]
 }
 
-function renderRecipient(value: string, onChange = vi.fn(), ownOptions: DropdownFieldOption[] = [{value: 'own', label: 'own'}]) {
+function renderRecipient(value: string, onChange = vi.fn(), ownOptions: DropdownFieldOption[] = [{value: 'own', label: 'own'}], destination = DestinationKind.CoreAddress) {
   harness.index = 0
-  return RecipientInput({value, onChange, ownOptions, data: sendPageData.recipient})
+  return RecipientInput({value, onChange, ownOptions, destination, data: sendPageData.recipient})
 }
 
 beforeEach(() => {
@@ -98,28 +108,54 @@ describe('Simple recipient input', () => {
     expect(elements(heading).some(node => node.type === 'button')).toBe(false)
   })
 
-  it('retains contact saving, selection and deletion alongside own address options', async () => {
-    const address = createBase58check(sha256).encode(Uint8Array.from([140, ...Array(20).fill(1)]))
+  it.each(recipientCases)('retains %s saving, selection and deletion and filters other destination types', async (destination, address, kind) => {
     const onChange = vi.fn()
-    let tree = renderRecipient(address, onChange)
+    let tree = renderRecipient(address, onChange, [], destination)
     const saveCurrent = elements(tree).find(node => elements(node.props.children as ReactNode).some(child => child.props.children === 'Save current') && node.type === 'button')!
     ;(saveCurrent.props.onClick as () => void)()
-    tree = renderRecipient(address, onChange)
+    tree = renderRecipient(address, onChange, [], destination)
     const name = elements(tree).find(node => node.props.placeholder === 'Contact name')!
     ;(name.props.onChange as (event: {target: {value: string}}) => void)({target: {value: '  Friend  '}})
-    tree = renderRecipient(address, onChange)
+    tree = renderRecipient(address, onChange, [], destination)
     const save = elements(tree).find(node => node.type === 'button' && elements(node.props.children as ReactNode).some(child => child.props.children === 'Save'))!
     await (save.props.onClick as () => Promise<void>)()
-    expect(harness.addContact).toHaveBeenCalledWith('Friend', address)
+    expect(harness.addContact).toHaveBeenCalledWith('Friend', address, kind)
 
-    harness.contacts = [{id: 7, label: 'Friend', address}]
-    tree = renderRecipient('', onChange)
+    const other = recipientCases.find(([kind]) => kind !== destination)!
+    harness.contacts = [{id: 7, label: 'Friend', address, kind}, {id: 8, label: 'Another type', address: other[1], kind: other[2]}]
+    tree = renderRecipient('', onChange, [], destination)
+    expect(elements(tree).some(node => node.key === '8')).toBe(false)
     const select = elements(tree).find(node => node.type === 'button' && elements(node.props.children as ReactNode).some(child => child.props.children === address))!
     ;(select.props.onClick as () => void)()
     expect(onChange).toHaveBeenLastCalledWith(address)
     const remove = elements(tree).find(node => node.props.title === 'Remove contact')!
     ;(remove.props.onClick as () => void)()
     expect(harness.deleteContact).toHaveBeenCalledWith(7)
+  })
+
+  it('marks matching saved wallet addresses and recognizes canonical bech32 addresses', () => {
+    const address = recipientCases[1][1]
+    harness.contacts = [{id: 7, label: 'Savings', address, kind: 'platform'}]
+    const ownOptions = [{value: address.toUpperCase(), label: 'Own address'}]
+    const nodes = elements(renderRecipient('', vi.fn(), ownOptions, DestinationKind.PlatformAddress))
+    expect(nodes.some(node => node.type === CustomBadge && node.props.text === 'This wallet')).toBe(true)
+    const externalNodes = elements(renderRecipient('', vi.fn(), [], DestinationKind.PlatformAddress))
+    expect(externalNodes.some(node => node.type === CustomBadge)).toBe(false)
+    const duplicateNodes = elements(renderRecipient(address.toUpperCase(), vi.fn(), ownOptions, DestinationKind.PlatformAddress))
+    expect(duplicateNodes.some(node => node.props.children === 'Save current')).toBe(false)
+  })
+
+  it('requires the saved type to match instead of inferring it from the address alone', () => {
+    harness.contacts = [{id: 7, label: 'Mismatched type', address: recipientCases[0][1], kind: 'platform'}]
+    expect(elements(renderRecipient('')).some(node => node.key === '7')).toBe(false)
+    expect(elements(renderRecipient('', vi.fn(), [], DestinationKind.PlatformAddress)).some(node => node.key === '7')).toBe(false)
+  })
+
+  it.each(recipientCases)('does not save a %s value under another destination type', (destination, address) => {
+    const otherDestination = recipientCases.find(([kind]) => kind !== destination)![0]
+    const nodes = elements(renderRecipient(address, vi.fn(), [], otherDestination))
+    expect(nodes.find(node => node.type === DropdownField)?.props.inputInvalid).toBe(true)
+    expect(nodes.some(node => node.props.children === 'Save current')).toBe(false)
   })
 
   it('still marks addresses from another network invalid and does not offer saving them', () => {

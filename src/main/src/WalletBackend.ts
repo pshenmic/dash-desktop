@@ -102,6 +102,7 @@ import {ContactService} from './services/app/ContactService'
 import {GetContactsHandler} from './api/contacts/getContacts'
 import {AddContactHandler} from './api/contacts/addContact'
 import {DeleteContactHandler} from './api/contacts/deleteContact'
+import {UpdateContactHandler} from './api/contacts/updateContact'
 import {StartWalletSyncHandler} from './api/walletSync/startWalletSync'
 import {StopWalletSyncHandler} from './api/walletSync/stopWalletSync'
 import {ResetWalletSyncHandler} from './api/walletSync/resetWalletSync'
@@ -224,6 +225,7 @@ export class WalletBackend {
     registerHandler('getContacts', new GetContactsHandler(this.contactService).handle)
     registerHandler('addContact', new AddContactHandler(this.contactService).handle)
     registerHandler('deleteContact', new DeleteContactHandler(this.contactService).handle)
+    registerHandler('updateContact', new UpdateContactHandler(this.contactService).handle)
     registerHandler('getShieldedStatus', new GetShieldedStatusHandler(this.shieldedService).handle)
     registerHandler('getShieldedPoolInfo', new GetShieldedPoolInfoHandler(this.shieldedService).handle)
     registerHandler('getShieldedNotesInfo', new GetShieldedNotesInfoHandler(this.shieldedService).handle)

@@ -1,7 +1,6 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useFiat } from '@renderer/hooks/useFiat'
-import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { DESTINATION_PLACEHOLDERS, sendPageData } from '@renderer/constants/sendPages'
 import { SEND_AMOUNT_PATTERN } from '@renderer/constants/sendRecipients'
 import type { SendRecipientsEditorProps } from '@renderer/types/SendRecipients'
@@ -13,7 +12,7 @@ import AmountSlider from './AmountSlider'
 import RecipientInput from './RecipientInput'
 
 export default function SendRecipientsEditor({
-  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, headerAction, beforeRecipients, onChange,
+  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, headerAction, beforeRecipients, onChange, ownOptions,
 }: SendRecipientsEditorProps): React.JSX.Element {
   const {status} = useAuth()
   const {format, rateReady} = useFiat()
@@ -79,21 +78,9 @@ export default function SendRecipientsEditor({
                 </button>
               )}
             </div>
-            {destination === DestinationKind.CoreAddress ? (
-              <RecipientInput compact ariaLabel={`Recipient ${index + 1} address`} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
-            ) : (
-              <label className="flex flex-col gap-2">
-                <span className={`dash-input-block rounded-[.875rem] px-3 py-2.5 ${addressError ? 'outline outline-1 outline-dash-red' : ''}`}>
-                  <input
-                    aria-label={`Recipient ${index + 1} address`}
-                    value={recipient.address}
-                    onChange={event => update(recipient.id, 'address', event.target.value)}
-                    placeholder={DESTINATION_PLACEHOLDERS[destination][status?.network ?? 'testnet']}
-                    className="w-full min-w-0 bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"
-                  />
-                </span>
-              </label>
-            )}
+            <RecipientInput compact ariaLabel={`Recipient ${index + 1} address`} value={recipient.address}
+              onChange={value => update(recipient.id, 'address', value)} destination={destination} ownOptions={ownOptions}
+              data={{...sendPageData.recipient, placeholder: DESTINATION_PLACEHOLDERS[destination][status?.network ?? 'testnet']}} />
             {addressError && (
               <Text size={12} weight="medium" color="red">{addressError}</Text>
             )}

@@ -62,6 +62,8 @@ function App(): React.JSX.Element {
             <Route path={"/unshield"} element={<Navigate to={"/send?from=shielded&to=platformAddress"} replace />} />
             <Route path={"/withdraw-l1"} element={<Navigate to={"/send?from=shielded&to=coreAddress"} replace />} />
             <Route path={"/addresses"} element={<AddressesPage />} />
+            <Route path={"/address-book"} element={<AddressesPage />} />
+            <Route path={"/address-book/wallet"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/identities/register"} element={<IdentityRegistrationPage />} />
             <Route path={"/settings"} element={<SettingsPage />} />

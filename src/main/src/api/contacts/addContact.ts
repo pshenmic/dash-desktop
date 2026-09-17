@@ -1,6 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { ContactService } from '../../services/app/ContactService'
 import { Network } from '../../types/Network'
+import { ContactKind } from '../../types/Contact'
 
 export class AddContactHandler {
   private contactService: ContactService
@@ -14,7 +15,8 @@ export class AddContactHandler {
     label: string,
     address: string,
     network: Network,
+    kind: ContactKind = 'core',
   ): Promise<void> => {
-    return this.contactService.addContact(label, address, network)
+    return this.contactService.addContact(label, address, network, kind)
   }
 }
