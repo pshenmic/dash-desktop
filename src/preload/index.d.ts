@@ -101,6 +101,41 @@ interface TransactionDTO {
   isLocal: boolean | null
 }
 
+// Mirrors src/main/src/types/WalletHistory: both chains of one wallet, kept in
+// separate lists because the two shapes share no field.
+interface WalletHistoryDTO {
+  core: TransactionDTO[]
+  platform: PlatformTransactionDTO[]
+  platformFailed: boolean
+  shielded: ShieldedNoteInfoDTO[]
+}
+
+// Mirrors src/main/src/types/Shielded's ShieldedNoteInfo: one owned pool note,
+// carrying everything an Orchard note has and nothing more — no time, no
+// transition.
+interface ShieldedNoteInfoDTO {
+  index: number
+  amount: bigint
+  address: string
+  spent: boolean
+}
+
+// Mirrors src/main/src/types/PlatformTransaction: amounts are credits, `hash`
+// is a state transition hash, and nothing here is a TransactionDTO.
+interface PlatformTransactionDTO {
+  walletId: string
+  hash: string
+  type: string
+  date: Date
+  blockHeight: number | null
+  status: 'SUCCESS' | 'FAIL' | null
+  error: string | null
+  gasCredits: bigint
+  netCredits: bigint
+  subject: string | null
+  counterparty: string | null
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -116,7 +151,7 @@ declare global {
       getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
-      getTransactions: (walletId: string) => Promise<TransactionDTO[]>
+      getTransactions: (walletId: string) => Promise<WalletHistoryDTO>
       getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
       getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>

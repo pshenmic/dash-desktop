@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GetAddressesResponse, SelectableUtxo, Transaction } from '../../src/renderer/src/api/types'
+import type { GetAddressesResponse, SelectableUtxo, Transaction, WalletHistory } from '../../src/renderer/src/api/types'
 import { WalletSyncPhase } from '../../src/renderer/src/enums/WalletSyncPhase'
 import type { WalletUtxosResult } from '../../src/renderer/src/types/CoinControl'
 import { buildCoinControlInventory, isCoinControlSelectionValid } from '../../src/renderer/src/utils/coinControl'
@@ -62,6 +62,9 @@ vi.mock('@renderer/contexts/ConnectionModeContext', () => ({
 
 import { useWalletUtxos } from '../../src/renderer/src/hooks/useWalletUtxos'
 
+const history = (core: unknown[]): WalletHistory =>
+  ({core: core as Transaction[], platform: [], platformFailed: false, shielded: []})
+
 const selectedUtxo: SelectableUtxo = {txid: 'selected', vout: 0, satoshis: 100_000n, address: 'address-a', height: 0, timestamp: null, confirmations: 0}
 const otherUtxo: SelectableUtxo = {txid: 'other', vout: 1, satoshis: 200_000n, address: 'address-b', height: 10, timestamp: null, confirmations: 1}
 
@@ -114,10 +117,10 @@ describe('spendable UTXO refresh readiness', () => {
   it.each([WalletSyncPhase.Stopped, WalletSyncPhase.Idle])('loads persisted UTXOs on first opening with sync %s and still blocks submission', async phase => {
     harness.phase = phase
     harness.syncIncomplete = true
-    harness.getTransactions.mockResolvedValueOnce([{
+    harness.getTransactions.mockResolvedValueOnce(history([{
       walletId: 'wallet-a', txid: 'saved', blockHeight: 20, date: new Date('2026-09-11T09:15:00Z'), confirmations: 0,
       vout: [{n: 2, address: 'own', value: '0.00000001', spentTxId: ''}],
-    }])
+    }]))
     harness.getAddresses.mockResolvedValueOnce({receiving: [{walletId: 'wallet-a', address: 'own'}], change: []})
     expect(render()).toMatchObject({utxos: [], loading: true, localSnapshot: true})
     commitEffects()
@@ -135,7 +138,7 @@ describe('spendable UTXO refresh readiness', () => {
   it('discards a paused read when sync resumes and loads authoritative UTXOs once synced', async () => {
     harness.phase = WalletSyncPhase.Stopped
     harness.syncIncomplete = true
-    const saved = Promise.withResolvers<Transaction[]>()
+    const saved = Promise.withResolvers<WalletHistory>()
     harness.getTransactions.mockReturnValueOnce(saved.promise)
     harness.getAddresses.mockResolvedValueOnce({receiving: [], change: []})
     render()
@@ -150,7 +153,7 @@ describe('spendable UTXO refresh readiness', () => {
     render()
     commitEffects()
     await flushPromises()
-    saved.resolve([])
+    saved.resolve(history([]))
     await flushPromises()
     expect(render()).toMatchObject({utxos: [selectedUtxo], loading: false, localSnapshot: false})
   })
@@ -159,7 +162,7 @@ describe('spendable UTXO refresh readiness', () => {
     harness.phase = WalletSyncPhase.Stopped
     harness.syncIncomplete = true
     const addresses = Promise.withResolvers<GetAddressesResponse>()
-    harness.getTransactions.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    harness.getTransactions.mockResolvedValueOnce(history([])).mockResolvedValueOnce(history([]))
     harness.getAddresses.mockReturnValueOnce(addresses.promise).mockRejectedValueOnce(new Error('local read failed'))
     render()
     commitEffects()
@@ -173,7 +176,7 @@ describe('spendable UTXO refresh readiness', () => {
     await flushPromises()
     expect(render().error).toContain('local read failed')
 
-    harness.getTransactions.mockResolvedValueOnce([])
+    harness.getTransactions.mockResolvedValueOnce(history([]))
     harness.getAddresses.mockResolvedValueOnce({receiving: [], change: []})
     render().retry()
     expect(render()).toMatchObject({loading: true, error: null})
