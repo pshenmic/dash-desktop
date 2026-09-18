@@ -45,40 +45,52 @@ export class PlatformExplorerProvider {
   // Every credit movement across a set of platform addresses. Addresses the
   // indexer has never seen are dropped rather than rejected, so an unused
   // stretch of the window costs nothing but the bytes to ask.
-  async addressTransactions(addresses: string[], walletId: string): Promise<PlatformTransaction[]> {
+  async addressTransactions(addresses: string[], walletId: string, known: Set<string>): Promise<PlatformTransaction[]> {
     const pages = await Promise.all(chunk(addresses, PLATFORM_EXPLORER_ADDRESS_CHUNK).map(slice =>
-      this.walkPages<PlatformExplorerAddressTransition>(page => requestJson(
-        this.request,
-        `/platformAddresses/transitions?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc`,
-        {addresses: slice},
-      ))
+      this.walkPages<PlatformExplorerAddressTransition>(
+        page => requestJson(
+          this.request,
+          `/platformAddresses/transitions?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc`,
+          {addresses: slice},
+        ),
+        row => row.hash,
+        known,
+      )
     ))
 
     return pages.flat().map(row => addressTransitionToPlatformTransaction(row, walletId))
   }
 
-  // One request per identity: the explorer batches addresses but not these.
-  async identityTransactions(identifiers: string[], walletId: string): Promise<PlatformTransaction[]> {
-    const histories = await Promise.all(identifiers.map(async identifier => {
-      const transfers = await this.walkPages<PlatformExplorerTransfer>(page => requestJson(
+  // One walk per identity: the explorer batches addresses but not these, and
+  // each identity is its own stream to resume.
+  async identityTransactions(identifier: string, walletId: string, known: Set<string>): Promise<PlatformTransaction[]> {
+    const transfers = await this.walkPages<PlatformExplorerTransfer>(
+      page => requestJson(
         this.request,
         `/identity/${identifier}/transfers?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc`,
-      ))
-      return transfers.map(row => transferToPlatformTransaction(row, identifier, walletId))
-    }))
+      ),
+      row => row.txHash,
+      known,
+    )
 
-    return histories.flat()
+    return transfers.map(row => transferToPlatformTransaction(row, identifier, walletId))
   }
 
-  // An empty result set reports a total of -1 rather than 0, so the walk ends on
-  // a short page instead of on the count.
-  private async walkPages<T>(read: (page: number) => Promise<PlatformExplorerPage<T>>): Promise<T[]> {
+  // An empty result set reports a total of -1 rather than 0, so the walk ends
+  // on a short page instead of on the count. Rows come newest first, so a page
+  // we already hold in full has nothing behind it we do not.
+  private async walkPages<T>(
+    read: (page: number) => Promise<PlatformExplorerPage<T>>,
+    hashOf: (row: T) => string,
+    known: Set<string>,
+  ): Promise<T[]> {
     const rows: T[] = []
 
     for (let page = 1; page <= PLATFORM_EXPLORER_MAX_PAGES; page++) {
       const {resultSet} = await read(page)
-      rows.push(...resultSet)
+      rows.push(...resultSet.filter(row => !known.has(hashOf(row))))
       if (resultSet.length < PLATFORM_EXPLORER_PAGE_LIMIT) break
+      if (resultSet.every(row => known.has(hashOf(row)))) break
     }
 
     return rows

@@ -6,6 +6,7 @@ import {SHIELDED_NOTES_CHECK_INTERVAL_MS} from './constants/credits'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
+import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
@@ -288,7 +289,7 @@ export class WalletBackend {
     this.identityService = new IdentityService(walletDAO, identityDAO, this.platformWorkerService)
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
-    this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO)
+    this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, new PlatformTransactionDAO(knex))
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, shieldedNoteDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
