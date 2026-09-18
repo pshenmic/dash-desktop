@@ -1,5 +1,6 @@
 import type {Knex} from 'knex'
 
+import {ShieldedNoteInfo} from '../types/Shielded'
 import {PersistNote} from '../types/ShieldedNote'
 import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
@@ -30,6 +31,19 @@ export class ShieldedNoteDAO {
       address: row.address,
       spent: Boolean(row.spent),
       nullifier: row.nullifier ?? null,
+    }))
+  }
+
+  getOwnedNoteInfos = async (walletId: string): Promise<ShieldedNoteInfo[]> => {
+    const rows = await this.knex('shielded_notes')
+      .select('note_index', 'amount', 'address', 'spent')
+      .where({wallet_id: walletId})
+      .orderBy('note_index', 'desc')
+    return rows.map((row) => ({
+      index: row.note_index,
+      amount: BigInt(row.amount),
+      address: row.address,
+      spent: Boolean(row.spent),
     }))
   }
 

@@ -9,11 +9,13 @@ import {ShieldedService} from '../../src/main/src/services/platform/ShieldedServ
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {CorePrevOutService} from '../../src/main/src/services/core/CorePrevOutService'
 import {WalletCredentialsService} from '../../src/main/src/services/wallet/WalletCredentialsService'
 import {IdentityService} from '../../src/main/src/services/platform/IdentityService'
+import {PlatformHistoryService} from '../../src/main/src/services/platform/PlatformHistoryService'
 import {CoreLockService} from '../../src/main/src/services/core/CoreLockService'
 import {CoreTransactionService} from '../../src/main/src/services/core/CoreTransactionService'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
@@ -54,6 +56,7 @@ export async function harness(): Promise<Harness> {
   const walletDAO = new WalletDAO(knex)
   const addressDAO = new AddressDAO(knex)
   const identityDAO = new IdentityDAO(knex)
+  const shieldedNoteDAO = new ShieldedNoteDAO(knex)
   const transactionDAO = new TransactionDAO(knex)
 
   // p2p mode keeps address discovery on the local SQL store, so nothing in a
@@ -76,8 +79,14 @@ export async function harness(): Promise<Harness> {
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
   const identityService = new IdentityService(walletDAO, identityDAO, platform)
 
+  // Stubbed rather than built: the real one reads the platform explorer, and
+  // nothing in a test may reach the network.
+  const platformHistoryService = {
+    getPlatformTransactions: vi.fn().mockResolvedValue([]),
+  } as unknown as PlatformHistoryService
+
   const walletService = new WalletService(
-    walletDAO, addressDAO, identityDAO, identityService, walletSyncService, platform,
+    walletDAO, addressDAO, identityDAO, shieldedNoteDAO, identityService, platformHistoryService, walletSyncService, platform,
     providers, coreDiscoveryService, coreTransactionService, preferences, TEST_PBKDF2_ITERATIONS,
   )
 

@@ -4,6 +4,7 @@ import {PlatformWorkerService} from '../platform/PlatformWorkerService'
 import {WalletDAO} from '../../database/WalletDAO'
 import {AddressDAO} from '../../database/AddressDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
+import {ShieldedNoteDAO} from '../../database/ShieldedNoteDAO'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Network} from '../../types/Network'
 import {Address} from '../../types/Address'
@@ -11,8 +12,11 @@ import {GroupedAddresses} from '../../types/GroupedAddresses'
 import {Wallet} from '../../types/Wallet'
 import {WalletBalance} from "../../types/WalletBalance";
 import {Transaction} from "../../types/Transaction";
+import {PlatformTransaction} from "../../types/PlatformTransaction";
+import {WalletHistory} from "../../types/WalletHistory";
 import {SendResult} from "../../types/SendResult";
 import {IdentityService} from '../platform/IdentityService'
+import {PlatformHistoryService} from '../platform/PlatformHistoryService'
 import {CoreTransactionService} from '../core/CoreTransactionService'
 import {CoreDiscoveryService} from '../core/CoreDiscoveryService'
 import {WalletSyncService} from '../core/WalletSyncService'
@@ -43,7 +47,9 @@ export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
+  private shieldedNoteDAO: ShieldedNoteDAO
   private identities: IdentityService
+  private platformHistory: PlatformHistoryService
   private walletSyncService: WalletSyncService
   private platform: PlatformWorkerService
   private providers: WalletProviderFactory
@@ -59,7 +65,9 @@ export class WalletService {
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
+    shieldedNoteDAO: ShieldedNoteDAO,
     identities: IdentityService,
+    platformHistory: PlatformHistoryService,
     walletSyncService: WalletSyncService,
     platform: PlatformWorkerService,
     providers: WalletProviderFactory,
@@ -71,7 +79,9 @@ export class WalletService {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
+    this.shieldedNoteDAO = shieldedNoteDAO
     this.identities = identities
+    this.platformHistory = platformHistory
     this.walletSyncService = walletSyncService
     this.platform = platform
     this.providers = providers
@@ -261,12 +271,38 @@ export class WalletService {
     }
   }
 
-  async getTransactions(walletId: string): Promise<Transaction[]> {
+  // The one place a wallet's three sources of history are answered together,
+  // alongside getWalletBalance. Pool notes need no password: the seed decoded
+  // them at sync time and only the plaintext is persisted.
+  async getTransactions(walletId: string): Promise<WalletHistory> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
 
-    return provider.getWalletTransactions()
+    const [core, platform, notes] = await Promise.all([
+      provider.getWalletTransactions(),
+      this.platformTransactions(walletId),
+      this.shieldedNoteDAO.getOwnedNoteInfos(walletId),
+    ])
+
+    return {
+      core,
+      platform: platform ?? [],
+      platformFailed: platform == null,
+      shielded: notes,
+    }
+  }
+
+  // L1 is the wallet's own chain and its failure is the read's, but an explorer
+  // outage must not blank it. Null says the L2 read failed rather than that
+  // nothing has happened on L2.
+  private async platformTransactions(walletId: string): Promise<PlatformTransaction[] | null> {
+    try {
+      return await this.platformHistory.getPlatformTransactions(walletId)
+    } catch (err) {
+      log.warn(`${walletId}: platform history unavailable:`, err)
+      return null
+    }
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does

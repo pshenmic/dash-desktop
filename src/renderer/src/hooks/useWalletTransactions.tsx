@@ -19,7 +19,7 @@ function groupTransactionsByDay(items: WalletTxItem[]) {
 
 const fetchTransactionGroups = (walletId: string): Promise<TransactionGroup[]> =>
   API.getTransactions(walletId)
-    .then((raw) => groupTransactionsByDay((raw ?? []).map(mapWalletTransaction)))
+    .then((history) => groupTransactionsByDay(history.core.map(mapWalletTransaction)))
 
 export function useWalletTransactions(walletId: string | undefined) {
   const { data: groups, loading, err } = useAsyncWithCache<TransactionGroup[]>(

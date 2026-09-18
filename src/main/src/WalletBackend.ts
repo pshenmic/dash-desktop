@@ -6,12 +6,14 @@ import {SHIELDED_NOTES_CHECK_INTERVAL_MS} from './constants/credits'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
+import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/wallet/WalletService'
 import { IdentityRegistrationService } from './services/platform/IdentityRegistrationService'
 import { PlatformAddressService } from './services/platform/PlatformAddressService'
+import { PlatformHistoryService } from './services/platform/PlatformHistoryService'
 import { PlatformTransferService } from './services/platform/PlatformTransferService'
 import { ApplicationService } from './services/app/ApplicationService'
 import {Preferences} from "./preferences";
@@ -131,6 +133,7 @@ const shielded = new Logger('shielded')
 export class WalletBackend {
   private walletService?: WalletService
   private platformAddressService?: PlatformAddressService
+  private platformHistoryService?: PlatformHistoryService
   private platformTransferService?: PlatformTransferService
   private feeService?: FeeService
   private applicationService?: ApplicationService
@@ -152,7 +155,7 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -284,10 +287,13 @@ export class WalletBackend {
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
     this.identityService = new IdentityService(walletDAO, identityDAO, this.platformWorkerService)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, this.identityService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
+    const platformAddressDAO = new PlatformAddressDAO(knex)
+    const shieldedNoteDAO = new ShieldedNoteDAO(knex)
+    this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, new PlatformTransactionDAO(knex))
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, shieldedNoteDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
-    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
-    this.platformAddressService = new PlatformAddressService(walletDAO, new PlatformAddressDAO(knex), this.platformWorkerService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
+    this.platformAddressService = new PlatformAddressService(walletDAO, platformAddressDAO, this.platformWorkerService)
     this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, coreTransactionService, providers, preferences)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
     this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformAddressService, this.platformWorkerService, this.shieldedService, this.feeService, preferences)
