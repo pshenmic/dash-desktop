@@ -11,7 +11,10 @@ import {
 import { PlatformTransaction } from '../../src/main/src/types/PlatformTransaction'
 
 const WALLET = 'wallet-1'
-const OUR_ADDRESS = 'yRpNvoc3hd66c3rNrPRGubVd9vGUoAVpZV'
+// The one key the explorer reports in both encodings. platform_addresses holds
+// only the bech32m form.
+const OUR_ADDRESS = 'tdash1kq79z66rh34l4u2axlz3jv34zwshggnenul6cvwn'
+const OUR_ADDRESS_BASE58 = 'yRpNvoc3hd66c3rNrPRGubVd9vGUoAVpZV'
 const OUR_IDENTITY = '7YLm6o78TpqiauC9oQTGeXHwAeafzzkcxBGddjbRFL2x'
 
 function transition(overrides: Partial<PlatformExplorerAddressTransition> = {}): PlatformExplorerAddressTransition {
@@ -28,8 +31,8 @@ function transition(overrides: Partial<PlatformExplorerAddressTransition> = {}):
     error: null,
     incoming: false,
     amount: '-100000000',
-    base58Address: OUR_ADDRESS,
-    bech32mAddress: 'tdash1kq79z66rh34l4u2axlz3jv34zwshggnenul6cvwn',
+    base58Address: OUR_ADDRESS_BASE58,
+    bech32mAddress: OUR_ADDRESS,
     addressesCount: 1,
     ...overrides,
   }
@@ -58,6 +61,12 @@ describe('addressTransitionToPlatformTransaction', () => {
     expect(row.walletId).toBe(WALLET)
     expect(row.blockHeight).toBe(246835)
     expect(row.status).toBe('SUCCESS')
+  })
+
+  it('names the subject in the encoding platform_addresses stores', () => {
+    const row = addressTransitionToPlatformTransaction(transition(), WALLET)
+    expect(row.subject).toBe(OUR_ADDRESS)
+    expect(row.subject).not.toBe(OUR_ADDRESS_BASE58)
   })
 
   it('drops the subject once the transition touched more than one of our addresses', () => {
@@ -121,6 +130,19 @@ describe('mergePlatformTransactions', () => {
     expect(merged).toHaveLength(1)
     expect(merged[0].netCredits).toBe(0n)
     expect(merged[0].subject).toBeNull()
+  })
+
+  it('keeps the counterparty only one side of the transition knows', () => {
+    const hash = 'IIII'
+    const merged = mergePlatformTransactions([
+      addressTransitionToPlatformTransaction(transition({ hash }), WALLET),
+      transferToPlatformTransaction(
+        transfer({ txHash: hash, sender: 'ExternalSenderIdentity', recipient: OUR_IDENTITY }),
+        OUR_IDENTITY,
+        WALLET,
+      ),
+    ])
+    expect(merged[0].counterparty).toBe('ExternalSenderIdentity')
   })
 
   it('never sums the gas of one transition twice', () => {

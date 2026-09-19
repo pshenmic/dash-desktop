@@ -17,12 +17,13 @@ export async function requestJson<T>(request: JsonRequest, path: string, payload
           ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)}
           : {}),
       })
+      // The timeout covers the body stream and net.fetch resolves on headers, so
+      // a read that times out here has to reach the retry, not the caller.
+      if (response.ok) return await response.json() as T
     } catch (err) {
       lastError = err
       continue
     }
-
-    if (response.ok) return await response.json() as T
 
     const body = (await response.text().catch(() => '')).slice(0, 500)
     lastError = Object.assign(

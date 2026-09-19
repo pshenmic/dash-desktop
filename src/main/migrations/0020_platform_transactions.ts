@@ -17,8 +17,7 @@ export async function up(knex: Knex): Promise<void> {
     // for the address set, whose rows the explorer has already aggregated.
     table.text('source').notNullable()
     table.text('type').notNullable()
-    // Milliseconds. Seconds, as `transactions.block_time` stores them, would
-    // collapse the ordering of transitions sharing a block.
+    // Milliseconds, as Date reports them.
     table.integer('timestamp').notNullable()
     // Both null on a row from an identity transfer, which reports neither.
     table.integer('block_height')

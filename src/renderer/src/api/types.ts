@@ -415,8 +415,8 @@ export interface PlatformTransaction {
 export interface WalletHistory {
   core: Transaction[]
   platform: PlatformTransaction[]
-  // The L2 read failed, so `platform` is empty for that reason rather than for
-  // want of activity.
+  // The last refresh against the explorer failed, so `platform` may be short or
+  // empty for that reason rather than for want of activity.
   platformFailed: boolean
   // Owned pool notes, newest leaf first.
   shielded: ShieldedNoteInfo[]

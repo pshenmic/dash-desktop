@@ -1,28 +1,22 @@
-import {PLATFORM_EXPLORER_ADDRESS_SOURCE} from '../../constants/platformExplorer'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformAddressDAO} from '../../database/PlatformAddressDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider'
-import {PlatformTransaction} from '../../types/PlatformTransaction'
 import {Logger} from '../../utils/logger'
-import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {requireWallet} from '../../utils/requireWallet'
 
 const log = new Logger('platform')
 
-// L2 history. A wallet owns credits through two kinds of subject and the
-// explorer indexes them separately, so the two are read apart and folded: one
-// transition that moved credits between them is listed by both.
-//
-// Stored rows are what the read answers with; the explorer is asked only for
-// what is missing. Each walk runs newest-first and stops where our rows begin,
-// so once the first one has run a refresh costs a page per source.
+// Addresses and identities are indexed separately, so one transition that moved
+// credits between them is listed by both and folded on the way out.
 export class PlatformHistoryService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private platformAddressDAO: PlatformAddressDAO
   private platformTransactionDAO: PlatformTransactionDAO
+  // Only as far as this session knows: a restart forgets it.
+  private failedRefreshes = new Set<string>()
 
   constructor(
     walletDAO: WalletDAO,
@@ -36,53 +30,58 @@ export class PlatformHistoryService {
     this.platformTransactionDAO = platformTransactionDAO
   }
 
-  async getPlatformTransactions(walletId: string): Promise<PlatformTransaction[]> {
-    let failure: unknown = null
-    try {
-      await this.refresh(walletId)
-    } catch (err) {
-      failure = err
-    }
-
-    const stored = await this.platformTransactionDAO.getTransactions(walletId)
-
-    // With nothing stored the list is empty because the read failed, which is
-    // what the caller reports. With rows in hand it is not.
-    if (failure != null) {
-      if (stored.length === 0) throw failure
-      log.warn(`${walletId}: platform explorer unreachable, serving stored history:`, failure)
-    }
-
-    return mergePlatformTransactions(stored)
+  lastRefreshFailed(walletId: string): boolean {
+    return this.failedRefreshes.has(walletId)
   }
 
-  private async refresh(walletId: string): Promise<void> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-    const explorer = new PlatformExplorerProvider(wallet.network)
+  async refresh(walletId: string): Promise<void> {
+    try {
+      await this.walkSources(walletId)
+      this.failedRefreshes.delete(walletId)
+    } catch (err) {
+      this.failedRefreshes.add(walletId)
+      throw err
+    }
+  }
 
+  private async walkSources(walletId: string): Promise<void> {
     const [addresses, identities] = await Promise.all([
       this.platformAddressDAO.getAddresses(walletId),
       this.identityDAO.getIdentitiesByWalletId(walletId),
     ])
 
-    await Promise.all([
-      this.ingest(walletId, PLATFORM_EXPLORER_ADDRESS_SOURCE, known =>
-        explorer.addressTransactions(addresses.map(row => row.address), walletId, known)),
-      ...identities.map(identity => this.ingest(walletId, identity.identifier, known =>
-        explorer.identityTransactions(identity.identifier, walletId, known))),
+    // Asking anyway would hand the explorer an address set for no answer.
+    if (addresses.length === 0 && identities.length === 0) return
+
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const explorer = new PlatformExplorerProvider(wallet.network, this.platformTransactionDAO)
+
+    // Before the walk: a retired chunk's rows would otherwise fold in alongside
+    // the rows replacing them.
+    const addressList = addresses.map(row => row.address)
+    await this.platformTransactionDAO.deleteRetiredSources(walletId, [
+      ...explorer.addressChunks(addressList).map(entry => entry.source),
+      ...identities.map(identity => identity.identifier),
     ])
-  }
 
-  // Folded before the write so the chunks an address walk is split into leave
-  // one row per transition rather than one each.
-  private async ingest(
-    walletId: string,
-    source: string,
-    walk: (known: Set<string>) => Promise<PlatformTransaction[]>,
-  ): Promise<void> {
-    const found = await walk(await this.platformTransactionDAO.getKnownHashes(walletId, source))
-    if (found.length === 0) return
+    const addressWalk = addresses.length === 0
+      ? Promise.resolve(false)
+      : explorer.addressTransactions(addressList, walletId)
 
-    await this.platformTransactionDAO.upsertTransactions(source, mergePlatformTransactions(found))
+    // One source failing must not discard the pages the others already wrote.
+    const [addressResult, ...identityResults] = await Promise.allSettled([
+      addressWalk,
+      ...identities.map(identity => explorer.identityTransactions(identity.identifier, walletId)),
+    ])
+
+    for (const result of [addressResult, ...identityResults]) {
+      if (result.status === 'fulfilled' && result.value) {
+        log.warn(`${walletId}: platform history stops at the page cap, older transitions are not stored`)
+      }
+    }
+
+    for (const result of [addressResult, ...identityResults]) {
+      if (result.status === 'rejected') throw result.reason
+    }
   }
 }

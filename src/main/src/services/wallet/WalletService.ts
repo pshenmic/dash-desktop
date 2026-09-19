@@ -4,6 +4,7 @@ import {PlatformWorkerService} from '../platform/PlatformWorkerService'
 import {WalletDAO} from '../../database/WalletDAO'
 import {AddressDAO} from '../../database/AddressDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
+import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {ShieldedNoteDAO} from '../../database/ShieldedNoteDAO'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Network} from '../../types/Network'
@@ -12,7 +13,6 @@ import {GroupedAddresses} from '../../types/GroupedAddresses'
 import {Wallet} from '../../types/Wallet'
 import {WalletBalance} from "../../types/WalletBalance";
 import {Transaction} from "../../types/Transaction";
-import {PlatformTransaction} from "../../types/PlatformTransaction";
 import {WalletHistory} from "../../types/WalletHistory";
 import {SendResult} from "../../types/SendResult";
 import {IdentityService} from '../platform/IdentityService'
@@ -23,6 +23,7 @@ import {WalletSyncService} from '../core/WalletSyncService'
 import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
+import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
@@ -48,6 +49,7 @@ export class WalletService {
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
   private shieldedNoteDAO: ShieldedNoteDAO
+  private platformTransactionDAO: PlatformTransactionDAO
   private identities: IdentityService
   private platformHistory: PlatformHistoryService
   private walletSyncService: WalletSyncService
@@ -66,6 +68,7 @@ export class WalletService {
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
     shieldedNoteDAO: ShieldedNoteDAO,
+    platformTransactionDAO: PlatformTransactionDAO,
     identities: IdentityService,
     platformHistory: PlatformHistoryService,
     walletSyncService: WalletSyncService,
@@ -80,6 +83,7 @@ export class WalletService {
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
+    this.platformTransactionDAO = platformTransactionDAO
     this.identities = identities
     this.platformHistory = platformHistory
     this.walletSyncService = walletSyncService
@@ -271,9 +275,8 @@ export class WalletService {
     }
   }
 
-  // The one place a wallet's three sources of history are answered together,
-  // alongside getWalletBalance. Pool notes need no password: the seed decoded
-  // them at sync time and only the plaintext is persisted.
+  // The one place the three sources are answered together, alongside
+  // getWalletBalance. Only L1 reaches the network; the other two are stores.
   async getTransactions(walletId: string): Promise<WalletHistory> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
@@ -281,27 +284,17 @@ export class WalletService {
 
     const [core, platform, notes] = await Promise.all([
       provider.getWalletTransactions(),
-      this.platformTransactions(walletId),
-      this.shieldedNoteDAO.getOwnedNoteInfos(walletId),
+      this.platformTransactionDAO.getTransactions(walletId),
+      this.shieldedNoteDAO.getOwnedNotes(walletId),
     ])
 
     return {
       core,
-      platform: platform ?? [],
-      platformFailed: platform == null,
-      shielded: notes,
-    }
-  }
-
-  // L1 is the wallet's own chain and its failure is the read's, but an explorer
-  // outage must not blank it. Null says the L2 read failed rather than that
-  // nothing has happened on L2.
-  private async platformTransactions(walletId: string): Promise<PlatformTransaction[] | null> {
-    try {
-      return await this.platformHistory.getPlatformTransactions(walletId)
-    } catch (err) {
-      log.warn(`${walletId}: platform history unavailable:`, err)
-      return null
+      // Stored one row per source, so the wallet's own net is the fold of them.
+      platform: mergePlatformTransactions(platform),
+      platformFailed: this.platformHistory.lastRefreshFailed(walletId),
+      // Drops the nullifier, which links a note to its spend and stops here.
+      shielded: notes.map(({index, amount, spent, address}) => ({index, amount, spent, address})),
     }
   }
 

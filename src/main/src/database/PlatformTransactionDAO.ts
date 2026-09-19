@@ -3,11 +3,6 @@ import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransactio
 import {INSERT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
 
-const COLUMNS = [
-  'wallet_id', 'hash', 'type', 'timestamp', 'block_height', 'status',
-  'error', 'gas_credits', 'net_credits', 'subject', 'counterparty',
-]
-
 function fromRow({
   wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits, subject, counterparty,
 }): PlatformTransaction {
@@ -38,16 +33,19 @@ export class PlatformTransactionDAO {
 
   getTransactions = async (walletId: string): Promise<PlatformTransaction[]> => {
     const rows = await this.knex('platform_transactions')
-      .select(COLUMNS)
+      .select('wallet_id', 'hash', 'type', 'timestamp', 'block_height', 'status',
+        'error', 'gas_credits', 'net_credits', 'subject', 'counterparty')
       .where('wallet_id', walletId)
       .orderBy('timestamp', 'desc')
     return rows.map(fromRow)
   }
 
-  // Merge rather than ignore: a transition read again once its block was
-  // indexed carries the height and status the first read was too early for.
+  // A transition read again once its block was indexed carries the height and
+  // status the first read lacked. SQLite refuses a hash repeated in one upsert.
   upsertTransactions = async (source: string, transactions: PlatformTransaction[]): Promise<void> => {
-    for (const rows of chunk(transactions, INSERT_CHUNK_SIZE)) {
+    const unique = Array.from(new Map(transactions.map(row => [row.hash, row])).values())
+
+    for (const rows of chunk(unique, INSERT_CHUNK_SIZE)) {
       await this.knex('platform_transactions')
         .insert(rows.map(transaction => ({
           wallet_id: transaction.walletId,
@@ -66,6 +64,15 @@ export class PlatformTransactionDAO {
         .onConflict(['wallet_id', 'hash', 'source'])
         .merge()
     }
+  }
+
+  // A source naming an address set this wallet no longer asks about. Its rows
+  // would fold in alongside the rows that replaced them.
+  deleteRetiredSources = async (walletId: string, sources: string[]): Promise<void> => {
+    await this.knex('platform_transactions')
+      .where('wallet_id', walletId)
+      .whereNotIn('source', sources)
+      .delete()
   }
 
   // Per source, because a hash one walk has reported says nothing about

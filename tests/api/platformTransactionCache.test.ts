@@ -88,6 +88,19 @@ describe('cached platform transactions', () => {
     expect(await dao.getKnownHashes(WALLET, IDENTITY)).toEqual(new Set())
   })
 
+  it('drops the rows of a source the wallet no longer asks about', async () => {
+    await dao.upsertTransactions('addresses:0:1', [transaction()])
+    await dao.upsertTransactions(IDENTITY, [transaction()])
+
+    // The address window grew, so the chunk that held one address is now a
+    // source nothing will ever walk again.
+    await dao.deleteRetiredSources(WALLET, ['addresses:0:2', IDENTITY])
+
+    const rows = await dao.getTransactions(WALLET)
+    expect(rows).toHaveLength(1)
+    expect(mergePlatformTransactions(rows)[0].netCredits).toBe(-100_000_000n)
+  })
+
   it('returns newest first', async () => {
     await dao.upsertTransactions(PLATFORM_EXPLORER_ADDRESS_SOURCE, [
       transaction({hash: 'older', date: new Date('2025-01-12T08:07:25.094Z')}),

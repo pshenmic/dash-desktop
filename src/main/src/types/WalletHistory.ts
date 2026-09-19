@@ -8,12 +8,9 @@ import {Transaction} from './Transaction'
 export interface WalletHistory {
   core: Transaction[]
   platform: PlatformTransaction[]
-  // The L2 read failed and `platform` is empty for that reason rather than for
-  // want of activity, so a caller can say so instead of showing a short list.
+  // The last refresh this session ran against the explorer failed, so `platform`
+  // may be short or empty for that reason rather than for want of activity.
   platformFailed: boolean
-  // Owned pool notes, newest leaf first. An Orchard note carries an address, a
-  // value and its tree position and nothing else, so these cannot be dated or
-  // interleaved with the lists above — only ordered among themselves, by a leaf
-  // position that does grow with the chain.
+  // Owned pool notes, newest leaf first.
   shielded: ShieldedNoteInfo[]
 }

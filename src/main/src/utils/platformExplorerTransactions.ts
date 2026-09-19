@@ -24,7 +24,9 @@ export function addressTransitionToPlatformTransaction(
     error: row.error,
     gasCredits: BigInt(row.gasUsed ?? 0),
     netCredits: credits(row.amount),
-    subject: (row.addressesCount ?? 1) > 1 ? null : row.base58Address,
+    // bech32m: the form platform_addresses holds. The base58 field is the same
+    // key in an encoding nothing in this wallet is stored under.
+    subject: (row.addressesCount ?? 1) > 1 ? null : row.bech32mAddress,
     counterparty: null,
   }
 }
@@ -71,7 +73,9 @@ export function mergePlatformTransactions(rows: PlatformTransaction[]): Platform
     seen.netCredits += row.netCredits
     seen.gasCredits = row.gasCredits > seen.gasCredits ? row.gasCredits : seen.gasCredits
     if (seen.subject !== row.subject) seen.subject = null
-    if (seen.counterparty !== row.counterparty) seen.counterparty = null
+    // An address transition reports no counterparty at all, so its null means
+    // unknown, not none.
+    seen.counterparty ??= row.counterparty
     seen.status ??= row.status
     seen.error ??= row.error
     seen.blockHeight ??= row.blockHeight

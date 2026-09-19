@@ -10,6 +10,7 @@ import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
+import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {CorePrevOutService} from '../../src/main/src/services/core/CorePrevOutService'
@@ -82,11 +83,12 @@ export async function harness(): Promise<Harness> {
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.
   const platformHistoryService = {
-    getPlatformTransactions: vi.fn().mockResolvedValue([]),
+    refresh: vi.fn().mockResolvedValue(undefined),
+    lastRefreshFailed: vi.fn().mockReturnValue(false),
   } as unknown as PlatformHistoryService
 
   const walletService = new WalletService(
-    walletDAO, addressDAO, identityDAO, shieldedNoteDAO, identityService, platformHistoryService, walletSyncService, platform,
+    walletDAO, addressDAO, identityDAO, shieldedNoteDAO, new PlatformTransactionDAO(knex), identityService, platformHistoryService, walletSyncService, platform,
     providers, coreDiscoveryService, coreTransactionService, preferences, TEST_PBKDF2_ITERATIONS,
   )
 
