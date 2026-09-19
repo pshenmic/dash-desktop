@@ -47,11 +47,16 @@ export class PlatformWorkerService {
   private readonly pending = new Map<string, PendingRequest>()
   private readonly progressHandlers = new Map<string, PlatformRequestOptions>()
   private status: PlatformWorkerStatus = emptyPlatformStatus()
+  private transitionBroadcast: (() => void) | null = null
 
   // Forks the worker so the prover starts warming before anything is
   // requested. Reading status must never be what triggers work (finding P-4).
   start = (): void => {
     this.ensureChild()
+  }
+
+  onTransitionBroadcast(listener: () => void): void {
+    this.transitionBroadcast = listener
   }
 
   getStatus(): PlatformWorkerStatus {
@@ -183,6 +188,7 @@ export class PlatformWorkerService {
       }
       record.settle(event.ok ? {ok: true, result: event.result} : {ok: false, error: event.error})
     } else if (event.type === 'progress') {
+      if (event.phase === 'broadcasting') this.transitionBroadcast?.()
       this.progressHandlers.get(event.requestId)?.onProgress?.(event.phase, event.fetched, event.total)
     } else if (event.type === 'notesSpent') {
       this.progressHandlers.get(event.requestId)?.onNotesSpent?.(event.indexes)

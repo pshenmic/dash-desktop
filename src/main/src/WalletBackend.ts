@@ -376,6 +376,18 @@ export class WalletBackend {
       refreshPlatformHistory().catch(err => platformLog.error('periodic platform history refresh failed:', err))
     }, PLATFORM_HISTORY_REFRESH_INTERVAL_MS).unref()
 
+    // The worker reports the broadcast, not which wallet sent: the selected one
+    // is the only wallet the periodic refresh covers either.
+    const refreshAfterBroadcast = async (): Promise<void> => {
+      const selected = await walletDAO.getSelectedWallet()
+      if (selected != null) {
+        platformHistoryService.refreshAfterSend(selected.walletId)
+      }
+    }
+    this.platformWorkerService.onTransitionBroadcast(() => {
+      refreshAfterBroadcast().catch(err => platformLog.error('platform history refresh after a broadcast failed:', err))
+    })
+
     this.applicationService.markReady()
   }
 

@@ -18,7 +18,10 @@ import {PlatformAddressDAO} from '../../src/main/src/database/PlatformAddressDAO
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformHistoryService} from '../../src/main/src/services/platform/PlatformHistoryService'
-import {PLATFORM_EXPLORER_PAGE_LIMIT} from '../../src/main/src/constants/platformExplorer'
+import {
+  PLATFORM_EXPLORER_PAGE_LIMIT,
+  PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS,
+} from '../../src/main/src/constants/platformExplorer'
 import {mergePlatformTransactions} from '../../src/main/src/utils/platformExplorerTransactions'
 import {getKnex, migrateKnex} from '../../src/main/src/utils'
 
@@ -119,6 +122,36 @@ describe('platform history', () => {
 
     expect(addressPaths()).toHaveLength(1)
     expect(net.paths.filter(path => path.startsWith('/identity/'))).toHaveLength(1)
+  })
+
+  it('walks once when a send-triggered refresh overlaps the periodic one', async () => {
+    await Promise.all([service.refresh(WALLET), service.refresh(WALLET)])
+
+    expect(addressPaths()).toHaveLength(1)
+    expect(net.paths.filter(path => path.startsWith('/identity/'))).toHaveLength(1)
+  })
+
+  // The broadcast a send triggers on is a block and an indexer behind the
+  // explorer listing the transition.
+  it('keeps looking after a send until the transition is indexed', async () => {
+    const [first, second] = PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS
+    vi.useFakeTimers()
+    try {
+      responder = () => page([])
+      service.refreshAfterSend(WALLET)
+
+      await vi.advanceTimersByTimeAsync(first)
+      await vi.waitFor(() => expect(addressPaths()).toHaveLength(1))
+      expect(await transactionDAO.getTransactions(WALLET)).toHaveLength(0)
+
+      responder = (path) => page(path.startsWith('/identity/') ? [] : [transition])
+      await vi.advanceTimersByTimeAsync(second)
+
+      await vi.waitFor(async () =>
+        expect((await transactionDAO.getTransactions(WALLET)).map(row => row.hash)).toEqual([HASH]))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('picks up a transition the previous walk was too early to see', async () => {

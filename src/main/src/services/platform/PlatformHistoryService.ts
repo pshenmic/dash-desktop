@@ -1,3 +1,4 @@
+import {PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS} from '../../constants/platformExplorer'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformAddressDAO} from '../../database/PlatformAddressDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
@@ -17,6 +18,7 @@ export class PlatformHistoryService {
   private platformTransactionDAO: PlatformTransactionDAO
   // Only as far as this session knows: a restart forgets it.
   private failedRefreshes = new Set<string>()
+  private walks = new Map<string, Promise<void>>()
 
   constructor(
     walletDAO: WalletDAO,
@@ -34,13 +36,34 @@ export class PlatformHistoryService {
     return this.failedRefreshes.has(walletId)
   }
 
+  // Fire-and-forget: a send must not carry the explorer's latency, and must not
+  // fail because the index is behind it.
+  refreshAfterSend(walletId: string): void {
+    void (async () => {
+      for (const delay of PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS) {
+        await new Promise(resolve => setTimeout(resolve, delay))
+        await this.refresh(walletId).catch(err =>
+          log.error(`${walletId}: platform history refresh after a send failed:`, err))
+      }
+    })()
+  }
+
   async refresh(walletId: string): Promise<void> {
+    // A send during the periodic refresh, or two sends in a row, would otherwise
+    // ask the explorer for the same pages twice over.
+    const walking = this.walks.get(walletId)
+    if (walking != null) return walking
+
+    const walk = this.walkSources(walletId)
+    this.walks.set(walletId, walk)
     try {
-      await this.walkSources(walletId)
+      await walk
       this.failedRefreshes.delete(walletId)
     } catch (err) {
       this.failedRefreshes.add(walletId)
       throw err
+    } finally {
+      this.walks.delete(walletId)
     }
   }
 

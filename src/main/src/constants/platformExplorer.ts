@@ -18,5 +18,10 @@ export const PLATFORM_EXPLORER_MAX_PAGES = 200
 // A refresh costs one page per source once the first walk has run.
 export const PLATFORM_HISTORY_REFRESH_INTERVAL_MS = 60_000
 
+// A broadcast transition still has to be committed and then indexed before the
+// explorer will list it, so the refresh a send asks for looks more than once.
+// Past the last of these the periodic refresh takes over.
+export const PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS = [5_000, 20_000]
+
 export const PLATFORM_EXPLORER_REQUEST_TIMEOUT_MS = 30_000
 export const PLATFORM_EXPLORER_RETRY_DELAYS_MS = [300, 1_200]
