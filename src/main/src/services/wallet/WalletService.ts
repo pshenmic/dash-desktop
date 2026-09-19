@@ -5,7 +5,6 @@ import {WalletDAO} from '../../database/WalletDAO'
 import {AddressDAO} from '../../database/AddressDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
-import {ShieldedNoteDAO} from '../../database/ShieldedNoteDAO'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Network} from '../../types/Network'
 import {Address} from '../../types/Address'
@@ -48,7 +47,6 @@ export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
-  private shieldedNoteDAO: ShieldedNoteDAO
   private platformTransactionDAO: PlatformTransactionDAO
   private identities: IdentityService
   private platformHistory: PlatformHistoryService
@@ -67,7 +65,6 @@ export class WalletService {
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
-    shieldedNoteDAO: ShieldedNoteDAO,
     platformTransactionDAO: PlatformTransactionDAO,
     identities: IdentityService,
     platformHistory: PlatformHistoryService,
@@ -82,7 +79,6 @@ export class WalletService {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
-    this.shieldedNoteDAO = shieldedNoteDAO
     this.platformTransactionDAO = platformTransactionDAO
     this.identities = identities
     this.platformHistory = platformHistory
@@ -275,17 +271,16 @@ export class WalletService {
     }
   }
 
-  // The one place the three sources are answered together, alongside
-  // getWalletBalance. Only L1 reaches the network; the other two are stores.
+  // Both chains of one wallet, alongside getWalletBalance. Only L1 reaches the
+  // network; the platform rows are a store something else keeps current.
   async getTransactions(walletId: string): Promise<WalletHistory> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
 
-    const [core, platform, notes] = await Promise.all([
+    const [core, platform] = await Promise.all([
       provider.getWalletTransactions(),
       this.platformTransactionDAO.getTransactions(walletId),
-      this.shieldedNoteDAO.getOwnedNotes(walletId),
     ])
 
     return {
@@ -293,8 +288,6 @@ export class WalletService {
       // Stored one row per source, so the wallet's own net is the fold of them.
       platform: mergePlatformTransactions(platform),
       platformFailed: this.platformHistory.lastRefreshFailed(walletId),
-      // Drops the nullifier, which links a note to its spend and stops here.
-      shielded: notes.map(({index, amount, spent, address}) => ({index, amount, spent, address})),
     }
   }
 

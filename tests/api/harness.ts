@@ -9,7 +9,6 @@ import {ShieldedService} from '../../src/main/src/services/platform/ShieldedServ
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
-import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
@@ -57,7 +56,6 @@ export async function harness(): Promise<Harness> {
   const walletDAO = new WalletDAO(knex)
   const addressDAO = new AddressDAO(knex)
   const identityDAO = new IdentityDAO(knex)
-  const shieldedNoteDAO = new ShieldedNoteDAO(knex)
   const transactionDAO = new TransactionDAO(knex)
 
   // p2p mode keeps address discovery on the local SQL store, so nothing in a
@@ -88,7 +86,7 @@ export async function harness(): Promise<Harness> {
   } as unknown as PlatformHistoryService
 
   const walletService = new WalletService(
-    walletDAO, addressDAO, identityDAO, shieldedNoteDAO, new PlatformTransactionDAO(knex), identityService, platformHistoryService, walletSyncService, platform,
+    walletDAO, addressDAO, identityDAO, new PlatformTransactionDAO(knex), identityService, platformHistoryService, walletSyncService, platform,
     providers, coreDiscoveryService, coreTransactionService, preferences, TEST_PBKDF2_ITERATIONS,
   )
 

@@ -293,7 +293,7 @@ export class WalletBackend {
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
     const platformTransactionDAO = new PlatformTransactionDAO(knex)
     this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, platformTransactionDAO)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, shieldedNoteDAO, platformTransactionDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, platformTransactionDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
     this.platformAddressService = new PlatformAddressService(walletDAO, platformAddressDAO, this.platformWorkerService)

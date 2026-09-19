@@ -63,7 +63,7 @@ vi.mock('@renderer/contexts/ConnectionModeContext', () => ({
 import { useWalletUtxos } from '../../src/renderer/src/hooks/useWalletUtxos'
 
 const history = (core: unknown[]): WalletHistory =>
-  ({core: core as Transaction[], platform: [], platformFailed: false, shielded: []})
+  ({core: core as Transaction[], platform: [], platformFailed: false})
 
 const selectedUtxo: SelectableUtxo = {txid: 'selected', vout: 0, satoshis: 100_000n, address: 'address-a', height: 0, timestamp: null, confirmations: 0}
 const otherUtxo: SelectableUtxo = {txid: 'other', vout: 1, satoshis: 200_000n, address: 'address-b', height: 10, timestamp: null, confirmations: 1}

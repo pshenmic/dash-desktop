@@ -107,17 +107,6 @@ interface WalletHistoryDTO {
   core: TransactionDTO[]
   platform: PlatformTransactionDTO[]
   platformFailed: boolean
-  shielded: ShieldedNoteInfoDTO[]
-}
-
-// Mirrors src/main/src/types/Shielded's ShieldedNoteInfo: one owned pool note,
-// carrying everything an Orchard note has and nothing more — no time, no
-// transition.
-interface ShieldedNoteInfoDTO {
-  index: number
-  amount: bigint
-  address: string
-  spent: boolean
 }
 
 // Mirrors src/main/src/types/PlatformTransaction: amounts are credits, `hash`
