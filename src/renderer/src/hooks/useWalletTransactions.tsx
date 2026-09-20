@@ -1,39 +1,26 @@
 import { API } from '@renderer/api'
-import type {TransactionGroup, WalletTxItem} from '@renderer/types/WalletTransaction'
-import { formatCreationDate } from '@renderer/utils/date'
-import { mapWalletTransaction } from '@renderer/utils/walletTransactions'
+import { useMemo } from 'react'
+import type { WalletHistory } from '@renderer/api/types'
+import { EMPTY_WALLET_HISTORY } from '@renderer/constants/platformTransactions'
+import { groupTransactionsByDay, mapWalletTransaction } from '@renderer/utils/walletTransactions'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export type { WalletTxDto, WalletTxItem } from '@renderer/types/WalletTransaction'
 
-function groupTransactionsByDay(items: WalletTxItem[]) {
-  const map = new Map<string, WalletTxItem[]>()
-  for (const tx of items) {
-    const key = formatCreationDate(tx.date)
-    const arr = map.get(key) ?? []
-    arr.push(tx)
-    map.set(key, arr)
-  }
-  return Array.from(map.entries()).map(([label, transactions]) => ({ date: label, transactions }))
-}
-
-const fetchTransactionGroups = (walletId: string): Promise<TransactionGroup[]> =>
-  API.getTransactions(walletId)
-    .then((history) => groupTransactionsByDay(history.core.map(mapWalletTransaction)))
-
-export function useWalletTransactions(walletId: string | undefined) {
-  const { data: groups, loading, err } = useAsyncWithCache<TransactionGroup[]>(
+export function useWalletTransactions(walletId: string | undefined, refreshIntervalMs?: number) {
+  const { data: history, loading, err } = useAsyncWithCache<WalletHistory>(
     'transactions',
     walletId,
-    () => fetchTransactionGroups(walletId!),
-    [],
-    { errorMessage: 'Failed to load transactions' }
+    () => API.getTransactions(walletId!),
+    EMPTY_WALLET_HISTORY,
+    { errorMessage: 'Failed to load transactions', refreshIntervalMs }
   )
-  return { groups, loading, err }
+  const groups = useMemo(() => groupTransactionsByDay(history.core.map(mapWalletTransaction)), [history.core])
+  return { groups, platform: history.platform, platformFailed: history.platformFailed, loading, err }
 }
 
 export function prefetchTransactions(walletId: string): Promise<void> {
-  return prefetchAsyncCache('transactions', walletId, () => fetchTransactionGroups(walletId))
+  return prefetchAsyncCache('transactions', walletId, () => API.getTransactions(walletId))
 }
 
 export function refreshTransactions(walletId: string): Promise<void> {

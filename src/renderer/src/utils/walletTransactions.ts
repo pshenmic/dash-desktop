@@ -1,4 +1,24 @@
-import { WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
+import { TransactionCardAmount, TransactionCardItem, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
+import { formatCreationDate } from './date'
+import { creditsToDash, creditsToDuffs, davToDash } from './balance'
+
+export function formatTransactionCardAmount(transaction: Pick<TransactionCardItem, 'amount' | 'kind'>): TransactionCardAmount {
+  if (transaction.kind === 'platform') {
+    return { value: creditsToDash(transaction.amount), duffs: creditsToDuffs(transaction.amount) }
+  }
+  return { value: davToDash(transaction.amount), duffs: transaction.amount }
+}
+
+export function groupTransactionsByDay(items: WalletTxItem[]) {
+  const map = new Map<string, WalletTxItem[]>()
+  for (const tx of items) {
+    const key = formatCreationDate(tx.date)
+    const transactions = map.get(key) ?? []
+    transactions.push(tx)
+    map.set(key, transactions)
+  }
+  return Array.from(map, ([date, transactions]) => ({ date, transactions }))
+}
 
 function mapWalletTransactionStatus(status: string, confirmations: number): WalletTxStatus {
   if (status === 'Failed' || status === 'Error') return 'failed'
