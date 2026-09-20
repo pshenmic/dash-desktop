@@ -75,18 +75,18 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
         <Text size={12} weight={'medium'} color={'brand'} opacity={50}>
           Balance change is the net change across this wallet’s Platform addresses and identities. The transition fee may be paid by another participant.
         </Text>
-        {transaction.subject && (
+        {transaction.sender && (
           <HashField
-            label={'Wallet address or identity'}
-            hash={transaction.subject}
-            explorerUrl={network ? platformParticipantUrl(transaction.subject, network) : undefined}
+            label={'From'}
+            hash={transaction.sender}
+            explorerUrl={network ? platformParticipantUrl(transaction.sender, network) : undefined}
           />
         )}
-        {transaction.counterparty && (
+        {transaction.recipient && (
           <HashField
-            label={'Counterparty'}
-            hash={transaction.counterparty}
-            explorerUrl={network ? platformParticipantUrl(transaction.counterparty, network) : undefined}
+            label={'To'}
+            hash={transaction.recipient}
+            explorerUrl={network ? platformParticipantUrl(transaction.recipient, network) : undefined}
           />
         )}
       </div>

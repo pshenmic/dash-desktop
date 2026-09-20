@@ -30,14 +30,18 @@ export function mapPlatformTransaction(transaction: PlatformTransaction): Transa
   if (transaction.netCredits > 0n) direction = 'in'
   if (transaction.netCredits < 0n) direction = 'out'
 
+  // An address transition names only our own end, so the card shows whichever
+  // end the source named rather than the one the direction asks for.
+  const fromSender = direction === 'in' ? transaction.sender !== null : transaction.recipient === null
+
   return {
     id: transaction.hash,
     status: PLATFORM_TX_CARD_STATUSES[transaction.status ?? 'unknown'],
     kind: 'platform',
     title: platformTransactionTitle(transaction.type),
-    subtitleLabel: transaction.counterparty ? 'Counterparty' : 'Wallet address or identity',
-    labelValue: transaction.counterparty ?? transaction.subject ?? 'Unavailable',
-    amount: transaction.amountCredits < 0n ? -transaction.amountCredits : transaction.amountCredits,
+    subtitleLabel: fromSender ? 'From' : 'To',
+    labelValue: (fromSender ? transaction.sender : transaction.recipient) ?? 'Unavailable',
+    amount: transaction.amountCredits,
     date: platformTransactionDateValue(transaction.date),
     direction,
   }
