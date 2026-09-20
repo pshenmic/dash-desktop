@@ -1,11 +1,12 @@
 import type {Knex} from 'knex'
 import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransaction'
 import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
 
 function fromRow({
   wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits, sender, recipient,
-}): PlatformTransaction {
+}, lockedCredits: bigint | null): PlatformTransaction {
   const net = BigInt(net_credits)
 
   return {
@@ -18,7 +19,7 @@ function fromRow({
     error: error ?? null,
     gasCredits: BigInt(gas_credits),
     netCredits: BigInt(net_credits),
-    amountCredits: net < 0n ? -net : net,
+    amountCredits: net === 0n && lockedCredits != null ? lockedCredits : (net < 0n ? -net : net),
     sender: sender ?? null,
     recipient: recipient ?? null,
   }
@@ -32,12 +33,24 @@ export class PlatformTransactionDAO {
   }
 
   getTransactions = async (walletId: string): Promise<PlatformTransaction[]> => {
-    const rows = await this.knex('platform_transactions')
-      .select('wallet_id', 'hash', 'type', 'timestamp', 'block_height', 'status',
-        'error', 'gas_credits', 'net_credits', 'sender', 'recipient')
-      .where('wallet_id', walletId)
-      .orderBy('timestamp', 'desc')
-    return rows.map(fromRow)
+    const [rows, fundings] = await Promise.all([
+      this.knex('platform_transactions')
+        .select('wallet_id', 'hash', 'type', 'timestamp', 'block_height', 'status',
+          'error', 'gas_credits', 'net_credits', 'sender', 'recipient')
+        .where('wallet_id', walletId)
+        .orderBy('timestamp', 'desc'),
+      this.knex('asset_lock_fundings')
+        .select('st_hash', 'amount_duffs')
+        .where('wallet_id', walletId)
+        .whereNotNull('st_hash'),
+    ])
+
+    const locked = new Map(fundings.map(funding => [
+      (funding.st_hash as string).toLowerCase(),
+      BigInt(funding.amount_duffs as string) * CREDITS_PER_DUFF,
+    ]))
+
+    return rows.map(row => fromRow(row, locked.get((row.hash as string).toLowerCase()) ?? null))
   }
 
   // A transition read again once its block was indexed carries the height and
