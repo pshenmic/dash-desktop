@@ -1,5 +1,6 @@
 import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
-import type { TxFilter } from '@renderer/utils/transactionFilters'
+import type { TxDirectionFilter } from '@renderer/enums/TxDirectionFilter'
+import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
 
 export type WalletTxDto = Transaction
 
@@ -45,27 +46,34 @@ export interface TransactionCardAmount {
   duffs: bigint
 }
 
-export interface PlatformTransactionGroup {
+export interface WalletHistoryGroup {
   date: Date | null
-  transactions: PlatformTransaction[]
+  transactions: WalletHistoryItem[]
 }
 
-export type TransactionsTab = 'core' | 'platform'
+export type HistoryTransactionType = `core:${Exclude<TxTypeFilter, TxTypeFilter.All>}` | `platform:${string}`
+
+export interface WalletHistoryItem extends TransactionCardItem {
+  kind: 'core' | 'platform'
+  type: HistoryTransactionType
+  selection: SelectedTransaction
+  searchValues: Array<string | null | undefined>
+}
 
 export type SelectedTransaction =
   | { kind: 'core'; transaction: WalletTxItem }
   | { kind: 'platform'; hash: string }
 
-export interface PlatformTxFilter {
+export interface TxFilter {
   search: string
-  direction: 'all' | 'increase' | 'decrease' | 'unchanged'
-  type: string
-  status: 'all' | 'SUCCESS' | 'FAIL' | 'unknown'
+  direction: TxDirectionFilter
+  type: 'all' | HistoryTransactionType
+  status: 'all' | TransactionCardItem['status']
 }
 
-export interface PlatformTxTotals {
-  increase: bigint
-  decrease: bigint
+export interface TxTotals {
+  receivedCredits: bigint
+  sentCredits: bigint
 }
 
 export interface FilterOption<T extends string> {
@@ -80,17 +88,15 @@ export interface FilterSectionProps<T extends string> {
   onSelect: (value: T) => void
 }
 
-export type TransactionsFilterProps =
-  | { kind: 'core'; filter: TxFilter; onChange: (filter: TxFilter) => void }
-  | { kind: 'platform'; filter: PlatformTxFilter; onChange: (filter: PlatformTxFilter) => void; transactions: PlatformTransaction[] }
+export interface TransactionsFilterProps {
+  filter: TxFilter
+  onChange: (filter: TxFilter) => void
+  transactions: PlatformTransaction[]
+}
 
 export interface TransactionsListProps {
-  activeTab: TransactionsTab
-  onTabChange: (tab: TransactionsTab) => void
   filter: TxFilter
   onFilterChange: (filter: TxFilter) => void
-  platformFilter: PlatformTxFilter
-  onPlatformFilterChange: (filter: PlatformTxFilter) => void
   onTransactionClick: (transaction: SelectedTransaction) => void
   groups: TransactionGroup[]
   platform: PlatformTransaction[]

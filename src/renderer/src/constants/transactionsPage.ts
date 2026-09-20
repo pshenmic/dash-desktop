@@ -112,7 +112,7 @@ export const transactionsPage: TransactionsPage = {
     filters: {
       search: {
         label: 'Search transactions',
-        placeholder: 'txid or address',
+        placeholder: 'Hash, address or identity',
       },
       direction: {
         label: 'Direction',

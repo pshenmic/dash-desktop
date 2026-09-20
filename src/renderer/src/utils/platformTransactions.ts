@@ -1,5 +1,5 @@
 import type { Network, PlatformTransaction } from '../api/types'
-import type { FilterOption, PlatformTransactionGroup, PlatformTxFilter, PlatformTxTotals, TransactionCardItem } from '../types/WalletTransaction'
+import type { TransactionCardItem } from '../types/WalletTransaction'
 import { PLATFORM_TX_CARD_STATUSES } from '../constants/platformTransactions'
 import { formatCreationDate, timePart } from './date'
 import { identityUrl, platformAddressUrl } from './explorer'
@@ -41,48 +41,6 @@ export function mapPlatformTransaction(transaction: PlatformTransaction): Transa
     date: platformTransactionDateValue(transaction.date),
     direction,
   }
-}
-
-export function groupPlatformTransactionsByDay(transactions: PlatformTransaction[]): PlatformTransactionGroup[] {
-  const groups = new Map<string, PlatformTransactionGroup>()
-  for (const transaction of transactions) {
-    const date = platformTransactionDateValue(transaction.date)
-    const key = platformTransactionDate(transaction.date)
-    const group = groups.get(key) ?? { date, transactions: [] }
-    group.transactions.push(transaction)
-    groups.set(key, group)
-  }
-  return Array.from(groups.values())
-}
-
-export function filterPlatformTransactions(transactions: PlatformTransaction[], filter: PlatformTxFilter): PlatformTransaction[] {
-  const search = filter.search.trim().toLowerCase()
-  return transactions.filter((tx) => {
-    if (filter.direction === 'increase' && tx.netCredits <= 0n) return false
-    if (filter.direction === 'decrease' && tx.netCredits >= 0n) return false
-    if (filter.direction === 'unchanged' && tx.netCredits !== 0n) return false
-    if (filter.type !== 'all' && tx.type !== filter.type) return false
-    if (filter.status !== 'all' && (tx.status ?? 'unknown') !== filter.status) return false
-    return !search || [tx.hash, tx.subject, tx.counterparty].some((value) => value?.toLowerCase().includes(search))
-  })
-}
-
-export function platformTransactionTypeOptions(transactions: PlatformTransaction[]): FilterOption<string>[] {
-  return [
-    { value: 'all', label: 'All' },
-    ...Array.from(new Set(transactions.map((tx) => tx.type))).sort()
-      .map((type) => ({ value: type, label: platformTransactionTitle(type) })),
-  ]
-}
-
-export function computePlatformTxTotals(transactions: PlatformTransaction[]): PlatformTxTotals {
-  let increase = 0n
-  let decrease = 0n
-  for (const tx of transactions) {
-    if (tx.netCredits > 0n) increase += tx.netCredits
-    else decrease -= tx.netCredits
-  }
-  return { increase, decrease }
 }
 
 export function platformParticipantUrl(value: string, network: Network): string | null {
