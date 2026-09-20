@@ -3,14 +3,6 @@ export const PLATFORM_EXPLORER_BASE_URLS: Record<'mainnet' | 'testnet', string> 
   testnet: 'https://testnet.platform-explorer.pshenmic.dev'
 }
 
-// The transitions endpoint validates its POST body against this ceiling and
-// answers a longer list with `body/addresses must NOT have more than 100 items`.
-export const PLATFORM_EXPLORER_ADDRESS_CHUNK = 100
-
-// Prefixes an address walk's source, where an identity names itself. One per
-// chunk: the amount on a row is the net across that chunk's addresses.
-export const PLATFORM_EXPLORER_ADDRESS_SOURCE = 'addresses'
-
 export const PLATFORM_EXPLORER_PAGE_LIMIT = 100
 // A source that keeps returning full pages would otherwise spin the walk forever.
 export const PLATFORM_EXPLORER_MAX_PAGES = 200

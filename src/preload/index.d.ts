@@ -121,8 +121,9 @@ interface PlatformTransactionDTO {
   error: string | null
   gasCredits: bigint
   netCredits: bigint
-  subject: string | null
-  counterparty: string | null
+  amountCredits: bigint
+  sender: string | null
+  recipient: string | null
 }
 
 declare global {

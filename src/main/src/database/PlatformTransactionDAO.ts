@@ -4,8 +4,10 @@ import {INSERT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
 
 function fromRow({
-  wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits, subject, counterparty,
+  wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits, sender, recipient,
 }): PlatformTransaction {
+  const net = BigInt(net_credits)
+
   return {
     walletId: wallet_id,
     hash,
@@ -16,14 +18,12 @@ function fromRow({
     error: error ?? null,
     gasCredits: BigInt(gas_credits),
     netCredits: BigInt(net_credits),
-    subject: subject ?? null,
-    counterparty: counterparty ?? null,
+    amountCredits: net < 0n ? -net : net,
+    sender: sender ?? null,
+    recipient: recipient ?? null,
   }
 }
 
-// What the platform explorer has already told us about this wallet. Rows come
-// back as the explorer reported them, one per source; mergePlatformTransactions
-// is the only place a transition's sides become a single row.
 export class PlatformTransactionDAO {
   knex: Knex
 
@@ -34,7 +34,7 @@ export class PlatformTransactionDAO {
   getTransactions = async (walletId: string): Promise<PlatformTransaction[]> => {
     const rows = await this.knex('platform_transactions')
       .select('wallet_id', 'hash', 'type', 'timestamp', 'block_height', 'status',
-        'error', 'gas_credits', 'net_credits', 'subject', 'counterparty')
+        'error', 'gas_credits', 'net_credits', 'sender', 'recipient')
       .where('wallet_id', walletId)
       .orderBy('timestamp', 'desc')
     return rows.map(fromRow)
@@ -58,8 +58,8 @@ export class PlatformTransactionDAO {
           error: transaction.error,
           gas_credits: transaction.gasCredits.toString(),
           net_credits: transaction.netCredits.toString(),
-          subject: transaction.subject,
-          counterparty: transaction.counterparty,
+          sender: transaction.sender,
+          recipient: transaction.recipient,
         })))
         .onConflict(['wallet_id', 'hash', 'source'])
         .merge()

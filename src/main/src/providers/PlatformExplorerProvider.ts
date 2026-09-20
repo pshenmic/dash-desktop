@@ -1,6 +1,4 @@
 import {
-  PLATFORM_EXPLORER_ADDRESS_CHUNK,
-  PLATFORM_EXPLORER_ADDRESS_SOURCE,
   PLATFORM_EXPLORER_BASE_URLS,
   PLATFORM_EXPLORER_MAX_PAGES,
   PLATFORM_EXPLORER_PAGE_LIMIT,
@@ -16,7 +14,6 @@ import {
   PlatformExplorerTransfer,
 } from '../types/PlatformExplorer'
 import {PlatformTransaction} from '../types/PlatformTransaction'
-import {chunk} from '../utils/chunk'
 import {
   addressTransitionToPlatformTransaction,
   transferToPlatformTransaction,
@@ -39,36 +36,25 @@ export class PlatformExplorerProvider {
     this.transactionDAO = transactionDAO
   }
 
-  // The name carries its chunk's membership, so an address the window reveals
-  // later lands in a source with no rows behind it to stop the walk early.
-  addressChunks(addresses: string[]): {source: string, slice: string[]}[] {
-    return chunk(addresses, PLATFORM_EXPLORER_ADDRESS_CHUNK).map((slice, index) => ({
-      source: `${PLATFORM_EXPLORER_ADDRESS_SOURCE}:${index}:${slice.length}`,
-      slice,
-    }))
+  // One address per walk, like an identity. The endpoint takes a list, but it
+  // answers with the net across the whole list and no address at all once a
+  // transition touched more than one of them — which is every move between two
+  // of ours. An address the indexer has never seen is dropped, not rejected.
+  async addressTransactions(address: string, walletId: string): Promise<boolean> {
+    return this.walk<PlatformExplorerAddressTransition>(
+      walletId,
+      address,
+      page => requestJson(
+        this.request,
+        `/platformAddresses/transitions?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc`,
+        {addresses: [address]},
+      ),
+      row => row.hash,
+      rows => rows.map(row => addressTransitionToPlatformTransaction(row, walletId)),
+    )
   }
 
-  // Addresses the indexer has never seen are dropped, not rejected, so an unused
-  // stretch of the window costs nothing but the bytes to ask.
-  async addressTransactions(addresses: string[], walletId: string): Promise<boolean> {
-    const walks = this.addressChunks(addresses).map(({source, slice}) =>
-      this.walk<PlatformExplorerAddressTransition>(
-        walletId,
-        source,
-        page => requestJson(
-          this.request,
-          `/platformAddresses/transitions?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc`,
-          {addresses: slice},
-        ),
-        row => row.hash,
-        rows => rows.map(row => addressTransitionToPlatformTransaction(row, walletId)),
-      ))
-
-    return (await Promise.all(walks)).some(truncated => truncated)
-  }
-
-  // One walk per identity: the explorer batches addresses but not these, and
-  // each identity is its own stream to resume.
+  // One walk per identity, each its own stream to resume.
   async identityTransactions(identifier: string, walletId: string): Promise<boolean> {
     return this.walk<PlatformExplorerTransfer>(
       walletId,
