@@ -38,7 +38,7 @@ export function mergeWalletTransactions(core: WalletTxItem[], platform: Platform
       kind: 'platform',
       type: `platform:${tx.type}`,
       selection: { kind: 'platform', hash: tx.hash },
-      searchValues: [tx.hash, tx.subject, tx.counterparty],
+      searchValues: [tx.hash, tx.sender, tx.recipient],
     })),
   ]
   return transactions.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))

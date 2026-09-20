@@ -43,6 +43,7 @@ function coreTransaction(overrides: Partial<WalletTxItem> = {}): WalletTxItem {
 }
 
 function platformTransaction(overrides: Partial<PlatformTransaction> = {}): PlatformTransaction {
+  const netCredits = overrides.netCredits ?? -1_000n
   return {
     walletId: 'wallet',
     hash: 'platform-hash',
@@ -52,9 +53,10 @@ function platformTransaction(overrides: Partial<PlatformTransaction> = {}): Plat
     status: 'SUCCESS',
     error: null,
     gasCredits: 1_000n,
-    netCredits: -1_000n,
-    subject: 'walletAddress',
-    counterparty: 'recipientIdentity',
+    netCredits,
+    amountCredits: netCredits < 0n ? -netCredits : netCredits,
+    sender: 'walletAddress',
+    recipient: 'recipientIdentity',
     ...overrides,
   }
 }
@@ -143,7 +145,7 @@ describe('shared transaction filters', () => {
   ], [
     platformTransaction({ hash: 'platform-in', netCredits: 2n }),
     platformTransaction({ hash: 'platform-out', netCredits: -1n, status: 'FAIL' }),
-    platformTransaction({ hash: 'platform-neutral', netCredits: 0n, status: null, subject: null, counterparty: null }),
+    platformTransaction({ hash: 'platform-neutral', netCredits: 0n, status: null, sender: null, recipient: null }),
   ])
 
   it('filters balance changes across both sources, including fees on failed Platform operations', () => {

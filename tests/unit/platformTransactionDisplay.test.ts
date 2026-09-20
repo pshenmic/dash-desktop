@@ -11,6 +11,7 @@ import {
 import { formatTransactionCardAmount } from '../../src/renderer/src/utils/walletTransactions'
 
 function transaction(overrides: Partial<PlatformTransaction> = {}): PlatformTransaction {
+  const netCredits = overrides.netCredits ?? -1_000n
   return {
     walletId: 'wallet',
     hash: 'ABC123',
@@ -20,37 +21,43 @@ function transaction(overrides: Partial<PlatformTransaction> = {}): PlatformTran
     status: 'SUCCESS',
     error: null,
     gasCredits: 1_000n,
-    netCredits: -1_000n,
-    subject: 'walletAddress',
-    counterparty: 'recipientIdentity',
+    netCredits,
+    amountCredits: netCredits < 0n ? -netCredits : netCredits,
+    sender: 'senderIdentity',
+    recipient: 'recipientIdentity',
     ...overrides,
   }
 }
 
 describe('Platform transaction display', () => {
   it.each([
-    { netCredits: 9_007_199_254_740_993n, direction: 'in', status: 'SUCCESS', cardStatus: 'success' },
-    { netCredits: -9_007_199_254_740_993n, direction: 'out', status: 'FAIL', cardStatus: 'failed' },
-    { netCredits: 0n, direction: 'neutral', status: null, cardStatus: 'unknown' },
-  ] as const)('maps $direction balance changes without losing credits or inferring status', ({ netCredits, direction, status, cardStatus }) => {
+    { netCredits: 9_007_199_254_740_993n, direction: 'in', status: 'SUCCESS', cardStatus: 'success', subtitleLabel: 'From', labelValue: 'senderIdentity' },
+    { netCredits: -9_007_199_254_740_993n, direction: 'out', status: 'FAIL', cardStatus: 'failed', subtitleLabel: 'To', labelValue: 'recipientIdentity' },
+    { netCredits: 0n, direction: 'neutral', status: null, cardStatus: 'unknown', subtitleLabel: 'To', labelValue: 'recipientIdentity' },
+  ] as const)('maps $direction balance changes without losing credits or inferring status', ({ netCredits, direction, status, cardStatus, subtitleLabel, labelValue }) => {
     const raw = transaction({ netCredits, status })
     expect(mapPlatformTransaction(raw)).toEqual({
       id: raw.hash,
       status: cardStatus,
       kind: 'platform',
       title: 'Address Funds Transfer',
-      subtitleLabel: 'Counterparty',
-      labelValue: raw.counterparty,
-      amount: netCredits < 0n ? -netCredits : netCredits,
+      subtitleLabel,
+      labelValue,
+      amount: raw.amountCredits,
       date: raw.date,
       direction,
     })
   })
 
-  it('maps unavailable dates to null and falls back to the wallet participant', () => {
-    expect(mapPlatformTransaction(transaction({ date: new Date(0), counterparty: null })))
-      .toMatchObject({ date: null, subtitleLabel: 'Wallet address or identity', labelValue: 'walletAddress' })
-    expect(mapPlatformTransaction(transaction({ date: new Date(NaN), counterparty: null, subject: null })))
+  it('shows what the transition moved, so a transfer between the wallet\u2019s own ends is not displayed as zero', () => {
+    expect(mapPlatformTransaction(transaction({ netCredits: 0n, amountCredits: 9_007_199_254_740_993n })))
+      .toMatchObject({ amount: 9_007_199_254_740_993n, direction: 'neutral' })
+  })
+
+  it('maps unavailable dates to null and falls back to the end the source named', () => {
+    expect(mapPlatformTransaction(transaction({ date: new Date(0), recipient: null })))
+      .toMatchObject({ date: null, subtitleLabel: 'From', labelValue: 'senderIdentity' })
+    expect(mapPlatformTransaction(transaction({ date: new Date(NaN), sender: null, recipient: null })))
       .toMatchObject({ date: null, labelValue: 'Unavailable' })
   })
 
