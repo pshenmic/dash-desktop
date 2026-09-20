@@ -41,7 +41,7 @@ const transition = {
 }
 
 const transfer = {
-  amount: '99000000', sender: 'ExternalSenderIdentity', recipient: IDENTITY,
+  amount: '99000000', sender: null, recipient: IDENTITY,
   timestamp: '2026-01-15T16:15:33.127Z', txHash: HASH, type: 'IDENTITY_TOP_UP',
   blockHash: 'bh', gasUsed: 7927360,
 }
@@ -99,19 +99,22 @@ describe('platform history', () => {
 
     expect(transactions).toHaveLength(1)
     expect(transactions[0].hash).toBe(HASH)
-    // -100000000 from the address, +99000000 into the identity: the gap is the fee.
+    // -100000000 from the address, +99000000 into the identity: the gap is the
+    // fee, and the row still names both ends and what they moved.
     expect(transactions[0].netCredits).toBe(-1_000_000n)
-    expect(transactions[0].counterparty).toBe('ExternalSenderIdentity')
+    expect(transactions[0].amountCredits).toBe(100_000_000n)
+    expect(transactions[0].sender).toBe(ADDRESS)
+    expect(transactions[0].recipient).toBe(IDENTITY)
     expect(await transactionDAO.getTransactions(WALLET)).toHaveLength(2)
   })
 
-  it('names the subject in the encoding platform_addresses stores', async () => {
+  it('names our address in the encoding platform_addresses stores', async () => {
     responder = (path) => page(path.startsWith('/identity/') ? [] : [transition])
     await service.refresh(WALLET)
 
     const [row] = await transactionDAO.getTransactions(WALLET)
     const [stored] = await addressDAO.getAddresses(WALLET)
-    expect(row.subject).toBe(stored.address)
+    expect(row.sender).toBe(stored.address)
   })
 
   it('asks each source for one page once its rows are known', async () => {

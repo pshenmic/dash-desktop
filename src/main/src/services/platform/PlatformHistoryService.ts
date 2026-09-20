@@ -79,31 +79,26 @@ export class PlatformHistoryService {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const explorer = new PlatformExplorerProvider(wallet.network, this.platformTransactionDAO)
 
-    // Before the walk: a retired chunk's rows would otherwise fold in alongside
-    // the rows replacing them.
-    const addressList = addresses.map(row => row.address)
+    // Before the walk: the rows of an address this wallet dropped would
+    // otherwise fold in alongside the ones that replaced them.
     await this.platformTransactionDAO.deleteRetiredSources(walletId, [
-      ...explorer.addressChunks(addressList).map(entry => entry.source),
+      ...addresses.map(row => row.address),
       ...identities.map(identity => identity.identifier),
     ])
 
-    const addressWalk = addresses.length === 0
-      ? Promise.resolve(false)
-      : explorer.addressTransactions(addressList, walletId)
-
     // One source failing must not discard the pages the others already wrote.
-    const [addressResult, ...identityResults] = await Promise.allSettled([
-      addressWalk,
+    const results = await Promise.allSettled([
+      ...addresses.map(row => explorer.addressTransactions(row.address, walletId)),
       ...identities.map(identity => explorer.identityTransactions(identity.identifier, walletId)),
     ])
 
-    for (const result of [addressResult, ...identityResults]) {
+    for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
         log.warn(`${walletId}: platform history stops at the page cap, older transitions are not stored`)
       }
     }
 
-    for (const result of [addressResult, ...identityResults]) {
+    for (const result of results) {
       if (result.status === 'rejected') throw result.reason
     }
   }

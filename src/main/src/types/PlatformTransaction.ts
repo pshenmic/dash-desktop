@@ -16,10 +16,12 @@ export interface PlatformTransaction {
   // Signed net across every address and identity of this wallet the transition
   // touched, so a move between two of them leaves the fee as the only cost.
   netCredits: bigint
-  // The wallet address or identity this moved, null once the transition touched
-  // more than one of them.
-  subject: string | null
-  // The other side, when the source names one. Identity transfers do; an
-  // address transition does not carry its counterparty.
-  counterparty: string | null
+  // What moved on this side of the transition, unsigned. Folded rows carry the
+  // largest side, so a move between two of ours nets to the fee and still
+  // reports what it moved.
+  amountCredits: bigint
+  // The two ends, each an address or an identity, ours or not. Null on the end
+  // the source did not name.
+  sender: string | null
+  recipient: string | null
 }

@@ -27,8 +27,10 @@ export async function up(knex: Knex): Promise<void> {
     // TEXT like satoshis, and signed: the driver reads an INTEGER column back
     // as a JS number, and credits pass 2^53 well inside the supply.
     table.text('net_credits').notNullable()
-    table.text('subject')
-    table.text('counterparty')
+    // Each end of the transition, so a move between two of ours keeps both:
+    // which side is ours is the sign of net_credits, not a column.
+    table.text('sender')
+    table.text('recipient')
     table.primary(['wallet_id', 'hash', 'source'])
     table.index(['wallet_id', 'timestamp'], 'platform_tx_time_idx')
   })

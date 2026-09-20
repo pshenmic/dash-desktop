@@ -403,10 +403,13 @@ export interface PlatformTransaction {
   // Signed net across every address and identity of this wallet the transition
   // touched, so a move between two of them leaves the fee as the only cost.
   netCredits: bigint
-  // Null once the transition touched more than one of this wallet's addresses
-  // or identities.
-  subject: string | null
-  counterparty: string | null
+  // What moved between the two ends, unsigned: a move between two of this
+  // wallet's own addresses nets to the fee and still moved this much.
+  amountCredits: bigint
+  // Each end, an address or an identity, ours or not. Null on the end the
+  // source did not name.
+  sender: string | null
+  recipient: string | null
 }
 
 // getTransactions. Two lists, not one: a state transition counts credits and is

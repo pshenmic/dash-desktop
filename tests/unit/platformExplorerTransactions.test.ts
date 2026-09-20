@@ -57,25 +57,36 @@ describe('addressTransitionToPlatformTransaction', () => {
     const row = addressTransitionToPlatformTransaction(transition(), WALLET)
     expect(row.netCredits).toBe(-100_000_000n)
     expect(row.gasCredits).toBe(704_433_560n)
-    expect(row.subject).toBe(OUR_ADDRESS)
+    expect(row.sender).toBe(OUR_ADDRESS)
+    expect(row.amountCredits).toBe(100_000_000n)
     expect(row.walletId).toBe(WALLET)
     expect(row.blockHeight).toBe(246835)
     expect(row.status).toBe('SUCCESS')
   })
 
-  it('names the subject in the encoding platform_addresses stores', () => {
+  it('names our address in the encoding platform_addresses stores', () => {
     const row = addressTransitionToPlatformTransaction(transition(), WALLET)
-    expect(row.subject).toBe(OUR_ADDRESS)
-    expect(row.subject).not.toBe(OUR_ADDRESS_BASE58)
+    expect(row.sender).toBe(OUR_ADDRESS)
+    expect(row.sender).not.toBe(OUR_ADDRESS_BASE58)
   })
 
-  it('drops the subject once the transition touched more than one of our addresses', () => {
+  it('puts our address on the end the transition paid when it paid us', () => {
     const row = addressTransitionToPlatformTransaction(
-      transition({ addressesCount: 81, base58Address: null, bech32mAddress: null, amount: '-20000000' }),
+      transition({ incoming: true, amount: '250000000' }),
       WALLET,
     )
-    expect(row.subject).toBeNull()
-    expect(row.netCredits).toBe(-20_000_000n)
+    expect(row.recipient).toBe(OUR_ADDRESS)
+    expect(row.sender).toBeNull()
+    expect(row.amountCredits).toBe(250_000_000n)
+  })
+
+  it('reads the direction off the amount when the explorer omits it', () => {
+    const row = addressTransitionToPlatformTransaction(
+      transition({ incoming: null, amount: '20000000' }),
+      WALLET,
+    )
+    expect(row.recipient).toBe(OUR_ADDRESS)
+    expect(row.sender).toBeNull()
   })
 
   it('survives an absent amount, gas and timestamp', () => {
@@ -94,7 +105,7 @@ describe('transferToPlatformTransaction', () => {
   it('signs the amount by which side of it we are', () => {
     const received = transferToPlatformTransaction(transfer(), OUR_IDENTITY, WALLET)
     expect(received.netCredits).toBe(1_000_000_000n)
-    expect(received.subject).toBe(OUR_IDENTITY)
+    expect(received.recipient).toBe(OUR_IDENTITY)
 
     const sent = transferToPlatformTransaction(
       transfer({ sender: OUR_IDENTITY, recipient: 'someone-else' }),
@@ -102,7 +113,8 @@ describe('transferToPlatformTransaction', () => {
       WALLET,
     )
     expect(sent.netCredits).toBe(-1_000_000_000n)
-    expect(sent.counterparty).toBe('someone-else')
+    expect(sent.sender).toBe(OUR_IDENTITY)
+    expect(sent.recipient).toBe('someone-else')
   })
 
   it('reports neither a block height nor a status, which the endpoint omits', () => {
@@ -128,21 +140,35 @@ describe('mergePlatformTransactions', () => {
     ])
 
     expect(merged).toHaveLength(1)
+    // Ours on both ends, so the wallet is out the fee and nothing else — and
+    // the row still says which address funded which identity, and with how much.
     expect(merged[0].netCredits).toBe(0n)
-    expect(merged[0].subject).toBeNull()
+    expect(merged[0].amountCredits).toBe(1_000_000_000n)
+    expect(merged[0].sender).toBe(OUR_ADDRESS)
+    expect(merged[0].recipient).toBe(OUR_IDENTITY)
   })
 
-  it('keeps the counterparty only one side of the transition knows', () => {
+  it('keeps an end only one side of the transition names', () => {
     const hash = 'IIII'
     const merged = mergePlatformTransactions([
-      addressTransitionToPlatformTransaction(transition({ hash }), WALLET),
+      addressTransitionToPlatformTransaction(transition({ hash, incoming: true, amount: '900' }), WALLET),
       transferToPlatformTransaction(
-        transfer({ txHash: hash, sender: 'ExternalSenderIdentity', recipient: OUR_IDENTITY }),
+        transfer({ txHash: hash, amount: '900', sender: 'ExternalSenderIdentity', recipient: OUR_IDENTITY }),
         OUR_IDENTITY,
         WALLET,
       ),
     ])
-    expect(merged[0].counterparty).toBe('ExternalSenderIdentity')
+    expect(merged[0].sender).toBe('ExternalSenderIdentity')
+    expect(merged[0].recipient).toBe(OUR_ADDRESS)
+  })
+
+  it('never sums the amount of one transition twice', () => {
+    const hash = 'JJJJ'
+    const merged = mergePlatformTransactions([
+      addressTransitionToPlatformTransaction(transition({ hash, amount: '-900' }), WALLET),
+      transferToPlatformTransaction(transfer({ txHash: hash, amount: '900' }), OUR_IDENTITY, WALLET),
+    ])
+    expect(merged[0].amountCredits).toBe(900n)
   })
 
   it('never sums the gas of one transition twice', () => {
