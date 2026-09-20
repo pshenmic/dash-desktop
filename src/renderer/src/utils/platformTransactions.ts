@@ -37,7 +37,7 @@ export function mapPlatformTransaction(transaction: PlatformTransaction): Transa
     title: platformTransactionTitle(transaction.type),
     subtitleLabel: transaction.counterparty ? 'Counterparty' : 'Wallet address or identity',
     labelValue: transaction.counterparty ?? transaction.subject ?? 'Unavailable',
-    amount: transaction.netCredits < 0n ? -transaction.netCredits : transaction.netCredits,
+    amount: transaction.amountCredits < 0n ? -transaction.amountCredits : transaction.amountCredits,
     date: platformTransactionDateValue(transaction.date),
     direction,
   }
