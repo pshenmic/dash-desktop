@@ -1,5 +1,5 @@
 import type { PlatformTransaction, WalletHistory } from '../api/types'
-import type { FilterOption, PlatformTxFilter, TransactionCardItem } from '../types/WalletTransaction'
+import type { TransactionCardItem } from '../types/WalletTransaction'
 
 export const TRANSACTIONS_REFRESH_MS = 60_000
 
@@ -16,24 +16,3 @@ export const PLATFORM_TX_CARD_STATUSES: Record<NonNullable<PlatformTransaction['
   FAIL: 'failed',
   unknown: 'unknown',
 }
-
-export const DEFAULT_PLATFORM_TX_FILTER: PlatformTxFilter = {
-  search: '',
-  direction: 'all',
-  type: 'all',
-  status: 'all',
-}
-
-export const PLATFORM_TX_DIRECTION_OPTIONS: FilterOption<PlatformTxFilter['direction']>[] = [
-  { value: 'all', label: 'All' },
-  { value: 'increase', label: 'Received' },
-  { value: 'decrease', label: 'Sent' },
-  { value: 'unchanged', label: 'No change' },
-]
-
-export const PLATFORM_TX_STATUS_OPTIONS: FilterOption<PlatformTxFilter['status']>[] = [
-  { value: 'all', label: 'All' },
-  { value: 'SUCCESS', label: 'Success' },
-  { value: 'FAIL', label: 'Failed' },
-  { value: 'unknown', label: 'Status unavailable' },
-]

@@ -2,12 +2,9 @@ import { useRef, useState } from 'react'
 import { Text, FilterIcon, Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { transactionsPage } from '@renderer/constants'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
-import { TxDirectionFilter } from '@renderer/enums/TxDirectionFilter'
-import { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
-import { isDefaultTxFilter } from '@renderer/utils/transactionFilters'
-import type { FilterOption, FilterSectionProps, TransactionsFilterProps } from '@renderer/types/WalletTransaction'
-import { PLATFORM_TX_DIRECTION_OPTIONS, PLATFORM_TX_STATUS_OPTIONS } from '@renderer/constants/platformTransactions'
-import { platformTransactionTypeOptions } from '@renderer/utils/platformTransactions'
+import { isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'
+import type { FilterSectionProps, TransactionsFilterProps } from '@renderer/types/WalletTransaction'
+import { TX_DIRECTION_OPTIONS, TX_STATUS_OPTIONS } from '@renderer/constants/transactionFilters'
 
 function FilterSection<T extends string>({ label, options, selected, onSelect }: FilterSectionProps<T>): React.JSX.Element {
   return (
@@ -39,20 +36,7 @@ export default function TransactionsFilter(props: TransactionsFilterProps): Reac
   useClickOutside(ref, () => setOpen(false))
 
   const { filter: filterLabel, filters } = transactionsPage.transactions
-  const active = props.kind === 'platform'
-    ? props.filter.search.trim() !== '' || props.filter.direction !== 'all' || props.filter.type !== 'all' || props.filter.status !== 'all'
-    : !isDefaultTxFilter(props.filter)
-
-  const directionOptions: Array<FilterOption<TxDirectionFilter>> = [
-    { value: TxDirectionFilter.All, label: filters.direction.all },
-    { value: TxDirectionFilter.Received, label: filters.direction.received },
-    { value: TxDirectionFilter.Sent, label: filters.direction.sent },
-  ]
-  const typeOptions: Array<FilterOption<TxTypeFilter>> = [
-    { value: TxTypeFilter.All, label: filters.type.all },
-    { value: TxTypeFilter.Transfer, label: filters.type.transfer },
-    { value: TxTypeFilter.AssetLock, label: filters.type.assetLock },
-  ]
+  const active = !isDefaultTxFilter(props.filter)
 
   return (
     <div className={"relative"} ref={ref}>
@@ -74,51 +58,29 @@ export default function TransactionsFilter(props: TransactionsFilterProps): Reac
             colorScheme={"light"}
             variant={"filled"}
             value={props.filter.search}
-            onChange={(event) => {
-              if (props.kind === 'platform') props.onChange({ ...props.filter, search: event.target.value })
-              else props.onChange({ ...props.filter, search: event.target.value })
-            }}
-            placeholder={props.kind === 'platform' ? 'Hash, address or identity' : filters.search.placeholder}
+            onChange={(event) => props.onChange({ ...props.filter, search: event.target.value })}
+            placeholder={filters.search.placeholder}
             aria-label={filters.search.label}
             prefix={<SearchIcon size={14} color={"currentColor"} className={"dash-text-default"} />}
           />
-          {props.kind === 'platform' ? (
-            <>
-              <FilterSection
-                label={filters.direction.label}
-                options={PLATFORM_TX_DIRECTION_OPTIONS}
-                selected={props.filter.direction}
-                onSelect={(direction) => props.onChange({ ...props.filter, direction })}
-              />
-              <FilterSection
-                label={filters.type.label}
-                options={platformTransactionTypeOptions(props.transactions)}
-                selected={props.filter.type}
-                onSelect={(type) => props.onChange({ ...props.filter, type })}
-              />
-              <FilterSection
-                label={'Status'}
-                options={PLATFORM_TX_STATUS_OPTIONS}
-                selected={props.filter.status}
-                onSelect={(status) => props.onChange({ ...props.filter, status })}
-              />
-            </>
-          ) : (
-            <>
-              <FilterSection
-                label={filters.direction.label}
-                options={directionOptions}
-                selected={props.filter.direction}
-                onSelect={(direction) => props.onChange({ ...props.filter, direction })}
-              />
-              <FilterSection
-                label={filters.type.label}
-                options={typeOptions}
-                selected={props.filter.type}
-                onSelect={(type) => props.onChange({ ...props.filter, type })}
-              />
-            </>
-          )}
+          <FilterSection
+            label={filters.direction.label}
+            options={TX_DIRECTION_OPTIONS}
+            selected={props.filter.direction}
+            onSelect={(direction) => props.onChange({ ...props.filter, direction })}
+          />
+          <FilterSection
+            label={filters.type.label}
+            options={transactionTypeOptions(props.transactions)}
+            selected={props.filter.type}
+            onSelect={(type) => props.onChange({ ...props.filter, type })}
+          />
+          <FilterSection
+            label={'Status'}
+            options={TX_STATUS_OPTIONS}
+            selected={props.filter.status}
+            onSelect={(status) => props.onChange({ ...props.filter, status })}
+          />
         </div>
       )}
     </div>
