@@ -1,7 +1,7 @@
 import type { PlatformTransaction, WalletHistory } from '../api/types'
 import type { FilterOption, PlatformTxFilter, TransactionCardItem } from '../types/WalletTransaction'
 
-export const TRANSACTIONS_REFRESH_MS = 15_000
+export const TRANSACTIONS_REFRESH_MS = 60_000
 
 export const EMPTY_WALLET_HISTORY: WalletHistory = { core: [], platform: [], platformFailed: false }
 
