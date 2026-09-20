@@ -1,24 +1,43 @@
-import { TxDirectionFilter } from '../enums/TxDirectionFilter'
+import { TxBalanceChangeFilter } from '../enums/TxBalanceChangeFilter'
 import type { FilterOption, TransactionCardItem, TxFilter } from '../types/WalletTransaction'
 
 export const DEFAULT_TX_FILTER: TxFilter = {
-  direction: TxDirectionFilter.All,
+  source: 'all',
+  balanceChange: TxBalanceChangeFilter.All,
   type: 'all',
   status: 'all',
   search: '',
 }
 
-export const DIRECTION_BY_FILTER: Record<Exclude<TxDirectionFilter, TxDirectionFilter.All>, TransactionCardItem['direction']> = {
-  [TxDirectionFilter.Received]: 'in',
-  [TxDirectionFilter.Sent]: 'out',
-  [TxDirectionFilter.Unchanged]: 'neutral',
+export const BALANCE_CHANGE_BY_DIRECTION: Record<TransactionCardItem['direction'], TxBalanceChangeFilter> = {
+  in: TxBalanceChangeFilter.Increase,
+  out: TxBalanceChangeFilter.Decrease,
+  neutral: TxBalanceChangeFilter.Unchanged,
 }
 
-export const TX_DIRECTION_OPTIONS: FilterOption<TxFilter['direction']>[] = [
-  { value: TxDirectionFilter.All, label: 'All' },
-  { value: TxDirectionFilter.Received, label: 'Received' },
-  { value: TxDirectionFilter.Sent, label: 'Sent' },
-  { value: TxDirectionFilter.Unchanged, label: 'No change' },
+export const TX_SOURCE_OPTIONS: FilterOption<TxFilter['source']>[] = [
+  { value: 'all', label: 'All' },
+  { value: 'core', label: 'Core' },
+  { value: 'platform', label: 'Platform' },
+]
+
+export const TX_BALANCE_CHANGE_OPTIONS: FilterOption<TxFilter['balanceChange']>[] = [
+  { value: TxBalanceChangeFilter.All, label: 'All' },
+  { value: TxBalanceChangeFilter.Increase, label: 'Increase' },
+  { value: TxBalanceChangeFilter.Decrease, label: 'Decrease' },
+  { value: TxBalanceChangeFilter.Unchanged, label: 'No change' },
+]
+
+export const TX_FILTER_LABELS: Record<keyof TxFilter, string> = {
+  search: 'Search',
+  source: 'Source',
+  balanceChange: 'Balance change',
+  type: 'Type',
+  status: 'Status',
+}
+
+export const TX_FILTER_CHIP_FIELDS: Array<Exclude<keyof TxFilter, 'search'>> = [
+  'source', 'balanceChange', 'type', 'status',
 ]
 
 export const TX_CORE_TYPE_OPTIONS: FilterOption<TxFilter['type']>[] = [

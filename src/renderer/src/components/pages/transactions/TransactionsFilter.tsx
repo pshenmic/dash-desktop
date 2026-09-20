@@ -2,9 +2,9 @@ import { useRef, useState } from 'react'
 import { Text, FilterIcon, Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { transactionsPage } from '@renderer/constants'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
-import { isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'
+import { changeTxFilterSource, isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'
 import type { FilterSectionProps, TransactionsFilterProps } from '@renderer/types/WalletTransaction'
-import { TX_DIRECTION_OPTIONS, TX_STATUS_OPTIONS } from '@renderer/constants/transactionFilters'
+import { TX_BALANCE_CHANGE_OPTIONS, TX_FILTER_LABELS, TX_SOURCE_OPTIONS, TX_STATUS_OPTIONS } from '@renderer/constants/transactionFilters'
 
 function FilterSection<T extends string>({ label, options, selected, onSelect }: FilterSectionProps<T>): React.JSX.Element {
   return (
@@ -16,6 +16,7 @@ function FilterSection<T extends string>({ label, options, selected, onSelect }:
         <button
           key={option.value}
           type={"button"}
+          aria-pressed={option.value === selected}
           onClick={() => onSelect(option.value)}
           className={`
             w-full flex items-center p-[.625rem] rounded-[.625rem] cursor-pointer text-left
@@ -42,6 +43,7 @@ export default function TransactionsFilter(props: TransactionsFilterProps): Reac
     <div className={"relative"} ref={ref}>
       <button
         type={"button"}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={"flex items-center gap-2 px-3 py-2 rounded-[.625rem] dash-block dash-black-border cursor-pointer hover:opacity-80 transition-opacity duration-200"}
       >
@@ -64,19 +66,25 @@ export default function TransactionsFilter(props: TransactionsFilterProps): Reac
             prefix={<SearchIcon size={14} color={"currentColor"} className={"dash-text-default"} />}
           />
           <FilterSection
-            label={filters.direction.label}
-            options={TX_DIRECTION_OPTIONS}
-            selected={props.filter.direction}
-            onSelect={(direction) => props.onChange({ ...props.filter, direction })}
+            label={TX_FILTER_LABELS.source}
+            options={TX_SOURCE_OPTIONS}
+            selected={props.filter.source}
+            onSelect={(source) => props.onChange(changeTxFilterSource(props.filter, source))}
+          />
+          <FilterSection
+            label={TX_FILTER_LABELS.balanceChange}
+            options={TX_BALANCE_CHANGE_OPTIONS}
+            selected={props.filter.balanceChange}
+            onSelect={(balanceChange) => props.onChange({ ...props.filter, balanceChange })}
           />
           <FilterSection
             label={filters.type.label}
-            options={transactionTypeOptions(props.transactions)}
+            options={transactionTypeOptions(props.transactions, props.filter.source)}
             selected={props.filter.type}
             onSelect={(type) => props.onChange({ ...props.filter, type })}
           />
           <FilterSection
-            label={'Status'}
+            label={TX_FILTER_LABELS.status}
             options={TX_STATUS_OPTIONS}
             selected={props.filter.status}
             onSelect={(status) => props.onChange({ ...props.filter, status })}

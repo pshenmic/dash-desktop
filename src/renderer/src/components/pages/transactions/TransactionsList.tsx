@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { DateBlock } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { CloseIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { transactionsPage } from '@renderer/constants'
+import { DEFAULT_TX_FILTER } from '@renderer/constants/transactionFilters'
 import TransactionCard from './TransactionCard'
 import TransactionsFilter from './TransactionsFilter'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
@@ -10,7 +12,7 @@ import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { creditsToDash } from '@renderer/utils/balance'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { computeTxTotals, filterTransactions } from '@renderer/utils/transactionFilters'
+import { activeTxFilterChips, computeTxTotals, filterTransactions } from '@renderer/utils/transactionFilters'
 import { groupWalletHistoryByDay, mergeWalletTransactions } from '@renderer/utils/walletTransactions'
 import type { TransactionsListProps } from '@renderer/types/WalletTransaction'
 
@@ -31,13 +33,14 @@ export default function TransactionsList({
   const filteredGroups = useMemo(() => groupWalletHistoryByDay(filtered), [filtered])
   const totals = useMemo(() => computeTxTotals(filtered), [filtered])
   const hasData = transactions.length > 0
+  const activeFilters = activeTxFilterChips(filter)
 
   return (
     <div className={'px-12 pb-8'}>
       <div className={'flex flex-col gap-6 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]'}>
         <div className={'flex flex-wrap items-center justify-between gap-4'}>
           <Text size={16} weight={'medium'} color={'brand'}>{title}</Text>
-          {hasData && (
+          {(hasData || activeFilters.length > 0) && (
             <div className={'flex flex-wrap items-center gap-4'}>
               <div className={'flex flex-wrap items-center gap-3'}>
                 <div className={'flex items-center gap-1.5'}>
@@ -65,6 +68,30 @@ export default function TransactionsList({
             </div>
           )}
         </div>
+        {activeFilters.length > 0 && (
+          <div aria-label={'Active transaction filters'} className={'flex flex-wrap items-center gap-2'}>
+            {activeFilters.map(({ field, label }) => (
+              <button
+                key={field}
+                type={'button'}
+                onClick={() => onFilterChange({ ...filter, [field]: DEFAULT_TX_FILTER[field] })}
+                aria-label={`Remove ${label}`}
+                title={label}
+                className={'flex min-w-0 items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5 cursor-pointer hover:opacity-80'}
+              >
+                <Text size={12} weight={'medium'} color={'brand'} className={'max-w-72 truncate'}>{label}</Text>
+                <CloseIcon size={10} className={'shrink-0 dash-text-primary'} />
+              </button>
+            ))}
+            <button
+              type={'button'}
+              onClick={() => onFilterChange(DEFAULT_TX_FILTER)}
+              className={'px-2 py-1.5 cursor-pointer hover:opacity-80'}
+            >
+              <Text size={12} weight={'medium'} color={'blue-mint'}>Clear all</Text>
+            </button>
+          </div>
+        )}
         <div className={'flex flex-col gap-5'}>
           <PartialDataNotice />
           {platformFailed && (
