@@ -45,12 +45,6 @@ interface TransactionsPage {
         label: string
         placeholder: string
       }
-      direction: {
-        label: string
-        all: string
-        received: string
-        sent: string
-      }
       type: {
         label: string
         all: string
@@ -114,12 +108,6 @@ export const transactionsPage: TransactionsPage = {
         label: 'Search transactions',
         placeholder: 'Hash, address or identity',
       },
-      direction: {
-        label: 'Direction',
-        all: 'All',
-        received: 'Received',
-        sent: 'Sent',
-      },
       type: {
         label: 'Type',
         all: 'All',
@@ -127,8 +115,8 @@ export const transactionsPage: TransactionsPage = {
         assetLock: 'Asset locks',
       },
       totals: {
-        received: 'Received',
-        sent: 'Sent',
+        received: 'Increase',
+        sent: 'Decrease',
       },
       noMatch: 'No transactions match the selected filter'
     }

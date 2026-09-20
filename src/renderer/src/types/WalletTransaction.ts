@@ -1,5 +1,5 @@
 import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
-import type { TxDirectionFilter } from '@renderer/enums/TxDirectionFilter'
+import type { TxBalanceChangeFilter } from '@renderer/enums/TxBalanceChangeFilter'
 import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
 
 export type WalletTxDto = Transaction
@@ -66,9 +66,15 @@ export type SelectedTransaction =
 
 export interface TxFilter {
   search: string
-  direction: TxDirectionFilter
+  source: 'all' | WalletHistoryItem['kind']
+  balanceChange: TxBalanceChangeFilter
   type: 'all' | HistoryTransactionType
   status: 'all' | TransactionCardItem['status']
+}
+
+export interface TxFilterChip {
+  field: keyof TxFilter
+  label: string
 }
 
 export interface TxTotals {
