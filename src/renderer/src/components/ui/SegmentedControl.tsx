@@ -23,7 +23,7 @@ export default function SegmentedControl<T extends string>({
       className={`
         inline-flex items-center gap-1 p-1
         rounded-[.75rem]
-        dash-block-3 dash-black-border
+        bg-dash-control-background dark:bg-white/3 dash-black-border
         ${className}
       `}
     >

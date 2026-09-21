@@ -157,7 +157,7 @@ const styles = cva(
       {
         colorScheme: 'primary-light',
         theme: 'light',
-        class: '!bg-dash-primary-dark-blue/4 !text-dash-primary-dark-blue hover:!bg-dash-primary-dark-blue/8'
+        class: '!bg-dash-control-background !text-dash-primary-dark-blue hover:!bg-dash-primary-dark-blue/8'
       },
       {
         colorScheme: 'primary-light',
