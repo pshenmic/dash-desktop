@@ -164,7 +164,7 @@ export class FeeService {
       case 'identityWithdrawal':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
-        return this.credits(params.identityId == null || params.amountCredits <= 0n
+        return this.credits(params.identityId == null
           ? null
           : await this.protocolFee(wallet, operation, params, 1))
 
