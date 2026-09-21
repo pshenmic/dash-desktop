@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronIcon, Identifier, DashLogo, TimeDelta, useTheme } from 'dash-ui-kit/react'
 import { Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { BoxIcon, CalendarIconHighlighted, DocumentIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
@@ -20,6 +20,9 @@ import { platformParticipantUrl, platformTransactionDateValue, platformTransacti
 import { formatCreationDate, timePart } from '@renderer/utils/date'
 import { creditsToDuffs } from '@renderer/utils/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
+import { useIdentities } from '@renderer/hooks/useIdentities'
+import { platformOwnedParticipants } from '@renderer/utils/ownedAddresses'
 import DetailToken from './TransactionDetailToken'
 
 export default function PlatformTransactionDetail({ transaction, onBack }: PlatformTransactionDetailProps): React.JSX.Element {
@@ -27,6 +30,9 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
   const { isBalanceVisible } = useBalanceVisibility()
   const hoverNotification = useRipple()
   const network = status?.network
+  const { platformAddresses } = usePlatformAddresses(status?.selectedWalletId ?? undefined)
+  const { identities } = useIdentities(status?.selectedWalletId ?? undefined)
+  const ownedParticipants = useMemo(() => platformOwnedParticipants(platformAddresses, identities), [platformAddresses, identities])
   const [qrAddress, setQrAddress] = useState<string | null>(null)
   const { theme } = useTheme()
   const { format: formatFiat, rateReady } = useFiat()
@@ -140,6 +146,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
                 <li key={`${participant.source}-${index}`} className={'flex flex-wrap items-center gap-x-4 gap-y-2'}>
                   <div className={'flex items-center gap-[.3125rem] min-w-0 flex-1 basis-64'}>
                     <Identifier className={'font-mono opacity-40 dark:opacity-100'}>{participant.source}</Identifier>
+                    {ownedParticipants.has(participant.source) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                     <CopyButton text={participant.source} />
                     <QrButton onClick={() => setQrAddress(participant.source)} />
                     {explorerUrl && (
