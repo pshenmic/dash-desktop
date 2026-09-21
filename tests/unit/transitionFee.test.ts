@@ -97,6 +97,17 @@ function params(overrides: Partial<FeeQuoteParams> = {}): FeeQuoteParams {
 const ALL = Object.keys(RECIPIENT) as TransitionFeeOperation[]
 
 describe('transitionFee', () => {
+  it('prices identity sends with an empty amount the same as a funded send', () => {
+    for (const operation of ['identityToAddress', 'identityToIdentity', 'identityWithdrawal'] as TransitionFeeOperation[]) {
+      const feeAt = (amountCredits: bigint): bigint => transitionFee({
+        operation, params: params({recipient: RECIPIENT[operation], amountCredits}),
+      }, ctx).feeCredits
+      expect(feeAt(0n)).toBeGreaterThan(0n)
+      expect(feeAt(0n)).toBe(feeAt(1_000_000n))
+      expect(feeAt(0n)).toBe(feeAt(2n ** 62n))
+    }
+  })
+
   it('prices every operation main can send it', () => {
     for (const operation of ALL) {
       const quote = transitionFee({operation, params: params({recipient: RECIPIENT[operation]})}, ctx)

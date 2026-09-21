@@ -387,6 +387,40 @@ export interface Transaction {
   isLocal: boolean | null
 }
 
+// The L2 half of getTransactions. Amounts are credits, not duffs, and `hash` is
+// a state transition hash — none of this is interchangeable with a Transaction.
+export interface PlatformTransaction {
+  walletId: string
+  hash: string
+  // As the explorer names it, e.g. ADDRESS_FUNDS_TRANSFER.
+  type: string
+  date: Date
+  blockHeight: number | null
+  // Null on a row sourced from identity transfers, which report no status.
+  status: 'SUCCESS' | 'FAIL' | null
+  error: string | null
+  gasCredits: bigint
+  // Signed net across every address and identity of this wallet the transition
+  // touched, so a move between two of them leaves the fee as the only cost.
+  netCredits: bigint
+  // What moved between the two ends, unsigned: a move between two of this
+  // wallet's own addresses nets to the fee and still moved this much.
+  amountCredits: bigint
+  // Addresses or identities; empty when the source did not name that side.
+  sender: string[]
+  recipient: string[]
+}
+
+// getTransactions. Two lists, not one: a state transition counts credits and is
+// named by its own hash, so it shares no field with a Transaction.
+export interface WalletHistory {
+  core: Transaction[]
+  platform: PlatformTransaction[]
+  // The last refresh against the explorer failed, so `platform` may be short or
+  // empty for that reason rather than for want of activity.
+  platformFailed: boolean
+}
+
 export interface TxLockStatus {
   instantLocked: boolean
   chainlocked: boolean

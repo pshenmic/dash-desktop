@@ -4,6 +4,7 @@ import {PlatformWorkerService} from '../platform/PlatformWorkerService'
 import {WalletDAO} from '../../database/WalletDAO'
 import {AddressDAO} from '../../database/AddressDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
+import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Network} from '../../types/Network'
 import {Address} from '../../types/Address'
@@ -11,14 +12,17 @@ import {GroupedAddresses} from '../../types/GroupedAddresses'
 import {Wallet} from '../../types/Wallet'
 import {WalletBalance} from "../../types/WalletBalance";
 import {Transaction} from "../../types/Transaction";
+import {WalletHistory} from "../../types/WalletHistory";
 import {SendResult} from "../../types/SendResult";
 import {IdentityService} from '../platform/IdentityService'
+import {PlatformHistoryService} from '../platform/PlatformHistoryService'
 import {CoreTransactionService} from '../core/CoreTransactionService'
 import {CoreDiscoveryService} from '../core/CoreDiscoveryService'
 import {WalletSyncService} from '../core/WalletSyncService'
 import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
+import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
@@ -43,7 +47,9 @@ export class WalletService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
   private identityDAO: IdentityDAO
+  private platformTransactionDAO: PlatformTransactionDAO
   private identities: IdentityService
+  private platformHistory: PlatformHistoryService
   private walletSyncService: WalletSyncService
   private platform: PlatformWorkerService
   private providers: WalletProviderFactory
@@ -59,7 +65,9 @@ export class WalletService {
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
     identityDAO: IdentityDAO,
+    platformTransactionDAO: PlatformTransactionDAO,
     identities: IdentityService,
+    platformHistory: PlatformHistoryService,
     walletSyncService: WalletSyncService,
     platform: PlatformWorkerService,
     providers: WalletProviderFactory,
@@ -71,7 +79,9 @@ export class WalletService {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
+    this.platformTransactionDAO = platformTransactionDAO
     this.identities = identities
+    this.platformHistory = platformHistory
     this.walletSyncService = walletSyncService
     this.platform = platform
     this.providers = providers
@@ -261,12 +271,24 @@ export class WalletService {
     }
   }
 
-  async getTransactions(walletId: string): Promise<Transaction[]> {
+  // Both chains of one wallet, alongside getWalletBalance. Only L1 reaches the
+  // network; the platform rows are a store something else keeps current.
+  async getTransactions(walletId: string): Promise<WalletHistory> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
     const provider = this.providers.forWallet(wallet.walletId, wallet.network)
 
-    return provider.getWalletTransactions()
+    const [core, platform] = await Promise.all([
+      provider.getWalletTransactions(),
+      this.platformTransactionDAO.getTransactions(walletId),
+    ])
+
+    return {
+      core,
+      // Stored one row per source, so the wallet's own net is the fold of them.
+      platform: mergePlatformTransactions(platform),
+      platformFailed: this.platformHistory.lastRefreshFailed(walletId),
+    }
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does

@@ -1,194 +1,308 @@
 import { describe, it, expect } from 'vitest'
+import type { PlatformTransaction, TransactionOutput } from '../../src/renderer/src/api/types'
+import type { TxFilter, WalletTxItem } from '../../src/renderer/src/types/WalletTransaction'
+import { DEFAULT_TX_FILTER } from '../../src/renderer/src/constants/transactionFilters'
 import {
-  DEFAULT_TX_FILTER,
-  FilterableTx,
-  TxFilter,
+  activeTxFilterChips,
+  changeTxFilterSource,
   computeTxTotals,
-  filterTransactionGroups,
   filterTransactions,
   isDefaultTxFilter,
   matchesTxFilter,
+  transactionTypeOptions,
   txType,
 } from '../../src/renderer/src/utils/transactionFilters'
-import { TxDirectionFilter } from '../../src/renderer/src/enums/TxDirectionFilter'
+import { groupWalletHistoryByDay, mergeWalletTransactions } from '../../src/renderer/src/utils/walletTransactions'
+import { creditsToDash, duffsToCredits } from '../../src/renderer/src/utils/balance'
+import { TxBalanceChangeFilter } from '../../src/renderer/src/enums/TxBalanceChangeFilter'
 import { TxTypeFilter } from '../../src/renderer/src/enums/TxTypeFilter'
 
-const DASH = 100_000_000n
+function output(address: string): TransactionOutput {
+  return { address, value: '1.0', n: 0, spentTxId: '', spentIndex: 0, spentHeight: 0 }
+}
 
-function tx(overrides: Partial<FilterableTx> = {}): FilterableTx {
+function coreTransaction(overrides: Partial<WalletTxItem> = {}): WalletTxItem {
   return {
-    id: 'ABC123txid',
+    id: 'core-hash',
     direction: 'in',
     status: 'success',
-    amount: DASH,
-    vin: [{ addr: 'XInputAddr' }],
-    vout: [{ value: '1.0', address: 'XaddrA' }],
+    kind: 'core',
+    amount: 100_000_000n,
+    date: new Date(2026, 8, 20, 12),
+    title: 'Receive',
+    subtitleLabel: 'from',
+    labelValue: 'Xwallet',
+    usdAmount: '0.0',
+    size: 100,
+    confirmations: 10,
+    blockHeight: 123,
+    vin: [{ addr: 'Xsender', value: '1.1', n: 0, prevTxId: 'prev', prevVout: 0, sequence: 0 }],
+    vout: [output('Xrecipient')],
     ...overrides,
   }
 }
 
-function assetLockTx(overrides: Partial<FilterableTx> = {}): FilterableTx {
-  return tx({
-    direction: 'out',
-    vout: [{ value: '0.5' }, { value: '0.4', address: 'XchangeAddr' }],
+function platformTransaction(overrides: Partial<PlatformTransaction> = {}): PlatformTransaction {
+  const netCredits = overrides.netCredits ?? -1_000n
+  return {
+    walletId: 'wallet',
+    hash: 'platform-hash',
+    type: 'ADDRESS_FUNDS_TRANSFER',
+    date: new Date(2026, 8, 20, 13),
+    blockHeight: 123,
+    status: 'SUCCESS',
+    error: null,
+    gasCredits: 1_000n,
+    netCredits,
+    amountCredits: netCredits < 0n ? -netCredits : netCredits,
+    sender: ['walletAddress'],
+    recipient: ['recipientIdentity'],
     ...overrides,
-  })
+  }
 }
 
-describe('txType', () => {
-  it('classifies a tx with only addressed outputs as a transfer', () => {
-    expect(txType(tx())).toBe(TxTypeFilter.Transfer)
+describe('merged wallet transaction history', () => {
+  it('sorts both unsorted sources together and groups by local day across midnight', () => {
+    const core = [
+      coreTransaction({ id: 'core-before', date: new Date(2026, 8, 20, 23, 59, 59) }),
+      coreTransaction({ id: 'core-after', date: new Date(2026, 8, 21, 0, 0, 1) }),
+    ]
+    const platform = [
+      platformTransaction({ hash: 'platform-before', date: new Date(2026, 8, 20, 23, 59, 58) }),
+      platformTransaction({ hash: 'platform-after', date: new Date(2026, 8, 21, 0, 0, 2) }),
+    ]
+    const history = mergeWalletTransactions(core, platform)
+    const groups = groupWalletHistoryByDay(history)
+
+    expect(history.map((tx) => tx.id)).toEqual(['platform-after', 'core-after', 'core-before', 'platform-before'])
+    expect(groups.map((group) => group.transactions.map((tx) => tx.id)))
+      .toEqual([['platform-after', 'core-after'], ['core-before', 'platform-before']])
+    expect(groups.map((group) => group.date)).toEqual([platform[1].date, core[0].date])
+    expect(core.map((tx) => tx.id)).toEqual(['core-before', 'core-after'])
+    expect(platform.map((tx) => tx.hash)).toEqual(['platform-before', 'platform-after'])
   })
 
-  it('classifies a tx with an address-less output as an asset lock', () => {
-    expect(txType(assetLockTx())).toBe(TxTypeFilter.AssetLock)
+  it('places all unavailable dates last without displaying an epoch or invalid date', () => {
+    const history = mergeWalletTransactions([
+      coreTransaction({ id: 'core-unknown', date: new Date(NaN) }),
+    ], [
+      platformTransaction({ hash: 'epoch', date: new Date(0) }),
+      platformTransaction({ hash: 'dated' }),
+      platformTransaction({ hash: 'invalid', date: new Date(NaN) }),
+    ])
+    const groups = groupWalletHistoryByDay(history)
+    expect(history.map((tx) => tx.id)).toEqual(['dated', 'core-unknown', 'epoch', 'invalid'])
+    expect(groups).toHaveLength(2)
+    expect(groups[1].date).toBeNull()
+    expect(groups[1].transactions.every((tx) => tx.date === null)).toBe(true)
   })
 
-  it('treats an empty-string address as address-less', () => {
-    expect(txType(tx({ vout: [{ value: '0.5', address: '' }] }))).toBe(TxTypeFilter.AssetLock)
+  it('preserves both sources and their detail targets when their identifiers coincide', () => {
+    const core = coreTransaction({ id: 'shared', date: new Date(2026, 8, 20, 12) })
+    const platform = platformTransaction({ hash: 'shared', date: core.date })
+    const history = mergeWalletTransactions([core], [platform])
+    expect(history.map((tx) => `${tx.kind}:${tx.id}`)).toEqual(['core:shared', 'platform:shared'])
+    expect(history.map((tx) => tx.selection)).toEqual([
+      { kind: 'core', transaction: core }, { kind: 'platform', hash: 'shared' },
+    ])
+    expect(history[0].selection.kind === 'core' && history[0].selection.transaction).toBe(core)
+  })
+
+  it('supports either source independently and an empty wallet', () => {
+    expect(mergeWalletTransactions([coreTransaction()], [])).toHaveLength(1)
+    expect(mergeWalletTransactions([], [platformTransaction()])).toHaveLength(1)
+    expect(groupWalletHistoryByDay(mergeWalletTransactions([], []))).toEqual([])
   })
 })
 
-describe('matchesTxFilter', () => {
-  it('matches everything with the default filter', () => {
-    expect(matchesTxFilter(tx(), DEFAULT_TX_FILTER)).toBe(true)
-    expect(matchesTxFilter(assetLockTx(), DEFAULT_TX_FILTER)).toBe(true)
+describe('transaction type filters', () => {
+  it('preserves Core transfer and asset-lock classification', () => {
+    expect(txType(coreTransaction())).toBe(TxTypeFilter.Transfer)
+    expect(txType(coreTransaction({ vout: [output(''), output('Xchange')] }))).toBe(TxTypeFilter.AssetLock)
   })
 
-  it('filters by direction', () => {
-    const received: TxFilter = { direction: TxDirectionFilter.Received, type: TxTypeFilter.All, search: '' }
-    expect(matchesTxFilter(tx({ direction: 'in' }), received)).toBe(true)
-    expect(matchesTxFilter(tx({ direction: 'out' }), received)).toBe(false)
+  it('namespaces Core and Platform types, deduplicates options and supports future Platform operations', () => {
+    const platform = [platformTransaction({ type: 'transfer' }), platformTransaction({ type: 'FUTURE_OPERATION' }), platformTransaction({ type: 'transfer' })]
+    expect(transactionTypeOptions(platform)).toEqual([
+      { value: 'all', label: 'All' },
+      { value: 'core:transfer', label: 'Core: Transfers' },
+      { value: 'core:assetLock', label: 'Core: Asset locks' },
+      { value: 'platform:FUTURE_OPERATION', label: 'Platform: Future Operation' },
+      { value: 'platform:transfer', label: 'Platform: Transfer' },
+    ])
+    const history = mergeWalletTransactions([coreTransaction(), coreTransaction({ id: 'lock', vout: [output('')] })], platform)
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, type: 'core:transfer' }).map((tx) => tx.kind)).toEqual(['core'])
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, type: 'core:assetLock' }).map((tx) => tx.id)).toEqual(['lock'])
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, type: 'platform:transfer' }).map((tx) => tx.kind)).toEqual(['platform', 'platform'])
+  })
+})
 
-    const sent: TxFilter = { direction: TxDirectionFilter.Sent, type: TxTypeFilter.All, search: '' }
-    expect(matchesTxFilter(tx({ direction: 'in' }), sent)).toBe(false)
-    expect(matchesTxFilter(tx({ direction: 'out' }), sent)).toBe(true)
+describe('shared transaction filters', () => {
+  const history = mergeWalletTransactions([
+    coreTransaction({ id: 'core-in' }),
+    coreTransaction({ id: 'core-out', direction: 'out', status: 'pending' }),
+    coreTransaction({ id: 'core-failed', direction: 'out', status: 'failed' }),
+  ], [
+    platformTransaction({ hash: 'platform-in', netCredits: 2n }),
+    platformTransaction({ hash: 'platform-out', netCredits: -1n, status: 'FAIL' }),
+    platformTransaction({ hash: 'platform-neutral', netCredits: 0n, status: null, sender: [], recipient: [] }),
+  ])
+
+  it('filters balance changes across both sources, including fees on failed Platform operations', () => {
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Increase }).map((tx) => tx.id))
+      .toEqual(['platform-in', 'core-in'])
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Decrease }).map((tx) => tx.id))
+      .toEqual(['platform-out', 'core-out'])
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Unchanged }).map((tx) => tx.id))
+      .toEqual(['platform-neutral', 'core-failed'])
   })
 
-  it('filters by type', () => {
-    const transfers: TxFilter = { direction: TxDirectionFilter.All, type: TxTypeFilter.Transfer, search: '' }
-    expect(matchesTxFilter(tx(), transfers)).toBe(true)
-    expect(matchesTxFilter(assetLockTx(), transfers)).toBe(false)
-
-    const assetLocks: TxFilter = { direction: TxDirectionFilter.All, type: TxTypeFilter.AssetLock, search: '' }
-    expect(matchesTxFilter(tx(), assetLocks)).toBe(false)
-    expect(matchesTxFilter(assetLockTx(), assetLocks)).toBe(true)
+  it('filters each source independently and combines source with balance change', () => {
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, source: 'core' }).map((tx) => tx.id))
+      .toEqual(['core-in', 'core-out', 'core-failed'])
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, source: 'platform' }).map((tx) => tx.id))
+      .toEqual(['platform-in', 'platform-out', 'platform-neutral'])
+    expect(filterTransactions(history, {
+      ...DEFAULT_TX_FILTER, source: 'platform', balanceChange: TxBalanceChangeFilter.Decrease,
+    }).map((tx) => tx.id)).toEqual(['platform-out'])
+    expect(filterTransactions(history, DEFAULT_TX_FILTER)).toEqual(history)
   })
 
-  it('requires both direction and type to match', () => {
-    const filter: TxFilter = { direction: TxDirectionFilter.Sent, type: TxTypeFilter.AssetLock, search: '' }
-    expect(matchesTxFilter(assetLockTx({ direction: 'out' }), filter)).toBe(true)
-    expect(matchesTxFilter(assetLockTx({ direction: 'in' }), filter)).toBe(false)
-    expect(matchesTxFilter(tx({ direction: 'out' }), filter)).toBe(false)
+  it('keeps zero amounts in No change even when the Core transaction has a direction', () => {
+    const transactions = mergeWalletTransactions([
+      coreTransaction({ amount: 0n }), coreTransaction({ amount: 0n, direction: 'out' }),
+    ], [])
+    expect(filterTransactions(transactions, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Unchanged })).toEqual(transactions)
+    expect(filterTransactions(transactions, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Increase })).toEqual([])
+    expect(filterTransactions(transactions, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Decrease })).toEqual([])
   })
 
-  it('matches a partial txid case-insensitively', () => {
-    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'c123TX' })).toBe(true)
+  it.each([
+    ['success', ['platform-in', 'core-in']],
+    ['failed', ['platform-out', 'core-failed']],
+    ['pending', ['core-out']],
+    ['unknown', ['platform-neutral']],
+  ] as const)('matches %s status across both sources', (status, expected) => {
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, status }).map((tx) => tx.id)).toEqual(expected)
   })
 
-  it('matches partial input and output addresses case-insensitively', () => {
-    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'inputa' })).toBe(true)
-    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'ADDRA' })).toBe(true)
+  it('combines source, balance change, namespaced type, status and trimmed case-insensitive search', () => {
+    const filter: TxFilter = { source: 'platform', balanceChange: TxBalanceChangeFilter.Decrease, type: 'platform:ADDRESS_FUNDS_TRANSFER', status: 'failed', search: ' PLATFORM-OUT ' }
+    expect(filterTransactions(history, filter).map((tx) => tx.id)).toEqual(['platform-out'])
+    expect(filterTransactions(history, { ...filter, status: 'success' })).toEqual([])
+    expect(filterTransactions(history, { ...filter, type: 'core:transfer' })).toEqual([])
+    expect(filterTransactions(history, { ...filter, balanceChange: TxBalanceChangeFilter.Increase })).toEqual([])
+    expect(filterTransactions(history, { ...filter, source: 'core' })).toEqual([])
+    expect(groupWalletHistoryByDay(filterTransactions(history, { ...filter, search: 'missing' }))).toEqual([])
   })
 
-  it('ignores surrounding whitespace and treats whitespace-only search as empty', () => {
-    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: '  C123  ' })).toBe(true)
-    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: '   ' })).toBe(true)
-  })
-
-  it('does not match unrelated text', () => {
-    expect(matchesTxFilter(tx(), { ...DEFAULT_TX_FILTER, search: 'not-present' })).toBe(false)
-  })
-
-  it('combines search with direction and type filters', () => {
-    const matching: TxFilter = {
-      direction: TxDirectionFilter.Sent,
-      type: TxTypeFilter.AssetLock,
-      search: 'changeaddr',
+  it('searches Core identifiers and input/output/display addresses, plus Platform hashes and both participants', () => {
+    const [core] = mergeWalletTransactions([coreTransaction()], [])
+    const [platform] = mergeWalletTransactions([], [platformTransaction({
+      sender: ['walletAddress', 'secondSender'],
+      recipient: ['recipientIdentity', 'secondRecipient'],
+    })])
+    for (const search of ['CORE-HASH', 'Xsender', 'Xrecipient', ' xWALLET ']) {
+      expect(matchesTxFilter(core, { ...DEFAULT_TX_FILTER, search })).toBe(true)
     }
-    expect(matchesTxFilter(assetLockTx(), matching)).toBe(true)
-    expect(matchesTxFilter(assetLockTx({ direction: 'in' }), matching)).toBe(false)
-    expect(matchesTxFilter(tx({ direction: 'out' }), matching)).toBe(false)
-    expect(matchesTxFilter(assetLockTx(), { ...matching, search: 'not-present' })).toBe(false)
-  })
-})
-
-describe('filterTransactions', () => {
-  it('keeps only matching transactions', () => {
-    const txs = [tx({ direction: 'in' }), tx({ direction: 'out' }), assetLockTx()]
-    const sent = filterTransactions(txs, { direction: TxDirectionFilter.Sent, type: TxTypeFilter.All, search: '' })
-    expect(sent).toHaveLength(2)
-    expect(sent.every((t) => t.direction === 'out')).toBe(true)
-  })
-})
-
-describe('filterTransactionGroups', () => {
-  it('drops groups with no matching transactions and preserves dates', () => {
-    const groups = [
-      { date: '01/06/2026', transactions: [tx({ direction: 'in' })] },
-      { date: '02/06/2026', transactions: [tx({ direction: 'out' }), tx({ direction: 'in' })] },
-    ]
-    const filtered = filterTransactionGroups(groups, {
-      direction: TxDirectionFilter.Sent,
-      type: TxTypeFilter.All,
-      search: '',
-    })
-    expect(filtered).toHaveLength(1)
-    expect(filtered[0].date).toBe('02/06/2026')
-    expect(filtered[0].transactions).toHaveLength(1)
+    for (const search of ['PLATFORM-HASH', ' walletADDRESS ', 'recipientIDENTITY', 'secondSender', 'secondRecipient']) {
+      expect(matchesTxFilter(platform, { ...DEFAULT_TX_FILTER, search })).toBe(true)
+    }
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, search: 'missing' })).toEqual([])
+    expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, search: '  ' })).toEqual(history)
   })
 
-  it('returns all groups unchanged for the default filter', () => {
-    const groups = [
-      { date: '01/06/2026', transactions: [tx(), assetLockTx()] },
-    ]
-    const filtered = filterTransactionGroups(groups, DEFAULT_TX_FILTER)
-    expect(filtered).toHaveLength(1)
-    expect(filtered[0].transactions).toHaveLength(2)
-  })
-})
-
-describe('computeTxTotals', () => {
-  it('sums received and sent separately', () => {
-    const totals = computeTxTotals([
-      tx({ direction: 'in', amount: 3n * DASH }),
-      tx({ direction: 'in', amount: DASH }),
-      tx({ direction: 'out', amount: 2n * DASH }),
-    ])
-    expect(totals.received).toBe(4n * DASH)
-    expect(totals.sent).toBe(2n * DASH)
-  })
-
-  it('excludes failed transactions from totals', () => {
-    const totals = computeTxTotals([
-      tx({ status: 'failed', amount: 5n * DASH }),
-      tx({ direction: 'out', status: 'failed', amount: 5n * DASH }),
-      tx({ amount: DASH }),
-    ])
-    expect(totals.received).toBe(DASH)
-    expect(totals.sent).toBe(0n)
-  })
-
-  it('includes pending transactions in totals', () => {
-    const totals = computeTxTotals([tx({ status: 'pending', amount: 2n * DASH })])
-    expect(totals.received).toBe(2n * DASH)
-  })
-
-  it('returns zero totals for an empty list', () => {
-    expect(computeTxTotals([])).toEqual({ received: 0n, sent: 0n })
-  })
-})
-
-describe('isDefaultTxFilter', () => {
-  it('detects the default filter', () => {
+  it('recognizes all active filter fields and treats a whitespace search as empty', () => {
     expect(isDefaultTxFilter(DEFAULT_TX_FILTER)).toBe(true)
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All, search: '' })).toBe(true)
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All, search: '   ' })).toBe(true)
+    expect(isDefaultTxFilter({ ...DEFAULT_TX_FILTER, search: '   ' })).toBe(true)
+    expect(isDefaultTxFilter({ ...DEFAULT_TX_FILTER, source: 'platform' })).toBe(false)
+    expect(isDefaultTxFilter({ ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Unchanged })).toBe(false)
+    expect(isDefaultTxFilter({ ...DEFAULT_TX_FILTER, type: 'core:transfer' })).toBe(false)
+    expect(isDefaultTxFilter({ ...DEFAULT_TX_FILTER, status: 'unknown' })).toBe(false)
+    expect(isDefaultTxFilter({ ...DEFAULT_TX_FILTER, search: 'hash' })).toBe(false)
+  })
+})
+
+describe('combined transaction totals', () => {
+  it('adds Core duffs and Platform credits at full precision, including sub-duff values and very large balances', () => {
+    const large = 9_007_199_254_740_993n
+    const history = mergeWalletTransactions([
+      coreTransaction({ amount: large }),
+      coreTransaction({ direction: 'out', amount: 1n, status: 'pending' }),
+    ], [
+      platformTransaction({ netCredits: 1n }),
+      platformTransaction({ netCredits: -2n }),
+    ])
+    const totals = computeTxTotals(history)
+    expect(totals).toEqual({ receivedCredits: duffsToCredits(large) + 1n, sentCredits: 1_002n })
+    expect(creditsToDash(totals.receivedCredits)).toBe('90071992.54740993001')
+    expect(creditsToDash(totals.sentCredits)).toBe('0.00000001002')
   })
 
-  it('detects a non-default filter', () => {
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.Sent, type: TxTypeFilter.All, search: '' })).toBe(false)
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.Transfer, search: '' })).toBe(false)
-    expect(isDefaultTxFilter({ direction: TxDirectionFilter.All, type: TxTypeFilter.All, search: 'txid' })).toBe(false)
+  it('excludes failed Core transfers but includes actual Platform fee losses, without double-counting gas', () => {
+    const history = mergeWalletTransactions([
+      coreTransaction({ status: 'failed', amount: 100n }),
+      coreTransaction({ status: 'failed', direction: 'out', amount: 200n }),
+      coreTransaction({ status: 'pending', amount: 1n }),
+    ], [
+      platformTransaction({ status: 'FAIL', netCredits: -5n, gasCredits: 5n }),
+      platformTransaction({ status: null, netCredits: 1n }),
+      platformTransaction({ netCredits: -2n, gasCredits: 100n }),
+      platformTransaction({ netCredits: 0n, gasCredits: 10n }),
+    ])
+    expect(computeTxTotals(history)).toEqual({ receivedCredits: 1_001n, sentCredits: 7n })
+  })
+
+  it('totals only the displayed selection and yields zero for no matches', () => {
+    const history = mergeWalletTransactions([coreTransaction()], [platformTransaction()])
+    expect(computeTxTotals(filterTransactions(history, { ...DEFAULT_TX_FILTER, balanceChange: TxBalanceChangeFilter.Decrease })))
+      .toEqual({ receivedCredits: 0n, sentCredits: 1_000n })
+    expect(computeTxTotals(filterTransactions(history, { ...DEFAULT_TX_FILTER, search: 'missing' })))
+      .toEqual({ receivedCredits: 0n, sentCredits: 0n })
+  })
+})
+
+describe('transaction filter controls', () => {
+  it('offers the existing types for the selected source', () => {
+    const platform = [platformTransaction(), platformTransaction({ type: 'FUTURE_OPERATION' })]
+    expect(transactionTypeOptions(platform, 'core')).toEqual([
+      { value: 'all', label: 'All' },
+      { value: 'core:transfer', label: 'Core: Transfers' },
+      { value: 'core:assetLock', label: 'Core: Asset locks' },
+    ])
+    expect(transactionTypeOptions(platform, 'platform')).toEqual([
+      { value: 'all', label: 'All' },
+      { value: 'platform:ADDRESS_FUNDS_TRANSFER', label: 'Platform: Address Funds Transfer' },
+      { value: 'platform:FUTURE_OPERATION', label: 'Platform: Future Operation' },
+    ])
+    expect(transactionTypeOptions([], 'platform')).toEqual([{ value: 'all', label: 'All' }])
+  })
+
+  it('clears an incompatible type when switching source and preserves other conditions', () => {
+    const filter: TxFilter = {
+      ...DEFAULT_TX_FILTER, source: 'core', type: 'core:transfer',
+      balanceChange: TxBalanceChangeFilter.Decrease, search: 'hash', status: 'success',
+    }
+    expect(changeTxFilterSource(filter, 'platform')).toEqual({ ...filter, source: 'platform', type: 'all' })
+    expect(changeTxFilterSource(filter, 'core')).toEqual(filter)
+    expect(changeTxFilterSource(filter, 'all')).toEqual({ ...filter, source: 'all' })
+    expect(changeTxFilterSource({ ...filter, source: 'platform', type: 'platform:FUTURE_OPERATION' }, 'core'))
+      .toEqual({ ...filter, source: 'core', type: 'all' })
+  })
+
+  it('makes every active condition visible, including types that narrow All sources', () => {
+    expect(activeTxFilterChips({
+      source: 'platform', balanceChange: TxBalanceChangeFilter.Decrease,
+      type: 'platform:FUTURE_OPERATION', status: 'failed', search: ' hash ',
+    })).toEqual([
+      { field: 'source', label: 'Source: Platform' },
+      { field: 'balanceChange', label: 'Balance change: Decrease' },
+      { field: 'type', label: 'Type: Platform: Future Operation' },
+      { field: 'status', label: 'Status: Failed' },
+      { field: 'search', label: 'Search: hash' },
+    ])
+    expect(activeTxFilterChips({ ...DEFAULT_TX_FILTER, type: 'core:transfer' }))
+      .toEqual([{ field: 'type', label: 'Type: Core: Transfers' }])
+    expect(activeTxFilterChips({ ...DEFAULT_TX_FILTER, search: '   ' })).toEqual([])
   })
 })

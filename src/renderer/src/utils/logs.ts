@@ -1,4 +1,5 @@
-import { LogLevel, ParsedLogLine } from '@renderer/types/Log'
+import { ParsedLogLine } from '@renderer/types/Log'
+import { LogFileInfo } from '@renderer/api/types'
 import { LOG_LINE_PATTERN } from '@renderer/constants/logsPage'
 
 export const parseLogLines = (content: string): ParsedLogLine[] => {
@@ -18,18 +19,11 @@ export const parseLogLines = (content: string): ParsedLogLine[] => {
     })
 }
 
-export const filterLogLines = (lines: ParsedLogLine[], query: string, level: LogLevel): ParsedLogLine[] => {
-  const needle = query.trim().toLocaleLowerCase()
-  return lines.filter((line) =>
-    (level === 'all' || line.level === level) &&
-    (needle.length === 0 || line.raw.toLocaleLowerCase().includes(needle)))
-}
+export const currentLogFile = (files: LogFileInfo[]): LogFileInfo | undefined =>
+  files.filter((file) => !file.rotated).sort((a, b) => b.name.localeCompare(a.name))[0]
 
 export const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
-
-export const newestLogWindow = (lines: ParsedLogLine[], limit: number): ParsedLogLine[] =>
-  lines.slice(Math.max(0, lines.length - limit))

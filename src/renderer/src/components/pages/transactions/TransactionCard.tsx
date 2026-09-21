@@ -4,16 +4,18 @@ import TransactionCardIcons from "./TransactionCardIcons"
 import CustomBadge from "@renderer/components/ui/CustomBadge"
 import { formatCreationDate, timePart } from "@renderer/utils/date"
 import DashBigNumber from "@renderer/components/ui/DashBigNumber"
+import CreditsAmount from "@renderer/components/ui/CreditsAmount"
 import { TimeDelta } from "dash-ui-kit/react"
 import { cva } from "class-variance-authority"
 import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtended"
-import { WalletTxItem } from "@renderer/hooks/useWalletTransactions"
-import { davToDash } from "@renderer/utils/balance"
+import type { TransactionCardItem } from "@renderer/types/WalletTransaction"
+import { formatTransactionCardAmount } from "@renderer/utils/walletTransactions"
 import { useFiat } from "@renderer/hooks/useFiat"
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
 import { useAuth } from "@renderer/contexts/AuthContext"
-import { transactionUrl, openExternal } from "@renderer/utils/explorer"
+import { transactionUrl, platformTransactionUrl, openExternal } from "@renderer/utils/explorer"
 import { transactionsPage } from "@renderer/constants"
+import { TRANSACTION_CARD_SIGNS, TRANSACTION_CARD_STATUS_VARIANTS } from '@renderer/constants/transactionsPage'
 
 const transactionCardStyles = cva(
   `
@@ -33,6 +35,7 @@ const transactionCardStyles = cva(
         failed: 'bg-dash-red-5 dark:bg-dash-red-15',
         success: '',
         pending: '',
+        unknown: '',
       },
     },
   },
@@ -48,16 +51,19 @@ export default function TransactionCard({
   amount,
   date,
   direction
-} : WalletTxItem): React.JSX.Element {
-  const variantAmountSummary = status === 'failed' ? 'error' : kind === 'core' ? 'default' : 'muted'
+} : TransactionCardItem): React.JSX.Element {
+  let variantAmountSummary = TRANSACTION_CARD_STATUS_VARIANTS[status]
+  if (kind === undefined && status !== 'failed') variantAmountSummary = 'muted'
   const isIncoming = direction === 'in'
   const { format: formatFiat, rateReady } = useFiat()
   const { isBalanceVisible } = useBalanceVisibility()
   const { status: appStatus } = useAuth()
   const network = appStatus?.network ?? null
+  const formattedAmount = formatTransactionCardAmount({ amount, kind })
+  const explorerUrl = kind === 'platform' ? platformTransactionUrl : transactionUrl
 
   return (
-    <div className={transactionCardStyles({ status })} >
+    <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
       <TransactionCardIcons status={status} />
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
         <div className={"flex items-center gap-[.3125rem]"}>
@@ -95,17 +101,28 @@ export default function TransactionCard({
         total={
           <SensitiveValue hidden={!isBalanceVisible} size={"card"}>
             <span className={isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
-              {isIncoming ? '+' : '-'}<DashBigNumber>{davToDash(amount).toString()}</DashBigNumber>
+              {kind === 'platform' ? (
+                <CreditsAmount
+                  credits={amount}
+                  prefix={TRANSACTION_CARD_SIGNS[direction]}
+                  exact
+                  showFiat={false}
+                  align={'end'}
+                  unitClassName={'font-medium'}
+                />
+              ) : (
+                <>{TRANSACTION_CARD_SIGNS[direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber></>
+              )}
             </span>
           </SensitiveValue>
         }
-        textBadge={isBalanceVisible && rateReady ? `~ ${formatFiat(amount)}` : ''}
+        textBadge={isBalanceVisible && rateReady ? `~ ${formatFiat(formattedAmount.duffs)}` : ''}
         variant={variantAmountSummary}
-        currency={isBalanceVisible ? 'Dash' : ''}
+        currency={isBalanceVisible && kind !== 'platform' ? 'Dash' : ''}
         date={
-          <>
-            {formatCreationDate(new Date(date))} {timePart(new Date(date))} (<TimeDelta endDate={new Date(date)}/>)
-          </>
+          date ? <>
+            {formatCreationDate(date)} {timePart(date)} (<TimeDelta endDate={date}/>)
+          </> : 'Date unavailable'
         }
       />
 
@@ -119,7 +136,7 @@ export default function TransactionCard({
           `}
         >
           <button
-            onClick={(e) => { e.stopPropagation(); openExternal(transactionUrl(id, network)) }}
+            onClick={(e) => { e.stopPropagation(); openExternal(explorerUrl(id, network)) }}
             title={"Open in explorer"}
             className={`
               size-7 rounded-[.5rem] flex items-center justify-center

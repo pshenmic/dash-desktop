@@ -559,6 +559,7 @@ function WalletTransferHub(): React.JSX.Element {
     if (walletId) {
       refreshPlatformAddresses(walletId)
       prefetchIdentities(walletId)
+      refreshTransactions(walletId)
     }
   }
 
@@ -1199,7 +1200,6 @@ function WalletTransferHub(): React.JSX.Element {
             resetForm()
             if (walletId) {
               refreshBalance(walletId)
-              refreshTransactions(walletId)
             }
           }}
         />
@@ -1254,7 +1254,6 @@ function WalletTransferHub(): React.JSX.Element {
             resetForm()
             if (walletId) {
               refreshBalance(walletId)
-              refreshTransactions(walletId)
             }
           }}
         />

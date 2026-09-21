@@ -178,14 +178,21 @@ describe('estimateFee', () => {
     expect(feeCalls(request)[0].params.coreFeePerByte).toBe(1)
   })
 
-  it('cannot price an identity transition before the identity or amount is known', async () => {
+  it('cannot price an identity transition before the identity is known', async () => {
     for (const operation of ['identityToAddress', 'identityToIdentity', 'identityWithdrawal'] as FeeOperation[]) {
       const {service: svc, request} = service()
       expect(await svc.estimateFee(WALLET, operation, params({identityId: null}))).toEqual(
         {feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null})
-      expect(await svc.estimateFee(WALLET, operation, params({amountCredits: 0n}))).toEqual(
-        {feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null})
       expect(request).not.toHaveBeenCalled()
+    }
+  })
+
+  it('prices identity sends before an amount is entered so Max can reserve the fee', async () => {
+    for (const operation of ['identityToAddress', 'identityToIdentity', 'identityWithdrawal'] as FeeOperation[]) {
+      const {service: svc} = service()
+      const empty = await svc.estimateFee(WALLET, operation, params({amountCredits: 0n}))
+      expect(empty.feeCredits).toBe(BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER))
+      expect(empty).toEqual(await svc.estimateFee(WALLET, operation, params()))
     }
   })
 
