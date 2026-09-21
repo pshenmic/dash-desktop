@@ -55,8 +55,8 @@ function platformTransaction(overrides: Partial<PlatformTransaction> = {}): Plat
     gasCredits: 1_000n,
     netCredits,
     amountCredits: netCredits < 0n ? -netCredits : netCredits,
-    sender: 'walletAddress',
-    recipient: 'recipientIdentity',
+    sender: [{ source: 'walletAddress', amount: 1_000n }],
+    recipient: [{ source: 'recipientIdentity', amount: 1_000n }],
     ...overrides,
   }
 }
@@ -145,7 +145,7 @@ describe('shared transaction filters', () => {
   ], [
     platformTransaction({ hash: 'platform-in', netCredits: 2n }),
     platformTransaction({ hash: 'platform-out', netCredits: -1n, status: 'FAIL' }),
-    platformTransaction({ hash: 'platform-neutral', netCredits: 0n, status: null, sender: null, recipient: null }),
+    platformTransaction({ hash: 'platform-neutral', netCredits: 0n, status: null, sender: [], recipient: [] }),
   ])
 
   it('filters balance changes across both sources, including fees on failed Platform operations', () => {
@@ -198,11 +198,14 @@ describe('shared transaction filters', () => {
 
   it('searches Core identifiers and input/output/display addresses, plus Platform hashes and both participants', () => {
     const [core] = mergeWalletTransactions([coreTransaction()], [])
-    const [platform] = mergeWalletTransactions([], [platformTransaction()])
+    const [platform] = mergeWalletTransactions([], [platformTransaction({
+      sender: [{ source: 'walletAddress', amount: 2n }, { source: 'secondSender', amount: 3n }],
+      recipient: [{ source: 'recipientIdentity', amount: 2n }, { source: 'secondRecipient', amount: 3n }],
+    })])
     for (const search of ['CORE-HASH', 'Xsender', 'Xrecipient', ' xWALLET ']) {
       expect(matchesTxFilter(core, { ...DEFAULT_TX_FILTER, search })).toBe(true)
     }
-    for (const search of ['PLATFORM-HASH', ' walletADDRESS ', 'recipientIDENTITY']) {
+    for (const search of ['PLATFORM-HASH', ' walletADDRESS ', 'recipientIDENTITY', 'secondSender', 'secondRecipient']) {
       expect(matchesTxFilter(platform, { ...DEFAULT_TX_FILTER, search })).toBe(true)
     }
     expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, search: 'missing' })).toEqual([])

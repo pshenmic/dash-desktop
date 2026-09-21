@@ -23,13 +23,20 @@ function transaction(overrides: Partial<PlatformTransaction> = {}): PlatformTran
     gasCredits: 1_000n,
     netCredits,
     amountCredits: netCredits < 0n ? -netCredits : netCredits,
-    sender: 'senderIdentity',
-    recipient: 'recipientIdentity',
+    sender: [{ source: 'senderIdentity', amount: 1_000n }],
+    recipient: [{ source: 'recipientIdentity', amount: 1_000n }],
     ...overrides,
   }
 }
 
 describe('Platform transaction display', () => {
+  it('includes all participants on the selected side in the card', () => {
+    expect(mapPlatformTransaction(transaction({ sender: [{ source: 'first', amount: 2n }, { source: 'second', amount: 3n }], netCredits: 1n })))
+      .toMatchObject({ subtitleLabel: 'From', labelValue: 'first, second' })
+    expect(mapPlatformTransaction(transaction({ recipient: [{ source: 'third', amount: 2n }, { source: 'fourth', amount: 3n }] })))
+      .toMatchObject({ subtitleLabel: 'To', labelValue: 'third, fourth' })
+  })
+
   it.each([
     { netCredits: 9_007_199_254_740_993n, direction: 'in', status: 'SUCCESS', cardStatus: 'success', subtitleLabel: 'From', labelValue: 'senderIdentity' },
     { netCredits: -9_007_199_254_740_993n, direction: 'out', status: 'FAIL', cardStatus: 'failed', subtitleLabel: 'To', labelValue: 'recipientIdentity' },
@@ -55,9 +62,9 @@ describe('Platform transaction display', () => {
   })
 
   it('maps unavailable dates to null and falls back to the end the source named', () => {
-    expect(mapPlatformTransaction(transaction({ date: new Date(0), recipient: null })))
+    expect(mapPlatformTransaction(transaction({ date: new Date(0), recipient: [] })))
       .toMatchObject({ date: null, subtitleLabel: 'From', labelValue: 'senderIdentity' })
-    expect(mapPlatformTransaction(transaction({ date: new Date(NaN), sender: null, recipient: null })))
+    expect(mapPlatformTransaction(transaction({ date: new Date(NaN), sender: [], recipient: [] })))
       .toMatchObject({ date: null, labelValue: 'Unavailable' })
   })
 
