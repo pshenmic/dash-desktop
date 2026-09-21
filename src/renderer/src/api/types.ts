@@ -406,10 +406,9 @@ export interface PlatformTransaction {
   // What moved between the two ends, unsigned: a move between two of this
   // wallet's own addresses nets to the fee and still moved this much.
   amountCredits: bigint
-  // Each end, an address or an identity, ours or not. Null on the end the
-  // source did not name.
-  sender: string | null
-  recipient: string | null
+  // Addresses or identities; empty when the source did not name that side.
+  sender: string[]
+  recipient: string[]
 }
 
 // getTransactions. Two lists, not one: a state transition counts credits and is

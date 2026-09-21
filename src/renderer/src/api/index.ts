@@ -1,4 +1,5 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
+import { platformParticipants } from '../utils/platformTransactions'
 import { TransferOperation } from '../enums/TransferOperation'
 import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
@@ -116,7 +117,15 @@ export class API {
   }
 
   static async getTransactions(walletId: string): Promise<WalletHistory> {
-    return this.api.getTransactions(walletId) as Promise<WalletHistory>
+    const history = await this.api.getTransactions(walletId)
+    return {
+      ...history,
+      platform: history.platform.map(transaction => ({
+        ...transaction,
+        sender: platformParticipants(transaction.sender),
+        recipient: platformParticipants(transaction.recipient),
+      })),
+    }
   }
 
   static async getUtxos(walletId: string): Promise<SelectableUtxo[]> {

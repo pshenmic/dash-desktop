@@ -6,6 +6,10 @@ import { identityUrl, platformAddressUrl } from './explorer'
 import { isValidPlatformAddress } from './platformAddress'
 import { isLikelyIdentityId } from './transferMatrix'
 
+export function platformParticipants(value: string | string[] | null): string[] {
+  return value === null ? [] : Array.isArray(value) ? value : [value]
+}
+
 export function platformTransactionTitle(type: string): string {
   return type.trim().toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) || 'Unknown operation'
 }
@@ -32,7 +36,7 @@ export function mapPlatformTransaction(transaction: PlatformTransaction): Transa
 
   // An address transition names only our own end, so the card shows whichever
   // end the source named rather than the one the direction asks for.
-  const fromSender = direction === 'in' ? transaction.sender !== null : transaction.recipient === null
+  const fromSender = direction === 'in' ? transaction.sender.length > 0 : transaction.recipient.length === 0
 
   return {
     id: transaction.hash,
@@ -40,7 +44,7 @@ export function mapPlatformTransaction(transaction: PlatformTransaction): Transa
     kind: 'platform',
     title: platformTransactionTitle(transaction.type),
     subtitleLabel: fromSender ? 'From' : 'To',
-    labelValue: (fromSender ? transaction.sender : transaction.recipient) ?? 'Unavailable',
+    labelValue: (fromSender ? transaction.sender : transaction.recipient).join(', ') || 'Unavailable',
     amount: transaction.amountCredits,
     date: platformTransactionDateValue(transaction.date),
     direction,

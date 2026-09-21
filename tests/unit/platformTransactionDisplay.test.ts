@@ -3,6 +3,7 @@ import { bech32m } from '@scure/base'
 import type { PlatformTransaction } from '../../src/renderer/src/api/types'
 import {
   mapPlatformTransaction,
+  platformParticipants,
   platformParticipantUrl,
   platformTransactionDate,
   platformTransactionStatus,
@@ -23,13 +24,27 @@ function transaction(overrides: Partial<PlatformTransaction> = {}): PlatformTran
     gasCredits: 1_000n,
     netCredits,
     amountCredits: netCredits < 0n ? -netCredits : netCredits,
-    sender: 'senderIdentity',
-    recipient: 'recipientIdentity',
+    sender: ['senderIdentity'],
+    recipient: ['recipientIdentity'],
     ...overrides,
   }
 }
 
 describe('Platform transaction display', () => {
+  it('accepts legacy participants and preserves every participant in array responses', () => {
+    expect(platformParticipants(null)).toEqual([])
+    expect(platformParticipants('sender')).toEqual(['sender'])
+    expect(platformParticipants(['first', 'second'])).toEqual(['first', 'second'])
+    expect(platformParticipants([])).toEqual([])
+  })
+
+  it('includes all participants on the selected side in the card', () => {
+    expect(mapPlatformTransaction(transaction({ sender: ['first', 'second'], netCredits: 1n })))
+      .toMatchObject({ subtitleLabel: 'From', labelValue: 'first, second' })
+    expect(mapPlatformTransaction(transaction({ recipient: ['third', 'fourth'] })))
+      .toMatchObject({ subtitleLabel: 'To', labelValue: 'third, fourth' })
+  })
+
   it.each([
     { netCredits: 9_007_199_254_740_993n, direction: 'in', status: 'SUCCESS', cardStatus: 'success', subtitleLabel: 'From', labelValue: 'senderIdentity' },
     { netCredits: -9_007_199_254_740_993n, direction: 'out', status: 'FAIL', cardStatus: 'failed', subtitleLabel: 'To', labelValue: 'recipientIdentity' },
@@ -55,9 +70,9 @@ describe('Platform transaction display', () => {
   })
 
   it('maps unavailable dates to null and falls back to the end the source named', () => {
-    expect(mapPlatformTransaction(transaction({ date: new Date(0), recipient: null })))
+    expect(mapPlatformTransaction(transaction({ date: new Date(0), recipient: [] })))
       .toMatchObject({ date: null, subtitleLabel: 'From', labelValue: 'senderIdentity' })
-    expect(mapPlatformTransaction(transaction({ date: new Date(NaN), sender: null, recipient: null })))
+    expect(mapPlatformTransaction(transaction({ date: new Date(NaN), sender: [], recipient: [] })))
       .toMatchObject({ date: null, labelValue: 'Unavailable' })
   })
 
