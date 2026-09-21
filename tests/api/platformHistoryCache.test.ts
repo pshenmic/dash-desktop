@@ -103,8 +103,8 @@ describe('platform history', () => {
     // fee, and the row still names both ends and what they moved.
     expect(transactions[0].netCredits).toBe(-1_000_000n)
     expect(transactions[0].amountCredits).toBe(100_000_000n)
-    expect(transactions[0].sender).toBe(ADDRESS)
-    expect(transactions[0].recipient).toBe(IDENTITY)
+    expect(transactions[0].sender).toEqual([{source: ADDRESS, amount: 100_000_000n}])
+    expect(transactions[0].recipient).toEqual([{source: IDENTITY, amount: 99_000_000n}])
     expect(await transactionDAO.getTransactions(WALLET)).toHaveLength(2)
   })
 
@@ -114,7 +114,7 @@ describe('platform history', () => {
 
     const [row] = await transactionDAO.getTransactions(WALLET)
     const [stored] = await addressDAO.getAddresses(WALLET)
-    expect(row.sender).toBe(stored.address)
+    expect(row.sender).toEqual([{source: stored.address, amount: 100_000_000n}])
   })
 
   it('asks each source for one page once its rows are known', async () => {

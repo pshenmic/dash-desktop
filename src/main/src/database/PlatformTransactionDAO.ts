@@ -8,6 +8,7 @@ function fromRow({
   wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits, sender, recipient,
 }, lockedCredits: bigint | null): PlatformTransaction {
   const net = BigInt(net_credits)
+  const moved = net === 0n && lockedCredits != null ? lockedCredits : (net < 0n ? -net : net)
 
   return {
     walletId: wallet_id,
@@ -18,10 +19,10 @@ function fromRow({
     status: (status ?? null) as PlatformTxStatus | null,
     error: error ?? null,
     gasCredits: BigInt(gas_credits),
-    netCredits: BigInt(net_credits),
-    amountCredits: net === 0n && lockedCredits != null ? lockedCredits : (net < 0n ? -net : net),
-    sender: sender ?? null,
-    recipient: recipient ?? null,
+    netCredits: net,
+    amountCredits: moved,
+    sender: sender == null ? [] : [{source: sender, amount: moved}],
+    recipient: recipient == null ? [] : [{source: recipient, amount: moved}],
   }
 }
 
@@ -71,8 +72,8 @@ export class PlatformTransactionDAO {
           error: transaction.error,
           gas_credits: transaction.gasCredits.toString(),
           net_credits: transaction.netCredits.toString(),
-          sender: transaction.sender,
-          recipient: transaction.recipient,
+          sender: transaction.sender[0]?.source ?? null,
+          recipient: transaction.recipient[0]?.source ?? null,
         })))
         .onConflict(['wallet_id', 'hash', 'source'])
         .merge()

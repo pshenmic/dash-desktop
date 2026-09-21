@@ -1,5 +1,12 @@
 export type PlatformTxStatus = 'SUCCESS' | 'FAIL'
 
+// One end of a transition and what it moved there: an address or an identity,
+// ours or not, with the credits that side gained or paid.
+export interface TransitionEnd {
+  source: string
+  amount: bigint
+}
+
 // One state transition that moved this wallet's credits. Amounts are credits,
 // not duffs, and `hash` is a state transition hash, not a Core txid — nothing
 // here is interchangeable with a `Transaction`.
@@ -20,8 +27,9 @@ export interface PlatformTransaction {
   // largest side, so a move between two of ours nets to the fee and still
   // reports what it moved.
   amountCredits: bigint
-  // The two ends, each an address or an identity, ours or not. Null on the end
-  // the source did not name.
-  sender: string | null
-  recipient: string | null
+  // The ends, each an address or an identity, ours or not: one transition can
+  // be paid by several and pay several. Empty where no source named that end —
+  // a walk only ever reports the address or identity it asked about.
+  sender: TransitionEnd[]
+  recipient: TransitionEnd[]
 }

@@ -122,8 +122,14 @@ interface PlatformTransactionDTO {
   gasCredits: bigint
   netCredits: bigint
   amountCredits: bigint
-  sender: string | null
-  recipient: string | null
+  sender: TransitionEndDTO[]
+  recipient: TransitionEndDTO[]
+}
+
+// One end of a transition and what it moved there.
+interface TransitionEndDTO {
+  source: string
+  amount: bigint
 }
 
 declare global {

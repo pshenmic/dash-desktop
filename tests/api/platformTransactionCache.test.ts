@@ -37,11 +37,14 @@ const transaction = (overrides: Partial<PlatformTransaction> = {}): PlatformTran
     error: null,
     gasCredits: 13_407_020n,
     netCredits: -100_000_000n,
-    sender: ADDRESS,
-    recipient: null,
+    sender: [{source: ADDRESS, amount: 100_000_000n}],
+    recipient: [],
     ...overrides,
   }
-  return {...row, amountCredits: row.netCredits < 0n ? -row.netCredits : row.netCredits}
+  const moved = row.netCredits < 0n ? -row.netCredits : row.netCredits
+  const end = (ends: typeof row.sender): typeof row.sender =>
+    ends.map(entry => ({...entry, amount: moved}))
+  return {...row, amountCredits: moved, sender: end(row.sender), recipient: end(row.recipient)}
 }
 
 describe('cached platform transactions', () => {
@@ -58,8 +61,8 @@ describe('cached platform transactions', () => {
       netCredits: 99_000_000n,
       blockHeight: null,
       status: null,
-      sender: null,
-      recipient: IDENTITY,
+      sender: [],
+      recipient: [{source: IDENTITY, amount: 99_000_000n}],
     })])
 
     const rows = await dao.getTransactions(WALLET)
@@ -68,8 +71,8 @@ describe('cached platform transactions', () => {
     const [merged] = mergePlatformTransactions(rows)
     expect(merged.netCredits).toBe(-1_000_000n)
     expect(merged.blockHeight).toBe(587710)
-    expect(merged.sender).toBe(ADDRESS)
-    expect(merged.recipient).toBe(IDENTITY)
+    expect(merged.sender).toEqual([{source: ADDRESS, amount: 100_000_000n}])
+    expect(merged.recipient).toEqual([{source: IDENTITY, amount: 99_000_000n}])
     expect(merged.amountCredits).toBe(100_000_000n)
   })
 
@@ -111,7 +114,7 @@ describe('cached platform transactions', () => {
   // asset lock, whose amount it never resolved. What was locked is on disk
   // here, under the hash the transition settled into.
   it('prices a transition the explorer left at zero from the lock this wallet funded', async () => {
-    await dao.upsertTransactions(IDENTITY, [transaction({netCredits: 0n, recipient: IDENTITY})])
+    await dao.upsertTransactions(IDENTITY, [transaction({netCredits: 0n, recipient: [{source: IDENTITY, amount: 0n}]})])
     await knex('asset_lock_fundings').insert({
       wallet_id: WALLET,
       txid: 'f1',

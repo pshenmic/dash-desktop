@@ -1,5 +1,5 @@
 import {PlatformExplorerAddressTransition, PlatformExplorerTransfer} from '../types/PlatformExplorer'
-import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransaction'
+import {PlatformTransaction, PlatformTxStatus, TransitionEnd} from '../types/PlatformTransaction'
 
 // A transition is only listed once a block carries it, so a missing timestamp
 // means the block row is missing rather than that the transition is pending.
@@ -14,6 +14,9 @@ export function addressTransitionToPlatformTransaction(
 ): PlatformTransaction {
   const net = row.amount == null ? 0n : BigInt(row.amount)
   const incoming = row.incoming ?? net > 0n
+  const ours = row.bech32mAddress == null
+    ? []
+    : [{source: row.bech32mAddress, amount: net < 0n ? -net : net}]
 
   return {
     walletId,
@@ -28,8 +31,8 @@ export function addressTransitionToPlatformTransaction(
     amountCredits: net < 0n ? -net : net,
     // bech32m: the form platform_addresses holds. The base58 field is the same
     // key in an encoding nothing in this wallet is stored under.
-    sender: incoming ? null : row.bech32mAddress,
-    recipient: incoming ? row.bech32mAddress : null,
+    sender: incoming ? [] : ours,
+    recipient: incoming ? ours : [],
   }
 }
 
@@ -53,9 +56,17 @@ export function transferToPlatformTransaction(
     gasCredits: BigInt(row.gasUsed ?? 0),
     netCredits: received - sent,
     amountCredits: amount,
-    sender: row.sender,
-    recipient: row.recipient,
+    sender: row.sender == null ? [] : [{source: row.sender, amount}],
+    recipient: row.recipient == null ? [] : [{source: row.recipient, amount}],
   }
+}
+
+// Two walks reporting one end report the same movement through it, so a
+// repeat is the same end seen twice rather than a second payment.
+const union = (ends: TransitionEnd[], named: TransitionEnd[]): TransitionEnd[] => {
+  const bySource = new Map(ends.map(end => [end.source, end]))
+  for (const end of named) if (!bySource.has(end.source)) bySource.set(end.source, end)
+  return [...bySource.values()]
 }
 
 // One state transition reaches us once per address or identity of ours it
@@ -76,8 +87,8 @@ export function mergePlatformTransactions(rows: PlatformTransaction[]): Platform
     seen.netCredits += row.netCredits
     seen.gasCredits = row.gasCredits > seen.gasCredits ? row.gasCredits : seen.gasCredits
     seen.amountCredits = row.amountCredits > seen.amountCredits ? row.amountCredits : seen.amountCredits
-    seen.sender ??= row.sender
-    seen.recipient ??= row.recipient
+    seen.sender = union(seen.sender, row.sender)
+    seen.recipient = union(seen.recipient, row.recipient)
     seen.status ??= row.status
     seen.error ??= row.error
     seen.blockHeight ??= row.blockHeight
