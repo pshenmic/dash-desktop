@@ -107,6 +107,16 @@ async function feeOf(operation: TransitionFeeOperation, overrides: Partial<FeeQu
 }
 
 describe('transitionFee', () => {
+  it('prices identity sends with an empty amount the same as a funded send', async () => {
+    for (const operation of ['identityToAddress', 'identityToIdentity', 'identityWithdrawal'] as TransitionFeeOperation[]) {
+      const feeAt = (amountCredits: bigint): Promise<bigint> =>
+        feeOf(operation, {recipient: RECIPIENT[operation], amountCredits})
+      expect(await feeAt(0n)).toBeGreaterThan(0n)
+      expect(await feeAt(0n)).toBe(await feeAt(1_000_000n))
+      expect(await feeAt(0n)).toBe(await feeAt(2n ** 62n))
+    }
+  })
+
   it('prices every operation main can send it', async () => {
     for (const operation of ALL) {
       expect(await feeOf(operation, {recipient: RECIPIENT[operation]}), operation).toBeGreaterThan(0n)
