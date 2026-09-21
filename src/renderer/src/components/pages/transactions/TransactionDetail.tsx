@@ -27,13 +27,10 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { Network } from '@renderer/api/types'
 import { API } from '@renderer/api'
 import { mapWalletTransaction } from '@renderer/utils/walletTransactions'
+import DetailToken from './TransactionDetailToken'
 
 const cardStyles = cva(
   'flex flex-col gap-5 p-[.9375rem] rounded-[.9375rem] dash-card-base shadow-[0_0_50px_0_rgba(0,0,0,0.1)]'
-)
-
-const detailTokenStyles = cva(
-  'flex flex-1 items-center justify-between p-3 rounded-xl dash-block'
 )
 
 const iconCircleStyles = cva(
@@ -43,39 +40,6 @@ const iconCircleStyles = cva(
 interface TransactionDetailProps {
   transaction: WalletTxItem
   onBack: () => void
-}
-
-function DetailToken({
-  icon,
-  label,
-  value,
-  subValue,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: React.ReactNode
-  subValue?: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <div className={detailTokenStyles()}>
-      <div className={"flex items-center gap-[.625rem]"}>
-        <span className={iconCircleStyles()}>
-          {icon}
-        </span>
-        <Text size={14} weight={"medium"} color={"brand"}>
-          {label}
-        </Text>
-      </div>
-      <div className={"flex flex-col items-end gap-[.3125rem]"}>
-        <div>{value}</div>
-        {subValue && (
-          <Text size={10} weight={"medium"} color={"brand"} opacity={30}>
-            {subValue}
-          </Text>
-        )}
-      </div>
-    </div>
-  )
 }
 
 function AddressActions({
