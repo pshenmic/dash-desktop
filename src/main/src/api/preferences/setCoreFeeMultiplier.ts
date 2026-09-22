@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import {ApplicationService} from "../services/app/ApplicationService";
+import {ApplicationService} from "../../services/app/ApplicationService";
 
 export class SetCoreFeeMultiplierHandler {
   private applicationService: ApplicationService

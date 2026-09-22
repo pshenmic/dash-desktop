@@ -1,9 +1,9 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {ConnectionType} from "../preferences/general";
-import {ApplicationService} from "../services/app/ApplicationService";
-import {WalletService} from "../services/wallet/WalletService";
-import {CoreDiscoveryService} from "../services/core/CoreDiscoveryService";
-import {Logger} from '../utils/logger'
+import {ConnectionType} from "../../preferences/general";
+import {ApplicationService} from "../../services/app/ApplicationService";
+import {WalletService} from "../../services/wallet/WalletService";
+import {CoreDiscoveryService} from "../../services/core/CoreDiscoveryService";
+import {Logger} from '../../utils/logger'
 
 const log = new Logger('discovery')
 

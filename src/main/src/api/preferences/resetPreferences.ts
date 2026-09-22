@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
-import {Preferences} from "../preferences";
-import {ApplicationService} from "../services/app/ApplicationService";
+import {Preferences} from "../../preferences";
+import {ApplicationService} from "../../services/app/ApplicationService";
 
 export class ResetPreferencesHandler {
   private applicationService: ApplicationService

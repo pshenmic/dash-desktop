@@ -1,7 +1,7 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {PeerModeSchema} from '../preferences/network'
-import {ApplicationService} from '../services/app/ApplicationService'
-import {WalletSyncService} from '../services/core/WalletSyncService'
+import {PeerModeSchema} from '../../preferences/network'
+import {ApplicationService} from '../../services/app/ApplicationService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
 
 export class SetPeerModeHandler {
   private applicationService: ApplicationService
