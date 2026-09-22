@@ -35,6 +35,7 @@ export default function TransactionsList({
   const filteredGroups = useMemo(() => groupWalletHistoryByDay(filtered), [filtered])
   const totals = useMemo(() => computeTxTotals(filtered), [filtered])
   const hasData = transactions.length > 0
+  const showSkeleton = isFiltering || (loading && !hasData)
   const activeFilters = activeTxFilterChips(filter)
 
   return (
@@ -94,13 +95,7 @@ export default function TransactionsList({
             </button>
           </div>
         )}
-        <div className="relative isolate" aria-busy={isFiltering}>
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
-            <div
-              className={`sticky top-0 h-dvh max-h-full backdrop-blur-[2px] bg-white/10 dark:bg-dash-primary-dark-blue/10 will-change-opacity transition-opacity duration-150 motion-reduce:transition-none ${isFiltering ? 'opacity-100' : 'opacity-0'}`}
-            />
-          </div>
-          <div inert={isFiltering} className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5" aria-busy={showSkeleton}>
           <PartialDataNotice />
           {platformFailed && (
             <div role={'status'} className={'flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3 self-start'}>
@@ -110,13 +105,13 @@ export default function TransactionsList({
               </Text>
             </div>
           )}
-          {loading && !hasData && <ListSkeleton rows={3} rowClassName={'h-[4.25rem] rounded-[.875rem]'} />}
+          {showSkeleton && <ListSkeleton rows={3} rowClassName={'h-[4.25rem] rounded-[.875rem]'} />}
           {err && <NoResults noResults={'Failed to load transactions'} />}
-          {!loading && !err && !hasData && (
+          {!showSkeleton && !loading && !err && !hasData && (
             <NoResults noResults={platformFailed ? 'No transactions available. Platform history could not be loaded.' : 'No transactions found'} />
           )}
-          {!loading && hasData && filtered.length === 0 && <NoResults noResults={filters.noMatch} />}
-          {filteredGroups.map((group) => (
+          {!showSkeleton && !loading && hasData && filtered.length === 0 && <NoResults noResults={filters.noMatch} />}
+          {!showSkeleton && filteredGroups.map((group) => (
             <div key={group.date?.getTime() ?? 'unknown'} className={'flex flex-col gap-[.9375rem]'}>
               {group.date ? <DateBlock timestamp={group.date} format={'dateOnly'} /> : (
                 <Text size={12} weight={'medium'} color={'brand'} opacity={40}>Date unavailable</Text>
@@ -132,7 +127,6 @@ export default function TransactionsList({
               ))}
             </div>
           ))}
-          </div>
         </div>
       </div>
     </div>
