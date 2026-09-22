@@ -4,7 +4,7 @@ import { transactionsPage } from '@renderer/constants'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { changeTxFilterSource, isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'
 import type { FilterSectionProps, TransactionsFilterProps } from '@renderer/types/WalletTransaction'
-import { TX_BALANCE_CHANGE_OPTIONS, TX_FILTER_LABELS, TX_SOURCE_OPTIONS, TX_STATUS_OPTIONS } from '@renderer/constants/transactionFilters'
+import { TX_BALANCE_CHANGE_OPTIONS, TX_FILTER_LABELS, TX_SOURCE_OPTIONS } from '@renderer/constants/transactionFilters'
 
 function FilterSection<T extends string>({ label, options, selected, onSelect }: FilterSectionProps<T>): React.JSX.Element {
   return (
@@ -82,12 +82,6 @@ export default function TransactionsFilter(props: TransactionsFilterProps): Reac
             options={transactionTypeOptions(props.transactions, props.filter.source)}
             selected={props.filter.type}
             onSelect={(type) => props.onChange({ ...props.filter, type })}
-          />
-          <FilterSection
-            label={TX_FILTER_LABELS.status}
-            options={TX_STATUS_OPTIONS}
-            selected={props.filter.status}
-            onSelect={(status) => props.onChange({ ...props.filter, status })}
           />
         </div>
       )}
