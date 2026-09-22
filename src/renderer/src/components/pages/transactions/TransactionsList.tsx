@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useDeferredValue, useMemo } from 'react'
 import { DateBlock } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { CloseIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
@@ -28,8 +28,10 @@ export default function TransactionsList({
 }: TransactionsListProps): React.JSX.Element {
   const { title, filters } = transactionsPage.transactions
   const { isBalanceVisible } = useBalanceVisibility()
+  const appliedFilter = useDeferredValue(filter)
+  const isFiltering = appliedFilter !== filter
   const transactions = useMemo(() => mergeWalletTransactions(groups.flatMap((group) => group.transactions), platform), [groups, platform])
-  const filtered = useMemo(() => filterTransactions(transactions, filter), [transactions, filter])
+  const filtered = useMemo(() => filterTransactions(transactions, appliedFilter), [transactions, appliedFilter])
   const filteredGroups = useMemo(() => groupWalletHistoryByDay(filtered), [filtered])
   const totals = useMemo(() => computeTxTotals(filtered), [filtered])
   const hasData = transactions.length > 0
@@ -92,7 +94,13 @@ export default function TransactionsList({
             </button>
           </div>
         )}
-        <div className={'flex flex-col gap-5'}>
+        <div className="relative isolate" aria-busy={isFiltering}>
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
+            <div
+              className={`sticky top-0 h-dvh max-h-full backdrop-blur-[2px] bg-white/10 dark:bg-dash-primary-dark-blue/10 will-change-opacity transition-opacity duration-150 motion-reduce:transition-none ${isFiltering ? 'opacity-100' : 'opacity-0'}`}
+            />
+          </div>
+          <div inert={isFiltering} className="flex flex-col gap-5">
           <PartialDataNotice />
           {platformFailed && (
             <div role={'status'} className={'flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3 self-start'}>
@@ -124,6 +132,7 @@ export default function TransactionsList({
               ))}
             </div>
           ))}
+          </div>
         </div>
       </div>
     </div>
