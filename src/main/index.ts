@@ -95,6 +95,9 @@ const createWindow = (): void => {
   mainWindow.on('unmaximize', persistWindowState)
   mainWindow.on('close', persistWindowState)
   mainWindow.on('session-end', persistWindowState)
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -126,6 +129,20 @@ const createWindow = (): void => {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+// start() registers every ipcMain handler and spawns the utility processes, so
+// reopening the window must reuse the first run rather than start a second backend.
+let backendStarted: Promise<void> | null = null
+
+const openWindow = (): void => {
+  backendStarted ??= backend.start()
+  backendStarted
+    .then(createWindow)
+    .catch((err) => {
+      log.error(err)
+      dialog.showErrorBox('Startup failed', String(err))
+    })
 }
 
 // Dark mode
@@ -172,21 +189,11 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  backend.start()
-    .then(createWindow)
-    .catch((err) => {
-      log.error(err)
-      dialog.showErrorBox('Startup failed', String(err))
-    })
+  openWindow()
 
   app.on('activate', () => {
     if (mainWindow === null) {
-      backend.start()
-        .then(createWindow)
-        .catch((err) => {
-          log.error(err)
-          dialog.showErrorBox('Startup failed', String(err))
-        })
+      openWindow()
     }
   })
 })
