@@ -18,7 +18,7 @@ export function transactionTypeOptions(transactions: PlatformTransaction[], sour
   const options: FilterOption<TxFilter['type']>[] = [
     ...TX_CORE_TYPE_OPTIONS,
     ...Array.from(new Set(transactions.map((tx) => tx.type))).sort()
-      .map((type) => ({ value: `platform:${type}` as const, label: `L2 Evo: ${platformTransactionTitle(type)}` })),
+      .map((type) => ({ value: `platform:${type}` as const, label: `L2: ${platformTransactionTitle(type)}` })),
   ]
   return options.filter((option) => source === 'all' || option.value === 'all' || option.value.startsWith(`${source}:`))
 }
@@ -40,7 +40,7 @@ export function activeTxFilterChips(filter: TxFilter): TxFilterChip[] {
     const value = filter[field]
     if (value === 'all') continue
     const label = options[field].find((option) => option.value === value)?.label
-      ?? `L2 Evo: ${platformTransactionTitle(value.slice('platform:'.length))}`
+      ?? `L2: ${platformTransactionTitle(value.slice('platform:'.length))}`
     chips.push({ field, label: `${TX_FILTER_LABELS[field]}: ${label}` })
   }
   if (filter.search.trim()) chips.push({ field: 'search', label: `${TX_FILTER_LABELS.search}: ${filter.search.trim()}` })
