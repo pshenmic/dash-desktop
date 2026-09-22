@@ -1,13 +1,42 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
+import type {TransitionFeeOperation} from '../../platform/types/messages'
 
 export const CREDITS_PER_DUFF = 1_000n
 
-export const DEFAULT_PLATFORM_FEE_MULTIPLIER = 6
-export const DEFAULT_CORE_FEE_MULTIPLIER = 1
-// A metered fee is already the consensus minimum, so below 1 the wallet would
-// underpay its own transitions — a guaranteed rejection, not a cheaper send.
+export const TRANSITION_FEE_OPERATIONS = [
+  'shield',
+  'identityToAddress',
+  'identityToIdentity',
+  'identityWithdrawal',
+  'assetLockFunding',
+  'assetLockShield',
+  'identityRegister',
+  'identityTopUpL1',
+  'addressFundsTransfer',
+  'addressWithdrawal',
+  'identityCreate',
+  'identityTopUp',
+] as const satisfies readonly TransitionFeeOperation[]
+
+export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, number> = {
+  identityWithdrawal: 2,
+  addressWithdrawal: 2,
+  identityTopUpL1: 2,
+  assetLockFunding: 2,
+  assetLockShield: 2,
+  shield: 4,
+  identityToAddress: 3,
+  addressFundsTransfer: 4,
+  identityRegister: 3,
+  identityTopUp: 7,
+  identityCreate: 10,
+  identityToIdentity: 45,
+}
+
 export const MIN_FEE_MULTIPLIER = 1
-export const MAX_FEE_MULTIPLIER = 20
+export const MAX_FEE_MULTIPLIER = 50
+
+export const DEFAULT_CORE_FEE_MULTIPLIER = 1
 
 export const MIN_OUTPUT_CREDITS = 500_000n
 export const MIN_INPUT_CREDITS = 100_000n

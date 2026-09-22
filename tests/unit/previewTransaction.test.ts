@@ -13,7 +13,7 @@ import {UTXO} from '../../src/main/src/types/UTXO'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {PreviewEntry, PreviewParams} from '../../src/main/src/types/TransactionPreview'
 import {ShieldedSpendPlan, ShieldedSyncState} from '../../src/main/src/types/Shielded'
-import {FeeQuoteParams, UnsignedTransition} from '../../src/main/platform/types/messages'
+import {FeeQuoteParams, TransitionFeeOperation, UnsignedTransition} from '../../src/main/platform/types/messages'
 import {coreFeeDuffsFor, coreFeePerByte} from '../../src/main/src/utils/coreFeeRate'
 import {lockedDuffsFor} from '../../src/main/src/utils/assetLockTx'
 import {ASSET_LOCK_PAYLOAD_BYTES, DUST_THRESHOLD_DUFFS} from '../../src/main/src/constants/chain'
@@ -41,7 +41,10 @@ const ONE_DASH = 100_000_000n
 const BASE_FEE = 1_000_000n
 const NONCE = 7n
 const TRANSITION_HEX = 'deadbeef'
-const METERED_FEE = BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER)
+// Each operation carries its own multiplier, so a preview is checked against the
+// one it was quoted under rather than a single number that happens to match.
+const feeOf = (operation: TransitionFeeOperation): bigint =>
+  BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER[operation])
 
 const coreFee = (inputsCount: number, outputsCount: number): bigint =>
   coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, outputsCount, true)
@@ -209,14 +212,14 @@ describe('previewTransaction — asset locks', () => {
       recipients: [{address: PLATFORM_A, amount: amountDuffs}],
     }))
 
-    const lockDuffs = lockedDuffsFor(amountDuffs, METERED_FEE)
+    const lockDuffs = lockedDuffsFor(amountDuffs, feeOf('assetLockFunding'))
     expect(preview.outputs).toEqual([
       {role: 'recipient', address: PLATFORM_A, amount: amountDuffs, unit: 'duffs', reference: null},
       {role: 'credit', address: CREDIT, amount: lockDuffs, unit: 'duffs', reference: null},
       {role: 'change', address: CHANGE, amount: ONE_DASH - lockDuffs - assetLockFee(1), unit: 'duffs', reference: null},
     ])
     expect(preview.feeDuffs).toBe(assetLockFee(1))
-    expect(preview.feeCredits).toBe(METERED_FEE)
+    expect(preview.feeCredits).toBe(feeOf('assetLockFunding'))
   })
 
   // The funding prices its transition against the credits the lock will create,
@@ -242,12 +245,12 @@ describe('previewTransaction — platform addresses', () => {
     }))
 
     expect(preview.inputs).toEqual([
-      {role: 'feeInput', address: PLATFORM_A, amount: 1_000_000n + METERED_FEE, unit: 'credits', reference: null},
+      {role: 'feeInput', address: PLATFORM_A, amount: 1_000_000n + feeOf('addressFundsTransfer'), unit: 'credits', reference: null},
     ])
     expect(preview.outputs).toEqual([
       {role: 'recipient', address: PLATFORM_B, amount: 1_000_000n, unit: 'credits', reference: null},
     ])
-    expect(preview.feeCredits).toBe(METERED_FEE)
+    expect(preview.feeCredits).toBe(feeOf('addressFundsTransfer'))
     expect(preview.feeDuffs).toBeNull()
   })
 
@@ -267,7 +270,7 @@ describe('previewTransaction — platform addresses', () => {
       },
     }))
 
-    expect(preview.outputs.map(output => output.amount)).toEqual([1_000_000n, 2_000_000n - METERED_FEE])
+    expect(preview.outputs.map(output => output.amount)).toEqual([1_000_000n, 2_000_000n - feeOf('addressFundsTransfer')])
     expect(preview.inputs.map(input => input.role)).toEqual(['input'])
   })
 
@@ -292,7 +295,7 @@ describe('previewTransaction — identities and the pool', () => {
     }))
 
     expect(preview.inputs).toEqual([
-      {role: 'input', address: IDENTITY, amount: 1_000_000n + METERED_FEE, unit: 'credits', reference: null},
+      {role: 'input', address: IDENTITY, amount: 1_000_000n + feeOf('identityToAddress'), unit: 'credits', reference: null},
     ])
     expect(preview.outputs).toEqual([
       {role: 'recipient', address: PLATFORM_A, amount: 1_000_000n, unit: 'credits', reference: null},
@@ -309,7 +312,7 @@ describe('previewTransaction — identities and the pool', () => {
     }))
 
     expect(preview.inputs).toEqual([
-      {role: 'input', address: PLATFORM_B, amount: 1_000_000n + METERED_FEE, unit: 'credits', reference: null},
+      {role: 'input', address: PLATFORM_B, amount: 1_000_000n + feeOf('shield'), unit: 'credits', reference: null},
     ])
   })
 
@@ -398,7 +401,7 @@ describe('previewTransaction — the transaction it previews', () => {
     const unsigned = Transaction.fromHex(preview.unsignedHex!)
 
     expect(unsigned.type).toBe(TransactionType.TRANSACTION_ASSET_LOCK)
-    expect(unsigned.outputs[0].satoshis).toBe(lockedDuffsFor(amountDuffs, METERED_FEE))
+    expect(unsigned.outputs[0].satoshis).toBe(lockedDuffsFor(amountDuffs, feeOf('assetLockFunding')))
     expect(unsigned.extraPayload).toBeDefined()
   })
 
@@ -474,7 +477,7 @@ describe('previewTransaction — the transaction it previews', () => {
   // derive, and a pool spend needs a proof that costs seconds.
   it.each(['identityCreate', 'shieldedTransfer'] as const)('has no bytes to show for %s', async operation => {
     const {svc, request} = service({
-      candidates: [candidate(PLATFORM_A, 10_000_000n, 1)],
+      candidates: [candidate(PLATFORM_A, 100_000_000n, 1)],
       plan: {notes: [], feeCredits: 400_000n, totalCredits: 2_000_000n},
     })
 

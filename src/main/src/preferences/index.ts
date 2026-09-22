@@ -91,13 +91,18 @@ export class Preferences {
     const defaults = Preferences.default()
     const rawGeneral = (raw.general ?? {}) as Partial<GeneralPreferencesJSON>
 
+    const rawMultiplier = rawGeneral.platformFeeMultiplier
+    const platformFeeMultiplier = typeof rawMultiplier === 'object' && rawMultiplier !== null
+      ? rawMultiplier
+      : defaults.general.platformFeeMultiplier
+
     const instance = new Preferences()
     instance.version = Preferences.CURRENT_VERSION
     instance.general = new GeneralPreferences(
       rawGeneral.language ?? defaults.general.language,
       rawGeneral.currency ?? defaults.general.currency,
       rawGeneral.connectionType ?? defaults.general.connectionType,
-      rawGeneral.platformFeeMultiplier ?? defaults.general.platformFeeMultiplier,
+      platformFeeMultiplier,
       rawGeneral.coreFeeMultiplier ?? defaults.general.coreFeeMultiplier,
       rawGeneral.logLevel ?? defaults.general.logLevel,
     )

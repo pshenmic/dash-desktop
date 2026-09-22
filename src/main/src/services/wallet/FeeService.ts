@@ -387,22 +387,19 @@ export class FeeService {
     )
   }
 
-  // What consensus charges for this transition, plus the user's headroom. The
-  // multiplier never touches a shielded fee, which the pool carves to the
-  // credit, so only a metered quote is scaled.
   private async protocolFee(
     wallet: Wallet,
     operation: TransitionFeeOperation,
     params: FeeParams,
     inputCount: number,
   ): Promise<bigint> {
-    const rate = coreFeePerByte(this.preferences.general.coreFeeMultiplier)
+    const {coreFeeMultiplier, platformFeeMultiplier} = this.preferences.general
     const quote = await this.platform.request('transitionFee', wallet.network, {
       operation,
-      params: {...params, inputCount, coreFeePerByte: rate},
+      params: {...params, inputCount, coreFeePerByte: coreFeePerByte(coreFeeMultiplier)},
     })
     if (!quote.metered) return quote.feeCredits
-    return quote.feeCredits * BigInt(this.preferences.general.platformFeeMultiplier)
+    return quote.feeCredits * BigInt(platformFeeMultiplier[operation])
   }
 
   // A quote is asked for before the amount is affordable, so a selection that

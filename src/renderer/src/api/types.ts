@@ -270,7 +270,7 @@ export interface GeneralPreferencesJSON {
   language: string
   currency: string
   connectionType: ConnectionType
-  platformFeeMultiplier: number
+  platformFeeMultiplier: Partial<Record<TransferOperation, number>>
   coreFeeMultiplier: number
 }
 
