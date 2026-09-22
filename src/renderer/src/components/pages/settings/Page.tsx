@@ -158,8 +158,8 @@ export default function Settings(): React.JSX.Element {
     if (!walletId || exportPending) return
     setExportPending(true)
     try {
-      const raw = await API.getTransactions(walletId)
-      const rows: CsvTxRow[] = (raw ?? []).map((tx) => ({
+      const { core } = await API.getTransactions(walletId)
+      const rows: CsvTxRow[] = core.map((tx) => ({
         date: new Date(tx.date),
         direction: tx.direction === 1 ? 'in' : 'out',
         amountDuffs: tx.transferAmount,

@@ -12,14 +12,15 @@ import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {
   DashscanAddressInfo,
   DashscanCursorPage,
-  DashscanRequestError,
   DashscanPage,
   DashscanTransaction,
   DashscanUTXO,
   DashscanXpubAddress,
   DashscanXpubSummary,
 } from '../types/Dashscan'
+import {JsonRequest, JsonRequestError} from '../types/JsonRequest'
 import {TxLockStatus} from '../types/TxLockStatus'
+import {requestJson} from '../utils/requestJson'
 import {Logger} from '../utils/logger'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
@@ -42,7 +43,7 @@ const statusProbes = new Set<Network>()
 const log = new Logger('dashscan')
 
 export class DashscanWalletProvider implements WalletProvider {
-  private baseUrl: string
+  private request: JsonRequest
 
   constructor(
     private readonly network: Network,
@@ -51,46 +52,12 @@ export class DashscanWalletProvider implements WalletProvider {
     private readonly walletDAO: WalletDAO,
     private readonly transactionDAO: TransactionDAO,
   ) {
-    this.baseUrl = DASHSCAN_BASE_URLS[network]
-  }
-
-  // Every call through here is a read — broadcast runs over the p2p pool — so a
-  // retry can never resend a transaction.
-  async sendRequest<T>(path: string, payload?: unknown): Promise<T> {
-    let lastError: unknown
-
-    for (let attempt = 0; attempt <= DASHSCAN_RETRY_DELAYS_MS.length; attempt++) {
-      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, DASHSCAN_RETRY_DELAYS_MS[attempt - 1]))
-
-      let response: Response
-      try {
-        response = await net.fetch(`${this.baseUrl}${path}`, {
-          signal: AbortSignal.timeout(DASHSCAN_REQUEST_TIMEOUT_MS),
-          ...(payload != null
-            ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)}
-            : {}),
-        })
-      } catch (err) {
-        lastError = err
-        continue
-      }
-
-      if (response.ok) return await response.json() as T
-
-      const body = (await response.text().catch(() => '')).slice(0, 500)
-      lastError = Object.assign(
-        new Error(`${response.status}${body ? ` — ${body}` : ''}`),
-        {status: response.status},
-      )
-      // 4xx is our request being wrong; repeating it just wastes the deadline.
-      if (response.status < 500 && response.status !== 429) break
+    this.request = {
+      baseUrl: DASHSCAN_BASE_URLS[network],
+      source: 'Dashscan',
+      timeoutMs: DASHSCAN_REQUEST_TIMEOUT_MS,
+      retryDelaysMs: DASHSCAN_RETRY_DELAYS_MS,
     }
-
-    const detail = lastError instanceof Error ? lastError.message : String(lastError)
-    throw Object.assign(
-      new Error(`Dashscan request failed (${path}): ${detail}`),
-      {status: (lastError as {status?: number}).status ?? null},
-    ) as DashscanRequestError
   }
 
   private chunkAddresses(addresses: string[]): string[][] {
@@ -103,7 +70,7 @@ export class DashscanWalletProvider implements WalletProvider {
 
   private async addressInfo(addresses: string[]): Promise<DashscanAddressInfo[]> {
     const chunks = await Promise.all(this.chunkAddresses(addresses).map(chunk =>
-      this.sendRequest<DashscanAddressInfo[]>(`/addresses/info?addresses=${chunk.join(',')}`)
+      requestJson<DashscanAddressInfo[]>(this.request, `/addresses/info?addresses=${chunk.join(',')}`)
     ))
     return chunks.flat()
   }
@@ -127,7 +94,7 @@ export class DashscanWalletProvider implements WalletProvider {
 
     for (let page = 0; page < XPUB_MAX_PAGES; page++) {
       const {resultSet, pagination}: DashscanCursorPage<DashscanTransaction> =
-        await this.sendRequest<DashscanCursorPage<DashscanTransaction>>('/xpub/transactions', {
+        await requestJson<DashscanCursorPage<DashscanTransaction>>(this.request, '/xpub/transactions', {
           xpub,
           gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
           limit: XPUB_PAGE_LIMIT,
@@ -173,7 +140,7 @@ export class DashscanWalletProvider implements WalletProvider {
   // Summed over the server's own gap walk, and includes unconfirmed outputs.
   async getWalletBalance(): Promise<bigint> {
     const xpub = await this.requireXpub()
-    const {balance} = await this.sendRequest<DashscanXpubSummary>('/xpub', {
+    const {balance} = await requestJson<DashscanXpubSummary>(this.request, '/xpub', {
       xpub,
       gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
     })
@@ -190,7 +157,7 @@ export class DashscanWalletProvider implements WalletProvider {
   }
 
   async getTransactionByHash(txId: string): Promise<Transaction> {
-    const tx = await this.sendRequest<DashscanTransaction>(`/transaction/${txId}`)
+    const tx = await requestJson<DashscanTransaction>(this.request, `/transaction/${txId}`)
 
     const owned = await this.allWalletAddresses()
     const [transaction] = dashscanToWalletTransactions([tx], this.walletId, owned)
@@ -204,7 +171,7 @@ export class DashscanWalletProvider implements WalletProvider {
     const collected: DashscanUTXO[] = []
 
     for (let page = 1; ; page++) {
-      const {resultSet, pagination} = await this.sendRequest<DashscanPage<DashscanUTXO>>('/xpub/utxo', {
+      const {resultSet, pagination} = await requestJson<DashscanPage<DashscanUTXO>>(this.request, '/xpub/utxo', {
         xpub,
         gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
         page,
@@ -237,7 +204,7 @@ export class DashscanWalletProvider implements WalletProvider {
   }
 
   async ensureReady(): Promise<void> {
-    const response = await net.fetch(`${this.baseUrl}/status`, {
+    const response = await net.fetch(`${this.request.baseUrl}/status`, {
       signal: AbortSignal.timeout(DASHSCAN_REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`Dashscan status request failed (${response.status})`)
@@ -276,7 +243,7 @@ export class DashscanWalletProvider implements WalletProvider {
 
   async getTxLockStatus(txid: string): Promise<TxLockStatus> {
     try {
-      const tx = await this.sendRequest<DashscanTransaction>(`/transaction/${txid}`)
+      const tx = await requestJson<DashscanTransaction>(this.request, `/transaction/${txid}`)
       return {
         instantLocked: tx.instantLock != null,
         chainlocked: tx.chainLocked === true,
@@ -285,7 +252,7 @@ export class DashscanWalletProvider implements WalletProvider {
     } catch (err) {
       // 404 is the indexer saying it has never seen the transaction, the same
       // claim the local store makes. Any other failure is not an answer at all.
-      if ((err as DashscanRequestError).status === 404) {
+      if ((err as JsonRequestError).status === 404) {
         return {instantLocked: false, chainlocked: false, confirmed: false}
       }
       throw err
@@ -306,7 +273,7 @@ export class DashscanWalletProvider implements WalletProvider {
     const usage: AddressUsage[] = []
 
     for (let page = 1; ; page++) {
-      const {resultSet, pagination} = await this.sendRequest<DashscanPage<DashscanXpubAddress>>(
+      const {resultSet, pagination} = await requestJson<DashscanPage<DashscanXpubAddress>>(this.request,
         '/xpub/addresses',
         {xpub, gap_limit: gapLimit, page, limit: XPUB_PAGE_LIMIT},
       )
