@@ -7,8 +7,8 @@ import DashBigNumber from "@renderer/components/ui/DashBigNumber"
 import CreditsAmount from "@renderer/components/ui/CreditsAmount"
 import { TimeDelta } from "dash-ui-kit/react"
 import { cva } from "class-variance-authority"
-import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtended"
-import type { TransactionCardItem } from "@renderer/types/WalletTransaction"
+import { Text, ExternalLinkIcon, Tooltip } from "@renderer/components/dash-ui-kit-enxtended"
+import type { TransactionCardProps } from "@renderer/types/WalletTransaction"
 import { formatTransactionCardAmount } from "@renderer/utils/walletTransactions"
 import { useFiat } from "@renderer/hooks/useFiat"
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
@@ -50,8 +50,9 @@ export default function TransactionCard({
   labelValue,
   amount,
   date,
-  direction
-} : TransactionCardItem): React.JSX.Element {
+  direction,
+  fullIdentifiers = false
+} : TransactionCardProps): React.JSX.Element {
   let variantAmountSummary = TRANSACTION_CARD_STATUS_VARIANTS[status]
   if (kind === undefined && status !== 'failed') variantAmountSummary = 'muted'
   const isIncoming = direction === 'in'
@@ -69,20 +70,29 @@ export default function TransactionCard({
       </div>
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
         <div className={"flex min-w-0 items-center gap-[.3125rem]"} title={title}>
-          <CustomBadge text={kind ?? ''} variant={variantAmountSummary} size={"s"} className={"shrink-0"} />
+          <Tooltip label={kind === 'platform' ? 'L2 Dash Evo Chain' : kind === 'core' ? 'L1 Dash Core Chain' : undefined}>
+            <span className="inline-flex shrink-0" title="">
+              <CustomBadge
+                text={kind === 'platform' ? 'evo' : kind ?? ''}
+                variant={variantAmountSummary}
+                size={"s"}
+                className={`w-12 shrink-0 ${kind === 'platform' ? 'bg-violet-500/15! text-violet-700! dark:bg-violet-400/20! dark:text-violet-300!' : ''}`}
+              />
+            </span>
+          </Tooltip>
           <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[120%]"}>
             {title}
           </Text>
         </div>
 
         <div className={"min-w-0"} title={`${subtitleLabel}: ${labelValue}`}>
-          <Text reset size={10} weight={"light"} color={"brand"} opacity={30} className={"block truncate"}>
+          <Text reset size={10} weight={"light"} color={"brand"} opacity={30} className={fullIdentifiers ? "block [overflow-wrap:anywhere]" : "block truncate"}>
             {subtitleLabel}: {labelValue}
           </Text>
         </div>
 
         <div
-          className={"flex min-w-0 items-center gap-[.25rem]"}
+          className={`flex min-w-0 gap-[.25rem] ${fullIdentifiers ? 'items-start' : 'items-center'}`}
           title={id}
           aria-label={`${transactionsPage.detail.transactionId}: ${id}`}
         >
@@ -95,7 +105,7 @@ export default function TransactionCard({
             weight={"medium"}
             color={"brand"}
             opacity={50}
-            className={"min-w-0 truncate font-mono"}
+            className={fullIdentifiers ? "min-w-0 whitespace-nowrap font-mono text-[.5625rem]!" : "min-w-0 truncate font-mono"}
           >
             {id}
           </Text>

@@ -92,7 +92,7 @@ export default function ActivityChart({ months, hidden }: ActivityChartProps): R
 
   return (
     <div className={"flex flex-col gap-5 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
-      <div className={"flex items-center justify-between"}>
+      <div className={"flex flex-wrap items-center justify-between gap-2"}>
         <Text size={14} weight={"medium"} color={"brand"}>
           {title}
         </Text>

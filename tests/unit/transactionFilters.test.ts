@@ -125,10 +125,10 @@ describe('transaction type filters', () => {
     const platform = [platformTransaction({ type: 'transfer' }), platformTransaction({ type: 'FUTURE_OPERATION' }), platformTransaction({ type: 'transfer' })]
     expect(transactionTypeOptions(platform)).toEqual([
       { value: 'all', label: 'All' },
-      { value: 'core:transfer', label: 'Core: Transfers' },
-      { value: 'core:assetLock', label: 'Core: Asset locks' },
-      { value: 'platform:FUTURE_OPERATION', label: 'Platform: Future Operation' },
-      { value: 'platform:transfer', label: 'Platform: Transfer' },
+      { value: 'core:transfer', label: 'L1 Core: Transfers' },
+      { value: 'core:assetLock', label: 'L1 Core: Asset locks' },
+      { value: 'platform:FUTURE_OPERATION', label: 'L2 Evo: Future Operation' },
+      { value: 'platform:transfer', label: 'L2 Evo: Transfer' },
     ])
     const history = mergeWalletTransactions([coreTransaction(), coreTransaction({ id: 'lock', vout: [output('')] })], platform)
     expect(filterTransactions(history, { ...DEFAULT_TX_FILTER, type: 'core:transfer' }).map((tx) => tx.kind)).toEqual(['core'])
@@ -267,13 +267,13 @@ describe('transaction filter controls', () => {
     const platform = [platformTransaction(), platformTransaction({ type: 'FUTURE_OPERATION' })]
     expect(transactionTypeOptions(platform, 'core')).toEqual([
       { value: 'all', label: 'All' },
-      { value: 'core:transfer', label: 'Core: Transfers' },
-      { value: 'core:assetLock', label: 'Core: Asset locks' },
+      { value: 'core:transfer', label: 'L1 Core: Transfers' },
+      { value: 'core:assetLock', label: 'L1 Core: Asset locks' },
     ])
     expect(transactionTypeOptions(platform, 'platform')).toEqual([
       { value: 'all', label: 'All' },
-      { value: 'platform:ADDRESS_FUNDS_TRANSFER', label: 'Platform: Address Funds Transfer' },
-      { value: 'platform:FUTURE_OPERATION', label: 'Platform: Future Operation' },
+      { value: 'platform:ADDRESS_FUNDS_TRANSFER', label: 'L2 Evo: Address Funds Transfer' },
+      { value: 'platform:FUTURE_OPERATION', label: 'L2 Evo: Future Operation' },
     ])
     expect(transactionTypeOptions([], 'platform')).toEqual([{ value: 'all', label: 'All' }])
   })
@@ -295,14 +295,14 @@ describe('transaction filter controls', () => {
       source: 'platform', balanceChange: TxBalanceChangeFilter.Decrease,
       type: 'platform:FUTURE_OPERATION', status: 'failed', search: ' hash ',
     })).toEqual([
-      { field: 'source', label: 'Source: Platform' },
+      { field: 'source', label: 'Source: L2 Evo' },
       { field: 'balanceChange', label: 'Balance change: Decrease' },
-      { field: 'type', label: 'Type: Platform: Future Operation' },
+      { field: 'type', label: 'Type: L2 Evo: Future Operation' },
       { field: 'status', label: 'Status: Failed' },
       { field: 'search', label: 'Search: hash' },
     ])
     expect(activeTxFilterChips({ ...DEFAULT_TX_FILTER, type: 'core:transfer' }))
-      .toEqual([{ field: 'type', label: 'Type: Core: Transfers' }])
+      .toEqual([{ field: 'type', label: 'Type: L1 Core: Transfers' }])
     expect(activeTxFilterChips({ ...DEFAULT_TX_FILTER, search: '   ' })).toEqual([])
   })
 })

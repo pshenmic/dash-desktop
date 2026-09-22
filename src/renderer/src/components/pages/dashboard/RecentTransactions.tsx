@@ -34,7 +34,7 @@ export default function RecentTransactions({
             onClick={() => onTransactionClick(transaction.selection)}
             className={"cursor-pointer"}
           >
-            <TransactionCard {...transaction} />
+            <TransactionCard {...transaction} fullIdentifiers />
           </div>
         ))}
       </div>

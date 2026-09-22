@@ -54,6 +54,10 @@ export interface TransactionCardAmount {
   duffs: bigint
 }
 
+export interface TransactionCardProps extends TransactionCardItem {
+  fullIdentifiers?: boolean
+}
+
 export interface WalletHistoryGroup {
   date: Date | null
   transactions: WalletHistoryItem[]

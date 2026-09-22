@@ -17,8 +17,8 @@ export const BALANCE_CHANGE_BY_DIRECTION: Record<TransactionCardItem['direction'
 
 export const TX_SOURCE_OPTIONS: FilterOption<TxFilter['source']>[] = [
   { value: 'all', label: 'All' },
-  { value: 'core', label: 'Core' },
-  { value: 'platform', label: 'Platform' },
+  { value: 'core', label: 'L1 Core' },
+  { value: 'platform', label: 'L2 Evo' },
 ]
 
 export const TX_BALANCE_CHANGE_OPTIONS: FilterOption<TxFilter['balanceChange']>[] = [
@@ -42,8 +42,8 @@ export const TX_FILTER_CHIP_FIELDS: Array<Exclude<keyof TxFilter, 'search'>> = [
 
 export const TX_CORE_TYPE_OPTIONS: FilterOption<TxFilter['type']>[] = [
   { value: 'all', label: 'All' },
-  { value: 'core:transfer', label: 'Core: Transfers' },
-  { value: 'core:assetLock', label: 'Core: Asset locks' },
+  { value: 'core:transfer', label: 'L1 Core: Transfers' },
+  { value: 'core:assetLock', label: 'L1 Core: Asset locks' },
 ]
 
 export const TX_STATUS_OPTIONS: FilterOption<TxFilter['status']>[] = [

@@ -13,7 +13,7 @@ import {
 } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import NoResults from '@renderer/components/ui/NoResults'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
-import { dashboardPage, RECENT_TX_LIMIT } from '@renderer/constants'
+import { dashboardPage, RECENT_TX_LIMIT, ACTIVITY_MONTH_LIMIT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import type { DashboardContentProps } from '@renderer/types/WalletTransaction'
 import { mergeWalletTransactions } from '@renderer/utils/walletTransactions'
@@ -47,7 +47,7 @@ function DashboardSkeleton(): React.JSX.Element {
           <div key={i} className={"h-27 rounded-3xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
         ))}
       </div>
-      <div className={"grid grid-cols-1 xl:grid-cols-2 gap-4"}>
+      <div className={"grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4"}>
         <div className={"h-60 rounded-3xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
         <div className={"h-60 rounded-3xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
       </div>
@@ -120,12 +120,12 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
           : <EmptyState />
       )}
       {!loading && !err && hasActivity && (
-        <div className={"grid grid-cols-1 xl:grid-cols-2 gap-4"}>
+        <div className={"grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4"}>
           <RecentTransactions
             transactions={recentTransactions}
             onTransactionClick={onTransactionClick}
           />
-          <ActivityChart months={stats.monthlyActivity} hidden={hideAmounts} />
+          <ActivityChart months={stats.monthlyActivity.slice(-ACTIVITY_MONTH_LIMIT)} hidden={hideAmounts} />
         </div>
       )}
 
