@@ -15,7 +15,8 @@ import NoResults from '@renderer/components/ui/NoResults'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import { dashboardPage, RECENT_TX_LIMIT } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { useWalletTransactions, WalletTxItem } from '@renderer/hooks/useWalletTransactions'
+import type { DashboardContentProps } from '@renderer/types/WalletTransaction'
+import { mergeWalletTransactions } from '@renderer/utils/walletTransactions'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { useFiat } from '@renderer/hooks/useFiat'
@@ -78,26 +79,24 @@ function EmptyState(): React.JSX.Element {
   )
 }
 
-interface DashboardContentProps {
-  onTransactionClick: (transaction: WalletTxItem) => void
-}
-
-export default function DashboardContent({ onTransactionClick }: DashboardContentProps): React.JSX.Element {
+export default function DashboardContent({ groups, platform, platformFailed, loading, err, onTransactionClick }: DashboardContentProps): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? undefined
 
-  const { groups, loading, err } = useWalletTransactions(walletId)
   const { receiving } = useAdresses(walletId)
   const { isBalanceVisible } = useBalanceVisibility()
   const { format: formatFiat, rateReady } = useFiat()
 
   const transactions = useMemo(() => groups.flatMap((g) => g.transactions), [groups])
   const stats = useMemo(() => computeWalletStats(transactions), [transactions])
-  const recentTransactions = useMemo(() => transactions.slice(0, RECENT_TX_LIMIT), [transactions])
+  const recentTransactions = useMemo(
+    () => mergeWalletTransactions(transactions, platform).slice(0, RECENT_TX_LIMIT),
+    [transactions, platform]
+  )
 
   const labels = dashboardPage.stats
   const hideAmounts = !isBalanceVisible
-  const hasActivity = stats.txCount > 0
+  const hasActivity = recentTransactions.length > 0
   const usedAddresses = receiving.filter((a) => a.isUsed).length
   const fiatSub = (duffs: bigint): string | undefined => (rateReady ? `~ ${formatFiat(duffs)}` : undefined)
 
@@ -106,18 +105,36 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
       <PartialDataNotice />
       <HeroBalance />
 
+      {platformFailed && (
+        <div role="status">
+          <Text size={12} color="brand" opacity={50}>
+            Platform history could not be refreshed. Transactions may be missing or out of date.
+          </Text>
+        </div>
+      )}
+      {loading && <DashboardSkeleton />}
+      {!loading && err && <NoResults noResults={dashboardPage.recent.error} />}
+      {!loading && !err && !hasActivity && (
+        platformFailed
+          ? <NoResults noResults="No transactions available. Platform history could not be loaded." />
+          : <EmptyState />
+      )}
+      {!loading && !err && hasActivity && (
+        <div className={"grid grid-cols-1 xl:grid-cols-2 gap-4"}>
+          <RecentTransactions
+            transactions={recentTransactions}
+            onTransactionClick={onTransactionClick}
+          />
+          <ActivityChart months={stats.monthlyActivity} hidden={hideAmounts} />
+        </div>
+      )}
+
       <SectionHeader title={dashboardPage.sections.services} />
       <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
         <ShieldedCard />
         <IdentitiesCard />
       </div>
       <NetworkCard />
-
-      {loading && <DashboardSkeleton />}
-
-      {!loading && err && <NoResults noResults={dashboardPage.recent.error} />}
-
-      {!loading && !err && !hasActivity && <EmptyState />}
 
       {!loading && !err && hasActivity && (
         <>
@@ -187,13 +204,6 @@ export default function DashboardContent({ onTransactionClick }: DashboardConten
             />
           </div>
 
-          <div className={"grid grid-cols-1 xl:grid-cols-2 gap-4"}>
-            <ActivityChart months={stats.monthlyActivity} hidden={hideAmounts} />
-            <RecentTransactions
-              transactions={recentTransactions}
-              onTransactionClick={onTransactionClick}
-            />
-          </div>
         </>
       )}
     </div>

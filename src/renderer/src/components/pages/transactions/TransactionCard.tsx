@@ -64,18 +64,22 @@ export default function TransactionCard({
 
   return (
     <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
-      <TransactionCardIcons status={status} />
+      <div className={network ? 'shrink-0 group-hover:opacity-0 group-focus-within:opacity-0' : 'shrink-0'}>
+        <TransactionCardIcons status={status} />
+      </div>
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
-        <div className={"flex items-center gap-[.3125rem]"}>
-          <CustomBadge text={kind ?? ''} variant={variantAmountSummary} size={"s"} />
-          <Text size={12} weight={"medium"} color={"brand"} className={"leading-[120%]"}>
+        <div className={"flex min-w-0 items-center gap-[.3125rem]"} title={title}>
+          <CustomBadge text={kind ?? ''} variant={variantAmountSummary} size={"s"} className={"shrink-0"} />
+          <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[120%]"}>
             {title}
           </Text>
         </div>
 
-        <Text size={10} weight={"light"} color={"brand"} opacity={30}>
-          {subtitleLabel}: {labelValue}
-        </Text>
+        <div className={"min-w-0"} title={`${subtitleLabel}: ${labelValue}`}>
+          <Text reset size={10} weight={"light"} color={"brand"} opacity={30} className={"block truncate"}>
+            {subtitleLabel}: {labelValue}
+          </Text>
+        </div>
 
         <div
           className={"flex min-w-0 items-center gap-[.25rem]"}
@@ -86,6 +90,7 @@ export default function TransactionCard({
             {transactionsPage.detail.transactionId}:
           </Text>
           <Text
+            reset
             size={10}
             weight={"medium"}
             color={"brand"}
@@ -129,10 +134,10 @@ export default function TransactionCard({
       {network && (
         <div
           className={`
-            shrink-0 overflow-hidden
-            w-0 group-hover:w-7
-            opacity-0 group-hover:opacity-100
-            transition-all duration-200 ease-out
+            absolute left-[.625rem] top-1/2 -translate-y-1/2
+            opacity-0 group-hover:opacity-100 group-focus-within:opacity-100
+            pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto
+            transition-opacity duration-200 ease-out
           `}
         >
           <button

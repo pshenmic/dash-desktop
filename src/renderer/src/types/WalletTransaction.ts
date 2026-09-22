@@ -123,3 +123,10 @@ export interface PlatformTransactionDetailProps {
   transaction: PlatformTransaction
   onBack: () => void
 }
+
+export type DashboardContentProps = Pick<TransactionsListProps, 'groups' | 'platform' | 'platformFailed' | 'loading' | 'err' | 'onTransactionClick'>
+
+export interface RecentTransactionsProps {
+  transactions: WalletHistoryItem[]
+  onTransactionClick: (transaction: SelectedTransaction) => void
+}

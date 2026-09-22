@@ -1,4 +1,4 @@
-export const RECENT_TX_LIMIT = 5
+export const RECENT_TX_LIMIT = 3
 
 export const dashboardPage = {
   hero: {
