@@ -2,21 +2,9 @@ import { useRef, useState } from 'react'
 import { Text, FilterIcon, Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { transactionsPage } from '@renderer/constants'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
-import { TxDirectionFilter } from '@renderer/enums/TxDirectionFilter'
-import { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
-import { TxFilter, isDefaultTxFilter } from '@renderer/utils/transactionFilters'
-
-interface FilterOption<T extends string> {
-  value: T
-  label: string
-}
-
-interface FilterSectionProps<T extends string> {
-  label: string
-  options: Array<FilterOption<T>>
-  selected: T
-  onSelect: (value: T) => void
-}
+import { changeTxFilterSource, isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'
+import type { FilterSectionProps, TransactionsFilterProps } from '@renderer/types/WalletTransaction'
+import { TX_BALANCE_CHANGE_OPTIONS, TX_FILTER_LABELS, TX_SOURCE_OPTIONS } from '@renderer/constants/transactionFilters'
 
 function FilterSection<T extends string>({ label, options, selected, onSelect }: FilterSectionProps<T>): React.JSX.Element {
   return (
@@ -28,6 +16,7 @@ function FilterSection<T extends string>({ label, options, selected, onSelect }:
         <button
           key={option.value}
           type={"button"}
+          aria-pressed={option.value === selected}
           onClick={() => onSelect(option.value)}
           className={`
             w-full flex items-center p-[.625rem] rounded-[.625rem] cursor-pointer text-left
@@ -42,34 +31,19 @@ function FilterSection<T extends string>({ label, options, selected, onSelect }:
   )
 }
 
-interface TransactionsFilterProps {
-  filter: TxFilter
-  onChange: (filter: TxFilter) => void
-}
-
-export default function TransactionsFilter({ filter, onChange }: TransactionsFilterProps): React.JSX.Element {
+export default function TransactionsFilter(props: TransactionsFilterProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useClickOutside(ref, () => setOpen(false))
 
   const { filter: filterLabel, filters } = transactionsPage.transactions
-  const active = !isDefaultTxFilter(filter)
-
-  const directionOptions: Array<FilterOption<TxDirectionFilter>> = [
-    { value: TxDirectionFilter.All, label: filters.direction.all },
-    { value: TxDirectionFilter.Received, label: filters.direction.received },
-    { value: TxDirectionFilter.Sent, label: filters.direction.sent },
-  ]
-  const typeOptions: Array<FilterOption<TxTypeFilter>> = [
-    { value: TxTypeFilter.All, label: filters.type.all },
-    { value: TxTypeFilter.Transfer, label: filters.type.transfer },
-    { value: TxTypeFilter.AssetLock, label: filters.type.assetLock },
-  ]
+  const active = !isDefaultTxFilter(props.filter)
 
   return (
     <div className={"relative"} ref={ref}>
       <button
         type={"button"}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={"flex items-center gap-2 px-3 py-2 rounded-[.625rem] dash-block dash-black-border cursor-pointer hover:opacity-80 transition-opacity duration-200"}
       >
@@ -79,29 +53,35 @@ export default function TransactionsFilter({ filter, onChange }: TransactionsFil
       </button>
 
       {open && (
-        <div className={"absolute right-0 top-[calc(100%+.375rem)] z-30 w-64 flex flex-col gap-2 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)]"}>
+        <div className={"absolute right-0 top-[calc(100%+.375rem)] z-30 w-64 max-h-[65vh] overflow-y-auto flex flex-col gap-2 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)]"}>
           <Input
             type={"search"}
             size={"sm"}
             colorScheme={"light"}
             variant={"filled"}
-            value={filter.search}
-            onChange={(event) => onChange({ ...filter, search: event.target.value })}
+            value={props.filter.search}
+            onChange={(event) => props.onChange({ ...props.filter, search: event.target.value })}
             placeholder={filters.search.placeholder}
             aria-label={filters.search.label}
             prefix={<SearchIcon size={14} color={"currentColor"} className={"dash-text-default"} />}
           />
           <FilterSection
-            label={filters.direction.label}
-            options={directionOptions}
-            selected={filter.direction}
-            onSelect={(direction) => onChange({ ...filter, direction })}
+            label={TX_FILTER_LABELS.source}
+            options={TX_SOURCE_OPTIONS}
+            selected={props.filter.source}
+            onSelect={(source) => props.onChange(changeTxFilterSource(props.filter, source))}
+          />
+          <FilterSection
+            label={TX_FILTER_LABELS.balanceChange}
+            options={TX_BALANCE_CHANGE_OPTIONS}
+            selected={props.filter.balanceChange}
+            onSelect={(balanceChange) => props.onChange({ ...props.filter, balanceChange })}
           />
           <FilterSection
             label={filters.type.label}
-            options={typeOptions}
-            selected={filter.type}
-            onSelect={(type) => onChange({ ...filter, type })}
+            options={transactionTypeOptions(props.transactions, props.filter.source)}
+            selected={props.filter.type}
+            onSelect={(type) => props.onChange({ ...props.filter, type })}
           />
         </div>
       )}

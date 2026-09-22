@@ -1,3 +1,26 @@
+import { CheckIcon, ClockArrowIcon, ErrorIcon, InfoCircleIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import type { TransactionCardItem } from '@renderer/types/WalletTransaction'
+
+export const TRANSACTION_CARD_STATUS_ICONS = {
+  success: CheckIcon,
+  failed: ErrorIcon,
+  pending: ClockArrowIcon,
+  unknown: InfoCircleIcon,
+}
+
+export const TRANSACTION_CARD_STATUS_VARIANTS: Record<TransactionCardItem['status'], 'default' | 'error' | 'muted'> = {
+  success: 'default',
+  failed: 'error',
+  pending: 'default',
+  unknown: 'muted',
+}
+
+export const TRANSACTION_CARD_SIGNS: Record<TransactionCardItem['direction'], string> = {
+  in: '+',
+  out: '-',
+  neutral: '',
+}
+
 interface TransactionType {
   title: string
   detailLabel: string
@@ -21,12 +44,6 @@ interface TransactionsPage {
       search: {
         label: string
         placeholder: string
-      }
-      direction: {
-        label: string
-        all: string
-        received: string
-        sent: string
       }
       type: {
         label: string
@@ -89,13 +106,7 @@ export const transactionsPage: TransactionsPage = {
     filters: {
       search: {
         label: 'Search transactions',
-        placeholder: 'txid or address',
-      },
-      direction: {
-        label: 'Direction',
-        all: 'All',
-        received: 'Received',
-        sent: 'Sent',
+        placeholder: 'Hash, address or identity',
       },
       type: {
         label: 'Type',
@@ -104,8 +115,8 @@ export const transactionsPage: TransactionsPage = {
         assetLock: 'Asset locks',
       },
       totals: {
-        received: 'Received',
-        sent: 'Sent',
+        received: 'Increase',
+        sent: 'Decrease',
       },
       noMatch: 'No transactions match the selected filter'
     }

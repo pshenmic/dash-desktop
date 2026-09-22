@@ -2,12 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Text, ArrowIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import TransactionCard from '@renderer/components/pages/transactions/TransactionCard'
 import { dashboardPage } from '@renderer/constants'
-import { WalletTxItem } from '@renderer/hooks/useWalletTransactions'
-
-interface RecentTransactionsProps {
-  transactions: WalletTxItem[]
-  onTransactionClick: (transaction: WalletTxItem) => void
-}
+import type { RecentTransactionsProps } from '@renderer/types/WalletTransaction'
 
 export default function RecentTransactions({
   transactions,
@@ -35,11 +30,11 @@ export default function RecentTransactions({
       <div className={"flex flex-col gap-[.625rem]"}>
         {transactions.map((transaction) => (
           <div
-            key={transaction.id}
-            onClick={() => onTransactionClick(transaction)}
+            key={`${transaction.kind}:${transaction.id}`}
+            onClick={() => onTransactionClick(transaction.selection)}
             className={"cursor-pointer"}
           >
-            <TransactionCard {...transaction} />
+            <TransactionCard {...transaction} fullIdentifiers />
           </div>
         ))}
       </div>

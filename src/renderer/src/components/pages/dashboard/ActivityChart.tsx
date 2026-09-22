@@ -92,7 +92,7 @@ export default function ActivityChart({ months, hidden }: ActivityChartProps): R
 
   return (
     <div className={"flex flex-col gap-5 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
-      <div className={"flex items-center justify-between"}>
+      <div className={"flex flex-wrap items-center justify-between gap-2"}>
         <Text size={14} weight={"medium"} color={"brand"}>
           {title}
         </Text>
@@ -103,8 +103,8 @@ export default function ActivityChart({ months, hidden }: ActivityChartProps): R
       </div>
 
       {max > 0n ? (
-        <div className={"flex flex-col gap-2"}>
-          <div className={"relative h-40"}>
+        <div className={"flex flex-1 flex-col gap-2"}>
+          <div className={"relative min-h-40 flex-1"}>
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio={"none"} className={"absolute inset-0 w-full h-full"}>
               <defs>
                 <linearGradient id={"dash-activity-fill"} x1={"0"} y1={"0"} x2={"0"} y2={"1"}>
@@ -145,7 +145,6 @@ export default function ActivityChart({ months, hidden }: ActivityChartProps): R
                 <div
                   key={`${month.label}-${month.year}`}
                   title={monthTooltip(month, hidden)}
-                  className={"rounded-xl hover:bg-dash-primary-dark-blue/4 dark:hover:bg-white/4 transition-colors duration-200"}
                 />
               ))}
             </div>
@@ -160,7 +159,7 @@ export default function ActivityChart({ months, hidden }: ActivityChartProps): R
           </div>
         </div>
       ) : (
-        <div className={"flex items-center justify-center h-44"}>
+        <div className={"flex flex-1 items-center justify-center min-h-44"}>
           <Text size={12} color={"brand"} opacity={40}>
             {noActivity}
           </Text>

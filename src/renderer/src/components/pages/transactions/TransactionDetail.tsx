@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Identifier, useTheme, TimeDelta, ChevronIcon, DashLogo } from 'dash-ui-kit/react'
 import { cva } from 'class-variance-authority'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
@@ -27,13 +27,13 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { Network } from '@renderer/api/types'
 import { API } from '@renderer/api'
 import { mapWalletTransaction } from '@renderer/utils/walletTransactions'
+import { coreOwnedAddresses } from '@renderer/utils/ownedAddresses'
+import { useAdresses } from '@renderer/hooks/useAdresses'
+import { BALANCE_REFRESH_MS } from '@renderer/constants'
+import DetailToken from './TransactionDetailToken'
 
 const cardStyles = cva(
   'flex flex-col gap-5 p-[.9375rem] rounded-[.9375rem] dash-card-base shadow-[0_0_50px_0_rgba(0,0,0,0.1)]'
-)
-
-const detailTokenStyles = cva(
-  'flex flex-1 items-center justify-between p-3 rounded-xl dash-block'
 )
 
 const iconCircleStyles = cva(
@@ -43,39 +43,6 @@ const iconCircleStyles = cva(
 interface TransactionDetailProps {
   transaction: WalletTxItem
   onBack: () => void
-}
-
-function DetailToken({
-  icon,
-  label,
-  value,
-  subValue,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: React.ReactNode
-  subValue?: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <div className={detailTokenStyles()}>
-      <div className={"flex items-center gap-[.625rem]"}>
-        <span className={iconCircleStyles()}>
-          {icon}
-        </span>
-        <Text size={14} weight={"medium"} color={"brand"}>
-          {label}
-        </Text>
-      </div>
-      <div className={"flex flex-col items-end gap-[.3125rem]"}>
-        <div>{value}</div>
-        {subValue && (
-          <Text size={10} weight={"medium"} color={"brand"} opacity={30}>
-            {subValue}
-          </Text>
-        )}
-      </div>
-    </div>
-  )
 }
 
 function AddressActions({
@@ -109,6 +76,9 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
   const { theme } = useTheme()
   const { status: appStatus } = useAuth()
   const network = appStatus?.network ?? null
+  const walletId = appStatus?.selectedWalletId ?? undefined
+  const { receiving, change } = useAdresses(walletId, BALANCE_REFRESH_MS)
+  const ownedAddresses = useMemo(() => coreOwnedAddresses(walletId, { receiving, change }), [walletId, receiving, change])
   const [qrAddress, setQrAddress] = useState<string | null>(null)
   const [resolvedTransaction, setResolvedTransaction] = useState(transaction)
   const [detailsLoading, setDetailsLoading] = useState(false)
@@ -296,6 +266,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                 <Identifier className={"font-mono opacity-40 dark:opacity-100"}>
                   {input.addr}
                 </Identifier>
+                {ownedAddresses.has(input.addr) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                 {input.addr && (
                   <AddressActions address={input.addr} network={network} onShowQr={setQrAddress} />
                 )}
@@ -328,6 +299,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                   output.address ? (
                     <>
                       <Identifier linesAdjustment={false} className={"whitespace-nowrap"}>{output.address}</Identifier>
+                      {ownedAddresses.has(output.address) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                       <AddressActions address={output.address} network={network} onShowQr={setQrAddress} />
                     </>
                   ) : (
