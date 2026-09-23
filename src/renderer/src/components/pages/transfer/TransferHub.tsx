@@ -63,7 +63,7 @@ import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
 import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
 import { API } from "@renderer/api";
-import { AssetLockFundingState, PlatformAddressDto, ShieldedSpendState } from "@renderer/api/types";
+import { AssetLockFundingState, ShieldedSpendState } from "@renderer/api/types";
 import type { AdvancedSendRoute, SendDraft } from "@renderer/types/SendDraft";
 import type { CoinControlSelection } from "@renderer/types/CoinControl";
 import type { SendPreviewRequest } from "@renderer/types/SendTransactionPreview";
@@ -71,7 +71,7 @@ import { sendPreviewParams, sendPreviewRequestKey } from "@renderer/utils/sendTr
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
-import { DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
+import { AUTOMATIC_PLATFORM_SELECTION, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import SendRecipientsEditor from "./SendRecipientsEditor";
@@ -240,15 +240,8 @@ function WalletTransferHub(): React.JSX.Element {
     [platformAddresses],
   )
 
-  const defaultSource = useMemo(
-    () => fundedAddresses.reduce<PlatformAddressDto | undefined>(
-      (best, a) => (best == null || BigInt(a.balanceCredits) > BigInt(best.balanceCredits) ? a : best),
-      undefined,
-    ),
-    [fundedAddresses],
-  )
-
-  const selectedSource = fundedAddresses.find(a => a.platformAddress === fromAddress) ?? defaultSource
+  // Unpicked, a shield runs the same selection as the iOS wallet across every address.
+  const pickedShieldSource = fundedAddresses.find(a => a.platformAddress === fromAddress)
   const selectedIdentity = identities.find(i => i.identifier === fromIdentity) ?? identities[0]
 
   const coreAddresses = useMemo(
@@ -320,12 +313,13 @@ function WalletTransferHub(): React.JSX.Element {
 
   let availableCredits: bigint | null = null
   if (fromKind === SourceKind.PlatformAddress) {
+    const fundedCredits = fundedAddresses.reduce((sum, address) => sum + address.balanceCredits, 0n)
     if (operation === TransferOperation.Shield) {
-      availableCredits = selectedSource?.balanceCredits ?? 0n
+      availableCredits = pickedShieldSource?.balanceCredits ?? fundedCredits
     } else if (appliedCoinControl.kind === 'platformInputs' || appliedCoinControl.kind === 'platformAddress') {
       availableCredits = selectedTotals.credits
     } else {
-      availableCredits = fundedAddresses.reduce((sum, address) => sum + address.balanceCredits, 0n)
+      availableCredits = fundedCredits
     }
   } else if (fromKind === SourceKind.Identity) {
     availableCredits = selectedIdentity ? BigInt(String(selectedIdentity.balance.amount)) : 0n
@@ -375,6 +369,7 @@ function WalletTransferHub(): React.JSX.Element {
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
     platformSource,
+    fromAddress: operation === TransferOperation.Shield ? pickedShieldSource?.platformAddress ?? null : null,
     identityId: selectedIdentity?.identifier ?? null,
     shieldedSource: shieldedSpendSource ?? null,
   })
@@ -420,7 +415,7 @@ function WalletTransferHub(): React.JSX.Element {
 
   const sourceReady = {
     [SourceKind.Core]: true,
-    [SourceKind.PlatformAddress]: selectedSource != null,
+    [SourceKind.PlatformAddress]: fundedAddresses.length > 0,
     [SourceKind.Identity]: selectedIdentity != null,
     [SourceKind.Shielded]: true,
   }[fromKind]
@@ -604,8 +599,9 @@ function WalletTransferHub(): React.JSX.Element {
           if (k === SourceKind.Identity && identities.length === 0) reloadIdentities()
         }}
         platformAddresses={fundedAddresses}
-        selectedPlatformAddress={selectedSource}
+        selectedPlatformAddress={pickedShieldSource}
         onPlatformAddressChange={setFromAddress}
+        platformAutomaticLabel={AUTOMATIC_PLATFORM_SELECTION}
         platformAddressesLoading={platformAddressesLoading}
         platformAddressesError={platformAddressesError}
         onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
@@ -831,7 +827,7 @@ function WalletTransferHub(): React.JSX.Element {
       break
     case SourceKind.PlatformAddress:
       if (operation === TransferOperation.Shield) {
-        fromDisplay = selectedSource?.platformAddress ?? ''
+        fromDisplay = pickedShieldSource?.platformAddress ?? AUTOMATIC_PLATFORM_SELECTION
       } else if (appliedCoinControl.kind === 'platformAddress') {
         fromDisplay = appliedCoinControl.address
       } else if (appliedCoinControl.kind === 'platformInputs') {
@@ -841,7 +837,7 @@ function WalletTransferHub(): React.JSX.Element {
           fromDisplay = `${appliedCoinControl.inputs.length} Platform inputs`
         }
       } else {
-        fromDisplay = 'Automatic Platform selection'
+        fromDisplay = AUTOMATIC_PLATFORM_SELECTION
       }
       break
     case SourceKind.Identity:
@@ -858,7 +854,7 @@ function WalletTransferHub(): React.JSX.Element {
     platformSource,
     shieldedSource: shieldedSpendSource,
     identityId: selectedIdentity?.identifier,
-    fromAddress: selectedSource?.platformAddress,
+    fromAddress: pickedShieldSource?.platformAddress,
     changeTo,
   })
   const previewKey = sendPreviewRequestKey({walletId, network, operation, params: previewParams})
@@ -1177,7 +1173,7 @@ function WalletTransferHub(): React.JSX.Element {
         shieldedNotes={spendableNotes}
         identityLabel={selectedIdentity?.alias ?? null}
         identityId={selectedIdentity?.identifier ?? null}
-        platformAddress={selectedSource}
+        platformAddress={pickedShieldSource}
         onRetryUtxos={retryUtxos}
         onClose={() => setCoinControlOpen(false)}
         onApply={setCoinControl}
@@ -1210,7 +1206,7 @@ function WalletTransferHub(): React.JSX.Element {
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
-          fromAddress={selectedSource?.platformAddress ?? ''}
+          fromAddress={pickedShieldSource?.platformAddress ?? ''}
           sourceValid={signingSourceValid}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}

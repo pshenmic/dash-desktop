@@ -29,7 +29,8 @@ export function amountErrorFor(params: AmountValidationParams): string | null {
   }
 
   if (maxPerTx !== null && amountCredits > maxPerTx) {
-    return `Max per transaction right now is ${davToDash(creditsToDuffs(maxPerTx))} Dash (network fee + ${noteLimit ?? 0}-note limit).`
+    const reason = noteLimit === null ? 'network fee reserve' : `network fee + ${noteLimit}-note limit`
+    return `Max per transaction right now is ${davToDash(creditsToDuffs(maxPerTx))} Dash (${reason}).`
   }
 
   return null

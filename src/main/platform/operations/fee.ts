@@ -2,6 +2,7 @@ import {
   AddressCreditWithdrawalTransitionWASM,
   AddressFundsTransferTransitionWASM,
   PlatformAddressWASM,
+  ShieldFromAssetLockTransitionWASM,
   ShieldedTransferTransitionWASM,
 } from 'pshenmic-dpp'
 import {
@@ -24,12 +25,8 @@ import {OperationContext} from './types'
 import {buildAssetLockProof} from './assetLockProof'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
-import {
-  IDENTITY_KEY_DEFINITIONS,
-  MAX_BUNDLE_ACTIONS,
-  MIN_BUNDLE_ACTIONS,
-  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
-} from '../../src/constants/credits'
+import {IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
+import {ASSET_LOCK_BASE_COST_CREDITS, SHIELD_FUNDING_ACTIONS} from '../../src/constants/fee/platform'
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
@@ -58,6 +55,12 @@ export function transitionFee(payload: Payload, ctx: OperationContext): Result {
   }
 }
 
+// Shield's own minimum omits note storage, but consensus checks its claims
+// against the full pool carve, which ShieldedTransfer carries.
+export function shieldPoolFee(): bigint {
+  return ShieldedTransferTransitionWASM.computeMinimumFee(MIN_BUNDLE_ACTIONS)
+}
+
 function protocolFee(operation: TransitionFeeOperation, params: FeeQuoteParams, ctx: OperationContext): bigint {
   switch (operation) {
     // Consensus meters an input like an output, one address balance write each,
@@ -69,15 +72,13 @@ function protocolFee(operation: TransitionFeeOperation, params: FeeQuoteParams, 
     case 'addressWithdrawal':
       return AddressCreditWithdrawalTransitionWASM.estimateMinFee(params.inputCount, false)
 
-    // Shield's own minimum omits note storage, but consensus checks its inputs
-    // against the full pool carve, which ShieldedTransfer carries.
     case 'shield':
-      return ShieldedTransferTransitionWASM.computeMinimumFee(MIN_BUNDLE_ACTIONS)
+      return shieldPoolFee()
 
-    // Reserved out of the locked credits before the bundle is proven; the
-    // surplus returns to a transparent platform address.
+    // Exact, not a floor: with no surplus address, consensus donates whatever
+    // the lock carries above this to the fee pools.
     case 'assetLockShield':
-      return SHIELD_FUNDING_FEE_RESERVE_CREDITS
+      return ShieldFromAssetLockTransitionWASM.computeMinimumFee(SHIELD_FUNDING_ACTIONS) + ASSET_LOCK_BASE_COST_CREDITS
 
     default:
       return builtTransition(operation, params, ctx).calculateMinRequiredFee()

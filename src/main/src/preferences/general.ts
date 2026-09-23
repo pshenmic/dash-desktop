@@ -1,13 +1,9 @@
 import {z} from 'zod'
 import {SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES} from '../constants/app'
 import {DEFAULT_LOG_LEVEL, LOG_LEVELS} from '../constants/logging'
-import {
-  DEFAULT_CORE_FEE_MULTIPLIER,
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-  MAX_FEE_MULTIPLIER,
-  MIN_FEE_MULTIPLIER,
-  TRANSITION_FEE_OPERATIONS,
-} from '../constants/credits'
+import {MAX_FEE_MULTIPLIER, MIN_FEE_MULTIPLIER, TRANSITION_FEE_OPERATIONS} from '../constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../constants/fee/platform'
+import {DEFAULT_CORE_FEE_MULTIPLIER} from '../constants/fee/core'
 import {LogLevel} from '../types/Log'
 
 export const ConnectionTypeSchema = z.enum(['p2p', 'rpc'])

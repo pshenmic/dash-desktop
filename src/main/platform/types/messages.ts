@@ -57,13 +57,6 @@ export interface NoteSnapshot {
   nullifier: Uint8Array
 }
 
-export interface ShieldSource {
-  platformAddress: string
-  nonce: number
-  balanceCredits: bigint
-  index: number
-}
-
 // One platform address funding a transition: which address, its derivation
 // index for signing, the nonce main read, and how much of it to spend.
 export interface AddressInput {
@@ -152,6 +145,9 @@ export interface FeeParams {
   // Optional because most operations read none of them, and a caller spelling
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
+  // Shield only: the one platform address to draw on; absent, the wallet
+  // selects across every address the way the iOS wallet does.
+  fromAddress?: string | null
   identityId?: string | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
@@ -239,7 +235,8 @@ export interface PlatformOperations {
     result: {stHash: string; identityId: string | null; feeCredits: bigint | null}
   }
   shield: {
-    payload: {seed: Uint8Array; source: ShieldSource; recipient: string; amountCredits: bigint}
+    // Byte-ordered, so inputs[0] is the one DeductFromInput(0) charges.
+    payload: {seed: Uint8Array; inputs: AddressInput[]; recipient: string; amountCredits: bigint}
     result: {stHash: string}
   }
   shieldFromAssetLock: {

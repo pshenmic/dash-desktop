@@ -130,6 +130,8 @@ export interface FeeParams {
   coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
+  // Shield only: the one platform address to draw on; absent, the wallet selects.
+  fromAddress?: string | null
   identityId?: string | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null
@@ -200,12 +202,10 @@ export interface PreviewRecipient {
 }
 
 // What a quote does not need and a preview does: what each recipient is paid
-// rather than how many there are, and the two addresses no price depends on.
+// rather than how many there are, and the change address no price depends on.
 export interface PreviewParams extends Omit<FeeParams, 'recipient'> {
   recipients: PreviewRecipient[]
   changeTo?: string | null
-  // Shield only: the platform address it spends.
-  fromAddress?: string | null
 }
 
 export interface AmountValidationParams {

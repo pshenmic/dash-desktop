@@ -13,7 +13,7 @@ import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSe
 import { UnlockedWallet } from '../../types/UnlockedWallet'
 import { Wallet } from '../../types/Wallet'
 import {SHIELDED_ADDRESS_WINDOW} from '../../constants/addresses'
-import {MAX_SPEND_NOTES, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
+import {CREDITS_PER_DUFF, MAX_SPEND_NOTES, SHIELDED_NOTES_FETCH_BATCH} from '../../constants/credits'
 import { findNextIdentityIndex, identityPath } from '../../utils/identityKeys'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {platformAccountXpub, platformAddressDeriver} from '../../utils/platformAddress'
@@ -591,9 +591,8 @@ export class ShieldedService {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     const {wallet, seed} = unlocked
     try {
-      // The reserve is what settleShield subtracts again, so the amount asked for
-      // is the amount that reaches the pool.
-      const lockDuffs = lockedDuffsFor(amountDuffs, SHIELD_FUNDING_FEE_RESERVE_CREDITS)
+      // settleShield subtracts the same fee again, so the amount asked for reaches the pool.
+      const lockDuffs = lockedDuffsFor(amountDuffs, await this.shieldFundingFee(wallet.network, amountDuffs, destination))
       const state = await this.assetLock.begin(walletId, 'shielded', destination, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
@@ -635,8 +634,7 @@ export class ShieldedService {
   ): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const xpub = await platformAccountXpub(this.walletDAO, wallet, seed)
-    const surplus = platformAddressDeriver(xpub, wallet.network).derive(0)
+    const feeCredits = await this.shieldFundingFee(wallet.network, row.amountDuffs, row.toPlatformAddress)
     const {stHash} = await this.platform.request('shieldFromAssetLock', wallet.network, {
       seed,
       txid: row.txid,
@@ -644,13 +642,26 @@ export class ShieldedService {
       assetLockProof: proof,
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
-      shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs),
-      surplusAddress: surplus.address,
+      shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs, feeCredits),
+      surplusAddress: null,
     })
 
     await this.assetLock.done(state, row, stHash)
     // Awaited: runFunding zeroes the seed the moment this settles.
     await this.refreshNotes(wallet.walletId, wallet.network, seed)
+  }
+
+  private async shieldFundingFee(network: Network, amountDuffs: bigint, recipient: string): Promise<bigint> {
+    const {feeCredits} = await this.platform.request('transitionFee', network, {
+      operation: 'assetLockShield',
+      params: {
+        amountCredits: amountDuffs * CREDITS_PER_DUFF,
+        recipient,
+        inputCount: 1,
+        coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
+      },
+    })
+    return feeCredits
   }
 
   // The fee and the note count define each other: the fee scales with how many

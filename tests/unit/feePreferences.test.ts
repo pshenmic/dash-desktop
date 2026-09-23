@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {Preferences} from '../../src/main/src/preferences'
 import {GeneralPreferences, GeneralPreferencesSchema} from '../../src/main/src/preferences/general'
-import {
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-  MAX_FEE_MULTIPLIER,
-  TRANSITION_FEE_OPERATIONS,
-} from '../../src/main/src/constants/credits'
+import {MAX_FEE_MULTIPLIER, TRANSITION_FEE_OPERATIONS} from '../../src/main/src/constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/platform'
 import {TransitionFeeOperation} from '../../src/main/platform/types/messages'
 
 const everyOperationAt = (multiplier: number): Record<string, number> =>

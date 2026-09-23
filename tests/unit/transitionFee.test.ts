@@ -199,6 +199,12 @@ describe('transitionFee', () => {
     expect(feeAt(1, 1_000_000n)).toBe(feeAt(2 ** 31, 2n ** 62n))
   })
 
+  // Pinned because an over-quote is donated to the fee pools, not returned.
+  it('prices a shielded funding at the two-action bundle plus the asset lock base cost', () => {
+    const {feeCredits} = transitionFee({operation: 'assetLockShield', params: params({recipient: ''})}, ctx)
+    expect(feeCredits).toBe(212_851_200n)
+  })
+
   // The L2 half of an L1 -> L2 transfer. Quoted before any coins are committed,
   // so it is priced against a placeholder proof rather than the real one.
   it('prices the transition an asset lock proof will fund, not only the lock', () => {

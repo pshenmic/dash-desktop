@@ -1,1 +1,0 @@
-export const SHIELD_FUNDING_DUMMY_OUTPUTS = 1

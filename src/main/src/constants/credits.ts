@@ -18,25 +18,8 @@ export const TRANSITION_FEE_OPERATIONS = [
   'identityTopUp',
 ] as const satisfies readonly TransitionFeeOperation[]
 
-export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, number> = {
-  identityWithdrawal: 2,
-  addressWithdrawal: 2,
-  identityTopUpL1: 2,
-  assetLockFunding: 2,
-  assetLockShield: 2,
-  shield: 4,
-  identityToAddress: 3,
-  addressFundsTransfer: 4,
-  identityRegister: 3,
-  identityTopUp: 7,
-  identityCreate: 10,
-  identityToIdentity: 45,
-}
-
 export const MIN_FEE_MULTIPLIER = 1
 export const MAX_FEE_MULTIPLIER = 50
-
-export const DEFAULT_CORE_FEE_MULTIPLIER = 1
 
 export const MIN_OUTPUT_CREDITS = 500_000n
 export const MIN_INPUT_CREDITS = 100_000n
@@ -69,7 +52,6 @@ export const ALREADY_IN_CHAIN = 'state transition already in chain'
 // of SHIELDED_MAX_NOTES_PER_QUERY.
 export const SHIELDED_NOTES_CHECK_INTERVAL_MS = 30_000
 export const SHIELDED_NOTES_FETCH_BATCH = 8192
-export const SHIELD_FUNDING_FEE_RESERVE_CREDITS = 300_000_000n
 
 // Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
 // dropped (added later via IdentityUpdateTransition if needed); MASTER /

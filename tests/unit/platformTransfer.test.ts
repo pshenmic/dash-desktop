@@ -3,7 +3,8 @@ import {
   maxPlatformCredits,
   requireAutomaticInputs,
   selectPlatformInputs,
-  selectPlatformSource,
+  planShieldInputs,
+  selectShieldInputs,
   requireRecipients,
   selectablePlatformInputs,
   toAddressInput,
@@ -44,9 +45,6 @@ function candidate(
   }
 }
 
-const AMOUNT = 1_000_000n
-const FEE = 6_500_000n
-const REQUIRED = AMOUNT + FEE
 
 const INPUT_FEE = 1_000_000n
 
@@ -77,41 +75,80 @@ function consumed(plan: PlatformInputPlan | null, platformAddress: string): bigi
     .reduce((sum, input) => sum + input.credits, 0n)
 }
 
-describe('selectPlatformSource', () => {
-  it('picks the largest balance that covers amount + fee', () => {
-    const candidates = [
-      candidate('a', REQUIRED),
-      candidate('b', REQUIRED + 9_000_000n),
-      candidate('c', REQUIRED + 1n),
-    ]
-    expect(selectPlatformSource(candidates, AMOUNT, FEE).platformAddress).toBe('b')
+// Ported from rs-platform-wallet's plan_shield_inputs tests; the reserve is
+// arbitrary here because the planner only compares against it.
+describe('planShieldInputs / selectShieldInputs', () => {
+  const RESERVE = 325_702_400n
+  const claims = (inputs: {candidate: PlatformSourceCandidate; credits: bigint}[]) =>
+    inputs.map(input => [input.candidate.platformAddress, input.credits])
+
+  it('skips a leading address that cannot keep the reserve', () => {
+    const plan = planShieldInputs([candidate('a', RESERVE), candidate('b', 5n * RESERVE)], RESERVE)
+    expect(claims(selectShieldInputs(plan, 2n * RESERVE))).toEqual([['b', 2n * RESERVE]])
   })
 
-  it('accepts a balance exactly equal to amount + fee', () => {
-    expect(selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, FEE).platformAddress).toBe('a')
+  it('does not take a balance exactly at the reserve as input 0', () => {
+    const plan = planShieldInputs([candidate('a', RESERVE)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(0n)
+    expect(() => selectShieldInputs(plan, 1n)).toThrow(/At most 0 credits/)
   })
 
-  it('throws when no address covers amount + fee', () => {
-    const candidates = [candidate('a', AMOUNT), candidate('b', REQUIRED - 1n)]
-    expect(() => selectPlatformSource(candidates, AMOUNT, FEE)).toThrow(/enough credits/)
+  it('shields a single address down to exactly the reserve', () => {
+    const amount = 3n * RESERVE
+    const plan = planShieldInputs([candidate('a', amount + RESERVE)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(amount)
+    expect(claims(selectShieldInputs(plan, amount))).toEqual([['a', amount]])
+    expect(() => selectShieldInputs(plan, amount + 1n)).toThrow(/At most/)
   })
 
-  it('throws when the amount is below the minimum output', () => {
-    expect(() => selectPlatformSource([candidate('a', REQUIRED)], MIN_OUTPUT_CREDITS - 1n, FEE)).toThrow(/Minimum/)
+  it('reserves only on input 0 when the amount spans addresses', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE), candidate('b', 5n * RESERVE)], RESERVE)
+    expect(claims(selectShieldInputs(plan, 5n * RESERVE))).toEqual([['a', RESERVE], ['b', 4n * RESERVE]])
   })
 
-  it('uses the explicit source address when given', () => {
-    const candidates = [candidate('a', REQUIRED + 9_000_000n), candidate('b', REQUIRED)]
-    expect(selectPlatformSource(candidates, AMOUNT, FEE, 'b').platformAddress).toBe('b')
+  it('orders by address bytes, not by label or balance', () => {
+    const plan = planShieldInputs([
+      candidate('c', 2n * RESERVE),
+      candidate('a', RESERVE / 2n),
+      candidate('b', 2n * RESERVE),
+    ], RESERVE)
+    expect(plan.usable.map(entry => entry.platformAddress)).toEqual(['b', 'c'])
+    expect(plan.maxShieldableCredits).toBe(3n * RESERVE)
+    expect(claims(selectShieldInputs(plan, 2n * RESERVE))).toEqual([['b', RESERVE], ['c', RESERVE]])
   })
 
-  it('throws when the explicit source address is unknown', () => {
-    expect(() => selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, FEE, 'zzz')).toThrow(/not found/)
+  it('reports the max from the usable suffix, not the whole balance', () => {
+    const usable = 3_623_849_220n
+    const plan = planShieldInputs([candidate('a', RESERVE - 1n), candidate('b', usable)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(usable - RESERVE)
+    expect(claims(selectShieldInputs(plan, usable - RESERVE))).toEqual([['b', usable - RESERVE]])
   })
 
-  it('throws when the explicit source address cannot cover amount + fee', () => {
-    const candidates = [candidate('a', REQUIRED + 9_000_000n), candidate('b', REQUIRED - 1n)]
-    expect(() => selectPlatformSource(candidates, AMOUNT, FEE, 'b')).toThrow(/insufficient/)
+  it('leaves a later address below the input minimum out of the max', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE), candidate('b', MIN_INPUT_CREDITS - 1n)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(RESERVE)
+    expect(() => selectShieldInputs(plan, RESERVE + 1n)).toThrow(/At most/)
+  })
+
+  it('lifts the residue on a later input to the input minimum', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE), candidate('b', 2n * MIN_INPUT_CREDITS)], RESERVE)
+    expect(claims(selectShieldInputs(plan, RESERVE + 1n))).toEqual([['a', RESERVE], ['b', MIN_INPUT_CREDITS]])
+  })
+
+  it('caps the usable addresses at the protocol input count', () => {
+    const candidates = Array.from({length: MAX_ADDRESS_INPUTS + 1}, (_, i) =>
+      candidate(`addr${i}`, 2n * RESERVE, 0, i + 1))
+    const plan = planShieldInputs(candidates, RESERVE)
+    const max = BigInt(MAX_ADDRESS_INPUTS) * 2n * RESERVE - RESERVE
+    expect(plan.usable).toHaveLength(MAX_ADDRESS_INPUTS)
+    expect(plan.maxShieldableCredits).toBe(max)
+    expect(selectShieldInputs(plan, max)).toHaveLength(MAX_ADDRESS_INPUTS)
+    expect(() => selectShieldInputs(plan, max + 1n)).toThrow(/At most/)
+  })
+
+  it('rejects a zero amount', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE)], RESERVE)
+    expect(() => selectShieldInputs(plan, 0n)).toThrow(/greater than zero/)
   })
 })
 

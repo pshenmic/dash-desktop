@@ -1,6 +1,5 @@
 import {WalletDAO} from '../../database/WalletDAO'
 import {AssetLockService} from './AssetLockService'
-import {PlatformAddressService} from './PlatformAddressService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {ShieldedService} from './ShieldedService'
 import {IdentityDAO} from '../../database/IdentityDAO'
@@ -17,7 +16,7 @@ import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {platformAccountXpub} from '../../utils/platformAddress'
 import {CREDITS_PER_DUFF, MIN_IDENTITY_FUNDING_CREDITS} from '../../constants/credits'
 import {identityPath} from '../../utils/identityKeys'
-import {requireRecipients, selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
+import {requireRecipients, selectShieldInputs, toAddressInput} from '../../utils/platformTransfer'
 import {lockedDuffsFor} from '../../utils/assetLockTx'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
@@ -39,7 +38,6 @@ export class PlatformTransferService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private assetLock: AssetLockService
-  private addresses: PlatformAddressService
   private platform: PlatformWorkerService
   private shielded: ShieldedService
   private fee: FeeService
@@ -49,7 +47,6 @@ export class PlatformTransferService {
     walletDAO: WalletDAO,
     identityDAO: IdentityDAO,
     assetLock: AssetLockService,
-    addresses: PlatformAddressService,
     platform: PlatformWorkerService,
     shielded: ShieldedService,
     fee: FeeService,
@@ -58,7 +55,6 @@ export class PlatformTransferService {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.assetLock = assetLock
-    this.addresses = addresses
     this.platform = platform
     this.shielded = shielded
     this.fee = fee
@@ -349,20 +345,12 @@ export class PlatformTransferService {
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.addresses.loadCandidates(wallet)
-    const feeCredits = await this.fee.requireFee(walletId, 'shield', {
-      amountCredits, recipient: toShieldedAddress,
-    })
-    const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
+    const {plan} = await this.fee.shieldPlan(wallet, {amountCredits, recipient: toShieldedAddress, fromAddress: fromPlatformAddress || null})
+    const inputs = selectShieldInputs(plan, amountCredits)
 
     const {stHash} = await this.platform.request('shield', network, {
       seed,
-      source: {
-        platformAddress: source.platformAddress,
-        nonce: source.nonce,
-        balanceCredits: source.balanceCredits,
-        index: source.index,
-      },
+      inputs: inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
       recipient: toShieldedAddress,
       amountCredits,
     })
@@ -372,7 +360,7 @@ export class PlatformTransferService {
     return {
       stHash,
       amountCredits: amountCredits,
-      fromAddress: source.platformAddress,
+      fromAddress: inputs[0].candidate.platformAddress,
     }
   }
 

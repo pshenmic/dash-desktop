@@ -19,11 +19,9 @@ import {operationFeeRequest} from '../../src/renderer/src/utils/operationFee'
 import {capRecipientAmounts, recipientSliderAmount, recipientTotalDuffs} from '../../src/renderer/src/utils/sendRecipients'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../src/main/src/constants/chain'
 import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
-import {
-  DEFAULT_CORE_FEE_MULTIPLIER,
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-  MIN_INPUT_CREDITS,
-} from '../../src/main/src/constants/credits'
+import {MIN_INPUT_CREDITS} from '../../src/main/src/constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/platform'
+import {DEFAULT_CORE_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/core'
 
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'

@@ -6,12 +6,12 @@ import {
   ASSET_LOCK_CREDIT_OUTPUT_INDEX,
   ASSET_LOCK_PAYLOAD_VERSION,
   CREDITS_PER_DUFF,
-  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
 } from '../../src/main/src/constants/credits'
 import { ASSET_LOCK_PAYLOAD_BYTES } from '../../src/main/src/constants/chain'
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')
 const AMOUNT = 100_000n
+const FEE = 212_851_200n
 
 describe('buildAssetLockOutputs', () => {
   it('builds an OP_RETURN burn output carrying the locked amount', () => {
@@ -51,13 +51,12 @@ describe('buildAssetLockOutputs', () => {
 })
 
 describe('shieldAmountFromLockedDuffs', () => {
-  it('converts duffs to credits and deducts the fee reserve', () => {
-    expect(shieldAmountFromLockedDuffs(10_000_000n)).toBe(10_000_000n * CREDITS_PER_DUFF - SHIELD_FUNDING_FEE_RESERVE_CREDITS)
+  it('converts duffs to credits and deducts the fee', () => {
+    expect(shieldAmountFromLockedDuffs(10_000_000n, FEE)).toBe(10_000_000n * CREDITS_PER_DUFF - FEE)
   })
 
-  it('rejects amounts that do not exceed the fee reserve', () => {
-    const atReserve = SHIELD_FUNDING_FEE_RESERVE_CREDITS / CREDITS_PER_DUFF
-    expect(() => shieldAmountFromLockedDuffs(atReserve)).toThrow('too small to shield')
+  it('rejects amounts that do not exceed the fee', () => {
+    expect(() => shieldAmountFromLockedDuffs(FEE / CREDITS_PER_DUFF, FEE)).toThrow('too small to shield')
   })
 })
 
@@ -73,9 +72,10 @@ describe('lockedDuffsFor', () => {
     expect(lockedDuffsFor(1_000n, CREDITS_PER_DUFF + 1n)).toBe(1_002n)
   })
 
-  // What settleShield subtracts is exactly what startShieldFromL1 added.
+  // What settleShield subtracts is what startShieldFromL1 added, less the sub-duff round-up.
   it('is the inverse of shieldAmountFromLockedDuffs', () => {
-    const locked = lockedDuffsFor(AMOUNT, SHIELD_FUNDING_FEE_RESERVE_CREDITS)
-    expect(shieldAmountFromLockedDuffs(locked)).toBe(AMOUNT * CREDITS_PER_DUFF)
+    const shielded = shieldAmountFromLockedDuffs(lockedDuffsFor(AMOUNT, FEE), FEE)
+    expect(shielded - AMOUNT * CREDITS_PER_DUFF).toBeGreaterThanOrEqual(0n)
+    expect(shielded - AMOUNT * CREDITS_PER_DUFF).toBeLessThan(CREDITS_PER_DUFF)
   })
 })

@@ -17,11 +17,9 @@ import {FeeQuoteParams, TransitionFeeOperation, UnsignedTransition} from '../../
 import {coreFeeDuffsFor, coreFeePerByte} from '../../src/main/src/utils/coreFeeRate'
 import {lockedDuffsFor} from '../../src/main/src/utils/assetLockTx'
 import {ASSET_LOCK_PAYLOAD_BYTES, DUST_THRESHOLD_DUFFS} from '../../src/main/src/constants/chain'
-import {
-  CREDITS_PER_DUFF,
-  DEFAULT_CORE_FEE_MULTIPLIER,
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-} from '../../src/main/src/constants/credits'
+import {CREDITS_PER_DUFF} from '../../src/main/src/constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/platform'
+import {DEFAULT_CORE_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/core'
 
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
@@ -303,7 +301,7 @@ describe('previewTransaction — identities and the pool', () => {
   })
 
   it('names the platform address a shield spends', async () => {
-    const {svc} = service({candidates: [candidate(PLATFORM_A, 2_000_000n, 1), candidate(PLATFORM_B, 90_000_000n, 2)]})
+    const {svc} = service({candidates: [candidate(PLATFORM_A, 2_000_000n, 1), candidate(PLATFORM_B, 2_000_000_000n, 2)]})
 
     const preview = await svc.previewTransaction(WALLET, 'shield', params({
       amountCredits: 1_000_000n,
@@ -314,6 +312,46 @@ describe('previewTransaction — identities and the pool', () => {
     expect(preview.inputs).toEqual([
       {role: 'input', address: PLATFORM_B, amount: 1_000_000n + feeOf('shield'), unit: 'credits', reference: null},
     ])
+  })
+
+  it('quotes a shield across every address unless one is picked', async () => {
+    const {svc} = service({candidates: [candidate(PLATFORM_A, 2_000_000_000n, 1), candidate(PLATFORM_B, 3_000_000_000n, 2)]})
+    const reserve = feeOf('shield') * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER.shield)
+
+    const automatic = await svc.estimateFee(WALLET, 'shield', {amountCredits: 1_000_000n, recipient: SHIELDED})
+    const picked = await svc.estimateFee(WALLET, 'shield', {
+      amountCredits: 1_000_000n, recipient: SHIELDED, fromAddress: PLATFORM_B,
+    })
+
+    expect(automatic.maxPerTx).toBe(5_000_000_000n - reserve)
+    expect(picked.maxPerTx).toBe(3_000_000_000n - reserve)
+  })
+
+  it('draws an unpicked shield from input 0 first, then the next address', async () => {
+    const {svc} = service({candidates: [candidate(PLATFORM_B, 3_000_000_000n, 2), candidate(PLATFORM_A, 2_000_000_000n, 1)]})
+    const reserve = feeOf('shield') * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER.shield)
+    const fromA = 2_000_000_000n - reserve
+
+    const preview = await svc.previewTransaction(WALLET, 'shield', params({
+      amountCredits: 3_000_000_000n,
+      recipients: [{address: SHIELDED, amount: 3_000_000_000n}],
+    }))
+
+    expect(preview.inputs).toEqual([
+      {role: 'input', address: PLATFORM_A, amount: fromA + feeOf('shield'), unit: 'credits', reference: null},
+      {role: 'input', address: PLATFORM_B, amount: 3_000_000_000n - fromA, unit: 'credits', reference: null},
+    ])
+  })
+
+  it('refuses a shield source that cannot keep the fee reserve behind the amount', async () => {
+    const balance = 1_000_000n + feeOf('shield') * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER.shield) - 1n
+    const {svc} = service({candidates: [candidate(PLATFORM_B, balance, 2)]})
+
+    await expect(svc.previewTransaction(WALLET, 'shield', params({
+      amountCredits: 1_000_000n,
+      fromAddress: PLATFORM_B,
+      recipients: [{address: SHIELDED, amount: 1_000_000n}],
+    }))).rejects.toThrow(/At most/)
   })
 
   it('returns what the notes hold beyond the payout and the fee to the pool', async () => {

@@ -1,7 +1,6 @@
 export const SEQUENCE_FINAL = 0xffffffff
 
 export const DUFFS_PER_DASH = 100_000_000n
-export const CORE_FEE_PER_BYTE = 1
 
 export const DUST_THRESHOLD_DUFFS = 546n
 

@@ -3,6 +3,7 @@ import {
   PlatformInputSelection,
   PlatformSourceCandidate,
   PlatformSpendSource,
+  ShieldInputPlan,
 } from '../types/PlatformTransfer'
 import {AddressInput, Recipient} from '../../platform/types/messages'
 import {MAX_ADDRESS_INPUTS, MAX_RECIPIENTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../constants/credits'
@@ -304,35 +305,41 @@ function compareAddresses(a: PlatformSourceCandidate, b: PlatformSourceCandidate
   return left.length - right.length
 }
 
-export function selectPlatformSource(
-  candidates: PlatformSourceCandidate[],
-  amountCredits: bigint,
-  feeCredits: bigint,
-  fromAddress?: string,
-): PlatformSourceCandidate {
-  if (amountCredits < MIN_OUTPUT_CREDITS) {
-    throw new Error(`Minimum Platform transfer is ${MIN_OUTPUT_CREDITS.toString()} credits`)
+export function planShieldInputs(candidates: PlatformSourceCandidate[], feeReserveCredits: bigint): ShieldInputPlan {
+  const sorted = [...candidates].sort(compareAddresses)
+  const first = sorted.findIndex(candidate => candidate.balanceCredits > feeReserveCredits)
+  const usable = first === -1
+    ? []
+    : [sorted[first], ...sorted.slice(first + 1).filter(candidate => candidate.balanceCredits >= MIN_INPUT_CREDITS)]
+      .slice(0, MAX_ADDRESS_INPUTS)
+  const usableCredits = usable.reduce((sum, candidate) => sum + candidate.balanceCredits, 0n)
+
+  return {
+    usable,
+    feeReserveCredits,
+    maxShieldableCredits: usableCredits > feeReserveCredits ? usableCredits - feeReserveCredits : 0n,
+  }
+}
+
+export function selectShieldInputs(plan: ShieldInputPlan, amountCredits: bigint): PlatformInputSelection[] {
+  if (amountCredits <= 0n) throw new Error('Shield amount must be greater than zero')
+  if (amountCredits > plan.maxShieldableCredits) {
+    throw new Error(`At most ${plan.maxShieldableCredits.toString()} credits can be shielded; ${plan.feeReserveCredits.toString()} credits stay on a Platform address to pay the network fee`)
   }
 
-  const required = amountCredits + feeCredits
-
-  if (fromAddress != null) {
-    const chosen = candidates.find(candidate => candidate.platformAddress === fromAddress)
-    if (chosen == null) {
-      throw new Error('Source address not found in this wallet')
+  const inputs: PlatformInputSelection[] = []
+  let claimed = 0n
+  for (const [index, candidate] of plan.usable.entries()) {
+    if (claimed >= amountCredits) break
+    const cap = index === 0 ? candidate.balanceCredits - plan.feeReserveCredits : candidate.balanceCredits
+    const remaining = amountCredits - claimed
+    let credits = cap < remaining ? cap : remaining
+    if (index > 0 && credits > 0n && credits < MIN_INPUT_CREDITS) credits = MIN_INPUT_CREDITS
+    if (credits > 0n) {
+      inputs.push({candidate, credits})
+      claimed += credits
     }
-    if (chosen.balanceCredits < required) {
-      throw new Error('Source address has insufficient credits for this transfer plus fee')
-    }
-    return chosen
   }
-
-  const funded = candidates.filter(candidate => candidate.balanceCredits >= required)
-  if (funded.length === 0) {
-    throw new Error('No Platform address holds enough credits for this transfer plus fee')
-  }
-
-  return funded.reduce((best, candidate) =>
-    candidate.balanceCredits > best.balanceCredits ? candidate : best,
-  )
+  if (claimed < amountCredits) throw new Error('Platform addresses cannot fund this shield')
+  return inputs
 }

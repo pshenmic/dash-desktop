@@ -113,6 +113,11 @@ describe('amountErrorFor', () => {
     expect(error).toBe('Max per transaction right now is 0.007 Dash (network fee + 6-note limit).')
   })
 
+  it('names the fee reserve when the cap has no note limit', () => {
+    const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n, noteLimit: null}))
+    expect(error).toBe('Max per transaction right now is 0.007 Dash (network fee reserve).')
+  })
+
   it('is silent when the amount fits the balance, the fee and the cap', () => {
     expect(amountErrorFor(params({amountCredits: 1_000_000n, maxPerTx: 700_000_000n}))).toBeNull()
   })
