@@ -1,5 +1,4 @@
 export const RECENT_TX_LIMIT = 3
-export const ACTIVITY_MONTH_LIMIT = 4
 
 export const dashboardPage = {
   hero: {
@@ -58,12 +57,6 @@ export const dashboardPage = {
     lastActivity: 'Last Activity',
     pending: 'Pending',
     addressesUsed: 'Addresses Used'
-  },
-  activity: {
-    title: 'Activity',
-    received: 'Received',
-    sent: 'Sent',
-    noActivity: `No activity in the last ${ACTIVITY_MONTH_LIMIT} months`
   },
   recent: {
     title: 'Recent Activity',
