@@ -1,0 +1,68 @@
+.wallet-analytics {
+  --chart-core: #416ce1;
+  --chart-sent: #bd6500;
+  --chart-evo: #8956ce;
+  --chart-text: var(--color-dash-primary-dark-blue);
+  --chart-muted: color-mix(in srgb, var(--chart-text) 62%, transparent);
+  --chart-grid: color-mix(in srgb, var(--chart-text) 12%, transparent);
+  color: var(--chart-text);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.dark .wallet-analytics {
+  --chart-core: #60f6d2;
+  --chart-sent: #ffbc70;
+  --chart-evo: #bda0ff;
+  --chart-text: #fff;
+}
+
+.wallet-analytics .analytics-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0 4px; }
+.wallet-analytics h2, .wallet-analytics h3, .wallet-analytics p { margin: 0; }
+.wallet-analytics h2 { font-size: 14px; font-weight: 600; }
+.wallet-analytics h3 { font-size: 14px; font-weight: 600; }
+.wallet-analytics .analytics-periods { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--chart-grid); border-radius: 10px; }
+.wallet-analytics .analytics-periods button { padding: 5px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; color: var(--chart-muted); cursor: pointer; }
+.wallet-analytics .analytics-periods button:hover { background: var(--chart-grid); color: var(--chart-text); }
+.wallet-analytics .analytics-periods button[aria-pressed="true"] { color: var(--chart-core); background: color-mix(in srgb, var(--chart-core) 13%, transparent); }
+.wallet-analytics :focus-visible { outline: 2px solid var(--chart-core); outline-offset: 4px; }
+.wallet-analytics .analytics-card { min-width: 0; padding: 16px; border-radius: 24px; box-shadow: 0 0 32px #0c1c3308; }
+.wallet-analytics .analytics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.wallet-analytics i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; }
+.wallet-analytics .daily-chart { margin-top: 12px; }
+.wallet-analytics .chart-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 10px; color: var(--chart-muted); }
+.wallet-analytics .chart-legend { display: flex; gap: 12px; white-space: nowrap; }
+.wallet-analytics .chart-coordinate-system { display: grid; grid-template-columns: max-content minmax(0, 1fr); padding-right: 18px; }
+.wallet-analytics .chart-y-axis { min-width: 32px; height: 160px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; padding-right: 10px; font-size: 10px; color: var(--chart-muted); font-variant-numeric: tabular-nums; }
+.wallet-analytics .chart-y-axis span { line-height: 0; }
+.wallet-analytics .chart-plot { position: relative; height: 160px; border-radius: 3px; }
+.wallet-analytics .chart-plot > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.wallet-analytics .chart-gridline { stroke: var(--chart-grid); stroke-dasharray: 3 5; }
+.wallet-analytics .chart-x-axis { grid-column: 2; position: relative; height: 14px; margin-top: 10px; color: var(--chart-muted); font-size: 10px; }
+.wallet-analytics .chart-x-axis span { position: absolute; white-space: nowrap; transform: translateX(-50%); }
+.wallet-analytics .chart-crosshair { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--chart-muted); pointer-events: none; }
+.wallet-analytics .chart-active-dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.wallet-analytics .chart-tooltip { position: absolute; top: 10px; right: 8px; z-index: 2; max-width: calc(100% - 8px); padding: 12px; border-radius: 10px; background: #fff; color: #0c1c33; box-shadow: 0 4px 24px #0002; font-size: 10px; pointer-events: none; }
+.dark .wallet-analytics .chart-tooltip { background: #112742; color: #fff; border: 1px solid #ffffff26; }
+.wallet-analytics .chart-tooltip-left { left: 8px; right: auto; }
+.wallet-analytics .chart-tooltip > strong { display: block; margin-bottom: 10px; font-size: 11px; }
+.wallet-analytics .chart-tooltip > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 18px; margin-top: 5px; }
+.wallet-analytics .chart-tooltip b { font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.wallet-analytics .chart-zero-label { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; text-align: center; color: var(--chart-muted); font-size: 12px; pointer-events: none; }
+.wallet-analytics .chart-empty, .wallet-analytics .chart-hidden { height: 227px; display: flex; justify-content: center; align-items: center; color: var(--chart-muted); font-size: 12px; text-align: center; }
+.wallet-analytics .evo-types { height: 215px; margin-top: 12px; overflow-y: auto; padding: 0 5px 4px 0; }
+.wallet-analytics .evo-type-row + .evo-type-row { margin-top: 12px; }
+.wallet-analytics .evo-type-label { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; margin-bottom: 5px; }
+.wallet-analytics .evo-type-label > span:first-child { overflow-wrap: anywhere; }
+.wallet-analytics .evo-type-label > span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wallet-analytics .evo-type-label small { display: inline-block; width: 34px; text-align: right; font-size: 10px; color: var(--chart-muted); }
+.wallet-analytics .evo-type-track { height: 5px; background: color-mix(in srgb, var(--chart-evo) 10%, transparent); border-radius: 3px; overflow: hidden; }
+.wallet-analytics .evo-type-track > div { height: 100%; background: var(--chart-evo); border-radius: inherit; }
+.wallet-analytics .analytics-notice { color: var(--chart-muted); font-size: 11px; padding: 0 4px; }
+
+@container (max-width: 899px) {
+  .wallet-analytics .analytics-grid { grid-template-columns: minmax(0, 1fr); }
+}
