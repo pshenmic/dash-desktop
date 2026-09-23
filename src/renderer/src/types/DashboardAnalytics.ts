@@ -45,17 +45,36 @@ export interface ChartCardProps {
 }
 
 export interface DailyChartProps {
-  days: ActivityDay[]
-  mode: 'flow' | 'count'
+  days: CoreBalanceDay[]
 }
 
-export interface ChartSeries {
-  key: 'received' | 'sent' | 'core' | 'evo'
-  label: string
-  color: string
+export interface CoreBalanceDay {
+  key: string
+  date: Date
+  balance: bigint
+}
+
+export interface CoreBalanceChartProps {
+  core: AnalyticsCoreTransaction[]
+  days: ActivityDay[]
+  hidden: boolean
 }
 
 export interface ChartScale {
+  min: bigint
   max: bigint
   ticks: bigint[]
+}
+
+export interface BalanceSegment {
+  label: string
+  color: string
+  credits: bigint
+  share: number
+  offset: number
+}
+
+export interface BalanceAllocation {
+  total: bigint
+  segments: BalanceSegment[]
 }
