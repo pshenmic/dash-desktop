@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { ANALYTICS_PERIODS, DEFAULT_ANALYTICS_PERIOD } from '@renderer/constants/dashboardAnalytics'
 import type { AnalyticsPeriod, DashboardAnalyticsProps } from '@renderer/types/DashboardAnalytics'
 import { activityDayKey, buildDashboardAnalytics, chartDate } from '@renderer/utils/dashboardAnalytics'
-import ChartCard from './ChartCard'
-import DailyChart from './DailyChart'
+import CoreBalanceChart from './CoreBalanceChart'
 import EvoTypesChart from './EvoTypesChart'
+import BalanceAllocationChart from './BalanceAllocationChart'
 import './analytics.css'
 
 export default function WalletAnalytics({ core, platform, platformFailed, hidden }: DashboardAnalyticsProps): React.JSX.Element {
@@ -23,12 +23,8 @@ export default function WalletAnalytics({ core, platform, platformFailed, hidden
       {platformFailed && <p className="analytics-notice" role="status">Evo history could not be refreshed. Evo counts may be incomplete or out of date.</p>}
       {data.undatedCount > 0 && <p className="analytics-notice">{data.undatedCount} transactions with an unavailable date are excluded from these charts.</p>}
       <div className="analytics-grid">
-        <ChartCard title="Core cash flow" description="Received and sent each day · successful Core transactions only">
-          {hidden ? <div className="chart-hidden">Amounts hidden</div> : <DailyChart key={period} days={data.days} mode="flow" />}
-        </ChartCard>
-        <ChartCard title="Daily activity" description="Core and Evo transactions · all statuses">
-          <DailyChart key={period} days={data.days} mode="count" />
-        </ChartCard>
+        <CoreBalanceChart key={period} core={core} days={data.days} hidden={hidden} />
+        <BalanceAllocationChart />
         <EvoTypesChart types={data.types} evoCount={data.evoCount} />
       </div>
     </section>
