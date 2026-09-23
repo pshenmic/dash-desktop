@@ -58,3 +58,8 @@ export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 // transaction, and an rpc-mode wallet never applies blocks — so without a
 // cutoff a transaction that died would hide its inputs from selection for good.
 export const PENDING_SPEND_TTL_MS = 10 * 60 * 1000
+
+// Txids already announced to the renderer. A payment is seen first in the
+// mempool and again in its block, and a rebroadcast re-reports a pending one
+// every minute, so without this each arrives as its own notification.
+export const REPORTED_TXID_MEMORY = 500

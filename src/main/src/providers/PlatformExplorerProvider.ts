@@ -12,6 +12,7 @@ import {
   PlatformExplorerAddressTransition,
   PlatformExplorerPage,
   PlatformExplorerTransfer,
+  PlatformExplorerWalk,
 } from '../types/PlatformExplorer'
 import {PlatformTransaction} from '../types/PlatformTransaction'
 import {
@@ -40,7 +41,7 @@ export class PlatformExplorerProvider {
   // answers with the net across the whole list and no address at all once a
   // transition touched more than one of them — which is every move between two
   // of ours. An address the indexer has never seen is dropped, not rejected.
-  async addressTransactions(address: string, walletId: string): Promise<boolean> {
+  async addressTransactions(address: string, walletId: string): Promise<PlatformExplorerWalk> {
     return this.walk<PlatformExplorerAddressTransition>(
       walletId,
       address,
@@ -55,7 +56,7 @@ export class PlatformExplorerProvider {
   }
 
   // One walk per identity, each its own stream to resume.
-  async identityTransactions(identifier: string, walletId: string): Promise<boolean> {
+  async identityTransactions(identifier: string, walletId: string): Promise<PlatformExplorerWalk> {
     return this.walk<PlatformExplorerTransfer>(
       walletId,
       identifier,
@@ -76,18 +77,28 @@ export class PlatformExplorerProvider {
     read: (page: number) => Promise<PlatformExplorerPage<T>>,
     hashOf: (row: T) => string,
     convert: (rows: T[]) => PlatformTransaction[],
-  ): Promise<boolean> {
+  ): Promise<PlatformExplorerWalk> {
     const known = await this.transactionDAO.getKnownHashes(walletId, source)
+    // Keyed, not appended: the folding downstream sums the net of every row it
+    // is handed for a hash, so one source reporting a transition twice would
+    // double what it moved. Matched against the hashes read before the first
+    // write, or this walk's own pages would each look new to the next.
+    const added = new Map<string, PlatformTransaction>()
+    const walked = (capped: boolean): PlatformExplorerWalk => ({capped, added: [...added.values()]})
 
     for (let page = 1; page <= PLATFORM_EXPLORER_MAX_PAGES; page++) {
       const {resultSet} = await read(page)
       // Stored rows are written again: a transition read before its block was
       // indexed carries neither height nor status until a page repeats it.
-      if (resultSet.length > 0) await this.transactionDAO.upsertTransactions(source, convert(resultSet))
-      if (resultSet.length < PLATFORM_EXPLORER_PAGE_LIMIT) return false
-      if (resultSet.every(row => known.has(hashOf(row)))) return false
+      if (resultSet.length > 0) {
+        const rows = convert(resultSet)
+        await this.transactionDAO.upsertTransactions(source, rows)
+        for (const row of rows) if (!known.has(row.hash)) added.set(row.hash, row)
+      }
+      if (resultSet.length < PLATFORM_EXPLORER_PAGE_LIMIT) return walked(false)
+      if (resultSet.every(row => known.has(hashOf(row)))) return walked(false)
     }
 
-    return true
+    return walked(true)
   }
 }

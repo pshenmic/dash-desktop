@@ -125,12 +125,17 @@ import {GetLogFileHandler} from './api/logs/getLogFile'
 import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
 import {registerHandler} from './utils/ipcHandler'
 import {Logger} from './utils/logger'
+import {CreateMessagePortHandler} from "./api/createMessagePort";
+import {NotifyService} from "./services/app/NotifyService";
+import {registerListener} from "./utils/registerListener";
+import {coreTransactionMessage, platformTransactionMessage} from "./utils/transactionNotifications";
 
 const prevout = new Logger('prevout')
 const locks = new Logger('locks')
 const discoveryLog = new Logger('discovery')
 const shielded = new Logger('shielded')
 const platformLog = new Logger('platform')
+const notify = new Logger('notify')
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -151,13 +156,14 @@ export class WalletBackend {
   private walletCredentialsService?: WalletCredentialsService
   private identityService?: IdentityService
   private logService?: LogService
+  private notifyService?: NotifyService
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService || !this.notifyService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -246,6 +252,7 @@ export class WalletBackend {
     registerHandler('listLogFiles', new ListLogFiles(this.logService).handle)
     registerHandler('getLogFile', new GetLogFileHandler(this.logService).handle)
     registerHandler('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
+    registerListener('createMessagePort', new CreateMessagePortHandler(this.notifyService).handle)
   }
 
   async start(): Promise<void> {
@@ -275,6 +282,7 @@ export class WalletBackend {
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
+    this.notifyService = new NotifyService()
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.platformWorkerService = new PlatformWorkerService()
     this.platformWorkerService.start()
@@ -387,6 +395,24 @@ export class WalletBackend {
     this.platformWorkerService.onTransitionBroadcast(() => {
       refreshAfterBroadcast().catch(err => platformLog.error('platform history refresh after a broadcast failed:', err))
     })
+
+    // Direction and amount are read back rather than derived from what the
+    // worker sent: which side of a transaction this wallet is on follows from
+    // input ownership, and only SQL knows that. The outputs come along because
+    // they are the only place ownership is recorded per end.
+    const notifyService = this.notifyService
+    this.walletSyncService.onNewTransaction = (walletId, tx) => {
+      transactionDAO.getTransactionByTxid(walletId, tx.txid)
+        .then(transaction => {
+          if (transaction != null) notifyService.newTransaction(coreTransactionMessage(transaction, tx.outputs))
+        })
+        .catch(err => notify.error(`${tx.txid}: reading back a new transaction failed:`, err))
+    }
+    this.platformHistoryService.onNewTransactions = (transactions) => {
+      for (const transaction of transactions) {
+        notifyService.newTransaction(platformTransactionMessage(transaction))
+      }
+    }
 
     this.applicationService.markReady()
   }

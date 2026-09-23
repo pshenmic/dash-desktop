@@ -4,7 +4,10 @@ import {PlatformAddressDAO} from '../../database/PlatformAddressDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider'
+import {PlatformExplorerWalk} from '../../types/PlatformExplorer'
+import {PlatformTransaction} from '../../types/PlatformTransaction'
 import {Logger} from '../../utils/logger'
+import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {requireWallet} from '../../utils/requireWallet'
 
 const log = new Logger('platform')
@@ -19,6 +22,10 @@ export class PlatformHistoryService {
   // Only as far as this session knows: a restart forgets it.
   private failedRefreshes = new Set<string>()
   private walks = new Map<string, Promise<void>>()
+  // Transitions this wallet already had are history, not news: importing a
+  // seed would otherwise announce every transition it ever made.
+  private startedAt = Date.now()
+  onNewTransactions: ((transactions: PlatformTransaction[]) => void) | null = null
 
   constructor(
     walletDAO: WalletDAO,
@@ -93,13 +100,26 @@ export class PlatformHistoryService {
     ])
 
     for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
+      if (result.status === 'fulfilled' && result.value.capped) {
         log.warn(`${walletId}: platform history stops at the page cap, older transitions are not stored`)
       }
     }
 
+    this.reportNewTransactions(results)
+
     for (const result of results) {
       if (result.status === 'rejected') throw result.reason
     }
+  }
+
+  // A transition between two of this wallet's own ends is walked from both
+  // sides, so the rows are folded the same way a read of them is before any of
+  // it is reported as one arrival.
+  private reportNewTransactions(results: PromiseSettledResult<PlatformExplorerWalk>[]): void {
+    if (this.onNewTransactions == null) return
+    const added = results.flatMap(result => result.status === 'fulfilled' ? result.value.added : [])
+    const arrived = mergePlatformTransactions(added)
+      .filter(transaction => transaction.date.getTime() > this.startedAt)
+    if (arrived.length > 0) this.onNewTransactions(arrived)
   }
 }

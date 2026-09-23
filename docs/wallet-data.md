@@ -77,3 +77,29 @@ on the lock pool against the addresses shipped in the `listen` command and emits
   Nothing moves those rows off `block_height = 0` in that mode either (no
   cfilter scan), so they accumulate in `getPendingTxs` and the isdlock watch
   set. Both are open.
+
+## New-transaction notifications
+
+`WalletSyncService.onNewTransaction` fires once per payment, from whichever of
+three sightings reaches it first, and `reportedTxids` (a bounded `RecentIds`)
+keeps the later ones quiet:
+
+1. `broadcastTransaction` — ours. It **claims the txid before the send**, not
+   after `recordOptimisticSpend`: a peer can inv the transaction straight back,
+   and a mempool sighting that wins that race reads our own change as money
+   arriving.
+2. `recordIncomingTx` — a mempool match on the lock pool, so this one works in
+   `rpc` mode too.
+3. `writeAppliedBlock` — for a payment that skipped our mempool view.
+
+**The block gate is `block.height >= status.tipHeight`, not the sync phase, and
+that is not an oversight.** Tip-follow re-enters the scan (`emitStatus('cfilters')`
+on every new header), so a live block is applied under `syncing-cfilters` like
+any catch-up block; gating on `'synced'` would suppress every real notification
+and let only a drain backlog through. The height is read when the block
+*arrives*, not when its queued write lands, because by then the tip has moved.
+
+L2 is separate: `PlatformExplorerProvider.walk` returns the hashes it had not
+stored, `PlatformHistoryService` folds them through `mergePlatformTransactions`
+(one transition is walked from both ends) and reports only those dated after the
+process started — otherwise importing a seed announces its whole history.

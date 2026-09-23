@@ -62,6 +62,23 @@ it), `core/` (L1), `platform/` (L2), `app/` (process-wide, wallet-agnostic).
 ...)` wrappers. `index.d.ts` is the `Window.electronAPI` type and is
 **hand-maintained, not generated — keep it in sync with `definitions.ts`**.
 
+## The one channel that is not an invoke
+
+`NotifyService` pushes to the renderer over a **MessagePort**, because main
+would otherwise need a `webContents` handed into the backend to reach it.
+A MessagePort cannot cross `contextBridge`, so the renderer opens the channel
+(`renderer/src/api/messagePort.ts`), posts one end over `window.postMessage`
+tagged `createMessagePort`, and the preload forwards the real object with
+`ipcRenderer.postMessage`. Main receives it through `registerListener` — the
+`ipcMain.on` counterpart to `registerHandler`, which **logs rather than
+rethrows**, since nothing on the renderer side is awaiting it.
+
+The five-layer checklist does not apply: there is no `definitions.ts` wrapper
+and no `index.d.ts` entry, and the tag is spelled in both bundles
+(`renderer/src/constants/notifications.ts` and `preload/index.ts`) because they
+share no module. `NotifyService` holds one port and closes whichever a reload
+supersedes; with no renderer connected a message is dropped, not an error.
+
 ## Where constants and types live
 
 A bundle's constants and types are **private to it** — never import them across
