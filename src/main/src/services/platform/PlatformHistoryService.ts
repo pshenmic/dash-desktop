@@ -10,6 +10,7 @@ import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider
 import {Logger} from '../../utils/logger'
 import {requireWallet} from '../../utils/requireWallet'
 import {ShieldedSend} from '../../types/PlatformTransaction'
+import {transitionToHeader} from '../../utils/platformExplorerTransactions'
 import {
   noteKey,
   noteSideTransaction,
@@ -136,11 +137,11 @@ export class PlatformHistoryService {
   // One row per end it moved, each under the source whose own row replaces it,
   // so a send between two of ours nets to the fee rather than reading as a loss.
   async recordShieldedSend(walletId: string, send: ShieldedSend): Promise<void> {
-    const gap = {hash: send.hash, type: send.type, date: new Date(),
+    const header = {hash: send.hash, type: send.type, date: new Date(),
       blockHeight: null, status: null, gasCredits: 0n}
 
     for (const side of send.sides) {
-      const row = noteSideTransaction(walletId, gap, side.address, side.credits)
+      const row = noteSideTransaction(walletId, header, side.address, side.credits)
       // An end of ours brings a side of its own; anyone else's has only this.
       const paid = send.paid != null && side.credits < 0n ? {recipient: [send.paid]} : {}
       await this.platformTransactionDAO.upsertTransactions(
@@ -168,19 +169,22 @@ export class PlatformHistoryService {
       note.nullifier == null ? [] : [[noteKey(note.nullifier), note] as const]))
 
     const addresses = [...new Set(notes.map(note => note.address))]
-    const gaps = await this.platformTransactionDAO.getTransitionHeaders(wallet.walletId, addresses)
+    const hashes = await this.platformTransactionDAO.getShieldedGaps(wallet.walletId, addresses)
 
-    for (const gap of gaps) {
-      if (this.shieldedRead.get(gap.hash) === notes.length) continue
-      this.shieldedRead.set(gap.hash, notes.length)
+    for (const hash of hashes) {
+      if (this.shieldedRead.get(hash) === notes.length) continue
 
-      const data = await explorer.transitionData(gap.hash)
-      if (data == null) continue
+      const transition = await explorer.transition(hash)
+      // Only once it answered: a transition the index has yet to reach is the
+      // one this wallet has most reason to ask about again.
+      this.shieldedRead.set(hash, notes.length)
+      if (transition.data == null) continue
 
-      const sides = shieldedSides(shieldedActions(data), byCmx, byNullifier)
+      const header = transitionToHeader(transition)
+      const sides = shieldedSides(shieldedActions(transition.data), byCmx, byNullifier)
       for (const [address, net] of sides) {
         await this.platformTransactionDAO.upsertTransactions(
-          address, [noteSideTransaction(wallet.walletId, gap, address, net)])
+          address, [noteSideTransaction(wallet.walletId, header, address, net)])
       }
     }
   }

@@ -63,7 +63,7 @@ export function shieldedSides(
 // sent back to an address.
 export function noteSideTransaction(
   walletId: string,
-  gap: TransitionHeader,
+  header: TransitionHeader,
   address: string,
   net: bigint,
 ): PlatformTransaction {
@@ -72,13 +72,13 @@ export function noteSideTransaction(
 
   return {
     walletId,
-    hash: gap.hash,
-    type: gap.type,
-    date: gap.date,
-    blockHeight: gap.blockHeight,
-    status: gap.status,
+    hash: header.hash,
+    type: header.type,
+    date: header.date,
+    blockHeight: header.blockHeight,
+    status: header.status,
     error: null,
-    gasCredits: gap.gasCredits,
+    gasCredits: header.gasCredits,
     netCredits: net,
     amountCredits: moved,
     sender: net < 0n ? end : [],

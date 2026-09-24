@@ -278,6 +278,48 @@ describe('platform history', () => {
     expect(merged.netCredits).toBe(-168_934_000n)
   })
 
+  // A shielded transfer names no address for a walk to list it under, so the row
+  // the send wrote keeps the outcome it had at the time — none — unless the
+  // transition itself is asked.
+  it('fills the outcome of a transition no walk reports', async () => {
+    const SHIELDED = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    const fill = (value: number, length = 32): Uint8Array => new Uint8Array(length).fill(value)
+    const sent = new UnshieldTransitionWASM(
+      PlatformAddressWASM.fromBytes(new Uint8Array(21)),
+      [new SerializedActionWASM(fill(21), fill(2), fill(22), fill(4, 580), fill(5), fill(6, 64))],
+      100_162_851_200n,
+      fill(7), fill(8, 192), fill(9, 64),
+    )
+
+    await noteDAO.upsertNotes(WALLET, [
+      {index: 5001, amount: 100_162_851_200n, address: SHIELDED, spent: true, nullifier: fill(21)},
+    ])
+    // dpp hashes it in lower case; the explorer answers in upper.
+    await service.recordShieldedSend(WALLET, {
+      hash: 'edb3279315bc3c6f2165ac79f8fbd8dfbac29a8b0bec8387e5a3a6f57abd4411',
+      type: 'SHIELDED_TRANSFER',
+      sides: [{address: SHIELDED, credits: -100_162_851_200n}],
+      paid: null,
+    })
+
+    responder = (path) => path.startsWith('/transaction/')
+      ? ({ok: true, status: 200, json: async () => ({
+        hash: 'EDB3279315BC3C6F2165AC79F8FBD8DFBAC29A8B0BEC8387E5A3A6F57ABD4411',
+        type: 'SHIELDED_TRANSFER', timestamp: '2026-09-24T16:46:10.426Z', blockHeight: 599153,
+        gasUsed: 162851200, status: 'SUCCESS', error: null, data: sent.toStateTransition().base64(),
+      })} as Response)
+      : page([])
+
+    await service.refresh(WALLET)
+
+    const rows = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].status).toBe('SUCCESS')
+    expect(rows[0].blockHeight).toBe(599153)
+    expect(rows[0].gasCredits).toBe(162_851_200n)
+    expect(rows[0].sender).toEqual([{source: SHIELDED, amount: 100_162_851_200n}])
+  })
+
   // The explorer lists a transition a block or two after it is sent, and the
   // note behind it waits for the next sync. Neither is a reason for the list to
   // be missing what this wallet just did.

@@ -1,5 +1,5 @@
 import type {Knex} from 'knex'
-import {PlatformTransaction, PlatformTxStatus, TransitionHeader} from '../types/PlatformTransaction'
+import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransaction'
 import {INSERT_CHUNK_SIZE, LOCAL_SOURCE_PREFIX} from '../constants/database'
 import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
@@ -57,7 +57,10 @@ export class PlatformTransactionDAO {
   // A transition read again once its block was indexed carries the height and
   // status the first read lacked. SQLite refuses a hash repeated in one upsert.
   upsertTransactions = async (source: string, transactions: PlatformTransaction[]): Promise<void> => {
-    const unique = Array.from(new Map(transactions.map(row => [row.hash, row])).values())
+    // dpp hashes a transition in lower case and the explorer answers in upper:
+    // one case, or the row a send wrote is never the row a walk replaces.
+    const unique = Array.from(new Map(transactions
+      .map(row => [row.hash.toUpperCase(), {...row, hash: row.hash.toUpperCase()}] as const)).values())
     if (unique.length === 0) return
 
     for (const rows of chunk(unique, INSERT_CHUNK_SIZE)) {
@@ -100,28 +103,19 @@ export class PlatformTransactionDAO {
       .delete()
   }
 
-  // Shielded transitions no note of ours has been counted into. Grouped because
-  // every source row of one carries the same transition fields.
-  getTransitionHeaders = async (walletId: string, noteAddresses: string[]): Promise<TransitionHeader[]> => {
+  // Shielded transitions no note of ours has been counted into. Newest first,
+  // and only the hash: what the row carries comes from the transition itself.
+  getShieldedGaps = async (walletId: string, noteAddresses: string[]): Promise<string[]> => {
     const placeholders = noteAddresses.map(() => '?').join(',')
     const rows = await this.knex('platform_transactions')
       .select('hash')
-      .max({type: 'type', timestamp: 'timestamp', block_height: 'block_height',
-        status: 'status', gas_credits: 'gas_credits'})
       .where('wallet_id', walletId)
       .where('type', 'like', '%SHIELD%')
       .groupBy('hash')
       .havingRaw(`max(case when source in (${placeholders}) then 1 else 0 end) = 0`, noteAddresses)
       .orderByRaw('max(timestamp) desc')
 
-    return rows.map((row: Record<string, unknown>) => ({
-      hash: row.hash as string,
-      type: row.type as string,
-      date: new Date(row.timestamp as number),
-      blockHeight: (row.block_height as number | null) ?? null,
-      status: ((row.status ?? null) as PlatformTxStatus | null),
-      gasCredits: BigInt(row.gas_credits as string),
-    }))
+    return rows.map(row => row.hash as string)
   }
 
   // Per source, because a hash one walk has reported says nothing about

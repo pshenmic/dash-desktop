@@ -57,9 +57,8 @@ export class PlatformExplorerProvider {
 
   // The transition itself, which no list endpoint carries: a shielded one says
   // nothing to an address walk beyond the surplus it sent back.
-  async transitionData(hash: string): Promise<string | null> {
-    const transition = await requestJson<PlatformExplorerTransition>(this.request, `/transaction/${hash}`)
-    return transition.data
+  async transition(hash: string): Promise<PlatformExplorerTransition> {
+    return requestJson<PlatformExplorerTransition>(this.request, `/transaction/${hash}`)
   }
 
   // One walk per identity, each its own stream to resume.
