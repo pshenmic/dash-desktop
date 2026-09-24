@@ -5,9 +5,16 @@ import {
   PlatformSpendSource,
   ShieldInputPlan,
 } from '../types/PlatformTransfer'
-import {AddressInput, Recipient} from '../../platform/types/messages'
-import {MAX_ADDRESS_INPUTS, MAX_RECIPIENTS, MIN_INPUT_CREDITS, MIN_OUTPUT_CREDITS} from '../constants/credits'
+import {AddressInput, FeeParams, Recipient, SelectionFeeOperation} from '../../platform/types/messages'
+import {
+  CREDITS_PER_DUFF,
+  MAX_ADDRESS_INPUTS,
+  MAX_RECIPIENTS,
+  MIN_INPUT_CREDITS,
+  MIN_OUTPUT_CREDITS,
+} from '../constants/credits'
 import {DEDUCT_FROM_FIRST_INPUT, resolveFeeStrategy} from './platformFeeStrategy'
+import {compareAddressBytes} from './addressOrder'
 
 // The count is only known once the selection stops, and each count is a worker
 // round trip, so what crosses is the price of a count rather than a price.
@@ -296,13 +303,7 @@ function allocate(
 }
 
 function compareAddresses(a: PlatformSourceCandidate, b: PlatformSourceCandidate): number {
-  const left = a.addressBytes
-  const right = b.addressBytes
-  const shared = Math.min(left.length, right.length)
-  for (let i = 0; i < shared; i++) {
-    if (left[i] !== right[i]) return left[i] - right[i]
-  }
-  return left.length - right.length
+  return compareAddressBytes(a.addressBytes, b.addressBytes)
 }
 
 export function planShieldInputs(candidates: PlatformSourceCandidate[], feeReserveCredits: bigint): ShieldInputPlan {
@@ -342,4 +343,110 @@ export function selectShieldInputs(plan: ShieldInputPlan, amountCredits: bigint)
   }
   if (claimed < amountCredits) throw new Error('Platform addresses cannot fund this shield')
   return inputs
+}
+
+// A picked source is the user's own plan, so only automatic selection plans below.
+export function automaticWithdrawal(operation: SelectionFeeOperation, params: FeeParams): boolean {
+  return operation === 'addressWithdrawal' && params.platformSource == null
+}
+
+// The whole balance draws on every address; any other amount on the largest one.
+// Amounts are typed in duffs, so one within a duff below the whole is the whole.
+export async function planWithdrawalInputs(
+  selectable: PlatformSourceCandidate[],
+  amountCredits: bigint,
+  feeForInputs: PlatformFeeForInputs,
+): Promise<PlatformInputOutcome> {
+  const full = await planFullWithdrawal(selectable, feeForInputs)
+  if (full.plan !== null) {
+    const fullCredits = withdrawnCredits(full.plan.inputs)
+    if (amountCredits > fullCredits) {
+      return refuse(`At most ${fullCredits.toString()} credits can be withdrawn once the network fee is paid`)
+    }
+    if (fullCredits - amountCredits < CREDITS_PER_DUFF) return full
+  }
+
+  const largest = largestBalance(selectable)
+  if (largest == null) return refuse('No Platform address holds enough credits to withdraw')
+  if (amountCredits < MIN_INPUT_CREDITS) {
+    return refuse(`Minimum amount is ${MIN_INPUT_CREDITS.toString()} credits`)
+  }
+  const feeCredits = await feeForInputs(1)
+  const cap = largest.balanceCredits - feeCredits
+  if (amountCredits > cap) {
+    return refuse(cap > 0n
+      ? `A partial withdrawal draws on one address, so it is limited to ${cap.toString()} credits; withdraw the full balance to use every address`
+      : 'No single Platform address holds enough credits for this withdrawal plus fee')
+  }
+  return {
+    plan: {inputs: [{candidate: largest, credits: amountCredits}], feeCredits, feeStrategy: DEDUCT_FROM_FIRST_INPUT},
+    error: null,
+  }
+}
+
+// The whole balance when every address can go in at once, otherwise the most the
+// largest address can send on its own.
+export async function maxWithdrawalCredits(
+  selectable: PlatformSourceCandidate[],
+  feeForInputs: PlatformFeeForInputs,
+): Promise<bigint> {
+  const full = await planFullWithdrawal(selectable, feeForInputs)
+  if (full.plan !== null) return withdrawnCredits(full.plan.inputs)
+
+  const largest = largestBalance(selectable)
+  if (largest == null) return 0n
+  const cap = largest.balanceCredits - await feeForInputs(1)
+  return cap > 0n ? cap : 0n
+}
+
+// Every address at its full balance, the fee kept back on the largest, which is
+// the one most able to absorb it and stay above the input minimum.
+async function planFullWithdrawal(
+  selectable: PlatformSourceCandidate[],
+  feeForInputs: PlatformFeeForInputs,
+): Promise<PlatformInputOutcome> {
+  if (selectable.length === 0) return refuse('No Platform address holds enough credits to withdraw')
+  if (selectable.length > MAX_ADDRESS_INPUTS) {
+    return refuse(`${selectable.length} addresses hold credits, but a withdrawal takes at most ${MAX_ADDRESS_INPUTS} inputs; consolidate funds onto fewer addresses first`)
+  }
+
+  const sorted = [...selectable].sort(compareAddresses)
+  const feeCredits = await feeForInputs(sorted.length)
+  const feeSource = largestBalance(sorted)!
+  if (feeSource.balanceCredits - feeCredits < MIN_INPUT_CREDITS) {
+    return refuse('The largest Platform address cannot cover the withdrawal fee and stay above the input minimum')
+  }
+
+  return {
+    plan: {
+      inputs: sorted.map(candidate => ({
+        candidate,
+        credits: candidate === feeSource ? candidate.balanceCredits - feeCredits : candidate.balanceCredits,
+      })),
+      feeCredits,
+      feeStrategy: [{kind: 'deductFromInput', index: sorted.indexOf(feeSource)}],
+    },
+    error: null,
+  }
+}
+
+// Ties go to the address first in byte order, so the pick is stable.
+function largestBalance(candidates: PlatformSourceCandidate[]): PlatformSourceCandidate | null {
+  return [...candidates].sort(compareAddresses).reduce<PlatformSourceCandidate | null>(
+    (best, candidate) => best == null || candidate.balanceCredits > best.balanceCredits ? candidate : best, null)
+}
+
+function withdrawnCredits(inputs: PlatformInputSelection[]): bigint {
+  return inputs.reduce((sum, input) => sum + input.credits, 0n)
+}
+
+// A funding's recipient gets exactly what was asked for; the fee comes off a
+// second address of the wallet's own, the first unused one where there is one.
+export function fundingRemainderAddress(candidates: PlatformSourceCandidate[], recipient: string): string {
+  const others = candidates
+    .filter(candidate => candidate.platformAddress !== recipient)
+    .sort((a, b) => a.index - b.index)
+  const remainder = others.find(candidate => candidate.balanceCredits === 0n && candidate.nonce === 0) ?? others[0]
+  if (remainder == null) throw new Error('No second Platform address to return the unused fee to')
+  return remainder.platformAddress
 }

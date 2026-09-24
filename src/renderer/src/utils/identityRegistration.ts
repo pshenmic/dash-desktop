@@ -2,11 +2,6 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { IDENTITY_REGISTRATION_MIN_DUFFS } from '../constants'
 import { davToDash } from './balance'
 
-// What the L1 selection can fund, less what the transition takes on L2.
-export function identityRegistrationMaxDuffs(coreMaxDuffs: bigint, creditsFeeDuffs: bigint): bigint {
-  return coreMaxDuffs > creditsFeeDuffs ? coreMaxDuffs - creditsFeeDuffs : 0n
-}
-
 export function identityRegistrationAmountError(
   amount: string,
   amountDuffs: bigint,

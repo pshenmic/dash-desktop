@@ -16,6 +16,7 @@ import {TransferInputSelection, TransferOutput} from '../../types/CoreTransactio
 import {PreviewParams, TransactionPreview} from '../../types/TransactionPreview'
 import {UTXO} from '../../types/UTXO'
 import {
+  AssetLockFeeOperation,
   FeeOperation,
   FeeParams,
   SelectionFeeOperation,
@@ -28,7 +29,10 @@ import {requireWallet} from '../../utils/requireWallet'
 import {maxSelectableAmount, requireAutomaticSelection, selectCoins} from '../../utils/coinSelection'
 import {
   PlatformFeeForInputs,
+  automaticWithdrawal,
   maxPlatformCredits,
+  maxWithdrawalCredits,
+  planWithdrawalInputs,
   requireAutomaticInputs,
   requireRecipients,
   selectPlatformInputsWithFee,
@@ -37,7 +41,7 @@ import {
   selectablePlatformInputs,
 } from '../../utils/platformTransfer'
 import {coreFeeDuffsFor, coreFeePerByte} from '../../utils/coreFeeRate'
-import {lockedDuffsFor} from '../../utils/assetLockTx'
+import {lockedDuffsFor, locksFeeOnTop, requireAboveFee} from '../../utils/assetLockTx'
 import {
   pickCreditChangeAddress,
   requireCoreRecipients,
@@ -238,9 +242,8 @@ export class FeeService {
         }
       }
 
-      // Two transactions: the lock carries the L2 fee on top of the amount, so
-      // what it locks is more than what arrives, and the credit output is the
-      // coin whose key signs the proof the L2 half spends.
+      // Two transactions, and the credit output is the coin whose key signs the
+      // proof the L2 half spends.
       case 'assetLockFunding':
       case 'assetLockShield':
       case 'identityRegister':
@@ -251,7 +254,9 @@ export class FeeService {
         // itself against — an L1 form carries no amount in credits.
         const arriving = {...feeParams, amountCredits: amountDuffs * CREDITS_PER_DUFF}
         const feeCredits = await this.protocolFee(wallet, operation, arriving, 1)
-        const lockDuffs = lockedDuffsFor(amountDuffs, feeCredits)
+        const feeOnTop = locksFeeOnTop(operation)
+        if (!feeOnTop) requireAboveFee(amountDuffs, feeCredits)
+        const lockDuffs = feeOnTop ? lockedDuffsFor(amountDuffs, feeCredits) : amountDuffs
         // No change address of its own: a lock is funded through AssetLockService,
         // which never takes one.
         const {selection, utxos, grouped} =
@@ -381,6 +386,10 @@ export class FeeService {
     params: FeeParams,
   ): Promise<PlatformInputOutcome> {
     const candidates = await this.addresses.loadCandidates(wallet)
+    if (automaticWithdrawal(operation, params)) {
+      return planWithdrawalInputs(
+        selectablePlatformInputs(candidates), params.amountCredits, this.inputFee(wallet, operation, params))
+    }
     return selectPlatformInputsWithFee(
       selectablePlatformInputs(candidates, params.platformSource),
       params.amountCredits,
@@ -402,6 +411,12 @@ export class FeeService {
     }
     const source = fromAddress == null ? null : {kind: 'address' as const, address: fromAddress}
     return {feeCredits, plan: planShieldInputs(selectablePlatformInputs(candidates, source), reserveCredits)}
+  }
+
+  // The L2 half of an asset lock alone. A settle runs after the lock exists, so
+  // it must not wait on the Core coins estimateFee also prices.
+  async lockTransitionFee(wallet: Wallet, operation: AssetLockFeeOperation, params: FeeParams): Promise<bigint> {
+    return this.protocolFee(wallet, operation, params, 1)
   }
 
   private async protocolFee(
@@ -429,14 +444,19 @@ export class FeeService {
     const candidates = await this.addresses.loadCandidates(wallet)
     const selectable = selectablePlatformInputs(candidates, params.platformSource)
     const feeForInputs = this.inputFee(wallet, operation, params)
-    const {plan} = await selectPlatformInputsWithFee(
-      selectable, params.amountCredits, feeForInputs, params.platformSource, this.outputCount(operation, params))
+    const withdrawal = automaticWithdrawal(operation, params)
+    const {plan} = withdrawal
+      ? await planWithdrawalInputs(selectable, params.amountCredits, feeForInputs)
+      : await selectPlatformInputsWithFee(
+        selectable, params.amountCredits, feeForInputs, params.platformSource, this.outputCount(operation, params))
 
     return {
       feeCredits: plan?.feeCredits ?? await feeForInputs(1),
       feeDuffs: null,
       maxDuffs: null,
-      maxPerTx: await maxPlatformCredits(selectable, feeForInputs, params.platformSource),
+      maxPerTx: withdrawal
+        ? await maxWithdrawalCredits(selectable, feeForInputs)
+        : await maxPlatformCredits(selectable, feeForInputs, params.platformSource),
       noteLimit: null,
     }
   }

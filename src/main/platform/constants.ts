@@ -25,9 +25,18 @@ export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
 // bincode encoding of PlatformAddress::P2pkh: one variant byte, then the hash.
 export const PLATFORM_ADDRESS_BYTES = 21
 
+// Past every quote input index, so a funding quote's remainder stand-in is an
+// address of its own rather than a merge into another.
+export const FUNDING_REMAINDER_STAND_IN = 255
+
 // Drive caps a proved query at max_returned_elements, and rejects the request
 // rather than truncating it. Versioned, so it can move under a protocol bump.
 export const PROVED_QUERY_LIMIT = 100
+
+// A protocol upgrade activates at an epoch boundary, so the version fees are
+// priced at can be this stale for a while after one.
+export const PLATFORM_VERSION_TTL_MS = 10 * 60_000
+export const PLATFORM_VERSION_RETRY_MS = 30_000
 
 export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
   {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},

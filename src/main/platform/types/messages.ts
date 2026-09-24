@@ -248,7 +248,9 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   addressFundingFromAssetLock: {
-    payload: AssetLockFunded & {recipient: string}
+    // The recipient gets exactly recipientCredits; the remainder address gets
+    // what the lock carries beyond it, less the fee.
+    payload: AssetLockFunded & {recipient: string; recipientCredits: bigint; remainderAddress: string}
     result: {stHash: string}
   }
   identityCreateFromAssetLock: {

@@ -46,6 +46,19 @@ describe('amountErrorFor', () => {
     }))).toBe('Max sendable is 0.99934 Dash after fees.')
   })
 
+  // An identity lock carries only the amount and its fee comes out of it.
+  it('refuses an identity top-up from L1 the Platform fee would consume', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      operation: TransferOperation.IdentityTopUpL1,
+      amount: '0.0005',
+      amountDuffs: 50_000n,
+      coreMaxDuffs: 99_990_000n,
+      amountCredits: 50_000_000n,
+      feeCredits: 50_500_000n,
+    }))).toBe('Amount must exceed the 0.000505 Dash Platform fee taken out of it.')
+  })
+
   it('reports the max Dash amount the selection can fund', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,

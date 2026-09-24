@@ -92,6 +92,16 @@ export function isPoolIdentityDenomination(amountCredits: bigint): boolean {
   return POOL_IDENTITY_DENOMINATIONS.includes(amountCredits)
 }
 
+// An L1 -> L2 lock carries the L2 fee on top of the amount so the amount is what
+// arrives; an identity lock carries only the amount, and the fee comes out of it.
+export function locksPlatformFeeOnTop(operation: TransferOperation): boolean {
+  return operation === TransferOperation.AssetLockFunding || operation === TransferOperation.AssetLockShield
+}
+
+export function takesPlatformFeeFromLock(operation: TransferOperation): boolean {
+  return operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityTopUpL1
+}
+
 export function isLikelyIdentityId(value: string): boolean {
   return /^[1-9A-HJ-NP-Za-km-z]{42,44}$/.test(value.trim())
 }

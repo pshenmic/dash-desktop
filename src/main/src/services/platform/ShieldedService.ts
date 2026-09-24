@@ -22,7 +22,7 @@ import {runAddressWindow} from '../../utils/addressWindow'
 import {AddressWindowStore, DerivedAddress, UsageOracle} from '../../types/AddressWindow'
 import {ShieldedAddressRow} from '../../types/ShieldedAddress'
 import {Preferences} from '../../preferences'
-import { lockedDuffsFor, shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
+import { creditsAfterFee, lockedDuffsFor } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
   ShieldedNoteInfo,
@@ -642,7 +642,7 @@ export class ShieldedService {
       assetLockProof: proof,
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
-      shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs, feeCredits),
+      shieldAmountCredits: creditsAfterFee(row.amountDuffs, feeCredits),
       surplusAddress: null,
     })
 

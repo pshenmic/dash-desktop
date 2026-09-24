@@ -53,6 +53,8 @@ import {
   operationInfo,
   isLikelyIdentityId,
   isPoolIdentityDenomination,
+  locksPlatformFeeOnTop,
+  takesPlatformFeeFromLock,
   POOL_IDENTITY_DENOMINATIONS,
 } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
@@ -380,16 +382,17 @@ function WalletTransferHub(): React.JSX.Element {
   const feeSourceValid = !subtractFee || (platformSource?.kind === 'inputs' && feeOutputIndex != null)
   const totalDebitCredits = amountCredits + (subtractFee ? 0n : feeCredits ?? 0n)
 
-  // An L1 send pays its fee on top of the amount; an L1 -> L2 transfer locks the
-  // L2 fee on top of that, so the amount typed is the amount that arrives.
-  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
+  // An L1 send pays its fee on top of the amount, and a lock that carries the L2
+  // fee on top adds that too.
+  const lockedFeeDuffs = operation !== null && locksPlatformFeeOnTop(operation) ? creditsToDuffs(feeCredits ?? 0n) : 0n
+  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + lockedFeeDuffs
 
   // What the L1 selection can fund, less whatever the operation locks on L2.
   const coreMaxDuffs = useMemo((): bigint | null => {
     if (maxDuffs === null) return null
-    const spendable = maxDuffs - creditsToDuffs(feeCredits ?? 0n)
+    const spendable = maxDuffs - lockedFeeDuffs
     return spendable > 0n ? spendable : 0n
-  }, [maxDuffs, feeCredits])
+  }, [maxDuffs, lockedFeeDuffs])
 
   const sliderMaxAmount = useMemo((): bigint | null => {
     if (isCoreOperation) return coreMaxDuffs
@@ -928,6 +931,12 @@ function WalletTransferHub(): React.JSX.Element {
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
               <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + totalFeeDuffs)} Dash</Text>
             </div>
+            {operation !== null && takesPlatformFeeFromLock(operation) && feeCredits !== null && (
+              <div className={"flex justify-between items-baseline gap-3"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Identity is credited</Text>
+                <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={duffsToCredits(amountDuffs) - feeCredits} align={"end"} /></Text>
+              </div>
+            )}
           </>
         ) : feeCredits !== null && (
           <>

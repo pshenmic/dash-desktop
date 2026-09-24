@@ -73,8 +73,13 @@ function assetLockTransaction(inputCount: number): SDKTransaction {
   return tx
 }
 
+// The protocol version is the one network read a quote makes; stood in so the
+// suite stays offline.
+const sdk = new DashPlatformSDK({network: 'testnet'})
+Object.assign(sdk.node, {getEpochsInfo: async () => [{protocolVersion: 13}]})
+
 const ctx = {
-  sdk: new DashPlatformSDK({network: 'testnet'}),
+  sdk,
   network: 'testnet',
   signal: new AbortController().signal,
   progress: () => undefined,
@@ -96,80 +101,69 @@ function params(overrides: Partial<FeeQuoteParams> = {}): FeeQuoteParams {
 
 const ALL = Object.keys(RECIPIENT) as TransitionFeeOperation[]
 
+async function feeOf(operation: TransitionFeeOperation, overrides: Partial<FeeQuoteParams> = {}): Promise<bigint> {
+  const {feeCredits} = await transitionFee({operation, params: params(overrides)}, ctx)
+  return feeCredits
+}
+
 describe('transitionFee', () => {
-  it('prices every operation main can send it', () => {
+  it('prices every operation main can send it', async () => {
     for (const operation of ALL) {
-      const quote = transitionFee({operation, params: params({recipient: RECIPIENT[operation]})}, ctx)
-      expect(quote.feeCredits, operation).toBeGreaterThan(0n)
+      expect(await feeOf(operation, {recipient: RECIPIENT[operation]}), operation).toBeGreaterThan(0n)
     }
   })
 
-  it('marks everything but a shield as metered, since only the pool fee is exact', () => {
+  it('marks everything but a shield as metered, since only the pool fee is exact', async () => {
     for (const operation of ALL) {
-      const {metered} = transitionFee({operation, params: params({recipient: RECIPIENT[operation]})}, ctx)
+      const {metered} = await transitionFee({operation, params: params({recipient: RECIPIENT[operation]})}, ctx)
       expect(metered, operation).toBe(operation !== 'shield' && operation !== 'assetLockShield')
     }
   })
 
   // The two counts main supplies are the whole reason a quote cannot be a
   // constant: each extra input and each extra output costs again.
-  it('charges for every input', () => {
-    const feeAt = (inputCount: number): bigint =>
-      transitionFee({operation: 'addressFundsTransfer', params: params({inputCount, recipient: PLATFORM_ADDRESS})}, ctx).feeCredits
-    expect(feeAt(2)).toBeGreaterThan(feeAt(1))
-    expect(feeAt(3) - feeAt(2)).toBe(feeAt(2) - feeAt(1))
+  it('charges for every input', async () => {
+    const feeAt = (inputCount: number): Promise<bigint> =>
+      feeOf('addressFundsTransfer', {inputCount, recipient: PLATFORM_ADDRESS})
+    expect(await feeAt(2)).toBeGreaterThan(await feeAt(1))
+    expect(await feeAt(3) - await feeAt(2)).toBe(await feeAt(2) - await feeAt(1))
   })
 
-  it('charges for every recipient', () => {
-    const feeAt = (count: number): bigint => transitionFee({
-      operation: 'identityToAddress',
-      params: params({recipient: Array.from({length: count}, (_, i) => platformAddress(i))}),
-    }, ctx).feeCredits
-    expect(feeAt(2)).toBeGreaterThan(feeAt(1))
-    expect(feeAt(3) - feeAt(2)).toBe(feeAt(2) - feeAt(1))
+  it('charges for every recipient', async () => {
+    const feeAt = (count: number): Promise<bigint> =>
+      feeOf('identityToAddress', {recipient: Array.from({length: count}, (_, i) => platformAddress(i))})
+    expect(await feeAt(2)).toBeGreaterThan(await feeAt(1))
+    expect(await feeAt(3) - await feeAt(2)).toBe(await feeAt(2) - await feeAt(1))
   })
 
   // The transition keys its outputs by address, so paying one address twice is
   // one output. Passing the real addresses is what makes the quote match; a
   // count would have over-charged for the duplicate.
-  it('prices a repeated address as the single output it becomes', () => {
-    const once = transitionFee({operation: 'identityToAddress', params: params({recipient: [PLATFORM_ADDRESS]})}, ctx)
-    const twice = transitionFee({
-      operation: 'identityToAddress',
-      params: params({recipient: [PLATFORM_ADDRESS, PLATFORM_ADDRESS]}),
-    }, ctx)
-    expect(twice.feeCredits).toBe(once.feeCredits)
+  it('prices a repeated address as the single output it becomes', async () => {
+    expect(await feeOf('identityToAddress', {recipient: [PLATFORM_ADDRESS, PLATFORM_ADDRESS]}))
+      .toBe(await feeOf('identityToAddress', {recipient: [PLATFORM_ADDRESS]}))
   })
 
-  // Consensus meters an input like an output, one address balance write each,
-  // so an input is priced like one.
-  it('charges an input of a transfer what it charges an output', () => {
-    const twoInputs = transitionFee({operation: 'addressFundsTransfer', params: params({inputCount: 2})}, ctx)
-    const oneInput = transitionFee({operation: 'addressFundsTransfer', params: params({inputCount: 1})}, ctx)
-    const oneOutput = AddressFundsTransferTransitionWASM.estimateMinFee(0, 1)
-
-    expect(twoInputs.feeCredits - oneInput.feeCredits).toBe(oneOutput)
+  it('prices a transfer at the protocol minimum for its inputs and outputs', async () => {
+    const recipient = [platformAddress(0), platformAddress(1)]
+    expect(await feeOf('addressFundsTransfer', {inputCount: 3, recipient}))
+      .toBe(AddressFundsTransferTransitionWASM.estimateMinFee(3, 2))
   })
 
-  // Consensus meters the transition rather than counting addresses, and what it
-  // charged was more than the addresses alone.
-  it('reserves more than the addresses a transfer touches', () => {
-    const {feeCredits} = transitionFee({operation: 'addressFundsTransfer', params: params({inputCount: 10})}, ctx)
-    const touched = AddressFundsTransferTransitionWASM.estimateMinFee(0, 11)
-
-    expect(feeCredits).toBeGreaterThan(touched)
+  // The recipient's output and the one the unused fee returns to.
+  it('prices a Core to Platform funding over two outputs', async () => {
+    expect(await feeOf('assetLockFunding', {recipient: PLATFORM_ADDRESS})).toBe(62_000_000n)
   })
 
   // A bare string is one recipient; nothing has to say so separately.
-  it('prices a single recipient the same whether it is a string or a list of one', () => {
-    const asString = transitionFee({operation: 'identityToAddress', params: params({recipient: PLATFORM_ADDRESS})}, ctx)
-    const asList = transitionFee({operation: 'identityToAddress', params: params({recipient: [PLATFORM_ADDRESS]})}, ctx)
-    expect(asString.feeCredits).toBe(asList.feeCredits)
+  it('prices a single recipient the same whether it is a string or a list of one', async () => {
+    expect(await feeOf('identityToAddress', {recipient: PLATFORM_ADDRESS}))
+      .toBe(await feeOf('identityToAddress', {recipient: [PLATFORM_ADDRESS]}))
   })
 
   // Measured across the u64 range: the placeholder costs nothing in accuracy,
   // and saves a proved gRPC round trip on every keystroke.
-  it('prices identity transitions the same whatever the real nonce would be', () => {
+  it('prices identity transitions the same whatever the real nonce would be', async () => {
     for (const operation of ['identityToAddress', 'identityToIdentity', 'identityWithdrawal'] as TransitionFeeOperation[]) {
       const feeAt = (identityNonce: bigint): bigint => ctx.sdk.identities
         .createStateTransition('creditTransfer', {
@@ -177,8 +171,7 @@ describe('transitionFee', () => {
         }).calculateMinRequiredFee()
 
       expect(feeAt(1n)).toBe(feeAt(2n ** 40n))
-      expect(transitionFee({operation, params: params({recipient: RECIPIENT[operation]})}, ctx).feeCredits, operation)
-        .toBeGreaterThan(0n)
+      expect(await feeOf(operation, {recipient: RECIPIENT[operation]}), operation).toBeGreaterThan(0n)
     }
   })
 
@@ -200,24 +193,22 @@ describe('transitionFee', () => {
   })
 
   // Pinned because an over-quote is donated to the fee pools, not returned.
-  it('prices a shielded funding at the two-action bundle plus the asset lock base cost', () => {
-    const {feeCredits} = transitionFee({operation: 'assetLockShield', params: params({recipient: ''})}, ctx)
-    expect(feeCredits).toBe(212_851_200n)
+  it('prices a shielded funding at the two-action bundle plus the asset lock base cost', async () => {
+    expect(await feeOf('assetLockShield', {recipient: ''})).toBe(212_851_200n)
   })
 
   // The L2 half of an L1 -> L2 transfer. Quoted before any coins are committed,
   // so it is priced against a placeholder proof rather than the real one.
-  it('prices the transition an asset lock proof will fund, not only the lock', () => {
+  it('prices the transition an asset lock proof will fund, not only the lock', async () => {
     for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as TransitionFeeOperation[]) {
-      const quote = transitionFee({operation, params: params({recipient: RECIPIENT[operation]})}, ctx)
-      expect(quote.feeCredits, operation).toBeGreaterThan(0n)
+      expect(await feeOf(operation, {recipient: RECIPIENT[operation]}), operation).toBeGreaterThan(0n)
     }
   })
 
   // The quote is asked for before any lock exists, so it prices a placeholder
   // chain proof while the wallet usually settles on an instant one, which is
   // several hundred bytes larger. This is what says the substitution is free.
-  it.each([1, 2, 5])('prices an identity registration over a %i-input instant lock the same', (inputCount) => {
+  it.each([1, 2, 5])('prices an identity registration over a %i-input instant lock the same', async (inputCount) => {
     const tx = assetLockTransaction(inputCount)
     const islock = new InstantLock(
       1,
@@ -234,7 +225,6 @@ describe('transitionFee', () => {
       assetLockProof: {type: 'instantLock', transaction: tx.hex(), instantLock: islock.hex(), outputIndex: 0},
     }).calculateMinRequiredFee()
 
-    expect(transitionFee({operation: 'identityRegister', params: params({recipient: ''})}, ctx).feeCredits)
-      .toBe(overInstantProof)
+    expect(await feeOf('identityRegister', {recipient: ''})).toBe(overInstantProof)
   })
 })

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { AssetLockTx } from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
-import {buildAssetLockOutputs, lockedDuffsFor, shieldAmountFromLockedDuffs} from '../../src/main/src/utils/assetLockTx'
+import {buildAssetLockOutputs, creditsAfterFee, lockedDuffsFor, locksFeeOnTop, requireAboveFee} from '../../src/main/src/utils/assetLockTx'
 import {
   ASSET_LOCK_CREDIT_OUTPUT_INDEX,
   ASSET_LOCK_PAYLOAD_VERSION,
@@ -50,13 +50,13 @@ describe('buildAssetLockOutputs', () => {
   })
 })
 
-describe('shieldAmountFromLockedDuffs', () => {
+describe('creditsAfterFee', () => {
   it('converts duffs to credits and deducts the fee', () => {
-    expect(shieldAmountFromLockedDuffs(10_000_000n, FEE)).toBe(10_000_000n * CREDITS_PER_DUFF - FEE)
+    expect(creditsAfterFee(10_000_000n, FEE)).toBe(10_000_000n * CREDITS_PER_DUFF - FEE)
   })
 
   it('rejects amounts that do not exceed the fee', () => {
-    expect(() => shieldAmountFromLockedDuffs(FEE / CREDITS_PER_DUFF, FEE)).toThrow('too small to shield')
+    expect(() => creditsAfterFee(FEE / CREDITS_PER_DUFF, FEE)).toThrow('too small')
   })
 })
 
@@ -72,10 +72,26 @@ describe('lockedDuffsFor', () => {
     expect(lockedDuffsFor(1_000n, CREDITS_PER_DUFF + 1n)).toBe(1_002n)
   })
 
-  // What settleShield subtracts is what startShieldFromL1 added, less the sub-duff round-up.
-  it('is the inverse of shieldAmountFromLockedDuffs', () => {
-    const shielded = shieldAmountFromLockedDuffs(lockedDuffsFor(AMOUNT, FEE), FEE)
+  // What a settle subtracts is what its start added, less the sub-duff round-up.
+  it('is the inverse of creditsAfterFee', () => {
+    const shielded = creditsAfterFee(lockedDuffsFor(AMOUNT, FEE), FEE)
     expect(shielded - AMOUNT * CREDITS_PER_DUFF).toBeGreaterThanOrEqual(0n)
     expect(shielded - AMOUNT * CREDITS_PER_DUFF).toBeLessThan(CREDITS_PER_DUFF)
+  })
+})
+
+describe('locksFeeOnTop', () => {
+  it('locks the fee on top for a funding or a shield, and takes it from an identity lock', () => {
+    expect(locksFeeOnTop('assetLockFunding')).toBe(true)
+    expect(locksFeeOnTop('assetLockShield')).toBe(true)
+    expect(locksFeeOnTop('identityRegister')).toBe(false)
+    expect(locksFeeOnTop('identityTopUpL1')).toBe(false)
+  })
+})
+
+describe('requireAboveFee', () => {
+  it('refuses a lock the fee would consume whole and passes one it would not', () => {
+    expect(() => requireAboveFee(FEE / CREDITS_PER_DUFF, FEE)).toThrow('too small')
+    expect(() => requireAboveFee(FEE / CREDITS_PER_DUFF + 1n, FEE)).not.toThrow()
   })
 })

@@ -3,6 +3,7 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {shieldPoolFee} from '../fee'
+import {platformVersion} from '../platformVersion'
 import {DEDUCT_FROM_FIRST, toInputAddresses} from '../address/signInputs'
 import {PLATFORM_ACCOUNT, SHIELDED_ACCOUNT} from '../../../src/constants/addresses'
 
@@ -20,8 +21,9 @@ export async function shield(payload: Payload, ctx: OperationContext): Promise<R
 
   // Input 0 also claims the pool fee, which the structure check requires the
   // claims to cover; the metered fee comes out of what input 0 leaves unclaimed.
+  const version = await platformVersion(ctx)
   const [first, ...rest] = inputs
-  const claims = [{...first, credits: first.credits + shieldPoolFee()}, ...rest]
+  const claims = [{...first, credits: first.credits + shieldPoolFee(version)}, ...rest]
 
   ctx.progress('proving', 0, 0)
   const stateTransition = await sdk.shielded.createStateTransition('shield', {
@@ -33,6 +35,7 @@ export async function shield(payload: Payload, ctx: OperationContext): Promise<R
     userFeeIncrease: 0,
     memo: ShieldedMemoWASM.empty() as unknown as string,
     senderOvk,
+    platformVersion: version,
   })
 
   return {stHash: await broadcast(sdk, stateTransition, ctx)}

@@ -1,6 +1,7 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {
   OrchardAddressWASM,
+  PlatformVersionWASM,
   ShieldedMemoWASM,
   ShieldedOutputWASM,
   SpendableNoteWASM,
@@ -22,6 +23,7 @@ export async function buildTransition(
   spends: SpendableNoteWASM[],
   anchor: Uint8Array,
   changeAddress: ShieldedAddress,
+  platformVersion: PlatformVersionWASM,
 ): Promise<StateTransitionWASM> {
   const {seed, recipients} = payload
   const spendInputs = {
@@ -31,6 +33,7 @@ export async function buildTransition(
     coinType: COIN_TYPE[network],
     account: SHIELDED_ACCOUNT,
     anchor,
+    platformVersion,
   }
   // A multi-output bundle carries a memo per output instead of one for the
   // transition, so the memo is not part of what every spend shares.
