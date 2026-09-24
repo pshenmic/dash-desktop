@@ -16,6 +16,7 @@ import { formatChange24h } from '@renderer/utils/networkStatus'
 import coreArt from '@renderer/assets/images/pageAuthorization/auth-bg-flower.png'
 import platformArt from '@renderer/assets/images/pageAuthorization/auth-bg-stack.png'
 import AssetCard from './AssetCard'
+import DashboardHeading from './DashboardHeading'
 
 export default function HeroBalance(): React.JSX.Element {
   const { status } = useAuth()
@@ -39,16 +40,15 @@ export default function HeroBalance(): React.JSX.Element {
     rateReady ? `~ ${formatFiat(duffs)} ${currency.toUpperCase()}` : null
 
   return (
-    <section className={"relative overflow-hidden flex flex-col gap-5 p-5 rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+    <section className="dashboard-section" aria-label={totalBalance}>
+      <header className="dashboard-section-header"><DashboardHeading as="h2">{totalBalance}</DashboardHeading></header>
+      <div className={"relative overflow-hidden flex flex-col gap-5 p-5 rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
       <div className={"absolute inset-0 pointer-events-none dark:hidden bg-[linear-gradient(to_right,rgba(12,28,51,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(12,28,51,0.03)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]"} />
       <div className={"absolute inset-0 pointer-events-none hidden dark:block bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]"} />
       <div className={"absolute -top-24 -right-16 size-64 rounded-full bg-dash-brand/10 dark:bg-dash-mint/8 blur-3xl pointer-events-none"} />
 
       <div className={"relative flex flex-wrap items-start justify-between gap-4"}>
         <div className={"flex flex-col gap-1.5"}>
-          <Text size={14} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-            {totalBalance}
-          </Text>
           {balanceLoading ? (
             <div className={"h-11 w-64 rounded-xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
           ) : (
@@ -127,6 +127,7 @@ export default function HeroBalance(): React.JSX.Element {
           loading={balanceLoading}
           hidden={!isBalanceVisible}
         />
+      </div>
       </div>
     </section>
   )

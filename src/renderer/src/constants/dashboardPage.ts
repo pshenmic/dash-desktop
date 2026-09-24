@@ -2,7 +2,7 @@ export const RECENT_TX_LIMIT = 3
 
 export const dashboardPage = {
   hero: {
-    totalBalance: 'Total Balance:',
+    totalBalance: 'Total balance',
     price: 'Price:',
     core: {
       title: 'Core',
@@ -50,16 +50,16 @@ export const dashboardPage = {
   },
   stats: {
     transactions: 'Transactions',
-    totalReceived: 'Total Received',
-    totalSent: 'Total Sent',
-    largestReceived: 'Largest Received',
-    walletAge: 'Wallet Age',
-    lastActivity: 'Last Activity',
+    totalReceived: 'Total received',
+    totalSent: 'Total sent',
+    largestReceived: 'Largest received',
+    walletAge: 'Wallet age',
+    lastActivity: 'Last activity',
     pending: 'Pending',
-    addressesUsed: 'Addresses Used'
+    addressesUsed: 'Addresses used'
   },
   recent: {
-    title: 'Recent Activity',
+    title: 'Recent activity',
     viewAll: 'View all',
     error: 'Failed to load wallet activity'
   },

@@ -1,5 +1,6 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
+import DashboardHeading from './DashboardHeading'
 
 interface AssetCardProps {
   title: string
@@ -38,9 +39,7 @@ export default function AssetCard({
       />
 
       <div className={"relative flex flex-col gap-2.5"}>
-        <Text size={16} weight={"bold"} color={"white"} className={"leading-[120%]"}>
-          {title}
-        </Text>
+        <DashboardHeading inverse>{title}</DashboardHeading>
         <div className={"flex flex-col gap-1"}>
           <Text size={12} weight={"medium"} color={"white"} opacity={60} className={"leading-[120%]"}>
             {balanceLabel}

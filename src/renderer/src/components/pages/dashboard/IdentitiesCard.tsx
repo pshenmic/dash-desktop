@@ -7,6 +7,7 @@ import { dashboardPage } from '@renderer/constants'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import DashboardHeading from './DashboardHeading'
 
 function shortIdentifier(identifier: string): string {
   return identifier.length <= 12 ? identifier : `${identifier.slice(0, 6)}…${identifier.slice(-4)}`
@@ -42,9 +43,7 @@ export default function IdentitiesCard(): React.JSX.Element {
           <span className={"flex size-[1.875rem] shrink-0 items-center justify-center rounded-full bg-dash-brand/12 dark:bg-dash-mint/12 dash-text-primary"}>
             <KeyIcon size={14} color={"currentColor"} />
           </span>
-          <Text size={14} weight={"medium"} color={"brand"}>
-            {labels.title}
-          </Text>
+          <DashboardHeading>{labels.title}</DashboardHeading>
         </div>
         {identities.length > 0 && (
           <button
