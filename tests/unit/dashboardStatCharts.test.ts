@@ -75,6 +75,24 @@ describe('Core and Evo monetary flows', () => {
     expect(flows[1].days[29]).toEqual({ date: new Date(2026, 8, 24), received: 3n, sent: 10n })
   })
 
+  it('finds each source largest single receive across all history, preserving credit precision', () => {
+    const flows = buildStatFlows([
+      core,
+      { ...core, amount: 20n, date: new Date(2024, 1, 1) },
+      { ...core, amount: 999n, status: 'failed' },
+      { ...core, amount: 999n, direction: 'out' },
+    ], [
+      evo,
+      { ...evo, hash: 'largest', amountCredits: 501n, netCredits: 501n, date: new Date(2024, 1, 1) },
+      { ...evo, hash: 'other', amountCredits: 500n, netCredits: 500n },
+      { ...evo, hash: 'sent', amountCredits: 999n, netCredits: -999n },
+      { ...evo, hash: 'internal', amountCredits: 999n, netCredits: 0n },
+    ], now)
+    expect(flows[0].largestReceived).toBe(20_000n)
+    expect(flows[1].largestReceived).toBe(501n)
+    expect(buildStatFlows([], [], now).map(flow => flow.largestReceived)).toEqual([0n, 0n])
+  })
+
   it('keeps old and undated Evo amounts in all-time totals, outside the 30-day chart', () => {
     const flows = buildStatFlows([], [
       { ...evo, hash: 'old', date: new Date(2024, 1, 1), amountCredits: 100n },

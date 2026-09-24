@@ -30,12 +30,16 @@ export function buildStatFlows(core: StatsTx[], platform: PlatformTransaction[],
   return [core.map(tx => ({ ...tx, amount: duffsToCredits(tx.amount) })), evo].map((transactions, index) => {
     let received = 0n
     let sent = 0n
+    let largestReceived = 0n
     for (const tx of transactions) {
       if (tx.status === 'failed') continue
-      if (tx.direction === 'in') received += tx.amount
+      if (tx.direction === 'in') {
+        received += tx.amount
+        if (tx.amount > largestReceived) largestReceived = tx.amount
+      }
       else sent += tx.amount
     }
-    return { source: index === 0 ? 'core' : 'evo', received, sent, days: buildStatActivity(transactions, now) }
+    return { source: index === 0 ? 'core' : 'evo', received, sent, largestReceived, days: buildStatActivity(transactions, now) }
   })
 }
 

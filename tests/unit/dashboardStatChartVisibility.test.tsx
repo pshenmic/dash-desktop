@@ -15,7 +15,7 @@ describe('statistics chart visibility', () => {
 
   it('renders an empty period with a zero amount and valid chart geometry', () => {
     const markup = renderToStaticMarkup(<StatVolumeChart flows={buildStatFlows([], [])} direction="received" hidden={false} />)
-    expect(markup).toContain('30d cumulative')
+    expect(markup).toContain('30 days')
     expect(markup).toContain('Core total: 0 DASH')
     expect(markup).toContain('Evo total: 0 DASH')
     expect(markup).toContain('stroke="var(--stat-brand)"')
