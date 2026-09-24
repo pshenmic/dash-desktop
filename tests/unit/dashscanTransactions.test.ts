@@ -198,4 +198,17 @@ describe('dashscanToWalletTransactions', () => {
       vi.useRealTimers()
     }
   })
+
+  // The block time is the miner's clock, past the platform transition an asset
+  // lock funded, and the two read backwards against each other on the list.
+  it('prefers the moment the wallet saw the tx over the block that carried it', () => {
+    const seen = new Map([[tx().hash, Date.parse('2026-09-24T17:44:58.997Z')]])
+    const dashscan = [tx({ timestamp: '2026-09-24T17:45:15.000Z' })]
+
+    const [result] = dashscanToWalletTransactions(dashscan, 'w1', [OURS], seen)
+    const [unseen] = dashscanToWalletTransactions(dashscan, 'w1', [OURS], new Map())
+
+    expect(result.date).toEqual(new Date('2026-09-24T17:44:58.997Z'))
+    expect(unseen.date).toEqual(new Date('2026-09-24T17:45:15.000Z'))
+  })
 })
