@@ -24,6 +24,11 @@ export function creditsToDuffs(credits: bigint): bigint {
   return sign * (abs / CREDITS_PER_DUFF)
 }
 
+// A lock carries a credit fee in whole duffs, so the part of a duff is rounded up.
+export function lockedFeeDuffs(feeCredits: bigint): bigint {
+  return (feeCredits + CREDITS_PER_DUFF - 1n) / CREDITS_PER_DUFF
+}
+
 export function compareBigIntsDescending(a: bigint, b: bigint): number {
   if (a < b) return 1
   if (a > b) return -1

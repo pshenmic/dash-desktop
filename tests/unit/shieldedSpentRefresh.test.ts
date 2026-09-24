@@ -30,6 +30,7 @@ function service(notes: PersistNote[], spent: Uint8Array[]) {
     null as never,
     {request} as never,
     null as never,
+    {recordShieldedSend: async () => undefined} as never,
     Preferences.default(),
   )
   return {svc, request, markSpent}

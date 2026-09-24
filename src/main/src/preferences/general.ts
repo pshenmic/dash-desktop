@@ -1,12 +1,9 @@
 import {z} from 'zod'
 import {SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES} from '../constants/app'
 import {DEFAULT_LOG_LEVEL, LOG_LEVELS} from '../constants/logging'
-import {
-  DEFAULT_CORE_FEE_MULTIPLIER,
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-  MAX_FEE_MULTIPLIER,
-  MIN_FEE_MULTIPLIER,
-} from '../constants/credits'
+import {MAX_FEE_MULTIPLIER, MIN_FEE_MULTIPLIER, TRANSITION_FEE_OPERATIONS} from '../constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../constants/fee/platform'
+import {DEFAULT_CORE_FEE_MULTIPLIER} from '../constants/fee/core'
 import {LogLevel} from '../types/Log'
 
 export const ConnectionTypeSchema = z.enum(['p2p', 'rpc'])
@@ -22,22 +19,27 @@ const FeeMultiplierSchema = z
   .max(MAX_FEE_MULTIPLIER)
   .multipleOf(1)
 
+const PlatformFeeMultiplierSchema = z
+  .record(z.enum(TRANSITION_FEE_OPERATIONS), FeeMultiplierSchema)
+  .default(DEFAULT_PLATFORM_FEE_MULTIPLIER)
+
 export const GeneralPreferencesSchema = z.object({
   language: z.enum(SUPPORTED_LANGUAGES),
   currency: z.enum(SUPPORTED_CURRENCIES),
   connectionType: ConnectionTypeSchema,
-  platformFeeMultiplier: FeeMultiplierSchema,
+  platformFeeMultiplier: PlatformFeeMultiplierSchema,
   coreFeeMultiplier: FeeMultiplierSchema,
   logLevel: LogLevelSchema,
 })
 
 export type GeneralPreferencesJSON = z.infer<typeof GeneralPreferencesSchema>
+export type PlatformFeeMultiplier = GeneralPreferencesJSON['platformFeeMultiplier']
 
 export class GeneralPreferences {
   language: string
   currency: string
   connectionType: ConnectionType
-  platformFeeMultiplier: number
+  platformFeeMultiplier: PlatformFeeMultiplier
   coreFeeMultiplier: number
   logLevel: LogLevel
 
@@ -45,7 +47,7 @@ export class GeneralPreferences {
     language: string,
     currency: string,
     connectionType: ConnectionType,
-    platformFeeMultiplier: number,
+    platformFeeMultiplier: PlatformFeeMultiplier,
     coreFeeMultiplier: number,
     logLevel: LogLevel,
   ) {
@@ -81,6 +83,13 @@ export class GeneralPreferences {
   }
 
   static default(): GeneralPreferences {
-    return new GeneralPreferences('en', 'usd', 'rpc', DEFAULT_PLATFORM_FEE_MULTIPLIER, DEFAULT_CORE_FEE_MULTIPLIER, DEFAULT_LOG_LEVEL)
+    return new GeneralPreferences(
+      'en',
+      'usd',
+      'rpc',
+      {...DEFAULT_PLATFORM_FEE_MULTIPLIER},
+      DEFAULT_CORE_FEE_MULTIPLIER,
+      DEFAULT_LOG_LEVEL,
+    )
   }
 }

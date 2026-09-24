@@ -208,7 +208,7 @@ export class PlatformService {
       case 'identityTopUpFromAssetLock': return identityTopUpFromAssetLock(request.payload, ctx)
       case 'transitionFee': return transitionFee(request.payload, ctx)
       case 'previewTransition': return previewTransition(request.payload, ctx)
-      case 'spendFeeCurve': return spendFeeCurve(request.payload)
+      case 'spendFeeCurve': return spendFeeCurve(request.payload, ctx)
       case 'addressInfos': return addressInfos(request.payload, ctx)
       case 'addressTransfer': return addressTransfer(request.payload, ctx)
       case 'addressWithdrawal': return addressWithdrawal(request.payload, ctx)

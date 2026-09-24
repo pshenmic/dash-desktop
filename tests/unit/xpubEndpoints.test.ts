@@ -58,6 +58,7 @@ const daos = (): {addressDAO: AddressDAO; walletDAO: WalletDAO; transactionDAO: 
   } as unknown as WalletDAO,
   transactionDAO: {
     getPendingSpends: async () => [],
+    getFirstSeenTimes: async () => new Map(),
   } as unknown as TransactionDAO,
 })
 

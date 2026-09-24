@@ -14,11 +14,11 @@ import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingS
 const WALLET_ID = 'wallet-1'
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const PASSWORD = 'password123'
-// What the user asks the identity to end up with, and what the lock therefore
-// has to carry: the transition takes its fee out of the credits the lock makes.
+// The lock carries only what the user asked for; the transition takes its fee
+// out of the credits the lock makes.
 const AMOUNT = 200_000n
 const L2_FEE_CREDITS = 50_000_000n
-const LOCKED_AMOUNT = AMOUNT + L2_FEE_CREDITS / 1_000n
+const LOCKED_AMOUNT = AMOUNT
 const REGISTRATION_PATH = "m/9'/1'/5'/1'/0"
 const TOP_UP_PATH = "m/9'/1'/5'/2'/0"
 const TARGET_IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
@@ -109,7 +109,7 @@ describe('identity funding from an asset lock', () => {
       {request} as unknown as PlatformWorkerService,
       // Nothing on chain, so the top-up scan settles on index 0.
       {getUsedAddresses: vi.fn().mockResolvedValue([])} as unknown as AssetLockFunder,
-      {requireFee: vi.fn().mockResolvedValue(L2_FEE_CREDITS)} as unknown as FeeService,
+      {lockTransitionFee: vi.fn().mockResolvedValue(L2_FEE_CREDITS)} as unknown as FeeService,
     )
   })
 
@@ -164,6 +164,14 @@ describe('identity funding from an asset lock', () => {
     await vi.waitFor(() => {
       if (seed.some(byte => byte !== 0)) throw new Error('seed not zeroed yet')
     })
+  })
+
+  it('refuses an amount the fee would consume before anything locks', async () => {
+    await expect(
+      service.startIdentityCreate(WALLET_ID, L2_FEE_CREDITS / 1_000n, PASSWORD),
+    ).rejects.toThrow(/must exceed/)
+
+    expect(acquire).not.toHaveBeenCalled()
   })
 
   it('throws a user-facing error for an invalid password', async () => {

@@ -46,6 +46,32 @@ describe('amountErrorFor', () => {
     }))).toBe('Max sendable is 0.99934 Dash after fees.')
   })
 
+  // An identity lock carries only the amount and its fee comes out of it.
+  it('refuses an identity top-up from L1 the Platform fee would consume', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      operation: TransferOperation.IdentityTopUpL1,
+      amount: '0.0005',
+      amountDuffs: 50_000n,
+      coreMaxDuffs: 99_990_000n,
+      amountCredits: 0n,
+      feeCredits: 50_500_000n,
+    }))).toBe('Amount must exceed the 0.000505 Dash Platform fee taken out of it.')
+  })
+
+  // An L1 form carries no amount in credits, so the check reads the duffs.
+  it('accepts an identity top-up from L1 above the Platform fee', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      operation: TransferOperation.IdentityTopUpL1,
+      amount: '1',
+      amountDuffs: 100_000_000n,
+      coreMaxDuffs: 100_000_000n,
+      amountCredits: 0n,
+      feeCredits: 50_500_000n,
+    }))).toBeNull()
+  })
+
   it('reports the max Dash amount the selection can fund', () => {
     expect(amountErrorFor(params({
       isCoreOperation: true,
@@ -111,6 +137,11 @@ describe('amountErrorFor', () => {
   it('reports the per-transaction cap', () => {
     const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n, noteLimit: 6}))
     expect(error).toBe('Max per transaction right now is 0.007 Dash (network fee + 6-note limit).')
+  })
+
+  it('names the fee reserve when the cap has no note limit', () => {
+    const error = amountErrorFor(params({amountCredits: 800_000_000n, maxPerTx: 700_000_000n, noteLimit: null}))
+    expect(error).toBe('Max per transaction right now is 0.007 Dash (network fee reserve).')
   })
 
   it('is silent when the amount fits the balance, the fee and the cap', () => {

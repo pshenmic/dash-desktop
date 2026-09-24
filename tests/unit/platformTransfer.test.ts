@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
+  automaticWithdrawal,
+  fundingRemainderAddress,
   maxPlatformCredits,
+  maxWithdrawalCredits,
+  planWithdrawalInputs,
   requireAutomaticInputs,
   selectPlatformInputs,
-  selectPlatformSource,
+  planShieldInputs,
+  selectShieldInputs,
   requireRecipients,
   selectablePlatformInputs,
   toAddressInput,
@@ -18,6 +23,7 @@ import {
   PlatformSpendSource,
 } from '../../src/main/src/types/PlatformTransfer'
 import {
+  CREDITS_PER_DUFF,
   MAX_ADDRESS_INPUTS,
   MAX_FEE_STRATEGY_STEPS,
   MAX_RECIPIENTS,
@@ -44,9 +50,6 @@ function candidate(
   }
 }
 
-const AMOUNT = 1_000_000n
-const FEE = 6_500_000n
-const REQUIRED = AMOUNT + FEE
 
 const INPUT_FEE = 1_000_000n
 
@@ -77,41 +80,80 @@ function consumed(plan: PlatformInputPlan | null, platformAddress: string): bigi
     .reduce((sum, input) => sum + input.credits, 0n)
 }
 
-describe('selectPlatformSource', () => {
-  it('picks the largest balance that covers amount + fee', () => {
-    const candidates = [
-      candidate('a', REQUIRED),
-      candidate('b', REQUIRED + 9_000_000n),
-      candidate('c', REQUIRED + 1n),
-    ]
-    expect(selectPlatformSource(candidates, AMOUNT, FEE).platformAddress).toBe('b')
+// Ported from rs-platform-wallet's plan_shield_inputs tests; the reserve is
+// arbitrary here because the planner only compares against it.
+describe('planShieldInputs / selectShieldInputs', () => {
+  const RESERVE = 325_702_400n
+  const claims = (inputs: {candidate: PlatformSourceCandidate; credits: bigint}[]) =>
+    inputs.map(input => [input.candidate.platformAddress, input.credits])
+
+  it('skips a leading address that cannot keep the reserve', () => {
+    const plan = planShieldInputs([candidate('a', RESERVE), candidate('b', 5n * RESERVE)], RESERVE)
+    expect(claims(selectShieldInputs(plan, 2n * RESERVE))).toEqual([['b', 2n * RESERVE]])
   })
 
-  it('accepts a balance exactly equal to amount + fee', () => {
-    expect(selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, FEE).platformAddress).toBe('a')
+  it('does not take a balance exactly at the reserve as input 0', () => {
+    const plan = planShieldInputs([candidate('a', RESERVE)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(0n)
+    expect(() => selectShieldInputs(plan, 1n)).toThrow(/At most 0 credits/)
   })
 
-  it('throws when no address covers amount + fee', () => {
-    const candidates = [candidate('a', AMOUNT), candidate('b', REQUIRED - 1n)]
-    expect(() => selectPlatformSource(candidates, AMOUNT, FEE)).toThrow(/enough credits/)
+  it('shields a single address down to exactly the reserve', () => {
+    const amount = 3n * RESERVE
+    const plan = planShieldInputs([candidate('a', amount + RESERVE)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(amount)
+    expect(claims(selectShieldInputs(plan, amount))).toEqual([['a', amount]])
+    expect(() => selectShieldInputs(plan, amount + 1n)).toThrow(/At most/)
   })
 
-  it('throws when the amount is below the minimum output', () => {
-    expect(() => selectPlatformSource([candidate('a', REQUIRED)], MIN_OUTPUT_CREDITS - 1n, FEE)).toThrow(/Minimum/)
+  it('reserves only on input 0 when the amount spans addresses', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE), candidate('b', 5n * RESERVE)], RESERVE)
+    expect(claims(selectShieldInputs(plan, 5n * RESERVE))).toEqual([['a', RESERVE], ['b', 4n * RESERVE]])
   })
 
-  it('uses the explicit source address when given', () => {
-    const candidates = [candidate('a', REQUIRED + 9_000_000n), candidate('b', REQUIRED)]
-    expect(selectPlatformSource(candidates, AMOUNT, FEE, 'b').platformAddress).toBe('b')
+  it('orders by address bytes, not by label or balance', () => {
+    const plan = planShieldInputs([
+      candidate('c', 2n * RESERVE),
+      candidate('a', RESERVE / 2n),
+      candidate('b', 2n * RESERVE),
+    ], RESERVE)
+    expect(plan.usable.map(entry => entry.platformAddress)).toEqual(['b', 'c'])
+    expect(plan.maxShieldableCredits).toBe(3n * RESERVE)
+    expect(claims(selectShieldInputs(plan, 2n * RESERVE))).toEqual([['b', RESERVE], ['c', RESERVE]])
   })
 
-  it('throws when the explicit source address is unknown', () => {
-    expect(() => selectPlatformSource([candidate('a', REQUIRED)], AMOUNT, FEE, 'zzz')).toThrow(/not found/)
+  it('reports the max from the usable suffix, not the whole balance', () => {
+    const usable = 3_623_849_220n
+    const plan = planShieldInputs([candidate('a', RESERVE - 1n), candidate('b', usable)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(usable - RESERVE)
+    expect(claims(selectShieldInputs(plan, usable - RESERVE))).toEqual([['b', usable - RESERVE]])
   })
 
-  it('throws when the explicit source address cannot cover amount + fee', () => {
-    const candidates = [candidate('a', REQUIRED + 9_000_000n), candidate('b', REQUIRED - 1n)]
-    expect(() => selectPlatformSource(candidates, AMOUNT, FEE, 'b')).toThrow(/insufficient/)
+  it('leaves a later address below the input minimum out of the max', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE), candidate('b', MIN_INPUT_CREDITS - 1n)], RESERVE)
+    expect(plan.maxShieldableCredits).toBe(RESERVE)
+    expect(() => selectShieldInputs(plan, RESERVE + 1n)).toThrow(/At most/)
+  })
+
+  it('lifts the residue on a later input to the input minimum', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE), candidate('b', 2n * MIN_INPUT_CREDITS)], RESERVE)
+    expect(claims(selectShieldInputs(plan, RESERVE + 1n))).toEqual([['a', RESERVE], ['b', MIN_INPUT_CREDITS]])
+  })
+
+  it('caps the usable addresses at the protocol input count', () => {
+    const candidates = Array.from({length: MAX_ADDRESS_INPUTS + 1}, (_, i) =>
+      candidate(`addr${i}`, 2n * RESERVE, 0, i + 1))
+    const plan = planShieldInputs(candidates, RESERVE)
+    const max = BigInt(MAX_ADDRESS_INPUTS) * 2n * RESERVE - RESERVE
+    expect(plan.usable).toHaveLength(MAX_ADDRESS_INPUTS)
+    expect(plan.maxShieldableCredits).toBe(max)
+    expect(selectShieldInputs(plan, max)).toHaveLength(MAX_ADDRESS_INPUTS)
+    expect(() => selectShieldInputs(plan, max + 1n)).toThrow(/At most/)
+  })
+
+  it('rejects a zero amount', () => {
+    const plan = planShieldInputs([candidate('a', 2n * RESERVE)], RESERVE)
+    expect(() => selectShieldInputs(plan, 0n)).toThrow(/greater than zero/)
   })
 })
 
@@ -523,5 +565,101 @@ describe('requireRecipients', () => {
 
   it('refuses a recipient below the per-output minimum', () => {
     expect(() => requireRecipients([to('a', MIN_OUTPUT_CREDITS - 1n)])).toThrow(/Minimum amount per recipient/)
+  })
+})
+
+// A fee that grows with the input count, as the withdrawal minimum does.
+const withdrawalFee = async (inputCount: number): Promise<bigint> => 400_000_000n + BigInt(inputCount) * 500_000n
+
+describe('planWithdrawalInputs / maxWithdrawalCredits', () => {
+  const small = candidate('a', 1_000_000_000n, 0, 1)
+  const large = candidate('b', 3_000_000_000n, 0, 2)
+  const full = small.balanceCredits + large.balanceCredits - 401_000_000n
+
+  it('withdraws every address when the amount is the whole balance, charging the largest', async () => {
+    const {plan} = await planWithdrawalInputs([large, small], full, withdrawalFee)
+    expect(plan?.inputs.map(entry => entry.candidate.platformAddress)).toEqual(['a', 'b'])
+    expect(consumed(plan, 'a')).toBe(small.balanceCredits)
+    expect(consumed(plan, 'b')).toBe(large.balanceCredits - 401_000_000n)
+    expect(plan?.feeStrategy).toEqual([{kind: 'deductFromInput', index: 1}])
+  })
+
+  // Max is shown in whole duffs, so what comes back is the whole balance rounded
+  // down, which still has to withdraw every address.
+  it('takes an amount within a duff below the whole balance as the whole balance', async () => {
+    const odd = candidate('c', 3_000_123_456n, 0, 2)
+    const whole = small.balanceCredits + odd.balanceCredits - 401_000_000n
+    const typed = whole / CREDITS_PER_DUFF * CREDITS_PER_DUFF
+    expect(typed).toBeLessThan(whole)
+
+    const {plan} = await planWithdrawalInputs([small, odd], typed, withdrawalFee)
+    expect(plan?.inputs).toHaveLength(2)
+    expect(plan?.inputs.reduce((sum, entry) => sum + entry.credits, 0n)).toBe(whole)
+  })
+
+  it('treats a full duff below the whole balance as a partial withdrawal', async () => {
+    const {plan} = await planWithdrawalInputs([small, large], full - CREDITS_PER_DUFF, withdrawalFee)
+    expect(plan).toBeNull()
+  })
+
+  it('draws any other amount from the single largest address', async () => {
+    const {plan} = await planWithdrawalInputs([small, large], 2_000_000_000n, withdrawalFee)
+    expect(plan?.inputs).toEqual([{candidate: large, credits: 2_000_000_000n}])
+    expect(plan?.feeStrategy).toEqual([{kind: 'deductFromInput', index: 0}])
+    expect(plan?.feeCredits).toBe(400_500_000n)
+  })
+
+  it('refuses more than the whole balance as more than can be withdrawn', async () => {
+    const {error} = await planWithdrawalInputs([small, large], full + 1n, withdrawalFee)
+    expect(error).toMatch(/At most 3599000000 credits can be withdrawn/)
+  })
+
+  it('refuses a partial amount the largest address cannot cover with its fee', async () => {
+    const {error} = await planWithdrawalInputs([small, large], large.balanceCredits, withdrawalFee)
+    expect(error).toMatch(/limited to 2599500000 credits/)
+  })
+
+  it('offers the whole balance as the maximum', async () => {
+    expect(await maxWithdrawalCredits([small, large], withdrawalFee)).toBe(full)
+  })
+
+  it('offers what the largest address can send when every address cannot go in at once', async () => {
+    const many = Array.from({length: MAX_ADDRESS_INPUTS + 1}, (_, i) => candidate(`m${i}`, 1_000_000_000n + BigInt(i), 0, i))
+    expect(await maxWithdrawalCredits(many, withdrawalFee)).toBe(1_000_000_000n + BigInt(MAX_ADDRESS_INPUTS) - 400_500_000n)
+  })
+
+  it('refuses a partial amount below the input minimum', async () => {
+    expect((await planWithdrawalInputs([small, large], MIN_INPUT_CREDITS - 1n, withdrawalFee)).error)
+      .toMatch(/Minimum amount/)
+  })
+
+  it('refuses a whole-balance withdrawal the largest address cannot fee', async () => {
+    const tiny = candidate('t', 400_000_000n, 0, 3)
+    expect(await maxWithdrawalCredits([tiny], withdrawalFee)).toBe(0n)
+  })
+})
+
+describe('automaticWithdrawal', () => {
+  it('applies only to a withdrawal with no picked source', () => {
+    expect(automaticWithdrawal('addressWithdrawal', {amountCredits: 1n, recipient: ''})).toBe(true)
+    expect(automaticWithdrawal('addressWithdrawal', {amountCredits: 1n, recipient: '', platformSource: from('a')})).toBe(false)
+    expect(automaticWithdrawal('addressFundsTransfer', {amountCredits: 1n, recipient: ''})).toBe(false)
+  })
+})
+
+describe('fundingRemainderAddress', () => {
+  const at = (address: string, index: number, balanceCredits = 0n, nonce = 0): PlatformSourceCandidate =>
+    ({...candidate(address, balanceCredits, nonce), index})
+
+  it('returns the unused fee to the first unused address other than the recipient', () => {
+    expect(fundingRemainderAddress([at('c', 2), at('a', 0, 5n), at('b', 1), at('r', 3)], 'b')).toBe('c')
+  })
+
+  it('falls back to the first other address when every one has been used', () => {
+    expect(fundingRemainderAddress([at('b', 1, 0n, 1), at('a', 0, 5n)], 'b')).toBe('a')
+  })
+
+  it('refuses when the recipient is the only address', () => {
+    expect(() => fundingRemainderAddress([at('a', 0)], 'a')).toThrow(/No second Platform address/)
   })
 })

@@ -6,7 +6,7 @@ import {CoreTransactionService} from '../../src/main/src/services/core/CoreTrans
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {Preferences} from '../../src/main/src/preferences'
-import {FeeOperation, FeeParams} from '../../src/main/platform/types/messages'
+import {FeeOperation, FeeParams, TransitionFeeOperation} from '../../src/main/platform/types/messages'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {ShieldedSpendSource} from '../../src/main/src/types/ShieldedNoteSelection'
 import {FeeQuoteParams} from '../../src/main/platform/types/messages'
@@ -19,11 +19,9 @@ import {operationFeeRequest} from '../../src/renderer/src/utils/operationFee'
 import {capRecipientAmounts, recipientSliderAmount, recipientTotalDuffs} from '../../src/renderer/src/utils/sendRecipients'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../src/main/src/constants/chain'
 import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
-import {
-  DEFAULT_CORE_FEE_MULTIPLIER,
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-  MIN_INPUT_CREDITS,
-} from '../../src/main/src/constants/credits'
+import {MIN_INPUT_CREDITS} from '../../src/main/src/constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER, IDENTITY_TRANSFER_MIN_FEE_CREDITS} from '../../src/main/src/constants/fee/platform'
+import {DEFAULT_CORE_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/core'
 
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
@@ -51,7 +49,11 @@ function candidate(platformAddress: string, balanceCredits: bigint, hashByte: nu
   return {platformAddress, addressBytes, index: 0, balanceCredits, nonce: 0}
 }
 
-function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = []): {
+function service(
+  candidates: PlatformSourceCandidate[] = [],
+  utxos: UTXO[] = [],
+  preferences: Preferences = Preferences.default(),
+): {
   service: FeeService
   request: ReturnType<typeof vi.fn>
   estimateSpendFee: ReturnType<typeof vi.fn>
@@ -78,7 +80,7 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
     {estimateSpendFee} as unknown as ShieldedService,
     new CoreTransactionService(),
     providers as unknown as WalletProviderFactory,
-    Preferences.default(),
+    preferences,
   )
 
   return {service: svc, request, estimateSpendFee}
@@ -87,6 +89,9 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
 function params(overrides: Partial<FeeParams> = {}): FeeParams {
   return {amountCredits: 1_000_000n, recipient: 'tdash1qrecipient', platformSource: null, identityId: IDENTITY, shieldedSource: null, ...overrides}
 }
+
+const shippedMultiplier = (operation: TransitionFeeOperation): bigint =>
+  BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER[operation])
 
 function feeCalls(request: ReturnType<typeof vi.fn>): Array<{operation: string; params: FeeQuoteParams}> {
   return request.mock.calls
@@ -159,7 +164,7 @@ describe('estimateFee', () => {
   it('falls back to the one-input floor when no selection can be funded', async () => {
     const {service: svc, request} = service([candidate('a', MIN_INPUT_CREDITS, 1)])
     const fee = await svc.estimateFee(WALLET, 'addressWithdrawal', params({amountCredits: 900_000_000n}))
-    expect(fee.feeCredits).toBe(BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER))
+    expect(fee.feeCredits).toBe(BASE_FEE * shippedMultiplier('addressWithdrawal'))
     expect(feeCalls(request).at(-1)!.params.inputCount).toBe(1)
   })
 
@@ -388,10 +393,10 @@ describe('estimateFee', () => {
   // An L1 -> L2 transfer is two transactions, and quoting only the lock left the
   // transition its proof funds unpriced.
   it('prices both halves of a transfer that locks on L1 and settles on L2', async () => {
-    for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as FeeOperation[]) {
+    for (const operation of ['assetLockFunding', 'assetLockShield', 'identityRegister', 'identityTopUpL1'] as TransitionFeeOperation[]) {
       const {service: svc, request} = service([], [utxo(ONE_DASH, 1)])
       expect(await svc.estimateFee(WALLET, operation, params({amountDuffs: 1_000n}))).toEqual({
-        feeCredits: BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER),
+        feeCredits: BASE_FEE * shippedMultiplier(operation),
         feeDuffs: ASSET_LOCK_FEE(1),
         maxDuffs: ONE_DASH - ASSET_LOCK_FEE(1),
         maxPerTx: null,
@@ -402,10 +407,29 @@ describe('estimateFee', () => {
     }
   })
 
-  it('applies the platform fee multiplier to a metered quote', async () => {
+  it('scales a metered quote by the multiplier its own operation carries', async () => {
+    const preferences = Preferences.default()
+    preferences.general.platformFeeMultiplier.identityWithdrawal = 3
+    const {service: svc} = service([], [], preferences)
+    const transfer = await svc.estimateFee(WALLET, 'addressFundsTransfer', params())
+    const withdrawal = await svc.estimateFee(WALLET, 'identityWithdrawal', params())
+
+    expect(transfer.feeCredits).toBe(BASE_FEE * shippedMultiplier('addressFundsTransfer'))
+    expect(withdrawal.feeCredits).toBe(BASE_FEE * 3n)
+  })
+
+  // The dpp minimum for a credit transfer sits far below the estimate consensus
+  // checks the balance against, so the quote never goes under the iOS reserve.
+  it('never quotes an identity credit transfer under the iOS reserve', async () => {
     const {service: svc} = service()
-    const fee = await svc.estimateFee(WALLET, 'addressFundsTransfer', params())
-    expect(fee.feeCredits).toBe(BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER))
+    const low = await svc.estimateFee(WALLET, 'identityToIdentity', params({recipient: IDENTITY}))
+    expect(low.feeCredits).toBe(IDENTITY_TRANSFER_MIN_FEE_CREDITS)
+
+    const preferences = Preferences.default()
+    preferences.general.platformFeeMultiplier.identityToIdentity = 1_000
+    const {service: high} = service([], [], preferences)
+    expect((await high.estimateFee(WALLET, 'identityToIdentity', params({recipient: IDENTITY}))).feeCredits)
+      .toBe(BASE_FEE * 1_000n)
   })
 
   // requireFee is what the send paths call, so it must refuse what a quote may

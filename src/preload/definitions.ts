@@ -81,7 +81,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   setLogLevel: (level: string) => ipcRenderer.invoke('setLogLevel', level),
   setFiatCurrency: (currency: string) => ipcRenderer.invoke('setFiatCurrency', currency),
   setConnectionType: (connectionType: 'p2p' | 'rpc') => ipcRenderer.invoke('setConnectionType', connectionType),
-  setPlatformFeeMultiplier: (platformFeeMultiplier: number) => ipcRenderer.invoke('setPlatformFeeMultiplier', platformFeeMultiplier),
+  setPlatformFeeMultiplier: (operation: string, multiplier: number) => ipcRenderer.invoke('setPlatformFeeMultiplier', operation, multiplier),
   setCoreFeeMultiplier: (coreFeeMultiplier: number) => ipcRenderer.invoke('setCoreFeeMultiplier', coreFeeMultiplier),
   getConnectedPeers: () => ipcRenderer.invoke('getConnectedPeers'),
   setPeerMode: (mode: 'dynamic' | 'static') => ipcRenderer.invoke('setPeerMode', mode),

@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { utils as sdkUtils } from 'dash-core-sdk'
 import { AssetLockTx } from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
-import {buildAssetLockOutputs, lockedDuffsFor, shieldAmountFromLockedDuffs} from '../../src/main/src/utils/assetLockTx'
+import {buildAssetLockOutputs, creditsAfterFee, lockedDuffsFor, locksFeeOnTop, requireAboveFee} from '../../src/main/src/utils/assetLockTx'
 import {
   ASSET_LOCK_CREDIT_OUTPUT_INDEX,
   ASSET_LOCK_PAYLOAD_VERSION,
   CREDITS_PER_DUFF,
-  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
 } from '../../src/main/src/constants/credits'
 import { ASSET_LOCK_PAYLOAD_BYTES } from '../../src/main/src/constants/chain'
 const keyHash = new Uint8Array(20).fill(9)
 const creditAddress = sdkUtils.publicKeyHashToAddress(keyHash, 'testnet')
 const AMOUNT = 100_000n
+const FEE = 212_851_200n
 
 describe('buildAssetLockOutputs', () => {
   it('builds an OP_RETURN burn output carrying the locked amount', () => {
@@ -50,14 +50,13 @@ describe('buildAssetLockOutputs', () => {
   })
 })
 
-describe('shieldAmountFromLockedDuffs', () => {
-  it('converts duffs to credits and deducts the fee reserve', () => {
-    expect(shieldAmountFromLockedDuffs(10_000_000n)).toBe(10_000_000n * CREDITS_PER_DUFF - SHIELD_FUNDING_FEE_RESERVE_CREDITS)
+describe('creditsAfterFee', () => {
+  it('converts duffs to credits and deducts the fee', () => {
+    expect(creditsAfterFee(10_000_000n, FEE)).toBe(10_000_000n * CREDITS_PER_DUFF - FEE)
   })
 
-  it('rejects amounts that do not exceed the fee reserve', () => {
-    const atReserve = SHIELD_FUNDING_FEE_RESERVE_CREDITS / CREDITS_PER_DUFF
-    expect(() => shieldAmountFromLockedDuffs(atReserve)).toThrow('too small to shield')
+  it('rejects amounts that do not exceed the fee', () => {
+    expect(() => creditsAfterFee(FEE / CREDITS_PER_DUFF, FEE)).toThrow('too small')
   })
 })
 
@@ -73,9 +72,26 @@ describe('lockedDuffsFor', () => {
     expect(lockedDuffsFor(1_000n, CREDITS_PER_DUFF + 1n)).toBe(1_002n)
   })
 
-  // What settleShield subtracts is exactly what startShieldFromL1 added.
-  it('is the inverse of shieldAmountFromLockedDuffs', () => {
-    const locked = lockedDuffsFor(AMOUNT, SHIELD_FUNDING_FEE_RESERVE_CREDITS)
-    expect(shieldAmountFromLockedDuffs(locked)).toBe(AMOUNT * CREDITS_PER_DUFF)
+  // What a settle subtracts is what its start added, less the sub-duff round-up.
+  it('is the inverse of creditsAfterFee', () => {
+    const shielded = creditsAfterFee(lockedDuffsFor(AMOUNT, FEE), FEE)
+    expect(shielded - AMOUNT * CREDITS_PER_DUFF).toBeGreaterThanOrEqual(0n)
+    expect(shielded - AMOUNT * CREDITS_PER_DUFF).toBeLessThan(CREDITS_PER_DUFF)
+  })
+})
+
+describe('locksFeeOnTop', () => {
+  it('locks the fee on top for a funding or a shield, and takes it from an identity lock', () => {
+    expect(locksFeeOnTop('assetLockFunding')).toBe(true)
+    expect(locksFeeOnTop('assetLockShield')).toBe(true)
+    expect(locksFeeOnTop('identityRegister')).toBe(false)
+    expect(locksFeeOnTop('identityTopUpL1')).toBe(false)
+  })
+})
+
+describe('requireAboveFee', () => {
+  it('refuses a lock the fee would consume whole and passes one it would not', () => {
+    expect(() => requireAboveFee(FEE / CREDITS_PER_DUFF, FEE)).toThrow('too small')
+    expect(() => requireAboveFee(FEE / CREDITS_PER_DUFF + 1n, FEE)).not.toThrow()
   })
 })

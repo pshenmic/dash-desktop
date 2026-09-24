@@ -13,15 +13,13 @@ import {UTXO} from '../../src/main/src/types/UTXO'
 import {PlatformSourceCandidate} from '../../src/main/src/types/PlatformTransfer'
 import {PreviewEntry, PreviewParams} from '../../src/main/src/types/TransactionPreview'
 import {ShieldedSpendPlan, ShieldedSyncState} from '../../src/main/src/types/Shielded'
-import {FeeQuoteParams, UnsignedTransition} from '../../src/main/platform/types/messages'
+import {FeeQuoteParams, TransitionFeeOperation, UnsignedTransition} from '../../src/main/platform/types/messages'
 import {coreFeeDuffsFor, coreFeePerByte} from '../../src/main/src/utils/coreFeeRate'
 import {lockedDuffsFor} from '../../src/main/src/utils/assetLockTx'
 import {ASSET_LOCK_PAYLOAD_BYTES, DUST_THRESHOLD_DUFFS} from '../../src/main/src/constants/chain'
-import {
-  CREDITS_PER_DUFF,
-  DEFAULT_CORE_FEE_MULTIPLIER,
-  DEFAULT_PLATFORM_FEE_MULTIPLIER,
-} from '../../src/main/src/constants/credits'
+import {CREDITS_PER_DUFF} from '../../src/main/src/constants/credits'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/platform'
+import {DEFAULT_CORE_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/core'
 
 const WALLET = 'w1'
 const IDENTITY = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
@@ -41,7 +39,10 @@ const ONE_DASH = 100_000_000n
 const BASE_FEE = 1_000_000n
 const NONCE = 7n
 const TRANSITION_HEX = 'deadbeef'
-const METERED_FEE = BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER)
+// Each operation carries its own multiplier, so a preview is checked against the
+// one it was quoted under rather than a single number that happens to match.
+const feeOf = (operation: TransitionFeeOperation): bigint =>
+  BASE_FEE * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER[operation])
 
 const coreFee = (inputsCount: number, outputsCount: number): bigint =>
   coreFeeDuffsFor(DEFAULT_CORE_FEE_MULTIPLIER, inputsCount, outputsCount, true)
@@ -209,14 +210,14 @@ describe('previewTransaction — asset locks', () => {
       recipients: [{address: PLATFORM_A, amount: amountDuffs}],
     }))
 
-    const lockDuffs = lockedDuffsFor(amountDuffs, METERED_FEE)
+    const lockDuffs = lockedDuffsFor(amountDuffs, feeOf('assetLockFunding'))
     expect(preview.outputs).toEqual([
       {role: 'recipient', address: PLATFORM_A, amount: amountDuffs, unit: 'duffs', reference: null},
       {role: 'credit', address: CREDIT, amount: lockDuffs, unit: 'duffs', reference: null},
       {role: 'change', address: CHANGE, amount: ONE_DASH - lockDuffs - assetLockFee(1), unit: 'duffs', reference: null},
     ])
     expect(preview.feeDuffs).toBe(assetLockFee(1))
-    expect(preview.feeCredits).toBe(METERED_FEE)
+    expect(preview.feeCredits).toBe(feeOf('assetLockFunding'))
   })
 
   // The funding prices its transition against the credits the lock will create,
@@ -242,12 +243,12 @@ describe('previewTransaction — platform addresses', () => {
     }))
 
     expect(preview.inputs).toEqual([
-      {role: 'feeInput', address: PLATFORM_A, amount: 1_000_000n + METERED_FEE, unit: 'credits', reference: null},
+      {role: 'feeInput', address: PLATFORM_A, amount: 1_000_000n + feeOf('addressFundsTransfer'), unit: 'credits', reference: null},
     ])
     expect(preview.outputs).toEqual([
       {role: 'recipient', address: PLATFORM_B, amount: 1_000_000n, unit: 'credits', reference: null},
     ])
-    expect(preview.feeCredits).toBe(METERED_FEE)
+    expect(preview.feeCredits).toBe(feeOf('addressFundsTransfer'))
     expect(preview.feeDuffs).toBeNull()
   })
 
@@ -267,7 +268,7 @@ describe('previewTransaction — platform addresses', () => {
       },
     }))
 
-    expect(preview.outputs.map(output => output.amount)).toEqual([1_000_000n, 2_000_000n - METERED_FEE])
+    expect(preview.outputs.map(output => output.amount)).toEqual([1_000_000n, 2_000_000n - feeOf('addressFundsTransfer')])
     expect(preview.inputs.map(input => input.role)).toEqual(['input'])
   })
 
@@ -292,7 +293,7 @@ describe('previewTransaction — identities and the pool', () => {
     }))
 
     expect(preview.inputs).toEqual([
-      {role: 'input', address: IDENTITY, amount: 1_000_000n + METERED_FEE, unit: 'credits', reference: null},
+      {role: 'input', address: IDENTITY, amount: 1_000_000n + feeOf('identityToAddress'), unit: 'credits', reference: null},
     ])
     expect(preview.outputs).toEqual([
       {role: 'recipient', address: PLATFORM_A, amount: 1_000_000n, unit: 'credits', reference: null},
@@ -300,7 +301,7 @@ describe('previewTransaction — identities and the pool', () => {
   })
 
   it('names the platform address a shield spends', async () => {
-    const {svc} = service({candidates: [candidate(PLATFORM_A, 2_000_000n, 1), candidate(PLATFORM_B, 90_000_000n, 2)]})
+    const {svc} = service({candidates: [candidate(PLATFORM_A, 2_000_000n, 1), candidate(PLATFORM_B, 2_000_000_000n, 2)]})
 
     const preview = await svc.previewTransaction(WALLET, 'shield', params({
       amountCredits: 1_000_000n,
@@ -309,8 +310,48 @@ describe('previewTransaction — identities and the pool', () => {
     }))
 
     expect(preview.inputs).toEqual([
-      {role: 'input', address: PLATFORM_B, amount: 1_000_000n + METERED_FEE, unit: 'credits', reference: null},
+      {role: 'input', address: PLATFORM_B, amount: 1_000_000n + feeOf('shield'), unit: 'credits', reference: null},
     ])
+  })
+
+  it('quotes a shield across every address unless one is picked', async () => {
+    const {svc} = service({candidates: [candidate(PLATFORM_A, 2_000_000_000n, 1), candidate(PLATFORM_B, 3_000_000_000n, 2)]})
+    const reserve = feeOf('shield') * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER.shield)
+
+    const automatic = await svc.estimateFee(WALLET, 'shield', {amountCredits: 1_000_000n, recipient: SHIELDED})
+    const picked = await svc.estimateFee(WALLET, 'shield', {
+      amountCredits: 1_000_000n, recipient: SHIELDED, fromAddress: PLATFORM_B,
+    })
+
+    expect(automatic.maxPerTx).toBe(5_000_000_000n - reserve)
+    expect(picked.maxPerTx).toBe(3_000_000_000n - reserve)
+  })
+
+  it('draws an unpicked shield from input 0 first, then the next address', async () => {
+    const {svc} = service({candidates: [candidate(PLATFORM_B, 3_000_000_000n, 2), candidate(PLATFORM_A, 2_000_000_000n, 1)]})
+    const reserve = feeOf('shield') * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER.shield)
+    const fromA = 2_000_000_000n - reserve
+
+    const preview = await svc.previewTransaction(WALLET, 'shield', params({
+      amountCredits: 3_000_000_000n,
+      recipients: [{address: SHIELDED, amount: 3_000_000_000n}],
+    }))
+
+    expect(preview.inputs).toEqual([
+      {role: 'input', address: PLATFORM_A, amount: fromA + feeOf('shield'), unit: 'credits', reference: null},
+      {role: 'input', address: PLATFORM_B, amount: 3_000_000_000n - fromA, unit: 'credits', reference: null},
+    ])
+  })
+
+  it('refuses a shield source that cannot keep the fee reserve behind the amount', async () => {
+    const balance = 1_000_000n + feeOf('shield') * BigInt(DEFAULT_PLATFORM_FEE_MULTIPLIER.shield) - 1n
+    const {svc} = service({candidates: [candidate(PLATFORM_B, balance, 2)]})
+
+    await expect(svc.previewTransaction(WALLET, 'shield', params({
+      amountCredits: 1_000_000n,
+      fromAddress: PLATFORM_B,
+      recipients: [{address: SHIELDED, amount: 1_000_000n}],
+    }))).rejects.toThrow(/At most/)
   })
 
   it('returns what the notes hold beyond the payout and the fee to the pool', async () => {
@@ -398,7 +439,7 @@ describe('previewTransaction — the transaction it previews', () => {
     const unsigned = Transaction.fromHex(preview.unsignedHex!)
 
     expect(unsigned.type).toBe(TransactionType.TRANSACTION_ASSET_LOCK)
-    expect(unsigned.outputs[0].satoshis).toBe(lockedDuffsFor(amountDuffs, METERED_FEE))
+    expect(unsigned.outputs[0].satoshis).toBe(lockedDuffsFor(amountDuffs, feeOf('assetLockFunding')))
     expect(unsigned.extraPayload).toBeDefined()
   })
 
@@ -474,7 +515,7 @@ describe('previewTransaction — the transaction it previews', () => {
   // derive, and a pool spend needs a proof that costs seconds.
   it.each(['identityCreate', 'shieldedTransfer'] as const)('has no bytes to show for %s', async operation => {
     const {svc, request} = service({
-      candidates: [candidate(PLATFORM_A, 10_000_000n, 1)],
+      candidates: [candidate(PLATFORM_A, 100_000_000n, 1)],
       plan: {notes: [], feeCredits: 400_000n, totalCredits: 2_000_000n},
     })
 
@@ -537,7 +578,7 @@ describe('ShieldedService.planSpend', () => {
     const request = vi.fn(async () => ({feeCredits: curve}))
     const svc = new ShieldedService(
       walletDAO as never, null as never, null as never, null as never, null as never,
-      {request} as never, null as never, Preferences.default(),
+      {request} as never, null as never, {recordShieldedSend: async () => undefined} as never, Preferences.default(),
     )
     // Written by the sync path only; a plan reads whatever it last held.
     ;(svc as unknown as {syncStates: Map<string, ShieldedSyncState>}).syncStates.set(WALLET, {

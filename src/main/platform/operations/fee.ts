@@ -2,6 +2,8 @@ import {
   AddressCreditWithdrawalTransitionWASM,
   AddressFundsTransferTransitionWASM,
   PlatformAddressWASM,
+  PlatformVersionWASM,
+  ShieldFromAssetLockTransitionWASM,
   ShieldedTransferTransitionWASM,
 } from 'pshenmic-dpp'
 import {
@@ -15,6 +17,7 @@ import {
 import {coreAddressToScript} from '../../src/utils/coreScript'
 import {
   FEE_QUOTE_PUBLIC_KEY,
+  FUNDING_REMAINDER_STAND_IN,
   KEY_SPECS,
   PLATFORM_ADDRESS_BYTES,
 } from '../constants'
@@ -22,14 +25,11 @@ import type {ChainAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
 import {BuiltTransitionOperation, FeeQuoteParams, PlatformOperations, TransitionFeeOperation} from '../types/messages'
 import {OperationContext} from './types'
 import {buildAssetLockProof} from './assetLockProof'
+import {platformVersion} from './platformVersion'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
-import {
-  IDENTITY_KEY_DEFINITIONS,
-  MAX_BUNDLE_ACTIONS,
-  MIN_BUNDLE_ACTIONS,
-  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
-} from '../../src/constants/credits'
+import {IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
+import {ASSET_LOCK_BASE_COST_CREDITS, SHIELD_FUNDING_ACTIONS} from '../../src/constants/fee/platform'
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
@@ -38,49 +38,58 @@ type CurveResult = PlatformOperations['spendFeeCurve']['result']
 
 // Notes spent and addresses paid both land on the action count, and the fee
 // follows only that, so one curve over every action count answers for both.
-export function spendFeeCurve(payload: CurvePayload): CurveResult {
+export async function spendFeeCurve(payload: CurvePayload, ctx: OperationContext): Promise<CurveResult> {
+  const version = await platformVersion(ctx)
   return {
-    feeCredits: Array.from({length: MAX_BUNDLE_ACTIONS}, (_, index) => minimumFee(payload.kind, index + 1)),
+    feeCredits: Array.from({length: MAX_BUNDLE_ACTIONS}, (_, index) => minimumFee(payload.kind, index + 1, version)),
   }
 }
 
 // What every priced transition costs. This is the only place an operation's
 // price is spelled out; main decides which operations come here, never how they
-// are priced. Every quote is local — WASM and the SDK's builders, no round trip.
+// are priced. Every quote is local — WASM and the SDK's builders — once the
+// network's protocol version is known.
 //
 // metered means consensus prices the transition at execution and this is only
 // the floor. A shielded fee is exact, so nothing may be added to it.
-export function transitionFee(payload: Payload, ctx: OperationContext): Result {
+export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {operation, params} = payload
   return {
-    feeCredits: protocolFee(operation, params, ctx),
+    feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
   }
 }
 
-function protocolFee(operation: TransitionFeeOperation, params: FeeQuoteParams, ctx: OperationContext): bigint {
+// Shield's own minimum omits note storage, but consensus checks its claims
+// against the full pool carve, which ShieldedTransfer carries.
+export function shieldPoolFee(version: PlatformVersionWASM): bigint {
+  return ShieldedTransferTransitionWASM.computeMinimumFee(MIN_BUNDLE_ACTIONS, version)
+}
+
+function protocolFee(
+  operation: TransitionFeeOperation,
+  params: FeeQuoteParams,
+  ctx: OperationContext,
+  version: PlatformVersionWASM,
+): bigint {
   switch (operation) {
-    // Consensus meters an input like an output, one address balance write each,
-    // so every address touched is priced at the output rate, plus one for base.
     case 'addressFundsTransfer':
-      return AddressFundsTransferTransitionWASM.estimateMinFee(0, params.inputCount + paid(params).length + 1)
+      return AddressFundsTransferTransitionWASM.estimateMinFee(params.inputCount, paid(params).length, version)
 
     // What a withdrawal does not spend stays on the address, so no change output.
     case 'addressWithdrawal':
-      return AddressCreditWithdrawalTransitionWASM.estimateMinFee(params.inputCount, false)
+      return AddressCreditWithdrawalTransitionWASM.estimateMinFee(params.inputCount, false, version)
 
-    // Shield's own minimum omits note storage, but consensus checks its inputs
-    // against the full pool carve, which ShieldedTransfer carries.
     case 'shield':
-      return ShieldedTransferTransitionWASM.computeMinimumFee(MIN_BUNDLE_ACTIONS)
+      return shieldPoolFee(version)
 
-    // Reserved out of the locked credits before the bundle is proven; the
-    // surplus returns to a transparent platform address.
+    // Exact, not a floor: with no surplus address, consensus donates whatever
+    // the lock carries above this to the fee pools.
     case 'assetLockShield':
-      return SHIELD_FUNDING_FEE_RESERVE_CREDITS
+      return ShieldFromAssetLockTransitionWASM.computeMinimumFee(SHIELD_FUNDING_ACTIONS, version) + ASSET_LOCK_BASE_COST_CREDITS
 
     default:
-      return builtTransition(operation, params, ctx).calculateMinRequiredFee()
+      return builtTransition(operation, params, ctx).calculateMinRequiredFee(version)
   }
 }
 
@@ -145,13 +154,18 @@ function builtTransition(
         userFeeIncrease: 0,
       })
 
+    // The recipient and the address the unused fee returns to; only their count
+    // prices the funding.
     case 'assetLockFunding':
       return sdk.platformAddresses.createStateTransition('addressFundingFromAssetLock', {
         assetLockProof: buildAssetLockProof(proof, proof.txid, proof.outputIndex),
         inputs: [],
-        feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(0)],
+        feeStrategy: [AddressFundsFeeStrategyStepWASM.ReduceOutput(1)],
         inputWitness: [],
-        outputs: [new OutputAddressNullableCreditsWASM(paid(params)[0])],
+        outputs: [
+          new OutputAddressNullableCreditsWASM(paid(params)[0], params.amountCredits),
+          new OutputAddressNullableCreditsWASM(quoteAddress(FUNDING_REMAINDER_STAND_IN)),
+        ],
         userFeeIncrease: 0,
       })
     case 'identityRegister':
@@ -180,9 +194,11 @@ function paid(params: FeeQuoteParams): string[] {
 // Nonce and credits are stood in for the same way: measured across the u64
 // range, neither moves the fee.
 function quoteInputs(inputCount: number): InputAddressWASM[] {
-  return Array.from({length: inputCount}, (_, index) => {
-    const bytes = new Uint8Array(PLATFORM_ADDRESS_BYTES)
-    bytes[1] = index
-    return new InputAddressWASM(PlatformAddressWASM.fromBytes(bytes), 1, 1_000_000n)
-  })
+  return Array.from({length: inputCount}, (_, index) => new InputAddressWASM(quoteAddress(index), 1, 1_000_000n))
+}
+
+function quoteAddress(index: number): PlatformAddressWASM {
+  const bytes = new Uint8Array(PLATFORM_ADDRESS_BYTES)
+  bytes[1] = index
+  return PlatformAddressWASM.fromBytes(bytes)
 }

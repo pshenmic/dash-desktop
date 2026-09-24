@@ -12,6 +12,7 @@ import {consensusMessage} from '../../consensusMessage'
 import {buildTransition} from './buildTransition'
 import {checkSpent} from '../checkSpent'
 import {actualFee, minimumFee} from './fee'
+import {platformVersion} from '../../platformVersion'
 import {MAX_SPEND_NOTES, MAX_SPEND_RECIPIENTS} from '../../../../src/constants/credits'
 import {SHIELDED_ACCOUNT} from '../../../../src/constants/addresses'
 import {waitForResult} from './waitForResult'
@@ -55,7 +56,8 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   // Only a pool-to-pool transfer writes its payouts as Orchard outputs; the
   // rest leave the pool, so they add no action beyond the change note.
   const outputCount = kind === 'shieldedTransfer' ? recipients.length : 0
-  const fee = (numSpends: number): bigint => minimumFee(kind, bundleActions(numSpends, outputCount))
+  const version = await platformVersion(ctx)
+  const fee = (numSpends: number): bigint => minimumFee(kind, bundleActions(numSpends, outputCount), version)
   const selectable = selectableNotes(
     checked.map(({recoveredNote, spent}) => ({index: poolIndex(recoveredNote), value: recoveredNote.note.value, spent})),
     payload.source,
@@ -84,7 +86,7 @@ export async function spend(payload: Payload, ctx: OperationContext): Promise<Re
   const changeAddress = sdk.keyPair.deriveShieldedAddress(seed, network, SHIELDED_ACCOUNT)
 
   ctx.progress('proving', all.length, all.length)
-  const stateTransition = await buildTransition(sdk, network, payload, spends, anchor, changeAddress)
+  const stateTransition = await buildTransition(sdk, network, payload, spends, anchor, changeAddress, version)
   throwIfAborted(signal)
 
   const stHash = stateTransition.hash(false)

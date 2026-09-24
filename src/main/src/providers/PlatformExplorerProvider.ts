@@ -12,6 +12,7 @@ import {
   PlatformExplorerAddressTransition,
   PlatformExplorerPage,
   PlatformExplorerTransfer,
+  PlatformExplorerTransition,
 } from '../types/PlatformExplorer'
 import {PlatformTransaction} from '../types/PlatformTransaction'
 import {
@@ -52,6 +53,12 @@ export class PlatformExplorerProvider {
       row => row.hash,
       rows => rows.map(row => addressTransitionToPlatformTransaction(row, walletId)),
     )
+  }
+
+  // The transition itself, which no list endpoint carries: a shielded one says
+  // nothing to an address walk beyond the surplus it sent back.
+  async transition(hash: string): Promise<PlatformExplorerTransition> {
+    return requestJson<PlatformExplorerTransition>(this.request, `/transaction/${hash}`)
   }
 
   // One walk per identity, each its own stream to resume.

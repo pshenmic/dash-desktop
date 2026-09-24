@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {coreFeePerByte} from '../../src/main/src/utils/coreFeeRate'
-import {CORE_FEE_PER_BYTE} from '../../src/main/src/constants/chain'
+import {CORE_FEE_PER_BYTE} from '../../src/main/src/constants/fee/core'
 import {MAX_FEE_MULTIPLIER, MIN_FEE_MULTIPLIER} from '../../src/main/src/constants/credits'
 
 // Mirrors is_non_zero_fibonacci_number, the rule

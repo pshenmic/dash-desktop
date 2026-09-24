@@ -52,13 +52,10 @@ export interface PreviewRecipient {
 }
 
 // What a quote does not need and a preview does: what each recipient is paid
-// rather than how many there are, and the two addresses no price depends on.
+// rather than how many there are, and the change address no price depends on.
 export interface PreviewParams extends Omit<FeeParams, 'recipient'> {
   recipients: PreviewRecipient[]
   // L1 sends only, and only where the caller named one — otherwise change goes
   // to the wallet's own next change address.
   changeTo?: string | null
-  // Shield only: the platform address it spends. Every other platform-funded
-  // operation names its addresses through platformSource.
-  fromAddress?: string | null
 }

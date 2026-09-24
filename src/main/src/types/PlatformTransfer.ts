@@ -51,3 +51,11 @@ export type PlatformSpendSource =
 export type PlatformInputOutcome =
   | {plan: PlatformInputPlan; error: null}
   | {plan: null; error: string}
+
+// Which addresses a shield may draw on, in the byte order consensus indexes
+// them by, and the most they can shield once input 0 keeps the fee reserve.
+export interface ShieldInputPlan {
+  usable: PlatformSourceCandidate[]
+  feeReserveCredits: bigint
+  maxShieldableCredits: bigint
+}

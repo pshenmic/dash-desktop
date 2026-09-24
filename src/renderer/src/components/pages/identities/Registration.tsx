@@ -53,7 +53,6 @@ import { COIN_CONTROL_INVALID_MESSAGE } from '@renderer/constants/coinControl'
 import { toast } from '@renderer/components/ui/Toast'
 import {
   identityRegistrationAmountError,
-  identityRegistrationMaxDuffs,
   isUnfinishedAssetLockFunding,
 } from '@renderer/utils/identityRegistration'
 import {
@@ -232,12 +231,10 @@ export default function IdentityRegistration(): React.JSX.Element {
   })
   useErrorToast(feeError)
 
-  // The Core fee is paid on top of the amount, and an L1 registration locks the
-  // identity-create fee on top of that so the amount typed is what is credited.
+  // The Core fee is paid on top of the amount; the identity-create fee comes out
+  // of what the lock carries, so the identity is credited the amount less it.
   const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + creditsToDuffs(feeCredits ?? 0n)
-  const coreMaxDuffs = coreSelectableDuffs === null
-    ? null
-    : identityRegistrationMaxDuffs(coreSelectableDuffs, creditsToDuffs(feeCredits ?? 0n))
+  const coreMaxDuffs = coreSelectableDuffs
   let platformMaxDuffs: bigint | null = null
   if (maxPerTx !== null) {
     const cappedCredits = maxPerTx > 0n ? maxPerTx : 0n
@@ -280,7 +277,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     && (fromKind === SourceKind.Core || feeCredits !== null)
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : null
   const totalDuffs = fromKind === SourceKind.Core
-    ? amountDuffs + totalFeeDuffs
+    ? amountDuffs + (feeDuffs ?? 0n)
     : creditsToDuffs(amountCredits + (feeCredits ?? 0n))
   const unfinishedFunding = fundingState != null && isUnfinishedAssetLockFunding(fundingState.phase)
     ? fundingState
@@ -741,7 +738,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         {fromKind === SourceKind.Core && (
           <div className={"flex items-center justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Identity is credited</Text>
-            <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits)} credits</Text>
+            <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits - (feeCredits ?? 0n))} credits</Text>
           </div>
         )}
         <div className={"flex items-center justify-between gap-4"}>

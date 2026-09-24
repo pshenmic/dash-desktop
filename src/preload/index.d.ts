@@ -182,7 +182,7 @@ declare global {
       setLogLevel: (level: string) => Promise<void>
       setFiatCurrency: (currency: string) => Promise<void>
       setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
-      setPlatformFeeMultiplier: (platformFeeMultiplier: number) => Promise<void>
+      setPlatformFeeMultiplier: (operation: string, multiplier: number) => Promise<void>
       setCoreFeeMultiplier: (coreFeeMultiplier: number) => Promise<void>
       getConnectedPeers: () => Promise<unknown>
       setPeerMode: (mode: 'dynamic' | 'static') => Promise<void>

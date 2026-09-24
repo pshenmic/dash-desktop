@@ -1,5 +1,6 @@
 import {
   IdentityCreateFromShieldedPoolTransitionWASM,
+  PlatformVersionWASM,
   ShieldedTransferTransitionWASM,
   ShieldedWithdrawalTransitionWASM,
   StateTransitionWASM,
@@ -9,21 +10,22 @@ import {PoolSpendOperation} from '../../../types/messages'
 import {IDENTITY_KEY_DEFINITIONS, MIN_BUNDLE_ACTIONS} from '../../../../src/constants/credits'
 
 // What consensus will charge, from the protocol implementation itself. Never
-// reimplement this: it is versioned (`platformVersion`) and scales with the
-// action count, which is why a constant table cannot track it.
-export function minimumFee(kind: PoolSpendOperation, actionCount: number): bigint {
+// reimplement this: it is versioned and scales with the action count, which is
+// why a constant table cannot track it.
+export function minimumFee(kind: PoolSpendOperation, actionCount: number, version: PlatformVersionWASM): bigint {
   const actions = Math.max(actionCount, MIN_BUNDLE_ACTIONS)
   switch (kind) {
     case 'shieldedTransfer':
-      return ShieldedTransferTransitionWASM.computeMinimumFee(actions)
+      return ShieldedTransferTransitionWASM.computeMinimumFee(actions, version)
     case 'unshield':
-      return UnshieldTransitionWASM.computeMinimumFee(actions)
+      return UnshieldTransitionWASM.computeMinimumFee(actions, version)
     case 'shieldedWithdrawal':
-      return ShieldedWithdrawalTransitionWASM.computeMinimumFee(actions)
+      return ShieldedWithdrawalTransitionWASM.computeMinimumFee(actions, version)
     case 'identityCreateFromShielded':
       return IdentityCreateFromShieldedPoolTransitionWASM.computeMinimumFee(
         actions,
         IDENTITY_KEY_DEFINITIONS.length,
+        version,
       )
   }
 }

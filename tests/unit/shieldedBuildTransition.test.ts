@@ -14,6 +14,7 @@ vi.mock('../../src/main/platform/operations/shielded/spend/identityKeys', () => 
 }))
 
 import {DashPlatformSDK} from 'dash-platform-sdk'
+import type {PlatformVersionWASM} from 'pshenmic-dpp'
 import {buildTransition} from '../../src/main/platform/operations/shielded/spend/buildTransition'
 import {spend} from '../../src/main/platform/operations/shielded/spend/spend'
 import {OperationContext} from '../../src/main/platform/operations/types'
@@ -25,6 +26,8 @@ type Payload = PlatformOperations['spend']['payload']
 const ANCHOR = new Uint8Array(32).fill(1)
 const SEED = new Uint8Array(64).fill(7)
 const CHANGE = {address: 'change'} as never
+// pshenmic-dpp is mocked above, so the enum is spelled as the number it is.
+const VERSION = 13 as PlatformVersionWASM
 
 function sdkStub(): {sdk: DashPlatformSDK; createStateTransition: ReturnType<typeof vi.fn>} {
   const createStateTransition = vi.fn(async (type: string) => `${type}-transition`)
@@ -62,7 +65,7 @@ describe('building a shielded spend transition', () => {
         {address: 'addr-b', amountCredits: 2_500n},
       ],
       amountCredits: 3_500n,
-    }), [], ANCHOR, CHANGE)
+    }), [], ANCHOR, CHANGE, VERSION)
 
     expect(transition).toBe('shieldedTransferMulti-transition')
     expect(outputsOf(createStateTransition).map(output => [output.address.address, output.amount]))
@@ -82,7 +85,7 @@ describe('building a shielded spend transition', () => {
         {address: 'addr-c', amountCredits: 90n},
       ],
       amountCredits: 100n,
-    }), [], ANCHOR, CHANGE)
+    }), [], ANCHOR, CHANGE, VERSION)
 
     expect(outputsOf(createStateTransition).map(output => output.amount)).toEqual([9n, 1n, 90n])
   })
@@ -90,7 +93,7 @@ describe('building a shielded spend transition', () => {
   it('keeps a single recipient on the single-output transition', async () => {
     const {sdk, createStateTransition} = sdkStub()
 
-    const transition = await buildTransition(sdk, 'testnet', payload({}), [], ANCHOR, CHANGE)
+    const transition = await buildTransition(sdk, 'testnet', payload({}), [], ANCHOR, CHANGE, VERSION)
 
     expect(transition).toBe('shieldedTransfer-transition')
     expect(createStateTransition).toHaveBeenCalledWith('shieldedTransfer', expect.objectContaining({
@@ -108,7 +111,7 @@ describe('building a shielded spend transition', () => {
       kind: 'unshield',
       recipients: [{address: 'addr-a', amountCredits: 1_000n}],
       amountCredits: 9_999n,
-    }), [], ANCHOR, CHANGE)
+    }), [], ANCHOR, CHANGE, VERSION)
 
     expect(createStateTransition).toHaveBeenCalledWith('unshield', expect.objectContaining({
       unshieldAmount: 1_000n,
@@ -125,7 +128,7 @@ describe('building a shielded spend transition', () => {
       amountCredits: 40_000n,
       identityIndex: 0,
       failureAddress: 'refund-addr',
-    }), [], ANCHOR, CHANGE)
+    }), [], ANCHOR, CHANGE, VERSION)
 
     expect(createStateTransition).toHaveBeenCalledWith('identityCreateFromShieldedPool', expect.objectContaining({
       denomination: 40_000n,

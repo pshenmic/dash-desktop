@@ -63,8 +63,8 @@ export class API {
     return this.api.setFiatCurrency(currency)
   }
 
-  static async setPlatformFeeMultiplier(platformFeeMultiplier: number): Promise<void> {
-    return this.api.setPlatformFeeMultiplier(platformFeeMultiplier)
+  static async setPlatformFeeMultiplier(operation: TransferOperation, multiplier: number): Promise<void> {
+    return this.api.setPlatformFeeMultiplier(operation, multiplier)
   }
 
   static async setCoreFeeMultiplier(coreFeeMultiplier: number): Promise<void> {

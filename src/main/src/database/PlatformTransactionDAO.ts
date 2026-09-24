@@ -1,6 +1,6 @@
 import type {Knex} from 'knex'
 import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransaction'
-import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {INSERT_CHUNK_SIZE, LOCAL_SOURCE_PREFIX} from '../constants/database'
 import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
 
@@ -57,7 +57,11 @@ export class PlatformTransactionDAO {
   // A transition read again once its block was indexed carries the height and
   // status the first read lacked. SQLite refuses a hash repeated in one upsert.
   upsertTransactions = async (source: string, transactions: PlatformTransaction[]): Promise<void> => {
-    const unique = Array.from(new Map(transactions.map(row => [row.hash, row])).values())
+    // dpp hashes a transition in lower case and the explorer answers in upper:
+    // one case, or the row a send wrote is never the row a walk replaces.
+    const unique = Array.from(new Map(transactions
+      .map(row => [row.hash.toUpperCase(), {...row, hash: row.hash.toUpperCase()}] as const)).values())
+    if (unique.length === 0) return
 
     for (const rows of chunk(unique, INSERT_CHUNK_SIZE)) {
       await this.knex('platform_transactions')
@@ -78,6 +82,13 @@ export class PlatformTransactionDAO {
         .onConflict(['wallet_id', 'hash', 'source'])
         .merge()
     }
+
+    // What a send guessed about this end, now that the end itself has reported.
+    if (source.startsWith(LOCAL_SOURCE_PREFIX)) return
+    await this.knex('platform_transactions')
+      .where({wallet_id: unique[0].walletId, source: `${LOCAL_SOURCE_PREFIX}${source}`})
+      .whereIn('hash', unique.map(transaction => transaction.hash))
+      .delete()
   }
 
   // A source naming an address set this wallet no longer asks about. Its rows
@@ -86,7 +97,25 @@ export class PlatformTransactionDAO {
     await this.knex('platform_transactions')
       .where('wallet_id', walletId)
       .whereNotIn('source', sources)
+      // A send's own rows answer to the end that replaces them: the address it
+      // paid need not be one this wallet asks about.
+      .whereNot('source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
       .delete()
+  }
+
+  // Shielded transitions no note of ours has been counted into. Newest first,
+  // and only the hash: what the row carries comes from the transition itself.
+  getShieldedGaps = async (walletId: string, noteAddresses: string[]): Promise<string[]> => {
+    const placeholders = noteAddresses.map(() => '?').join(',')
+    const rows = await this.knex('platform_transactions')
+      .select('hash')
+      .where('wallet_id', walletId)
+      .where('type', 'like', '%SHIELD%')
+      .groupBy('hash')
+      .havingRaw(`max(case when source in (${placeholders}) then 1 else 0 end) = 0`, noteAddresses)
+      .orderByRaw('max(timestamp) desc')
+
+    return rows.map(row => row.hash as string)
   }
 
   // Per source, because a hash one walk has reported says nothing about

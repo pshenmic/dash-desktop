@@ -67,6 +67,8 @@ export const SHIELDED_BALANCE_UNKNOWN_ERROR = 'Shielded balance is unknown — s
 
 export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
 
+export const AUTOMATIC_PLATFORM_SELECTION = 'Automatic Platform selection'
+
 // What an operation reads as before its fee is known.
 export const NO_OPERATION_FEE: OperationFee = { feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null }
 
