@@ -40,8 +40,8 @@ export default function HeroBalance(): React.JSX.Element {
     rateReady ? `~ ${formatFiat(duffs)} ${currency.toUpperCase()}` : null
 
   return (
-    <section className="dashboard-section" aria-label={totalBalance}>
-      <header className="dashboard-section-header"><DashboardHeading as="h2">{totalBalance}</DashboardHeading></header>
+    <section className="flex min-w-0 flex-col gap-2" aria-label={totalBalance}>
+      <header className="flex flex-wrap items-center justify-between gap-3 px-1"><DashboardHeading as="h2">{totalBalance}</DashboardHeading></header>
       <div className={"relative overflow-hidden flex flex-col gap-5 p-5 rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
       <div className={"absolute inset-0 pointer-events-none dark:hidden bg-[linear-gradient(to_right,rgba(12,28,51,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(12,28,51,0.03)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]"} />
       <div className={"absolute inset-0 pointer-events-none hidden dark:block bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]"} />

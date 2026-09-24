@@ -13,8 +13,8 @@ export default function RecentTransactions({
   const { title, viewAll } = dashboardPage.recent
 
   return (
-    <section className="dashboard-section" aria-label={title}>
-      <header className="dashboard-section-header">
+    <section className="flex min-w-0 flex-col gap-2" aria-label={title}>
+      <header className="flex flex-wrap items-center justify-between gap-3 px-1">
         <DashboardHeading as="h2">{title}</DashboardHeading>
         <button
           onClick={() => navigate('/transactions')}

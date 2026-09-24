@@ -18,17 +18,17 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
   const showYear = days[0].date.getFullYear() !== days.at(-1)!.date.getFullYear()
 
   return (
-    <div className="daily-chart">
-      <div id={tooltipId} className="chart-toolbar" role="status" aria-live="polite">
+    <div className="mt-2">
+      <div id={tooltipId} className="mb-4 flex items-center justify-between gap-2 text-[10px] text-(--chart-muted)" role="status" aria-live="polite">
         <span>{selected ? chartDate(selected.date, true) : 'DASH'}</span>
-        {selected ? <strong><span className="sr-only">{selectedIndex === days.length - 1 ? 'Current balance: ' : 'Closing balance: '}</span>{davToDash(selected.balance)} DASH</strong> : <span>Daily balance</span>}
+        {selected ? <strong className="font-semibold text-(--chart-text) tabular-nums"><span className="sr-only">{selectedIndex === days.length - 1 ? 'Current balance: ' : 'Closing balance: '}</span>{davToDash(selected.balance)} DASH</strong> : <span>Daily balance</span>}
       </div>
-      <div className="chart-coordinate-system">
-        <div className="chart-y-axis" aria-hidden="true">
-          {scale.ticks.map(tick => <span key={String(tick)}>{davToDashCompact(tick, 8)}</span>)}
+      <div className="grid grid-cols-[max-content_minmax(0,1fr)] pr-[18px]">
+        <div className="flex h-40 min-w-8 flex-col items-end justify-between pr-2.5 text-[10px] text-(--chart-muted) tabular-nums" aria-hidden="true">
+          {scale.ticks.map(tick => <span key={String(tick)} className="leading-0">{davToDashCompact(tick, 8)}</span>)}
         </div>
         <div
-          className="chart-plot"
+          className="relative h-40 rounded-[3px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core)"
           tabIndex={0}
           role="group"
           aria-label="Daily Core balance in DASH"
@@ -51,7 +51,7 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
             })
           }}
         >
-          <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
+          <svg className="block size-full overflow-visible" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--chart-core)" stopOpacity={0.22} />
@@ -59,21 +59,21 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
               </linearGradient>
             </defs>
             {scale.ticks.map((tick, index) => (
-              <line key={String(tick)} x1={0} x2={CHART_WIDTH} y1={index * CHART_HEIGHT / (scale.ticks.length - 1)} y2={index * CHART_HEIGHT / (scale.ticks.length - 1)} className="chart-gridline" vectorEffect="non-scaling-stroke" />
+              <line key={String(tick)} x1={0} x2={CHART_WIDTH} y1={index * CHART_HEIGHT / (scale.ticks.length - 1)} y2={index * CHART_HEIGHT / (scale.ticks.length - 1)} className="stroke-(--chart-grid) [stroke-dasharray:3_5]" vectorEffect="non-scaling-stroke" />
             ))}
             <path d={area} fill={`url(#${gradientId})`} />
             <path d={line} fill="none" stroke="var(--chart-core)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
-          <span className="chart-balance-dot" style={{ left: `${(days.length - 0.5) / days.length * 100}%`, top: `${(1 - chartRatio(days.at(-1)!.balance - scale.min, scale.max - scale.min)) * 100}%` }} />
+          <span className="pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--chart-core)" style={{ left: `${(days.length - 0.5) / days.length * 100}%`, top: `${(1 - chartRatio(days.at(-1)!.balance - scale.min, scale.max - scale.min)) * 100}%` }} />
           {selected && selectedIndex !== null && (
             <>
-              <div className="chart-crosshair" style={{ left: `${(selectedIndex + 0.5) / days.length * 100}%` }} />
-              <span className="chart-balance-dot" style={{ left: `${(selectedIndex + 0.5) / days.length * 100}%`, top: `${(1 - chartRatio(selected.balance - scale.min, scale.max - scale.min)) * 100}%` }} />
+              <div className="pointer-events-none absolute inset-y-0 border-l border-dashed border-(--chart-muted)" style={{ left: `${(selectedIndex + 0.5) / days.length * 100}%` }} />
+              <span className="pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--chart-core)" style={{ left: `${(selectedIndex + 0.5) / days.length * 100}%`, top: `${(1 - chartRatio(selected.balance - scale.min, scale.max - scale.min)) * 100}%` }} />
             </>
           )}
         </div>
-        <div className="chart-x-axis" aria-hidden="true">
-          {tickIndexes.map(index => <span key={index} style={{ left: `${(index + 0.5) / days.length * 100}%` }}>{chartDate(days[index].date, showYear)}</span>)}
+        <div className="relative col-start-2 mt-2.5 h-3.5 text-[10px] text-(--chart-muted)" aria-hidden="true">
+          {tickIndexes.map(index => <span key={index} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(index + 0.5) / days.length * 100}%` }}>{chartDate(days[index].date, showYear)}</span>)}
         </div>
       </div>
       <p id={hintId} className="sr-only">Daily closing balance in local time; today shows the current balance. Linear Y axis from {davToDash(scale.min)} to {davToDash(scale.max)} DASH. Hover or use ← → to explore.</p>

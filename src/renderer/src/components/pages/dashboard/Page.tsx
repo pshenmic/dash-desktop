@@ -16,7 +16,6 @@ import ShieldedCard from './ShieldedCard'
 import IdentitiesCard from './IdentitiesCard'
 import NetworkCard from './NetworkCard'
 import DashboardHeading from './DashboardHeading'
-import './dashboard.css'
 
 function DashboardSkeleton(): React.JSX.Element {
   return (
@@ -99,8 +98,8 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
         </div>
       )}
 
-      <section className="dashboard-section" aria-label={dashboardPage.sections.services}>
-        <header className="dashboard-section-header"><DashboardHeading as="h2">{dashboardPage.sections.services}</DashboardHeading></header>
+      <section className="flex min-w-0 flex-col gap-2" aria-label={dashboardPage.sections.services}>
+        <header className="flex flex-wrap items-center justify-between gap-3 px-1"><DashboardHeading as="h2">{dashboardPage.sections.services}</DashboardHeading></header>
         <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
           <ShieldedCard />
           <IdentitiesCard />
