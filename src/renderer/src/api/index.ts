@@ -71,6 +71,14 @@ export class API {
     return this.api.setCoreFeeMultiplier(coreFeeMultiplier)
   }
 
+  static async getCollectMetrics(): Promise<boolean> {
+    return this.api.getCollectMetrics()
+  }
+
+  static async setCollectMetrics(collectMetrics: boolean): Promise<void> {
+    return this.api.setCollectMetrics(collectMetrics)
+  }
+
   static async startWalletSync(walletId: string): Promise<void> {
     return this.api.startWalletSync(walletId)
   }
