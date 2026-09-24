@@ -278,6 +278,84 @@ describe('platform history', () => {
     expect(merged.netCredits).toBe(-168_934_000n)
   })
 
+  // The explorer lists a transition a block or two after it is sent, and the
+  // note behind it waits for the next sync. Neither is a reason for the list to
+  // be missing what this wallet just did.
+  it('carries a transition this wallet sent before anything else reports it', async () => {
+    const SHIELDED = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    responder = () => page([])
+
+    await service.recordShieldedSend(WALLET, {
+      hash: 'SENTHASH',
+      type: 'SHIELD',
+      sides: [
+        {address: ADDRESS, credits: -443_567_314_000n},
+        {address: SHIELDED, credits: 443_567_314_000n},
+      ],
+      paid: null,
+    })
+
+    const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(row.hash).toBe('SENTHASH')
+    expect(row.amountCredits).toBe(443_567_314_000n)
+    expect(row.sender).toEqual([{source: ADDRESS, amount: 443_567_314_000n}])
+    expect(row.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])
+    // Both ends are ours, so nothing left the wallet but the fee it has yet to
+    // learn.
+    expect(row.netCredits).toBe(0n)
+    expect(row.status).toBeNull()
+
+    // And the walk that finds it later folds into it rather than doubling it.
+    responder = (path) => page(path.startsWith('/identity/')
+      ? []
+      : [{...transition, hash: 'SENTHASH', type: 'SHIELD', amount: '-443730165200'}])
+    await service.refresh(WALLET)
+
+    const [folded] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    // The walk replaced what the send guessed about the address it spent.
+    expect(folded.netCredits).toBe(-162_851_200n)
+    expect(folded.sender).toEqual([{source: ADDRESS, amount: 443_730_165_200n}])
+    expect(folded.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])
+  })
+
+  // Both ends inside the pool and both ours: the fee is the only cost, and the
+  // row still has to say which address paid which.
+  it('nets a transfer between two of our own shielded addresses to nothing', async () => {
+    const FROM = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    const TO = 'tdash1zq2j8jgzspy42499wzc4xd4ez6tj6nvuhuw20ucdugrys2xjfgqaplc32zja5kx62w6qu8sylj2vk'
+    responder = () => page([])
+
+    await service.recordShieldedSend(WALLET, {
+      hash: 'TRANSFERHASH',
+      type: 'SHIELDED_TRANSFER',
+      sides: [{address: FROM, credits: -50_000n}, {address: TO, credits: 50_000n}],
+      paid: null,
+    })
+
+    const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(row.netCredits).toBe(0n)
+    expect(row.amountCredits).toBe(50_000n)
+    expect(row.sender).toEqual([{source: FROM, amount: 50_000n}])
+    expect(row.recipient).toEqual([{source: TO, amount: 50_000n}])
+  })
+
+  it('names the end it paid when that end is nobody of ours', async () => {
+    const FROM = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    responder = () => page([])
+
+    await service.recordShieldedSend(WALLET, {
+      hash: 'PAIDHASH',
+      type: 'SHIELDED_TRANSFER',
+      sides: [{address: FROM, credits: -50_000n}],
+      paid: {source: 'tdash1stranger', amount: 50_000n},
+    })
+
+    const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(row.netCredits).toBe(-50_000n)
+    expect(row.sender).toEqual([{source: FROM, amount: 50_000n}])
+    expect(row.recipient).toEqual([{source: 'tdash1stranger', amount: 50_000n}])
+  })
+
   it('asks nothing for a wallet that owns no platform address and no identity', async () => {
     await knex('wallet').insert({wallet_id: 'w2', network: 'testnet', encrypted_mnemonic: 'm2'})
     net.paths.length = 0

@@ -7,7 +7,7 @@ import {
   StateTransitionWASM,
   UnshieldTransitionWASM,
 } from 'pshenmic-dpp'
-import {PlatformTransaction, ShieldedGap} from '../types/PlatformTransaction'
+import {PlatformTransaction, TransitionHeader} from '../types/PlatformTransaction'
 import {PersistNote, ShieldedAction} from '../types/ShieldedNote'
 
 // Both maps are keyed on bytes, so they have to agree on the encoding.
@@ -16,9 +16,8 @@ export const noteKey = (bytes: Uint8Array): string => Buffer.from(bytes).toStrin
 const actionsOf = (transition: {actions: {cmx: Uint8Array, nullifier: Uint8Array}[]}): ShieldedAction[] =>
   transition.actions.map(action => ({cmx: action.cmx, nullifier: action.nullifier}))
 
-// Every shielded transition is a list of Orchard actions and nothing else that
-// names a party: no address, no amount. Which of them are this wallet's is
-// readable only against notes it has decrypted.
+// A shielded transition names no party and no amount: an action is readable
+// only against notes this wallet has decrypted.
 export function shieldedActions(data: string): ShieldedAction[] {
   const transition = StateTransitionWASM.fromBytes(Buffer.from(data, 'base64'))
 
@@ -40,10 +39,8 @@ export function shieldedActions(data: string): ShieldedAction[] {
   }
 }
 
-// What each shielded address of ours moved in one transition: a note paid to it
-// counts up, a note of ours it spent counts down. One action carries both, and
-// either half can belong to someone else — an unshield spends our note and pays
-// our change back through the same action pair.
+// One action carries a note paid and a note spent, and either half can be
+// someone else's: an unshield spends ours and pays our change back in the pair.
 export function shieldedSides(
   actions: ShieldedAction[],
   byCmx: Map<string, PersistNote>,
@@ -62,12 +59,11 @@ export function shieldedSides(
   return sides
 }
 
-// Stored like any walk's row, so the fold counts the pool as one more side this
-// wallet was on: the net carries the direction, and the amount stops being the
-// surplus a shield sent back to an address.
+// The net carries the direction, so the amount stops being the surplus a shield
+// sent back to an address.
 export function noteSideTransaction(
   walletId: string,
-  gap: ShieldedGap,
+  gap: TransitionHeader,
   address: string,
   net: bigint,
 ): PlatformTransaction {

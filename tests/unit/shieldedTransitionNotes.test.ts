@@ -15,7 +15,7 @@ import {
   shieldedSides,
 } from '../../src/main/src/utils/shieldedTransitionNotes'
 import {PersistNote, ShieldedAction} from '../../src/main/src/types/ShieldedNote'
-import {ShieldedGap} from '../../src/main/src/types/PlatformTransaction'
+import {TransitionHeader} from '../../src/main/src/types/PlatformTransaction'
 
 const ADDRESS = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
 const OTHER = 'tdash1zq2j8jgzspy42499wzc4xd4ez6tj6nvuhuw20ucdugrys2xjfgqaplc32zja5kx62w6qu8sylj2vk'
@@ -29,7 +29,7 @@ const note = (overrides: Partial<PersistNote> = {}): PersistNote => ({
 const action = (cmx: number, nullifier: number): ShieldedAction =>
   ({cmx: bytes(cmx), nullifier: bytes(nullifier)})
 
-const gap: ShieldedGap = {
+const gap: TransitionHeader = {
   hash: 'HASH',
   type: 'UNSHIELD',
   date: new Date('2026-09-23T16:13:37.955Z'),

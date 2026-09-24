@@ -1,6 +1,6 @@
 import type {Knex} from 'knex'
-import {PlatformTransaction, PlatformTxStatus, ShieldedGap} from '../types/PlatformTransaction'
-import {INSERT_CHUNK_SIZE} from '../constants/database'
+import {PlatformTransaction, PlatformTxStatus, TransitionHeader} from '../types/PlatformTransaction'
+import {INSERT_CHUNK_SIZE, LOCAL_SOURCE_PREFIX} from '../constants/database'
 import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
 
@@ -58,6 +58,7 @@ export class PlatformTransactionDAO {
   // status the first read lacked. SQLite refuses a hash repeated in one upsert.
   upsertTransactions = async (source: string, transactions: PlatformTransaction[]): Promise<void> => {
     const unique = Array.from(new Map(transactions.map(row => [row.hash, row])).values())
+    if (unique.length === 0) return
 
     for (const rows of chunk(unique, INSERT_CHUNK_SIZE)) {
       await this.knex('platform_transactions')
@@ -78,6 +79,13 @@ export class PlatformTransactionDAO {
         .onConflict(['wallet_id', 'hash', 'source'])
         .merge()
     }
+
+    // What a send guessed about this end, now that the end itself has reported.
+    if (source.startsWith(LOCAL_SOURCE_PREFIX)) return
+    await this.knex('platform_transactions')
+      .where({wallet_id: unique[0].walletId, source: `${LOCAL_SOURCE_PREFIX}${source}`})
+      .whereIn('hash', unique.map(transaction => transaction.hash))
+      .delete()
   }
 
   // A source naming an address set this wallet no longer asks about. Its rows
@@ -86,13 +94,15 @@ export class PlatformTransactionDAO {
     await this.knex('platform_transactions')
       .where('wallet_id', walletId)
       .whereNotIn('source', sources)
+      // A send's own rows answer to the end that replaces them: the address it
+      // paid need not be one this wallet asks about.
+      .whereNot('source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
       .delete()
   }
 
-  // Shielded transitions none of our own notes has been counted into yet.
-  // Grouped because the walks store one row per side, and every one of them
-  // carries the same transition fields.
-  getShieldedGaps = async (walletId: string, noteAddresses: string[]): Promise<ShieldedGap[]> => {
+  // Shielded transitions no note of ours has been counted into. Grouped because
+  // every source row of one carries the same transition fields.
+  getTransitionHeaders = async (walletId: string, noteAddresses: string[]): Promise<TransitionHeader[]> => {
     const placeholders = noteAddresses.map(() => '?').join(',')
     const rows = await this.knex('platform_transactions')
       .select('hash')

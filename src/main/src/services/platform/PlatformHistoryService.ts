@@ -1,4 +1,5 @@
 import {PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS} from '../../constants/platformExplorer'
+import {LOCAL_SOURCE_PREFIX} from '../../constants/database'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformAddressDAO} from '../../database/PlatformAddressDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
@@ -8,7 +9,13 @@ import {WalletDAO} from '../../database/WalletDAO'
 import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider'
 import {Logger} from '../../utils/logger'
 import {requireWallet} from '../../utils/requireWallet'
-import {noteKey, noteSideTransaction, shieldedActions, shieldedSides} from '../../utils/shieldedTransitionNotes'
+import {ShieldedSend} from '../../types/PlatformTransaction'
+import {
+  noteKey,
+  noteSideTransaction,
+  shieldedActions,
+  shieldedSides,
+} from '../../utils/shieldedTransitionNotes'
 
 const log = new Logger('platform')
 
@@ -120,22 +127,30 @@ export class PlatformHistoryService {
       if (result.status === 'rejected') throw result.reason
     }
 
-    // A walk can turn up a shielded transition whose notes were decrypted long
-    // ago, so the rows it just stored are checked against them. Costs one query
-    // when there is nothing to fill, and reads the explorer only for a gap.
+    // A walk can turn up a transition whose notes were decrypted long ago. One
+    // query when there is nothing to fill, and no request without a gap.
     await this.readShieldedSides(walletId).catch(err =>
       log.warn(`${walletId}: reading the shielded side failed:`, err))
   }
 
+  // One row per end it moved, each under the source whose own row replaces it,
+  // so a send between two of ours nets to the fee rather than reading as a loss.
+  async recordShieldedSend(walletId: string, send: ShieldedSend): Promise<void> {
+    const gap = {hash: send.hash, type: send.type, date: new Date(),
+      blockHeight: null, status: null, gasCredits: 0n}
+
+    for (const side of send.sides) {
+      const row = noteSideTransaction(walletId, gap, side.address, side.credits)
+      // An end of ours brings a side of its own; anyone else's has only this.
+      const paid = send.paid != null && side.credits < 0n ? {recipient: [send.paid]} : {}
+      await this.platformTransactionDAO.upsertTransactions(
+        `${LOCAL_SOURCE_PREFIX}${side.address}`, [{...row, ...paid}])
+    }
+  }
+
   // A shield tells the address it spent from only about the surplus it sent
-  // back, and a shielded transfer tells it nothing at all: what moved is in a
-  // note, and only a sync that held the password could read it. That side is
-  // stored like a walk's, so the fold treats the pool as one more side this
-  // wallet was on.
-  //
-  // Runs whenever either side could have changed — a sync writing notes, or a
-  // walk storing rows — and does nothing when neither did: no notes, or no
-  // shielded transition without its note side, means no request.
+  // back, and a shielded transfer tells it nothing: what moved is in a note.
+  // Stored like a walk's row, so the pool folds in as one more side.
   async readShieldedSides(walletId: string): Promise<void> {
     const notes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
     if (notes.length === 0) return
@@ -152,9 +167,8 @@ export class PlatformHistoryService {
     const byNullifier = new Map(notes.flatMap(note =>
       note.nullifier == null ? [] : [[noteKey(note.nullifier), note] as const]))
 
-    // Newest first: the rows a wallet opens on are the ones worth filling first.
     const addresses = [...new Set(notes.map(note => note.address))]
-    const gaps = await this.platformTransactionDAO.getShieldedGaps(wallet.walletId, addresses)
+    const gaps = await this.platformTransactionDAO.getTransitionHeaders(wallet.walletId, addresses)
 
     for (const gap of gaps) {
       if (this.shieldedRead.get(gap.hash) === notes.length) continue
@@ -163,7 +177,8 @@ export class PlatformHistoryService {
       const data = await explorer.transitionData(gap.hash)
       if (data == null) continue
 
-      for (const [address, net] of shieldedSides(shieldedActions(data), byCmx, byNullifier)) {
+      const sides = shieldedSides(shieldedActions(data), byCmx, byNullifier)
+      for (const [address, net] of sides) {
         await this.platformTransactionDAO.upsertTransactions(
           address, [noteSideTransaction(wallet.walletId, gap, address, net)])
       }

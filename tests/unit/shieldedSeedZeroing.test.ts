@@ -85,6 +85,7 @@ function wire(): {service: ShieldedService; request: ReturnType<typeof vi.fn>; n
     addressDAO as unknown as ShieldedAddressDAO,
     {request} as unknown as PlatformWorkerService,
     {} as unknown as AssetLockService,
+    {recordShieldedSend: async () => undefined} as never,
     Preferences.default(),
   )
 

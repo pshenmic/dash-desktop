@@ -359,6 +359,13 @@ export class PlatformTransferService {
       amountCredits,
     })
 
+    // The list carries the shield from the moment it is sent, not from the
+    // block the explorer lists it in.
+    await this.shielded.recordShield(walletId, stHash, {
+      from: inputs[0].candidate.platformAddress,
+      to: toShieldedAddress,
+      credits: amountCredits,
+    })
     void this.shielded.refreshNotes(walletId, network, seed)
 
     return {

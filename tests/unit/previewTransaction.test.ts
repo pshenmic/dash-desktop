@@ -578,7 +578,7 @@ describe('ShieldedService.planSpend', () => {
     const request = vi.fn(async () => ({feeCredits: curve}))
     const svc = new ShieldedService(
       walletDAO as never, null as never, null as never, null as never, null as never,
-      {request} as never, null as never, Preferences.default(),
+      {request} as never, null as never, {recordShieldedSend: async () => undefined} as never, Preferences.default(),
     )
     // Written by the sync path only; a plan reads whatever it last held.
     ;(svc as unknown as {syncStates: Map<string, ShieldedSyncState>}).syncStates.set(WALLET, {
