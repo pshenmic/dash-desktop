@@ -41,3 +41,11 @@ export interface PlatformExplorerTransfer {
   blockHash: string | null
   gasUsed: number | null
 }
+
+// One state transition by hash. The list endpoints answer with `data` null, so
+// this is the only place the explorer hands back the transition itself.
+export interface PlatformExplorerTransition {
+  hash: string
+  type: string
+  data: string | null
+}

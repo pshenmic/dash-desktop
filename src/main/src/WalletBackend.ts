@@ -292,10 +292,11 @@ export class WalletBackend {
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
     const platformTransactionDAO = new PlatformTransactionDAO(knex)
-    this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, platformTransactionDAO)
+    const shieldedPoolDAO = new ShieldedPoolDAO(knex)
+    this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, platformTransactionDAO, shieldedNoteDAO, shieldedPoolDAO)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, platformTransactionDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
-    this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, shieldedPoolDAO, shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
     this.platformAddressService = new PlatformAddressService(walletDAO, platformAddressDAO, this.platformWorkerService)
     this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, coreTransactionService, providers, preferences)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
@@ -384,6 +385,14 @@ export class WalletBackend {
         platformHistoryService.refreshAfterSend(selected.walletId)
       }
     }
+    // A shielded transition says nothing to the addresses it touched beyond the
+    // surplus it sent back. What it moved is in the notes a sync just decrypted.
+    const shieldedHistoryService = this.platformHistoryService
+    this.shieldedService.onNotesSynced(walletId => {
+      shieldedHistoryService.readShieldedSides(walletId).catch(err =>
+        platformLog.error('reading the shielded side of the history failed:', err))
+    })
+
     this.platformWorkerService.onTransitionBroadcast(() => {
       refreshAfterBroadcast().catch(err => platformLog.error('platform history refresh after a broadcast failed:', err))
     })

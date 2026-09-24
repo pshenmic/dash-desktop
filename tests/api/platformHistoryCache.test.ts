@@ -13,9 +13,12 @@ vi.mock('electron', () => ({
   },
 }))
 
+import {PlatformAddressWASM, SerializedActionWASM, UnshieldTransitionWASM} from 'pshenmic-dpp'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {PlatformAddressDAO} from '../../src/main/src/database/PlatformAddressDAO'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
+import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
+import {ShieldedPoolDAO} from '../../src/main/src/database/ShieldedPoolDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformHistoryService} from '../../src/main/src/services/platform/PlatformHistoryService'
 import {
@@ -61,6 +64,8 @@ let knex: Knex
 let service: PlatformHistoryService
 let transactionDAO: PlatformTransactionDAO
 let addressDAO: PlatformAddressDAO
+let noteDAO: ShieldedNoteDAO
+let poolDAO: ShieldedPoolDAO
 
 const addAddress = (index: number, address: string): Promise<void> =>
   addressDAO.insertAddresses([
@@ -85,7 +90,10 @@ beforeEach(async () => {
     null,
   )
 
-  service = new PlatformHistoryService(new WalletDAO(knex), identityDAO, addressDAO, transactionDAO)
+  noteDAO = new ShieldedNoteDAO(knex)
+  poolDAO = new ShieldedPoolDAO(knex)
+  service = new PlatformHistoryService(
+    new WalletDAO(knex), identityDAO, addressDAO, transactionDAO, noteDAO, poolDAO)
 })
 
 afterEach(async () => {
@@ -220,6 +228,54 @@ describe('platform history', () => {
 
     expect(service.lastRefreshFailed(WALLET)).toBe(true)
     expect((mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)).toEqual([HASH])
+  })
+
+  // An unshield tells the address it paid only what arrived there. What left
+  // the pool is in the notes it spent, which only this wallet can read.
+  it('counts our own notes into a shielded transition', async () => {
+    const SHIELDED = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    const fill = (value: number, length = 32): Uint8Array => new Uint8Array(length).fill(value)
+    const action = (nullifier: number, cmx: number): SerializedActionWASM =>
+      new SerializedActionWASM(fill(nullifier), fill(2), fill(cmx), fill(4, 580), fill(5), fill(6, 64))
+
+    // Spends note 4525 and pays the change back to the same address as 4527.
+    const unshield = new UnshieldTransitionWASM(
+      PlatformAddressWASM.fromBytes(new Uint8Array(21)),
+      [action(11, 99), action(98, 12)],
+      100_168_934_000n,
+      fill(7), fill(8, 192), fill(9, 64),
+    )
+
+    await poolDAO.saveEncryptedNotes('testnet', [
+      {index: 4525, nullifier: fill(11), cmx: fill(50), encryptedNote: fill(4, 580), cvNet: fill(5)},
+      {index: 4527, nullifier: fill(12), cmx: fill(12), encryptedNote: fill(4, 580), cvNet: fill(5)},
+    ])
+    await noteDAO.upsertNotes(WALLET, [
+      {index: 4525, amount: 2_957_457_752_000n, address: SHIELDED, spent: true, nullifier: fill(11)},
+      {index: 4527, amount: 2_857_288_818_000n, address: SHIELDED, spent: false, nullifier: fill(12)},
+    ])
+
+    const row = {...transition, hash: 'UNSHIELDHASH', type: 'UNSHIELD',
+      incoming: true, amount: '100000000000'}
+    responder = (path) => {
+      if (path.startsWith('/transaction/')) {
+        return {ok: true, status: 200, json: async () => ({
+          hash: 'UNSHIELDHASH', type: 'UNSHIELD', data: unshield.toStateTransition().base64(),
+        })} as Response
+      }
+      return page(path.startsWith('/identity/') ? [] : [row])
+    }
+
+    // The walk alone: the rows it stores are checked against the notes a sync
+    // decrypted earlier, without waiting for the next one.
+    await service.refresh(WALLET)
+
+    const [merged] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(merged.amountCredits).toBe(100_168_934_000n)
+    expect(merged.sender).toEqual([{source: SHIELDED, amount: 100_168_934_000n}])
+    expect(merged.recipient).toEqual([{source: ADDRESS, amount: 100_000_000_000n}])
+    // The address gained 100000000000 of the 100168934000 that left the pool.
+    expect(merged.netCredits).toBe(-168_934_000n)
   })
 
   it('asks nothing for a wallet that owns no platform address and no identity', async () => {

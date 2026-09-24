@@ -33,3 +33,14 @@ export interface PlatformTransaction {
   sender: TransitionEnd[]
   recipient: TransitionEnd[]
 }
+
+// A shielded transition this wallet holds no note side for yet, carrying the
+// fields every source row of it reports alike.
+export interface ShieldedGap {
+  hash: string
+  type: string
+  date: Date
+  blockHeight: number | null
+  status: PlatformTxStatus | null
+  gasCredits: bigint
+}

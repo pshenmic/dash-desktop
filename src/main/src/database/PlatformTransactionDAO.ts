@@ -1,5 +1,5 @@
 import type {Knex} from 'knex'
-import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransaction'
+import {PlatformTransaction, PlatformTxStatus, ShieldedGap} from '../types/PlatformTransaction'
 import {INSERT_CHUNK_SIZE} from '../constants/database'
 import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
@@ -87,6 +87,31 @@ export class PlatformTransactionDAO {
       .where('wallet_id', walletId)
       .whereNotIn('source', sources)
       .delete()
+  }
+
+  // Shielded transitions none of our own notes has been counted into yet.
+  // Grouped because the walks store one row per side, and every one of them
+  // carries the same transition fields.
+  getShieldedGaps = async (walletId: string, noteAddresses: string[]): Promise<ShieldedGap[]> => {
+    const placeholders = noteAddresses.map(() => '?').join(',')
+    const rows = await this.knex('platform_transactions')
+      .select('hash')
+      .max({type: 'type', timestamp: 'timestamp', block_height: 'block_height',
+        status: 'status', gas_credits: 'gas_credits'})
+      .where('wallet_id', walletId)
+      .where('type', 'like', '%SHIELD%')
+      .groupBy('hash')
+      .havingRaw(`max(case when source in (${placeholders}) then 1 else 0 end) = 0`, noteAddresses)
+      .orderByRaw('max(timestamp) desc')
+
+    return rows.map((row: Record<string, unknown>) => ({
+      hash: row.hash as string,
+      type: row.type as string,
+      date: new Date(row.timestamp as number),
+      blockHeight: (row.block_height as number | null) ?? null,
+      status: ((row.status ?? null) as PlatformTxStatus | null),
+      gasCredits: BigInt(row.gas_credits as string),
+    }))
   }
 
   // Per source, because a hash one walk has reported says nothing about

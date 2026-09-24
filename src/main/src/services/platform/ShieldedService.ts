@@ -92,6 +92,7 @@ export class ShieldedService {
   private platform: PlatformWorkerService
   private assetLock: AssetLockService
   private preferences: Preferences
+  private notesSynced?: (walletId: string) => void
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string[]>()
@@ -315,6 +316,12 @@ export class ShieldedService {
     return { phase: 'idle', fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null }
   }
 
+  // Notes are what a shielded transition moved, and nothing outside a sync can
+  // read them: the password only exists for the length of one.
+  onNotesSynced(listener: (walletId: string) => void): void {
+    this.notesSynced = listener
+  }
+
   getSyncState(walletId: string): ShieldedSyncState {
     return this.syncStates.get(walletId) ?? this.idleSyncState()
   }
@@ -401,6 +408,9 @@ export class ShieldedService {
 
     if (fresh.length === 0) {
       this.settleSync(state, priorNotes)
+      // A sync that found nothing new still leaves notes to count into any
+      // transition the history walked since the last one.
+      this.notesSynced?.(walletId)
       await this.revealWindow(walletId, seed, network)
       return
     }
@@ -421,6 +431,7 @@ export class ShieldedService {
     this.settleSync(state, all)
     await this.shieldedNoteDAO.upsertNotes(walletId, all)
     await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
+    this.notesSynced?.(walletId)
 
     // Only now can the window be judged: it reads used flags off the notes this
     // sync just wrote. Runs on the seed the sync is already holding, and is done
