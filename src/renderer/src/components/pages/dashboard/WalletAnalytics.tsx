@@ -5,6 +5,7 @@ import { activityDayKey, buildDashboardAnalytics, chartDate } from '@renderer/ut
 import CoreBalanceChart from './CoreBalanceChart'
 import EvoTypesChart from './EvoTypesChart'
 import BalanceAllocationChart from './BalanceAllocationChart'
+import DashboardHeading from './DashboardHeading'
 import './analytics.css'
 
 export default function WalletAnalytics({ core, platform, platformFailed, hidden }: DashboardAnalyticsProps): React.JSX.Element {
@@ -14,8 +15,8 @@ export default function WalletAnalytics({ core, platform, platformFailed, hidden
 
   return (
     <section className="wallet-analytics" aria-label="Wallet analytics">
-      <header className="analytics-header">
-        <h2 title={`${chartDate(data.days[0].date, true)} — ${chartDate(data.days.at(-1)!.date, true)} · local time`}>Wallet analytics</h2>
+      <header className="dashboard-section-header">
+        <DashboardHeading as="h2" title={`${chartDate(data.days[0].date, true)} — ${chartDate(data.days.at(-1)!.date, true)} · local time`}>Wallet analytics</DashboardHeading>
         <div className="analytics-periods" role="group" aria-label="Analytics period">
           {ANALYTICS_PERIODS.map(value => <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>{value === 'all' ? 'All time' : `${value} days`}</button>)}
         </div>

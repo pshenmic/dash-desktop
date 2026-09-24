@@ -30,14 +30,8 @@ import RecentTransactions from './RecentTransactions'
 import ShieldedCard from './ShieldedCard'
 import IdentitiesCard from './IdentitiesCard'
 import NetworkCard from './NetworkCard'
-
-function SectionHeader({ title }: { title: string }): React.JSX.Element {
-  return (
-    <Text size={12} weight={"medium"} color={"brand"} opacity={40} transform={"uppercase"} className={"tracking-[.08em] px-1"}>
-      {title}
-    </Text>
-  )
-}
+import DashboardHeading from './DashboardHeading'
+import './dashboard.css'
 
 function DashboardSkeleton(): React.JSX.Element {
   return (
@@ -129,16 +123,18 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
         </div>
       )}
 
-      <SectionHeader title={dashboardPage.sections.services} />
-      <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
-        <ShieldedCard />
-        <IdentitiesCard />
-      </div>
+      <section className="dashboard-section" aria-label={dashboardPage.sections.services}>
+        <header className="dashboard-section-header"><DashboardHeading as="h2">{dashboardPage.sections.services}</DashboardHeading></header>
+        <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
+          <ShieldedCard />
+          <IdentitiesCard />
+        </div>
+      </section>
       <NetworkCard />
 
       {!loading && !err && hasActivity && (
-        <>
-          <SectionHeader title={dashboardPage.sections.stats} />
+        <section className="dashboard-section" aria-label={dashboardPage.sections.stats}>
+          <header className="dashboard-section-header"><DashboardHeading as="h2">{dashboardPage.sections.stats}</DashboardHeading></header>
           <div className={"grid grid-cols-2 xl:grid-cols-4 gap-4"}>
             <StatCard
               icon={TransactionsIcon}
@@ -204,7 +200,7 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
             />
           </div>
 
-        </>
+        </section>
       )}
     </div>
   )

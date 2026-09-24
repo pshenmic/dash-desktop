@@ -8,7 +8,7 @@
   color: var(--chart-text);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   container-type: inline-size;
 }
@@ -20,10 +20,7 @@
   --chart-text: #fff;
 }
 
-.wallet-analytics .analytics-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 0 4px; }
-.wallet-analytics h2, .wallet-analytics h3, .wallet-analytics p { margin: 0; }
-.wallet-analytics h2 { font-size: 14px; font-weight: 600; }
-.wallet-analytics h3 { font-size: 14px; font-weight: 600; }
+.wallet-analytics p { margin: 0; }
 .wallet-analytics .analytics-periods { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--chart-grid); border-radius: 10px; }
 .wallet-analytics .analytics-periods button { padding: 5px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; color: var(--chart-muted); cursor: pointer; }
 .wallet-analytics .analytics-periods button:hover { background: var(--chart-grid); color: var(--chart-text); }
@@ -32,7 +29,7 @@
 .wallet-analytics .analytics-card { min-width: 0; padding: 16px; border-radius: 24px; box-shadow: 0 0 32px #0c1c3308; }
 .wallet-analytics .analytics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .wallet-analytics i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; }
-.wallet-analytics .daily-chart { margin-top: 12px; }
+.wallet-analytics .daily-chart { margin-top: 8px; }
 .wallet-analytics .chart-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 10px; color: var(--chart-muted); }
 .wallet-analytics .chart-toolbar strong { color: var(--chart-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .wallet-analytics .chart-coordinate-system { display: grid; grid-template-columns: max-content minmax(0, 1fr); padding-right: 18px; }
@@ -46,7 +43,7 @@
 .wallet-analytics .chart-crosshair { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--chart-muted); pointer-events: none; }
 .wallet-analytics .chart-balance-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--chart-core); transform: translate(-50%, -50%); pointer-events: none; }
 .wallet-analytics .chart-empty, .wallet-analytics .chart-hidden { height: 227px; display: flex; justify-content: center; align-items: center; color: var(--chart-muted); font-size: 12px; text-align: center; }
-.wallet-analytics .evo-types { height: 215px; margin-top: 12px; overflow-y: auto; padding: 0 5px 4px 0; }
+.wallet-analytics .evo-types { height: 215px; margin-top: 8px; overflow-y: auto; padding: 0 5px 4px 0; }
 .wallet-analytics .evo-type-row + .evo-type-row { margin-top: 10px; }
 .wallet-analytics .evo-type-label { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; margin-bottom: 5px; }
 .wallet-analytics .evo-type-label > span:first-child { overflow-wrap: anywhere; }
@@ -55,7 +52,7 @@
 .wallet-analytics .evo-type-track { height: 5px; background: color-mix(in srgb, var(--chart-evo) 10%, transparent); border-radius: 3px; overflow: hidden; }
 .wallet-analytics .evo-type-track > div { height: 100%; background: var(--chart-evo); border-radius: inherit; }
 .wallet-analytics .analytics-notice { color: var(--chart-muted); font-size: 11px; padding: 0 4px; }
-.wallet-analytics .balance-allocation { height: 215px; margin-top: 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
+.wallet-analytics .balance-allocation { height: 215px; margin-top: 8px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
 .wallet-analytics .allocation-donut { position: relative; width: 120px; height: 120px; flex-shrink: 0; align-self: center; }
 .wallet-analytics .allocation-donut svg { display: block; width: 100%; height: 100%; }
 .wallet-analytics .allocation-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; pointer-events: none; }

@@ -11,6 +11,7 @@ import { useShieldedNotesInfo, useShieldedPoolInfo, useShieldedStatus, useShield
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
+import DashboardHeading from './DashboardHeading'
 
 export default function ShieldedCard(): React.JSX.Element {
   const navigate = useNavigate()
@@ -63,9 +64,7 @@ export default function ShieldedCard(): React.JSX.Element {
           <span className={"flex size-[1.875rem] shrink-0 items-center justify-center rounded-full bg-dash-brand/12 dark:bg-dash-mint/12 dash-text-primary"}>
             <ShieldSmallIcon size={15} color={"currentColor"} />
           </span>
-          <Text size={14} weight={"medium"} color={"brand"}>
-            {labels.title}
-          </Text>
+          <DashboardHeading>{labels.title}</DashboardHeading>
         </div>
         <button
           onClick={(e) => {

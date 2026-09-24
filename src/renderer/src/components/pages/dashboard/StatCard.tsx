@@ -1,6 +1,7 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { IconProps } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
+import DashboardHeading from './DashboardHeading'
 
 export type StatTone = 'brand' | 'green' | 'orange'
 
@@ -35,9 +36,7 @@ export default function StatCard({
         <span className={`flex size-[1.875rem] shrink-0 items-center justify-center rounded-full ${TONE_CLASSES[tone]}`}>
           <Icon size={iconSize} color={"currentColor"} />
         </span>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-          {label}
-        </Text>
+        <DashboardHeading>{label}</DashboardHeading>
       </div>
       <div className={"flex flex-col gap-1"}>
         <Text size={20} weight={"extrabold"} color={"brand"} className={"leading-[120%]"}>

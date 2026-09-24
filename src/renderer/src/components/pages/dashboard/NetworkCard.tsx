@@ -4,6 +4,7 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { describeDataSource, describeNetworkStatus, NetworkStatusTone } from '@renderer/utils/networkStatus'
 import { readDesiredConnectionMode } from '@renderer/utils/connectionSettings'
 import { WalletSyncPhase } from '@renderer/enums/WalletSyncPhase'
+import DashboardHeading from './DashboardHeading'
 
 const STATUS_TONES: Record<NetworkStatusTone, { pill: string; dot: string; text: string }> = {
   ok: { pill: 'bg-dash-green-15', dot: 'bg-dash-green', text: 'text-dash-green' },
@@ -37,16 +38,15 @@ export default function NetworkCard(): React.JSX.Element {
   const syncActive = sync !== undefined && sync.phase !== WalletSyncPhase.Stopped && sync.phase !== WalletSyncPhase.Idle
 
   return (
-    <div className={"relative overflow-hidden grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-x-10 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+    <section className="dashboard-section" aria-label={labels.title}>
+      <header className="dashboard-section-header"><DashboardHeading as="h2">{labels.title}</DashboardHeading></header>
+      <div className={"relative overflow-hidden grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-x-10 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
       <div className={"absolute -top-14 -right-8 size-36 rounded-full bg-dash-brand/8 dark:bg-dash-mint/6 blur-3xl pointer-events-none"} />
 
       <div className={"flex items-center gap-2.5"}>
         <span className={"flex size-[1.875rem] shrink-0 items-center justify-center rounded-full bg-dash-brand/12 dark:bg-dash-mint/12 dash-text-primary"}>
           <WebIcon size={15} color={"currentColor"} />
         </span>
-        <Text size={14} weight={"medium"} color={"brand"}>
-          {labels.title}
-        </Text>
         {networkName && (
           <span className={`flex items-center gap-2 rounded-full px-3 py-1.5 ml-1 ${tone.pill}`}>
             <span className={`size-1.5 rounded-full ${tone.dot}`} />
@@ -60,6 +60,7 @@ export default function NetworkCard(): React.JSX.Element {
       <MiniStat label={labels.chainTip} value={tipHeight > 0 ? tipHeight.toLocaleString('en-US') : '—'} />
       <MiniStat label={labels.peers} value={syncActive ? peerCount.toLocaleString('en-US') : '—'} />
       <MiniStat label={labels.dataSource} value={describeDataSource(readDesiredConnectionMode())} />
-    </div>
+      </div>
+    </section>
   )
 }
