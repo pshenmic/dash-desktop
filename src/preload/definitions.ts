@@ -83,6 +83,8 @@ export const apiDefinitions = (ipcRenderer) => ({
   setConnectionType: (connectionType: 'p2p' | 'rpc') => ipcRenderer.invoke('setConnectionType', connectionType),
   setPlatformFeeMultiplier: (platformFeeMultiplier: number) => ipcRenderer.invoke('setPlatformFeeMultiplier', platformFeeMultiplier),
   setCoreFeeMultiplier: (coreFeeMultiplier: number) => ipcRenderer.invoke('setCoreFeeMultiplier', coreFeeMultiplier),
+  getCollectMetrics: () => ipcRenderer.invoke('getCollectMetrics'),
+  setCollectMetrics: (collectMetrics: boolean) => ipcRenderer.invoke('setCollectMetrics', collectMetrics),
   getConnectedPeers: () => ipcRenderer.invoke('getConnectedPeers'),
   setPeerMode: (mode: 'dynamic' | 'static') => ipcRenderer.invoke('setPeerMode', mode),
   pushStaticPeer: (network: Network, peer: string) => ipcRenderer.invoke('pushStaticPeer', network, peer),

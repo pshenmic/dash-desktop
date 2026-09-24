@@ -15,7 +15,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 9
+  static readonly CURRENT_VERSION = 10
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
@@ -100,6 +100,7 @@ export class Preferences {
       rawGeneral.platformFeeMultiplier ?? defaults.general.platformFeeMultiplier,
       rawGeneral.coreFeeMultiplier ?? defaults.general.coreFeeMultiplier,
       rawGeneral.logLevel ?? defaults.general.logLevel,
+      rawGeneral.collectMetrics ?? defaults.general.collectMetrics,
     )
 
     // Hand-edited far more often than the rest of the file, so a malformed

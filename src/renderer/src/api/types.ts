@@ -272,6 +272,7 @@ export interface GeneralPreferencesJSON {
   connectionType: ConnectionType
   platformFeeMultiplier: number
   coreFeeMultiplier: number
+  collectMetrics: boolean
 }
 
 export type PeerMode = 'dynamic' | 'static'
