@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
+import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import { CalendarIcon, ClockArrowIcon, ReceiveIcon, SendIcon, TokensIcon, TransactionsIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { useFiat } from '@renderer/hooks/useFiat'
 import type { StatisticsProps } from '@renderer/types/DashboardStats'
-import { davToDashCompact } from '@renderer/utils/balance'
 import { computeWalletStats, formatWalletAge } from '@renderer/utils/dashboardStats'
 import { buildStatFlows, statShare, summarizeStatActivity } from '@renderer/utils/dashboardStatCharts'
 import { formatCreationDate, timePart } from '@renderer/utils/date'
@@ -17,7 +16,6 @@ import './statistics.css'
 
 export default function Statistics({ transactions, platform, platformFailed }: StatisticsProps): React.JSX.Element {
   const { isBalanceVisible } = useBalanceVisibility()
-  const { format: formatFiat, rateReady } = useFiat()
   const stats = useMemo(() => computeWalletStats(transactions), [transactions])
   const flows = useMemo(() => buildStatFlows(transactions, platform), [transactions, platform])
   const activity = useMemo(() => summarizeStatActivity(transactions, platform), [transactions, platform])
@@ -26,7 +24,6 @@ export default function Statistics({ transactions, platform, platformFailed }: S
   const totalCount = activity.coreCount + activity.evoCount
   const coreShare = statShare(activity.coreCount, totalCount)
   const evoShare = statShare(activity.evoCount, totalCount)
-  const fiatSub = (duffs: bigint): string | undefined => rateReady ? `≈ ${formatFiat(duffs)}` : undefined
 
   return (
     <section className="dashboard-section wallet-statistics" aria-label={dashboardPage.sections.stats}>
@@ -35,38 +32,42 @@ export default function Statistics({ transactions, platform, platformFailed }: S
         <span className="stats-scope">Core & Evo · All-time totals</span>
       </header>
       <div className="stats-primary">
-        <StatCard icon={TransactionsIcon} iconSize={16} label={labels.transactions} value={totalCount}
-          sub={platformFailed ? 'Evo history incomplete' : `30d: ${activity.core30d} Core · ${activity.evo30d} Evo`}
-          footer={<div className="stat-legend">
-            <span title={`${stats.receivedCount} received · ${stats.sentCount} sent`}><i className="stat-dot-core" /><strong>{activity.coreCount}</strong> Core</span>
-            <span><i className="stat-dot-evo" /><strong>{activity.evoCount}</strong> Evo{platformFailed ? ' (partial)' : ''}</span>
-          </div>}>
-          <div className="stat-transactions">
-            <div className="stat-donut" aria-hidden="true">
-              <svg viewBox="0 0 80 80">
-                <circle cx={40} cy={40} r={32} pathLength={100} className="stat-donut-track" />
-                <circle cx={40} cy={40} r={32} pathLength={100} stroke="var(--stat-brand)"
-                  strokeDasharray={`${coreShare} ${100 - coreShare}`} transform="rotate(-90 40 40)" />
-                <circle cx={40} cy={40} r={32} pathLength={100} stroke="var(--stat-evo)"
-                  strokeDasharray={`${evoShare} ${100 - evoShare}`} strokeDashoffset={-coreShare} transform="rotate(-90 40 40)" />
-              </svg>
-              <span>Core / Evo</span>
+        <StatCard icon={TransactionsIcon} iconSize={16} label={labels.transactions} value={null}
+          body={<div className="stat-transaction-metrics">
+            <div>
+              <div className="stat-value">{totalCount}</div>
+              <div className="stat-sub">All time{platformFailed ? ' · Evo partial' : ''}</div>
             </div>
-          </div>
-        </StatCard>
+            <Tooltip label={`${activity.core30d} Core · ${activity.evo30d} Evo${platformFailed ? ' · Evo history incomplete' : ''}`}>
+              <div className="stat-transaction-recent" role="group"
+                aria-label={`Last 30 days: ${activity.core30d} Core and ${activity.evo30d} Evo transactions${platformFailed ? '. Evo history incomplete' : ''}`}>
+                <div className="stat-transaction-recent-value">{activity.core30d + activity.evo30d}</div>
+                <div className="stat-sub">Last 30 days</div>
+              </div>
+            </Tooltip>
+          </div>}
+          footer={<div className="stat-transaction-breakdown">
+            <div className="stat-legend">
+              <span title={`${stats.receivedCount} received · ${stats.sentCount} sent`}><i className="stat-dot-core" />Core <strong>{activity.coreCount}</strong></span>
+              <span><i className="stat-dot-evo" />Evo{platformFailed ? ' (partial)' : ''} <strong>{activity.evoCount}</strong></span>
+            </div>
+            <div className="stat-transaction-share" aria-hidden="true">
+              <span className="stat-flow-core" style={{ width: `${coreShare}%` }} />
+              <span className="stat-flow-evo" style={{ width: `${evoShare}%` }} />
+            </div>
+          </div>} />
         <StatCard icon={ReceiveIcon} iconSize={12} label={labels.totalReceived} tone="green" value={null}
-          body={<StatFlowAmounts flows={flows} direction="received" hidden={hidden} platformFailed={platformFailed} />}>
+          body={<StatFlowAmounts flows={flows} metric="received" hidden={hidden} platformFailed={platformFailed} />}>
           <StatVolumeChart flows={flows} direction="received" hidden={hidden} platformFailed={platformFailed} />
         </StatCard>
         <StatCard icon={SendIcon} iconSize={12} label={labels.totalSent} tone="orange" value={null}
-          body={<StatFlowAmounts flows={flows} direction="sent" hidden={hidden} platformFailed={platformFailed} />}>
+          body={<StatFlowAmounts flows={flows} metric="sent" hidden={hidden} platformFailed={platformFailed} />}>
           <StatVolumeChart flows={flows} direction="sent" hidden={hidden} platformFailed={platformFailed} />
         </StatCard>
       </div>
       <div className="stats-secondary">
-        <StatCard icon={TokensIcon} iconSize={15} label="Largest Core receive"
-          value={<>{davToDashCompact(stats.largestReceived)} <small>DASH</small></>}
-          sub={fiatSub(stats.largestReceived)} hidden={hidden} />
+        <StatCard icon={TokensIcon} iconSize={15} label={labels.largestReceived} value={null}
+          body={<div className="stat-largest-values"><StatFlowAmounts flows={flows} metric="largestReceived" hidden={hidden} platformFailed={platformFailed} showFiat={false} /></div>} />
         <StatCard icon={CalendarIcon} label={labels.walletAge} value={activity.firstDate ? formatWalletAge(activity.ageDays) : '—'}
           sub={activity.firstDate ? `since ${formatCreationDate(activity.firstDate)}` : 'No dated activity'} />
         <StatCard icon={ClockArrowIcon} label={labels.lastActivity}

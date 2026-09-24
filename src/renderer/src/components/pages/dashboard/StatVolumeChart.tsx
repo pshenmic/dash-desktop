@@ -1,7 +1,7 @@
 import React, { useId, useState } from 'react'
 import type { StatVolumeChartProps } from '@renderer/types/DashboardStats'
 import { STAT_CHART_HEIGHT, STAT_CHART_WIDTH, STAT_FLOW_COLORS, STAT_FLOW_LABELS } from '@renderer/constants/dashboardStats'
-import { buildStatChartSeries, formatStatCredits } from '@renderer/utils/dashboardStatCharts'
+import { buildStatChartSeries } from '@renderer/utils/dashboardStatCharts'
 import { chartDate } from '@renderer/utils/dashboardAnalytics'
 import { creditsToDash } from '@renderer/utils/balance'
 
@@ -18,7 +18,7 @@ export default function StatVolumeChart({ flows, direction, hidden, platformFail
   return (
     <div className="stat-volume-chart">
       <div className="stat-chart-caption">
-        <span>{cumulative ? '30d cumulative' : '30d daily'}</span>
+        <span>30 days</span>
         {platformFailed && <span className="stat-source-evo">Evo partial</span>}
       </div>
       <div className="stat-chart-plot" tabIndex={0} role="group"
@@ -62,17 +62,12 @@ export default function StatVolumeChart({ flows, direction, hidden, platformFail
             <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
             <strong>{creditsToDash(item.readings[active!])}</strong>
           </div>)}
+          <span className="stat-tooltip-period">30-day totals · {days[0] && chartDate(days[0].date)} – {days.at(-1) && chartDate(days.at(-1)!.date)}</span>
+          {series.map(item => <div key={`total-${item.source}`}>
+            <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
+            <strong>{creditsToDash(item.total)}</strong>
+          </div>)}
         </div>}
-      </div>
-      <div className="stat-chart-axis" aria-hidden="true">
-        <span>{days[0] && chartDate(days[0].date)}</span>
-        <span>{days.at(-1) && chartDate(days.at(-1)!.date)}</span>
-      </div>
-      <div className="stat-chart-totals">
-        {series.map(item => <span key={item.source} className={`stat-flow-${item.source}`}
-          title={`${STAT_FLOW_LABELS[item.source]} ${direction} in 30 days: ${creditsToDash(item.total)} DASH`}>
-          <i aria-hidden="true" />{formatStatCredits(item.total)}
-        </span>)}
       </div>
     </div>
   )

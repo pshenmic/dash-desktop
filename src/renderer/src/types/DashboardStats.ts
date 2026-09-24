@@ -35,14 +35,16 @@ export interface StatFlowSource {
   source: 'core' | 'evo'
   received: bigint
   sent: bigint
+  largestReceived: bigint
   days: StatActivityDay[]
 }
 
 export interface StatFlowAmountsProps {
   flows: StatFlowSource[]
-  direction: 'received' | 'sent'
+  metric: 'received' | 'sent' | 'largestReceived'
   hidden: boolean
   platformFailed: boolean
+  showFiat?: boolean
 }
 
 export interface StatChartSeries {

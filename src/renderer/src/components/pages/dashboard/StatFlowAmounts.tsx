@@ -6,7 +6,7 @@ import type { StatFlowAmountsProps } from '@renderer/types/DashboardStats'
 import { creditsToDash, creditsToDuffs } from '@renderer/utils/balance'
 import { formatStatCredits } from '@renderer/utils/dashboardStatCharts'
 
-export default function StatFlowAmounts({ flows, direction, hidden, platformFailed }: StatFlowAmountsProps): React.JSX.Element {
+export default function StatFlowAmounts({ flows, metric, hidden, platformFailed, showFiat = true }: StatFlowAmountsProps): React.JSX.Element {
   const { format, rateReady } = useFiat()
 
   return (
@@ -14,17 +14,17 @@ export default function StatFlowAmounts({ flows, direction, hidden, platformFail
       {flows.map(flow => (
         <div key={flow.source} className={`stat-flow-amount stat-flow-${flow.source}`}>
           <span className="stat-flow-label"><i aria-hidden="true" />{STAT_FLOW_LABELS[flow.source]}</span>
-          <div>
-            <div className="stat-flow-value" title={hidden ? undefined : `${creditsToDash(flow[direction])} DASH`}>
+          <div className="stat-flow-details">
+            <div className="stat-flow-value" title={hidden ? undefined : `${creditsToDash(flow[metric])} DASH`}>
               <SensitiveValue hidden={hidden} size="compact" label={`${STAT_FLOW_LABELS[flow.source]} amount hidden`}>
-                {formatStatCredits(flow[direction])} <small>DASH</small>
+                {formatStatCredits(flow[metric])} <small>DASH</small>
               </SensitiveValue>
             </div>
-            <div className="stat-sub">
+            {(showFiat || (flow.source === 'evo' && platformFailed)) && <div className="stat-sub">
               <SensitiveValue hidden={hidden} size="subtext" label="Statistic detail hidden">
-                {flow.source === 'evo' && platformFailed ? 'Partial history' : rateReady ? `≈ ${format(creditsToDuffs(flow[direction]))}` : undefined}
+                {flow.source === 'evo' && platformFailed ? 'Partial history' : rateReady ? `≈ ${format(creditsToDuffs(flow[metric]))}` : undefined}
               </SensitiveValue>
-            </div>
+            </div>}
           </div>
         </div>
       ))}
