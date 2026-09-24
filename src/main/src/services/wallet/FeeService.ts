@@ -25,6 +25,7 @@ import {
 } from '../../../platform/types/messages'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
 import {CREDITS_PER_DUFF} from '../../constants/credits'
+import {IDENTITY_TRANSFER_MIN_FEE_CREDITS} from '../../constants/fee/platform'
 import {requireWallet} from '../../utils/requireWallet'
 import {maxSelectableAmount, requireAutomaticSelection, selectCoins} from '../../utils/coinSelection'
 import {
@@ -431,7 +432,9 @@ export class FeeService {
       params: {...params, inputCount, coreFeePerByte: coreFeePerByte(coreFeeMultiplier)},
     })
     if (!quote.metered) return quote.feeCredits
-    return quote.feeCredits * BigInt(platformFeeMultiplier[operation])
+    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation])
+    if (operation !== 'identityToIdentity') return feeCredits
+    return feeCredits > IDENTITY_TRANSFER_MIN_FEE_CREDITS ? feeCredits : IDENTITY_TRANSFER_MIN_FEE_CREDITS
   }
 
   // A quote is asked for before the amount is affordable, so a selection that

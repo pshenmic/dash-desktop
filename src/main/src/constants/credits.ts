@@ -19,7 +19,7 @@ export const TRANSITION_FEE_OPERATIONS = [
 ] as const satisfies readonly TransitionFeeOperation[]
 
 export const MIN_FEE_MULTIPLIER = 1
-export const MAX_FEE_MULTIPLIER = 50
+export const MAX_FEE_MULTIPLIER = 100
 
 export const MIN_OUTPUT_CREDITS = 500_000n
 export const MIN_INPUT_CREDITS = 100_000n

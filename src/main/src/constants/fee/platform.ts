@@ -1,22 +1,24 @@
 import type {TransitionFeeOperation} from '../../../platform/types/messages'
 import {MIN_BUNDLE_ACTIONS} from '../credits'
 
-// Headroom over the quote only where consensus meters and the unspent fee stays
-// put; shield's entry is not headroom but the reserve left unclaimed on input 0.
+// Consensus checks balances against its worst-case fee estimate, not the fee it
+// charges; each covers that estimate as measured on Drive 4.1.0.
 export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, number> = {
-  identityWithdrawal: 2,
-  addressWithdrawal: 2,
-  identityTopUpL1: 2,
+  identityWithdrawal: 1,
+  addressWithdrawal: 1,
+  identityTopUpL1: 1,
   assetLockFunding: 1,
   assetLockShield: 1,
   shield: 2,
   identityToAddress: 3,
-  addressFundsTransfer: 4,
-  identityRegister: 3,
-  identityTopUp: 7,
+  addressFundsTransfer: 8,
+  identityRegister: 2,
+  identityTopUp: 14,
   identityCreate: 10,
-  identityToIdentity: 45,
+  identityToIdentity: 70,
 }
+
+export const IDENTITY_TRANSFER_MIN_FEE_CREDITS = 200_000_000n
 
 // Consensus charges it for processing the L1 lock, on top of the transition it
 // funds. Duffs in the protocol, credits here.

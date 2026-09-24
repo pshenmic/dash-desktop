@@ -54,9 +54,22 @@ describe('amountErrorFor', () => {
       amount: '0.0005',
       amountDuffs: 50_000n,
       coreMaxDuffs: 99_990_000n,
-      amountCredits: 50_000_000n,
+      amountCredits: 0n,
       feeCredits: 50_500_000n,
     }))).toBe('Amount must exceed the 0.000505 Dash Platform fee taken out of it.')
+  })
+
+  // An L1 form carries no amount in credits, so the check reads the duffs.
+  it('accepts an identity top-up from L1 above the Platform fee', () => {
+    expect(amountErrorFor(params({
+      isCoreOperation: true,
+      operation: TransferOperation.IdentityTopUpL1,
+      amount: '1',
+      amountDuffs: 100_000_000n,
+      coreMaxDuffs: 100_000_000n,
+      amountCredits: 0n,
+      feeCredits: 50_500_000n,
+    }))).toBeNull()
   })
 
   it('reports the max Dash amount the selection can fund', () => {

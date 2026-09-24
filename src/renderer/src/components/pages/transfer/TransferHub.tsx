@@ -26,7 +26,7 @@ import { useSendTransactionPreview } from "@renderer/hooks/useSendTransactionPre
 import { useErrorToast } from "@renderer/hooks/useErrorToast";
 import { useWalletUtxos } from "@renderer/hooks/useWalletUtxos";
 import { invalidateAsyncCache } from "@renderer/hooks/useAsyncWithCache";
-import { compareBigIntsDescending, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits } from "@renderer/utils/balance";
+import { compareBigIntsDescending, creditsToDuffs, davToDash, davToDashCompact, dashToDuffs, duffsToCredits, lockedFeeDuffs } from "@renderer/utils/balance";
 import { isValidDashAddress, isValidDashChangeAddress } from "@renderer/utils/address";
 import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
@@ -384,15 +384,15 @@ function WalletTransferHub(): React.JSX.Element {
 
   // An L1 send pays its fee on top of the amount, and a lock that carries the L2
   // fee on top adds that too.
-  const lockedFeeDuffs = operation !== null && locksPlatformFeeOnTop(operation) ? creditsToDuffs(feeCredits ?? 0n) : 0n
-  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + lockedFeeDuffs
+  const lockedFee = operation !== null && locksPlatformFeeOnTop(operation) ? lockedFeeDuffs(feeCredits ?? 0n) : 0n
+  const totalFeeDuffs = feeDuffs === null ? 0n : feeDuffs + lockedFee
 
   // What the L1 selection can fund, less whatever the operation locks on L2.
   const coreMaxDuffs = useMemo((): bigint | null => {
     if (maxDuffs === null) return null
-    const spendable = maxDuffs - lockedFeeDuffs
+    const spendable = maxDuffs - lockedFee
     return spendable > 0n ? spendable : 0n
-  }, [maxDuffs, lockedFeeDuffs])
+  }, [maxDuffs, lockedFee])
 
   const sliderMaxAmount = useMemo((): bigint | null => {
     if (isCoreOperation) return coreMaxDuffs

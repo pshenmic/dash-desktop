@@ -1,7 +1,7 @@
 import { AmountValidationParams } from '../api/types'
 import { TransferOperation } from '../enums/TransferOperation'
 import { SHIELDED_BALANCE_UNKNOWN_ERROR } from '../constants/sendPages'
-import { creditsToDuffs, davToDash } from './balance'
+import { creditsToDuffs, davToDash, duffsToCredits } from './balance'
 import { isPoolIdentityDenomination, takesPlatformFeeFromLock } from './transferMatrix'
 
 export function amountErrorFor(params: AmountValidationParams): string | null {
@@ -12,7 +12,7 @@ export function amountErrorFor(params: AmountValidationParams): string | null {
   if (isCoreOperation) {
     if (amountDuffs <= 0n) return null
     if (coreMaxDuffs !== null && amountDuffs > coreMaxDuffs) return `Max sendable is ${davToDash(coreMaxDuffs)} Dash after fees.`
-    if (feeCredits !== null && operation !== null && takesPlatformFeeFromLock(operation) && amountCredits <= feeCredits) {
+    if (feeCredits !== null && operation !== null && takesPlatformFeeFromLock(operation) && duffsToCredits(amountDuffs) <= feeCredits) {
       return `Amount must exceed the ${davToDash(creditsToDuffs(feeCredits))} Dash Platform fee taken out of it.`
     }
     return null

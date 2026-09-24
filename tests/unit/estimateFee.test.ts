@@ -20,7 +20,7 @@ import {capRecipientAmounts, recipientSliderAmount, recipientTotalDuffs} from '.
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../src/main/src/constants/chain'
 import {coreFeeDuffsFor} from '../../src/main/src/utils/coreFeeRate'
 import {MIN_INPUT_CREDITS} from '../../src/main/src/constants/credits'
-import {DEFAULT_PLATFORM_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/platform'
+import {DEFAULT_PLATFORM_FEE_MULTIPLIER, IDENTITY_TRANSFER_MIN_FEE_CREDITS} from '../../src/main/src/constants/fee/platform'
 import {DEFAULT_CORE_FEE_MULTIPLIER} from '../../src/main/src/constants/fee/core'
 
 const WALLET = 'w1'
@@ -49,7 +49,11 @@ function candidate(platformAddress: string, balanceCredits: bigint, hashByte: nu
   return {platformAddress, addressBytes, index: 0, balanceCredits, nonce: 0}
 }
 
-function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = []): {
+function service(
+  candidates: PlatformSourceCandidate[] = [],
+  utxos: UTXO[] = [],
+  preferences: Preferences = Preferences.default(),
+): {
   service: FeeService
   request: ReturnType<typeof vi.fn>
   estimateSpendFee: ReturnType<typeof vi.fn>
@@ -76,7 +80,7 @@ function service(candidates: PlatformSourceCandidate[] = [], utxos: UTXO[] = [])
     {estimateSpendFee} as unknown as ShieldedService,
     new CoreTransactionService(),
     providers as unknown as WalletProviderFactory,
-    Preferences.default(),
+    preferences,
   )
 
   return {service: svc, request, estimateSpendFee}
@@ -404,15 +408,28 @@ describe('estimateFee', () => {
   })
 
   it('scales a metered quote by the multiplier its own operation carries', async () => {
-    const {service: svc} = service()
+    const preferences = Preferences.default()
+    preferences.general.platformFeeMultiplier.identityWithdrawal = 3
+    const {service: svc} = service([], [], preferences)
     const transfer = await svc.estimateFee(WALLET, 'addressFundsTransfer', params())
     const withdrawal = await svc.estimateFee(WALLET, 'identityWithdrawal', params())
 
     expect(transfer.feeCredits).toBe(BASE_FEE * shippedMultiplier('addressFundsTransfer'))
-    expect(withdrawal.feeCredits).toBe(BASE_FEE * shippedMultiplier('identityWithdrawal'))
-    // The whole point of one multiplier per operation: dpp's floors sit either
-    // side of what consensus meters, so one number over-charges some of them.
-    expect(withdrawal.feeCredits).not.toBe(transfer.feeCredits)
+    expect(withdrawal.feeCredits).toBe(BASE_FEE * 3n)
+  })
+
+  // The dpp minimum for a credit transfer sits far below the estimate consensus
+  // checks the balance against, so the quote never goes under the iOS reserve.
+  it('never quotes an identity credit transfer under the iOS reserve', async () => {
+    const {service: svc} = service()
+    const low = await svc.estimateFee(WALLET, 'identityToIdentity', params({recipient: IDENTITY}))
+    expect(low.feeCredits).toBe(IDENTITY_TRANSFER_MIN_FEE_CREDITS)
+
+    const preferences = Preferences.default()
+    preferences.general.platformFeeMultiplier.identityToIdentity = 1_000
+    const {service: high} = service([], [], preferences)
+    expect((await high.estimateFee(WALLET, 'identityToIdentity', params({recipient: IDENTITY}))).feeCredits)
+      .toBe(BASE_FEE * 1_000n)
   })
 
   // requireFee is what the send paths call, so it must refuse what a quote may
