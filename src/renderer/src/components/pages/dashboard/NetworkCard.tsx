@@ -38,8 +38,8 @@ export default function NetworkCard(): React.JSX.Element {
   const syncActive = sync !== undefined && sync.phase !== WalletSyncPhase.Stopped && sync.phase !== WalletSyncPhase.Idle
 
   return (
-    <section className="dashboard-section" aria-label={labels.title}>
-      <header className="dashboard-section-header"><DashboardHeading as="h2">{labels.title}</DashboardHeading></header>
+    <section className="flex min-w-0 flex-col gap-2" aria-label={labels.title}>
+      <header className="flex flex-wrap items-center justify-between gap-3 px-1"><DashboardHeading as="h2">{labels.title}</DashboardHeading></header>
       <div className={"relative overflow-hidden grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-x-10 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
       <div className={"absolute -top-14 -right-8 size-36 rounded-full bg-dash-brand/8 dark:bg-dash-mint/6 blur-3xl pointer-events-none"} />
 

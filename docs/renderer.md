@@ -4,6 +4,12 @@ React SPA, React Router v7 (`HashRouter`), `@renderer` → `src/renderer/src/`.
 UI is `dash-ui-kit` + Tailwind v4; extended kit wrappers/icons live in
 `components/dash-ui-kit-enxtended/`.
 
+- **Use Tailwind utilities for component styling.** Add custom CSS only when
+  Tailwind cannot reasonably express the required behavior. Do not add CSS
+  files beside components or move ordinary component styles into global CSS.
+  Data-dependent chart coordinates and dimensions may use SVG attributes or
+  inline styles.
+
 - **Auth/app state lives in `contexts/AuthContext.tsx`** (`useAuth()`), NOT in
   `App.tsx`. It polls `getStatus` every 1s and exposes `status` (which holds
   `selectedWalletId`, `network`, `walletSync`), `isAuthenticated`,

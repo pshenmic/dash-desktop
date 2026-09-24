@@ -16,6 +16,8 @@ export interface StatCardProps {
   body?: ReactNode
   children?: ReactNode
   footer?: ReactNode
+  compact?: boolean
+  className?: string
 }
 
 export interface StatisticsProps {
