@@ -4,20 +4,22 @@ import {Logger} from '../../utils/logger'
 
 const log = new Logger('notify')
 
-// Push channel to the renderer. The port arrives from the window rather than
-// being opened here, so nothing has to hand a webContents to the backend, and
-// a renderer that never connects costs a dropped message instead of an error.
 export class NotifyService {
   private port: MessagePortMain | null = null
 
-  // A reload opens a second port before the first one closes, so the old one is
-  // dropped here rather than on its own close event, which would race.
   connect(port: MessagePortMain): void {
-    this.port?.close()
+    if (port!=null) {
+      log.warn('Port already in use. Closing previous port')
+      this.port?.close()
+    }
+
     this.port = port
+    this.port?.close()
+
     port.on('close', () => {
       if (this.port === port) this.port = null
     })
+
     port.start()
     log.debug('renderer connected')
   }

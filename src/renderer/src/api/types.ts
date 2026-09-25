@@ -523,9 +523,11 @@ export interface NewTransactionMessage {
   walletId: string
   hash: string
   type: string
-  direction: 'in' | 'out' | 'neutral'
+  // Signed, like PlatformTransaction.netCredits: positive arrived, negative
+  // left, zero moved credits without either side gaining.
+  netAmount: bigint
+  // What moved, unsigned, like transferAmount and amountCredits.
   amount: bigint
-  amountType: 'duffs' | 'credits'
   recipients: string[] | null
 }
 

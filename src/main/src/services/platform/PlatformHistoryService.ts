@@ -112,9 +112,6 @@ export class PlatformHistoryService {
     }
   }
 
-  // A transition between two of this wallet's own ends is walked from both
-  // sides, so the rows are folded the same way a read of them is before any of
-  // it is reported as one arrival.
   private reportNewTransactions(results: PromiseSettledResult<PlatformExplorerWalk>[]): void {
     if (this.onNewTransactions == null) return
     const added = results.flatMap(result => result.status === 'fulfilled' ? result.value.added : [])

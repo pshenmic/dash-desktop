@@ -13,9 +13,12 @@ const coreType = (outputs: AppliedTxOutput[]): string =>
 // are read here rather than off the transaction: the row's `address` is this
 // wallet's own end in both directions, never who was paid.
 export function coreTransactionMessage(transaction: Transaction, outputs: AppliedTxOutput[]): NewTransactionMessage {
-  const direction = transaction.direction === 1 ? 'in' : 'out'
+  // The two totals the row already holds are what direction is derived from
+  // upstream, so their difference is the net without re-deriving anything.
+  const netAmount = transaction.outAmount - transaction.inAmount
+  const incoming = netAmount > 0n
   const paid = outputs
-    .filter(output => output.isMine === (direction === 'in') && output.address != null)
+    .filter(output => output.isMine === incoming && output.address != null)
     .map(output => output.address as string)
 
   return {
@@ -23,26 +26,20 @@ export function coreTransactionMessage(transaction: Transaction, outputs: Applie
     walletId: transaction.walletId,
     hash: transaction.txid,
     type: coreType(outputs),
-    direction,
+    netAmount,
     amount: transaction.transferAmount,
-    amountType: 'duffs',
     recipients: paid.length > 0 ? paid : null,
   }
 }
 
 export function platformTransactionMessage(transaction: PlatformTransaction): NewTransactionMessage {
-  const direction = transaction.netCredits > 0n
-    ? 'in'
-    : transaction.netCredits < 0n ? 'out' : 'neutral'
-
   return {
     chain: 'platform',
     walletId: transaction.walletId,
     hash: transaction.hash,
     type: transaction.type,
-    direction,
+    netAmount: transaction.netCredits,
     amount: transaction.amountCredits,
-    amountType: 'credits',
     recipients: transaction.recipient.length > 0
       ? transaction.recipient.map(end => end.source)
       : null,

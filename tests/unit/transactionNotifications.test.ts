@@ -4,13 +4,15 @@ import {PlatformTransaction} from '../../src/main/src/types/PlatformTransaction'
 import {Transaction} from '../../src/main/src/types/Transaction'
 import {coreTransactionMessage, platformTransactionMessage} from '../../src/main/src/utils/transactionNotifications'
 
-function core(overrides: Partial<Transaction>): Transaction {
+// Mirrors how TransactionDAO shapes a row: the two totals decide the direction
+// and the transfer amount, so a fixture sets them rather than contradicting them.
+function core(ourInputs: bigint, ourOutputs: bigint, overrides: Partial<Transaction> = {}): Transaction {
   return {
     address: 'ours1',
-    direction: 1,
-    inAmount: 0n,
-    outAmount: 0n,
-    transferAmount: 0n,
+    direction: ourInputs > ourOutputs ? -1 : 1,
+    inAmount: ourInputs,
+    outAmount: ourOutputs,
+    transferAmount: ourInputs > ourOutputs ? ourInputs - ourOutputs : ourOutputs - ourInputs,
     usdAmount: '0.0',
     date: new Date('2026-01-01T00:00:00Z'),
     size: 200,
@@ -51,16 +53,15 @@ function platform(overrides: Partial<PlatformTransaction>): PlatformTransaction 
 }
 
 describe('coreTransactionMessage', () => {
-  it('reports the addresses that were paid on the way in', () => {
-    const message = coreTransactionMessage(core({direction: 1, transferAmount: 5000n}), [
+  it('reports arriving duffs as a positive net and names who was paid', () => {
+    const message = coreTransactionMessage(core(0n, 5_000n), [
       output({vout: 0, address: 'ours1', isMine: true}),
       output({vout: 1, address: 'theirs1', isMine: false}),
     ])
     expect(message).toMatchObject({
       chain: 'core',
-      direction: 'in',
-      amount: 5000n,
-      amountType: 'duffs',
+      netAmount: 5_000n,
+      amount: 5_000n,
       recipients: ['ours1'],
     })
   })
@@ -68,33 +69,34 @@ describe('coreTransactionMessage', () => {
   // Change is ours, so counting it as a recipient would name the sender as who
   // was paid.
   it('leaves change out of the recipients on the way out', () => {
-    const message = coreTransactionMessage(core({direction: -1, transferAmount: 7000n}), [
+    const message = coreTransactionMessage(core(10_000n, 3_000n), [
       output({vout: 0, address: 'theirs1', isMine: false}),
       output({vout: 1, address: 'ourChange', isMine: true}),
     ])
-    expect(message.direction).toBe('out')
+    expect(message.netAmount).toBe(-7_000n)
+    expect(message.amount).toBe(7_000n)
     expect(message.recipients).toEqual(['theirs1'])
   })
 
   it('answers no recipients rather than an empty list', () => {
-    const message = coreTransactionMessage(core({direction: -1}), [
+    const message = coreTransactionMessage(core(10_000n, 3_000n), [
       output({vout: 0, address: 'ourChange', isMine: true}),
     ])
     expect(message.recipients).toBeNull()
   })
 
   it('calls a transaction with an underivable output an asset lock', () => {
-    const locking = coreTransactionMessage(core({direction: -1}), [
+    const locking = coreTransactionMessage(core(10_000n, 0n), [
       output({vout: 0, address: null, isMine: false}),
     ])
-    const plain = coreTransactionMessage(core({direction: -1}), [output({vout: 0})])
+    const plain = coreTransactionMessage(core(10_000n, 0n), [output({vout: 0})])
     expect(locking.type).toBe('assetLock')
     expect(plain.type).toBe('transfer')
   })
 })
 
 describe('platformTransactionMessage', () => {
-  it('reads the direction off the net and the amount off what moved', () => {
+  it('carries the transition net and what it moved as they are', () => {
     const message = platformTransactionMessage(platform({
       netCredits: 1_000n,
       amountCredits: 1_000n,
@@ -102,22 +104,22 @@ describe('platformTransactionMessage', () => {
     }))
     expect(message).toMatchObject({
       chain: 'platform',
-      direction: 'in',
+      netAmount: 1_000n,
       amount: 1_000n,
-      amountType: 'credits',
       recipients: ['idA'],
       type: 'IDENTITY_CREDIT_TRANSFER',
     })
   })
 
-  it('reports credits leaving as out', () => {
-    expect(platformTransactionMessage(platform({netCredits: -1_000n})).direction).toBe('out')
+  it('reports credits leaving as a negative net', () => {
+    expect(platformTransactionMessage(platform({netCredits: -1_000n})).netAmount).toBe(-1_000n)
   })
 
-  // An asset lock funding moves credits without either side gaining.
-  it('claims neither side when the net is nothing', () => {
+  // An asset lock funding moves credits without either side gaining, which is
+  // why the unsigned amount is carried alongside the net rather than derived.
+  it('keeps what moved when the net is nothing', () => {
     const message = platformTransactionMessage(platform({netCredits: 0n, amountCredits: 2_000n}))
-    expect(message.direction).toBe('neutral')
+    expect(message.netAmount).toBe(0n)
     expect(message.amount).toBe(2_000n)
   })
 })
