@@ -81,16 +81,28 @@ on the lock pool against the addresses shipped in the `listen` command and emits
 ## New-transaction notifications
 
 `WalletSyncService.onNewTransaction` fires once per payment, from whichever of
-three sightings reaches it first, and `reportedTxids` (a bounded `RecentIds`)
-keeps the later ones quiet:
+three sightings reaches it first:
 
-1. `broadcastTransaction` — ours. It **claims the txid before the send**, not
-   after `recordOptimisticSpend`: a peer can inv the transaction straight back,
-   and a mempool sighting that wins that race reads our own change as money
-   arriving.
+1. `broadcastTransaction` — ours, via `recordOptimisticSpend`.
 2. `recordIncomingTx` — a mempool match on the lock pool, so this one works in
-   `rpc` mode too.
+   `rpc` mode too. **`SyncService.onTx` does not filter out what we broadcast**
+   — our own change pays a watched address — so our sends come straight back
+   here.
 3. `writeAppliedBlock` — for a payment that skipped our mempool view.
+
+**The later sightings are kept quiet by the absence of the SQL row, not by a
+set of seen txids.** `recordPendingTx` answers whether it inserted and
+`applyBlock` answers with the transactions it had no row for; each reports only
+what it wrote. Nothing in memory tracks this, so it survives a restart, costs no
+second source of truth, and makes no assumption about which sighting is first —
+`rebroadcastPending` re-entering `broadcastTransaction` every minute is covered
+by the same rule.
+
+**No path claims a txid before it acts, and none needs to.** A mempool sighting
+that beats `recordOptimisticSpend` still reads the right direction: the inputs
+it writes carry the outpoints they spend, which join to this wallet's own
+earlier outputs, so `prev.is_mine` gives `inAmount` without the optimistic
+record. `tests/unit/newTransactionSightings.test.ts` pins this.
 
 **The block gate is `block.height >= status.tipHeight`, not the sync phase, and
 that is not an oversight.** Tip-follow re-enters the scan (`emitStatus('cfilters')`

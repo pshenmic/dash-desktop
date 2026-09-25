@@ -21,17 +21,29 @@ export class TransactionDAO {
   // out-of-order application (tip-follow racing the scan) cannot regress the
   // resume marker; advanceCursor:false holds it back entirely once an earlier
   // block failed to persist, so the scan re-covers the gap.
-  applyBlock = async (block: AppliedBlock, opts: {advanceCursor?: boolean} = {}): Promise<void> => {
+  // Answers with the transactions this wallet had no row for. The insert below
+  // merges rather than ignores — a tx recorded pending at broadcast has to pick
+  // up its height — so it cannot say which rows it created.
+  applyBlock = async (block: AppliedBlock, opts: {advanceCursor?: boolean} = {}): Promise<AppliedTx[]> => {
     const advanceCursor = opts.advanceCursor ?? true
 
     if (block.txs.length === 0 && block.spends.length === 0) {
       // Cursor-only advance; still useful when the scan tip moves past a
       // run of unmatched blocks.
       if (advanceCursor) await this.advanceCursor(block.walletId, block.height)
-      return
+      return []
     }
 
-    await this.knex.transaction(async trx => {
+    return this.knex.transaction(async trx => {
+      const known = new Set<string>()
+      for (const txids of chunk(block.txs.map(t => t.txid), INSERT_CHUNK_SIZE)) {
+        const rows = await trx('transactions')
+          .select('txid')
+          .where('wallet_id', block.walletId)
+          .whereIn('txid', txids)
+        for (const row of rows) known.add(row.txid as string)
+      }
+
       const txRows = block.txs.map(t => ({
         wallet_id: block.walletId,
         txid: t.txid,
@@ -140,6 +152,8 @@ export class TransactionDAO {
             ),
           })
       }
+
+      return block.txs.filter(t => !known.has(t.txid))
     })
   }
 
@@ -221,9 +235,17 @@ export class TransactionDAO {
   // block_height = 0 marks it unconfirmed; inputs are flagged spent so getUtxos
   // stops offering them immediately and outputs are inserted so change is
   // spendable right away. Idempotent, so rebroadcast is safe.
-  recordPendingTx = async (walletId: string, tx: AppliedTx, isLocal: boolean): Promise<void> => {
+  // Answers whether the transaction was one this wallet had no row for. The
+  // insert below ignores a repeat rather than reporting it, so this is the only
+  // point that can tell a first sighting from the second.
+  recordPendingTx = async (walletId: string, tx: AppliedTx, isLocal: boolean): Promise<boolean> => {
     const now = Date.now()
-    await this.knex.transaction(async trx => {
+    return this.knex.transaction(async trx => {
+      const known = await trx('transactions')
+        .select('txid')
+        .where({wallet_id: walletId, txid: tx.txid})
+        .first()
+
       await trx('transactions')
         .insert({
           wallet_id: walletId,
@@ -279,6 +301,8 @@ export class TransactionDAO {
           .andWhere('is_used', false)
           .update({is_used: true})
       }
+
+      return known == null
     })
   }
 
