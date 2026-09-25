@@ -4,8 +4,7 @@ import {PlatformTransaction} from '../../src/main/src/types/PlatformTransaction'
 import {Transaction} from '../../src/main/src/types/Transaction'
 import {coreTransactionMessage, platformTransactionMessage} from '../../src/main/src/utils/transactionNotifications'
 
-// Mirrors how TransactionDAO shapes a row: the two totals decide the direction
-// and the transfer amount, so a fixture sets them rather than contradicting them.
+// The two totals decide direction and transfer amount, as in TransactionDAO.
 function core(ourInputs: bigint, ourOutputs: bigint, overrides: Partial<Transaction> = {}): Transaction {
   return {
     address: 'ours1',
@@ -66,8 +65,6 @@ describe('coreTransactionMessage', () => {
     })
   })
 
-  // Change is ours, so counting it as a recipient would name the sender as who
-  // was paid.
   it('leaves change out of the recipients on the way out', () => {
     const message = coreTransactionMessage(core(10_000n, 3_000n), [
       output({vout: 0, address: 'theirs1', isMine: false}),
@@ -115,8 +112,6 @@ describe('platformTransactionMessage', () => {
     expect(platformTransactionMessage(platform({netCredits: -1_000n})).netAmount).toBe(-1_000n)
   })
 
-  // An asset lock funding moves credits without either side gaining, which is
-  // why the unsigned amount is carried alongside the net rather than derived.
   it('keeps what moved when the net is nothing', () => {
     const message = platformTransactionMessage(platform({netCredits: 0n, amountCredits: 2_000n}))
     expect(message.netAmount).toBe(0n)

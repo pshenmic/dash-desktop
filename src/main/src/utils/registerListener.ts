@@ -3,9 +3,8 @@ import {Logger} from './logger'
 
 const log = new Logger('ipc')
 
-// The send/on counterpart to registerHandler. Nothing is awaiting the listener
-// on the renderer side, so a rethrow here would surface as an unhandled
-// rejection rather than reaching a caller.
+// Unlike registerHandler there is no invoke to reject, so a rethrow would only
+// surface as an unhandled rejection.
 export function registerListener<A extends unknown[]>(
   channel: string,
   listener: (event: IpcMainEvent, ...args: A) => unknown,

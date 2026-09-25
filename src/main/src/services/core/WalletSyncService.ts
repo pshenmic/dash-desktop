@@ -85,9 +85,6 @@ export class WalletSyncService {
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
-  // A transaction SQL had no row for, so the sighting that wrote it reports it
-  // and the other two — our own broadcast, its mempool inv, its block — find it
-  // already there and stay quiet.
   onNewTransaction: ((walletId: string, tx: AppliedTx) => void) | null = null
   // Wallets whose scan is held waiting for addresses. The worker resumes at the
   // held height, so the addresses answering it must not also rewind the cursor.
@@ -697,17 +694,13 @@ export class WalletSyncService {
   }
 
   private persistAppliedBlock = (block: AppliedBlock): void => {
-    // Read as the block arrives rather than once its write lands: writes queue
-    // behind one another, and by the time this one runs the tip has moved past
-    // the height that made it live.
+    // Read here, not in the queued write: the tip has moved on by then.
     const atTip = this.isAtChainTip(block)
     this.enqueuePersist(() => this.writeAppliedBlock(block, atTip))
   }
 
-  // A catch-up scan applies every block this wallet ever touched, and reporting
-  // that history would announce each old payment as an arrival. Phase is no
-  // help: tip-follow re-enters the scan, so a live block is applied under
-  // 'syncing-cfilters' like any other — only its height sets it apart.
+  // Not the phase: tip-follow re-enters the scan, so a live block is applied
+  // under 'syncing-cfilters' like a catch-up one.
   private isAtChainTip(block: AppliedBlock): boolean {
     return this.status.tipHeight > 0 && block.height >= this.status.tipHeight
   }

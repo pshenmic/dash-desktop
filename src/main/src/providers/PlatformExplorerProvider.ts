@@ -79,10 +79,8 @@ export class PlatformExplorerProvider {
     convert: (rows: T[]) => PlatformTransaction[],
   ): Promise<PlatformExplorerWalk> {
     const known = await this.transactionDAO.getKnownHashes(walletId, source)
-    // Keyed, not appended: the folding downstream sums the net of every row it
-    // is handed for a hash, so one source reporting a transition twice would
-    // double what it moved. Matched against the hashes read before the first
-    // write, or this walk's own pages would each look new to the next.
+    // Keyed: the fold downstream sums every row it gets for a hash, so a page
+    // repeating one would double what it moved.
     const added = new Map<string, PlatformTransaction>()
     const walked = (capped: boolean): PlatformExplorerWalk => ({capped, added: [...added.values()]})
 

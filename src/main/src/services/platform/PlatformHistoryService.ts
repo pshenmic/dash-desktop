@@ -22,8 +22,7 @@ export class PlatformHistoryService {
   // Only as far as this session knows: a restart forgets it.
   private failedRefreshes = new Set<string>()
   private walks = new Map<string, Promise<void>>()
-  // Transitions this wallet already had are history, not news: importing a
-  // seed would otherwise announce every transition it ever made.
+  // Importing a seed would otherwise announce its whole history.
   private startedAt = Date.now()
   onNewTransactions: ((transactions: PlatformTransaction[]) => void) | null = null
 

@@ -21,9 +21,6 @@ export class TransactionDAO {
   // out-of-order application (tip-follow racing the scan) cannot regress the
   // resume marker; advanceCursor:false holds it back entirely once an earlier
   // block failed to persist, so the scan re-covers the gap.
-  // Answers with the transactions this wallet had no row for. The insert below
-  // merges rather than ignores — a tx recorded pending at broadcast has to pick
-  // up its height — so it cannot say which rows it created.
   applyBlock = async (block: AppliedBlock, opts: {advanceCursor?: boolean} = {}): Promise<AppliedTx[]> => {
     const advanceCursor = opts.advanceCursor ?? true
 
@@ -235,9 +232,6 @@ export class TransactionDAO {
   // block_height = 0 marks it unconfirmed; inputs are flagged spent so getUtxos
   // stops offering them immediately and outputs are inserted so change is
   // spendable right away. Idempotent, so rebroadcast is safe.
-  // Answers whether the transaction was one this wallet had no row for. The
-  // insert below ignores a repeat rather than reporting it, so this is the only
-  // point that can tell a first sighting from the second.
   recordPendingTx = async (walletId: string, tx: AppliedTx, isLocal: boolean): Promise<boolean> => {
     const now = Date.now()
     return this.knex.transaction(async trx => {

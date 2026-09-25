@@ -21,8 +21,7 @@ const funding = {
   }],
 }
 
-// The shape SyncService.onTx builds from a mempool sighting: outputs matched
-// against the watch set, inputs carrying only the outpoint they spend.
+// The shape SyncService.onTx builds from a mempool sighting.
 const ourSpend = {
   txid: SPEND, raw: new Uint8Array([2]),
   inputs: [{vin: 0, prevTxid: COIN, prevVout: 0, sequence: 0xffffffff}],
@@ -52,16 +51,12 @@ beforeEach(async () => {
 
 afterEach(async () => { await knex.destroy() })
 
-// One payment is sighted up to three times — our own broadcast, the mempool inv
-// the lock pool sends straight back, and its block — and the row's absence is
-// what tells the first sighting from the rest.
 describe('which sighting of a transaction is the first', () => {
   it('reports a transaction it had no row for', async () => {
     expect(await dao.recordPendingTx(WALLET, ourSpend, true)).toBe(true)
   })
 
-  // The mempool inv for a transaction we just broadcast, which onTx does not
-  // filter out: our own change pays a watched address.
+  // onTx does not filter our own sends out; the change pays a watched address.
   it('stays quiet when the row is already there', async () => {
     await dao.recordPendingTx(WALLET, ourSpend, true)
     expect(await dao.recordPendingTx(WALLET, ourSpend, false)).toBe(false)
@@ -83,9 +78,8 @@ describe('which sighting of a transaction is the first', () => {
   })
 })
 
-// Why the broadcast path needs no claim on the txid before it sends: whichever
-// sighting lands first reads the right direction, because the inputs a mempool
-// sighting writes join to this wallet's own earlier outputs.
+// Why no path claims a txid before it acts: the inputs a mempool sighting
+// writes join to this wallet's own earlier outputs.
 describe('direction read back from a single sighting', () => {
   it('calls our own spend outgoing without the optimistic record', async () => {
     await dao.recordPendingTx(WALLET, ourSpend, false)

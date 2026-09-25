@@ -396,10 +396,6 @@ export class WalletBackend {
       refreshAfterBroadcast().catch(err => platformLog.error('platform history refresh after a broadcast failed:', err))
     })
 
-    // Direction and amount are read back rather than derived from what the
-    // worker sent: which side of a transaction this wallet is on follows from
-    // input ownership, and only SQL knows that. The outputs come along because
-    // they are the only place ownership is recorded per end.
     const notifyService = this.notifyService
     this.walletSyncService.onNewTransaction = (walletId, tx) => {
       transactionDAO.getTransactionByTxid(walletId, tx.txid)

@@ -2,8 +2,7 @@ import { contextBridge, ipcRenderer  } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {apiDefinitions} from './definitions'
 
-// The preload runs in a renderer, but this bundle typechecks with the main
-// process, which carries no DOM lib.
+// This bundle typechecks with the main process, which has no DOM lib.
 declare const window: {
   addEventListener(
     type: 'message',
@@ -36,10 +35,8 @@ if (process.contextIsolated) {
   window.api = api
 }
 
-// contextBridge clones what crosses it and a MessagePort has no representation
-// there, so the renderer cannot reach ipcRenderer.postMessage with one. It sends
-// the port over window.postMessage, which transfers natively, and this forwards
-// the real object. The tag is spelled again in renderer constants/notifications.
+// A MessagePort cannot cross contextBridge, so the renderer transfers it over
+// window.postMessage and this forwards the real object.
 window.addEventListener('message', event => {
   if (event.source !== window || event.data !== 'createMessagePort') return
   const [port] = event.ports

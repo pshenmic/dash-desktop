@@ -516,17 +516,14 @@ export interface ShieldedSpendState {
   error: string | null
 }
 
-// Mirrors src/main/src/types/Message, which the bundles do not share. Amounts
-// are duffs on core and credits on platform, never interchangeable.
+// Mirrors src/main/src/types/Message, which the bundles do not share. Duffs on
+// core, credits on platform.
 export interface NewTransactionMessage {
   chain: 'core' | 'platform'
   walletId: string
   hash: string
   type: string
-  // Signed, like PlatformTransaction.netCredits: positive arrived, negative
-  // left, zero moved credits without either side gaining.
   netAmount: bigint
-  // What moved, unsigned, like transferAmount and amountCredits.
   amount: bigint
   recipients: string[] | null
 }

@@ -3,18 +3,13 @@ import {NewTransactionMessage} from '../types/Message'
 import {PlatformTransaction} from '../types/PlatformTransaction'
 import {Transaction} from '../types/Transaction'
 
-// Core carries no transaction type on the wire; this is the same split the
-// transaction list filters on — an output no address can be derived from is the
-// asset lock's.
+// Core names no type on the wire; this is the split the tx list filters on.
 const coreType = (outputs: AppliedTxOutput[]): string =>
   outputs.some(output => output.address == null) ? 'assetLock' : 'transfer'
 
-// Outputs are the only place ownership is recorded per end, which is why they
-// are read here rather than off the transaction: the row's `address` is this
-// wallet's own end in both directions, never who was paid.
+// The row's `address` is our own end in both directions, so who was paid can
+// only come off the outputs.
 export function coreTransactionMessage(transaction: Transaction, outputs: AppliedTxOutput[]): NewTransactionMessage {
-  // The two totals the row already holds are what direction is derived from
-  // upstream, so their difference is the net without re-deriving anything.
   const netAmount = transaction.outAmount - transaction.inAmount
   const incoming = netAmount > 0n
   const paid = outputs

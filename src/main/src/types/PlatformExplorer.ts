@@ -44,8 +44,6 @@ export interface PlatformExplorerTransfer {
   gasUsed: number | null
 }
 
-// What one source's walk produced: the transitions it had not stored before,
-// and whether it stopped on the page cap with older ones left unread.
 export interface PlatformExplorerWalk {
   capped: boolean
   added: PlatformTransaction[]
