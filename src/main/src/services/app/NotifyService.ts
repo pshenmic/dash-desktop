@@ -8,13 +8,12 @@ export class NotifyService {
   private port: MessagePortMain | null = null
 
   connect(port: MessagePortMain): void {
-    if (port!=null) {
+    if (this.port!=null) {
       log.warn('Port already in use. Closing previous port')
       this.port?.close()
     }
 
     this.port = port
-    this.port?.close()
 
     port.on('close', () => {
       if (this.port === port) this.port = null
