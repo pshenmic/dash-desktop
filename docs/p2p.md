@@ -36,6 +36,25 @@ Things the code cannot tell you, and that a plausible-looking change breaks:
   proceeds with a warning, while contradicting answers keep asking rather than
   picking a side. A pinned pool takes that answer at once — waiting out the race
   would wait on a peer that cannot join.
+- **A ChainLock is a statement about a block, not about a height.** `clsig`
+  carries the locked hash. Flooring the reorg depth on the height alone pins us
+  to whatever branch we happen to hold there, and since the floor then sits at or
+  above our tip, every fork is refused and nothing can correct it afterwards —
+  restarts included. The hash is compared with ours at that height: matching
+  raises `finalityHeight`, differing rewinds, and a lock above our tip is held
+  until the tip reaches it. `finalityHeight` only ever names a height we checked.
+- **The getheaders locator is never clamped by the ChainLock height.** Locks run
+  at or one behind the tip in normal operation, so clamping leaves a locator of
+  one hash — our own tip, the single hash a peer that left our branch cannot
+  place. It answers from genesis instead, and `ChainWindow.floor()` exists to
+  stop that.
+- **A batch anchored where we have never been is an answer, not silence.**
+  Leaving that peer in the race reads as unresponsive, marks the peers that did
+  answer silent, and re-asks the same orphan tip every `HEADER_SYNC_TIMEOUT_MS`
+  for as long as the wallet runs. `ORPHAN_VOTE_PEERS` of them rewind a reorg
+  window instead — the only signal there is when a lost branch still validates
+  and still carries work. Capped by the ready pool, or a pinned one peer wide
+  could never reach the quorum and would stay stuck.
 - **A block hash proves the header, not the transactions under it.**
   `block.hash()` covers the 80 bytes alone, so a fetched block is checked
   against its merkle root (`utils/merkle.ts`) before it is applied, and refused

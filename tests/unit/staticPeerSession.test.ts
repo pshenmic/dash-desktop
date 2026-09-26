@@ -67,7 +67,7 @@ vi.mock('../../src/main/p2p/sync/workers/HeaderSyncWorker', async () => {
         super()
         captured.headerPools.push(options.peerPool)
       }
-      setFinalityHeight = (): void => undefined
+      noteChainLock = (): void => undefined
       start = async (): Promise<void> => undefined
       stop = (): void => undefined
     },
