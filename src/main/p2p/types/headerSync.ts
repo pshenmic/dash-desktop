@@ -46,12 +46,19 @@ export interface HeaderSyncWorkerStatus {
   peerCount: number
 }
 
+// A ChainLock as it arrives on the lock pool. The height alone cannot say
+// whether the block it locks is the one we hold at that height.
+export interface ChainLock {
+  height: number
+  hash: string
+}
+
 export interface HeaderSyncWorkerOptions {
   chainStore: ChainStore
   peerPool: PoolService
   initialTipHeight: number
   initialTipHash: string
-  // Highest ChainLock seen. Blocks at or below it are final, so no branch
-  // forking below it is accepted. Moves via setFinalityHeight.
-  finalityHeight: number
+  // Unverified: whether it locks the branch we resume on is decided against
+  // chain.db once the window is loaded. Later locks arrive via noteChainLock.
+  chainLock: ChainLock | null
 }

@@ -10,6 +10,7 @@ function accepts(multiplier: number): boolean {
     platformFeeMultiplier: multiplier,
     coreFeeMultiplier: multiplier,
     logLevel: 'info',
+    collectMetrics: false,
   }).success
 }
 

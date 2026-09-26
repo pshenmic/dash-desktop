@@ -73,10 +73,11 @@ export class ChainWindow {
     return total
   }
 
-  // ChainLocks are announced network-wide, so mid-sync the finality height sits
-  // millions of blocks above our tip — unclamped it would ask for heights we lack.
-  floor(finalityHeight: number): number {
-    return Math.max(1, Math.min(finalityHeight, this.tipHeight), this.tipHeight - REORG_MAX_DEPTH)
+  // Oldest height a getheaders locator may name. Never clamped by the ChainLock
+  // height: locks run at or one behind the tip, and a locator that stops there
+  // leaves a peer no common ancestor to answer from.
+  floor(): number {
+    return Math.max(1, this.tipHeight - REORG_MAX_DEPTH)
   }
 
   // Drops leading headers we already hold, so re-announced blocks of our own do

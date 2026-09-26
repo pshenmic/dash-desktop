@@ -18,7 +18,7 @@ import {bulkPeerShare, peerOverridesKey} from '../net/peerOverrides'
 import {dialProbe} from '../net/peerProbe'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
-import type {HeaderSyncWorkerStatus} from '../types/headerSync'
+import type {ChainLock, HeaderSyncWorkerStatus} from '../types/headerSync'
 import type {CFilterSyncWorkerStatus} from '../types/cfilterSync'
 import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PReseedUtxosMessage, P2PStartMessage, P2PWatchTxsMessage} from '../types/messages'
 import {Network} from '../../src/types/Network'
@@ -74,8 +74,9 @@ export class SyncService {
   // Display order, not wire order. While non-empty the watcher fetches isdlock
   // objects to match against it.
   private watchedTxids = new Set<string>()
-  // Highest ChainLock height observed — dedupes repeated clsig emits.
-  private chainlockedHeight = 0
+  // Highest ChainLock observed — dedupes repeated clsig emits, and carries the
+  // locked hash so a header sync starting later can check its own branch.
+  private chainLock: ChainLock | null = null
 
   // Addresses the lock pool matches mempool txs against. Separate from
   // activeWatchAddresses because rpc mode has no cfilter session to own them.
@@ -196,7 +197,7 @@ export class SyncService {
     this.lockNetwork = network
     this.lockOverridesKey = overridesKey
     this.watchedTxids = new Set()
-    this.chainlockedHeight = 0
+    this.chainLock = null
 
     const pinned = overrides?.mode === 'static' ? overrides.staticPeers : []
     this.pinnedOnly = pinned.length > 0
@@ -369,7 +370,7 @@ export class SyncService {
       peerPool: this.syncPool,
       initialTipHeight: resumeHeight,
       initialTipHash: resumeHash,
-      finalityHeight: this.chainlockedHeight,
+      chainLock: this.chainLock,
     })
     this.headerSyncWorker.on('status', (s: HeaderSyncWorkerStatus) => this.onHeaderStatus(s))
     this.headerSyncWorker.on('chainExtended', (headers: PersistedHeader[]) => {
@@ -593,15 +594,22 @@ export class SyncService {
     this.events.incomingTx(this.lockWalletId, applied)
   }
 
-  private onClsig = (_peer: Peer, msg: Message & {height?: number}): void => {
+  private onClsig = (_peer: Peer, msg: Message & {height?: number; blockHash?: string}): void => {
     if (!this.lockNetwork) return
     const height = msg.height ?? 0
-    if (height <= this.chainlockedHeight) return
-    this.chainlockedHeight = height
-    // Header sync will not rewind below this. Logged because a floor stuck at 0
-    // leaves REORG_MAX_DEPTH as the only bound on a rewind.
-    this.headerSyncWorker?.setFinalityHeight(height)
-    locks.info(`chainlock h=${height} — reorg floor ${this.headerSyncWorker ? 'applied' : 'not applied (no header sync)'}`)
+    if (this.chainLock != null && height <= this.chainLock.height) return
+
+    const hash = reverseHex(msg.blockHash ?? '')
+    // The height alone cannot say which branch is locked, and the all-zero
+    // default reads as a block nobody holds.
+    if (hash.length !== 64 || !/[1-9a-f]/.test(hash)) {
+      locks.warn(`chainlock h=${height} carries no block hash — ignored`)
+      return
+    }
+
+    this.chainLock = {height, hash}
+    this.headerSyncWorker?.noteChainLock(height, hash)
+    locks.info(`chainlock h=${height} ${hash} — ${this.headerSyncWorker ? 'checking our branch' : 'no header sync'}`)
     this.events.chainLocked(this.lockNetwork, height)
   }
 

@@ -29,6 +29,7 @@ export const GeneralPreferencesSchema = z.object({
   platformFeeMultiplier: FeeMultiplierSchema,
   coreFeeMultiplier: FeeMultiplierSchema,
   logLevel: LogLevelSchema,
+  collectMetrics: z.boolean(),
 })
 
 export type GeneralPreferencesJSON = z.infer<typeof GeneralPreferencesSchema>
@@ -40,6 +41,7 @@ export class GeneralPreferences {
   platformFeeMultiplier: number
   coreFeeMultiplier: number
   logLevel: LogLevel
+  collectMetrics: boolean
 
   constructor(
     language: string,
@@ -48,6 +50,7 @@ export class GeneralPreferences {
     platformFeeMultiplier: number,
     coreFeeMultiplier: number,
     logLevel: LogLevel,
+    collectMetrics: boolean,
   ) {
     this.language = language
     this.currency = currency
@@ -55,6 +58,7 @@ export class GeneralPreferences {
     this.platformFeeMultiplier = platformFeeMultiplier
     this.coreFeeMultiplier = coreFeeMultiplier
     this.logLevel = logLevel
+    this.collectMetrics = collectMetrics
   }
 
   toJSON(): GeneralPreferencesJSON {
@@ -65,6 +69,7 @@ export class GeneralPreferences {
       platformFeeMultiplier: this.platformFeeMultiplier,
       coreFeeMultiplier: this.coreFeeMultiplier,
       logLevel: this.logLevel,
+      collectMetrics: this.collectMetrics,
     }
   }
 
@@ -77,10 +82,11 @@ export class GeneralPreferences {
       parsed.platformFeeMultiplier,
       parsed.coreFeeMultiplier,
       parsed.logLevel,
+      parsed.collectMetrics,
     )
   }
 
   static default(): GeneralPreferences {
-    return new GeneralPreferences('en', 'usd', 'rpc', DEFAULT_PLATFORM_FEE_MULTIPLIER, DEFAULT_CORE_FEE_MULTIPLIER, DEFAULT_LOG_LEVEL)
+    return new GeneralPreferences('en', 'usd', 'rpc', DEFAULT_PLATFORM_FEE_MULTIPLIER, DEFAULT_CORE_FEE_MULTIPLIER, DEFAULT_LOG_LEVEL, false)
   }
 }

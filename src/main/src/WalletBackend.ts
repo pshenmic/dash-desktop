@@ -60,6 +60,8 @@ import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
 import {VerifyWalletMnemonicHandler} from "./api/wallet/verifyWalletMnemonic";
 import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
+import {GetCollectMetricsHandler} from './api/getCollectMetrics'
+import {SetCollectMetricsHandler} from './api/setCollectMetrics'
 import {SetLanguageHandler} from "./api/preferences/setLanguage";
 import {SetLogLevelHandler} from "./api/preferences/setLogLevel";
 import {GetPreferencesHandler} from "./api/preferences/getPreferences";
@@ -211,6 +213,8 @@ export class WalletBackend {
     registerHandler('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
     registerHandler('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
     registerHandler('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
+    registerHandler('getCollectMetrics', new GetCollectMetricsHandler(this.applicationService).handle)
+    registerHandler('setCollectMetrics', new SetCollectMetricsHandler(this.applicationService).handle)
     registerHandler('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
     registerHandler('getConnectedPeers', new GetConnectedPeersHandler(this.walletSyncService).handle)
     registerHandler('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
