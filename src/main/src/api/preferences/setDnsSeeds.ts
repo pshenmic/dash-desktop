@@ -1,9 +1,9 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
 import {z} from 'zod'
-import {isDnsSeedHost} from '../../p2p/net/peerAddress'
-import {NetworkNameSchema, PeerListSchema} from '../preferences/network'
-import {ApplicationService} from '../services/app/ApplicationService'
-import {WalletSyncService} from '../services/core/WalletSyncService'
+import {isDnsSeedHost} from '../../../p2p/net/peerAddress'
+import {NetworkNameSchema, PeerListSchema} from '../../preferences/network'
+import {ApplicationService} from '../../services/app/ApplicationService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
 
 const ArgsSchema = z.object({network: NetworkNameSchema, seeds: PeerListSchema})
 

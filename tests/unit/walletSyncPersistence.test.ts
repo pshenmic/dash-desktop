@@ -68,7 +68,7 @@ describe('WalletSyncService block persistence', () => {
     vi.useFakeTimers()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     transactionDAO = {
-      applyBlock: vi.fn().mockResolvedValue(undefined),
+      applyBlock: vi.fn().mockResolvedValue([]),
       advanceCursor: vi.fn().mockResolvedValue(undefined),
       resetCursor: vi.fn().mockResolvedValue(undefined),
       resetSyncDataByNetwork: vi.fn().mockResolvedValue(undefined),
@@ -145,7 +145,7 @@ describe('WalletSyncService block persistence', () => {
   it('applies a discovery rewind after a stale advance already on the queue', async () => {
     let releaseBlock!: () => void
     transactionDAO.applyBlock.mockImplementationOnce(
-      () => new Promise<void>(resolve => { releaseBlock = resolve })
+      () => new Promise<never[]>(resolve => { releaseBlock = () => resolve([]) })
     )
 
     emit(service, {type: 'blockApplied', block: block(500)})
@@ -165,7 +165,7 @@ describe('WalletSyncService block persistence', () => {
   it('applies the worker rewind echo through the persist queue', async () => {
     let releaseBlock!: () => void
     transactionDAO.applyBlock.mockImplementationOnce(
-      () => new Promise<void>(resolve => { releaseBlock = resolve })
+      () => new Promise<never[]>(resolve => { releaseBlock = () => resolve([]) })
     )
 
     emit(service, {type: 'blockApplied', block: block(500)})
@@ -218,7 +218,7 @@ describe('WalletSyncService block persistence', () => {
   it('drains queued writes before resetSync wipes the sync data', async () => {
     let releaseBlock!: () => void
     transactionDAO.applyBlock.mockImplementationOnce(
-      () => new Promise<void>(resolve => { releaseBlock = resolve })
+      () => new Promise<never[]>(resolve => { releaseBlock = () => resolve([]) })
     )
 
     emit(service, {type: 'blockApplied', block: block(500)})

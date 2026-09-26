@@ -85,6 +85,7 @@ export class WalletSyncService {
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
+  onNewTransaction: ((walletId: string, tx: AppliedTx) => void) | null = null
   // Wallets whose scan is held waiting for addresses. The worker resumes at the
   // held height, so the addresses answering it must not also rewind the cursor.
   private gapHeld = new Set<string>()
@@ -693,18 +694,29 @@ export class WalletSyncService {
   }
 
   private persistAppliedBlock = (block: AppliedBlock): void => {
-    this.enqueuePersist(() => this.writeAppliedBlock(block))
+    // Read here, not in the queued write: the tip has moved on by then.
+    const atTip = this.isAtChainTip(block)
+    this.enqueuePersist(() => this.writeAppliedBlock(block, atTip))
   }
 
-  private async writeAppliedBlock(block: AppliedBlock): Promise<void> {
+  // Not the phase: tip-follow re-enters the scan, so a live block is applied
+  // under 'syncing-cfilters' like a catch-up one.
+  private isAtChainTip(block: AppliedBlock): boolean {
+    return this.status.tipHeight > 0 && block.height >= this.status.tipHeight
+  }
+
+  private async writeAppliedBlock(block: AppliedBlock, atTip: boolean): Promise<void> {
     for (let attempt = 0; attempt < PERSIST_ATTEMPTS; attempt++) {
       if (attempt > 0) await new Promise(resolve => setTimeout(resolve, PERSIST_RETRY_MS))
       try {
         const advanceCursor = this.cursorGate.allowsBlockCursor(block.walletId, block.height)
-        await this.transactionDAO.applyBlock(block, {advanceCursor})
+        const added = await this.transactionDAO.applyBlock(block, {advanceCursor})
         this.cursorGate.succeed(block.walletId, block.height)
         if (!this.cursorGate.hasFailures()) this.persistenceError = null
-        if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
+        if (block.txs.length > 0) {
+          this.notifyWalletActivity(block.walletId)
+          if (atTip) for (const tx of added) this.onNewTransaction?.(block.walletId, tx)
+        }
         return
       } catch (err) {
         if (attempt < PERSIST_ATTEMPTS - 1) continue
@@ -778,8 +790,11 @@ export class WalletSyncService {
     // the cfilter scan reconciles it on confirmation. Best-effort — a record
     // failure must not turn a successful broadcast into an error.
     if (result.peersDelivered.length > 0) {
-      await this.recordOptimisticSpend(txHex).catch(err =>
-        log.error('recordOptimisticSpend failed:', err))
+      const recorded = await this.recordOptimisticSpend(txHex).catch(err => {
+        log.error('recordOptimisticSpend failed:', err)
+        return null
+      })
+      if (recorded?.isNew) this.onNewTransaction?.(recorded.walletId, recorded.tx)
     }
     return result
   }
@@ -840,18 +855,18 @@ export class WalletSyncService {
   // The wallet is resolved here rather than read off the running sync: rpc mode
   // may have no sync at all, and its utxo source needs this record to stop
   // offering the coins this transaction just spent.
-  private async recordOptimisticSpend(txHex: string): Promise<void> {
+  private async recordOptimisticSpend(txHex: string): Promise<{walletId: string; tx: AppliedTx; isNew: boolean} | null> {
     const wallet = this.activeWalletId != null
       ? await this.walletDAO.getWalletById(this.activeWalletId)
       : await this.walletDAO.getSelectedWallet()
-    if (wallet == null) return
+    if (wallet == null) return null
     const {walletId, network} = wallet
     let tx: SDKTransaction
     try {
       tx = SDKTransaction.fromHex(txHex)
     } catch (err) {
       log.error('optimistic record: failed to parse tx hex:', err)
-      return
+      return null
     }
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
     const ours = new Set([...grouped.receiving, ...grouped.change].map(a => a.address))
@@ -875,17 +890,19 @@ export class WalletSyncService {
         }
       }),
     }
-    await this.transactionDAO.recordPendingTx(walletId, applied, true)
+    const isNew = await this.transactionDAO.recordPendingTx(walletId, applied, true)
+    return {walletId, tx: applied, isNew}
   }
 
   // A payment the lock pool saw in the mempool. Recorded unconfirmed so the
   // balance moves immediately, then armed so its isdlock marks it final.
   private async recordIncomingTx(walletId: string, tx: AppliedTx): Promise<void> {
-    await this.transactionDAO.recordPendingTx(walletId, tx, false)
+    const isNew = await this.transactionDAO.recordPendingTx(walletId, tx, false)
     const received = tx.outputs.filter(o => o.isMine).reduce((sum, o) => sum + BigInt(o.satoshis), 0n)
     log.info(`incoming tx ${tx.txid} recorded unconfirmed (+${received} duffs)`)
     this.watchForInstantLock(tx.txid)
     this.notifyWalletActivity(walletId)
+    if (isNew) this.onNewTransaction?.(walletId, tx)
   }
 
   resetSync = async (network: 'mainnet' | 'testnet'): Promise<void> => {

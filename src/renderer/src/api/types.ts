@@ -516,3 +516,21 @@ export interface ShieldedSpendState {
   identityId: string | null
   error: string | null
 }
+
+// Mirrors src/main/src/types/Message, which the bundles do not share. Duffs on
+// core, credits on platform.
+export interface NewTransactionMessage {
+  chain: 'core' | 'platform'
+  walletId: string
+  hash: string
+  type: string
+  netAmount: bigint
+  amount: bigint
+  recipients: string[] | null
+  assetLockTxid: string | null
+}
+
+export interface NotifyMessage {
+  type: 'NewTransaction'
+  data: NewTransactionMessage
+}

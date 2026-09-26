@@ -1,3 +1,5 @@
+import {PlatformTransaction} from './PlatformTransaction'
+
 export interface PlatformExplorerPage<T> {
   resultSet: T[]
   pagination: {
@@ -40,4 +42,9 @@ export interface PlatformExplorerTransfer {
   type: string
   blockHash: string | null
   gasUsed: number | null
+}
+
+export interface PlatformExplorerWalk {
+  capped: boolean
+  added: PlatformTransaction[]
 }

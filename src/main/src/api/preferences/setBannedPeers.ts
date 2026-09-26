@@ -1,9 +1,9 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
 import {z} from 'zod'
-import {bannedSet, dialTarget, parsePeerAddress} from '../../p2p/net/peerAddress'
-import {NetworkNameSchema, PeerListSchema} from '../preferences/network'
-import {ApplicationService} from '../services/app/ApplicationService'
-import {WalletSyncService} from '../services/core/WalletSyncService'
+import {bannedSet, dialTarget, parsePeerAddress} from '../../../p2p/net/peerAddress'
+import {NetworkNameSchema, PeerListSchema} from '../../preferences/network'
+import {ApplicationService} from '../../services/app/ApplicationService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
 
 const ArgsSchema = z.object({network: NetworkNameSchema, peers: PeerListSchema})
 

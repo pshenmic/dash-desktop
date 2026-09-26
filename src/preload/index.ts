@@ -2,6 +2,18 @@ import { contextBridge, ipcRenderer  } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {apiDefinitions} from './definitions'
 
+// This bundle typechecks with the main process, which has no DOM lib.
+declare const window: {
+  addEventListener(
+    type: 'message',
+    listener: (event: {
+      source: unknown
+      data: unknown
+      ports: InstanceType<typeof MessagePort>[]
+    }) => void,
+  ): void
+}
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
@@ -22,3 +34,11 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.api = api
 }
+
+// A MessagePort cannot cross contextBridge, so the renderer transfers it over
+// window.postMessage and this forwards the real object.
+window.addEventListener('message', event => {
+  if (event.source !== window || event.data !== 'createMessagePort') return
+  const [port] = event.ports
+  if (port) ipcRenderer.postMessage('createMessagePort', null, [port])
+})

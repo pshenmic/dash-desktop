@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {SetConnectionTypeHandler} from '../../src/main/src/api/setConnectionType'
+import {SetConnectionTypeHandler} from '../../src/main/src/api/preferences/setConnectionType'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'

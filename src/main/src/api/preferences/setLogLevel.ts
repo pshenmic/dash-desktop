@@ -1,9 +1,9 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {applyLogLevel} from '../logTransport'
-import {LogLevel} from '../types/Log'
-import {ApplicationService} from '../services/app/ApplicationService'
-import {WalletSyncService} from '../services/core/WalletSyncService'
-import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
+import {applyLogLevel} from '../../logTransport'
+import {LogLevel} from '../../types/Log'
+import {ApplicationService} from '../../services/app/ApplicationService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
+import {PlatformWorkerService} from '../../services/platform/PlatformWorkerService'
 
 export class SetLogLevelHandler {
   constructor(

@@ -1,10 +1,10 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
 import {z} from 'zod'
-import {DEFAULT_PEER_PORT} from '../../p2p/constants'
-import {entryTarget} from '../../p2p/net/peerAddress'
-import {NetworkNameSchema, PeerEntrySchema} from '../preferences/network'
-import {ApplicationService} from '../services/app/ApplicationService'
-import {WalletSyncService} from '../services/core/WalletSyncService'
+import {DEFAULT_PEER_PORT} from '../../../p2p/constants'
+import {entryTarget} from '../../../p2p/net/peerAddress'
+import {NetworkNameSchema, PeerEntrySchema} from '../../preferences/network'
+import {ApplicationService} from '../../services/app/ApplicationService'
+import {WalletSyncService} from '../../services/core/WalletSyncService'
 
 const ArgsSchema = z.object({network: NetworkNameSchema, peer: PeerEntrySchema})
 

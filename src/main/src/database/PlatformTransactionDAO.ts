@@ -80,6 +80,17 @@ export class PlatformTransactionDAO {
     }
   }
 
+  // Keyed lower case, as getTransactions reads it: st_hash is stored as the
+  // worker reported it, which need not match how the explorer lists it.
+  getAssetLockTxids = async (walletId: string): Promise<Map<string, string>> => {
+    const rows = await this.knex('asset_lock_fundings')
+      .select('st_hash', 'txid')
+      .where('wallet_id', walletId)
+      .whereNotNull('st_hash')
+
+    return new Map(rows.map(row => [(row.st_hash as string).toLowerCase(), row.txid as string]))
+  }
+
   // A source naming an address set this wallet no longer asks about. Its rows
   // would fold in alongside the rows that replaced them.
   deleteRetiredSources = async (walletId: string, sources: string[]): Promise<void> => {

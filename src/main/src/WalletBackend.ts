@@ -60,27 +60,27 @@ import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
 import {ExportMnemonicHandler} from "./api/wallet/exportMnemonic";
 import {VerifyWalletMnemonicHandler} from "./api/wallet/verifyWalletMnemonic";
 import {ResetWalletPasswordHandler} from "./api/wallet/resetWalletPassword";
-import {SetLanguageHandler} from "./api/setLanguage";
-import {SetLogLevelHandler} from "./api/setLogLevel";
-import {GetPreferencesHandler} from "./api/getPreferences";
-import {ResetPreferencesHandler} from "./api/resetPreferences";
 import {GetCollectMetricsHandler} from './api/getCollectMetrics'
 import {SetCollectMetricsHandler} from './api/setCollectMetrics'
+import {SetLanguageHandler} from "./api/preferences/setLanguage";
+import {SetLogLevelHandler} from "./api/preferences/setLogLevel";
+import {GetPreferencesHandler} from "./api/preferences/getPreferences";
+import {ResetPreferencesHandler} from "./api/preferences/resetPreferences";
 import {GetConnectedPeersHandler} from "./api/getConnectedPeers";
-import {SetPeerModeHandler} from "./api/setPeerMode";
-import {PushStaticPeerHandler} from "./api/pushStaticPeer";
-import {RemoveStaticPeerHandler} from "./api/removeStaticPeer";
-import {GetStaticPeersHandler} from "./api/getStaticPeers";
-import {SetBannedPeersHandler} from "./api/setBannedPeers";
-import {GetBannedPeersHandler} from "./api/getBannedPeers";
-import {SetDnsSeedsHandler} from "./api/setDnsSeeds";
-import {GetDnsSeedsHandler} from "./api/getDnsSeeds";
-import {SetDynamicPeersHandler} from "./api/setDynamicPeers";
-import {GetDynamicPeersHandler} from "./api/getDynamicPeers";
-import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
-import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
-import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
-import {SetConnectionTypeHandler} from "./api/setConnectionType";
+import {SetPeerModeHandler} from "./api/preferences/setPeerMode";
+import {PushStaticPeerHandler} from "./api/preferences/pushStaticPeer";
+import {RemoveStaticPeerHandler} from "./api/preferences/removeStaticPeer";
+import {GetStaticPeersHandler} from "./api/preferences/getStaticPeers";
+import {SetBannedPeersHandler} from "./api/preferences/setBannedPeers";
+import {GetBannedPeersHandler} from "./api/preferences/getBannedPeers";
+import {SetDnsSeedsHandler} from "./api/preferences/setDnsSeeds";
+import {GetDnsSeedsHandler} from "./api/preferences/getDnsSeeds";
+import {SetDynamicPeersHandler} from "./api/preferences/setDynamicPeers";
+import {GetDynamicPeersHandler} from "./api/preferences/getDynamicPeers";
+import {SetFiatCurrencyHandler} from "./api/preferences/setFiatCurrency";
+import {SetPlatformFeeMultiplierHandler} from "./api/preferences/setPlatformFeeMultiplier";
+import {SetCoreFeeMultiplierHandler} from "./api/preferences/setCoreFeeMultiplier";
+import {SetConnectionTypeHandler} from "./api/preferences/setConnectionType";
 import {WalletSyncService} from './services/core/WalletSyncService'
 import {ShieldedService} from './services/platform/ShieldedService'
 import {PlatformWorkerService} from './services/platform/PlatformWorkerService'
@@ -127,12 +127,16 @@ import {GetLogFileHandler} from './api/logs/getLogFile'
 import {ShowLogFileInFolderHandler} from './api/logs/showLogFileInFolder'
 import {registerHandler} from './utils/ipcHandler'
 import {Logger} from './utils/logger'
+import {CreateMessagePortHandler} from "./api/createMessagePort";
+import {NotifyService} from "./services/app/NotifyService";
+import {registerListener} from "./utils/registerListener";
 
 const prevout = new Logger('prevout')
 const locks = new Logger('locks')
 const discoveryLog = new Logger('discovery')
 const shielded = new Logger('shielded')
 const platformLog = new Logger('platform')
+const notify = new Logger('notify')
 
 export class WalletBackend {
   private walletService?: WalletService
@@ -153,13 +157,14 @@ export class WalletBackend {
   private walletCredentialsService?: WalletCredentialsService
   private identityService?: IdentityService
   private logService?: LogService
+  private notifyService?: NotifyService
 
   private walletDAO?: WalletDAO
   private addressDAO?: AddressDAO
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService || !this.notifyService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -250,6 +255,7 @@ export class WalletBackend {
     registerHandler('listLogFiles', new ListLogFiles(this.logService).handle)
     registerHandler('getLogFile', new GetLogFileHandler(this.logService).handle)
     registerHandler('showLogFileInFolder', new ShowLogFileInFolderHandler(this.logService).handle)
+    registerListener('createMessagePort', new CreateMessagePortHandler(this.notifyService).handle)
   }
 
   async start(): Promise<void> {
@@ -279,6 +285,7 @@ export class WalletBackend {
     this.ratesService = new RatesService()
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
+    this.notifyService = new NotifyService()
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
     this.platformWorkerService = new PlatformWorkerService()
     this.platformWorkerService.start()
@@ -391,6 +398,45 @@ export class WalletBackend {
     this.platformWorkerService.onTransitionBroadcast(() => {
       refreshAfterBroadcast().catch(err => platformLog.error('platform history refresh after a broadcast failed:', err))
     })
+
+    const notifyService = this.notifyService
+    this.walletSyncService.onNewTransaction = (walletId, tx) => {
+      transactionDAO.getTransactionByTxid(walletId, tx.txid)
+        .then(transaction => {
+          if (transaction == null) return
+          const netAmount = transaction.outAmount - transaction.inAmount
+          const paid = tx.outputs
+            .filter(output => output.isMine === (netAmount > 0n) && output.address != null)
+            .map(output => output.address as string)
+          notifyService.newTransaction({
+            chain: 'core',
+            walletId,
+            hash: transaction.txid,
+            type: tx.outputs.some(output => output.address == null) ? 'assetLock' : 'transfer',
+            netAmount,
+            amount: transaction.transferAmount,
+            recipients: paid.length > 0 ? paid : null,
+            assetLockTxid: null,
+          })
+        })
+        .catch(err => notify.error(`${tx.txid}: reading back a new transaction failed:`, err))
+    }
+    this.platformHistoryService.onNewTransactions = (transactions) => {
+      for (const {transaction, assetLockTxid} of transactions) {
+        notifyService.newTransaction({
+          chain: 'platform',
+          walletId: transaction.walletId,
+          hash: transaction.hash,
+          type: transaction.type,
+          netAmount: transaction.netCredits,
+          amount: transaction.amountCredits,
+          recipients: transaction.recipient.length > 0
+            ? transaction.recipient.map(end => end.source)
+            : null,
+          assetLockTxid,
+        })
+      }
+    }
 
     this.applicationService.markReady()
   }

@@ -77,3 +77,39 @@ on the lock pool against the addresses shipped in the `listen` command and emits
   Nothing moves those rows off `block_height = 0` in that mode either (no
   cfilter scan), so they accumulate in `getPendingTxs` and the isdlock watch
   set. Both are open.
+
+## New-transaction notifications
+
+`WalletSyncService.onNewTransaction` fires once per payment, from whichever of
+three sightings reaches it first:
+
+1. `broadcastTransaction` — ours, via `recordOptimisticSpend`.
+2. `recordIncomingTx` — a mempool match on the lock pool, so this one works in
+   `rpc` mode too. **`SyncService.onTx` does not filter out what we broadcast**
+   — our own change pays a watched address — so our sends come straight back
+   here.
+3. `writeAppliedBlock` — for a payment that skipped our mempool view.
+
+**Only the sighting that wrote the SQL row reports it.** `recordPendingTx`
+answers whether it inserted, `applyBlock` answers with the transactions it had
+no row for. Do not add a set of seen txids alongside this: it would forget on
+restart, and `rebroadcastPending` re-entering `broadcastTransaction` every
+minute is already covered.
+
+**No path may claim a txid before it acts.** A mempool sighting that beats
+`recordOptimisticSpend` reads the right direction anyway — the inputs it writes
+carry the outpoints they spend, which join to this wallet's own earlier outputs,
+so `prev.is_mine` gives `inAmount`. Pinned by
+`tests/unit/newTransactionSightings.test.ts`.
+
+**The block gate is `block.height >= status.tipHeight`, and the sync phase looks
+like the right test but is not.** Tip-follow re-enters the scan
+(`emitStatus('cfilters')` on every new header), so a live block is applied under
+`syncing-cfilters` like any catch-up block; `'synced'` would suppress every real
+notification and pass only a drain backlog. The height is read when the block
+arrives, not when its queued write lands — by then the tip has moved.
+
+L2 is separate: `PlatformExplorerProvider.walk` returns the hashes it had not
+stored, `PlatformHistoryService` folds them through `mergePlatformTransactions`
+(one transition is walked from both ends) and reports only those dated after the
+process started — otherwise importing a seed announces its whole history.

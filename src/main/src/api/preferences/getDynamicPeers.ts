@@ -1,6 +1,6 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {NetworkNameSchema} from '../preferences/network'
-import {ApplicationService} from '../services/app/ApplicationService'
+import {NetworkNameSchema} from '../../preferences/network'
+import {ApplicationService} from '../../services/app/ApplicationService'
 
 export class GetDynamicPeersHandler {
   private applicationService: ApplicationService

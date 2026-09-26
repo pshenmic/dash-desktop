@@ -229,6 +229,7 @@ describe('WalletSyncService reorg persistence', () => {
     transactionDAO = {
       applyBlock: vi.fn().mockImplementation(async () => {
         order.push('applyBlock')
+        return []
       }),
       advanceCursor: vi.fn().mockResolvedValue(undefined),
       resetCursor: vi.fn().mockResolvedValue(undefined),
@@ -319,7 +320,7 @@ describe('WalletSyncService incoming mempool tx', () => {
     sentToChild.length = 0
 
     transactionDAO = {
-      recordPendingTx: vi.fn().mockResolvedValue(undefined),
+      recordPendingTx: vi.fn().mockResolvedValue(true),
       getPendingTxs: vi.fn().mockResolvedValue([]),
       getInitialScanComplete: vi.fn().mockResolvedValue(false),
     }
