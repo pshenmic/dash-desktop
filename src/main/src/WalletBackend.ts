@@ -128,7 +128,6 @@ import {Logger} from './utils/logger'
 import {CreateMessagePortHandler} from "./api/createMessagePort";
 import {NotifyService} from "./services/app/NotifyService";
 import {registerListener} from "./utils/registerListener";
-import {coreTransactionMessage, platformTransactionMessage} from "./utils/transactionNotifications";
 
 const prevout = new Logger('prevout')
 const locks = new Logger('locks')
@@ -400,13 +399,38 @@ export class WalletBackend {
     this.walletSyncService.onNewTransaction = (walletId, tx) => {
       transactionDAO.getTransactionByTxid(walletId, tx.txid)
         .then(transaction => {
-          if (transaction != null) notifyService.newTransaction(coreTransactionMessage(transaction, tx.outputs))
+          if (transaction == null) return
+          const netAmount = transaction.outAmount - transaction.inAmount
+          const paid = tx.outputs
+            .filter(output => output.isMine === (netAmount > 0n) && output.address != null)
+            .map(output => output.address as string)
+          notifyService.newTransaction({
+            chain: 'core',
+            walletId,
+            hash: transaction.txid,
+            type: tx.outputs.some(output => output.address == null) ? 'assetLock' : 'transfer',
+            netAmount,
+            amount: transaction.transferAmount,
+            recipients: paid.length > 0 ? paid : null,
+            assetLockTxid: null,
+          })
         })
         .catch(err => notify.error(`${tx.txid}: reading back a new transaction failed:`, err))
     }
     this.platformHistoryService.onNewTransactions = (transactions) => {
       for (const {transaction, assetLockTxid} of transactions) {
-        notifyService.newTransaction(platformTransactionMessage(transaction, assetLockTxid))
+        notifyService.newTransaction({
+          chain: 'platform',
+          walletId: transaction.walletId,
+          hash: transaction.hash,
+          type: transaction.type,
+          netAmount: transaction.netCredits,
+          amount: transaction.amountCredits,
+          recipients: transaction.recipient.length > 0
+            ? transaction.recipient.map(end => end.source)
+            : null,
+          assetLockTxid,
+        })
       }
     }
 
