@@ -5,7 +5,7 @@ import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider'
 import {PlatformExplorerWalk} from '../../types/PlatformExplorer'
-import {PlatformTransaction} from '../../types/PlatformTransaction'
+import {NewPlatformTransaction} from '../../types/PlatformTransaction'
 import {Logger} from '../../utils/logger'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {requireWallet} from '../../utils/requireWallet'
@@ -24,7 +24,7 @@ export class PlatformHistoryService {
   private walks = new Map<string, Promise<void>>()
   // Importing a seed would otherwise announce its whole history.
   private startedAt = Date.now()
-  onNewTransactions: ((transactions: PlatformTransaction[]) => void) | null = null
+  onNewTransactions: ((transactions: NewPlatformTransaction[]) => void) | null = null
 
   constructor(
     walletDAO: WalletDAO,
@@ -104,18 +104,28 @@ export class PlatformHistoryService {
       }
     }
 
-    this.reportNewTransactions(results)
+    await this.reportNewTransactions(walletId, results).catch(err =>
+      log.error(`${walletId}: reporting new transitions failed:`, err))
 
     for (const result of results) {
       if (result.status === 'rejected') throw result.reason
     }
   }
 
-  private reportNewTransactions(results: PromiseSettledResult<PlatformExplorerWalk>[]): void {
+  private async reportNewTransactions(
+    walletId: string,
+    results: PromiseSettledResult<PlatformExplorerWalk>[],
+  ): Promise<void> {
     if (this.onNewTransactions == null) return
     const added = results.flatMap(result => result.status === 'fulfilled' ? result.value.added : [])
     const arrived = mergePlatformTransactions(added)
       .filter(transaction => transaction.date.getTime() > this.startedAt)
-    if (arrived.length > 0) this.onNewTransactions(arrived)
+    if (arrived.length === 0) return
+
+    const fundings = await this.platformTransactionDAO.getAssetLockTxids(walletId)
+    this.onNewTransactions(arrived.map(transaction => ({
+      transaction,
+      assetLockTxid: fundings.get(transaction.hash.toLowerCase()) ?? null,
+    })))
   }
 }

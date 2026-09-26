@@ -526,6 +526,7 @@ export interface NewTransactionMessage {
   netAmount: bigint
   amount: bigint
   recipients: string[] | null
+  assetLockTxid: string | null
 }
 
 export interface NotifyMessage {

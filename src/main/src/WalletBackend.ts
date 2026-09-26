@@ -405,8 +405,8 @@ export class WalletBackend {
         .catch(err => notify.error(`${tx.txid}: reading back a new transaction failed:`, err))
     }
     this.platformHistoryService.onNewTransactions = (transactions) => {
-      for (const transaction of transactions) {
-        notifyService.newTransaction(platformTransactionMessage(transaction))
+      for (const {transaction, assetLockTxid} of transactions) {
+        notifyService.newTransaction(platformTransactionMessage(transaction, assetLockTxid))
       }
     }
 

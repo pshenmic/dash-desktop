@@ -10,6 +10,11 @@ export interface TransitionEnd {
 // One state transition that moved this wallet's credits. Amounts are credits,
 // not duffs, and `hash` is a state transition hash, not a Core txid — nothing
 // here is interchangeable with a `Transaction`.
+export interface NewPlatformTransaction {
+  transaction: PlatformTransaction
+  assetLockTxid: string | null
+}
+
 export interface PlatformTransaction {
   walletId: string
   hash: string
@@ -20,16 +25,8 @@ export interface PlatformTransaction {
   status: PlatformTxStatus | null
   error: string | null
   gasCredits: bigint
-  // Signed net across every address and identity of this wallet the transition
-  // touched, so a move between two of them leaves the fee as the only cost.
   netCredits: bigint
-  // What moved on this side of the transition, unsigned. Folded rows carry the
-  // largest side, so a move between two of ours nets to the fee and still
-  // reports what it moved.
   amountCredits: bigint
-  // The ends, each an address or an identity, ours or not: one transition can
-  // be paid by several and pay several. Empty where no source named that end —
-  // a walk only ever reports the address or identity it asked about.
   sender: TransitionEnd[]
   recipient: TransitionEnd[]
 }

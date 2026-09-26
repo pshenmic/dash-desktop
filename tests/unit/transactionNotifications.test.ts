@@ -98,7 +98,7 @@ describe('platformTransactionMessage', () => {
       netCredits: 1_000n,
       amountCredits: 1_000n,
       recipient: [{source: 'idA', amount: 1_000n}],
-    }))
+    }), null)
     expect(message).toMatchObject({
       chain: 'platform',
       netAmount: 1_000n,
@@ -109,12 +109,21 @@ describe('platformTransactionMessage', () => {
   })
 
   it('reports credits leaving as a negative net', () => {
-    expect(platformTransactionMessage(platform({netCredits: -1_000n})).netAmount).toBe(-1_000n)
+    expect(platformTransactionMessage(platform({netCredits: -1_000n}), null).netAmount).toBe(-1_000n)
   })
 
   it('keeps what moved when the net is nothing', () => {
-    const message = platformTransactionMessage(platform({netCredits: 0n, amountCredits: 2_000n}))
+    const message = platformTransactionMessage(platform({netCredits: 0n, amountCredits: 2_000n}), null)
     expect(message.netAmount).toBe(0n)
     expect(message.amount).toBe(2_000n)
+  })
+
+  it('names the asset lock that funded a top-up of ours', () => {
+    const message = platformTransactionMessage(
+      platform({netCredits: 5_000n, amountCredits: 5_000n, recipient: [{source: 'oursL2', amount: 5_000n}]}),
+      'lockTxid',
+    )
+    expect(message.assetLockTxid).toBe('lockTxid')
+    expect(message.recipients).toEqual(['oursL2'])
   })
 })

@@ -24,10 +24,14 @@ export function coreTransactionMessage(transaction: Transaction, outputs: Applie
     netAmount,
     amount: transaction.transferAmount,
     recipients: paid.length > 0 ? paid : null,
+    assetLockTxid: null,
   }
 }
 
-export function platformTransactionMessage(transaction: PlatformTransaction): NewTransactionMessage {
+export function platformTransactionMessage(
+  transaction: PlatformTransaction,
+  assetLockTxid: string | null,
+): NewTransactionMessage {
   return {
     chain: 'platform',
     walletId: transaction.walletId,
@@ -38,5 +42,6 @@ export function platformTransactionMessage(transaction: PlatformTransaction): Ne
     recipients: transaction.recipient.length > 0
       ? transaction.recipient.map(end => end.source)
       : null,
+    assetLockTxid,
   }
 }
