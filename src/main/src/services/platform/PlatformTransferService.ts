@@ -438,16 +438,17 @@ export class PlatformTransferService {
     })
     const candidates = await this.addresses.loadCandidates(wallet)
 
-    const {stHash} = await this.platform.request('addressFundingFromAssetLock', wallet.network, {
-      seed,
-      txid: row.txid,
-      outputIndex: row.outputIndex,
-      assetLockProof: proof,
-      creditDerivationPath: row.creditDerivationPath,
-      recipient: row.toPlatformAddress,
-      recipientCredits: creditsAfterFee(row.amountDuffs, feeCredits),
-      remainderAddress: fundingRemainderAddress(candidates, row.toPlatformAddress),
-    })
+    const {stHash} = await this.assetLock.broadcastWithProof(state, row, proof, assetLockProof =>
+      this.platform.request('addressFundingFromAssetLock', wallet.network, {
+        seed,
+        txid: row.txid,
+        outputIndex: row.outputIndex,
+        assetLockProof,
+        creditDerivationPath: row.creditDerivationPath,
+        recipient: row.toPlatformAddress,
+        recipientCredits: creditsAfterFee(row.amountDuffs, feeCredits),
+        remainderAddress: fundingRemainderAddress(candidates, row.toPlatformAddress),
+      }))
 
     await this.assetLock.done(state, row, stHash)
   }

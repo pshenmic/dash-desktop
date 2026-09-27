@@ -711,16 +711,17 @@ export class ShieldedService {
     await this.assetLock.markBroadcastingSt(state, row)
 
     const feeCredits = await this.shieldFundingFee(wallet.network, row.amountDuffs, row.toPlatformAddress)
-    const {stHash} = await this.platform.request('shieldFromAssetLock', wallet.network, {
-      seed,
-      txid: row.txid,
-      outputIndex: row.outputIndex,
-      assetLockProof: proof,
-      creditDerivationPath: row.creditDerivationPath,
-      recipient: row.toPlatformAddress,
-      shieldAmountCredits: creditsAfterFee(row.amountDuffs, feeCredits),
-      surplusAddress: null,
-    })
+    const {stHash} = await this.assetLock.broadcastWithProof(state, row, proof, assetLockProof =>
+      this.platform.request('shieldFromAssetLock', wallet.network, {
+        seed,
+        txid: row.txid,
+        outputIndex: row.outputIndex,
+        assetLockProof,
+        creditDerivationPath: row.creditDerivationPath,
+        recipient: row.toPlatformAddress,
+        shieldAmountCredits: creditsAfterFee(row.amountDuffs, feeCredits),
+        surplusAddress: null,
+      }))
 
     await this.assetLock.done(state, row, stHash)
     // The L1 lock that funded it is no end of an L2 transition.

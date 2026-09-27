@@ -172,14 +172,15 @@ export class IdentityRegistrationService {
   ): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const {stHash, identifier} = await this.platform.request('identityCreateFromAssetLock', unlocked.wallet.network, {
-      seed: unlocked.seed,
-      txid: row.txid,
-      outputIndex: row.outputIndex,
-      assetLockProof: proof,
-      creditDerivationPath: row.creditDerivationPath,
-      identityIndex,
-    })
+    const {stHash, identifier} = await this.assetLock.broadcastWithProof(state, row, proof, assetLockProof =>
+      this.platform.request('identityCreateFromAssetLock', unlocked.wallet.network, {
+        seed: unlocked.seed,
+        txid: row.txid,
+        outputIndex: row.outputIndex,
+        assetLockProof,
+        creditDerivationPath: row.creditDerivationPath,
+        identityIndex,
+      }))
 
     const existing = await this.identityDAO.getByIdentifier(walletId, identifier)
     if (existing == null) {
@@ -198,14 +199,15 @@ export class IdentityRegistrationService {
   private async settleTopUp(unlocked: UnlockedWallet, state: AssetLockFundingState, {row, proof}: AcquiredAssetLock): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const {stHash} = await this.platform.request('identityTopUpFromAssetLock', unlocked.wallet.network, {
-      seed: unlocked.seed,
-      txid: row.txid,
-      outputIndex: row.outputIndex,
-      assetLockProof: proof,
-      creditDerivationPath: row.creditDerivationPath,
-      identifier: row.toPlatformAddress,
-    })
+    const {stHash} = await this.assetLock.broadcastWithProof(state, row, proof, assetLockProof =>
+      this.platform.request('identityTopUpFromAssetLock', unlocked.wallet.network, {
+        seed: unlocked.seed,
+        txid: row.txid,
+        outputIndex: row.outputIndex,
+        assetLockProof,
+        creditDerivationPath: row.creditDerivationPath,
+        identifier: row.toPlatformAddress,
+      }))
 
     state.identityIdentifier = row.toPlatformAddress
     await this.assetLock.done(state, row, stHash)
