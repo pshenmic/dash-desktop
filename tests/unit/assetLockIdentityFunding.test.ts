@@ -9,6 +9,7 @@ import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
 import {Wallet} from '../../src/main/src/types/Wallet'
 import {encryptMnemonic} from '../../src/main/src/utils'
 import {AssetLockFunder, AssetLockFundingRow} from '../../src/main/src/types/AssetLock'
+import {AssetLockProofParams} from '../../src/main/platform/types/messages'
 import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
 
 const WALLET_ID = 'wallet-1'
@@ -86,6 +87,12 @@ describe('identity funding from an asset lock', () => {
       acquire,
       reacquire,
       markBroadcastingSt: vi.fn().mockResolvedValue(undefined),
+      broadcastWithProof: vi.fn((
+        _state: unknown,
+        _row: unknown,
+        proof: AssetLockProofParams,
+        broadcast: (proof: AssetLockProofParams) => Promise<unknown>,
+      ) => broadcast(proof)),
       done,
       fail,
     } as unknown as AssetLockService
