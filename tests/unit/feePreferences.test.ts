@@ -28,6 +28,7 @@ function accepts(multiplier: number): boolean {
     platformFeeMultiplier: everyOperationAt(multiplier),
     coreFeeMultiplier: multiplier,
     logLevel: 'info',
+    collectMetrics: false,
   }).success
 }
 

@@ -9,7 +9,7 @@ import {DifficultyWindow} from '../../store/difficultyWindow'
 import {formatChainDbError} from '../../store/chainDbError'
 import {validateHeaders} from '../../utils/headerValidation'
 import {PeerRotation} from '../../net/peerRotation'
-import {headerWork, rawPrevHash} from '../../utils/pow'
+import {hashHeaderRaw, headerWork, rawPrevHash} from '../../utils/pow'
 import {Worker} from './Worker'
 import {
   ANNOUNCE_DEDUPE_LIMIT,
@@ -20,9 +20,11 @@ import {
   HEADER_SYNC_TIMEOUT_MS,
   INV_TYPE_NAMES,
   LOCATOR_SEEN_LIMIT,
+  ORPHAN_VOTE_PEERS,
   REORG_MAX_DEPTH,
 } from '../../constants'
 import type {
+  ChainLock,
   HeaderRace,
   HeaderSyncPhase,
   HeaderSyncWorkerOptions,
@@ -51,7 +53,10 @@ export class HeaderSyncWorker extends Worker {
   private chainTipHeight: number
   private chainTipHash: string
   private maxPeerHeight = 0
-  private finalityHeight: number
+  // Highest ChainLock found to lock a block we hold. One we cannot place on our
+  // own chain says nothing about our branch, so it waits in pendingLock.
+  private finalityHeight = 0
+  private pendingLock: ChainLock | null
 
   private readonly window: ChainWindow
   private readonly difficulty = new DifficultyWindow()
@@ -69,6 +74,14 @@ export class HeaderSyncWorker extends Worker {
   // Non-tx inv hashes already logged. Every peer announces the same clsig —
   // measured at ~11 copies — and one line each buries the rest of the log.
   private loggedInv = new Set<string>()
+  // Hosts whose answer anchored where we have never been. Cleared the moment
+  // headers land, so these only ever accumulate while the tip cannot move.
+  private divergentHosts = new Set<string>()
+  private branchChecks: Promise<void> = Promise.resolve()
+  private droppingBranch = false
+  // The burst arrives in one tick, so every host past the threshold would queue
+  // another window to drop before the first has run.
+  private dropQueued = false
   private lastHeaderAt = Date.now()
   private lastStallPollAt = 0
   private stallTimer: ReturnType<typeof setInterval> | null = null
@@ -88,15 +101,18 @@ export class HeaderSyncWorker extends Worker {
     this.peerPool = opts.peerPool
     this.chainTipHeight = opts.initialTipHeight
     this.chainTipHash = opts.initialTipHash
-    this.finalityHeight = opts.finalityHeight
+    this.pendingLock = opts.chainLock
     this.window = new ChainWindow(opts.initialTipHeight)
     this.rotation = new PeerRotation(() => this.peerPool.readyPeers)
   }
 
-  // ChainLocks arrive on the lock pool, which outlives this worker, so the
-  // floor moves under us rather than being fixed at construction.
-  setFinalityHeight = (height: number): void => {
-    if (height > this.finalityHeight) this.finalityHeight = height
+  // ChainLocks arrive on the lock pool, which outlives this worker, so they land
+  // here rather than being fixed at construction.
+  noteChainLock = (height: number, hash: string): void => {
+    if (height <= this.finalityHeight) return
+    if (this.pendingLock != null && height <= this.pendingLock.height) return
+    this.pendingLock = {height, hash}
+    this.serializeBranchCheck(() => this.verifyPendingLock())
   }
 
   start = async (): Promise<void> => {
@@ -104,6 +120,9 @@ export class HeaderSyncWorker extends Worker {
     await this.difficulty.load(
       this.chainStore, this.chainTipHeight, DIFFICULTY_SEED[this.network],
     )
+    // Before any peer is asked: the branch we resume on may be one a ChainLock
+    // has already settled against.
+    await this.verifyPendingLock()
     this.peerPool.on('peerready', this.onPeerReady)
     this.peerPool.on('peerheaders', this.onPeerHeaders)
     this.peerPool.on('peerinv', this.onPeerInv)
@@ -264,15 +283,19 @@ export class HeaderSyncWorker extends Worker {
     const race = this.currentRace
     if (!race || !race.racers.has(peer)) return
 
-    // A batch that does not build on the tip this race asked from is the answer
-    // to an earlier race, still in flight — the same peers are picked race after
-    // race. Crediting it here consumes the racer and rejects the batch, and the
-    // peer's real answer is then dropped for not being in `racers`, so the race
-    // waits on whoever is left. Measured at 97% of first responses.
-    if (rawHeaders.length > 0 && rawHeaders[0]!.length >= 80 &&
-        rawPrevHash(rawHeaders[0]!) !== race.expectedPrev) {
-      return
-    }
+    const prev = rawHeaders.length > 0 && rawHeaders[0]!.length >= 80
+      ? rawPrevHash(rawHeaders[0]!)
+      : null
+
+    // A batch built on a tip we asked from is the answer to an earlier race,
+    // still in flight — the same peers are picked race after race. Crediting it
+    // here consumes the racer and rejects the batch, and the peer's real answer
+    // is then dropped for not being in `racers`, so the race waits on whoever is
+    // left. Measured at 97% of first responses.
+    //
+    // Only a tip we asked from, never any block in the window: the answer saying
+    // our tip is the orphan forks below it, so the window would swallow it.
+    if (prev != null && prev !== race.expectedPrev && this.askedFrom.has(prev)) return
 
     // Unconditional past that point: a racer left in the set on an unusable
     // response holds the race open until its timeout, re-asking the same peers
@@ -336,7 +359,7 @@ export class HeaderSyncWorker extends Worker {
 
   private buildLocator(): string[] {
     const hashes: string[] = []
-    for (const height of buildLocatorHeights(this.chainTipHeight, this.window.floor(this.finalityHeight))) {
+    for (const height of buildLocatorHeights(this.chainTipHeight, this.window.floor())) {
       const hash = this.window.hashAt(height)
       if (hash) hashes.push(hash)
     }
@@ -393,6 +416,109 @@ export class HeaderSyncWorker extends Worker {
     this.emitStatus('synced')
   }
 
+  // ── orphaned branch ───────────────────────────────────────────────────────
+
+  // Serialized against each other: both move the tip, and a rewind must not run
+  // against a tip the other is already changing.
+  private serializeBranchCheck(work: () => Promise<void>): void {
+    this.branchChecks = this.branchChecks.then(work).catch(err => {
+      log.error('branch check failed:', err)
+      this.reportError(formatChainDbError(err), false)
+    })
+  }
+
+  private async verifyPendingLock(): Promise<void> {
+    const lock = this.pendingLock
+    // Above our tip it says only that we are behind, which the sync knows.
+    if (this.stopped || lock == null || lock.height > this.chainTipHeight) return
+
+    const ours = await this.hashAtHeight(lock.height)
+    if (ours == null) return
+    this.pendingLock = null
+
+    if (ours === lock.hash) {
+      this.finalityHeight = lock.height
+      return
+    }
+    log.warn(`chainlocked h=${lock.height} is ${lock.hash}, ours is ${ours} — our branch lost`)
+    await this.dropLostBranch(lock.height)
+  }
+
+  // One peer answering from outside our chain is on a dead branch;
+  // ORPHAN_VOTE_PEERS of them mean we are.
+  private noteDivergence(from: string): void {
+    if (this.droppingBranch || this.dropQueued) return
+    // Peers on their own fork answer from outside our window too, so only a tip
+    // that has stopped moving can be the one in the wrong.
+    if (Date.now() - this.lastHeaderAt < HEADER_STALL_TIMEOUT_MS) return
+
+    this.divergentHosts.add(from)
+    // A pinned pool can be a single peer, and a quorum it cannot reach is one
+    // that never fires — the pool is already the trust the user chose.
+    const agreeThreshold = Math.min(ORPHAN_VOTE_PEERS, Math.max(1, this.peerPool.readyPeers.size))
+    if (this.divergentHosts.size < agreeThreshold) return
+
+    log.warn(
+      `${this.divergentHosts.size} peers cannot place h=${this.chainTipHeight} ` +
+      `${this.chainTipHash} — treating it as orphaned`,
+    )
+    this.dropQueued = true
+    this.serializeBranchCheck(() => this.dropLostBranch(null))
+  }
+
+  // The verified ChainLock floor bounds the rewind, so a locked block can never
+  // be dropped however many peers ask for it.
+  private async dropLostBranch(lostFrom: number | null): Promise<void> {
+    try {
+      if (this.stopped || this.droppingBranch) return
+
+      const dropTo = Math.max(
+        lostFrom != null ? lostFrom - 1 : this.chainTipHeight - REORG_MAX_DEPTH,
+        this.finalityHeight,
+        1,
+      )
+      if (dropTo >= this.chainTipHeight) {
+        log.warn(`nothing to drop at h=${this.chainTipHeight}: chainlocked through h=${this.finalityHeight}`)
+        return
+      }
+      const hash = await this.hashAtHeight(dropTo)
+      if (hash == null) {
+        log.warn(`no header at h=${dropTo} to rewind onto`)
+        return
+      }
+
+      this.droppingBranch = true
+      try {
+        await this.rewindTo(dropTo, hash)
+        this.announcedBlocks.clear()
+        if (this.currentRace) this.endRace(this.currentRace)
+        this.emitStatus('syncing-headers')
+      } finally {
+        this.droppingBranch = false
+      }
+      this.startHeaderRace()
+    } finally {
+      this.divergentHosts.clear()
+      this.dropQueued = false
+    }
+  }
+
+  // chain.db written before the hash keyspace holds the header alone, so the
+  // height may cost an x11 rather than a lookup.
+  private async hashAtHeight(height: number): Promise<string | null> {
+    const known = this.window.hashAt(height)
+    if (known != null) return known
+
+    const cached: Uint8Array[] = []
+    await this.chainStore.forEachHashInRange(height, height, (_h, wire) => {
+      cached.push(wire)
+    })
+    if (cached[0] != null) return wireToDisplayHex(cached[0])
+
+    const raw = await this.chainStore.getHeaderByHeight(height)
+    return raw == null ? null : hashHeaderRaw(raw)
+  }
+
   private async processHeaders(rawHeaders: Uint8Array[], from: string): Promise<boolean> {
     if (rawHeaders.length === 0) return false
 
@@ -412,6 +538,7 @@ export class HeaderSyncWorker extends Worker {
       // racers, and the drain is thousands of batches wide.
       if (!this.askedFrom.has(incomingPrev)) {
         log.warn(`reject batch: prev=${incomingPrev} is neither our tip nor within the last ${REORG_MAX_DEPTH} blocks`)
+        this.noteDivergence(from)
       }
       return false
     }
@@ -483,6 +610,8 @@ export class HeaderSyncWorker extends Worker {
     log.debug(`tip h=${last.height} +${accepted.length} from ${from} phase=${this.phase}`)
     // Whatever was outstanding is either in the window now or was never ours.
     this.announcedBlocks.clear()
+    // Peers can place us again, so earlier votes say nothing about this tip.
+    this.divergentHosts.clear()
 
     const nextState: ChainTipState = {tipHeight: last.height, tipHash: last.hash}
     await this.chainStore.appendHeaders(accepted, nextState)
@@ -497,6 +626,12 @@ export class HeaderSyncWorker extends Worker {
     }
 
     this.emit('chainExtended', accepted)
+
+    // A branch we synced onto is settled at the locked height, not at its tip,
+    // and the tip has only now reached one an earlier lock named.
+    if (this.pendingLock != null && this.pendingLock.height <= last.height) {
+      this.serializeBranchCheck(() => this.verifyPendingLock())
+    }
     return true
   }
 }

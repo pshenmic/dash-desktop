@@ -44,13 +44,13 @@ vi.mock('../../src/main/p2p/sync/workers/HeaderSyncWorker', async () => {
   const {EventEmitter} = await import('events')
   return {
     HeaderSyncWorker: class extends EventEmitter {
-      finalityHeights: number[] = []
+      locks: Array<{height: number; hash: string}> = []
       constructor() {
         super()
         captured.headerWorkers.push(this as unknown as Record<string, unknown>)
       }
-      setFinalityHeight = (height: number): void => {
-        this.finalityHeights.push(height)
+      noteChainLock = (height: number, hash: string): void => {
+        this.locks.push({height, hash})
       }
       start = async (): Promise<void> => undefined
       stop = (): void => undefined
@@ -174,10 +174,21 @@ describe('SyncService reorg forwarding', () => {
     expect(events.chainRewound).toHaveBeenCalledWith(WALLET, 80)
   })
 
-  it('feeds the chainlock height to header sync as a reorg floor', () => {
-    ;(service as unknown as {onClsig: (p: unknown, m: unknown) => void}).onClsig(null, {height: 95})
+  // Wire order in, display order on: header sync compares it against hashes it
+  // holds, so a clsig handed straight through would never match ours.
+  it('feeds the locked block, not just its height, to header sync', () => {
+    const wire = `${'ab'.repeat(31)}00`
+    ;(service as unknown as {onClsig: (p: unknown, m: unknown) => void})
+      .onClsig(null, {height: 95, blockHash: wire})
 
-    expect(headerWorker().finalityHeights).toEqual([95])
+    expect(headerWorker().locks).toEqual([{height: 95, hash: `00${'ab'.repeat(31)}`}])
+  })
+
+  it('ignores a chainlock that names no block', () => {
+    ;(service as unknown as {onClsig: (p: unknown, m: unknown) => void})
+      .onClsig(null, {height: 95, blockHash: '00'.repeat(32)})
+
+    expect(headerWorker().locks).toEqual([])
   })
 
   it('passes a reseed through to the filter scan', () => {

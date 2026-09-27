@@ -276,6 +276,10 @@ export const REORG_MAX_DEPTH = 24
 // Consecutive tip heights in a getheaders locator before it starts doubling.
 export const LOCATOR_DENSE_HEIGHTS = 10
 
+// Distinct peers that must answer from a hash we have never held before we take
+// our own tip for the orphan. One of them is a peer on a dead branch.
+export const ORPHAN_VOTE_PEERS = 3
+
 // ── Difficulty ──────────────────────────────────────────────────────────────
 
 export const POW_TARGET_SPACING = 150

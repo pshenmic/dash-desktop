@@ -111,7 +111,7 @@ describe('header race response pipelining', () => {
       peerPool: pool as unknown as PoolService,
       initialTipHeight: 10,
       initialTipHash: GENESIS_HASH,
-      finalityHeight: 0,
+      chainLock: null,
     })
     extended = []
     worker.on('chainExtended', (headers: PersistedHeader[]) => extended.push(headers))

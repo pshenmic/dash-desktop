@@ -64,6 +64,8 @@ import {SetLanguageHandler} from "./api/setLanguage";
 import {SetLogLevelHandler} from "./api/setLogLevel";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
+import {GetCollectMetricsHandler} from './api/getCollectMetrics'
+import {SetCollectMetricsHandler} from './api/setCollectMetrics'
 import {GetConnectedPeersHandler} from "./api/getConnectedPeers";
 import {SetPeerModeHandler} from "./api/setPeerMode";
 import {PushStaticPeerHandler} from "./api/pushStaticPeer";
@@ -206,6 +208,8 @@ export class WalletBackend {
     registerHandler('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
     registerHandler('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
     registerHandler('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
+    registerHandler('getCollectMetrics', new GetCollectMetricsHandler(this.applicationService).handle)
+    registerHandler('setCollectMetrics', new SetCollectMetricsHandler(this.applicationService).handle)
     registerHandler('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
     registerHandler('getConnectedPeers', new GetConnectedPeersHandler(this.walletSyncService).handle)
     registerHandler('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
