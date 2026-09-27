@@ -16,6 +16,10 @@ export const POW_LIMIT_TARGET = (1n << 236n) - 1n
 
 export const MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60
 
+// Service bit dash-core-p2p does not export. A node started without bloom
+// filters disconnects on a `mempool` request rather than answering it.
+export const NODE_BLOOM = 1 << 2
+
 export const INV_TYPE_NAMES: Record<number, string> = {
   0: 'ERROR', 1: 'TX', 2: 'BLOCK', 3: 'FILTERED_BLOCK',
   16: 'DSTX', 29: 'CLSIG', 30: 'ISLOCK', 31: 'ISDLOCK',
@@ -48,6 +52,13 @@ export const GENESIS: Record<Network, ChainAnchor> = {
     hash: '0000047d24635e347be3aaaeb66c26be94901a2f962feccd4f95090191f208c1',
   },
 }
+
+// ── chain.db ────────────────────────────────────────────────────────────────
+
+// The common open failure is a prior session's process still releasing the
+// LevelDB lock, which a short backoff outlasts.
+export const CHAINDB_OPEN_ATTEMPTS = 5
+export const CHAINDB_OPEN_BACKOFF_MS = 400
 
 // ── Peer pool ───────────────────────────────────────────────────────────────
 
@@ -201,6 +212,11 @@ export const LOCATOR_SEEN_LIMIT = 4_096
 // Mempool txids already fetched. Every lock-pool peer announces the same tx, so
 // without this each one costs a getdata; measured at ~9 duplicates per tx.
 export const MEMPOOL_SEEN_LIMIT = 20_000
+
+// A `mempool` answer is one inv of the peer's whole pool, and every entry costs
+// a getdata — which past 50k entries the peer refuses outright.
+export const MEMPOOL_FETCH_BATCH = 500
+export const MEMPOOL_FETCH_INTERVAL_MS = 1_000
 
 // A wallet nobody pays would otherwise log nothing at all, leaving a broken
 // watch indistinguishable from an idle one.
