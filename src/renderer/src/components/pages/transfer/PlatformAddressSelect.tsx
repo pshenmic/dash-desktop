@@ -11,9 +11,11 @@ interface PlatformAddressSelectProps {
   addresses: PlatformAddressDto[]
   selected: PlatformAddressDto | undefined
   onSelect: (platformAddress: string) => void
+  // Offered first; choosing it selects '' so the wallet picks the addresses.
+  automaticLabel?: string
 }
 
-export default function PlatformAddressSelect({addresses, selected, onSelect}: PlatformAddressSelectProps): React.JSX.Element {
+export default function PlatformAddressSelect({addresses, selected, onSelect, automaticLabel}: PlatformAddressSelectProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -36,6 +38,8 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
               </Text>
             </div>
           </div>
+        ) : automaticLabel != null && addresses.length > 0 ? (
+          <Text size={14} weight={"medium"} color={"brand"}>{automaticLabel}</Text>
         ) : (
           <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No funded Platform addresses</Text>
         )}
@@ -44,6 +48,19 @@ export default function PlatformAddressSelect({addresses, selected, onSelect}: P
 
       {open && (
         <div className={"absolute left-0 top-[calc(100%+.375rem)] z-20 w-max min-w-full p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
+          {automaticLabel != null && (
+            <button
+              type={"button"}
+              onClick={() => { onSelect(''); setOpen(false) }}
+              className={`
+                w-full flex items-center gap-2.5 p-[.625rem] rounded-[.625rem] cursor-pointer text-left
+                hover:dash-block-accent-10 transition-colors duration-150
+                ${selected == null ? 'dash-block-accent-5' : ''}
+              `}
+            >
+              <Text reset size={14} weight={"medium"} color={"brand"} className={"whitespace-nowrap text-left"}>{automaticLabel}</Text>
+            </button>
+          )}
           {addresses.map(a => (
             <button
               key={a.platformAddress}

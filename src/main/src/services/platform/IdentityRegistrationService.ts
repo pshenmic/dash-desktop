@@ -14,7 +14,8 @@ import {CREDITS_PER_DUFF} from '../../constants/credits'
 import {AssetLockFundingRow, AcquiredAssetLock, AssetLockFunder} from '../../types/AssetLock'
 import {UnlockedWallet} from '../../types/UnlockedWallet'
 import {FeeService} from '../wallet/FeeService'
-import {lockedDuffsFor} from '../../utils/assetLockTx'
+import {requireAboveFee} from '../../utils/assetLockTx'
+import {Wallet} from '../../types/Wallet'
 
 
 // Owns identity registration and top-up funded from L1: derives the funding
@@ -70,18 +71,18 @@ export class IdentityRegistrationService {
 
   // First index at/after startIndex whose auth key #0 is not already registered
   // on Platform — skips indices taken by the same seed used elsewhere.
-  // amountDuffs is what the identity ends up with, so the lock also carries the
-  // fee the IdentityCreateTransition takes out of it.
+  // amountDuffs is what is locked; the identity is credited that less the fee
+  // the IdentityCreateTransition takes out of it.
   async startIdentityCreate(walletId: string, amountDuffs: bigint, password: string, source?: CoreSpendSource): Promise<AssetLockFundingState> {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
       const {identityIndex, credit} = await this.prepareRegistration(walletId, unlocked)
-      const lockDuffs = await this.lockedDuffs(walletId, 'identityRegister', '', amountDuffs)
+      await this.requireFundable(unlocked.wallet, 'identityRegister', '', amountDuffs)
 
-      const state = await this.assetLock.begin(walletId, 'identity', '', lockDuffs)
+      const state = await this.assetLock.begin(walletId, 'identity', '', amountDuffs)
       return this.run(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'identity', destination: '', amountDuffs: lockDuffs, seed: unlocked.seed, credit, source, identityIndex,
+          walletId, kind: 'identity', destination: '', amountDuffs, seed: unlocked.seed, credit, source, identityIndex,
         })
         await this.settleCreate(walletId, unlocked, state, acquired, identityIndex)
       })
@@ -98,12 +99,12 @@ export class IdentityRegistrationService {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
       const {topUpIndex, credit} = await this.prepareTopUp(walletId, unlocked)
-      const lockDuffs = await this.lockedDuffs(walletId, 'identityTopUpL1', identityId, amountDuffs)
+      await this.requireFundable(unlocked.wallet, 'identityTopUpL1', identityId, amountDuffs)
 
-      const state = await this.assetLock.begin(walletId, 'identityTopUp', identityId, lockDuffs)
+      const state = await this.assetLock.begin(walletId, 'identityTopUp', identityId, amountDuffs)
       return this.run(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
-          walletId, kind: 'identityTopUp', destination: identityId, amountDuffs: lockDuffs, seed: unlocked.seed,
+          walletId, kind: 'identityTopUp', destination: identityId, amountDuffs, seed: unlocked.seed,
           credit, source, identityIndex: topUpIndex,
         })
         await this.settleTopUp(unlocked, state, acquired)
@@ -114,13 +115,15 @@ export class IdentityRegistrationService {
     }
   }
 
-  private async lockedDuffs(
-    walletId: string,
+  // The lock carries only the amount and the transition's fee comes out of it,
+  // so an amount the fee would consume whole is refused before anything locks.
+  private async requireFundable(
+    wallet: Wallet,
     operation: 'identityRegister' | 'identityTopUpL1',
     recipient: string,
     amountDuffs: bigint,
-  ): Promise<bigint> {
-    return lockedDuffsFor(amountDuffs, await this.fee.requireFee(walletId, operation, {
+  ): Promise<void> {
+    requireAboveFee(amountDuffs, await this.fee.lockTransitionFee(wallet, operation, {
       amountCredits: amountDuffs * CREDITS_PER_DUFF,
       recipient,
     }))

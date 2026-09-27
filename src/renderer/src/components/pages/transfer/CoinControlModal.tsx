@@ -12,6 +12,7 @@ import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constan
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
+import { AUTOMATIC_PLATFORM_SELECTION } from '@renderer/constants/sendPages'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
@@ -177,7 +178,7 @@ export default function CoinControlModal({
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
   let fixedValue = identityId ?? identityLabel ?? 'No identity selected'
   if (operation === TransferOperation.Shield) {
-    fixedValue = platformAddress?.platformAddress ?? 'No funded Platform address'
+    fixedValue = platformAddress?.platformAddress ?? AUTOMATIC_PLATFORM_SELECTION
   } else if (operation === TransferOperation.IdentityCreateFromShielded) {
     fixedValue = 'The wallet selects notes for this operation.'
   }

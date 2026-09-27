@@ -13,9 +13,12 @@ vi.mock('electron', () => ({
   },
 }))
 
+import {PlatformAddressWASM, SerializedActionWASM, UnshieldTransitionWASM} from 'pshenmic-dpp'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {PlatformAddressDAO} from '../../src/main/src/database/PlatformAddressDAO'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
+import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
+import {ShieldedPoolDAO} from '../../src/main/src/database/ShieldedPoolDAO'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {PlatformHistoryService} from '../../src/main/src/services/platform/PlatformHistoryService'
 import {
@@ -61,6 +64,8 @@ let knex: Knex
 let service: PlatformHistoryService
 let transactionDAO: PlatformTransactionDAO
 let addressDAO: PlatformAddressDAO
+let noteDAO: ShieldedNoteDAO
+let poolDAO: ShieldedPoolDAO
 
 const addAddress = (index: number, address: string): Promise<void> =>
   addressDAO.insertAddresses([
@@ -85,7 +90,10 @@ beforeEach(async () => {
     null,
   )
 
-  service = new PlatformHistoryService(new WalletDAO(knex), identityDAO, addressDAO, transactionDAO)
+  noteDAO = new ShieldedNoteDAO(knex)
+  poolDAO = new ShieldedPoolDAO(knex)
+  service = new PlatformHistoryService(
+    new WalletDAO(knex), identityDAO, addressDAO, transactionDAO, noteDAO, poolDAO)
 })
 
 afterEach(async () => {
@@ -220,6 +228,174 @@ describe('platform history', () => {
 
     expect(service.lastRefreshFailed(WALLET)).toBe(true)
     expect((mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)).toEqual([HASH])
+  })
+
+  // An unshield tells the address it paid only what arrived there. What left
+  // the pool is in the notes it spent, which only this wallet can read.
+  it('counts our own notes into a shielded transition', async () => {
+    const SHIELDED = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    const fill = (value: number, length = 32): Uint8Array => new Uint8Array(length).fill(value)
+    const action = (nullifier: number, cmx: number): SerializedActionWASM =>
+      new SerializedActionWASM(fill(nullifier), fill(2), fill(cmx), fill(4, 580), fill(5), fill(6, 64))
+
+    // Spends note 4525 and pays the change back to the same address as 4527.
+    const unshield = new UnshieldTransitionWASM(
+      PlatformAddressWASM.fromBytes(new Uint8Array(21)),
+      [action(11, 99), action(98, 12)],
+      100_168_934_000n,
+      fill(7), fill(8, 192), fill(9, 64),
+    )
+
+    await poolDAO.saveEncryptedNotes('testnet', [
+      {index: 4525, nullifier: fill(11), cmx: fill(50), encryptedNote: fill(4, 580), cvNet: fill(5)},
+      {index: 4527, nullifier: fill(12), cmx: fill(12), encryptedNote: fill(4, 580), cvNet: fill(5)},
+    ])
+    await noteDAO.upsertNotes(WALLET, [
+      {index: 4525, amount: 2_957_457_752_000n, address: SHIELDED, spent: true, nullifier: fill(11)},
+      {index: 4527, amount: 2_857_288_818_000n, address: SHIELDED, spent: false, nullifier: fill(12)},
+    ])
+
+    const row = {...transition, hash: 'UNSHIELDHASH', type: 'UNSHIELD',
+      incoming: true, amount: '100000000000'}
+    responder = (path) => {
+      if (path.startsWith('/transaction/')) {
+        return {ok: true, status: 200, json: async () => ({
+          hash: 'UNSHIELDHASH', type: 'UNSHIELD', data: unshield.toStateTransition().base64(),
+        })} as Response
+      }
+      return page(path.startsWith('/identity/') ? [] : [row])
+    }
+
+    // The walk alone: the rows it stores are checked against the notes a sync
+    // decrypted earlier, without waiting for the next one.
+    await service.refresh(WALLET)
+
+    const [merged] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(merged.amountCredits).toBe(100_168_934_000n)
+    expect(merged.sender).toEqual([{source: SHIELDED, amount: 100_168_934_000n}])
+    expect(merged.recipient).toEqual([{source: ADDRESS, amount: 100_000_000_000n}])
+    // The address gained 100000000000 of the 100168934000 that left the pool.
+    expect(merged.netCredits).toBe(-168_934_000n)
+  })
+
+  // A shielded transfer names no address for a walk to list it under, so the row
+  // the send wrote keeps the outcome it had at the time — none — unless the
+  // transition itself is asked.
+  it('fills the outcome of a transition no walk reports', async () => {
+    const SHIELDED = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    const fill = (value: number, length = 32): Uint8Array => new Uint8Array(length).fill(value)
+    const sent = new UnshieldTransitionWASM(
+      PlatformAddressWASM.fromBytes(new Uint8Array(21)),
+      [new SerializedActionWASM(fill(21), fill(2), fill(22), fill(4, 580), fill(5), fill(6, 64))],
+      100_162_851_200n,
+      fill(7), fill(8, 192), fill(9, 64),
+    )
+
+    await noteDAO.upsertNotes(WALLET, [
+      {index: 5001, amount: 100_162_851_200n, address: SHIELDED, spent: true, nullifier: fill(21)},
+    ])
+    // dpp hashes it in lower case; the explorer answers in upper.
+    await service.recordShieldedSend(WALLET, {
+      hash: 'edb3279315bc3c6f2165ac79f8fbd8dfbac29a8b0bec8387e5a3a6f57abd4411',
+      type: 'SHIELDED_TRANSFER',
+      sides: [{address: SHIELDED, credits: -100_162_851_200n}],
+      paid: null,
+    })
+
+    responder = (path) => path.startsWith('/transaction/')
+      ? ({ok: true, status: 200, json: async () => ({
+        hash: 'EDB3279315BC3C6F2165AC79F8FBD8DFBAC29A8B0BEC8387E5A3A6F57ABD4411',
+        type: 'SHIELDED_TRANSFER', timestamp: '2026-09-24T16:46:10.426Z', blockHeight: 599153,
+        gasUsed: 162851200, status: 'SUCCESS', error: null, data: sent.toStateTransition().base64(),
+      })} as Response)
+      : page([])
+
+    await service.refresh(WALLET)
+
+    const rows = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].status).toBe('SUCCESS')
+    expect(rows[0].blockHeight).toBe(599153)
+    expect(rows[0].gasCredits).toBe(162_851_200n)
+    expect(rows[0].sender).toEqual([{source: SHIELDED, amount: 100_162_851_200n}])
+  })
+
+  // The explorer lists a transition a block or two after it is sent, and the
+  // note behind it waits for the next sync. Neither is a reason for the list to
+  // be missing what this wallet just did.
+  it('carries a transition this wallet sent before anything else reports it', async () => {
+    const SHIELDED = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    responder = () => page([])
+
+    await service.recordShieldedSend(WALLET, {
+      hash: 'SENTHASH',
+      type: 'SHIELD',
+      sides: [
+        {address: ADDRESS, credits: -443_567_314_000n},
+        {address: SHIELDED, credits: 443_567_314_000n},
+      ],
+      paid: null,
+    })
+
+    const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(row.hash).toBe('SENTHASH')
+    expect(row.amountCredits).toBe(443_567_314_000n)
+    expect(row.sender).toEqual([{source: ADDRESS, amount: 443_567_314_000n}])
+    expect(row.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])
+    // Both ends are ours, so nothing left the wallet but the fee it has yet to
+    // learn.
+    expect(row.netCredits).toBe(0n)
+    expect(row.status).toBeNull()
+
+    // And the walk that finds it later folds into it rather than doubling it.
+    responder = (path) => page(path.startsWith('/identity/')
+      ? []
+      : [{...transition, hash: 'SENTHASH', type: 'SHIELD', amount: '-443730165200'}])
+    await service.refresh(WALLET)
+
+    const [folded] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    // The walk replaced what the send guessed about the address it spent.
+    expect(folded.netCredits).toBe(-162_851_200n)
+    expect(folded.sender).toEqual([{source: ADDRESS, amount: 443_730_165_200n}])
+    expect(folded.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])
+  })
+
+  // Both ends inside the pool and both ours: the fee is the only cost, and the
+  // row still has to say which address paid which.
+  it('nets a transfer between two of our own shielded addresses to nothing', async () => {
+    const FROM = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    const TO = 'tdash1zq2j8jgzspy42499wzc4xd4ez6tj6nvuhuw20ucdugrys2xjfgqaplc32zja5kx62w6qu8sylj2vk'
+    responder = () => page([])
+
+    await service.recordShieldedSend(WALLET, {
+      hash: 'TRANSFERHASH',
+      type: 'SHIELDED_TRANSFER',
+      sides: [{address: FROM, credits: -50_000n}, {address: TO, credits: 50_000n}],
+      paid: null,
+    })
+
+    const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(row.netCredits).toBe(0n)
+    expect(row.amountCredits).toBe(50_000n)
+    expect(row.sender).toEqual([{source: FROM, amount: 50_000n}])
+    expect(row.recipient).toEqual([{source: TO, amount: 50_000n}])
+  })
+
+  it('names the end it paid when that end is nobody of ours', async () => {
+    const FROM = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'
+    responder = () => page([])
+
+    await service.recordShieldedSend(WALLET, {
+      hash: 'PAIDHASH',
+      type: 'SHIELDED_TRANSFER',
+      sides: [{address: FROM, credits: -50_000n}],
+      paid: {source: 'tdash1stranger', amount: 50_000n},
+    })
+
+    const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
+    expect(row.netCredits).toBe(-50_000n)
+    expect(row.sender).toEqual([{source: FROM, amount: 50_000n}])
+    expect(row.recipient).toEqual([{source: 'tdash1stranger', amount: 50_000n}])
   })
 
   it('asks nothing for a wallet that owns no platform address and no identity', async () => {

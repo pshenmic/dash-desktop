@@ -76,20 +76,22 @@ these boundaries:
 `src/main/src/constants/` is split by domain (`addresses`, `app`, `chain`,
 `credits`, `dashscan`, `database`) with **no barrel** — import the domain file
 directly (`from '../constants/addresses'`), and a name may be exported by only
-one of them. Type files are named for the domain, not the type: `AssetLock.ts`
-holds `AssetLockFundingRow`, `AssetLockFunder`, `AcquireParams`… A DAO's row
-type, a service's params, a worker's event map all go there, not beside the
-class.
+one of them. Fee-calculation numbers live in `fee/`, one file per layer:
+`fee/platform` for what a transition costs, `fee/core` for L1 fee rates. Type
+files are named for the domain, not the type: `AssetLock.ts` holds
+`AssetLockFundingRow`, `AssetLockFunder`, `AcquireParams`… A DAO's row type, a
+service's params, a worker's event map all go there, not beside the class.
 
 ### What crosses the bundle boundary on purpose
 
 Three things are shared deliberately: `src/types/Network`, and the protocol
-numbers in `src/constants/credits` (fees) and `src/constants/addresses`
-(`COIN_TYPE`, `PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`), both read by `platform/`,
-plus `src/types/IdentityKeys` in one signing-key operation. Separately,
-`platform/` reaches into a few `src/utils/` helpers — `coreScript`,
-`identityKeys`, `sdkErrors`, `shieldedNoteSelection`. That is pure shared logic,
-not the rule's subject, but do not read the rule as "nothing crosses".
+numbers in `src/constants/credits`, `src/constants/fee/platform` and
+`src/constants/addresses` (`COIN_TYPE`, `PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`),
+all read by `platform/`, plus `src/types/IdentityKeys` in one signing-key
+operation. Separately, `platform/` reaches into a few `src/utils/` helpers —
+`addressOrder`, `coreScript`, `identityKeys`, `sdkErrors`,
+`shieldedNoteSelection`. That is pure shared logic, not the rule's subject, but
+do not read the rule as "nothing crosses".
 
 ### Declarations that legitimately stay in the file that uses them
 

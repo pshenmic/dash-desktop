@@ -9,11 +9,13 @@ import { ShieldedPoolDAO } from '../../database/ShieldedPoolDAO'
 import { ShieldedAddressDAO } from '../../database/ShieldedAddressDAO'
 import { AssetLockFundingState } from '../../types/AssetLockFunding'
 import {AssetLockService} from './AssetLockService'
+import {PlatformHistoryService} from './PlatformHistoryService'
+import {SHIELDED_TRANSITION_TYPES} from '../../constants/platformExplorer'
 import { unlockWallet, withUnlockedWallet, zeroSeed } from '../../utils/walletSeed'
 import { UnlockedWallet } from '../../types/UnlockedWallet'
 import { Wallet } from '../../types/Wallet'
 import {SHIELDED_ADDRESS_WINDOW} from '../../constants/addresses'
-import {MAX_SPEND_NOTES, SHIELDED_NOTES_FETCH_BATCH, SHIELD_FUNDING_FEE_RESERVE_CREDITS} from '../../constants/credits'
+import {CREDITS_PER_DUFF, MAX_SPEND_NOTES, SHIELDED_NOTES_FETCH_BATCH} from '../../constants/credits'
 import { findNextIdentityIndex, identityPath } from '../../utils/identityKeys'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {platformAccountXpub, platformAddressDeriver} from '../../utils/platformAddress'
@@ -22,7 +24,7 @@ import {runAddressWindow} from '../../utils/addressWindow'
 import {AddressWindowStore, DerivedAddress, UsageOracle} from '../../types/AddressWindow'
 import {ShieldedAddressRow} from '../../types/ShieldedAddress'
 import {Preferences} from '../../preferences'
-import { lockedDuffsFor, shieldAmountFromLockedDuffs } from '../../utils/assetLockTx'
+import { creditsAfterFee, lockedDuffsFor } from '../../utils/assetLockTx'
 import { PlatformWorkerService } from './PlatformWorkerService'
 import {
   ShieldedNoteInfo,
@@ -92,6 +94,8 @@ export class ShieldedService {
   private platform: PlatformWorkerService
   private assetLock: AssetLockService
   private preferences: Preferences
+  private history: PlatformHistoryService
+  private notesSynced?: (walletId: string) => void
   private syncStates = new Map<string, ShieldedSyncState>()
   private spendStates = new Map<string, ShieldedSpendState>()
   private addresses = new Map<string, string[]>()
@@ -99,7 +103,7 @@ export class ShieldedService {
   private feeCurves = new Map<string, bigint[]>()
   private addQueue = new Map<string, Promise<unknown>>()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, platform: PlatformWorkerService, assetLock: AssetLockService, preferences: Preferences) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, shieldedNoteDAO: ShieldedNoteDAO, shieldedPoolDAO: ShieldedPoolDAO, shieldedAddressDAO: ShieldedAddressDAO, platform: PlatformWorkerService, assetLock: AssetLockService, history: PlatformHistoryService, preferences: Preferences) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.shieldedNoteDAO = shieldedNoteDAO
@@ -107,6 +111,7 @@ export class ShieldedService {
     this.shieldedAddressDAO = shieldedAddressDAO
     this.platform = platform
     this.assetLock = assetLock
+    this.history = history
     this.preferences = preferences
   }
 
@@ -315,6 +320,69 @@ export class ShieldedService {
     return { phase: 'idle', fetched: 0, total: 0, balance: null, notes: [], error: null, syncedAt: null }
   }
 
+  // Short of the gas and of any change note until a sync reads what the
+  // transition did: the row is there the moment the send is.
+  private async recordSpend(
+    walletId: string,
+    hash: string,
+    payload: SpendPayload,
+    spentIndexes: number[],
+    identityId: string | null,
+  ): Promise<void> {
+    const notes = await this.shieldedNoteDAO.getOwnedNotes(walletId)
+    const spent = notes.filter(note => spentIndexes.includes(note.index))
+    // One address funds a spend in all but the widest selections, and the note
+    // side replaces these rows rather than adding to them.
+    const from = spent[0]?.address
+    if (from == null) return
+
+    const paid = payload.recipients[0]
+      ?? (identityId == null ? null : {address: identityId, amountCredits: payload.amountCredits})
+    const ours = paid != null && await this.ownsShieldedAddress(walletId, paid.address)
+
+    await this.history.recordShieldedSend(walletId, {
+      hash,
+      type: SHIELDED_TRANSITION_TYPES[payload.kind],
+      sides: [
+        {address: from, credits: -payload.amountCredits},
+        // Paid to a shielded address of ours: the credits never left, so the
+        // send costs the fee and nothing else.
+        ...(ours ? [{address: paid.address, credits: paid.amountCredits}] : []),
+      ],
+      paid: ours || paid == null ? null : {source: paid.address, amount: paid.amountCredits},
+    }).catch(e => log.error('failed to record a sent shielded transition', e))
+  }
+
+  // Shielding to anybody else's address is a payment out, so only the address
+  // it spent is this wallet's side of it.
+  async recordShield(
+    walletId: string,
+    hash: string,
+    shield: {from: string, to: string, credits: bigint},
+  ): Promise<void> {
+    const ours = await this.ownsShieldedAddress(walletId, shield.to)
+
+    await this.history.recordShieldedSend(walletId, {
+      hash,
+      type: SHIELDED_TRANSITION_TYPES.shield,
+      sides: [
+        {address: shield.from, credits: -shield.credits},
+        ...(ours ? [{address: shield.to, credits: shield.credits}] : []),
+      ],
+      paid: ours ? null : {source: shield.to, amount: shield.credits},
+    }).catch(e => log.error('failed to record a sent shield', e))
+  }
+
+  private async ownsShieldedAddress(walletId: string, address: string): Promise<boolean> {
+    const ours = await this.shieldedAddressDAO.getAddresses(walletId)
+    return ours.some(row => row.address === address)
+  }
+
+  // Nothing outside a sync can read a note: the password lives no longer.
+  onNotesSynced(listener: (walletId: string) => void): void {
+    this.notesSynced = listener
+  }
+
   getSyncState(walletId: string): ShieldedSyncState {
     return this.syncStates.get(walletId) ?? this.idleSyncState()
   }
@@ -401,6 +469,9 @@ export class ShieldedService {
 
     if (fresh.length === 0) {
       this.settleSync(state, priorNotes)
+      // A sync that found nothing new still leaves notes to count into any
+      // transition the history walked since the last one.
+      this.notesSynced?.(walletId)
       await this.revealWindow(walletId, seed, network)
       return
     }
@@ -421,6 +492,7 @@ export class ShieldedService {
     this.settleSync(state, all)
     await this.shieldedNoteDAO.upsertNotes(walletId, all)
     await this.walletDAO.setShieldedDecodedCount(walletId, decodedUpTo)
+    this.notesSynced?.(walletId)
 
     // Only now can the window be judged: it reads used flags off the notes this
     // sync just wrote. Runs on the seed the sync is already holding, and is done
@@ -515,9 +587,12 @@ export class ShieldedService {
     payload: SpendPayload,
     identityCreate?: {identityIndex: number},
   ): void {
+    const spent: number[] = []
+
     this.platform.request('spend', network, payload, {
       onProgress: phase => { state.phase = spendPhase(phase) ?? state.phase },
       onNotesSpent: indexes => {
+        spent.push(...indexes)
         this.markNotesSpent(walletId, indexes).catch(e =>
           log.error('failed to record spent notes', e))
       },
@@ -525,6 +600,7 @@ export class ShieldedService {
       state.stHash = result.stHash
       state.identityId = result.identityId
       state.phase = 'done'
+      await this.recordSpend(walletId, result.stHash, payload, spent, result.identityId)
       // Awaited: the seed is zeroed the moment this chain settles, and the
       // refresh trial-decrypts with it.
       await this.refreshNotes(walletId, network, payload.seed)
@@ -591,9 +667,8 @@ export class ShieldedService {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     const {wallet, seed} = unlocked
     try {
-      // The reserve is what settleShield subtracts again, so the amount asked for
-      // is the amount that reaches the pool.
-      const lockDuffs = lockedDuffsFor(amountDuffs, SHIELD_FUNDING_FEE_RESERVE_CREDITS)
+      // settleShield subtracts the same fee again, so the amount asked for reaches the pool.
+      const lockDuffs = lockedDuffsFor(amountDuffs, await this.shieldFundingFee(wallet.network, amountDuffs, destination))
       const state = await this.assetLock.begin(walletId, 'shielded', destination, lockDuffs)
       return this.runFunding(state, unlocked, async () => {
         const acquired = await this.assetLock.acquire(state, {
@@ -635,8 +710,7 @@ export class ShieldedService {
   ): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const xpub = await platformAccountXpub(this.walletDAO, wallet, seed)
-    const surplus = platformAddressDeriver(xpub, wallet.network).derive(0)
+    const feeCredits = await this.shieldFundingFee(wallet.network, row.amountDuffs, row.toPlatformAddress)
     const {stHash} = await this.platform.request('shieldFromAssetLock', wallet.network, {
       seed,
       txid: row.txid,
@@ -644,13 +718,33 @@ export class ShieldedService {
       assetLockProof: proof,
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
-      shieldAmountCredits: shieldAmountFromLockedDuffs(row.amountDuffs),
-      surplusAddress: surplus.address,
+      shieldAmountCredits: creditsAfterFee(row.amountDuffs, feeCredits),
+      surplusAddress: null,
     })
 
     await this.assetLock.done(state, row, stHash)
+    // The L1 lock that funded it is no end of an L2 transition.
+    await this.history.recordShieldedSend(wallet.walletId, {
+      hash: stHash,
+      type: SHIELDED_TRANSITION_TYPES.shieldFromAssetLock,
+      sides: [{address: row.toPlatformAddress, credits: creditsAfterFee(row.amountDuffs, feeCredits)}],
+      paid: null,
+    }).catch(e => log.error('failed to record a sent shield', e))
     // Awaited: runFunding zeroes the seed the moment this settles.
     await this.refreshNotes(wallet.walletId, wallet.network, seed)
+  }
+
+  private async shieldFundingFee(network: Network, amountDuffs: bigint, recipient: string): Promise<bigint> {
+    const {feeCredits} = await this.platform.request('transitionFee', network, {
+      operation: 'assetLockShield',
+      params: {
+        amountCredits: amountDuffs * CREDITS_PER_DUFF,
+        recipient,
+        inputCount: 1,
+        coreFeePerByte: coreFeePerByte(this.preferences.general.coreFeeMultiplier),
+      },
+    })
+    return feeCredits
   }
 
   // The fee and the note count define each other: the fee scales with how many

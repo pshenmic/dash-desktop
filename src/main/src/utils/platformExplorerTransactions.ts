@@ -1,5 +1,14 @@
-import {PlatformExplorerAddressTransition, PlatformExplorerTransfer} from '../types/PlatformExplorer'
-import {PlatformTransaction, PlatformTxStatus, TransitionEnd} from '../types/PlatformTransaction'
+import {
+  PlatformExplorerAddressTransition,
+  PlatformExplorerTransfer,
+  PlatformExplorerTransition,
+} from '../types/PlatformExplorer'
+import {
+  PlatformTransaction,
+  PlatformTxStatus,
+  TransitionEnd,
+  TransitionHeader,
+} from '../types/PlatformTransaction'
 
 // A transition is only listed once a block carries it, so a missing timestamp
 // means the block row is missing rather than that the transition is pending.
@@ -33,6 +42,19 @@ export function addressTransitionToPlatformTransaction(
     // key in an encoding nothing in this wallet is stored under.
     sender: incoming ? [] : ours,
     recipient: incoming ? ours : [],
+  }
+}
+
+// What a walk never reports about a shielded transition, and what a row this
+// wallet wrote at send time has yet to learn.
+export function transitionToHeader(row: PlatformExplorerTransition): TransitionHeader {
+  return {
+    hash: row.hash,
+    type: row.type,
+    date: transitionDate(row.timestamp),
+    blockHeight: row.blockHeight,
+    status: transitionStatus(row.status),
+    gasCredits: BigInt(row.gasUsed ?? 0),
   }
 }
 

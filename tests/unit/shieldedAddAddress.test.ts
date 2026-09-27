@@ -48,6 +48,7 @@ function service(usedIndexes: number[], revealed = 0, {poolCount = 0, decoded = 
   const svc = new ShieldedService(
     walletDAO as never, {} as never, shieldedNoteDAO as never, shieldedPoolDAO as never,
     shieldedAddressDAO as never, platform as never, {} as never,
+    {recordShieldedSend: async () => undefined} as never,
     Preferences.default(),
   )
 

@@ -41,3 +41,14 @@ export interface PlatformExplorerTransfer {
   blockHash: string | null
   gasUsed: number | null
 }
+
+export interface PlatformExplorerTransition {
+  hash: string
+  type: string
+  timestamp: string | null
+  blockHeight: number | null
+  gasUsed: number | null
+  status: string | null
+  error: string | null
+  data: string | null
+}

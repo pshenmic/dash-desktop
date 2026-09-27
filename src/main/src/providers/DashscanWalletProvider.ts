@@ -106,8 +106,11 @@ export class DashscanWalletProvider implements WalletProvider {
       cursor = pagination.nextCursor
     }
 
-    const owned = await this.allWalletAddresses()
-    return dedupeTransactions(dashscanToWalletTransactions(collected, this.walletId, owned))
+    const [owned, firstSeen] = await Promise.all([
+      this.allWalletAddresses(),
+      this.transactionDAO.getFirstSeenTimes(this.walletId),
+    ])
+    return dedupeTransactions(dashscanToWalletTransactions(collected, this.walletId, owned, firstSeen))
   }
 
   // No wallet-wide endpoint carries per-address balance or tx count.
@@ -159,8 +162,11 @@ export class DashscanWalletProvider implements WalletProvider {
   async getTransactionByHash(txId: string): Promise<Transaction> {
     const tx = await requestJson<DashscanTransaction>(this.request, `/transaction/${txId}`)
 
-    const owned = await this.allWalletAddresses()
-    const [transaction] = dashscanToWalletTransactions([tx], this.walletId, owned)
+    const [owned, firstSeen] = await Promise.all([
+      this.allWalletAddresses(),
+      this.transactionDAO.getFirstSeenTimes(this.walletId),
+    ])
+    const [transaction] = dashscanToWalletTransactions([tx], this.walletId, owned, firstSeen)
     return transaction
   }
 

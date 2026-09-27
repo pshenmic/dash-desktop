@@ -4,6 +4,7 @@ import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransa
 import {PlatformTransaction} from '../../src/main/src/types/PlatformTransaction'
 import {mergePlatformTransactions} from '../../src/main/src/utils/platformExplorerTransactions'
 import {getKnex, migrateKnex} from '../../src/main/src/utils'
+import {LOCAL_SOURCE_PREFIX} from '../../src/main/src/constants/database'
 
 const WALLET = 'w1'
 const ADDRESS = 'tdash1kq79z66rh34l4u2axlz3jv34zwshggnenul6cvwn'
@@ -146,10 +147,21 @@ describe('cached platform transactions', () => {
 
   it('returns newest first', async () => {
     await dao.upsertTransactions(ADDRESS, [
-      transaction({hash: 'older', date: new Date('2025-01-12T08:07:25.094Z')}),
-      transaction({hash: 'newer', date: new Date('2026-09-17T00:01:51.733Z')}),
+      transaction({hash: 'OLDER', date: new Date('2025-01-12T08:07:25.094Z')}),
+      transaction({hash: 'NEWER', date: new Date('2026-09-17T00:01:51.733Z')}),
     ])
 
-    expect((await dao.getTransactions(WALLET)).map(row => row.hash)).toEqual(['newer', 'older'])
+    expect((await dao.getTransactions(WALLET)).map(row => row.hash)).toEqual(['NEWER', 'OLDER'])
+  })
+
+  // dpp hashes the transition a send just broadcast in lower case, and the walk
+  // that reaches it reports the same transition in upper.
+  it('stores one row for a transition reported in either case', async () => {
+    await dao.upsertTransactions(`${LOCAL_SOURCE_PREFIX}${ADDRESS}`, [transaction({hash: HASH.toLowerCase()})])
+    await dao.upsertTransactions(ADDRESS, [transaction({hash: HASH})])
+
+    const rows = await dao.getTransactions(WALLET)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].hash).toBe(HASH)
   })
 })

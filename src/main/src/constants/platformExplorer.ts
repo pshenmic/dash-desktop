@@ -1,3 +1,5 @@
+import {PoolSpendOperation} from '../../platform/types/messages'
+
 export const PLATFORM_EXPLORER_BASE_URLS: Record<'mainnet' | 'testnet', string> = {
   mainnet: 'https://platform-explorer.pshenmic.dev',
   testnet: 'https://testnet.platform-explorer.pshenmic.dev'
@@ -17,3 +19,16 @@ export const PLATFORM_HISTORY_SEND_REFRESH_DELAYS_MS = [5_000, 20_000]
 
 export const PLATFORM_EXPLORER_REQUEST_TIMEOUT_MS = 30_000
 export const PLATFORM_EXPLORER_RETRY_DELAYS_MS = [300, 1_200]
+
+// What the explorer will call a transition this wallet sends, so the row it
+// writes itself folds into the rows the walks bring back instead of reading as
+// a second transition.
+export const SHIELDED_TRANSITION_TYPES:
+Record<PoolSpendOperation | 'shield' | 'shieldFromAssetLock', string> = {
+  shield: 'SHIELD',
+  shieldFromAssetLock: 'SHIELD_FROM_ASSET_LOCK',
+  unshield: 'UNSHIELD',
+  shieldedTransfer: 'SHIELDED_TRANSFER',
+  shieldedWithdrawal: 'SHIELDED_WITHDRAWAL',
+  identityCreateFromShielded: 'IDENTITY_CREATE_FROM_SHIELDED_POOL',
+}

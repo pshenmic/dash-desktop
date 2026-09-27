@@ -3,10 +3,12 @@ import {
   addressTransitionToPlatformTransaction,
   mergePlatformTransactions,
   transferToPlatformTransaction,
+  transitionToHeader,
 } from '../../src/main/src/utils/platformExplorerTransactions'
 import {
   PlatformExplorerAddressTransition,
   PlatformExplorerTransfer,
+  PlatformExplorerTransition,
 } from '../../src/main/src/types/PlatformExplorer'
 import { PlatformTransaction } from '../../src/main/src/types/PlatformTransaction'
 
@@ -122,6 +124,38 @@ describe('transferToPlatformTransaction', () => {
     const row = transferToPlatformTransaction(transfer(), OUR_IDENTITY, WALLET)
     expect(row.blockHeight).toBeNull()
     expect(row.status).toBeNull()
+  })
+})
+
+describe('transitionToHeader', () => {
+  const answer = (overrides: Partial<PlatformExplorerTransition> = {}): PlatformExplorerTransition => ({
+    hash: 'EDB3279315BC3C6F2165AC79F8FBD8DFBAC29A8B0BEC8387E5A3A6F57ABD4411',
+    type: 'SHIELDED_TRANSFER',
+    timestamp: '2026-09-24T16:46:10.426Z',
+    blockHeight: 599153,
+    gasUsed: 162851200,
+    status: 'SUCCESS',
+    error: null,
+    data: 'EAAC',
+    ...overrides,
+  })
+
+  it('reads the outcome the list endpoints never carried', () => {
+    expect(transitionToHeader(answer())).toEqual({
+      hash: 'EDB3279315BC3C6F2165AC79F8FBD8DFBAC29A8B0BEC8387E5A3A6F57ABD4411',
+      type: 'SHIELDED_TRANSFER',
+      date: new Date('2026-09-24T16:46:10.426Z'),
+      blockHeight: 599153,
+      status: 'SUCCESS',
+      gasCredits: 162_851_200n,
+    })
+  })
+
+  it('reports no status for a transition the index has yet to finish', () => {
+    const header = transitionToHeader(answer({status: 'PENDING', blockHeight: null, gasUsed: null}))
+    expect(header.status).toBeNull()
+    expect(header.blockHeight).toBeNull()
+    expect(header.gasCredits).toBe(0n)
   })
 })
 

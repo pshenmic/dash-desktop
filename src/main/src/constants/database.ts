@@ -28,3 +28,9 @@ export const SELECT_CHUNK_SIZE = 300
 // gap.
 export const PERSIST_ATTEMPTS = 3
 export const PERSIST_RETRY_MS = 1_000
+
+// Prefixes the source of a history row this wallet wrote itself, from a
+// transition it has just sent: the explorer lists it a block or two later, and
+// the note behind it cannot be read until the next sync. The address it
+// prefixes is the one whose authoritative row replaces it.
+export const LOCAL_SOURCE_PREFIX = 'local:'

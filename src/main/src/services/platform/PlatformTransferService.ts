@@ -1,8 +1,8 @@
 import {WalletDAO} from '../../database/WalletDAO'
 import {AssetLockService} from './AssetLockService'
-import {PlatformAddressService} from './PlatformAddressService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {ShieldedService} from './ShieldedService'
+import {PlatformAddressService} from './PlatformAddressService'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {AssetLockFundingState} from '../../types/AssetLockFunding'
 import {CoreSpendSource} from '../../types/CoinSelection'
@@ -17,8 +17,8 @@ import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
 import {platformAccountXpub} from '../../utils/platformAddress'
 import {CREDITS_PER_DUFF, MIN_IDENTITY_FUNDING_CREDITS} from '../../constants/credits'
 import {identityPath} from '../../utils/identityKeys'
-import {requireRecipients, selectPlatformSource, toAddressInput} from '../../utils/platformTransfer'
-import {lockedDuffsFor} from '../../utils/assetLockTx'
+import {fundingRemainderAddress, requireRecipients, selectShieldInputs, toAddressInput} from '../../utils/platformTransfer'
+import {creditsAfterFee, lockedDuffsFor} from '../../utils/assetLockTx'
 import {coreFeePerByte} from '../../utils/coreFeeRate'
 import {Preferences} from '../../preferences'
 import {AcquiredAssetLock, AssetLockFundingRow} from '../../types/AssetLock'
@@ -39,9 +39,9 @@ export class PlatformTransferService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private assetLock: AssetLockService
-  private addresses: PlatformAddressService
   private platform: PlatformWorkerService
   private shielded: ShieldedService
+  private addresses: PlatformAddressService
   private fee: FeeService
   private preferences: Preferences
 
@@ -49,18 +49,18 @@ export class PlatformTransferService {
     walletDAO: WalletDAO,
     identityDAO: IdentityDAO,
     assetLock: AssetLockService,
-    addresses: PlatformAddressService,
     platform: PlatformWorkerService,
     shielded: ShieldedService,
+    addresses: PlatformAddressService,
     fee: FeeService,
     preferences: Preferences,
   ) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.assetLock = assetLock
-    this.addresses = addresses
     this.platform = platform
     this.shielded = shielded
+    this.addresses = addresses
     this.fee = fee
     this.preferences = preferences
   }
@@ -349,30 +349,29 @@ export class PlatformTransferService {
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const candidates = await this.addresses.loadCandidates(wallet)
-    const feeCredits = await this.fee.requireFee(walletId, 'shield', {
-      amountCredits, recipient: toShieldedAddress,
-    })
-    const source = selectPlatformSource(candidates, amountCredits, feeCredits, fromPlatformAddress || undefined)
+    const {plan} = await this.fee.shieldPlan(wallet, {amountCredits, recipient: toShieldedAddress, fromAddress: fromPlatformAddress || null})
+    const inputs = selectShieldInputs(plan, amountCredits)
 
     const {stHash} = await this.platform.request('shield', network, {
       seed,
-      source: {
-        platformAddress: source.platformAddress,
-        nonce: source.nonce,
-        balanceCredits: source.balanceCredits,
-        index: source.index,
-      },
+      inputs: inputs.map(({candidate, credits}) => toAddressInput(candidate, credits)),
       recipient: toShieldedAddress,
       amountCredits,
     })
 
+    // The list carries the shield from the moment it is sent, not from the
+    // block the explorer lists it in.
+    await this.shielded.recordShield(walletId, stHash, {
+      from: inputs[0].candidate.platformAddress,
+      to: toShieldedAddress,
+      credits: amountCredits,
+    })
     void this.shielded.refreshNotes(walletId, network, seed)
 
     return {
       stHash,
       amountCredits: amountCredits,
-      fromAddress: source.platformAddress,
+      fromAddress: inputs[0].candidate.platformAddress,
     }
   }
 
@@ -384,7 +383,7 @@ export class PlatformTransferService {
     const {wallet, seed} = unlocked
 
     try {
-      const feeCredits = await this.fee.requireFee(walletId, 'assetLockFunding', {
+      const feeCredits = await this.fee.lockTransitionFee(wallet, 'assetLockFunding', {
         amountCredits: amountDuffs * CREDITS_PER_DUFF,
         recipient: toPlatformAddress,
       })
@@ -395,7 +394,7 @@ export class PlatformTransferService {
         const acquired = await this.assetLock.acquire(state, {
           walletId, kind: 'address', destination: toPlatformAddress, amountDuffs: lockDuffs, seed, source,
         })
-        await this.settleFunding(seed, wallet.network, state, acquired)
+        await this.settleFunding(seed, wallet, state, acquired)
       })
     } catch (error) {
       zeroSeed(unlocked)
@@ -410,7 +409,7 @@ export class PlatformTransferService {
     const state = this.assetLock.resume(walletId, row)
     return this.runFunding(state, unlocked, async () => {
       const acquired = await this.assetLock.reacquire(state, row)
-      await this.settleFunding(seed, wallet.network, state, acquired)
+      await this.settleFunding(seed, wallet, state, acquired)
     })
   }
 
@@ -423,21 +422,31 @@ export class PlatformTransferService {
     return state
   }
 
+  // The row keeps only what was locked, so the recipient's share is the lock
+  // less the fee re-quoted now.
   private async settleFunding(
     seed: Uint8Array,
-    network: Network,
+    wallet: Wallet,
     state: AssetLockFundingState,
     {row, proof}: AcquiredAssetLock,
   ): Promise<void> {
     await this.assetLock.markBroadcastingSt(state, row)
 
-    const {stHash} = await this.platform.request('addressFundingFromAssetLock', network, {
+    const feeCredits = await this.fee.lockTransitionFee(wallet, 'assetLockFunding', {
+      amountCredits: row.amountDuffs * CREDITS_PER_DUFF,
+      recipient: row.toPlatformAddress,
+    })
+    const candidates = await this.addresses.loadCandidates(wallet)
+
+    const {stHash} = await this.platform.request('addressFundingFromAssetLock', wallet.network, {
       seed,
       txid: row.txid,
       outputIndex: row.outputIndex,
       assetLockProof: proof,
       creditDerivationPath: row.creditDerivationPath,
       recipient: row.toPlatformAddress,
+      recipientCredits: creditsAfterFee(row.amountDuffs, feeCredits),
+      remainderAddress: fundingRemainderAddress(candidates, row.toPlatformAddress),
     })
 
     await this.assetLock.done(state, row, stHash)

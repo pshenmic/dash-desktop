@@ -12,6 +12,7 @@ import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { AUTOMATIC_PLATFORM_SELECTION } from '@renderer/constants/sendPages'
 
 interface ShieldConfirmModalProps {
   isOpen: boolean
@@ -132,7 +133,7 @@ export default function ShieldConfirmModal({
               )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromAddress}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromAddress || AUTOMATIC_PLATFORM_SELECTION}</Text>
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
