@@ -1,8 +1,11 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {StateTransitionWASM} from 'pshenmic-dpp'
-import {isAlreadyInChain} from '../../src/utils/sdkErrors'
+import {Logger} from '../../src/utils/logger'
+import {isAlreadyInCache, isAlreadyInChain} from '../../src/utils/sdkErrors'
 import {consensusMessage} from './consensusMessage'
 import {OperationContext, OperationError} from './types'
+
+const log = new Logger('platform')
 
 // Broadcast and wait, with the hash attached to anything that goes wrong after
 // the transition reached the network so main can tell "retry is safe" from
@@ -24,6 +27,7 @@ export async function broadcast(
     await sdk.stateTransitions.broadcast(st)
   } catch (e) {
     const message = consensusMessage(e)
+    if (isAlreadyInCache(message)) log.debug(`broadcast ${stHash}: ${message}`)
     const alreadyInChain = isAlreadyInChain(message)
     if (alreadyInChain && options.idempotent === true) return stHash
     throw new OperationError(
