@@ -45,7 +45,6 @@ export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
 export const ASSET_LOCK_DISMISSED_ERROR = 'Pending funding dismissed by user'
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
-export const ALREADY_IN_CACHE = 'tx already exists in cache'
 export const STALE_INSTANT_LOCK_PROOF = "instant lock proof signature is invalid or wasn't created recently"
 
 // Background prefetch only keeps the ciphertext cache warm — detecting incoming

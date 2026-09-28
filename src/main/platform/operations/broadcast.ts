@@ -1,7 +1,7 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {StateTransitionWASM} from 'pshenmic-dpp'
 import {Logger} from '../../src/utils/logger'
-import {isAlreadyInCache, isAlreadyInChain} from '../../src/utils/sdkErrors'
+import {isAlreadyInChain} from '../../src/utils/sdkErrors'
 import {consensusMessage} from './consensusMessage'
 import {OperationContext, OperationError} from './types'
 
@@ -27,7 +27,8 @@ export async function broadcast(
     await sdk.stateTransitions.broadcast(st)
   } catch (e) {
     const message = consensusMessage(e)
-    if (isAlreadyInCache(message)) log.debug(`failed broadcast (tx already in cache) ${stHash}: ${message}`)
+    log.error(`failed broadcast (${message}) ${stHash}`)
+    log.debug(`st hex: ${st.hex()}`)
     const alreadyInChain = isAlreadyInChain(message)
     if (alreadyInChain && options.idempotent === true) return stHash
     throw new OperationError(
