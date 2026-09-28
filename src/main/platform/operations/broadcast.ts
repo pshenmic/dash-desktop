@@ -27,7 +27,7 @@ export async function broadcast(
     await sdk.stateTransitions.broadcast(st)
   } catch (e) {
     const message = consensusMessage(e)
-    if (isAlreadyInCache(message)) log.debug(`broadcast ${stHash}: ${message}`)
+    if (isAlreadyInCache(message)) log.debug(`failed broadcast (tx already in cache) ${stHash}: ${message}`)
     const alreadyInChain = isAlreadyInChain(message)
     if (alreadyInChain && options.idempotent === true) return stHash
     throw new OperationError(
