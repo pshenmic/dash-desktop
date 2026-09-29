@@ -4,10 +4,12 @@ import { ShieldedProverState } from '../enums/ShieldedProverState'
 import { WalletSyncPhase } from '../enums/WalletSyncPhase'
 import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
+import { AssetLockFundingStatus } from '../enums/AssetLockFundingStatus'
+import { AssetLockCreditSource } from '../enums/AssetLockCreditSource'
 import { LockKind } from '../enums/LockKind'
 import { TransferOperation } from '../enums/TransferOperation'
 
-export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
+export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, AssetLockFundingStatus, AssetLockCreditSource, LockKind }
 
 export interface LogFileInfo {
   name: string
@@ -456,6 +458,31 @@ export interface AssetLockFundingState {
   amountDuffs: bigint | null
   error: string | null
 }
+
+export interface AssetLockRecordedFunding {
+  status: AssetLockFundingStatus
+  kind: AssetLockFundingKind
+  to: string | null
+}
+
+export interface AssetLockInspection {
+  txid: string
+  address: string
+  amountDuffs: bigint
+  source: AssetLockCreditSource
+  index: number
+  derivationPath: string
+  allowedKinds: AssetLockFundingKind[]
+  recorded: AssetLockRecordedFunding | null
+  identityId: string | null
+  identityExists: boolean | null
+}
+
+// Only the credit key is on chain: a core key takes an address or shielded
+// destination, a top-up key an identity, a registration key nothing.
+export type AssetLockRecoveryDestination =
+  | { kind: AssetLockFundingKind.Address | AssetLockFundingKind.Shielded | AssetLockFundingKind.IdentityTopUp; to: string }
+  | { kind: AssetLockFundingKind.Identity }
 
 export interface IdentityCreateResult {
   identifier: string

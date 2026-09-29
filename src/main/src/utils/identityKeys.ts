@@ -2,6 +2,7 @@ import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants/addresses'
 import {Network} from '../types/Network'
 import {DerivedKeyHash, IdentityKeyDescriptor} from '../types/IdentityKeys'
 import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
+import {IdentityDAO} from '../database/IdentityDAO'
 
 // The first index Platform does not already know an identity at. Registration
 // and the pool spend both need it, and neither may own the other.
@@ -18,6 +19,20 @@ export async function findNextIdentityIndex(
     scanLimit: IDENTITY_SCAN_LIMIT,
   })
   return nextFreeIndex
+}
+
+// Starts past every local identity as well, so an index this wallet already
+// recorded is not handed out again.
+export async function nextIdentityIndex(
+  identityDAO: IdentityDAO,
+  platform: PlatformWorkerService,
+  walletId: string,
+  seed: Uint8Array,
+  network: Network,
+): Promise<number> {
+  const localIdentities = await identityDAO.getIdentitiesByWalletId(walletId)
+  const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
+  return findNextIdentityIndex(platform, seed, startIndex, network)
 }
 
 // The path recorded on every identity row. Four services wrote this literal;

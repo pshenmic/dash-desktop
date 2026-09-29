@@ -54,6 +54,9 @@ import {ResumeAssetLockFundingHandler} from "./api/wallet/resumeAssetLockFunding
 import {DismissAssetLockFundingHandler} from './api/wallet/dismissAssetLockFunding'
 import {AssetLockDAO} from "./database/AssetLockDAO";
 import {AssetLockService} from "./services/platform/AssetLockService";
+import {AssetLockRecoveryService} from './services/platform/AssetLockRecoveryService'
+import {InspectAssetLockHandler} from './api/wallet/inspectAssetLock'
+import {RecoverAssetLockHandler} from './api/wallet/recoverAssetLock'
 import {ShieldToPoolHandler} from "./api/wallet/shieldToPool";
 import {SelectWallet} from "./api/wallet/selectWallet";
 import {VerifyWalletPasswordHandler} from "./api/wallet/verifyWalletPassword";
@@ -148,6 +151,7 @@ export class WalletBackend {
   private shieldedService?: ShieldedService
   private platformWorkerService?: PlatformWorkerService
   private assetLockService?: AssetLockService
+  private assetLockRecoveryService?: AssetLockRecoveryService
   private coreDiscoveryService?: CoreDiscoveryService
   private coreLockService?: CoreLockService
   private walletCredentialsService?: WalletCredentialsService
@@ -159,7 +163,7 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.assetLockRecoveryService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -197,6 +201,8 @@ export class WalletBackend {
     registerHandler('getAssetLockFundingState', new GetAssetLockFundingStateHandler(this.assetLockService).handle)
     registerHandler('resumeAssetLockFunding', new ResumeAssetLockFundingHandler(this.assetLockService, this.platformTransferService, this.shieldedService, this.identityRegistrationService).handle)
     registerHandler('dismissAssetLockFunding', new DismissAssetLockFundingHandler(this.assetLockService).handle)
+    registerHandler('inspectAssetLock', new InspectAssetLockHandler(this.assetLockRecoveryService).handle)
+    registerHandler('recoverAssetLock', new RecoverAssetLockHandler(this.assetLockRecoveryService).handle)
     registerHandler('shieldToPool', new ShieldToPoolHandler(this.platformTransferService).handle)
     registerHandler('verifyWalletPassword', new VerifyWalletPasswordHandler(this.walletCredentialsService).handle)
     registerHandler('exportMnemonic', new ExportMnemonicHandler(this.walletCredentialsService).handle)
@@ -303,6 +309,7 @@ export class WalletBackend {
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, shieldedPoolDAO, shieldedAddressDAO, this.platformWorkerService, this.assetLockService, this.platformHistoryService, preferences)
     this.platformAddressService = new PlatformAddressService(walletDAO, platformAddressDAO, this.platformWorkerService)
     this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, coreTransactionService, providers, preferences)
+    this.assetLockRecoveryService = new AssetLockRecoveryService(walletDAO, addressDAO, identityDAO, platformAddressDAO, this.assetLockService, this.platformWorkerService)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
     this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.shieldedService, this.platformAddressService, this.feeService, preferences)
     this.walletDAO = walletDAO

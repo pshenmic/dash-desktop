@@ -10,6 +10,11 @@ type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
 
+// Mirrors src/main/src/types/AssetLockRecovery, which the bundles do not share.
+type AssetLockRecoveryDestination =
+  | { kind: 'address' | 'shielded' | 'identityTopUp'; to: string }
+  | { kind: 'identity' }
+
 // Mirrors the CoreRecipient in src/main/src/types/CoreTransaction: one
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
@@ -175,6 +180,8 @@ declare global {
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
       dismissAssetLockFunding: (walletId: string) => Promise<unknown>
+      inspectAssetLock: (walletId: string, txid: string) => Promise<unknown>
+      recoverAssetLock: (walletId: string, txid: string, password: string, destination: AssetLockRecoveryDestination) => Promise<unknown>
       shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>

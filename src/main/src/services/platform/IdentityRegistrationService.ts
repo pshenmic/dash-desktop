@@ -8,8 +8,9 @@ import {Network} from '../../types/Network'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
 import {unlockWallet, zeroSeed} from '../../utils/walletSeed'
-import {findNextIdentityIndex, identityPath} from '../../utils/identityKeys'
-import {COIN_TYPE, TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../../constants/addresses'
+import {identityPath, nextIdentityIndex} from '../../utils/identityKeys'
+import {TOPUP_KEY_GAP_LIMIT, TOPUP_KEY_SCAN_LIMIT} from '../../constants/addresses'
+import {fundingKeyPath} from '../../utils/fundingKeys'
 import {CREDITS_PER_DUFF} from '../../constants/credits'
 import {AssetLockFundingRow, AcquiredAssetLock, AssetLockFunder} from '../../types/AssetLock'
 import {UnlockedWallet} from '../../types/UnlockedWallet'
@@ -35,29 +36,15 @@ export class IdentityRegistrationService {
     private readonly fee: FeeService,
   ) {}
 
-  registrationKeyPath(identityIndex: number, network: Network): string {
-    return this.fundingKeyPath(1, identityIndex, network)
-  }
-
-  topUpKeyPath(index: number, network: Network): string {
-    return this.fundingKeyPath(2, index, network)
-  }
-
-  // DIP-0013 identity funding branch m/9'/coin'/5'/usage'/index: usage 1 funds
-  // registrations, usage 2 funds top-ups.
-  private fundingKeyPath(usage: number, index: number, network: Network): string {
-    return `m/9'/${COIN_TYPE[network]}'/5'/${usage}'/${index}`
-  }
-
   // Registration key (DIP-0013 m/9'/coin'/5'/1'/index): owns the asset-lock
   // credit output and signs the IdentityCreateTransition. Derived from seed, so
   // recoverable without local storage.
   async deriveRegistrationKey(seed: Uint8Array, identityIndex: number, network: Network): Promise<PrivateKeyWASM> {
-    return this.deriveFundingKey(seed, this.registrationKeyPath(identityIndex, network), network)
+    return this.deriveFundingKey(seed, fundingKeyPath(network, 'registration', identityIndex), network)
   }
 
   async deriveTopUpKey(seed: Uint8Array, index: number, network: Network): Promise<PrivateKeyWASM> {
-    return this.deriveFundingKey(seed, this.topUpKeyPath(index, network), network)
+    return this.deriveFundingKey(seed, fundingKeyPath(network, 'topUp', index), network)
   }
 
   private async deriveFundingKey(seed: Uint8Array, path: string, network: Network): Promise<PrivateKeyWASM> {
@@ -215,9 +202,7 @@ export class IdentityRegistrationService {
 
   private async prepareRegistration(walletId: string, unlocked: UnlockedWallet): Promise<{identityIndex: number; credit: {address: string; derivationPath: string}}> {
     const {wallet: {network}, seed} = unlocked
-    const localIdentities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const startIndex = localIdentities.reduce((max, identity) => Math.max(max, identity.identityIndex + 1), 0)
-    const identityIndex = await findNextIdentityIndex(this.platform, seed, startIndex, network)
+    const identityIndex = await nextIdentityIndex(this.identityDAO, this.platform, walletId, seed, network)
 
     const registrationKey = await this.deriveRegistrationKey(seed, identityIndex, network)
 
@@ -225,7 +210,7 @@ export class IdentityRegistrationService {
       identityIndex,
       credit: {
         address: this.keyPair.p2pkhAddress(registrationKey.getPublicKey().bytes(), network),
-        derivationPath: this.registrationKeyPath(identityIndex, network),
+        derivationPath: fundingKeyPath(network, 'registration', identityIndex),
       },
     }
   }
@@ -272,7 +257,7 @@ export class IdentityRegistrationService {
       topUpIndex,
       credit: {
         address: this.keyPair.p2pkhAddress(fundingKey.getPublicKey().bytes(), network),
-        derivationPath: this.topUpKeyPath(topUpIndex, network),
+        derivationPath: fundingKeyPath(network, 'topUp', topUpIndex),
       },
     }
   }

@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AssetLockFundingKind, AssetLockFundingState, AssetLockInspection, AssetLockRecoveryDestination,ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -297,6 +297,14 @@ export class API {
 
   static async dismissAssetLockFunding(walletId: string): Promise<AssetLockFundingState> {
     return this.api.dismissAssetLockFunding(walletId) as Promise<AssetLockFundingState>
+  }
+
+  static async inspectAssetLock(walletId: string, txid: string): Promise<AssetLockInspection> {
+    return this.api.inspectAssetLock(walletId, txid) as Promise<AssetLockInspection>
+  }
+
+  static async recoverAssetLock(walletId: string, txid: string, password: string, destination: AssetLockRecoveryDestination): Promise<AssetLockFundingState> {
+    return this.api.recoverAssetLock(walletId, txid, password, destination) as Promise<AssetLockFundingState>
   }
 
   static async shieldToPool(walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string): Promise<ShieldResult> {
