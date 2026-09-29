@@ -42,6 +42,17 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+# Microsoft Store package, built with `yarn build:appx` (Windows only). The
+# identity values must match Partner Center > Product identity exactly; the
+# Store signs the package, so no certificate is configured here.
+appx:
+  artifactName: ${name}-${version}-${os}-${arch}.${ext}
+  identityName: pshenmic.DashDesktopWallet
+  publisher: CN=F3D9682F-67CF-45D7-8991-A7AD551E393A
+  publisherDisplayName: pshenmic
+  applicationId: DashDesktop
+  displayName: Dash Desktop Wallet
+  backgroundColor: '#4C7EFF'
 mac:
   target:
     - target: dmg
