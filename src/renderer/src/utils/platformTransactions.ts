@@ -41,8 +41,8 @@ export function mapPlatformTransaction(transaction: PlatformTransaction): Transa
     kind: 'platform',
     title: platformTransactionTitle(transaction.type),
     subtitleLabel: fromSender ? 'From' : 'To',
-    labelValue: fromSender && participants.length > 1
-      ? `${participants.length} inputs`
+    labelValue: participants.length > 1
+      ? `${participants.length} ${fromSender ? 'inputs' : 'outputs'}`
       : participants.map(end => end.source).join(', ') || 'Unavailable',
     amount: transaction.amountCredits,
     date: platformTransactionDateValue(transaction.date),
