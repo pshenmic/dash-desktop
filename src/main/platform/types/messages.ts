@@ -143,11 +143,7 @@ export interface FeeParams {
   // and so matches no L1 coin at all.
   coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them, and a caller spelling
-  // out which fields it does not use says nothing about the fee. Shield reads
-  // this too — {kind: 'address'} or absent selects across every address the
-  // way the iOS wallet does; it never reads the picked credits or fee
-  // strategy an {kind: 'inputs'} pick carries, since its own fee-reserve
-  // algorithm decides both.
+  // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
   // Pool spends only: narrows the spend to one shielded address's notes, or

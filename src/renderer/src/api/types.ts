@@ -128,9 +128,7 @@ export interface FeeParams {
   // L1 quotes only: narrows the funding to one Core address, or to coins the
   // user picked. Kept apart from platformSource, which names platform addresses.
   coreSource?: CoreSpendSource | null
-  // Optional because most operations read none of them. Shield reads this too:
-  // {kind: 'address'} or absent selects across every address, the way the iOS
-  // wallet does.
+  // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
