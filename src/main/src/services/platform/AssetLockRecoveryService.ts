@@ -126,19 +126,21 @@ export class AssetLockRecoveryService {
   }
 
   private async creditOwner(wallet: Wallet, address: string): Promise<AssetLockCreditOwner | null> {
+    // core (shield/platform address)
     const {receiving, change} = await this.addressDAO.getAddressesByWalletId(wallet.walletId)
     const core = [...change, ...receiving].find(candidate => candidate.address === address)
     if (core != null) {
       return {source: 'core', index: core.index, derivationPath: core.derivationPath}
     }
 
+    // identity
     const branches = [
       {usage: 'registration', xpub: wallet.registrationFundingXpub},
       {usage: 'topUp', xpub: wallet.topUpFundingXpub},
     ] as const
     for (const {usage, xpub} of branches) {
       if (xpub == null) continue
-      const derived = findDerivedAddress(fundingAddressDeriver(xpub, wallet.network, usage), address, FUNDING_KEY_SCAN_LIMIT[usage])
+      const derived = findDerivedAddress(fundingAddressDeriver(xpub, wallet.network, usage), address, FUNDING_KEY_SCAN_LIMIT)
       if (derived != null) {
         return {source: usage, index: derived.index, derivationPath: derived.derivationPath}
       }

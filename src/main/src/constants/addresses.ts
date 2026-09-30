@@ -71,7 +71,4 @@ export const TOPUP_KEY_SCAN_LIMIT = 200
 export const FUNDING_KEY_USAGE: Record<FundingKeyUsage, number> = {registration: 1, topUp: 2}
 
 // How far asset lock recovery looks down each funding branch for a credit key.
-export const FUNDING_KEY_SCAN_LIMIT: Record<FundingKeyUsage, number> = {
-  registration: IDENTITY_SCAN_LIMIT,
-  topUp: TOPUP_KEY_SCAN_LIMIT,
-}
+export const FUNDING_KEY_SCAN_LIMIT: number = 2000
