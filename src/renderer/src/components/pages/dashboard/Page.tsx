@@ -14,7 +14,6 @@ import WalletAnalytics from './WalletAnalytics'
 import RecentTransactions from './RecentTransactions'
 import ShieldedCard from './ShieldedCard'
 import IdentitiesCard from './IdentitiesCard'
-import NetworkCard from './NetworkCard'
 import DashboardHeading from './DashboardHeading'
 
 function DashboardSkeleton(): React.JSX.Element {
@@ -105,7 +104,6 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
           <IdentitiesCard />
         </div>
       </section>
-      <NetworkCard />
 
       {!loading && !err && hasActivity && (
         <Statistics transactions={transactions} platform={platform} platformFailed={platformFailed} />
