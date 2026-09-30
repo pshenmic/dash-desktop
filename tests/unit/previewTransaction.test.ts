@@ -305,7 +305,7 @@ describe('previewTransaction — identities and the pool', () => {
 
     const preview = await svc.previewTransaction(WALLET, 'shield', params({
       amountCredits: 1_000_000n,
-      fromAddress: PLATFORM_B,
+      platformSource: {kind: 'address', address: PLATFORM_B},
       recipients: [{address: SHIELDED, amount: 1_000_000n}],
     }))
 
@@ -320,7 +320,7 @@ describe('previewTransaction — identities and the pool', () => {
 
     const automatic = await svc.estimateFee(WALLET, 'shield', {amountCredits: 1_000_000n, recipient: SHIELDED})
     const picked = await svc.estimateFee(WALLET, 'shield', {
-      amountCredits: 1_000_000n, recipient: SHIELDED, fromAddress: PLATFORM_B,
+      amountCredits: 1_000_000n, recipient: SHIELDED, platformSource: {kind: 'address', address: PLATFORM_B},
     })
 
     expect(automatic.maxPerTx).toBe(5_000_000_000n - reserve)
@@ -349,7 +349,7 @@ describe('previewTransaction — identities and the pool', () => {
 
     await expect(svc.previewTransaction(WALLET, 'shield', params({
       amountCredits: 1_000_000n,
-      fromAddress: PLATFORM_B,
+      platformSource: {kind: 'address', address: PLATFORM_B},
       recipients: [{address: SHIELDED, amount: 1_000_000n}],
     }))).rejects.toThrow(/At most/)
   })

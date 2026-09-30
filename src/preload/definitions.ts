@@ -74,7 +74,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getAssetLockFundingState: (walletId: string) => ipcRenderer.invoke('getAssetLockFundingState', walletId),
   resumeAssetLockFunding: (walletId: string, password: string) => ipcRenderer.invoke('resumeAssetLockFunding', walletId, password),
   dismissAssetLockFunding: (walletId: string) => ipcRenderer.invoke('dismissAssetLockFunding', walletId),
-  shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('shieldToPool', walletId, fromAddress, toAddress, amountCredits, password),
+  shieldToPool: (walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('shieldToPool', walletId, source, toAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),
   setLanguage: (language: string) => ipcRenderer.invoke('setLanguage', language),

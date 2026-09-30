@@ -20,11 +20,14 @@ export function sendPreviewParams({operation, recipients, coreSource, platformSo
     amountCredits: isCoreOperation ? 0n : duffsToCredits(amountDuffs),
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: isCoreOperation ? coreSource : undefined,
-    platformSource: coinControlSourceKind(operation) === SourceKind.PlatformAddress ? platformSource : undefined,
+    platformSource: coinControlSourceKind(operation) === SourceKind.PlatformAddress
+      ? platformSource
+      : operation === TransferOperation.Shield
+        ? (fromAddress ? {kind: 'address', address: fromAddress} : null)
+        : undefined,
     shieldedSource: coinControlSourceKind(operation) === SourceKind.Shielded ? shieldedSource : undefined,
     identityId: operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity
       || operation === TransferOperation.IdentityWithdrawal ? identityId : undefined,
-    fromAddress: operation === TransferOperation.Shield ? fromAddress : undefined,
     changeTo: operation === TransferOperation.CoreSend ? changeTo : undefined,
   }
 }

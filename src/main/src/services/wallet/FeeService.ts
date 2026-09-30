@@ -177,7 +177,6 @@ export class FeeService {
       // maxPerTx is what the addresses can shield once input 0 keeps the reserve.
       case 'shield': {
         requireAutomaticSelection(params.coreSource)
-        requireAutomaticInputs(params.platformSource)
         const {feeCredits, plan} = await this.shieldPlan(wallet, params)
         return {...this.credits(feeCredits), maxPerTx: plan.maxShieldableCredits}
       }
@@ -363,7 +362,6 @@ export class FeeService {
 
       case 'shield': {
         requireAutomaticSelection(params.coreSource)
-        requireAutomaticInputs(params.platformSource)
         const {feeCredits, plan} = await this.shieldPlan(wallet, feeParams)
         const inputs = selectShieldInputs(plan, params.amountCredits)
 
@@ -403,15 +401,16 @@ export class FeeService {
   // The shield quote is exact, so its multiplier sizes the reserve instead, as
   // rs-platform-wallet's shield_fee_reserve_credits does.
   async shieldPlan(wallet: Wallet, params: FeeParams): Promise<{feeCredits: bigint; plan: ShieldInputPlan}> {
-    const {fromAddress} = params
+    const {platformSource} = params
     const feeCredits = await this.protocolFee(wallet, 'shield', params, 1)
     const reserveCredits = feeCredits * BigInt(this.preferences.general.platformFeeMultiplier.shield)
     const candidates = await this.addresses.loadCandidates(wallet)
-    if (fromAddress != null && !candidates.some(candidate => candidate.platformAddress === fromAddress)) {
-      throw new Error('Source address not found in this wallet')
+    if (platformSource != null) {
+      const named = platformSource.kind === 'address' ? [platformSource.address] : platformSource.inputs.map(input => input.address)
+      const missing = named.find(address => !candidates.some(candidate => candidate.platformAddress === address))
+      if (missing != null) throw new Error('Source address not found in this wallet')
     }
-    const source = fromAddress == null ? null : {kind: 'address' as const, address: fromAddress}
-    return {feeCredits, plan: planShieldInputs(selectablePlatformInputs(candidates, source), reserveCredits)}
+    return {feeCredits, plan: planShieldInputs(selectablePlatformInputs(candidates, platformSource), reserveCredits)}
   }
 
   // The L2 half of an asset lock alone. A settle runs after the lock exists, so

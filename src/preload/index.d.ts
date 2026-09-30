@@ -175,7 +175,7 @@ declare global {
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
       dismissAssetLockFunding: (walletId: string) => Promise<unknown>
-      shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
+      shieldToPool: (walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
       setLanguage: (language: string) => Promise<void>

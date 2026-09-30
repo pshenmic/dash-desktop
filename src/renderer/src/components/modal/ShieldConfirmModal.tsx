@@ -79,7 +79,8 @@ export default function ShieldConfirmModal({
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
-      const res = await API.shieldToPool(walletId, fromAddress, toAddress, BigInt(amountCredits), password)
+      const source = fromAddress ? {kind: 'address' as const, address: fromAddress} : null
+      const res = await API.shieldToPool(walletId, source, toAddress, BigInt(amountCredits), password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
