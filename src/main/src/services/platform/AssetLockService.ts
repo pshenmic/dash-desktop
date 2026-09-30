@@ -250,6 +250,11 @@ export class AssetLockService {
     await this.funder.broadcastAssetLock(built.tx.hex())
     log.info(`${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
 
+    // TEMPORARY, for generating test vectors — do not commit.
+    if (process.env.ASSET_LOCK_STOP_AFTER_BROADCAST === '1') {
+      throw new Error(`${built.txid}: stopped after L1 broadcast (ASSET_LOCK_STOP_AFTER_BROADCAST)`)
+    }
+
     const row = await this.assetLockDAO.getActiveFunding(walletId)
     if (row == null) {
       throw new Error('Funding record not found after broadcast')

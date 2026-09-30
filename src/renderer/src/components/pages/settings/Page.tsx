@@ -297,6 +297,14 @@ export default function Settings(): React.JSX.Element {
             actionLabel="View logs"
             onClick={() => navigate('/settings/logs')}
           />
+          {debugMode && (
+            <SettingsRow
+              title="Asset lock recovery"
+              description="Test page: look up an asset lock by txid and record it as a resumable funding."
+              actionLabel="Open"
+              onClick={() => navigate('/settings/asset-lock-recovery')}
+            />
+          )}
         </div>
 
         <SectionLabel>Connection</SectionLabel>
