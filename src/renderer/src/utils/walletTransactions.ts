@@ -75,7 +75,7 @@ export function mapWalletTransaction(raw: WalletTxDto): WalletTxItem {
     size: raw.size,
     title: direction === 'in' ? 'Receive' : 'Send',
     subtitleLabel: direction === 'in' ? 'from' : 'to',
-    labelValue: raw.address,
+    labelValue: direction === 'in' && raw.vin.length > 1 ? `${raw.vin.length} inputs` : raw.address,
     amount: raw.transferAmount,
     usdAmount: raw.usdAmount,
     date: new Date(raw.date),
