@@ -370,8 +370,9 @@ function WalletTransferHub(): React.JSX.Element {
     amountCredits,
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
-    platformSource,
-    fromAddress: operation === TransferOperation.Shield ? pickedShieldSource?.platformAddress ?? null : null,
+    platformSource: operation === TransferOperation.Shield
+      ? (pickedShieldSource ? {kind: 'address', address: pickedShieldSource.platformAddress} : null)
+      : platformSource,
     identityId: selectedIdentity?.identifier ?? null,
     shieldedSource: shieldedSpendSource ?? null,
   })

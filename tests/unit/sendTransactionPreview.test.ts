@@ -69,13 +69,19 @@ describe('send preview request parameters', () => {
     })
   })
 
-  it('passes a fixed Shield source through fromAddress instead of Platform coin control', () => {
+  it('builds a fixed Shield source from fromAddress instead of Platform coin control', () => {
     const params = sendPreviewParams({
       operation: TransferOperation.Shield, recipients: [{address: 'shielded', amountDuffs: 5n}],
       fromAddress: 'fixed-source', platformSource: {kind: 'address', address: 'old-source'},
     })
-    expect(params.fromAddress).toBe('fixed-source')
-    expect(params.platformSource).toBeUndefined()
+    expect(params.platformSource).toEqual({kind: 'address', address: 'fixed-source'})
+  })
+
+  it('leaves a Shield source unpicked when no address is fixed', () => {
+    const params = sendPreviewParams({
+      operation: TransferOperation.Shield, recipients: [{address: 'shielded', amountDuffs: 5n}],
+    })
+    expect(params.platformSource).toBeNull()
   })
 
   it('passes the selected identity and shielded note indexes only on their own routes', () => {

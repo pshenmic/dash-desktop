@@ -334,7 +334,7 @@ export class PlatformTransferService {
 
   async shieldToPool(
     walletId: string,
-    fromPlatformAddress: string,
+    source: PlatformSpendSource | null,
     toShieldedAddress: string,
     amountCredits: bigint,
     password: string,
@@ -349,7 +349,7 @@ export class PlatformTransferService {
     const {wallet, seed} = await this.unlock(walletId, password)
     const network = wallet.network
 
-    const {plan} = await this.fee.shieldPlan(wallet, {amountCredits, recipient: toShieldedAddress, fromAddress: fromPlatformAddress || null})
+    const {plan} = await this.fee.shieldPlan(wallet, {amountCredits, recipient: toShieldedAddress, platformSource: source})
     const inputs = selectShieldInputs(plan, amountCredits)
 
     const {stHash} = await this.platform.request('shield', network, {

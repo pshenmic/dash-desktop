@@ -130,8 +130,6 @@ export interface FeeParams {
   coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
-  // Shield only: the one platform address to draw on; absent, the wallet selects.
-  fromAddress?: string | null
   identityId?: string | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null

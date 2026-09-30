@@ -299,8 +299,8 @@ export class API {
     return this.api.dismissAssetLockFunding(walletId) as Promise<AssetLockFundingState>
   }
 
-  static async shieldToPool(walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string): Promise<ShieldResult> {
-    return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
+  static async shieldToPool(walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string): Promise<ShieldResult> {
+    return this.api.shieldToPool(walletId, source, toAddress, amountCredits, password) as Promise<ShieldResult>
   }
 
   static async startShieldedTransfer(walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {
