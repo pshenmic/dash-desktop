@@ -44,38 +44,8 @@ jobs:
         cache: yarn
     - name: Install dependencies
       run: yarn --frozen-lockfile
-    # A fork PR gets no secrets, and an empty CSC_LINK fails the build where an
-    # unset one skips signing. Scoped to mac because electron-builder would also
-    # sign the Windows installer with CSC_LINK. It refuses to sign any PR build
-    # without CSC_FOR_PULL_REQUEST.
-    - name: Load macOS signing credentials
-      if: matrix.name == 'mac'
-      env:
-        CSC_LINK: ${{ secrets.CSC_LINK }}
-        CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        APPLE_ID: ${{ secrets.APPLE_ID }}
-        APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      run: |
-        [ -n "$CSC_LINK" ] || exit 0
-        {
-          echo "CSC_LINK=$CSC_LINK"
-          echo "CSC_KEY_PASSWORD=$CSC_KEY_PASSWORD"
-          echo "APPLE_ID=$APPLE_ID"
-          echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"
-          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
-          echo "CSC_FOR_PULL_REQUEST=true"
-        } >> "$GITHUB_ENV"
     - name: Build
       run: yarn ${{ matrix.script }}
-    - name: Verify signature and notarization
-      if: matrix.name == 'mac' && env.CSC_LINK != ''
-      run: |
-        for app in dist/mac*/*.app; do
-          codesign --verify --deep --strict --verbose=2 "$app"
-          xcrun stapler validate "$app"
-          spctl --assess --type execute --verbose=2 "$app"
-        done
     - name: Upload installers
       uses: actions/upload-artifact@v4
       with:
