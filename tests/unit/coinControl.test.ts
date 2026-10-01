@@ -91,6 +91,39 @@ describe('coin control', () => {
     expect(expandAddressCoinControlSelection(automatic, funds)).toBe(automatic)
   })
 
+  it('uses whole selected address balances for Shield without changing caps saved for other Platform routes', () => {
+    const selection: CoinControlSelection = {
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 1_000_000n}, {address: 'platform-b', credits: 2_000_000n}],
+      feeAddress: 'platform-b',
+    }
+    expect(normalizeCoinControlSelection(selection, TransferOperation.Shield)).toBe(selection)
+    const expanded = expandAddressCoinControlSelection(selection, funds, TransferOperation.Shield)
+    expect(expanded).toEqual({
+      ...selection,
+      inputs: [{address: 'platform-a', credits: 5_000_000n}, {address: 'platform-b', credits: 7_000_000n}],
+    })
+    expect(coinControlSelectionTotals(expanded, funds)).toEqual({count: 2, credits: 12_000_000n, duffs: 12_000n})
+    expect(isCoinControlSelectionValid(expanded, inventory)).toBe(true)
+    expect(expandAddressCoinControlSelection(expanded, funds, TransferOperation.Shield)).toBe(expanded)
+    expect(expandAddressCoinControlSelection(selection, funds, TransferOperation.AddressFundsTransfer)).toBe(selection)
+    expect(selection.inputs.map(input => input.credits)).toEqual([1_000_000n, 2_000_000n])
+  })
+
+  it('keeps an unavailable Shield address selected and invalid after expanding available balances', () => {
+    const selection: CoinControlSelection = {
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 1_000_000n}, {address: 'missing', credits: 2_000_000n}],
+      feeAddress: 'platform-a',
+    }
+    const expanded = expandAddressCoinControlSelection(selection, funds, TransferOperation.Shield)
+    expect(expanded).toEqual({
+      ...selection,
+      inputs: [{address: 'platform-a', credits: 5_000_000n}, {address: 'missing', credits: 2_000_000n}],
+    })
+    expect(isCoinControlSelectionValid(expanded, inventory)).toBe(false)
+  })
+
   it('preserves exact Platform balances and requires explicit reduction of oversized note selections', () => {
     const available = {
       ...funds,
@@ -182,7 +215,7 @@ describe('coin control', () => {
     [TransferOperation.IdentityToAddress, null],
     [TransferOperation.IdentityToIdentity, null],
     [TransferOperation.IdentityWithdrawal, null],
-    [TransferOperation.Shield, null],
+    [TransferOperation.Shield, SourceKind.PlatformAddress],
     [TransferOperation.IdentityCreateFromShielded, null],
   ])('maps %s to the source selection supported by its backend contract', (operation, expected) => {
     expect(coinControlSourceKind(operation)).toBe(expected)

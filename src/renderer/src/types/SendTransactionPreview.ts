@@ -8,7 +8,6 @@ export interface SendPreviewParams {
   platformSource?: PlatformSpendSource | null
   shieldedSource?: ShieldedSpendSource
   identityId?: string
-  fromAddress?: string
   changeTo?: string
 }
 

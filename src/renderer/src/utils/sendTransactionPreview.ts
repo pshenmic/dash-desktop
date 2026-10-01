@@ -7,7 +7,7 @@ import { duffsToCredits } from './balance'
 import { coinControlSourceKind } from './coinControl'
 import { operationInfo } from './transferMatrix'
 
-export function sendPreviewParams({operation, recipients, coreSource, platformSource, shieldedSource, identityId, fromAddress, changeTo}: SendPreviewParams): PreviewParams {
+export function sendPreviewParams({operation, recipients, coreSource, platformSource, shieldedSource, identityId, changeTo}: SendPreviewParams): PreviewParams {
   const isCoreOperation = coinControlSourceKind(operation) === SourceKind.Core
   const amountDuffs = recipients.reduce((sum, recipient) => sum + recipient.amountDuffs, 0n)
   const createsIdentity = operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityCreate
@@ -20,11 +20,7 @@ export function sendPreviewParams({operation, recipients, coreSource, platformSo
     amountCredits: isCoreOperation ? 0n : duffsToCredits(amountDuffs),
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: isCoreOperation ? coreSource : undefined,
-    platformSource: coinControlSourceKind(operation) === SourceKind.PlatformAddress
-      ? platformSource
-      : operation === TransferOperation.Shield
-        ? (fromAddress ? {kind: 'address', address: fromAddress} : null)
-        : undefined,
+    platformSource: coinControlSourceKind(operation) === SourceKind.PlatformAddress ? platformSource : undefined,
     shieldedSource: coinControlSourceKind(operation) === SourceKind.Shielded ? shieldedSource : undefined,
     identityId: operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity
       || operation === TransferOperation.IdentityWithdrawal ? identityId : undefined,

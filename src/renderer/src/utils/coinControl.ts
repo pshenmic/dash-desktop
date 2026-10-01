@@ -15,7 +15,11 @@ import { creditsToDuffs, davToDashCompact, duffsToCredits } from './balance'
 
 export const automaticCoinControl = (): CoinControlSelection => ({kind: 'automatic'})
 
-export function expandAddressCoinControlSelection(selection: CoinControlSelection, funds: CoinControlFunds): CoinControlSelection {
+export function expandAddressCoinControlSelection(
+  selection: CoinControlSelection,
+  funds: CoinControlFunds,
+  operation?: TransferOperation | null,
+): CoinControlSelection {
   switch (selection.kind) {
     case 'coreAddress':
       return {kind: 'coreOutpoints', outpoints: funds.utxos.filter(utxo => utxo.address === selection.address).map(outpointKey)}
@@ -23,6 +27,17 @@ export function expandAddressCoinControlSelection(selection: CoinControlSelectio
       const entry = funds.platformAddresses.find(entry => entry.platformAddress === selection.address)
       const inputs = entry == null ? [] : [{address: entry.platformAddress, credits: entry.balanceCredits}]
       return {kind: 'platformInputs', inputs, feeAddress: selection.address}
+    }
+    case 'platformInputs': {
+      if (operation !== TransferOperation.Shield) return selection
+      // Shielding selects addresses; the backend allocates their balances and the fee.
+      const inputs = selection.inputs.map(input => ({
+        ...input,
+        credits: funds.platformAddresses.find(address => address.platformAddress === input.address)?.balanceCredits ?? input.credits,
+      }))
+      return inputs.every((input, index) => input.credits === selection.inputs[index].credits)
+        ? selection
+        : {...selection, inputs}
     }
     case 'shieldedAddress':
       return {
@@ -137,6 +152,7 @@ export function coinControlSourceKind(operation: TransferOperation | null): Sour
     || operation === TransferOperation.AddressWithdrawal
     || operation === TransferOperation.IdentityCreate
     || operation === TransferOperation.IdentityTopUp
+    || operation === TransferOperation.Shield
   ) return SourceKind.PlatformAddress
 
   if (

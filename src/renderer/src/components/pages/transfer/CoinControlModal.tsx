@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useTheme } from 'dash-ui-kit/react'
+import { DashLogo, useTheme } from 'dash-ui-kit/react'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, CreditsIcon, CrossIcon, ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import Checkbox from '@renderer/components/ui/Checkbox'
@@ -12,7 +12,6 @@ import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constan
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
-import { AUTOMATIC_PLATFORM_SELECTION } from '@renderer/constants/sendPages'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
@@ -58,7 +57,6 @@ export default function CoinControlModal({
   shieldedNotes,
   identityLabel,
   identityId,
-  platformAddress,
   onRetryUtxos,
   onClose,
   onApply,
@@ -91,7 +89,7 @@ export default function CoinControlModal({
 
   const sourceKind = coinControlSourceKind(operation)
   const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
-  const draft = expandAddressCoinControlSelection(draftSelection, funds)
+  const draft = expandAddressCoinControlSelection(draftSelection, funds, operation)
   const nonDustShieldedNotes = shieldedNotes.filter(note => note.amount >= SHIELDED_DUST_FILTER_CREDITS)
   const visibleShieldedNotes = filterDust ? nonDustShieldedNotes : shieldedNotes
   const nonDustUtxos = utxos.filter(utxo => utxo.satoshis >= CORE_DUST_FILTER_DUFFS)
@@ -163,7 +161,7 @@ export default function CoinControlModal({
       sourceError = coreAddressesError
       retrySource = onRetryCoreAddresses
     }
-  } else if (sourceKind === SourceKind.PlatformAddress || operation === TransferOperation.Shield) {
+  } else if (sourceKind === SourceKind.PlatformAddress) {
     sourceLoading = platformAddressesLoading
     sourceError = platformAddressesError
     retrySource = onRetryPlatformAddresses
@@ -177,9 +175,7 @@ export default function CoinControlModal({
   const fixed = sourceKind == null
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
   let fixedValue = identityId ?? identityLabel ?? 'No identity selected'
-  if (operation === TransferOperation.Shield) {
-    fixedValue = platformAddress?.platformAddress ?? AUTOMATIC_PLATFORM_SELECTION
-  } else if (operation === TransferOperation.IdentityCreateFromShielded) {
+  if (operation === TransferOperation.IdentityCreateFromShielded) {
     fixedValue = 'The wallet selects notes for this operation.'
   }
 
@@ -282,7 +278,7 @@ export default function CoinControlModal({
       return
     }
     if (!canApply || !sourceReady) return
-    onApply(draft)
+    onApply(operation === TransferOperation.Shield && draftSelection.kind === 'platformInputs' ? draftSelection : draft)
     onClose()
   }
 
@@ -378,22 +374,27 @@ export default function CoinControlModal({
                     const checked = draft.kind === 'coreOutpoints' && draft.outpoints.includes(key)
                     return (
                       <CheckRow key={key} label={`Select ${utxo.address}, output ${key}`} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
-                          <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
-                            <span className={'min-w-0 flex items-center gap-2'}>
-                              <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
-                              <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
+                        <div className={'flex items-center gap-2.5'}>
+                          <DashLogo size={18} containerClassName={'shrink-0'} />
+                          <div className={'min-w-0 flex-1'}>
+                            <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
+                              <span className={'min-w-0 flex items-center gap-2'}>
+                                <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
+                                <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
+                              </span>
+                              <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
+                                {isCoreSend
+                                  ? `${davToDash(utxo.satoshis)} Dash`
+                                  : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
+                              </Text>
                             </span>
-                            <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
-                              {isCoreSend
-                                ? `${davToDash(utxo.satoshis)} Dash`
-                                : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
-                            </Text>
-                          </span>
-                        <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
-                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
-                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
-                            {formatTimestamp(utxo.timestamp)}
-                          </Text>
+                            <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
+                              <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
+                              <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
+                                {formatTimestamp(utxo.timestamp)}
+                              </Text>
+                            </div>
+                          </div>
                         </div>
                       </CheckRow>
                     )
@@ -403,7 +404,11 @@ export default function CoinControlModal({
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
                 <div className={'mt-4 flex flex-col gap-2'}>
-                  <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Up to {PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.</Text>
+                  <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>
+                    {operation === TransferOperation.Shield
+                      ? `Choose up to ${PLATFORM_INPUT_LIMIT} Platform addresses. The wallet selects the amounts and fee-paying address.`
+                      : `Up to ${PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.`}
+                  </Text>
                   {feeFromOutput && <Text size={12} weight="medium" color="brand" opacity={50}>The network fee will be deducted from the recipient selected on Send.</Text>}
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
                   {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
@@ -419,7 +424,7 @@ export default function CoinControlModal({
                           <CreditsIcon size={18} className={'shrink-0'} />
                           <InputDetails label={'Platform input'} address={entry.platformAddress} amount={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} align={'end'} />} />
                         </div>
-                        {selected && (
+                        {selected && operation !== TransferOperation.Shield && (
                           <div className={'mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
                             <label
                               htmlFor={`coin-control-amount-${entry.platformAddress}`}
@@ -525,7 +530,7 @@ function InputDetails({label, amount, address}: CoinControlInputDetailsProps): R
 function CheckRow({label, checked, onChange, children, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
   return (
     <div className={`relative min-w-0 rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'} ${disabled ? 'opacity-40' : ''}`}>
-      <Checkbox className={`absolute inset-0 items-start! p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
+      <Checkbox className={`absolute inset-0 p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
       <div className={'relative pointer-events-none min-w-0 ml-7'}>{children}</div>
     </div>
   )
