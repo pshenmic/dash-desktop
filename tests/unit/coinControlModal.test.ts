@@ -15,7 +15,7 @@ vi.mock('react', async importOriginal => ({
   },
 }))
 vi.mock('react-dom', () => ({createPortal: (element: ReactNode) => element}))
-vi.mock('dash-ui-kit/react', () => ({useTheme: () => ({theme: 'light'})}))
+vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: 'light'})}))
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
 vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))

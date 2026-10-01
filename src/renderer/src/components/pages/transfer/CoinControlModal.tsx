@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useTheme } from 'dash-ui-kit/react'
+import { DashLogo, useTheme } from 'dash-ui-kit/react'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, CreditsIcon, CrossIcon, ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import Checkbox from '@renderer/components/ui/Checkbox'
@@ -374,22 +374,27 @@ export default function CoinControlModal({
                     const checked = draft.kind === 'coreOutpoints' && draft.outpoints.includes(key)
                     return (
                       <CheckRow key={key} label={`Select ${utxo.address}, output ${key}`} checked={checked} onChange={next => toggleCoreOutpoint(key, next)}>
-                          <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
-                            <span className={'min-w-0 flex items-center gap-2'}>
-                              <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
-                              <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
+                        <div className={'flex items-center gap-2.5'}>
+                          <DashLogo size={18} containerClassName={'shrink-0'} />
+                          <div className={'min-w-0 flex-1'}>
+                            <span className={'min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'}>
+                              <span className={'min-w-0 flex items-center gap-2'}>
+                                <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
+                                <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
+                              </span>
+                              <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
+                                {isCoreSend
+                                  ? `${davToDash(utxo.satoshis)} Dash`
+                                  : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
+                              </Text>
                             </span>
-                            <Text reset size={14} weight={'extrabold'} color={'brand'} className={'ml-auto whitespace-nowrap text-right tabular-nums'}>
-                              {isCoreSend
-                                ? `${davToDash(utxo.satoshis)} Dash`
-                                : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
-                            </Text>
-                          </span>
-                        <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
-                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
-                          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
-                            {formatTimestamp(utxo.timestamp)}
-                          </Text>
+                            <div className={'mt-1.5 flex items-baseline justify-between gap-3'}>
+                              <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 flex-1 font-mono break-all'}>{key}</Text>
+                              <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 whitespace-nowrap text-right tabular-nums'}>
+                                {formatTimestamp(utxo.timestamp)}
+                              </Text>
+                            </div>
+                          </div>
                         </div>
                       </CheckRow>
                     )
@@ -525,7 +530,7 @@ function InputDetails({label, amount, address}: CoinControlInputDetailsProps): R
 function CheckRow({label, checked, onChange, children, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
   return (
     <div className={`relative min-w-0 rounded-[.75rem] p-3 ${checked ? 'dash-block-accent-5' : 'dash-block'} ${disabled ? 'opacity-40' : ''}`}>
-      <Checkbox className={`absolute inset-0 items-start! p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
+      <Checkbox className={`absolute inset-0 p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
       <div className={'relative pointer-events-none min-w-0 ml-7'}>{children}</div>
     </div>
   )
