@@ -1,4 +1,4 @@
-import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
+import type {AssetLockFundingState, PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
 import type { TxBalanceChangeFilter } from '@renderer/enums/TxBalanceChangeFilter'
 import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
 import type { ReactNode } from 'react'
@@ -14,6 +14,27 @@ export type WalletTxDto = Transaction
 
 export type WalletTxStatus = 'success' | 'failed' | 'pending'
 
+export interface WalletTransactionOwnership {
+  walletId: string | null
+  core: Set<string>
+  platform: Set<string>
+  shielded: Set<string>
+  identities: Set<string>
+  funding?: AssetLockFundingState
+}
+
+export interface AssetLockInternalTransfer {
+  walletId: string
+  txid: string
+  stHash: string
+  coreFeeDuffs: bigint
+  platformFeeCredits: bigint
+}
+
+export type PresentedPlatformTransaction = PlatformTransaction & {
+  internalTransferFeeCredits?: bigint
+}
+
 export type WalletTxItem = {
   id: string
   status: WalletTxStatus
@@ -21,7 +42,7 @@ export type WalletTxItem = {
   blockHeight: number | undefined
   size: number
   kind?: 'core'
-  title: 'Send' | 'Receive'
+  title: 'Send' | 'Receive' | 'Internal transfer'
   subtitleLabel: 'from' | 'to'
   labelValue: string
   amount: bigint
