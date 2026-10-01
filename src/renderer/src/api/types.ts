@@ -263,10 +263,12 @@ export interface WalletDto {
 
 // preferences
 export type ConnectionType = 'p2p' | 'rpc'
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug'
 
 export interface GeneralPreferencesJSON {
   language: string
   currency: string
+  logLevel: LogLevel
   connectionType: ConnectionType
   platformFeeMultiplier: Partial<Record<TransferOperation, number>>
   coreFeeMultiplier: number

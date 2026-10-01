@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { API } from '@renderer/api'
+import type { LogLevel } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Button, Heading, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'
@@ -8,26 +9,14 @@ import { useFiat } from '@renderer/hooks/useFiat'
 import { useThemePreference, setThemePreference } from '@renderer/hooks/useThemeController'
 import { useZoomPreference, setZoomPreference } from '@renderer/hooks/useZoomController'
 import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
-import { ThemePreference } from '@renderer/utils/theme'
-import { ZoomPreference, ZOOM_PRESETS } from '@renderer/utils/zoom'
+import { ADVANCED_MODE_OPTIONS, CURRENCY_OPTIONS, LOG_LEVEL_OPTIONS, THEME_OPTIONS, ZOOM_OPTIONS } from '@renderer/constants/settingsPage'
+import type { SettingsRowProps } from '@renderer/types/Settings'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
 import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
 import { useNavigate } from 'react-router-dom'
-
-interface SettingsRowProps {
-  title: string
-  description: string
-  control?: React.ReactNode
-  actionLabel?: string
-  pendingLabel?: string
-  pending?: boolean
-  disabled?: boolean
-  destructive?: boolean
-  onClick?: () => void
-}
 
 function SettingsRow({
   title,
@@ -79,29 +68,6 @@ function SectionLabel({ children }: { children: string }): React.JSX.Element {
   )
 }
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
-]
-
-const ZOOM_OPTIONS: { value: ZoomPreference; label: string }[] = ZOOM_PRESETS.map((value) => ({
-  value,
-  label: `${value}%`,
-}))
-
-const CURRENCY_OPTIONS = [
-  { value: 'usd', label: 'USD' },
-  { value: 'eur', label: 'EUR' },
-  { value: 'btc', label: 'BTC' },
-  { value: 'rub', label: 'RUB' },
-]
-
-const DEBUG_OPTIONS = [
-  { value: 'off', label: 'Off' },
-  { value: 'on', label: 'On' },
-]
-
 export default function Settings(): React.JSX.Element {
   const navigate = useNavigate()
   const { status } = useAuth()
@@ -114,6 +80,11 @@ export default function Settings(): React.JSX.Element {
   const debugMode = useDebugMode()
 
   const [exportPending, setExportPending] = useState(false)
+  const [logLevel, setLogLevel] = useState<LogLevel | null>(null)
+  const [logLevelLoading, setLogLevelLoading] = useState(true)
+  const [logLevelLoadAttempt, setLogLevelLoadAttempt] = useState(0)
+  const [logLevelPending, setLogLevelPending] = useState(false)
+  const logLevelPendingRef = useRef(false)
 
   const wallets = useWallets()
   const currentLabel = useMemo(
@@ -138,7 +109,38 @@ export default function Settings(): React.JSX.Element {
     setWalletName(currentLabel ?? '')
   }, [currentLabel])
 
+  useEffect(() => {
+    let cancelled = false
+    setLogLevelLoading(true)
+    API.getPreferences()
+      .then((preferences) => {
+        if (!cancelled) setLogLevel(preferences.general.logLevel)
+      })
+      .catch((error) => {
+        if (!cancelled) toast.error(`**Log level failed** Could not load the log level. ${getErrorMessage(error)}`)
+      })
+      .finally(() => {
+        if (!cancelled) setLogLevelLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [logLevelLoadAttempt])
+
   const isUnchanged = walletName.trim() === (currentLabel ?? '')
+
+  const handleLogLevelChange = async (next: LogLevel): Promise<void> => {
+    if (logLevel === null || logLevelPendingRef.current || next === logLevel) return
+    logLevelPendingRef.current = true
+    setLogLevelPending(true)
+    try {
+      await API.setLogLevel(next)
+      setLogLevel(next)
+    } catch (error) {
+      toast.error(`**Log level failed** Could not save the log level. ${getErrorMessage(error)}`)
+    } finally {
+      logLevelPendingRef.current = false
+      setLogLevelPending(false)
+    }
+  }
 
   const handleRename = async (): Promise<void> => {
     if (!walletId || renamePending || isUnchanged) return
@@ -281,15 +283,44 @@ export default function Settings(): React.JSX.Element {
         <SectionLabel>Maintenance</SectionLabel>
         <div className="flex flex-col">
           <SettingsRow
-            title="Debug mode"
+            title="Advanced mode"
             description="Show developer pages like the Shielded debug view."
             control={
               <SegmentedControl
-                options={DEBUG_OPTIONS}
+                options={ADVANCED_MODE_OPTIONS}
                 value={debugMode ? 'on' : 'off'}
                 onChange={(value) => setDebugMode(value === 'on')}
               />
             }
+          />
+          <SettingsRow
+            title="Log level"
+            description="Choose how much detail is recorded in application logs."
+            control={logLevelLoading ? (
+              <Text size={12} color="brand" opacity={50}>Loading…</Text>
+            ) : logLevel === null ? (
+              <Button
+                onClick={() => setLogLevelLoadAttempt((attempt) => attempt + 1)}
+                variant="solid"
+                colorScheme="primary-light"
+                size="sm"
+              >
+                Retry
+              </Button>
+            ) : (
+              <fieldset
+                aria-label="Log level"
+                aria-busy={logLevelPending}
+                disabled={logLevelPending}
+                className="m-0 shrink-0 border-0 p-0 disabled:opacity-50"
+              >
+                <SegmentedControl
+                  options={LOG_LEVEL_OPTIONS}
+                  value={logLevel}
+                  onChange={(value) => { void handleLogLevelChange(value) }}
+                />
+              </fieldset>
+            )}
           />
           <SettingsRow
             title="Application logs"
