@@ -104,7 +104,7 @@ function WalletTransferHub(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
@@ -154,6 +154,17 @@ function WalletTransferHub(): React.JSX.Element {
       })
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
+
+  useEffect(() => {
+    const recoveredTxid = searchParams.get('resumeAssetLock')
+    if (!recoveredTxid || resumableFunding?.txid !== recoveredTxid) return
+    setResumeOpen(true)
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      next.delete('resumeAssetLock')
+      return next
+    }, { replace: true })
+  }, [resumableFunding, searchParams, setSearchParams])
 
   const dismissFunding = async (): Promise<void> => {
     if (!walletId || dismissBusy) return
@@ -1289,7 +1300,10 @@ function WalletTransferHub(): React.JSX.Element {
         isOpen={recoverOpen}
         walletId={walletId}
         onClose={() => setRecoverOpen(false)}
-        onRecovered={setResumableFunding}
+        onRecovered={state => {
+          setResumableFunding(state)
+          setResumeOpen(true)
+        }}
       />
 
       <DismissAssetLockFundingModal

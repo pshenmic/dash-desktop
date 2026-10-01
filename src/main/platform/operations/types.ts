@@ -12,6 +12,11 @@ export interface OperationContext {
   notesSpent: (indexes: number[]) => void
 }
 
+export interface BroadcastOptions {
+  idempotent?: boolean
+  requiredCoreHeight?: number
+}
+
 export function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new Error('request aborted')
 }

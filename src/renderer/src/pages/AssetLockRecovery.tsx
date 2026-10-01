@@ -20,14 +20,12 @@ export default function AssetLockRecoveryPage(): React.JSX.Element {
   const [password, setPassword] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [recovered, setRecovered] = useState(false)
 
   const handleInspect = async (): Promise<void> => {
     if (walletId == null) return
     setPending(true)
     setError(null)
     setInspection(null)
-    setRecovered(false)
     try {
       const result = await API.inspectAssetLock(walletId, txid)
       setInspection(result)
@@ -49,8 +47,8 @@ export default function AssetLockRecoveryPage(): React.JSX.Element {
     setError(null)
     try {
       await API.recoverAssetLock(walletId, inspection.txid, password, destination)
-      setRecovered(true)
       setPassword('')
+      navigate(`/send?resumeAssetLock=${encodeURIComponent(inspection.txid)}`)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -146,15 +144,6 @@ export default function AssetLockRecoveryPage(): React.JSX.Element {
                 Recover
               </Button>
             </div>
-          </div>
-        )}
-
-        {recovered && (
-          <div className="flex items-center gap-2">
-            <Text size={14}>Recorded as an unfinished funding. Resume it from the Send page.</Text>
-            <Button onClick={() => navigate('/send')} variant="outline" size="sm" className="min-h-0! py-2! rounded-[.75rem]">
-              Open Send
-            </Button>
           </div>
         )}
 
