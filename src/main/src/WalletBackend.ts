@@ -309,7 +309,7 @@ export class WalletBackend {
     this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, shieldedPoolDAO, shieldedAddressDAO, this.platformWorkerService, this.assetLockService, this.platformHistoryService, preferences)
     this.platformAddressService = new PlatformAddressService(walletDAO, platformAddressDAO, this.platformWorkerService)
     this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, coreTransactionService, providers, preferences)
-    this.assetLockRecoveryService = new AssetLockRecoveryService(walletDAO, addressDAO, identityDAO, platformAddressDAO, this.assetLockService, this.platformWorkerService)
+    this.assetLockRecoveryService = new AssetLockRecoveryService(walletDAO, addressDAO, identityDAO, platformAddressDAO, this.assetLockService, this.platformWorkerService, this.walletSyncService)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
     this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.shieldedService, this.platformAddressService, this.feeService, preferences)
     this.walletDAO = walletDAO

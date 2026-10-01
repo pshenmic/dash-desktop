@@ -465,6 +465,11 @@ export interface AssetLockRecordedFunding {
   to: string | null
 }
 
+export interface AssetLockLockStatus {
+  instantLocked: boolean
+  chainLocked: boolean
+}
+
 export interface AssetLockInspection {
   txid: string
   address: string
@@ -474,6 +479,7 @@ export interface AssetLockInspection {
   derivationPath: string
   allowedKinds: AssetLockFundingKind[]
   recorded: AssetLockRecordedFunding | null
+  lockStatus: AssetLockLockStatus
   identityId: string | null
   identityExists: boolean | null
 }

@@ -106,8 +106,10 @@ export class AssetLockService {
   }
 
   // Records a lock broadcast outside this funding flow, or reopens one that was
-  // dismissed or failed, so the ordinary resume can settle it.
-  async adopt(funding: Omit<AssetLockFundingRow, 'id' | 'stHash' | 'error' | 'assetLockProof'>): Promise<AssetLockFundingState> {
+  // dismissed or failed, so the ordinary resume can settle it. A proof known up
+  // front — recovery already found the lock chainlocked — saves resume a wait
+  // it would otherwise repeat for nothing.
+  async adopt(funding: Omit<AssetLockFundingRow, 'id' | 'stHash' | 'error' | 'assetLockProof'>, proof?: AssetLockProofParams): Promise<AssetLockFundingState> {
     const {walletId, txid} = funding
     if (this.getActive(walletId) != null || this.adopting.has(walletId)) {
       throw new Error('Cannot recover an asset lock while a funding is running')
@@ -131,6 +133,7 @@ export class AssetLockService {
       } else {
         await this.assetLockDAO.reopenFunding(funding)
       }
+      if (proof != null) await this.assetLockDAO.saveProof(walletId, txid, proof)
 
       this.states.set(walletId, this.idleState())
       log.info(`${txid}: adopted as ${funding.kind}${existing != null ? `, reopened from ${existing.status}` : ''}`)

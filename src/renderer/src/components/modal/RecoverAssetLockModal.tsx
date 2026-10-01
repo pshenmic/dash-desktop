@@ -118,6 +118,7 @@ export default function RecoverAssetLockModal({
           <>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[140%]"}>
               {davToDash(inspection.amountDuffs)} DASH on {inspection.address} ({inspection.derivationPath})
+              {' · '}{inspection.lockStatus.chainLocked ? 'chainlocked' : inspection.lockStatus.instantLocked ? 'instant locked' : 'not locked yet'}
               {inspection.recorded && ` · recorded as ${inspection.recorded.status}`}
               {inspection.identityId && ` · identity ${inspection.identityId}${inspection.identityExists ? ' already exists' : ''}`}
             </Text>

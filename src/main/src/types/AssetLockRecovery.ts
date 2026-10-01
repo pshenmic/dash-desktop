@@ -27,10 +27,19 @@ export interface AssetLockRecordedFunding {
   to: string | null
 }
 
+// Read off our own lock pool, never DAPI: islocks are ephemeral around
+// broadcast and chainlock height is ours to compare against, so this is what
+// the wallet's own peers have actually told it, not what an indexer reports.
+export interface AssetLockLockStatus {
+  instantLocked: boolean
+  chainLocked: boolean
+}
+
 export interface AssetLockInspection extends AssetLockCredit, AssetLockCreditOwner {
   txid: string
   allowedKinds: AssetLockFundingKind[]
   recorded: AssetLockRecordedFunding | null
+  lockStatus: AssetLockLockStatus
   // Registration only: the identity this outpoint creates, and whether Platform
   // already has it.
   identityId: string | null

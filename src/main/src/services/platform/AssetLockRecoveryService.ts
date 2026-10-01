@@ -1,4 +1,5 @@
-import {Transaction as SDKTransaction} from 'dash-core-sdk'
+import {Transaction as SDKTransaction, utils as coreUtils} from 'dash-core-sdk'
+import type {ChainAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
 import {OrchardAddressWASM} from 'pshenmic-dpp'
 import {WalletDAO} from '../../database/WalletDAO'
 import {AddressDAO} from '../../database/AddressDAO'
@@ -6,12 +7,14 @@ import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformAddressDAO} from '../../database/PlatformAddressDAO'
 import {AssetLockService} from './AssetLockService'
 import {PlatformWorkerService} from './PlatformWorkerService'
+import {WalletSyncService} from '../core/WalletSyncService'
 import {AssetLockFundingStatus} from '../../enums/AssetLockFundingStatus'
 import {AssetLockFundingState} from '../../types/AssetLockFunding'
 import {
   AssetLockCredit,
   AssetLockCreditOwner,
   AssetLockInspection,
+  AssetLockLockStatus,
   AssetLockRecoveryDestination,
 } from '../../types/AssetLockRecovery'
 import {Network} from '../../types/Network'
@@ -36,12 +39,13 @@ export class AssetLockRecoveryService {
     private readonly platformAddressDAO: PlatformAddressDAO,
     private readonly assetLock: AssetLockService,
     private readonly platform: PlatformWorkerService,
+    private readonly walletSyncService: WalletSyncService,
   ) {}
 
   async inspect(walletId: string, input: string): Promise<AssetLockInspection> {
     const txid = requireTxid(input)
     const wallet = await requireWallet(this.walletDAO, walletId)
-    const {credit, owner} = await this.locate(wallet, txid)
+    const {credit, owner, height, dapiLockStatus} = await this.locate(wallet, txid)
 
     const recorded = await this.assetLock.getFunding(txid)
     if (recorded != null && recorded.walletId !== walletId) {
@@ -57,6 +61,9 @@ export class AssetLockRecoveryService {
       recorded: recorded == null
         ? null
         : {status: recorded.status, kind: recorded.kind, to: recorded.toPlatformAddress === '' ? null : recorded.toPlatformAddress},
+      // Whichever source saw it: DAPI's own node tracks lock state past this
+      // session's lifetime, ours only from when its pool last connected.
+      lockStatus: this.orLockStatus(dapiLockStatus, this.lockStatus(wallet.network, txid, height)),
       identityId: identity?.identifier ?? null,
       identityExists: identity?.exists ?? null,
     }
@@ -67,9 +74,18 @@ export class AssetLockRecoveryService {
     const unlocked = await unlockWallet(this.walletDAO, walletId, password)
     try {
       const wallet = {...unlocked.wallet, ...await fundingXpubs(this.walletDAO, unlocked.wallet, unlocked.seed)}
-      const {tx, credit, owner} = await this.locate(wallet, txid)
+      const {tx, credit, owner, height} = await this.locate(wallet, txid)
+      // The proof we attach has to be ours to vouch for, not DAPI's say-so —
+      // display can trust either source, building one cannot.
       const kind = recoveryFundingKind(owner.source, destination)
       const to = await this.requireDestination(wallet, destination)
+
+      // Already chainlocked per our own pool: hand resume the proof now so it
+      // does not repeat a wait whose answer we already have.
+      const {chainLocked} = this.lockStatus(wallet.network, txid, height)
+      const proof: ChainAssetLockProofParams | undefined = chainLocked
+        ? coreUtils.createAssetLockProof({transaction: tx, coreChainLockedHeight: height, outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX}) as ChainAssetLockProofParams
+        : undefined
 
       // The registration key only signs for the lock; a registration made since it
       // was orphaned may already own the identity index matching the key's.
@@ -90,11 +106,11 @@ export class AssetLockRecoveryService {
         amountDuffs: credit.amountDuffs,
         toPlatformAddress: to,
         kind,
-        status: AssetLockFundingStatus.L1Broadcast,
+        status: proof != null ? AssetLockFundingStatus.ChainLocked : AssetLockFundingStatus.L1Broadcast,
         identityIndex,
         txHex: tx.hex(),
         createdAt: Math.floor(Date.now() / 1000),
-      })
+      }, proof)
     } finally {
       zeroSeed(unlocked)
     }
@@ -102,7 +118,7 @@ export class AssetLockRecoveryService {
 
   // DAPI rather than the provider: the wallet's own store only holds the parsed
   // transaction, and the resume needs the raw one to build its proof.
-  private async locate(wallet: Wallet, txid: string): Promise<{tx: SDKTransaction; credit: AssetLockCredit; owner: AssetLockCreditOwner}> {
+  private async locate(wallet: Wallet, txid: string): Promise<{tx: SDKTransaction; credit: AssetLockCredit; owner: AssetLockCreditOwner; height: number; dapiLockStatus: AssetLockLockStatus}> {
     const found = await coreSDK(wallet.network).getTransaction(txid).catch(error => {
       if (isGrpcNotFound(error)) return null
       throw error
@@ -122,7 +138,27 @@ export class AssetLockRecoveryService {
         ? 'The credit output is not on an L1 address of this wallet. Unlock the wallet once so its identity funding keys can be checked'
         : 'The credit output of this asset lock does not belong to this wallet')
     }
-    return {tx, credit, owner}
+    return {
+      tx, credit, owner, height: found.height,
+      dapiLockStatus: {instantLocked: found.isInstantLocked, chainLocked: found.isChainLocked},
+    }
+  }
+
+  private orLockStatus(a: AssetLockLockStatus, b: AssetLockLockStatus): AssetLockLockStatus {
+    return {instantLocked: a.instantLocked || b.instantLocked, chainLocked: a.chainLocked || b.chainLocked}
+  }
+
+  // Registration and top-up credit addresses are never in the cfilter watch
+  // list, so there is no local row for them to read a lock status off of —
+  // chainlocked height and the islock cache are both txid/height keyed, not
+  // address keyed, and answer for any lock this wallet knows the txid of. This
+  // is the only source recover may build a proof from: DAPI's say-so is fine to
+  // display, not to vouch for cryptographically.
+  private lockStatus(network: Network, txid: string, height: number): AssetLockLockStatus {
+    return {
+      instantLocked: this.walletSyncService.hasInstantLock(txid),
+      chainLocked: height > 0 && height <= this.walletSyncService.chainlockedHeight(network),
+    }
   }
 
   private async creditOwner(wallet: Wallet, address: string): Promise<AssetLockCreditOwner | null> {
