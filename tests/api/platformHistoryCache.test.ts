@@ -108,7 +108,7 @@ describe('platform history', () => {
     expect(transactions).toHaveLength(1)
     expect(transactions[0].hash).toBe(HASH)
     // -100000000 from the address, +99000000 into the identity: the gap is the
-    // fee, and the row still names both ends and what they moved.
+    // fee, and the row still names both participants and what they moved.
     expect(transactions[0].netCredits).toBe(-1_000_000n)
     expect(transactions[0].amountCredits).toBe(100_000_000n)
     expect(transactions[0].sender).toEqual([{source: ADDRESS, amount: 100_000_000n}])
@@ -342,7 +342,7 @@ describe('platform history', () => {
     expect(row.amountCredits).toBe(443_567_314_000n)
     expect(row.sender).toEqual([{source: ADDRESS, amount: 443_567_314_000n}])
     expect(row.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])
-    // Both ends are ours, so nothing left the wallet but the fee it has yet to
+    // Both participants are ours, so nothing left the wallet but the fee it has yet to
     // learn.
     expect(row.netCredits).toBe(0n)
     expect(row.status).toBeNull()
@@ -360,7 +360,7 @@ describe('platform history', () => {
     expect(folded.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])
   })
 
-  // Both ends inside the pool and both ours: the fee is the only cost, and the
+  // Both participants inside the pool and both ours: the fee is the only cost, and the
   // row still has to say which address paid which.
   it('nets a transfer between two of our own shielded addresses to nothing', async () => {
     const FROM = 'tdash1zrv282am68uyhwerv7cm0ja86445lqg5zymu7rw24yyj2d443f3a7lnxtanyr5wwuv6350g3h4av5'

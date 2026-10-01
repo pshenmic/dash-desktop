@@ -1,14 +1,14 @@
 import type {Knex} from 'knex'
-import {PlatformTransaction, PlatformTxStatus, TransitionEnd} from '../types/PlatformTransaction'
+import {PlatformTransaction, PlatformTransactionPart, PlatformTxStatus} from '../types/PlatformTransaction'
 import {INSERT_CHUNK_SIZE, LOCAL_SOURCE_PREFIX} from '../constants/database'
 import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
 
 function fromRow({
   wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits,
-}, lockedCredits: bigint | null, ends: Pick<PlatformTransaction, 'sender' | 'recipient'> | null): PlatformTransaction {
+}, lockedCredits: bigint | null, parts: Pick<PlatformTransaction, 'sender' | 'recipient'> | null): PlatformTransaction {
   const net = BigInt(net_credits)
-  const amounts = ends == null ? [] : [...ends.sender, ...ends.recipient].map(end => end.amount)
+  const amounts = parts == null ? [] : [...parts.sender, ...parts.recipient].map(part => part.amount)
   const largest = amounts.length === 0 ? null : amounts.reduce((amount, next) => next > amount ? next : amount)
   const moved = largest == null
     ? net === 0n && lockedCredits != null ? lockedCredits : (net < 0n ? -net : net)
@@ -25,8 +25,8 @@ function fromRow({
     gasCredits: BigInt(gas_credits),
     netCredits: net,
     amountCredits: moved,
-    sender: ends?.sender ?? [],
-    recipient: ends?.recipient ?? [],
+    sender: parts?.sender ?? [],
+    recipient: parts?.recipient ?? [],
   }
 }
 
@@ -38,7 +38,7 @@ export class PlatformTransactionDAO {
   }
 
   getTransactions = async (walletId: string): Promise<PlatformTransaction[]> => {
-    const [rows, fundings, endRows] = await this.knex.transaction(async trx => Promise.all([
+    const [rows, fundings, partRows] = await this.knex.transaction(async trx => Promise.all([
       trx('platform_transactions')
         .select('wallet_id', 'hash', 'source', 'type', 'timestamp', 'block_height', 'status',
           'error', 'gas_credits', 'net_credits')
@@ -48,8 +48,8 @@ export class PlatformTransactionDAO {
         .select('st_hash', 'amount_duffs')
         .where('wallet_id', walletId)
         .whereNotNull('st_hash'),
-      trx('platform_transaction_ends')
-        .select('hash', 'parent_source', 'side', 'entry_index', 'end_source', 'amount_credits')
+      trx('platform_transaction_parts')
+        .select('hash', 'parent_source', 'side', 'entry_index', 'part_source', 'amount_credits')
         .where('wallet_id', walletId)
         .orderBy('hash')
         .orderBy('parent_source')
@@ -61,15 +61,15 @@ export class PlatformTransactionDAO {
       (funding.st_hash as string).toLowerCase(),
       BigInt(funding.amount_duffs as string) * CREDITS_PER_DUFF,
     ]))
-    const endsByHash = new Map<string, Map<string, {sender: TransitionEnd[], recipient: TransitionEnd[]}>>()
+    const partsByHash = new Map<string, Map<string, {sender: PlatformTransactionPart[], recipient: PlatformTransactionPart[]}>>()
 
-    for (const end of endRows) {
-      const hash = end.hash as string
-      const parentSource = end.parent_source as string
-      let bySource = endsByHash.get(hash)
+    for (const part of partRows) {
+      const hash = part.hash as string
+      const parentSource = part.parent_source as string
+      let bySource = partsByHash.get(hash)
       if (bySource == null) {
         bySource = new Map()
-        endsByHash.set(hash, bySource)
+        partsByHash.set(hash, bySource)
       }
 
       let sides = bySource.get(parentSource)
@@ -78,16 +78,16 @@ export class PlatformTransactionDAO {
         bySource.set(parentSource, sides)
       }
 
-      sides[end.side as 'sender' | 'recipient'].push({
-        source: end.end_source as string,
-        amount: BigInt(end.amount_credits as string),
+      sides[part.side as 'sender' | 'recipient'].push({
+        source: part.part_source as string,
+        amount: BigInt(part.amount_credits as string),
       })
     }
 
     return rows.map(row => fromRow(
       row,
       locked.get((row.hash as string).toLowerCase()) ?? null,
-      endsByHash.get(row.hash as string)?.get(row.source as string) ?? null,
+      partsByHash.get(row.hash as string)?.get(row.source as string) ?? null,
     ))
   }
 
@@ -117,38 +117,38 @@ export class PlatformTransactionDAO {
           .merge()
       }
 
-      await trx('platform_transaction_ends')
+      await trx('platform_transaction_parts')
         .where({wallet_id: unique[0].walletId, parent_source: source})
         .whereIn('hash', unique.map(transaction => transaction.hash))
         .delete()
 
-      const ends = unique.flatMap(transaction => [
-        ...transaction.sender.map((end, entryIndex) => ({
+      const parts = unique.flatMap(transaction => [
+        ...transaction.sender.map((part, entryIndex) => ({
           wallet_id: transaction.walletId,
           hash: transaction.hash,
           parent_source: source,
           side: 'sender',
           entry_index: entryIndex,
-          end_source: end.source,
-          amount_credits: end.amount.toString(),
+          part_source: part.source,
+          amount_credits: part.amount.toString(),
         })),
-        ...transaction.recipient.map((end, entryIndex) => ({
+        ...transaction.recipient.map((part, entryIndex) => ({
           wallet_id: transaction.walletId,
           hash: transaction.hash,
           parent_source: source,
           side: 'recipient',
           entry_index: entryIndex,
-          end_source: end.source,
-          amount_credits: end.amount.toString(),
+          part_source: part.source,
+          amount_credits: part.amount.toString(),
         })),
       ])
-      for (const rows of chunk(ends, INSERT_CHUNK_SIZE)) {
-        await trx('platform_transaction_ends').insert(rows)
+      for (const rows of chunk(parts, INSERT_CHUNK_SIZE)) {
+        await trx('platform_transaction_parts').insert(rows)
       }
 
       if (!source.startsWith(LOCAL_SOURCE_PREFIX)) {
         const localSource = `${LOCAL_SOURCE_PREFIX}${source}`
-        await trx('platform_transaction_ends')
+        await trx('platform_transaction_parts')
           .where({wallet_id: unique[0].walletId, parent_source: localSource})
           .whereIn('hash', unique.map(transaction => transaction.hash))
           .delete()
@@ -162,7 +162,7 @@ export class PlatformTransactionDAO {
 
   deleteRetiredSources = async (walletId: string, sources: string[]): Promise<void> => {
     await this.knex.transaction(async trx => {
-      await trx('platform_transaction_ends')
+      await trx('platform_transaction_parts')
         .where('wallet_id', walletId)
         .whereNotIn('parent_source', sources)
         .whereNot('parent_source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
@@ -170,7 +170,7 @@ export class PlatformTransactionDAO {
       await trx('platform_transactions')
         .where('wallet_id', walletId)
         .whereNotIn('source', sources)
-        // A send's own rows answer to the end that replaces them: the address it
+        // A send's own rows answer to the participant that replaces them: the address it
         // paid need not be one this wallet asks about.
         .whereNot('source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
         .delete()

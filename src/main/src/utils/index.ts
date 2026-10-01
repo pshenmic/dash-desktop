@@ -22,7 +22,7 @@ import * as migration0017 from '../../migrations/0017_platform_addresses'
 import * as migration0018 from '../../migrations/0018_shielded_address_rows'
 import * as migration0019 from '../../migrations/0019_shielded_note_nullifier'
 import * as migration0020 from '../../migrations/0020_platform_transactions'
-import * as migration0021 from '../../migrations/0021_platform_transaction_ends'
+import * as migration0021 from '../../migrations/0021_platform_transaction_parts'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -46,7 +46,7 @@ const migrations = [
   { name: '0018_shielded_address_rows.ts', migration: migration0018 },
   { name: '0019_shielded_note_nullifier.ts', migration: migration0019 },
   { name: '0020_platform_transactions.ts', migration: migration0020 },
-  { name: '0021_platform_transaction_ends.ts', migration: migration0021 },
+  { name: '0021_platform_transaction_parts.ts', migration: migration0021 },
 ]
 
 const inlineMigrationSource = {

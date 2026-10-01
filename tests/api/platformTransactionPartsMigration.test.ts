@@ -3,7 +3,7 @@ import type {Knex} from 'knex'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {CREDITS_PER_DUFF} from '../../src/main/src/constants/credits'
 import * as migration0020 from '../../src/main/migrations/0020_platform_transactions'
-import * as migration0021 from '../../src/main/migrations/0021_platform_transaction_ends'
+import * as migration0021 from '../../src/main/migrations/0021_platform_transaction_parts'
 import {getKnex} from '../../src/main/src/utils'
 
 const WALLET = 'w1'
@@ -49,16 +49,16 @@ afterEach(async () => {
   await knex.destroy()
 })
 
-describe('platform transaction end migration', () => {
-  it('backfills scalar ends with the asset-lock amount', async () => {
+describe('platform transaction parts migration', () => {
+  it('backfills scalar participants with the asset-lock amount', async () => {
     const amount = 123_456_789n * CREDITS_PER_DUFF
 
-    expect(await knex('platform_transaction_ends')
+    expect(await knex('platform_transaction_parts')
       .where({wallet_id: WALLET, hash: HASH, parent_source: SOURCE})
       .orderBy('side'))
       .toEqual([
-        {wallet_id: WALLET, hash: HASH, parent_source: SOURCE, side: 'recipient', entry_index: 0, end_source: 'legacy-recipient', amount_credits: amount.toString()},
-        {wallet_id: WALLET, hash: HASH, parent_source: SOURCE, side: 'sender', entry_index: 0, end_source: 'legacy-sender', amount_credits: amount.toString()},
+        {wallet_id: WALLET, hash: HASH, parent_source: SOURCE, side: 'recipient', entry_index: 0, part_source: 'legacy-recipient', amount_credits: amount.toString()},
+        {wallet_id: WALLET, hash: HASH, parent_source: SOURCE, side: 'sender', entry_index: 0, part_source: 'legacy-sender', amount_credits: amount.toString()},
       ])
 
     expect(await dao.getTransactions(WALLET)).toEqual([{

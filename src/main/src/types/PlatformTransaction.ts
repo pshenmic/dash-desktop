@@ -1,8 +1,8 @@
 export type PlatformTxStatus = 'SUCCESS' | 'FAIL'
 
-// One end of a transition and what it moved there: an address or an identity,
-// ours or not, with the credits that side gained or paid.
-export interface TransitionEnd {
+// One participant in a transition and what it moved there: an address or an
+// identity, ours or not, with the credits that side gained or paid.
+export interface PlatformTransactionPart {
   source: string
   amount: bigint
 }
@@ -27,11 +27,11 @@ export interface PlatformTransaction {
   // largest side, so a move between two of ours nets to the fee and still
   // reports what it moved.
   amountCredits: bigint
-  // The ends, each an address or an identity, ours or not: one transition can
-  // be paid by several and pay several. Empty where no source named that end —
-  // a walk only ever reports the address or identity it asked about.
-  sender: TransitionEnd[]
-  recipient: TransitionEnd[]
+  // The participants, each an address or an identity, ours or not: one
+  // transition can be paid by several and pay several. Empty where no source
+  // named that participant — a walk only reports the address or identity asked.
+  sender: PlatformTransactionPart[]
+  recipient: PlatformTransactionPart[]
 }
 
 // The transition itself, which every source row of it reports alike.
@@ -48,16 +48,16 @@ export interface TransitionHeader {
 export interface ShieldedSend {
   hash: string
   type: string
-  // One per end of ours it moved, so a send between two of them nets to the
-  // fee rather than reading as a loss.
+  // One per participant of ours it moved, so a send between two of them nets
+  // to the fee rather than reading as a loss.
   sides: ShieldedSendSide[]
   // Where it went, when that is nobody of ours: another shielded address, an
   // identity, an L1 script.
-  paid: TransitionEnd | null
+  paid: PlatformTransactionPart | null
 }
 
 export interface ShieldedSendSide {
   address: string
-  // Signed: what this end of ours gained, or paid out.
+  // Signed: what this participant of ours gained, or paid out.
   credits: bigint
 }

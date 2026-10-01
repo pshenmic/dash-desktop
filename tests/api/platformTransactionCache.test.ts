@@ -54,7 +54,7 @@ describe('cached platform transactions', () => {
     expect(await dao.getTransactions(WALLET)).toEqual([stored])
   })
 
-  it('round-trips every end with its own amount and position', async () => {
+  it('round-trips every participant with its own amount and position', async () => {
     const first = 9_007_199_254_740_993n
     const stored = transaction({
       netCredits: -1n,
@@ -110,7 +110,7 @@ describe('cached platform transactions', () => {
     expect(row.status).toBe('SUCCESS')
   })
 
-  it('replaces stale ends when a source reports the transition again', async () => {
+  it('replaces stale participants when a source reports the transition again', async () => {
     const initial = transaction({
       hash: 'REPLACED',
       sender: [
@@ -131,14 +131,14 @@ describe('cached platform transactions', () => {
     await dao.upsertTransactions(ADDRESS, [replacement])
 
     expect(await dao.getTransactions(WALLET)).toEqual([{...replacement, amountCredits: 5n}])
-    expect(await knex('platform_transaction_ends')
+    expect(await knex('platform_transaction_parts')
       .where({wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS})
       .orderBy('side')
       .orderBy('entry_index'))
       .toEqual([
-        {wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS, side: 'recipient', entry_index: 0, end_source: 'current-recipient-one', amount_credits: '5'},
-        {wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS, side: 'recipient', entry_index: 1, end_source: 'current-recipient-two', amount_credits: '0'},
-        {wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS, side: 'sender', entry_index: 0, end_source: 'current-sender', amount_credits: '5'},
+        {wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS, side: 'recipient', entry_index: 0, part_source: 'current-recipient-one', amount_credits: '5'},
+        {wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS, side: 'recipient', entry_index: 1, part_source: 'current-recipient-two', amount_credits: '0'},
+        {wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS, side: 'sender', entry_index: 0, part_source: 'current-sender', amount_credits: '5'},
       ])
   })
 
@@ -149,7 +149,7 @@ describe('cached platform transactions', () => {
     expect(await dao.getKnownHashes(WALLET, IDENTITY)).toEqual(new Set())
   })
 
-  it('drops the rows and ends of a source the wallet no longer asks about', async () => {
+  it('drops the rows and participants of a source the wallet no longer asks about', async () => {
     const retired = 'tdash1retiredaddressnothingwalksagain00000000000'
     await dao.upsertTransactions(retired, [transaction()])
     await dao.upsertTransactions(IDENTITY, [transaction()])
@@ -159,7 +159,7 @@ describe('cached platform transactions', () => {
     const rows = await dao.getTransactions(WALLET)
     expect(rows).toHaveLength(1)
     expect(mergePlatformTransactions(rows)[0].netCredits).toBe(-100_000_000n)
-    expect(await knex('platform_transaction_ends')
+    expect(await knex('platform_transaction_parts')
       .where({wallet_id: WALLET, parent_source: retired}))
       .toEqual([])
   })
@@ -209,7 +209,7 @@ describe('cached platform transactions', () => {
 
   // dpp hashes the transition a send just broadcast in lower case, and the walk
   // that reaches it reports the same transition in upper.
-  it('replaces local ends when the explorer reports a transition in either case', async () => {
+  it('replaces local participants when the explorer reports a transition in either case', async () => {
     await dao.upsertTransactions(`${LOCAL_SOURCE_PREFIX}${ADDRESS}`, [transaction({
       hash: HASH.toLowerCase(),
       sender: [
@@ -226,7 +226,7 @@ describe('cached platform transactions', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].hash).toBe(HASH)
     expect(rows[0].sender).toEqual([{source: 'authoritative', amount: 3n}])
-    expect(await knex('platform_transaction_ends')
+    expect(await knex('platform_transaction_parts')
       .where({wallet_id: WALLET, hash: HASH, parent_source: `${LOCAL_SOURCE_PREFIX}${ADDRESS}`}))
       .toEqual([])
   })

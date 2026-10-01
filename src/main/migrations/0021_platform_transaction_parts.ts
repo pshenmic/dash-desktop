@@ -4,13 +4,13 @@ import {INSERT_CHUNK_SIZE} from '../src/constants/database'
 import {chunk} from '../src/utils/chunk'
 
 export async function up(knex: Knex): Promise<void> {
-  await knex.schema.createTable('platform_transaction_ends', table => {
+  await knex.schema.createTable('platform_transaction_parts', table => {
     table.text('wallet_id').notNullable()
     table.text('hash').notNullable()
     table.text('parent_source').notNullable()
     table.text('side').notNullable().checkIn(['sender', 'recipient'])
     table.integer('entry_index').notNullable()
-    table.text('end_source').notNullable()
+    table.text('part_source').notNullable()
     table.text('amount_credits').notNullable()
     table.primary(['wallet_id', 'hash', 'parent_source', 'side', 'entry_index'])
     table.foreign(['wallet_id', 'hash', 'parent_source'])
@@ -26,7 +26,7 @@ export async function up(knex: Knex): Promise<void> {
     `${funding.wallet_id}:${(funding.st_hash as string).toLowerCase()}`,
     BigInt(funding.amount_duffs as string) * CREDITS_PER_DUFF,
   ]))
-  const ends = transactions.flatMap(transaction => {
+  const parts = transactions.flatMap(transaction => {
     const net = BigInt(transaction.net_credits as string)
     const amount = net === 0n
       ? locked.get(`${transaction.wallet_id}:${(transaction.hash as string).toLowerCase()}`) ?? 0n
@@ -40,16 +40,16 @@ export async function up(knex: Knex): Promise<void> {
     }
 
     return [
-      ...(transaction.sender == null ? [] : [{...row, side: 'sender', end_source: transaction.sender}]),
-      ...(transaction.recipient == null ? [] : [{...row, side: 'recipient', end_source: transaction.recipient}]),
+      ...(transaction.sender == null ? [] : [{...row, side: 'sender', part_source: transaction.sender}]),
+      ...(transaction.recipient == null ? [] : [{...row, side: 'recipient', part_source: transaction.recipient}]),
     ]
   })
 
-  for (const rows of chunk(ends, INSERT_CHUNK_SIZE)) {
-    await knex('platform_transaction_ends').insert(rows)
+  for (const rows of chunk(parts, INSERT_CHUNK_SIZE)) {
+    await knex('platform_transaction_parts').insert(rows)
   }
 }
 
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTableIfExists('platform_transaction_ends')
+  await knex.schema.dropTableIfExists('platform_transaction_parts')
 }

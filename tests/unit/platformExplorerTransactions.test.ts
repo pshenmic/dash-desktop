@@ -13,7 +13,7 @@ import {
 import { PlatformTransaction } from '../../src/main/src/types/PlatformTransaction'
 
 const WALLET = 'wallet-1'
-const end = (source: string, amount: bigint): {source: string, amount: bigint} => ({source, amount})
+const part = (source: string, amount: bigint): {source: string, amount: bigint} => ({source, amount})
 // The one key the explorer reports in both encodings. platform_addresses holds
 // only the bech32m form.
 const OUR_ADDRESS = 'tdash1kq79z66rh34l4u2axlz3jv34zwshggnenul6cvwn'
@@ -60,7 +60,7 @@ describe('addressTransitionToPlatformTransaction', () => {
     const row = addressTransitionToPlatformTransaction(transition(), WALLET)
     expect(row.netCredits).toBe(-100_000_000n)
     expect(row.gasCredits).toBe(704_433_560n)
-    expect(row.sender).toEqual([end(OUR_ADDRESS, 100_000_000n)])
+    expect(row.sender).toEqual([part(OUR_ADDRESS, 100_000_000n)])
     expect(row.amountCredits).toBe(100_000_000n)
     expect(row.walletId).toBe(WALLET)
     expect(row.blockHeight).toBe(246835)
@@ -69,16 +69,16 @@ describe('addressTransitionToPlatformTransaction', () => {
 
   it('names our address in the encoding platform_addresses stores', () => {
     const row = addressTransitionToPlatformTransaction(transition(), WALLET)
-    expect(row.sender).toEqual([end(OUR_ADDRESS, 100_000_000n)])
-    expect(row.sender).not.toEqual([end(OUR_ADDRESS_BASE58, 100_000_000n)])
+    expect(row.sender).toEqual([part(OUR_ADDRESS, 100_000_000n)])
+    expect(row.sender).not.toEqual([part(OUR_ADDRESS_BASE58, 100_000_000n)])
   })
 
-  it('puts our address on the end the transition paid when it paid us', () => {
+  it('puts our address on the participant the transition paid when it paid us', () => {
     const row = addressTransitionToPlatformTransaction(
       transition({ incoming: true, amount: '250000000' }),
       WALLET,
     )
-    expect(row.recipient).toEqual([end(OUR_ADDRESS, 250_000_000n)])
+    expect(row.recipient).toEqual([part(OUR_ADDRESS, 250_000_000n)])
     expect(row.sender).toEqual([])
     expect(row.amountCredits).toBe(250_000_000n)
   })
@@ -88,7 +88,7 @@ describe('addressTransitionToPlatformTransaction', () => {
       transition({ incoming: null, amount: '20000000' }),
       WALLET,
     )
-    expect(row.recipient).toEqual([end(OUR_ADDRESS, 20_000_000n)])
+    expect(row.recipient).toEqual([part(OUR_ADDRESS, 20_000_000n)])
     expect(row.sender).toEqual([])
   })
 
@@ -108,7 +108,7 @@ describe('transferToPlatformTransaction', () => {
   it('signs the amount by which side of it we are', () => {
     const received = transferToPlatformTransaction(transfer(), OUR_IDENTITY, WALLET)
     expect(received.netCredits).toBe(1_000_000_000n)
-    expect(received.recipient).toEqual([end(OUR_IDENTITY, 1_000_000_000n)])
+    expect(received.recipient).toEqual([part(OUR_IDENTITY, 1_000_000_000n)])
 
     const sent = transferToPlatformTransaction(
       transfer({ sender: OUR_IDENTITY, recipient: 'someone-else' }),
@@ -116,8 +116,8 @@ describe('transferToPlatformTransaction', () => {
       WALLET,
     )
     expect(sent.netCredits).toBe(-1_000_000_000n)
-    expect(sent.sender).toEqual([end(OUR_IDENTITY, 1_000_000_000n)])
-    expect(sent.recipient).toEqual([end('someone-else', 1_000_000_000n)])
+    expect(sent.sender).toEqual([part(OUR_IDENTITY, 1_000_000_000n)])
+    expect(sent.recipient).toEqual([part('someone-else', 1_000_000_000n)])
   })
 
   it('reports neither a block height nor a status, which the endpoint omits', () => {
@@ -175,15 +175,15 @@ describe('mergePlatformTransactions', () => {
     ])
 
     expect(merged).toHaveLength(1)
-    // Ours on both ends, so the wallet is out the fee and nothing else — and
+    // Ours on both participants, so the wallet is out the fee and nothing else — and
     // the row still says which address funded which identity, and with how much.
     expect(merged[0].netCredits).toBe(0n)
     expect(merged[0].amountCredits).toBe(1_000_000_000n)
-    expect(merged[0].sender).toEqual([end(OUR_ADDRESS, 1_000_000_000n)])
-    expect(merged[0].recipient).toEqual([end(OUR_IDENTITY, 1_000_000_000n)])
+    expect(merged[0].sender).toEqual([part(OUR_ADDRESS, 1_000_000_000n)])
+    expect(merged[0].recipient).toEqual([part(OUR_IDENTITY, 1_000_000_000n)])
   })
 
-  it('keeps an end only one side of the transition names', () => {
+  it('keeps a participant only one side of the transition names', () => {
     const hash = 'IIII'
     const merged = mergePlatformTransactions([
       addressTransitionToPlatformTransaction(transition({ hash, incoming: true, amount: '900' }), WALLET),
@@ -193,15 +193,15 @@ describe('mergePlatformTransactions', () => {
         WALLET,
       ),
     ])
-    expect(merged[0].sender).toEqual([end('ExternalSenderIdentity', 900n)])
-    // Both walks named an end this transition paid: our address, and the
+    expect(merged[0].sender).toEqual([part('ExternalSenderIdentity', 900n)])
+    // Both walks named a participant this transition paid: our address, and the
     // identity the transfer endpoint reports.
-    expect(merged[0].recipient).toEqual([end(OUR_ADDRESS, 900n), end(OUR_IDENTITY, 900n)])
+    expect(merged[0].recipient).toEqual([part(OUR_ADDRESS, 900n), part(OUR_IDENTITY, 900n)])
   })
 
   // One transition pays several addresses and is paid by several, and each
   // walk only ever names the one address it asked about.
-  it('collects every end the walks named, not just the first', () => {
+  it('collects every participant the walks named, not just the first', () => {
     const hash = 'KKKK'
     const second = 'tdash1kzzz9z66rh34l4u2axlz3jv34zwshggnenul6cvw'
     const third = 'tdash1kyyy9z66rh34l4u2axlz3jv34zwshggnenul6cvw'
@@ -217,18 +217,18 @@ describe('mergePlatformTransactions', () => {
       ),
     ])
 
-    expect(merged[0].sender).toEqual([end(OUR_ADDRESS, 100_000n), end(second, 456_766_601_000n)])
-    expect(merged[0].recipient).toEqual([end(third, 186_061_977_000n)])
+    expect(merged[0].sender).toEqual([part(OUR_ADDRESS, 100_000n), part(second, 456_766_601_000n)])
+    expect(merged[0].recipient).toEqual([part(third, 186_061_977_000n)])
   })
 
-  it('names one end once however many walks report it', () => {
+  it('names one participant once however many walks report it', () => {
     const hash = 'LLLL'
     const merged = mergePlatformTransactions([
       addressTransitionToPlatformTransaction(transition({ hash }), WALLET),
       addressTransitionToPlatformTransaction(transition({ hash }), WALLET),
     ])
 
-    expect(merged[0].sender).toEqual([end(OUR_ADDRESS, 100_000_000n)])
+    expect(merged[0].sender).toEqual([part(OUR_ADDRESS, 100_000_000n)])
   })
 
   it('never sums the amount of one transition twice', () => {
