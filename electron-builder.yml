@@ -45,11 +45,14 @@ nsis:
 mac:
   entitlements: buildResources/entitlements.mac.plist
   entitlementsInherit: buildResources/entitlements.mac.plist
+  # The prebuilt N-API binaries are one file per arch, identical in both halves
+  # of a universal build; @electron/universal aborts on any such Mach-O that
+  # this glob does not cover.
+  x64ArchFiles: '**/dist/binaries/native/*-apple-darwin/*.node'
   target:
     - target: dmg
       arch:
-        - arm64
-        - x64
+        - universal
 dmg:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 linux:
