@@ -5,6 +5,7 @@ import { useTheme } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
+import type { ShieldConfirmModalProps } from '@renderer/types/ShieldConfirmModal'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import Spinner from '@renderer/components/ui/Spinner'
@@ -12,28 +13,13 @@ import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-import { AUTOMATIC_PLATFORM_SELECTION } from '@renderer/constants/sendPages'
-
-interface ShieldConfirmModalProps {
-  isOpen: boolean
-  onClose: () => void
-  walletId: string | null
-  fromAddress: string
-  toAddress: string
-  amountCredits: string
-  feeCredits: bigint | null
-  proverReady: boolean
-  sourceValid?: boolean
-  onSuccess: () => void
-}
-
-
 
 export default function ShieldConfirmModal({
   isOpen,
   onClose,
   walletId,
-  fromAddress,
+  source,
+  fromDisplay,
   toAddress,
   amountCredits,
   feeCredits,
@@ -79,7 +65,6 @@ export default function ShieldConfirmModal({
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
-      const source = fromAddress ? {kind: 'address' as const, address: fromAddress} : null
       const res = await API.shieldToPool(walletId, source, toAddress, BigInt(amountCredits), password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
@@ -134,7 +119,7 @@ export default function ShieldConfirmModal({
               )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromAddress || AUTOMATIC_PLATFORM_SELECTION}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromDisplay}</Text>
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
@@ -226,7 +211,7 @@ export default function ShieldConfirmModal({
 
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Fee-paying address</Text>
                 <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.fromAddress}</Text>
               </div>
               {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}

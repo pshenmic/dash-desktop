@@ -12,7 +12,6 @@ import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constan
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
-import { AUTOMATIC_PLATFORM_SELECTION } from '@renderer/constants/sendPages'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
@@ -58,7 +57,6 @@ export default function CoinControlModal({
   shieldedNotes,
   identityLabel,
   identityId,
-  platformAddress,
   onRetryUtxos,
   onClose,
   onApply,
@@ -91,7 +89,7 @@ export default function CoinControlModal({
 
   const sourceKind = coinControlSourceKind(operation)
   const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
-  const draft = expandAddressCoinControlSelection(draftSelection, funds)
+  const draft = expandAddressCoinControlSelection(draftSelection, funds, operation)
   const nonDustShieldedNotes = shieldedNotes.filter(note => note.amount >= SHIELDED_DUST_FILTER_CREDITS)
   const visibleShieldedNotes = filterDust ? nonDustShieldedNotes : shieldedNotes
   const nonDustUtxos = utxos.filter(utxo => utxo.satoshis >= CORE_DUST_FILTER_DUFFS)
@@ -163,7 +161,7 @@ export default function CoinControlModal({
       sourceError = coreAddressesError
       retrySource = onRetryCoreAddresses
     }
-  } else if (sourceKind === SourceKind.PlatformAddress || operation === TransferOperation.Shield) {
+  } else if (sourceKind === SourceKind.PlatformAddress) {
     sourceLoading = platformAddressesLoading
     sourceError = platformAddressesError
     retrySource = onRetryPlatformAddresses
@@ -177,9 +175,7 @@ export default function CoinControlModal({
   const fixed = sourceKind == null
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
   let fixedValue = identityId ?? identityLabel ?? 'No identity selected'
-  if (operation === TransferOperation.Shield) {
-    fixedValue = platformAddress?.platformAddress ?? AUTOMATIC_PLATFORM_SELECTION
-  } else if (operation === TransferOperation.IdentityCreateFromShielded) {
+  if (operation === TransferOperation.IdentityCreateFromShielded) {
     fixedValue = 'The wallet selects notes for this operation.'
   }
 
@@ -282,7 +278,7 @@ export default function CoinControlModal({
       return
     }
     if (!canApply || !sourceReady) return
-    onApply(draft)
+    onApply(operation === TransferOperation.Shield && draftSelection.kind === 'platformInputs' ? draftSelection : draft)
     onClose()
   }
 
@@ -403,7 +399,11 @@ export default function CoinControlModal({
 
               {sourceReady && mode === CoinControlMode.Inputs && sourceKind === SourceKind.PlatformAddress && (
                 <div className={'mt-4 flex flex-col gap-2'}>
-                  <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Up to {PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.</Text>
+                  <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>
+                    {operation === TransferOperation.Shield
+                      ? `Choose up to ${PLATFORM_INPUT_LIMIT} Platform addresses. The wallet selects the amounts and fee-paying address.`
+                      : `Up to ${PLATFORM_INPUT_LIMIT} inputs. Set the maximum Dash available from each.`}
+                  </Text>
                   {feeFromOutput && <Text size={12} weight="medium" color="brand" opacity={50}>The network fee will be deducted from the recipient selected on Send.</Text>}
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
                   {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
@@ -419,7 +419,7 @@ export default function CoinControlModal({
                           <CreditsIcon size={18} className={'shrink-0'} />
                           <InputDetails label={'Platform input'} address={entry.platformAddress} amount={<CreditsAmount credits={entry.balanceCredits} exact showFiat={false} align={'end'} />} />
                         </div>
-                        {selected && (
+                        {selected && operation !== TransferOperation.Shield && (
                           <div className={'mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1'}>
                             <label
                               htmlFor={`coin-control-amount-${entry.platformAddress}`}
