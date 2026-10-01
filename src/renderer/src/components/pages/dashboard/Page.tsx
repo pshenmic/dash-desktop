@@ -9,7 +9,6 @@ import type { DashboardContentProps } from '@renderer/types/WalletTransaction'
 import { mergeWalletTransactions } from '@renderer/utils/walletTransactions'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import HeroBalance from './HeroBalance'
-import Statistics from './Statistics'
 import WalletAnalytics from './WalletAnalytics'
 import RecentTransactions from './RecentTransactions'
 import ShieldedCard from './ShieldedCard'
@@ -93,7 +92,6 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
             transactions={recentTransactions}
             onTransactionClick={onTransactionClick}
           />
-          <WalletAnalytics core={transactions} platform={platform} platformFailed={platformFailed} hidden={hideAmounts} />
         </div>
       )}
 
@@ -106,7 +104,7 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
       </section>
 
       {!loading && !err && hasActivity && (
-        <Statistics transactions={transactions} platform={platform} platformFailed={platformFailed} />
+        <WalletAnalytics core={transactions} platform={platform} platformFailed={platformFailed} hidden={hideAmounts} />
       )}
     </div>
   )

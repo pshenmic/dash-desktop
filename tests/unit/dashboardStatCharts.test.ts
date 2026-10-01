@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildStatActivity, buildStatChartSeries, buildStatFlows, formatStatCredits, statCumulativeAmounts, statCumulativePath, statDailyPath, statShare, summarizeStatActivity, summarizeStatAddresses } from '../../src/renderer/src/utils/dashboardStatCharts'
+import { buildStatActivity, buildStatChartSeries, buildStatFlows, filterStatTransactions, formatStatCredits, statCumulativeAmounts, statCumulativePath, statDailyPath, statShare, summarizeStatActivity, summarizeStatAddresses } from '../../src/renderer/src/utils/dashboardStatCharts'
+import { buildDashboardAnalytics } from '../../src/renderer/src/utils/dashboardAnalytics'
 import type { StatsTx } from '../../src/renderer/src/utils/dashboardStats'
 import type { PlatformTransaction } from '../../src/renderer/src/api/types'
 
@@ -16,15 +17,20 @@ describe('statistics activity', () => {
       { ...transaction, date: new Date(2026, 0, 10, 13) },
       { ...transaction, date: new Date(NaN) },
       { ...transaction, date: new Date(0) },
-    ], now)
+    ], buildDashboardAnalytics([], [], 30, now).days, now)
     expect(days).toHaveLength(30)
     expect(days[0]).toEqual({ date: new Date(2025, 11, 12), received: 100n, sent: 0n })
     expect(days[29]).toEqual({ date: new Date(2026, 0, 10), received: 5n, sent: 25n })
     expect(days.slice(1, 29).every(day => day.received === 0n && day.sent === 0n)).toBe(true)
   })
 
-  it('zero-fills a wallet with no activity', () => {
-    expect(buildStatActivity([]).every(day => day.received === 0n && day.sent === 0n)).toBe(true)
+  it.each([7, 30, 90, 'all'] as const)('zero-fills the shared %s period with no activity', period => {
+    const now = new Date(2026, 8, 24, 12)
+    const dates = buildDashboardAnalytics([], [], period, now).days
+    const days = buildStatActivity([], dates, now)
+    expect(days).toHaveLength(period === 'all' ? 1 : period)
+    expect(days.map(day => day.date)).toEqual(dates.map(day => day.date))
+    expect(days.every(day => day.received === 0n && day.sent === 0n)).toBe(true)
   })
 })
 
@@ -57,6 +63,7 @@ describe('Core and Evo monetary flows', () => {
     blockHeight: 100, status: 'SUCCESS', error: null, gasCredits: 500n,
     netCredits: 1n, amountCredits: 1n, sender: [], recipient: [],
   }
+  const days = buildDashboardAnalytics([], [], 30, now).days
 
   it('keeps source totals separate with credit precision and the same direction semantics as Transactions', () => {
     const flows = buildStatFlows([
@@ -69,13 +76,15 @@ describe('Core and Evo monetary flows', () => {
       { ...evo, hash: 'fee', status: 'FAIL', netCredits: -3n, amountCredits: 3n, gasCredits: 3n },
       { ...evo, hash: 'internal', netCredits: 0n, amountCredits: 1_000n },
       { ...evo, hash: 'unknown-status', status: null, netCredits: 2n, amountCredits: 2n },
-    ], now)
+    ], days, now)
     expect(flows[0]).toMatchObject({ source: 'core', received: 10_000n, sent: 2_000n })
     expect(flows[1]).toMatchObject({ source: 'evo', received: 3n, sent: 10n })
     expect(flows[1].days[29]).toEqual({ date: new Date(2026, 8, 24), received: 3n, sent: 10n })
   })
 
   it('finds each source largest single receive across all history, preserving credit precision', () => {
+    const oldest = { ...evo, hash: 'largest', amountCredits: 501n, netCredits: 501n, date: new Date(2024, 1, 1) }
+    const allDays = buildDashboardAnalytics([], [oldest], 'all', now).days
     const flows = buildStatFlows([
       core,
       { ...core, amount: 20n, date: new Date(2024, 1, 1) },
@@ -83,29 +92,78 @@ describe('Core and Evo monetary flows', () => {
       { ...core, amount: 999n, direction: 'out' },
     ], [
       evo,
-      { ...evo, hash: 'largest', amountCredits: 501n, netCredits: 501n, date: new Date(2024, 1, 1) },
+      oldest,
       { ...evo, hash: 'other', amountCredits: 500n, netCredits: 500n },
       { ...evo, hash: 'sent', amountCredits: 999n, netCredits: -999n },
       { ...evo, hash: 'internal', amountCredits: 999n, netCredits: 0n },
-    ], now)
+    ], allDays, now)
     expect(flows[0].largestReceived).toBe(20_000n)
     expect(flows[1].largestReceived).toBe(501n)
-    expect(buildStatFlows([], [], now).map(flow => flow.largestReceived)).toEqual([0n, 0n])
+    expect(buildStatFlows([], [], allDays, now).map(flow => flow.largestReceived)).toEqual([0n, 0n])
   })
 
-  it('keeps old and undated Evo amounts in all-time totals, outside the 30-day chart', () => {
-    const flows = buildStatFlows([], [
+  it('keeps selected totals and chart totals aligned, excluding undated amounts even for all time', () => {
+    const platform = [
       { ...evo, hash: 'old', date: new Date(2024, 1, 1), amountCredits: 100n },
       { ...evo, hash: 'undated', date: new Date(0), amountCredits: 200n },
       evo,
-    ], now)
-    expect(flows[1].received).toBe(301n)
+    ]
+    const flows = buildStatFlows([], platform, days, now)
+    expect(flows[1].received).toBe(1n)
     expect(buildStatChartSeries(flows, 'received')[1].total).toBe(1n)
+    const allDays = buildDashboardAnalytics([], platform, 'all', now).days
+    const allFlows = buildStatFlows([], platform, allDays, now)
+    expect(allFlows[1].received).toBe(101n)
+    expect(buildStatChartSeries(allFlows, 'received')[1].total).toBe(101n)
+  })
+
+  it.each([
+    [7, 2, 30n, 20n],
+    [30, 3, 60n, 30n],
+    [90, 4, 100n, 40n],
+    ['all', 5, 150n, 50n],
+  ] as const)('filters counts, totals and largest receives to the shared %s period', (period, count, received, largest) => {
+    const dates = [now, new Date(2026, 8, 18), new Date(2026, 7, 26), new Date(2026, 5, 27), new Date(2024, 1, 1)]
+    const transactions = dates.map((date, index) => ({ ...core, id: String(index), date, amount: BigInt((index + 1) * 10) }))
+    const platform = dates.map((date, index) => ({ ...evo, hash: String(index), date, amountCredits: BigInt(index + 1) }))
+    const range = buildDashboardAnalytics(transactions, platform, period, now)
+    const start = range.days[0].date
+    const selectedCore = filterStatTransactions(transactions, start, now)
+    const selectedEvo = filterStatTransactions(platform, start, now)
+    const summary = summarizeStatActivity(selectedCore, selectedEvo, now)
+    expect(summary).toMatchObject({ coreCount: count, evoCount: count, lastDate: now })
+    const flows = buildStatFlows(transactions, platform, range.days, now)
+    expect(flows[0]).toMatchObject({ received: received * 1_000n, largestReceived: largest * 1_000n })
+    expect(flows[1]).toMatchObject({ received: received / 10n, largestReceived: largest / 10n })
+    expect(flows.map(flow => flow.days.map(day => day.date))).toEqual([range.days.map(day => day.date), range.days.map(day => day.date)])
+    expect(buildStatChartSeries(flows, 'received').map(series => series.total)).toEqual(flows.map(flow => flow.received))
+  })
+
+  it('uses the earliest date across both sources for all-time charts', () => {
+    const oldest = { ...core, id: 'oldest', date: new Date(2024, 1, 1) }
+    const range = buildDashboardAnalytics([oldest], [evo], 'all', now)
+    const flows = buildStatFlows([oldest], [evo], range.days, now)
+    expect(flows.map(flow => flow.days[0].date)).toEqual([oldest.date, oldest.date])
+    expect(flows[0].days[0].received).toBe(10_000n)
+    expect(flows[1].days.at(-1)?.received).toBe(1n)
+  })
+
+  it('excludes invalid and future dates from range counts and returns empty activity outside the range', () => {
+    const transactions = [
+      { ...core, date: new Date(2024, 1, 1) },
+      { ...core, date: new Date(0) },
+      { ...core, date: new Date(NaN) },
+      { ...core, date: new Date(2026, 8, 24, 13) },
+    ]
+    expect(filterStatTransactions(transactions, days[0].date, now)).toEqual([])
+    const flows = buildStatFlows(transactions, [], days, now)
+    expect(flows.map(flow => [flow.received, flow.sent, flow.largestReceived])).toEqual([[0n, 0n, 0n], [0n, 0n, 0n]])
+    expect(summarizeStatActivity(filterStatTransactions(transactions, days[0].date, now), [], now)).toMatchObject({ coreCount: 0, firstDate: null, lastDate: null })
   })
 
   it.each(['received', 'sent'] as const)('compares %s series on one credit scale, even above safe integer precision', direction => {
     const max = 2n * 10n ** 30n
-    const flows = buildStatFlows([], [], now)
+    const flows = buildStatFlows([], [], days, now)
     flows[0].days[29][direction] = max / 2n
     flows[1].days[29][direction] = max
     const series = buildStatChartSeries(flows, direction)

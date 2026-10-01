@@ -14,7 +14,7 @@ export const dashboardPage = {
     }
   },
   sections: {
-    services: 'Shielded & Platform',
+    services: 'Shielded & Identities',
     stats: 'Statistics'
   },
   shielded: {

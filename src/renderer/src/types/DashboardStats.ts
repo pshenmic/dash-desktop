@@ -2,6 +2,7 @@ import type { FC, ReactNode } from 'react'
 import type { IconProps } from '../components/dash-ui-kit-enxtended/icons'
 import type { StatsTx } from '../utils/dashboardStats'
 import type { PlatformTransaction } from '../api/types'
+import type { ActivityDay, AnalyticsPeriod } from './DashboardAnalytics'
 
 export type StatTone = 'brand' | 'green' | 'orange'
 
@@ -24,12 +25,15 @@ export interface StatisticsProps {
   transactions: StatsTx[]
   platform: PlatformTransaction[]
   platformFailed: boolean
+  period: AnalyticsPeriod
+  days: ActivityDay[]
 }
 
 export interface StatVolumeChartProps {
   flows: StatFlowSource[]
   direction: 'received' | 'sent'
   hidden: boolean
+  period: AnalyticsPeriod
   platformFailed?: boolean
 }
 

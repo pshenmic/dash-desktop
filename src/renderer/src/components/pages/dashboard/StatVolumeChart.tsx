@@ -5,24 +5,25 @@ import { buildStatChartSeries } from '@renderer/utils/dashboardStatCharts'
 import { chartDate } from '@renderer/utils/dashboardAnalytics'
 import { creditsToDash } from '@renderer/utils/balance'
 
-export default function StatVolumeChart({ flows, direction, hidden, platformFailed = false }: StatVolumeChartProps): React.JSX.Element {
+export default function StatVolumeChart({ flows, direction, hidden, period, platformFailed = false }: StatVolumeChartProps): React.JSX.Element {
   const [active, setActive] = useState<number | null>(null)
   const gradientId = useId()
   const days = flows[0]?.days ?? []
   const series = buildStatChartSeries(flows, direction)
   const selected = active === null ? undefined : days[active]
   const cumulative = direction === 'received'
+  const periodLabel = period === 'all' ? 'All time' : `${period} days`
 
   if (hidden) return <div className="grid h-[51px] place-items-center text-[11px] text-(--stat-muted)">Amounts hidden</div>
 
   return (
     <div className="flex flex-col gap-[5px]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-[3px] text-[10px] text-(--stat-muted)">
-        <span>30 days</span>
+        <span>{periodLabel}</span>
         {platformFailed && <span className="font-semibold text-(--stat-evo)">Evo partial</span>}
       </div>
       <div className="relative h-8 rounded-[3px] text-(--stat-accent) focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-(--stat-accent)" tabIndex={0} role="group"
-        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over the last 30 calendar days, on the same DASH scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} DASH`).join('. ')}. ${platformFailed ? 'Evo history is incomplete. ' : ''}Hover or use left and right arrows to explore amounts.`}
+        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same DASH scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} DASH`).join('. ')}. ${platformFailed ? 'Evo history is incomplete. ' : ''}Hover or use left and right arrows to explore amounts.`}
         onPointerLeave={() => setActive(null)} onFocus={() => setActive(days.length - 1)} onBlur={() => setActive(null)}
         onKeyDown={event => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
@@ -62,7 +63,7 @@ export default function StatVolumeChart({ flows, direction, hidden, platformFail
             <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
             <strong className="font-semibold tabular-nums wrap-anywhere">{creditsToDash(item.readings[active!])}</strong>
           </div>)}
-          <span className="mt-[9px] mb-[5px] block border-t border-current pt-[7px] opacity-65">30-day totals · {days[0] && chartDate(days[0].date)} – {days.at(-1) && chartDate(days.at(-1)!.date)}</span>
+          <span className="mt-[9px] mb-[5px] block border-t border-current pt-[7px] opacity-65">{periodLabel} totals · {days[0] && chartDate(days[0].date)} – {days.at(-1) && chartDate(days.at(-1)!.date)}</span>
           {series.map(item => <div key={`total-${item.source}`} className="mt-[3px] flex justify-between gap-3">
             <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
             <strong className="font-semibold tabular-nums wrap-anywhere">{creditsToDash(item.total)}</strong>

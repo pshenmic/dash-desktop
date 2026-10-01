@@ -17,7 +17,11 @@ export function summarizeStatAddresses(
   ]
 }
 
-export function buildStatFlows(core: StatsTx[], platform: PlatformTransaction[], now = new Date()): StatFlowSource[] {
+export function filterStatTransactions<T extends Pick<StatsTx, 'date'>>(transactions: T[], start: Date, now = new Date()): T[] {
+  return transactions.filter(tx => tx.date.getTime() > 0 && tx.date >= start && tx.date <= now)
+}
+
+export function buildStatFlows(core: StatsTx[], platform: PlatformTransaction[], days: Pick<StatActivityDay, 'date'>[], now = new Date()): StatFlowSource[] {
   const evo: StatsTx[] = [...new Map(platform.map(tx => [tx.hash.toLowerCase(), tx])).values()]
     .filter(tx => tx.netCredits !== 0n)
     // Explorer amounts include applied fees even when a transition failed.
@@ -31,7 +35,7 @@ export function buildStatFlows(core: StatsTx[], platform: PlatformTransaction[],
     let received = 0n
     let sent = 0n
     let largestReceived = 0n
-    for (const tx of transactions) {
+    for (const tx of filterStatTransactions(transactions, days[0].date, now)) {
       if (tx.status === 'failed') continue
       if (tx.direction === 'in') {
         received += tx.amount
@@ -39,7 +43,7 @@ export function buildStatFlows(core: StatsTx[], platform: PlatformTransaction[],
       }
       else sent += tx.amount
     }
-    return { source: index === 0 ? 'core' : 'evo', received, sent, largestReceived, days: buildStatActivity(transactions, now) }
+    return { source: index === 0 ? 'core' : 'evo', received, sent, largestReceived, days: buildStatActivity(transactions, days, now) }
   })
 }
 
@@ -91,15 +95,15 @@ export function summarizeStatActivity(
   return summary
 }
 
-export function buildStatActivity(transactions: StatsTx[], now = new Date()): StatActivityDay[] {
-  const days = Array.from({ length: STAT_ACTIVITY_DAYS }, (_, index) => ({
-    date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - STAT_ACTIVITY_DAYS + 1 + index),
+export function buildStatActivity(transactions: StatsTx[], dates: Pick<StatActivityDay, 'date'>[], now = new Date()): StatActivityDay[] {
+  const days = dates.map(({ date }) => ({
+    date,
     received: 0n,
     sent: 0n,
   }))
   const buckets = new Map(days.map(day => [activityDayKey(day.date), day]))
   for (const tx of transactions) {
-    if (tx.status === 'failed' || tx.date > now) continue
+    if (tx.status === 'failed' || tx.date.getTime() <= 0 || tx.date > now) continue
     const day = buckets.get(activityDayKey(tx.date))
     if (!day) continue
     if (tx.direction === 'in') day.received += tx.amount
