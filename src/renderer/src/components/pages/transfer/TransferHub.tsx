@@ -18,7 +18,6 @@ import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
 import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
-import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
@@ -176,12 +175,10 @@ function WalletTransferHub(): React.JSX.Element {
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
-  const shieldedRecipientBalances = useMemo(() => shieldedSync.phase === ShieldedSyncPhase.Done
-    ? shieldedBalancesByAddress(shieldedSync.notes) : null, [shieldedSync.phase, shieldedSync.notes])
   const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
     receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
-    shieldedBalances: shieldedRecipientBalances,
-  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedRecipientBalances])
+    shieldedNotes: shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes : null,
+  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedSync.phase, shieldedSync.notes])
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
   useErrorToast(coreAddressesError)
@@ -657,7 +654,10 @@ function WalletTransferHub(): React.JSX.Element {
           )}
           {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
             <Text size={12} weight="medium" color="brand" opacity={50}>
-              {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.' : 'No saved addresses of this type in your wallet. Enter a recipient address manually.'}
+              {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.'
+                : toKind === DestinationKind.Shielded && shieldedSync.phase !== ShieldedSyncPhase.Done
+                  ? 'Sync shielded notes to find unused addresses. You can enter a recipient address manually.'
+                  : 'No unused addresses of this type in your wallet. Enter a recipient address manually.'}
             </Text>
           )}
         </>}
