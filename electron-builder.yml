@@ -65,6 +65,11 @@ linux:
         - x64
   maintainer: pshenmic.dev
   category: Office;Finance;
+  syncDesktopName: true
+# The default toolset embeds a runtime that dlopens libfuse.so.2, which Ubuntu
+# 24.04 no longer ships; 1.x embeds the static type2 runtime instead.
+toolsets:
+  appimage: 1.0.3
 appImage:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 deb:
