@@ -42,8 +42,6 @@ export default function TransactionCard({
   status,
   kind,
   title,
-  subtitleLabel,
-  labelValue,
   amount,
   date,
   direction,
@@ -75,13 +73,6 @@ export default function TransactionCard({
           <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[120%]"}>
             {title}
           </Text>
-          {internalTransfer && <CustomBadge text="Internal transfer" className="shrink-0 whitespace-nowrap" />}
-        </div>
-
-        <div className={"min-w-0"} title={`${subtitleLabel}: ${labelValue}`}>
-          <Text reset size={10} weight={"light"} color={"brand"} opacity={30} className={fullIdentifiers ? "block [overflow-wrap:anywhere]" : "block truncate"}>
-            {subtitleLabel}: {labelValue}
-          </Text>
         </div>
 
         <div
@@ -108,25 +99,30 @@ export default function TransactionCard({
       <AmountSummary
         total={
           <SensitiveValue hidden={!isBalanceVisible} size={"card"}>
-            <span className={isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
-              {kind === 'platform' ? (
-                <CreditsAmount
-                  credits={amount}
-                  prefix={TRANSACTION_CARD_SIGNS[direction]}
-                  exact
-                  showFiat={false}
-                  align={'end'}
-                  unitClassName={'font-medium'}
-                />
-              ) : (
-                <>{TRANSACTION_CARD_SIGNS[direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber></>
-              )}
-            </span>
+            <Tooltip label={internalTransfer ? 'Internal transfer' : undefined}>
+              <span className={internalTransfer ? 'text-yellow-700 dark:text-dash-yellow' : isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
+                {kind === 'platform' ? (
+                  <CreditsAmount
+                    credits={amount}
+                    prefix={TRANSACTION_CARD_SIGNS[direction]}
+                    exact
+                    showFiat={false}
+                    align={'end'}
+                    unitClassName={'font-medium'}
+                  />
+                ) : (
+                  <>
+                    {TRANSACTION_CARD_SIGNS[direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber>
+                    {internalTransfer && <span className="font-medium"> Dash</span>}
+                  </>
+                )}
+              </span>
+            </Tooltip>
           </SensitiveValue>
         }
         textBadge={isBalanceVisible && rateReady ? `~ ${formatFiat(formattedAmount.duffs)}` : ''}
         variant={variantAmountSummary}
-        currency={isBalanceVisible && kind !== 'platform' ? 'Dash' : ''}
+        currency={isBalanceVisible && kind !== 'platform' && !internalTransfer ? 'Dash' : ''}
         date={
           date ? <>
             {formatCreationDate(date)} {timePart(date)} (<TimeDelta endDate={date}/>)
