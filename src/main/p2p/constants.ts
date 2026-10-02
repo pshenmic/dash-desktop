@@ -212,6 +212,7 @@ export const LOCATOR_SEEN_LIMIT = 4_096
 // Mempool txids already fetched. Every lock-pool peer announces the same tx, so
 // without this each one costs a getdata; measured at ~9 duplicates per tx.
 export const MEMPOOL_SEEN_LIMIT = 20_000
+export const MEMPOOL_SNAPSHOT_PEERS = 3
 
 // A `mempool` answer is one inv of the peer's whole pool, and every entry costs
 // a getdata — which past 50k entries the peer refuses outright.

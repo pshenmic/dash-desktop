@@ -28,7 +28,7 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
 })
 
 import {SyncService} from '../../src/main/p2p/sync/SyncService'
-import {MEMPOOL_FETCH_BATCH, MEMPOOL_FETCH_INTERVAL_MS, NODE_BLOOM} from '../../src/main/p2p/constants'
+import {MEMPOOL_FETCH_BATCH, MEMPOOL_FETCH_INTERVAL_MS, MEMPOOL_SNAPSHOT_PEERS, NODE_BLOOM} from '../../src/main/p2p/constants'
 import type {AppliedTx, WatchAddress} from '../../src/main/p2p/types/walletSync'
 
 const OURS = 'yOurAddress'
@@ -255,16 +255,27 @@ describe('mempool request', () => {
     vi.restoreAllMocks()
   })
 
-  it('asks the first peer to seat, and only it', async () => {
+  it('asks a bounded quorum of eligible peers', async () => {
     await listen('wallet-1', [watch(OURS)])
-    const first = makePeer()
-    const second = makePeer()
+    const peers = Array.from({length: MEMPOOL_SNAPSHOT_PEERS + 1}, makePeer)
 
-    seat(pool, first)
-    seat(pool, second)
+    for (const peer of peers) seat(pool, peer)
 
-    expect(first.sent).toEqual([{command: 'mempool'}])
-    expect(second.sent).toEqual([])
+    for (const peer of peers.slice(0, MEMPOOL_SNAPSHOT_PEERS)) {
+      expect(peer.sent).toEqual([{command: 'mempool'}])
+    }
+    expect(peers[MEMPOOL_SNAPSHOT_PEERS]!.sent).toEqual([])
+  })
+
+  it('replaces a queried peer that disconnects', async () => {
+    await listen('wallet-1', [watch(OURS)])
+    const peers = Array.from({length: MEMPOOL_SNAPSHOT_PEERS + 1}, makePeer)
+    for (const peer of peers) seat(pool, peer)
+
+    pool.readyPeers.delete(peers[0]!)
+    pool.emit('peerdisconnect', peers[0])
+
+    expect(peers[MEMPOOL_SNAPSHOT_PEERS]!.sent).toEqual([{command: 'mempool'}])
   })
 
   // The request itself is what makes such a peer drop us.
@@ -316,6 +327,29 @@ describe('mempool request', () => {
     })
 
     expect(peer.sent).toEqual([{command: 'mempool'}, {command: 'mempool'}])
+  })
+
+  it('asks again when the selected wallet address window expands', async () => {
+    const service = await listen('wallet-1', [watch(OURS)])
+    const peer = makePeer()
+    seat(pool, peer)
+    const state = service as unknown as {activeWalletId: string; activeWatchAddresses: WatchAddress[]}
+    state.activeWalletId = 'wallet-1'
+    state.activeWatchAddresses = [watch(OURS)]
+
+    service.addWatchAddresses({type: 'addWatchAddresses', walletId: 'wallet-1', addresses: [watch(THEIRS)]})
+
+    expect(peer.sent).toEqual([{command: 'mempool'}, {command: 'mempool'}])
+  })
+
+  it('clears the address matcher when no wallet is supplied', async () => {
+    const service = await listen('wallet-1', [watch(OURS)])
+
+    await service.listen({type: 'listen', network: 'testnet'})
+
+    const state = service as unknown as {lockWalletId: string | null; lockAddresses: Set<string>}
+    expect(state.lockWalletId).toBeNull()
+    expect(state.lockAddresses).toEqual(new Set())
   })
 })
 

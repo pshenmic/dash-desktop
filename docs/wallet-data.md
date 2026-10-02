@@ -59,7 +59,10 @@ process hears locks even in the default `rpc` mode.
 Payments are spotted before any block carries them: `SyncService` matches TX invs
 on the lock pool against the addresses shipped in the `listen` command and emits
 `incomingTx`; `WalletSyncService.recordIncomingTx` writes the tx at
-`block_height = 0` with `is_local = false`, then arms `watchForInstantLock`.
+`block_height = 0` with `is_local = false`, then arms `watchForInstantLock`. Its
+committed write and a completed cfilter scan advance the selected wallet's data
+revision, so the renderer's existing status poll refreshes the affected Core
+caches without waiting for their normal refresh intervals.
 
 - **An `isdlock` cannot tell you a tx pays you.** It carries `inputs`, `txid`,
   `cycleHash` and `sig` — no outputs, no addresses — and its inv hash is not the
@@ -76,12 +79,13 @@ on the lock pool against the addresses shipped in the `listen` command and emits
   addresses looks like, and is otherwise silent.
 - **A peer announces a tx once, so the mempool is asked for outright.** An inv
   goes out at first sight and never again, leaving a tx that arrived before the
-  wallet opened invisible until a block carries it. One `mempool` message per
-  session covers it — mempools converge, so the first seated peer's answer is
-  the network's. Re-armed only where the gap reopens: a wallet selected or
-  switched after the pool filled, and a pool that lost every peer. **A peer
-  advertising no `NODE_BLOOM` is passed over**, since a node started with bloom
-  filters off disconnects on the request rather than answering it.
+  wallet opened invisible until a block carries it. A bounded
+  `MEMPOOL_SNAPSHOT_PEERS` quorum is queried whenever the active address window
+  changes; a disconnected queried peer is replaced. The full responses are still
+  matched locally — no BIP37 filter is loaded, so wallet addresses are not
+  published to peers. **A peer advertising no `NODE_BLOOM` is passed over**,
+  since a node started with bloom filters off disconnects on the request rather
+  than answering it.
 - **The answer is an ordinary inv, and its fetches are paced.** It can carry the
   peer's whole pool, and each entry costs a getdata to see whose it is, so TX
   hashes queue and leave `MEMPOOL_FETCH_BATCH` at a time — one getdata past 50k

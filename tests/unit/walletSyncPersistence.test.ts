@@ -60,6 +60,7 @@ describe('WalletSyncService block persistence', () => {
     resetCursor: ReturnType<typeof vi.fn>
     resetSyncDataByNetwork: ReturnType<typeof vi.fn>
     getInitialScanComplete: ReturnType<typeof vi.fn>
+    recordPendingTx: ReturnType<typeof vi.fn>
   }
   let walletDAO: {getWalletById: ReturnType<typeof vi.fn>}
   let service: WalletSyncService
@@ -73,6 +74,7 @@ describe('WalletSyncService block persistence', () => {
       resetCursor: vi.fn().mockResolvedValue(undefined),
       resetSyncDataByNetwork: vi.fn().mockResolvedValue(undefined),
       getInitialScanComplete: vi.fn().mockResolvedValue(false),
+      recordPendingTx: vi.fn().mockResolvedValue(undefined),
     }
     walletDAO = {getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet'})}
     service = new WalletSyncService(walletDAO as never, {} as never, transactionDAO as never, Preferences.default())
@@ -242,5 +244,42 @@ describe('WalletSyncService block persistence', () => {
 
     expect(service.getStatus().phase).toBe('synced')
     expect(service.getStatus().lastError).toContain('500')
+  })
+
+  it('advances the revision after an incoming transaction commits', async () => {
+    emit(service, {
+      type: 'incomingTx',
+      walletId: WALLET,
+      tx: {
+        txid: 'pending-tx',
+        raw: new Uint8Array([1]),
+        inputs: [],
+        outputs: [{vout: 0, address: 'yAddr', satoshis: '1000', isMine: true}],
+      },
+    })
+
+    expect(service.getWalletDataRevision(WALLET)).toBe(0)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(transactionDAO.recordPendingTx).toHaveBeenCalledOnce()
+    expect(service.getWalletDataRevision(WALLET)).toBe(1)
+  })
+
+  it('waits for queued block writes before advancing the completed-sync revision', async () => {
+    let releaseBlock!: () => void
+    transactionDAO.applyBlock.mockImplementationOnce(
+      () => new Promise<void>(resolve => { releaseBlock = resolve })
+    )
+
+    emit(service, {type: 'blockApplied', block: block(500)})
+    emit(service, {type: 'status', status: {...service.getStatus(), phase: 'synced', walletId: WALLET}})
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(service.getWalletDataRevision(WALLET)).toBe(0)
+
+    releaseBlock()
+    await settle()
+
+    expect(service.getWalletDataRevision(WALLET)).toBe(1)
   })
 })
