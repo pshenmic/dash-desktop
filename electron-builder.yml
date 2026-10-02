@@ -74,6 +74,20 @@ appImage:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 deb:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
+  # Setting depends replaces electron-builder's default list, so that list is
+  # repeated here. libasound2 is the addition: the Electron binary links
+  # libasound.so.2 and will not start without it.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libasound2
 #  entitlementsInherit: build/entitlements.mac.plist
 #  extendInfo:
 #    - NSCameraUsageDescription: Application requests access to the device's camera.
