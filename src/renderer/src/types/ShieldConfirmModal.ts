@@ -2,6 +2,7 @@ import type { PlatformSpendSource } from '../api/types'
 
 export interface ShieldConfirmModalProps {
   isOpen: boolean
+  advanced?: boolean
   onClose: () => void
   walletId: string | null
   source: PlatformSpendSource | null

@@ -20,10 +20,13 @@ function TransactionsContent(): React.JSX.Element {
   const [filter, setFilter] = useState<TxFilter>(DEFAULT_TX_FILTER)
 
   if (selectedTransaction?.kind === 'core') {
+    const selected = selectedTransaction.transaction
+    const transaction = history.groups.flatMap(group => group.transactions)
+      .find(candidate => candidate.id === selected.id) ?? selected
     return (
       <div className={"flex flex-col"}>
         <TransactionDetail
-          transaction={selectedTransaction.transaction}
+          transaction={transaction}
           onBack={() => setSelectedTransaction(null)}
         />
       </div>

@@ -42,11 +42,10 @@ export default function TransactionCard({
   status,
   kind,
   title,
-  subtitleLabel,
-  labelValue,
   amount,
   date,
   direction,
+  internalTransfer = false,
   fullIdentifiers = false
 } : TransactionCardProps): React.JSX.Element {
   let variantAmountSummary = TRANSACTION_CARD_STATUS_VARIANTS[status]
@@ -55,12 +54,13 @@ export default function TransactionCard({
   const { format: formatFiat, rateReady } = useFiat()
   const { isBalanceVisible } = useBalanceVisibility()
   const formattedAmount = formatTransactionCardAmount({ amount, kind })
+  const displayedId = id.toLowerCase()
 
   return (
     <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
       <TransactionCardIcons status={status} />
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
-        <div className={"flex min-w-0 items-center gap-[.3125rem]"} title={title}>
+        <div className={"flex min-w-0 flex-wrap items-center gap-[.3125rem]"} title={title}>
           <Tooltip label={kind === 'platform' ? 'L2 Dash Evo Chain' : kind === 'core' ? 'L1 Dash Core Chain' : undefined}>
             <span className="inline-flex shrink-0" title="">
               <CustomBadge
@@ -76,16 +76,10 @@ export default function TransactionCard({
           </Text>
         </div>
 
-        <div className={"min-w-0"} title={`${subtitleLabel}: ${labelValue}`}>
-          <Text reset size={10} weight={"light"} color={"brand"} opacity={30} className={fullIdentifiers ? "block [overflow-wrap:anywhere]" : "block truncate"}>
-            {subtitleLabel}: {labelValue}
-          </Text>
-        </div>
-
         <div
           className={`flex min-w-0 gap-[.25rem] ${fullIdentifiers ? 'items-start' : 'items-center'}`}
-          title={id}
-          aria-label={`${transactionsPage.detail.transactionId}: ${id}`}
+          title={displayedId}
+          aria-label={`${transactionsPage.detail.transactionId}: ${displayedId}`}
         >
           <Text size={10} weight={"light"} color={"brand"} opacity={30} className={"shrink-0"}>
             {transactionsPage.detail.transactionId}:
@@ -98,7 +92,7 @@ export default function TransactionCard({
             opacity={50}
             className={fullIdentifiers ? "min-w-0 whitespace-nowrap font-mono text-[.5625rem]!" : "min-w-0 truncate font-mono"}
           >
-            {id}
+            {displayedId}
           </Text>
         </div>
       </div>
@@ -106,25 +100,30 @@ export default function TransactionCard({
       <AmountSummary
         total={
           <SensitiveValue hidden={!isBalanceVisible} size={"card"}>
-            <span className={isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
-              {kind === 'platform' ? (
-                <CreditsAmount
-                  credits={amount}
-                  prefix={TRANSACTION_CARD_SIGNS[direction]}
-                  exact
-                  showFiat={false}
-                  align={'end'}
-                  unitClassName={'font-medium'}
-                />
-              ) : (
-                <>{TRANSACTION_CARD_SIGNS[direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber></>
-              )}
-            </span>
+            <Tooltip label={internalTransfer ? 'Internal transfer' : undefined}>
+              <span className={internalTransfer ? 'text-yellow-700 dark:text-dash-yellow' : isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
+                {kind === 'platform' ? (
+                  <CreditsAmount
+                    credits={amount}
+                    prefix={TRANSACTION_CARD_SIGNS[direction]}
+                    exact
+                    showFiat={false}
+                    align={'end'}
+                    unitClassName={'font-medium'}
+                  />
+                ) : (
+                  <>
+                    {TRANSACTION_CARD_SIGNS[direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber>
+                    {internalTransfer && <span className="font-medium"> Dash</span>}
+                  </>
+                )}
+              </span>
+            </Tooltip>
           </SensitiveValue>
         }
         textBadge={isBalanceVisible && rateReady ? `~ ${formatFiat(formattedAmount.duffs)}` : ''}
         variant={variantAmountSummary}
-        currency={isBalanceVisible && kind !== 'platform' ? 'Dash' : ''}
+        currency={isBalanceVisible && kind !== 'platform' && !internalTransfer ? 'Dash' : ''}
         date={
           date ? <>
             {formatCreationDate(date)} {timePart(date)} (<TimeDelta endDate={date}/>)

@@ -4,13 +4,14 @@ import {
   defaultReceiveShieldedAddress,
   defaultReceivePlatformAddress,
   isUnusedPlatformAddress,
+  receiveCoreAddresses,
   receivePlatformAddresses,
   receiveShieldedAddresses,
 } from '../../src/renderer/src/utils/receiveDefaults'
 import type { WalletAddressDto } from '../../src/renderer/src/api/types'
 
-const addr = (address: string, balance: bigint): WalletAddressDto =>
-  ({ address, balance } as WalletAddressDto)
+const addr = (address: string, balance: bigint, isUsed = false, txCount = 0): WalletAddressDto =>
+  ({ walletId: 'wallet', accountId: 0, address, derivationPath: '', index: 0, isChange: 0, isUsed, balance, txCount, label: null, usdBalance: null })
 
 const platformAddr = (platformAddress: string, balanceCredits: bigint, nonce: number) =>
   ({ platformAddress, balanceCredits, nonce })
@@ -57,8 +58,26 @@ describe('receivePlatformAddresses', () => {
   })
 })
 
+describe('receiveCoreAddresses', () => {
+  it('only includes fresh addresses, preserving their order', () => {
+    const list = [
+      addr('fresh', 0n),
+      addr('funded', 100n),
+      addr('used', 0n, true),
+      addr('spent', 0n, false, 2),
+      addr('next', 0n),
+    ]
+    expect(receiveCoreAddresses(list).map(address => address.address)).toEqual(['fresh', 'next'])
+  })
+
+  it('returns an empty list when no fresh addresses remain', () => {
+    expect(receiveCoreAddresses([addr('funded', 100n), addr('used', 0n, true)])).toEqual([])
+    expect(receiveCoreAddresses([])).toEqual([])
+  })
+})
+
 describe('defaultReceiveCoreAddress', () => {
-  it('picks the preferred address when it has zero balance', () => {
+  it('picks the preferred address when it is fresh', () => {
     const list = [addr('a', 0n), addr('b', 0n)]
     expect(defaultReceiveCoreAddress(list, 'b')?.address).toBe('b')
   })
@@ -68,14 +87,32 @@ describe('defaultReceiveCoreAddress', () => {
     expect(defaultReceiveCoreAddress(list, 'a')?.address).toBe('b')
   })
 
-  it('picks the first zero-balance address without a preferred one', () => {
-    const list = [addr('a', 100n), addr('b', 0n), addr('c', 0n)]
+  it('picks the first fresh address without a preferred one', () => {
+    const list = [addr('a', 100n), addr('spent', 0n, true, 2), addr('b', 0n), addr('c', 0n)]
     expect(defaultReceiveCoreAddress(list)?.address).toBe('b')
   })
 
-  it('falls back to the first address when all are funded', () => {
+  it('ignores a used preferred address even when its balance is zero', () => {
+    const list = [addr('a', 0n, true), addr('b', 0n)]
+    expect(defaultReceiveCoreAddress(list, 'a')?.address).toBe('b')
+  })
+
+  it('ignores a preferred address with transaction history even before its used flag is updated', () => {
+    const list = [addr('a', 0n, false, 2), addr('b', 0n)]
+    expect(defaultReceiveCoreAddress(list, 'a')?.address).toBe('b')
+  })
+
+  it('returns undefined when all addresses are funded', () => {
     const list = [addr('a', 100n), addr('b', 50n)]
-    expect(defaultReceiveCoreAddress(list, 'x')?.address).toBe('a')
+    expect(defaultReceiveCoreAddress(list, 'x')).toBeUndefined()
+  })
+
+  it('returns undefined when all addresses have been used and emptied', () => {
+    expect(defaultReceiveCoreAddress([addr('a', 0n, true), addr('b', 0n, false, 2)])).toBeUndefined()
+  })
+
+  it('falls back to the first fresh address when the preferred one is absent', () => {
+    expect(defaultReceiveCoreAddress([addr('a', 0n), addr('b', 0n)], 'missing')?.address).toBe('a')
   })
 
   it('returns undefined for an empty list', () => {

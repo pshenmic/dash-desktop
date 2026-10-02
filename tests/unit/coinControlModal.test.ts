@@ -146,6 +146,16 @@ describe('coin control UTXO refresh', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
+  it('keeps selected and unselected inputs visible without an Only selected filter', () => {
+    const props = modalProps()
+    const nodes = render({...props, utxos: [...props.utxos, {...props.utxos[0], txid: 'unselected'}]})
+    expect(nodes.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
+    expect(nodes.find(node => node.key === 'unselected:0')!.props.checked).toBe(false)
+    expect(nodes.some(node => node.props.children === 'Only selected')).toBe(false)
+    expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
+      && node.props.label.props.children === 'Filter dust')).toBe(true)
+  })
+
   it('updates the timestamp on an existing selected row when a pending coin confirms', () => {
     const props = modalProps()
     const pending = {...props.utxos[0], height: 0, confirmations: 0, timestamp: new Date(2026, 8, 11, 9, 15)}

@@ -37,6 +37,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
   const { theme } = useTheme()
   const { format: formatFiat, rateReady } = useFiat()
   const date = platformTransactionDateValue(transaction.date)
+  const displayedId = transaction.hash.toLowerCase()
 
   return (
     <div className={'flex flex-col gap-4 px-12 pb-8'}>
@@ -52,9 +53,12 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
         >
           <ChevronIcon size={17} className={'dash-text-default rotate-90'} />
         </button>
-        <Text size={40} weight={'medium'} color={'brand'} className={'tracking-[-0.03em]'}>
-          <span className={'opacity-50'}>Platform:</span> {platformTransactionTitle(transaction.type)}
-        </Text>
+        <div className={'flex min-w-0 flex-wrap items-center gap-3'}>
+          <Text size={40} weight={'medium'} color={'brand'} className={'tracking-[-0.03em]'}>
+            <span className={'opacity-50'}>Platform:</span> {platformTransactionTitle(transaction.type)}
+          </Text>
+          {transaction.internalTransferFeeCredits !== undefined && <CustomBadge text="Internal transfer" className="shrink-0 whitespace-nowrap" />}
+        </div>
       </div>
 
       <div className={'flex flex-col gap-5 p-[.9375rem] rounded-[.9375rem] dash-card-base shadow-[0_0_50px_0_rgba(0,0,0,0.1)]'}>
@@ -65,8 +69,8 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
           <Text size={14} weight={'medium'} color={'brand'}>State transition hash:</Text>
         </div>
         <div className={'flex items-center gap-[.3125rem] min-w-0'}>
-          <Identifier className={'font-mono font-extrabold!'}>{transaction.hash}</Identifier>
-          <CopyButton text={transaction.hash} />
+          <Identifier className={'font-mono font-extrabold!'}>{displayedId}</Identifier>
+          <CopyButton text={displayedId} />
           {network && (
             <button
               type={'button'}

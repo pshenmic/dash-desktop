@@ -5,7 +5,7 @@ import type { SendRecipientDraft } from './SendDraft'
 import type { TransferPageType } from '../constants'
 import type { ReactNode } from 'react'
 import type { DropdownFieldOption } from './DropdownField'
-import type { PlatformAddressDto, WalletAddressDto } from '../api/types'
+import type { PlatformAddressDto, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
 import type { IdentityApiDto } from '../hooks/useIdentities'
 
 export interface OwnRecipientInventory {
@@ -13,7 +13,7 @@ export interface OwnRecipientInventory {
   change: WalletAddressDto[]
   platformAddresses: PlatformAddressDto[]
   shieldedAddresses: string[]
-  shieldedBalances: Map<string, bigint> | null
+  shieldedNotes: ShieldedNoteInfo[] | null
   identities: IdentityApiDto[]
 }
 
