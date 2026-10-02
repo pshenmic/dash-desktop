@@ -10,7 +10,10 @@ call, never cached on a service, because the preference changes at runtime:
   (`DASHSCAN_BASE_URLS`). Mostly xpub-scoped and cursor-paginated —
   `/xpub/transactions`, `/xpub/utxo`, `/xpub/addresses` — and the provider walks
   every page. `/addresses/info` is the one address-batch endpoint, chunked by
-  `DASHSCAN_ADDRESS_CHUNK` (100). Wire shapes live in `types/Dashscan.ts`, the
+  `DASHSCAN_ADDRESS_CHUNK` (100). Before an RPC balance or history read,
+  `CoreDiscoveryService` materializes a recent xpub usage scan into `addresses`,
+  deriving every row locally from the persisted xpub rather than trusting a
+  server-supplied address string. Wire shapes live in `types/Dashscan.ts`, the
   mapping to our `Transaction` in `utils/dashscanTransactions.ts`.
 - **`p2p`** → `P2PWalletProvider`: reads the local SPV store.
 
