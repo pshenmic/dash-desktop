@@ -3,6 +3,10 @@
   "version": "1.0.0-beta.4",
   "description": "Desktop wallet (cross-platform) for Dash network",
   "main": "./out/main/index.js",
+  "desktopName": "dash-desktop.desktop",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "author": "pshenmic",
   "license": "MIT",
   "homepage": "https://github.com/pshenmic/electron-desktop-wallet#readme",
