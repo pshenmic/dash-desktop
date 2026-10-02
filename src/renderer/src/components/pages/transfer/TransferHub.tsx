@@ -1206,6 +1206,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {operation === TransferOperation.Shield && (
         <ShieldConfirmModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
@@ -1222,6 +1223,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {isShieldedSpendOperation && (
         <ShieldedSpendModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
@@ -1241,6 +1243,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {(operation === TransferOperation.AssetLockFunding || operation === TransferOperation.AssetLockShield || operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityTopUpL1) && (
         <AssetLockFundingModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => { setConfirmOpen(false); setFundingRefresh(n => n + 1) }}
           walletId={walletId}
@@ -1285,6 +1288,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {isPlatformModalOperation && (
         <TransferConfirmModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}

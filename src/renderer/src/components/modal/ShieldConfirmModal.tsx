@@ -16,6 +16,7 @@ import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export default function ShieldConfirmModal({
   isOpen,
+  advanced = true,
   onClose,
   walletId,
   source,
@@ -80,7 +81,7 @@ export default function ShieldConfirmModal({
     onClose()
   }
 
-  let confirmLabel = 'Sign & Send'
+  let confirmLabel = advanced ? 'Sign & Send' : 'Confirm'
   if (shielding) confirmLabel = 'Shielding…'
   else if (!proverReady) confirmLabel = 'Preparing…'
 

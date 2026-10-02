@@ -24,6 +24,7 @@ export interface TransferConfirmRow {
 
 interface TransferConfirmModalProps {
   isOpen: boolean
+  advanced?: boolean
   onClose: () => void
   title: string
   successTitle: string
@@ -40,6 +41,7 @@ interface TransferConfirmModalProps {
 
 export default function TransferConfirmModal({
   isOpen,
+  advanced = true,
   onClose,
   title,
   successTitle,
@@ -196,7 +198,7 @@ export default function TransferConfirmModal({
                 className={"flex-1 rounded-[.9375rem] gap-2"}
               >
                 {sending && <Spinner size={16} />}
-                {sending ? 'Sending…' : 'Sign & Send'}
+                {sending ? 'Sending…' : advanced ? 'Sign & Send' : 'Confirm'}
               </Button>
             </div>
           </div>

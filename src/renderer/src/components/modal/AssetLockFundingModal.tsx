@@ -17,6 +17,7 @@ import { davToDash } from '@renderer/utils/balance'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
+  advanced?: boolean
   onClose: () => void
   walletId: string | null
   toPlatformAddress: string
@@ -111,6 +112,7 @@ function phaseIndex(phase: AssetLockFundingPhase): number {
 
 export default function AssetLockFundingModal({
   isOpen,
+  advanced = true,
   onClose,
   walletId,
   toPlatformAddress,
@@ -236,7 +238,7 @@ export default function AssetLockFundingModal({
   let modalTitle = texts.title
   if (isDone) modalTitle = texts.doneTitle
   else if (resume) modalTitle = texts.resumeTitle
-  let confirmLabel = texts.confirm
+  let confirmLabel = advanced ? texts.confirm : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
   else if (resume) confirmLabel = 'Resume'
 

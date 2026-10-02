@@ -17,6 +17,7 @@ import { INVALID_WALLET_PASSWORD_MESSAGE, SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND
 
 interface ShieldedSpendModalProps {
   isOpen: boolean
+  advanced?: boolean
   onClose: () => void
   walletId: string | null
   title: string
@@ -45,6 +46,7 @@ function phaseIndex(phase: ShieldedSpendPhase): number {
 
 export default function ShieldedSpendModal({
   isOpen,
+  advanced = true,
   onClose,
   walletId,
   title,
@@ -162,7 +164,7 @@ export default function ShieldedSpendModal({
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = BigInt(sentAmount || amountCredits || '0')
-  let confirmLabel = 'Sign & Send'
+  let confirmLabel = advanced ? 'Sign & Send' : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
   else if (!proverReady) confirmLabel = 'Preparing…'
   let modalTitle = title
