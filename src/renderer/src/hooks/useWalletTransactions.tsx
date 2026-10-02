@@ -1,6 +1,6 @@
 import { API } from '@renderer/api'
 import { useMemo } from 'react'
-import type { GetAddressesResponse, WalletDto, WalletHistory } from '@renderer/api/types'
+import type { GetAddressesResponse, WalletHistory } from '@renderer/api/types'
 import type { WalletTransactionOwnership } from '@renderer/types/WalletTransaction'
 import type { IdentityApiDto } from './useIdentities'
 import { EMPTY_WALLET_HISTORY } from '@renderer/constants/platformTransactions'
@@ -14,34 +14,26 @@ export async function fetchTransactionOwnership(walletId: string): Promise<Walle
   const ownership: WalletTransactionOwnership = {
     walletId, core: new Set(), platform: new Set(), identities: new Set(), shielded: new Set(),
   }
-  const [walletsResult] = await Promise.allSettled([API.getAllWallets()])
-  if (walletsResult.status === 'rejected') return ownership
-  const wallets = (walletsResult.value ?? []) as WalletDto[]
-  const wallet = wallets.find(candidate => candidate.walletId === walletId)
-  if (!wallet) return ownership
-
-  await Promise.all(wallets.filter(candidate => candidate.network === wallet.network).map(async candidate => {
-    const [core, platform, identities, shielded] = await Promise.allSettled([
-      API.getAddresses(candidate.walletId).then(data => data as GetAddressesResponse | null),
-      API.getPlatformAddresses(candidate.walletId),
-      API.getIdentities(candidate.walletId).then(data => (data ?? []) as IdentityApiDto[]),
-      API.getShieldedAddresses(candidate.walletId),
-    ])
-    if (core.status === 'fulfilled' && core.value) {
-      for (const address of [...core.value.receiving, ...core.value.change]) {
-        if (address.walletId === candidate.walletId && address.address) ownership.core.add(address.address)
-      }
+  const [core, platform, identities, shielded] = await Promise.allSettled([
+    API.getAddresses(walletId).then(data => data as GetAddressesResponse | null),
+    API.getPlatformAddresses(walletId),
+    API.getIdentities(walletId).then(data => (data ?? []) as IdentityApiDto[]),
+    API.getShieldedAddresses(walletId),
+  ])
+  if (core.status === 'fulfilled' && core.value) {
+    for (const address of [...core.value.receiving, ...core.value.change]) {
+      if (address.walletId === walletId && address.address) ownership.core.add(address.address)
     }
-    if (platform.status === 'fulfilled') {
-      for (const address of platform.value) if (address.platformAddress) ownership.platform.add(address.platformAddress)
-    }
-    if (identities.status === 'fulfilled') {
-      for (const identity of identities.value) if (identity.identifier) ownership.identities.add(identity.identifier)
-    }
-    if (shielded.status === 'fulfilled') {
-      for (const address of shielded.value ?? []) if (address) ownership.shielded.add(address)
-    }
-  }))
+  }
+  if (platform.status === 'fulfilled') {
+    for (const address of platform.value) if (address.platformAddress) ownership.platform.add(address.platformAddress)
+  }
+  if (identities.status === 'fulfilled') {
+    for (const identity of identities.value) if (identity.identifier) ownership.identities.add(identity.identifier)
+  }
+  if (shielded.status === 'fulfilled') {
+    for (const address of shielded.value ?? []) if (address) ownership.shielded.add(address)
+  }
   return ownership
 }
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WalletHistory } from '@renderer/api/types'
 import type { WalletTransactionOwnership, WalletTxDto } from '@renderer/types/WalletTransaction'
-import { mapWalletTransaction, mergeWalletTransactions } from '@renderer/utils/walletTransactions'
+import { mapWalletTransaction, mergeWalletTransactions, transactionCardDisplay } from '@renderer/utils/walletTransactions'
 import { platformInternalTransferFee } from '@renderer/utils/platformTransactions'
 import { fetchTransactionOwnership } from '@renderer/hooks/useWalletTransactions'
 
@@ -231,13 +231,8 @@ describe('asset lock history without a persisted link', () => {
 describe('transaction ownership', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('includes existing same-network wallet addresses and identities while excluding other networks', async () => {
+  it('includes only selected-wallet addresses and identities', async () => {
     const api = {
-      getAllWallets: vi.fn().mockResolvedValue([
-        {walletId: 'wallet-a', network: 'testnet'},
-        {walletId: 'wallet-b', network: 'testnet'},
-        {walletId: 'wallet-main', network: 'mainnet'},
-      ]),
       getAddresses: vi.fn(async (walletId: string) => ({
         receiving: [{walletId, address: `${walletId}-receive`}, {walletId: 'wallet-other', address: 'foreign-row'}],
         change: [{walletId, address: `${walletId}-change`}],
@@ -249,25 +244,54 @@ describe('transaction ownership', () => {
     vi.stubGlobal('window', {electronAPI: api})
     expect(await fetchTransactionOwnership('wallet-a')).toEqual({
       walletId: 'wallet-a',
-      core: new Set(['wallet-a-receive', 'wallet-a-change', 'wallet-b-receive', 'wallet-b-change']),
-      platform: new Set(['wallet-a-platform', 'wallet-b-platform']),
-      identities: new Set(['wallet-a-identity', 'wallet-b-identity']),
-      shielded: new Set(['wallet-a-shielded', 'wallet-b-shielded']),
+      core: new Set(['wallet-a-receive', 'wallet-a-change']),
+      platform: new Set(['wallet-a-platform']),
+      identities: new Set(['wallet-a-identity']),
+      shielded: new Set(['wallet-a-shielded']),
     })
     for (const endpoint of [api.getAddresses, api.getPlatformAddresses, api.getIdentities, api.getShieldedAddresses]) {
-      expect(endpoint.mock.calls.map(call => call[0])).toEqual(['wallet-a', 'wallet-b'])
+      expect(endpoint.mock.calls.map(call => call[0])).toEqual(['wallet-a'])
     }
   })
 
-  it('keeps successful ownership reads and leaves rejected or unavailable address classes unknown', async () => {
+  it('keeps a payment to another local wallet out of internal-transfer fee handling', async () => {
     const api = {
       getAllWallets: vi.fn().mockResolvedValue([
         {walletId: 'wallet-a', network: 'testnet'}, {walletId: 'wallet-b', network: 'testnet'},
       ]),
-      getAddresses: vi.fn(async (walletId: string) => {
-        if (walletId === 'wallet-b') throw new Error('offline')
-        return {receiving: [{walletId, address: 'Xsender'}], change: [{walletId, address: 'Xchange'}]}
-      }),
+      getAddresses: vi.fn(async (walletId: string) => ({
+        receiving: [{walletId, address: walletId === 'wallet-a' ? 'Xsender' : 'Xrecipient'}],
+        change: [{walletId, address: walletId === 'wallet-a' ? 'Xchange' : 'Xrecipient-change'}],
+      })),
+      getPlatformAddresses: vi.fn().mockResolvedValue([]),
+      getIdentities: vi.fn().mockResolvedValue([]),
+      getShieldedAddresses: vi.fn().mockResolvedValue([]),
+    }
+    vi.stubGlobal('window', {electronAPI: api})
+
+    const raw = outgoingTransaction()
+    const sentOwnership = await fetchTransactionOwnership('wallet-a')
+    const sent = mapWalletTransaction(raw, sentOwnership.core)
+    const receivedRaw = {
+      ...raw, walletId: 'wallet-b', address: 'Xrecipient', direction: 1,
+      inAmount: 0n, outAmount: 150_000_000n, transferAmount: 150_000_000n,
+    }
+    const receivedOwnership = await fetchTransactionOwnership('wallet-b')
+    const received = mapWalletTransaction(receivedRaw, receivedOwnership.core)
+
+    expect(api.getAllWallets).not.toHaveBeenCalled()
+    expect(api.getAddresses.mock.calls.map(call => call[0])).toEqual(['wallet-a', 'wallet-b'])
+    expect(sent.internalTransferFee).toBeUndefined()
+    expect(transactionCardDisplay(sent)).toEqual({amount: raw.transferAmount, direction: 'out'})
+    expect(received.internalTransferFee).toBeUndefined()
+    expect(transactionCardDisplay(received)).toEqual({amount: receivedRaw.transferAmount, direction: 'in'})
+  })
+
+  it('keeps successful selected-wallet reads when other address classes fail', async () => {
+    const api = {
+      getAddresses: vi.fn(async (walletId: string) => ({
+        receiving: [{walletId, address: 'Xsender'}], change: [{walletId, address: 'Xchange'}],
+      })),
       getPlatformAddresses: vi.fn().mockRejectedValue(new Error('offline')),
       getIdentities: vi.fn(async (walletId: string) => [{identifier: `${walletId}-identity`}]),
       getShieldedAddresses: vi.fn().mockRejectedValue(new Error('offline')),
@@ -276,8 +300,7 @@ describe('transaction ownership', () => {
     const ownership = await fetchTransactionOwnership('wallet-a')
     expect(ownership).toEqual({
       walletId: 'wallet-a', core: new Set(['Xsender', 'Xchange']), platform: new Set(),
-      identities: new Set(['wallet-a-identity', 'wallet-b-identity']),
-      shielded: new Set(),
+      identities: new Set(['wallet-a-identity']), shielded: new Set(),
     })
     const raw = outgoingTransaction()
     expect(mapWalletTransaction(raw, ownership.core)).toMatchObject({title: 'Send', amount: raw.transferAmount})
@@ -286,7 +309,6 @@ describe('transaction ownership', () => {
   it('restores Core self-transfer fees from fresh ownership reads without funding progress', async () => {
     const expected = transferOwnership()
     const api = {
-      getAllWallets: vi.fn().mockResolvedValue([{walletId: 'wallet-1', network: 'testnet'}, {walletId: 'wallet-2', network: 'testnet'}]),
       getAddresses: vi.fn(async (walletId: string) => ({receiving: [{walletId, address: 'Xsender'}, {walletId, address: 'Xrecipient'}], change: [{walletId, address: 'Xchange'}]})),
       getPlatformAddresses: vi.fn().mockResolvedValue([{platformAddress: 'ownPlatform'}, {platformAddress: 'ownRemainder'}]),
       getIdentities: vi.fn().mockResolvedValue([]),
