@@ -16,7 +16,7 @@ function fromRow({
 
   return {
     walletId: wallet_id,
-    hash,
+    hash: hash.toLowerCase(),
     type,
     date: new Date(timestamp),
     blockHeight: block_height ?? null,
