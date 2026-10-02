@@ -265,6 +265,15 @@ describe('WalletSyncService block persistence', () => {
     expect(service.getWalletDataRevision(WALLET)).toBe(1)
   })
 
+  it('advances the revision after a cfilter block commits', async () => {
+    emit(service, {type: 'blockApplied', block: block(500)})
+
+    expect(service.getWalletDataRevision(WALLET)).toBe(0)
+    await settle()
+
+    expect(service.getWalletDataRevision(WALLET)).toBe(1)
+  })
+
   it('waits for queued block writes before advancing the completed-sync revision', async () => {
     let releaseBlock!: () => void
     transactionDAO.applyBlock.mockImplementationOnce(
@@ -280,6 +289,6 @@ describe('WalletSyncService block persistence', () => {
     releaseBlock()
     await settle()
 
-    expect(service.getWalletDataRevision(WALLET)).toBe(1)
+    expect(service.getWalletDataRevision(WALLET)).toBe(2)
   })
 })

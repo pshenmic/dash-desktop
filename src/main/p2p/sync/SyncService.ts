@@ -70,6 +70,7 @@ export class SyncService {
   private activeGapLimit = 0
   private activeBirthdayHeight = 1
   private activeSeedUtxos: P2PStartMessage['seedUtxos'] = []
+  private activeUnconfirmedInputOutpoints: P2PStartMessage['unconfirmedInputOutpoints'] = []
   private activeCFilterCursor: number | null = null
   private cfilterStarted = false
   // Display order, not wire order. While non-empty the watcher fetches isdlock
@@ -306,8 +307,9 @@ export class SyncService {
     this.activeWatchAddresses = cmd.watchAddresses ?? []
     this.activeGapLimit = cmd.gapLimit
     this.activeBirthdayHeight = cmd.birthdayHeight && cmd.birthdayHeight > 0 ? cmd.birthdayHeight : 1
-    this.activeSeedUtxos = cmd.seedUtxos ?? []
-    this.activeCFilterCursor = cmd.cfilterCursor ?? null
+    this.activeSeedUtxos = cmd.seedUtxos
+    this.activeUnconfirmedInputOutpoints = cmd.unconfirmedInputOutpoints
+    this.activeCFilterCursor = cmd.cfilterCursor
     this.cfilterStarted = false
     this.setLockAddresses(cmd.walletId, this.activeWatchAddresses)
 
@@ -353,7 +355,7 @@ export class SyncService {
       resumeHeight = GENESIS[cmd.network].height
       log.info(`genesis fallback: height=${resumeHeight} hash=${resumeHash}`)
     }
-    log.info(`starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
+    log.info(`starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} unconfirmedInputs=${this.activeUnconfirmedInputOutpoints.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
     if (this.pinnedOnly) {
       // One pool, both jobs: a second pool dialling the same pinned hosts would
@@ -420,6 +422,7 @@ export class SyncService {
     this.activeGapLimit = 0
     this.activeBirthdayHeight = 1
     this.activeSeedUtxos = []
+    this.activeUnconfirmedInputOutpoints = []
     this.activeCFilterCursor = null
     this.emit({
       phase: 'stopped',
@@ -501,7 +504,8 @@ export class SyncService {
   reseedUtxos = (cmd: P2PReseedUtxosMessage): void => {
     if (cmd.walletId !== this.activeWalletId) return
     this.activeSeedUtxos = cmd.utxos
-    this.cfilterSyncWorker?.reseedUtxos(cmd.utxos)
+    this.activeUnconfirmedInputOutpoints = cmd.unconfirmedInputOutpoints
+    this.cfilterSyncWorker?.reseedUtxos(cmd.utxos, cmd.unconfirmedInputOutpoints)
   }
 
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
@@ -784,6 +788,7 @@ export class SyncService {
       gapLimit: this.activeGapLimit,
       birthdayHeight: this.activeBirthdayHeight,
       seedUtxos: this.activeSeedUtxos,
+      unconfirmedInputOutpoints: this.activeUnconfirmedInputOutpoints,
       cfilterCursor: this.activeCFilterCursor,
     })
     this.cfilterSyncWorker.on('status', (s: CFilterSyncWorkerStatus) => this.onCFilterStatus(s))

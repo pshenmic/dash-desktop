@@ -93,6 +93,11 @@ export interface WalletSyncUtxo {
   height: number
 }
 
+export interface UnconfirmedInputOutpoint {
+  txid: string
+  vout: number
+}
+
 // ── BlockApplied payload ────────────────────────────────────────────────────
 
 // address is null for non-standard scripts (OP_RETURN, exotic multisig); the

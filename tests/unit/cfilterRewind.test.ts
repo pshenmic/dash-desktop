@@ -112,6 +112,7 @@ describe('CFilterSyncWorker rewind', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [utxo(1), utxo(2)],
+      unconfirmedInputOutpoints: [],
       cfilterCursor: 19,
     })
 
@@ -155,7 +156,7 @@ describe('CFilterSyncWorker rewind', () => {
     worker.onChainExtended([header(FORK + 1), header(FORK + 2)])
     pool.sent = []
 
-    worker.reseedUtxos([utxo(3)])
+    worker.reseedUtxos([utxo(3)], [])
 
     expect(pool.sent.length).toBeGreaterThan(0)
   })
@@ -166,7 +167,7 @@ describe('CFilterSyncWorker rewind', () => {
     pool.sent = []
 
     worker.onChainRewound(FORK)
-    worker.reseedUtxos([])
+    worker.reseedUtxos([], [])
 
     // Nothing above the fork is trusted, so the scan tip comes back down with it.
     const status = (worker as unknown as {
@@ -179,7 +180,7 @@ describe('CFilterSyncWorker rewind', () => {
     worker.stop()
 
     worker.onChainRewound(FORK)
-    worker.reseedUtxos([utxo(3)])
+    worker.reseedUtxos([utxo(3)], [])
 
     expect(cursorResets).toEqual([])
     expect(store.deletedFilterHeadersFrom).toEqual([])

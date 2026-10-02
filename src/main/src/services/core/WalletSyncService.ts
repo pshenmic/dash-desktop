@@ -240,9 +240,12 @@ export class WalletSyncService {
       this.enqueuePersist(async () => {
         await this.transactionDAO.rewindToHeight(data.walletId, data.height)
         this.markWalletDataChanged(data.walletId)
-        const utxos = await this.transactionDAO.getUtxos(data.walletId)
+        const [utxos, unconfirmedInputOutpoints] = await Promise.all([
+          this.transactionDAO.getUtxos(data.walletId),
+          this.transactionDAO.getUnconfirmedInputOutpoints(data.walletId),
+        ])
         log.warn(`reorg: un-confirmed everything above h=${data.height}; reseeding ${utxos.length} utxo(s)`)
-        this.send({type: 'reseedUtxos', walletId: data.walletId, utxos})
+        this.send({type: 'reseedUtxos', walletId: data.walletId, utxos, unconfirmedInputOutpoints})
       })
     } else if (data.type === 'gapExhausted') {
       this.gapHeld.add(data.gap.walletId)
@@ -353,9 +356,11 @@ export class WalletSyncService {
     this.cursorGate.clear(walletId)
     if (!this.cursorGate.hasFailures()) this.persistenceError = null
     this.startRebroadcastLoop()
-    // Seed the worker's in-memory spend-detection map from SQL.
-    const seedUtxos = await this.transactionDAO.getUtxos(walletId)
-    const cfilterCursor = await this.transactionDAO.getCursor(walletId)
+    const [seedUtxos, unconfirmedInputOutpoints, cfilterCursor] = await Promise.all([
+      this.transactionDAO.getUtxos(walletId),
+      this.transactionDAO.getUnconfirmedInputOutpoints(walletId),
+      this.transactionDAO.getCursor(walletId),
+    ])
 
     const chainDbPath = dataPath(ChainStorageFilename, network)
     try {
@@ -367,7 +372,8 @@ export class WalletSyncService {
 
     log.info(
       `start ${walletId} on ${network}: ${watchAddresses.length} watched address(es), ` +
-      `${seedUtxos.length} utxo(s), cursor=${cfilterCursor ?? 'none'}, mode=${this.preferences.network.mode}`,
+      `${seedUtxos.length} utxo(s), ${unconfirmedInputOutpoints.length} unconfirmed input(s), ` +
+      `cursor=${cfilterCursor ?? 'none'}, mode=${this.preferences.network.mode}`,
     )
     const peerOverrides = this.preferences.network.settingsFor(network)
     this.sentPeerOverrides.set(network, peerOverridesKey(peerOverrides))
@@ -379,6 +385,7 @@ export class WalletSyncService {
       watchAddresses,
       gapLimit: CORE_ADDRESS_WINDOW.gapLimit,
       seedUtxos,
+      unconfirmedInputOutpoints,
       cfilterCursor,
       peerOverrides,
       // birthdayHeight is intentionally undefined — defaults to genesis in the
@@ -717,6 +724,7 @@ export class WalletSyncService {
       try {
         const advanceCursor = this.cursorGate.allowsBlockCursor(block.walletId, block.height)
         await this.transactionDAO.applyBlock(block, {advanceCursor})
+        this.markWalletDataChanged(block.walletId)
         this.cursorGate.succeed(block.walletId, block.height)
         if (!this.cursorGate.hasFailures()) this.persistenceError = null
         if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)

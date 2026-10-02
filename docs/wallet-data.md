@@ -60,9 +60,15 @@ Payments are spotted before any block carries them: `SyncService` matches TX inv
 on the lock pool against the addresses shipped in the `listen` command and emits
 `incomingTx`; `WalletSyncService.recordIncomingTx` writes the tx at
 `block_height = 0` with `is_local = false`, then arms `watchForInstantLock`. Its
-committed write and a completed cfilter scan advance the selected wallet's data
-revision, so the renderer's existing status poll refreshes the affected Core
-caches without waiting for their normal refresh intervals.
+committed write and each committed matching cfilter block advance the selected
+wallet's data revision, so the renderer's existing status poll refreshes the
+affected Core caches without waiting for their normal refresh intervals.
+
+At cfilter startup and reorg reseed, the main process also supplies the inputs
+of every stored zero-height transaction. They are match-only outpoints: they
+never enter the UTXO map or affect balance. When a cfilter block spends one,
+the ordinary `AppliedTx`/`AppliedSpend` path writes the transaction's real
+height.
 
 - **An `isdlock` cannot tell you a tx pays you.** It carries `inputs`, `txid`,
   `cycleHash` and `sig` — no outputs, no addresses — and its inv hash is not the

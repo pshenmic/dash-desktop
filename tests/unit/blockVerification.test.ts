@@ -101,6 +101,7 @@ describe('block verification against the header merkle root', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [],
       cfilterCursor: TIP,
     })
 

@@ -98,6 +98,7 @@ describe('cfilter batch wedge', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [],
       // Resume above the tip, so nothing is scanned until headers extend it.
       cfilterCursor: TIP,
     })

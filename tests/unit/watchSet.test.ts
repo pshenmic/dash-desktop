@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {utils as sdkUtils} from 'dash-core-sdk'
 import {WatchSet} from '../../src/main/p2p/sync/WatchSet'
-import type {WalletSyncUtxo, WatchAddress} from '../../src/main/p2p/types/walletSync'
+import type {UnconfirmedInputOutpoint, WalletSyncUtxo, WatchAddress} from '../../src/main/p2p/types/walletSync'
 import type {Block} from 'dash-core-sdk'
 
 const GAP_LIMIT = 20
@@ -23,6 +23,8 @@ const txidAt = (n: number): string => n.toString(16).padStart(64, '0')
 const utxo = (n: number, address: string): WalletSyncUtxo => ({
   txid: txidAt(n), vout: 0, satoshis: '100000', address, height: n,
 })
+
+const unconfirmedInput = (n: number): UnconfirmedInputOutpoint => ({txid: txidAt(n), vout: 0})
 
 // Only the surface WatchSet.applyBlock reads.
 const block = (
@@ -102,7 +104,7 @@ describe('WatchSet block matching', () => {
   // no address of ours, so nothing but the spent outpoint identifies it.
   it('catches a transaction that only spends from us', () => {
     const set = new WatchSet('testnet', GAP_LIMIT, [watched(1)])
-    set.setUtxos([utxo(7, addressAt(1))])
+    set.setWatchedOutpoints([utxo(7, addressAt(1))])
 
     const match = set.applyBlock(
       block([{
@@ -115,6 +117,25 @@ describe('WatchSet block matching', () => {
 
     expect(match?.spends).toEqual([{prevTxid: txidAt(7), prevVout: 0, spentInTxid: txidAt(8)}])
     expect(set.utxoCount).toBe(0)
+  })
+
+  it('matches a zero-height transaction input without making it spendable', () => {
+    const set = new WatchSet('testnet', GAP_LIMIT, [watched(1)])
+    set.setWatchedOutpoints([], [unconfirmedInput(7)])
+
+    const match = set.applyBlock(
+      block([{
+        txid: txidAt(8),
+        inputs: [{txId: txidAt(7), vOut: 0}],
+        outputs: [{address: addressAt(9), satoshis: 90000}],
+      }]),
+      12,
+    )
+
+    expect(match?.txs).toHaveLength(1)
+    expect(match?.spends).toEqual([{prevTxid: txidAt(7), prevVout: 0, spentInTxid: txidAt(8)}])
+    expect(set.utxoCount).toBe(0)
+    expect(set.totalSatoshis()).toBe(0n)
   })
 
   it('returns null for a block touching nothing of ours', () => {
@@ -164,7 +185,7 @@ describe('WatchSet.revision', () => {
     const set = new WatchSet('testnet', GAP_LIMIT, [watched(1)])
     const before = set.revision
 
-    set.setUtxos([utxo(7, addressAt(1))])
+    set.setWatchedOutpoints([utxo(7, addressAt(1))])
 
     expect(set.revision).toBeGreaterThan(before)
   })
@@ -190,15 +211,15 @@ describe('WatchSet.revision', () => {
   })
 })
 
-describe('WatchSet.setUtxos', () => {
+describe('WatchSet.setWatchedOutpoints', () => {
   // After a rewind the orphaned outpoints must leave the match set, so it is
   // rebuilt from the addresses rather than appended to.
   it('drops outpoints that are not in the new snapshot', () => {
     const set = new WatchSet('testnet', GAP_LIMIT, [watched(1), watched(2)])
-    set.setUtxos([utxo(7, addressAt(1)), utxo(8, addressAt(2))])
-    expect(set.items).toHaveLength(4)
+    set.setWatchedOutpoints([utxo(7, addressAt(1)), utxo(8, addressAt(2))], [unconfirmedInput(9)])
+    expect(set.items).toHaveLength(5)
 
-    set.setUtxos([utxo(7, addressAt(1))])
+    set.setWatchedOutpoints([utxo(7, addressAt(1))], [])
 
     expect(set.items).toHaveLength(3)
     expect(set.utxoCount).toBe(1)

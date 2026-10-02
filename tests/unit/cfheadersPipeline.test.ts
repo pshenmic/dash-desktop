@@ -90,6 +90,7 @@ describe('cfheaders pipelining', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [],
       cfilterCursor: null,
     })
     await worker.start()
