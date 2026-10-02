@@ -172,12 +172,7 @@ export default function SendConfirmModal({
                   {amountFiat && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {amountFiat}</Text>}
                 </div>
               </div>
-              {!advanced && recipients.map((recipient, index) => (
-                <div key={`${index}-${recipient.address}`} className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
-                  <Text size={14} weight="medium" color="brand" opacity={50}>To</Text>
-                  <Text size={14} weight="medium" color="brand" className="break-all select-all text-right">{recipient.address}</Text>
-                </div>
-              ))}
+              {!advanced && <RecipientSummary recipients={recipients} />}
               {feeDuffs != null && (
                 <div className="flex flex-col gap-3 border-t border-dash-primary-dark-blue/10 pt-3 dark:border-white/10">
                   <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">

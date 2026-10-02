@@ -119,13 +119,13 @@ export default function ShieldConfirmModal({
               )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{fromDisplay}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{fromDisplay}</Text>
               </div>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
                 <div className={"flex items-center gap-1.5 min-w-0"}>
                   <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-                  <Text size={12} weight={"medium"} color={"blue-mint"} className={"font-mono min-w-0 break-all text-right"}>{toAddress}</Text>
+                  <Text size={12} weight={"medium"} color={"blue-mint"} className={"min-w-0 break-all select-all text-right"}>{toAddress}</Text>
                 </div>
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function ShieldConfirmModal({
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Fee-paying address</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.fromAddress}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>
               </div>
               {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
             </div>

@@ -203,7 +203,7 @@ export default function ShieldedSpendModal({
               )}
               {recipients ? <RecipientSummary recipients={recipients} /> : <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{toLabel}</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toValue}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{toValue}</Text>
               </div>}
               {recipients && feeCredits != null && <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text><Text size={14} weight="extrabold" color="brand"><CreditsAmount credits={BigInt(amountCredits) + feeCredits} align="end" exact /></Text></div>}
             </div>
