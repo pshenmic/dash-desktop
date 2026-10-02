@@ -71,7 +71,6 @@ export default function Statistics({ transactions, platform, platformFailed, per
           sub={activity.lastDate ? <><span className={activity.lastSource === 'Evo' ? 'font-semibold text-(--stat-evo)' : ''}>{activity.lastSource}</span> · {timePart(activity.lastDate)}</> : 'No dated activity'} />
         <StatAddressUsage />
       </div>
-      <p className="m-0 px-1 text-[11px] text-(--stat-muted)">Wallet age and address usage cover all time.</p>
     </div>
   )
 }
