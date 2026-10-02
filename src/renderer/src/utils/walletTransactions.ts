@@ -1,9 +1,7 @@
-import type { PlatformTransaction, WalletHistory } from '@renderer/api/types'
-import type { AssetLockInternalTransfer, TransactionCardAmount, TransactionCardItem, WalletHistoryGroup, WalletHistoryItem, WalletTransactionOwnership, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
-import { AssetLockFundingKind } from '@renderer/enums/AssetLockFundingKind'
-import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
+import type { PlatformTransaction } from '@renderer/api/types'
+import type { TransactionCardAmount, TransactionCardItem, WalletHistoryGroup, WalletHistoryItem, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
 import { formatCreationDate } from './date'
-import { creditsToDash, creditsToDuffs, dashToDuffs, davToDash, duffsToCredits } from './balance'
+import { creditsToDash, creditsToDuffs, dashToDuffs, davToDash } from './balance'
 import { mapPlatformTransaction, platformTransactionDateValue } from './platformTransactions'
 import { txType } from './transactionFilters'
 
@@ -65,14 +63,13 @@ function mapWalletTransactionStatus(status: string, confirmations: number): Wall
   return 'pending'
 }
 
-function internalTransferFee(raw: WalletTxDto, ownedAddresses?: ReadonlySet<string>, fundingAmountDuffs?: bigint): bigint | null {
+function internalTransferFee(raw: WalletTxDto, ownedAddresses?: ReadonlySet<string>): bigint | null {
   if (raw.vin.length === 0 || raw.vout.length === 0) return null
 
   let inputAmount = 0n
   let outputAmount = 0n
   let inputsOwned = ownedAddresses !== undefined
   let outputsOwned = ownedAddresses !== undefined
-  let burnCount = 0
   for (const input of raw.vin) {
     if (input.addr.trim() === '' || !/^\d+(?:\.\d{1,8})?$/.test(input.value)) return null
     const amount = dashToDuffs(input.value)
@@ -85,40 +82,16 @@ function internalTransferFee(raw: WalletTxDto, ownedAddresses?: ReadonlySet<stri
     const amount = dashToDuffs(output.value)
     if (amount === 0n) continue
     outputAmount += amount
-    if (output.address.trim() === '') {
-      if (fundingAmountDuffs === undefined || amount !== fundingAmountDuffs || ++burnCount > 1) return null
-    } else {
-      outputsOwned &&= ownedAddresses?.has(output.address) ?? false
-    }
+    if (output.address.trim() === '') return null
+    outputsOwned &&= ownedAddresses?.has(output.address) ?? false
   }
   if (outputAmount === 0n || inputAmount < outputAmount) return null
-  if (fundingAmountDuffs !== undefined) {
-    if (burnCount !== 1 || !inputsOwned || !outputsOwned) return null
-  } else if ((!inputsOwned || !outputsOwned) && (raw.inAmount !== inputAmount || raw.outAmount !== outputAmount)) return null
+  if ((!inputsOwned || !outputsOwned) && (raw.inAmount !== inputAmount || raw.outAmount !== outputAmount)) return null
   return inputAmount - outputAmount
 }
 
-export function assetLockInternalTransfer(history: WalletHistory, ownership: WalletTransactionOwnership): AssetLockInternalTransfer | null {
-  const funding = ownership.funding
-  if (!ownership.walletId || !funding || funding.phase !== AssetLockFundingPhase.Done || funding.kind !== AssetLockFundingKind.Address || funding.error) return null
-  const {txid, stHash, toPlatformAddress, amountDuffs} = funding
-  if (!txid || !stHash || !toPlatformAddress || !ownership.platform.has(toPlatformAddress) || amountDuffs == null || amountDuffs <= 0n) return null
-  const core = history.core.find(transaction => transaction.walletId === ownership.walletId && transaction.txid.toLowerCase() === txid.toLowerCase())
-  const platform = history.platform.find(transaction => transaction.walletId === ownership.walletId && transaction.hash.toLowerCase() === stHash.toLowerCase())
-  if (!core || !platform || platform.type !== 'ADDRESS_FUNDING_FROM_ASSET_LOCK' || platform.status !== 'SUCCESS' || platform.error || platform.blockHeight == null || platform.blockHeight <= 0 || platform.gasCredits <= 0n) return null
-  if (platform.sender.length !== 0 || platform.recipient.length !== 2) return null
-  if (!platform.recipient.some(end => end.source === toPlatformAddress) || platform.recipient.some(end => end.amount <= 0n || !ownership.platform.has(end.source))) return null
-  if (new Set(platform.recipient.map(end => end.source)).size !== platform.recipient.length) return null
-  const credited = platform.recipient.reduce((sum, end) => sum + end.amount, 0n)
-  if (platform.netCredits !== credited || credited !== duffsToCredits(amountDuffs) || platform.gasCredits >= credited) return null
-  // Explorer address amounts precede the fee charge; the linked local job proves the lock paid its gas.
-  const coreFeeDuffs = internalTransferFee(core, ownership.core, amountDuffs)
-  return coreFeeDuffs === null ? null : {walletId: ownership.walletId, txid: core.txid, stHash: platform.hash, coreFeeDuffs, platformFeeCredits: platform.gasCredits}
-}
-
-export function mapWalletTransaction(raw: WalletTxDto, ownedAddresses?: ReadonlySet<string>, funding?: AssetLockInternalTransfer | null): WalletTxItem {
-  const fee = funding?.walletId === raw.walletId && funding.txid === raw.txid
-    ? funding.coreFeeDuffs : internalTransferFee(raw, ownedAddresses)
+export function mapWalletTransaction(raw: WalletTxDto, ownedAddresses?: ReadonlySet<string>): WalletTxItem {
+  const fee = internalTransferFee(raw, ownedAddresses)
   const direction = fee !== null || raw.direction !== 1 ? 'out' : 'in'
 
   return {

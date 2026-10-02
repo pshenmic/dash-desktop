@@ -95,93 +95,51 @@ describe('Platform internal transfers', () => {
       walletId: 'wallet',
       core: new Set(['ownCore']),
       platform: new Set(['ownPlatform', 'otherOwnPlatform']),
-      shielded: new Set(['ownShielded', 'otherOwnShielded']),
       identities: new Set(['senderIdentity', 'recipientIdentity']),
     }
   }
 
-  function unshield(fee = 168_934_000n, overrides: Partial<PlatformTransaction> = {}): PlatformTransaction {
+  function addressTransfer(overrides: Partial<PlatformTransaction> = {}): PlatformTransaction {
     return transaction({
-      type: 'UNSHIELD',
-      netCredits: -fee,
-      gasCredits: fee,
-      amountCredits: 100_000_000_000n + fee,
-      sender: [{ source: 'ownShielded', amount: 100_000_000_000n + fee }],
-      recipient: [{ source: 'ownPlatform', amount: 100_000_000_000n }],
+      hash: '87409956A626C016BC36F28BDFCDBC154157E6D032DABB428C2BA7D589650AE2',
+      netCredits: 0n,
+      gasCredits: 3_234_380n,
+      amountCredits: 94_219_326_000n,
+      sender: [{ source: 'ownPlatform', amount: 94_219_326_000n }],
+      recipient: [{ source: 'otherOwnPlatform', amount: 94_219_326_000n }],
       ...overrides,
     })
   }
 
-  it.each([168_934_000n, 162_851_200n, 1n, 9_007_199_254_740_993n])('uses the observed unshield loss of %s credits', (fee) => {
-    expect(platformInternalTransferFee(unshield(fee), ownership())).toBe(fee)
+  it('restores an indexed self transfer and its actual gas from fresh transaction and ownership data', () => {
+    const raw = addressTransfer()
+    expect(platformInternalTransferFee(raw, ownership())).toBe(3_234_380n)
+    expect(platformInternalTransferFee(structuredClone(raw), ownership())).toBe(3_234_380n)
   })
 
-  it('preserves the fee paid above reported gas instead of recalculating it', () => {
-    expect(platformInternalTransferFee(unshield(168_934_000n, { gasCredits: 168_933_560n }), ownership()))
-      .toBe(168_934_000n)
-  })
-
-  it('includes every owned pool debit in the single transparent payout', () => {
-    expect(platformInternalTransferFee(unshield(7n, {
-      sender: [{ source: 'ownShielded', amount: 50_000_000_000n }, { source: 'otherOwnShielded', amount: 50_000_000_007n }],
-    }), ownership())).toBe(7n)
-  })
-
-  it('subtracts owned shielded change from the pool debit before showing the fee', () => {
-    const raw = unshield(123n, {
-      sender: [{ source: 'ownShielded', amount: 200_000_000_123n }],
+  it('accepts several visible owned ends and uses gas rather than the displayed net or principal', () => {
+    const raw = addressTransfer({
+      netCredits: -7n,
+      sender: [
+        { source: 'ownPlatform', amount: 50_000_000_000n },
+        { source: 'otherOwnPlatform', amount: 50_000_000_007n },
+      ],
       recipient: [
         { source: 'ownPlatform', amount: 100_000_000_000n },
-        { source: 'otherOwnShielded', amount: 100_000_000_000n },
+        { source: 'otherOwnPlatform', amount: 1n },
       ],
     })
-    expect(platformInternalTransferFee(raw, ownership())).toBe(123n)
-    expect(mapPlatformTransaction({ ...raw, internalTransferFeeCredits: 123n }))
-      .toMatchObject({ title: 'Internal transfer', direction: 'out', amount: 123n })
-    expect(platformInternalTransferFee({ ...raw, netCredits: -124n }, ownership())).toBeNull()
-  })
-
-  it.each([
-    [
-      { source: 'externalPlatform', amount: 100_000_000_000n },
-      { source: 'otherOwnShielded', amount: 100_000_000_000n },
-    ],
-    [
-      { source: 'ownPlatform', amount: 100_000_000_000n },
-      { source: 'externalShielded', amount: 100_000_000_000n },
-    ],
-    [
-      { source: 'ownPlatform', amount: 100_000_000_000n },
-      { source: 'otherOwnPlatform', amount: 100_000_000_000n },
-    ],
-    [
-      { source: 'ownShielded', amount: 100_000_000_000n },
-      { source: 'otherOwnShielded', amount: 100_000_000_000n },
-    ],
-    [
-      { source: 'ownPlatform', amount: 100_000_000_000n },
-      { source: 'otherOwnShielded', amount: 100_000_000_000n },
-      { source: 'externalPlatform', amount: 1n },
-    ],
-  ])('requires a single owned transparent payout even when change is owned', (...recipient) => {
-    const raw = unshield(123n, {
-      sender: [{ source: 'ownShielded', amount: 200_000_000_123n }],
-      recipient,
-    })
-    expect(platformInternalTransferFee(raw, ownership())).toBeNull()
+    expect(platformInternalTransferFee(raw, ownership())).toBe(3_234_380n)
   })
 
   it.each([
     { sender: [] },
     { recipient: [] },
-    { sender: [{ source: 'externalShielded', amount: 100_168_934_000n }] },
+    { sender: [{ source: 'externalPlatform', amount: 100_000_000_000n }] },
     { recipient: [{ source: 'externalPlatform', amount: 100_000_000_000n }] },
     { recipient: [{ source: 'ownPlatform', amount: 50_000_000_000n }, { source: 'externalPlatform', amount: 50_000_000_000n }] },
-    { recipient: [{ source: 'ownShielded', amount: 100_000_000_000n }] },
-    { sender: [{ source: 'ownPlatform', amount: 100_168_934_000n }] },
-    { sender: [{ source: 'ownShielded', amount: 0n }] },
-    { netCredits: 0n },
-    { netCredits: -1n },
+    { sender: [{ source: 'ownPlatform', amount: 0n }] },
+    { recipient: [{ source: 'ownPlatform', amount: -1n }] },
     { gasCredits: 0n },
     { status: 'FAIL' as const },
     { status: null },
@@ -189,13 +147,24 @@ describe('Platform internal transfers', () => {
     { blockHeight: null },
     { blockHeight: 0 },
     { walletId: 'another-wallet' },
-    { type: 'ADDRESS_FUNDS_TRANSFER' },
-    { type: 'SHIELD_FROM_ASSET_LOCK' },
-    { type: 'SHIELD' },
-    { type: 'SHIELDED_TRANSFER' },
     { type: 'FUTURE_OPERATION' },
-  ])('leaves partial, external or unsupported unshield-shaped data unchanged', (overrides) => {
-    expect(platformInternalTransferFee(unshield(168_934_000n, overrides), ownership())).toBeNull()
+  ])('leaves unavailable, external or unsuccessful address transfer data unchanged', (overrides) => {
+    const raw = addressTransfer(overrides)
+    expect(platformInternalTransferFee(raw, ownership())).toBeNull()
+    expect(mapPlatformTransaction(raw)).toMatchObject({ amount: raw.amountCredits, title: platformTransactionTitle(raw.type) })
+  })
+
+  it('does not call an unshield loss a fee when shielded change may be unreadable', () => {
+    const raw = transaction({
+      type: 'UNSHIELD',
+      netCredits: -90_000_000_000n,
+      gasCredits: 168_934_000n,
+      amountCredits: 100_000_000_000n,
+      sender: [{ source: 'ownShielded', amount: 100_000_000_000n }],
+      recipient: [{ source: 'ownPlatform', amount: 10_000_000_000n }],
+    })
+    expect(platformInternalTransferFee(raw, ownership())).toBeNull()
+    expect(mapPlatformTransaction(raw)).toMatchObject({ title: 'Unshield', amount: raw.amountCredits })
   })
 
   it.each(['CREDIT_TRANSFER', 'IDENTITY_CREDIT_TRANSFER'])('recognizes the complete one-to-one identity operation %s', (type) => {
@@ -217,14 +186,15 @@ describe('Platform internal transfers', () => {
   })
 
   it('maps only enriched metadata to the fee while preserving the original operation and principal', () => {
-    const raw = unshield(1n)
-    const presented = { ...raw, internalTransferFeeCredits: 1n }
+    const raw = addressTransfer({ gasCredits: 1n })
+    const fee = platformInternalTransferFee(raw, ownership())!
+    const presented = { ...raw, internalTransferFeeCredits: fee }
     expect(mapPlatformTransaction(presented)).toMatchObject({ title: 'Internal transfer', amount: 1n, direction: 'out' })
-    expect(mapPlatformTransaction(raw)).toMatchObject({ title: 'Unshield', amount: 100_000_000_001n, direction: 'out' })
-    expect(raw.type).toBe('UNSHIELD')
-    expect(raw.amountCredits).toBe(100_000_000_001n)
+    expect(mapPlatformTransaction(raw)).toMatchObject({ title: 'Address Funds Transfer', amount: 94_219_326_000n, direction: 'neutral' })
+    expect(raw.type).toBe('ADDRESS_FUNDS_TRANSFER')
+    expect(raw.amountCredits).toBe(94_219_326_000n)
     const history = mergeWalletTransactions([], [presented])
-    expect(history[0]).toMatchObject({ title: 'Internal transfer', amount: 1n, type: 'platform:UNSHIELD' })
+    expect(history[0]).toMatchObject({ title: 'Internal transfer', amount: 1n, type: 'platform:ADDRESS_FUNDS_TRANSFER' })
     expect(computeTxTotals(history)).toEqual({ receivedCredits: 0n, sentCredits: 1n })
     expect(formatTransactionCardAmount(history[0])).toEqual({ value: '0.00000000001', duffs: 0n })
   })

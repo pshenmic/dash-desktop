@@ -1,4 +1,4 @@
-import type {AssetLockFundingState, PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
+import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
 import type { TxBalanceChangeFilter } from '@renderer/enums/TxBalanceChangeFilter'
 import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
 import type { ReactNode } from 'react'
@@ -18,17 +18,7 @@ export interface WalletTransactionOwnership {
   walletId: string | null
   core: Set<string>
   platform: Set<string>
-  shielded: Set<string>
   identities: Set<string>
-  funding?: AssetLockFundingState
-}
-
-export interface AssetLockInternalTransfer {
-  walletId: string
-  txid: string
-  stHash: string
-  coreFeeDuffs: bigint
-  platformFeeCredits: bigint
 }
 
 export type PresentedPlatformTransaction = PlatformTransaction & {

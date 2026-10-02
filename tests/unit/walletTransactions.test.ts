@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WalletHistory } from '@renderer/api/types'
 import type { WalletTransactionOwnership, WalletTxDto } from '@renderer/types/WalletTransaction'
-import { AssetLockFundingKind } from '@renderer/enums/AssetLockFundingKind'
-import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
-import { assetLockInternalTransfer, mapWalletTransaction, mergeWalletTransactions } from '@renderer/utils/walletTransactions'
+import { mapWalletTransaction, mergeWalletTransactions } from '@renderer/utils/walletTransactions'
+import { platformInternalTransferFee } from '@renderer/utils/platformTransactions'
 import { fetchTransactionOwnership } from '@renderer/hooks/useWalletTransactions'
 
 function outgoingTransaction(): WalletTxDto {
@@ -33,14 +32,10 @@ function fundingHistory(): WalletHistory {
   }]}
 }
 
-function fundingOwnership(): WalletTransactionOwnership {
+function transferOwnership(): WalletTransactionOwnership {
   return {
-    walletId: 'wallet-1', core: new Set(['Xsender', 'Xchange']), platform: new Set(['ownPlatform', 'ownRemainder']),
-    identities: new Set(), shielded: new Set(), funding: {
-      phase: AssetLockFundingPhase.Done, kind: AssetLockFundingKind.Address, txid: 'outgoing', stHash: 'fundingabc',
-      txHeight: 10, chainLockedHeight: 10, lockKind: null, toPlatformAddress: 'ownPlatform',
-      identityIdentifier: null, amountDuffs: 100_062_000n, error: null,
-    },
+    walletId: 'wallet-1', core: new Set(['Xsender', 'Xrecipient', 'Xchange']), platform: new Set(['ownPlatform', 'ownRemainder']),
+    identities: new Set(),
   }
 }
 
@@ -213,59 +208,17 @@ describe('mapWalletTransaction', () => {
   })
 })
 
-describe('linked local asset lock funding', () => {
-  it('uses actual L1 fee and observed L2 gas despite explorer gross credits cancelling the lock', () => {
+describe('asset lock history without a persisted link', () => {
+  it('keeps Core and Platform amounts unchanged even when the visible addresses are owned', () => {
     const history = fundingHistory()
-    const ownership = fundingOwnership()
-    const funding = assetLockInternalTransfer(history, ownership)!
-    expect(funding).toEqual({walletId: 'wallet-1', txid: 'outgoing', stHash: 'FUNDINGABC', coreFeeDuffs: 124n, platformFeeCredits: 22_626_920n})
-    const core = mapWalletTransaction(history.core[0], ownership.core, funding)
-    const platform = {...history.platform[0], internalTransferFeeCredits: funding.platformFeeCredits}
-    expect(mergeWalletTransactions([core], [platform])).toEqual(expect.arrayContaining([
-      expect.objectContaining({kind: 'core', title: 'Internal transfer', amount: 124n, direction: 'out'}),
-      expect.objectContaining({kind: 'platform', title: 'Internal transfer', amount: 22_626_920n, direction: 'out'}),
+    const ownership = transferOwnership()
+    const core = mapWalletTransaction(history.core[0], ownership.core)
+    expect(platformInternalTransferFee(history.platform[0], ownership)).toBeNull()
+    expect(mergeWalletTransactions([core], history.platform)).toEqual(expect.arrayContaining([
+      expect.objectContaining({kind: 'core', title: 'Send', amount: 100_062_124n, direction: 'out'}),
+      expect.objectContaining({kind: 'platform', title: 'Address Funding From Asset Lock', amount: 100_000_000_000n, direction: 'in'}),
     ]))
-    expect(history.core[0].transferAmount).toBe(100_062_124n)
-    expect(history.platform[0].amountCredits).toBe(100_000_000_000n)
   })
-
-  it.each(['missing state', 'unfinished', 'other kind', 'error', 'txid', 'stHash', 'wallet', 'external destination', 'burn amount'])
-    ('leaves history unchanged without matching successful local funding proof: %s', mismatch => {
-      const history = fundingHistory()
-      const ownership = fundingOwnership()
-      const funding = ownership.funding!
-      if (mismatch === 'missing state') delete ownership.funding
-      if (mismatch === 'unfinished') funding.phase = AssetLockFundingPhase.Resumable
-      if (mismatch === 'other kind') funding.kind = AssetLockFundingKind.Shielded
-      if (mismatch === 'error') funding.error = 'failed'
-      if (mismatch === 'txid') funding.txid = 'another'
-      if (mismatch === 'stHash') funding.stHash = 'another'
-      if (mismatch === 'wallet') history.platform[0].walletId = 'other'
-      if (mismatch === 'external destination') ownership.platform.delete('ownPlatform')
-      if (mismatch === 'burn amount') funding.amountDuffs = 100_062_001n
-      expect(assetLockInternalTransfer(history, ownership)).toBeNull()
-      expect(mapWalletTransaction(history.core[0], ownership.core).title).toBe('Send')
-    })
-
-  it.each(['external input', 'unresolved input', 'external change', 'extra burn', 'missing remainder', 'duplicate recipient', 'foreign recipient', 'wrong net', 'failed', 'unconfirmed', 'missing gas', 'oversized gas'])
-    ('rejects incomplete or inconsistent linked transaction data: %s', mismatch => {
-      const history = fundingHistory()
-      const core = history.core[0]
-      const platform = history.platform[0]
-      if (mismatch === 'external input') core.vin[0].addr = 'external'
-      if (mismatch === 'unresolved input') core.vin[0].value = ''
-      if (mismatch === 'external change') core.vout[1].address = 'external'
-      if (mismatch === 'extra burn') core.vout.push({...core.vout[0], n: 2})
-      if (mismatch === 'missing remainder') platform.recipient.pop()
-      if (mismatch === 'duplicate recipient') platform.recipient[1].source = platform.recipient[0].source
-      if (mismatch === 'foreign recipient') platform.recipient[1].source = 'external'
-      if (mismatch === 'wrong net') platform.netCredits -= 1n
-      if (mismatch === 'failed') platform.status = 'FAIL'
-      if (mismatch === 'unconfirmed') platform.blockHeight = null
-      if (mismatch === 'missing gas') platform.gasCredits = 0n
-      if (mismatch === 'oversized gas') platform.gasCredits = platform.netCredits
-      expect(assetLockInternalTransfer(history, fundingOwnership())).toBeNull()
-    })
 })
 
 describe('transaction ownership', () => {
@@ -284,7 +237,6 @@ describe('transaction ownership', () => {
       })),
       getPlatformAddresses: vi.fn(async (walletId: string) => [{platformAddress: `${walletId}-platform`}]),
       getIdentities: vi.fn(async (walletId: string) => [{identifier: `${walletId}-identity`}]),
-      getShieldedAddresses: vi.fn(async (walletId: string) => [`${walletId}-shielded`]),
     }
     vi.stubGlobal('window', {electronAPI: api})
     expect(await fetchTransactionOwnership('wallet-a')).toEqual({
@@ -292,9 +244,8 @@ describe('transaction ownership', () => {
       core: new Set(['wallet-a-receive', 'wallet-a-change', 'wallet-b-receive', 'wallet-b-change']),
       platform: new Set(['wallet-a-platform', 'wallet-b-platform']),
       identities: new Set(['wallet-a-identity', 'wallet-b-identity']),
-      shielded: new Set(['wallet-a-shielded', 'wallet-b-shielded']),
     })
-    for (const endpoint of [api.getAddresses, api.getPlatformAddresses, api.getIdentities, api.getShieldedAddresses]) {
+    for (const endpoint of [api.getAddresses, api.getPlatformAddresses, api.getIdentities]) {
       expect(endpoint.mock.calls.map(call => call[0])).toEqual(['wallet-a', 'wallet-b'])
     }
   })
@@ -310,33 +261,33 @@ describe('transaction ownership', () => {
       }),
       getPlatformAddresses: vi.fn().mockRejectedValue(new Error('offline')),
       getIdentities: vi.fn(async (walletId: string) => [{identifier: `${walletId}-identity`}]),
-      getShieldedAddresses: vi.fn().mockResolvedValue(null),
     }
     vi.stubGlobal('window', {electronAPI: api})
     const ownership = await fetchTransactionOwnership('wallet-a')
     expect(ownership).toEqual({
       walletId: 'wallet-a', core: new Set(['Xsender', 'Xchange']), platform: new Set(),
-      identities: new Set(['wallet-a-identity', 'wallet-b-identity']), shielded: new Set(),
+      identities: new Set(['wallet-a-identity', 'wallet-b-identity']),
     })
     const raw = outgoingTransaction()
     expect(mapWalletTransaction(raw, ownership.core)).toMatchObject({title: 'Send', amount: raw.transferAmount})
   })
 
-  it('loads only the selected wallet funding state and links it after ownership reads', async () => {
-    const expected = fundingOwnership()
+  it('restores Core self-transfer fees from fresh ownership reads without funding progress', async () => {
+    const expected = transferOwnership()
     const api = {
       getAllWallets: vi.fn().mockResolvedValue([{walletId: 'wallet-1', network: 'testnet'}, {walletId: 'wallet-2', network: 'testnet'}]),
-      getAddresses: vi.fn(async (walletId: string) => ({receiving: [{walletId, address: 'Xsender'}], change: [{walletId, address: 'Xchange'}]})),
+      getAddresses: vi.fn(async (walletId: string) => ({receiving: [{walletId, address: 'Xsender'}, {walletId, address: 'Xrecipient'}], change: [{walletId, address: 'Xchange'}]})),
       getPlatformAddresses: vi.fn().mockResolvedValue([{platformAddress: 'ownPlatform'}, {platformAddress: 'ownRemainder'}]),
-      getIdentities: vi.fn().mockResolvedValue([]), getShieldedAddresses: vi.fn().mockResolvedValue(null),
-      getAssetLockFundingState: vi.fn().mockResolvedValue(expected.funding),
+      getIdentities: vi.fn().mockResolvedValue([]),
+      getAssetLockFundingState: vi.fn().mockRejectedValue(new Error('No session funding state')),
     }
     vi.stubGlobal('window', {electronAPI: api})
-    const ownership = await fetchTransactionOwnership('wallet-1')
-    expect(ownership).toEqual(expected)
-    expect(api.getAssetLockFundingState).toHaveBeenCalledExactlyOnceWith('wallet-1')
-    expect(assetLockInternalTransfer(fundingHistory(), ownership)).toMatchObject({coreFeeDuffs: 124n, platformFeeCredits: 22_626_920n})
-    api.getAssetLockFundingState.mockRejectedValueOnce(new Error('unavailable'))
-    expect(assetLockInternalTransfer(fundingHistory(), await fetchTransactionOwnership('wallet-1'))).toBeNull()
+    for (let session = 0; session < 2; session++) {
+      const ownership = await fetchTransactionOwnership('wallet-1')
+      expect(ownership).toEqual(expected)
+      expect(mapWalletTransaction(structuredClone(outgoingTransaction()), ownership.core))
+        .toMatchObject({title: 'Internal transfer', amount: 1n, direction: 'out'})
+    }
+    expect(api.getAssetLockFundingState).not.toHaveBeenCalled()
   })
 })

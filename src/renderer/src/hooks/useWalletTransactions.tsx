@@ -4,7 +4,7 @@ import type { GetAddressesResponse, WalletDto, WalletHistory } from '@renderer/a
 import type { WalletTransactionOwnership } from '@renderer/types/WalletTransaction'
 import type { IdentityApiDto } from './useIdentities'
 import { EMPTY_WALLET_HISTORY } from '@renderer/constants/platformTransactions'
-import { assetLockInternalTransfer, groupTransactionsByDay, mapWalletTransaction } from '@renderer/utils/walletTransactions'
+import { groupTransactionsByDay, mapWalletTransaction } from '@renderer/utils/walletTransactions'
 import { platformInternalTransferFee } from '@renderer/utils/platformTransactions'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
@@ -12,21 +12,19 @@ export type { WalletTxDto, WalletTxItem } from '@renderer/types/WalletTransactio
 
 export async function fetchTransactionOwnership(walletId: string): Promise<WalletTransactionOwnership> {
   const ownership: WalletTransactionOwnership = {
-    walletId, core: new Set(), platform: new Set(), shielded: new Set(), identities: new Set(),
+    walletId, core: new Set(), platform: new Set(), identities: new Set(),
   }
-  const [walletsResult, funding] = await Promise.allSettled([API.getAllWallets(), API.getAssetLockFundingState(walletId)])
-  if (funding.status === 'fulfilled' && funding.value) ownership.funding = funding.value
+  const [walletsResult] = await Promise.allSettled([API.getAllWallets()])
   if (walletsResult.status === 'rejected') return ownership
   const wallets = (walletsResult.value ?? []) as WalletDto[]
   const wallet = wallets.find(candidate => candidate.walletId === walletId)
   if (!wallet) return ownership
 
   await Promise.all(wallets.filter(candidate => candidate.network === wallet.network).map(async candidate => {
-    const [core, platform, identities, shielded] = await Promise.allSettled([
+    const [core, platform, identities] = await Promise.allSettled([
       API.getAddresses(candidate.walletId).then(data => data as GetAddressesResponse | null),
       API.getPlatformAddresses(candidate.walletId),
       API.getIdentities(candidate.walletId).then(data => (data ?? []) as IdentityApiDto[]),
-      API.getShieldedAddresses(candidate.walletId),
     ])
     if (core.status === 'fulfilled' && core.value) {
       for (const address of [...core.value.receiving, ...core.value.change]) {
@@ -38,9 +36,6 @@ export async function fetchTransactionOwnership(walletId: string): Promise<Walle
     }
     if (identities.status === 'fulfilled') {
       for (const identity of identities.value) if (identity.identifier) ownership.identities.add(identity.identifier)
-    }
-    if (shielded.status === 'fulfilled') {
-      for (const address of shielded.value ?? []) if (address) ownership.shielded.add(address)
     }
   }))
   return ownership
@@ -55,7 +50,7 @@ export function useWalletTransactions(walletId: string | undefined, refreshInter
     { errorMessage: 'Failed to load transactions', refreshIntervalMs }
   )
   const emptyOwnership = useMemo<WalletTransactionOwnership>(() => ({
-    walletId: null, core: new Set(), platform: new Set(), shielded: new Set(), identities: new Set(),
+    walletId: null, core: new Set(), platform: new Set(), identities: new Set(),
   }), [])
   const { data: loadedOwnership } = useAsyncWithCache(
     'transaction-ownership',
@@ -65,14 +60,12 @@ export function useWalletTransactions(walletId: string | undefined, refreshInter
     { refreshIntervalMs }
   )
   const ownership = loadedOwnership.walletId === walletId ? loadedOwnership : emptyOwnership
-  const funding = useMemo(() => assetLockInternalTransfer(history, ownership), [history, ownership])
   const groups = useMemo(() => groupTransactionsByDay(history.core.map(transaction =>
-    mapWalletTransaction(transaction, ownership.core, funding))), [history.core, ownership, funding])
+    mapWalletTransaction(transaction, ownership.core))), [history.core, ownership])
   const platform = useMemo(() => history.platform.map(transaction => ({
     ...transaction,
-    internalTransferFeeCredits: funding?.stHash === transaction.hash && funding.walletId === transaction.walletId
-      ? funding.platformFeeCredits : platformInternalTransferFee(transaction, ownership) ?? undefined,
-  })), [history.platform, ownership, funding])
+    internalTransferFeeCredits: platformInternalTransferFee(transaction, ownership) ?? undefined,
+  })), [history.platform, ownership])
   return { groups, platform, platformFailed: history.platformFailed, loading, err }
 }
 

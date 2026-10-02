@@ -37,15 +37,9 @@ export function platformInternalTransferFee(transaction: PlatformTransaction, ow
     return sender.source !== recipient.source && sender.amount === recipient.amount ? transaction.gasCredits : null
   }
 
-  if (transaction.type !== 'UNSHIELD' || transaction.status !== 'SUCCESS' || transaction.blockHeight == null || transaction.blockHeight <= 0) return null
-  if (!transaction.sender.every(end => ownership.shielded.has(end.source))) return null
-  if (transaction.recipient.filter(end => ownership.platform.has(end.source)).length !== 1) return null
-  if (!transaction.recipient.every(end => ownership.platform.has(end.source) || ownership.shielded.has(end.source))) return null
-
-  const spent = transaction.sender.reduce((sum, end) => sum + end.amount, 0n)
-  const received = transaction.recipient.reduce((sum, end) => sum + end.amount, 0n)
-  const fee = spent - received
-  return fee > 0n && transaction.netCredits === -fee ? fee : null
+  if (transaction.type !== 'ADDRESS_FUNDS_TRANSFER' || transaction.status !== 'SUCCESS' || transaction.blockHeight == null || transaction.blockHeight <= 0) return null
+  return [...transaction.sender, ...transaction.recipient].every(end => ownership.platform.has(end.source))
+    ? transaction.gasCredits : null
 }
 
 export function mapPlatformTransaction(transaction: PresentedPlatformTransaction): TransactionCardItem {
