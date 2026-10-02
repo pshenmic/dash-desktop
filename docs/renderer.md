@@ -42,3 +42,7 @@ The `@fontsource/manrope` faces are imported from `main.tsx`, not through
 the woff2 files were silently never emitted and the build warned `didn't resolve
 at build time`. Any such warning means fonts are missing from the bundle again;
 a clean build emits them into `out/renderer/assets/`.
+
+Vite inlines any face under its 4 KB asset limit as a `data:` URI — today the
+`cyrillic-ext` subsets — which is why the CSP carries `font-src 'self' data:`.
+Drop `data:` and those faces fall back to a system font with no build warning.
