@@ -54,6 +54,7 @@ export default function TransactionCard({
   const { format: formatFiat, rateReady } = useFiat()
   const { isBalanceVisible } = useBalanceVisibility()
   const formattedAmount = formatTransactionCardAmount({ amount, kind })
+  const displayedId = id.toLowerCase()
 
   return (
     <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
@@ -77,8 +78,8 @@ export default function TransactionCard({
 
         <div
           className={`flex min-w-0 gap-[.25rem] ${fullIdentifiers ? 'items-start' : 'items-center'}`}
-          title={id}
-          aria-label={`${transactionsPage.detail.transactionId}: ${id}`}
+          title={displayedId}
+          aria-label={`${transactionsPage.detail.transactionId}: ${displayedId}`}
         >
           <Text size={10} weight={"light"} color={"brand"} opacity={30} className={"shrink-0"}>
             {transactionsPage.detail.transactionId}:
@@ -91,7 +92,7 @@ export default function TransactionCard({
             opacity={50}
             className={fullIdentifiers ? "min-w-0 whitespace-nowrap font-mono text-[.5625rem]!" : "min-w-0 truncate font-mono"}
           >
-            {id}
+            {displayedId}
           </Text>
         </div>
       </div>

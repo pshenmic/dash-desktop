@@ -84,6 +84,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const isIncoming = resolvedTransaction.direction === 'in'
+  const displayedId = resolvedTransaction.id.toLowerCase()
   const hoverNotification = useRipple()
   const { format: formatFiat, rateReady } = useFiat()
   const { isBalanceVisible } = useBalanceVisibility()
@@ -181,9 +182,9 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         </div>
         <div className={"flex items-center gap-[.3125rem]"}>
           <Identifier className={"font-mono font-extrabold!"} >
-            {resolvedTransaction.id}
+            {displayedId}
           </Identifier>
-          <CopyButton text={resolvedTransaction.id} />
+          <CopyButton text={displayedId} />
           {network && (
             <button
               onClick={() => openExternal(transactionUrl(resolvedTransaction.id, network))}

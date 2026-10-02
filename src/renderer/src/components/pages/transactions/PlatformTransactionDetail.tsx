@@ -37,6 +37,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
   const { theme } = useTheme()
   const { format: formatFiat, rateReady } = useFiat()
   const date = platformTransactionDateValue(transaction.date)
+  const displayedId = transaction.hash.toLowerCase()
 
   return (
     <div className={'flex flex-col gap-4 px-12 pb-8'}>
@@ -68,8 +69,8 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
           <Text size={14} weight={'medium'} color={'brand'}>State transition hash:</Text>
         </div>
         <div className={'flex items-center gap-[.3125rem] min-w-0'}>
-          <Identifier className={'font-mono font-extrabold!'}>{transaction.hash}</Identifier>
-          <CopyButton text={transaction.hash} />
+          <Identifier className={'font-mono font-extrabold!'}>{displayedId}</Identifier>
+          <CopyButton text={displayedId} />
           {network && (
             <button
               type={'button'}
