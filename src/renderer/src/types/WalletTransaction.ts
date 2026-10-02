@@ -19,6 +19,7 @@ export interface WalletTransactionOwnership {
   core: Set<string>
   platform: Set<string>
   identities: Set<string>
+  shielded: Set<string>
 }
 
 export type PresentedPlatformTransaction = PlatformTransaction & {

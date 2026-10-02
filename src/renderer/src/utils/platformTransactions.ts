@@ -45,6 +45,11 @@ export function platformInternalTransferFee(transaction: PlatformTransaction, ow
   }
 
   switch (transaction.type) {
+    case 'UNSHIELD':
+      if (!transaction.sender.every(end => ownership.shielded.has(end.source))) return null
+      if (!transaction.recipient.some(end => ownership.platform.has(end.source))) return null
+      if (!transaction.recipient.every(end => ownership.platform.has(end.source) || ownership.shielded.has(end.source))) return null
+      break
     case 'IDENTITY_TOP_UP_FROM_ADDRESSES':
     case 'IDENTITY_CREATE_FROM_ADDRESSES':
       if (!transaction.sender.every(end => ownership.platform.has(end.source))) return null
@@ -62,7 +67,9 @@ export function platformInternalTransferFee(transaction: PlatformTransaction, ow
 
   const sent = transaction.sender.reduce((total, end) => total + end.amount, 0n)
   const received = transaction.recipient.reduce((total, end) => total + end.amount, 0n)
-  return sent - received === transaction.gasCredits ? transaction.gasCredits : null
+  const difference = sent - received
+  if (transaction.type === 'UNSHIELD') return difference === transaction.gasCredits ? transaction.gasCredits : null
+  return difference === 0n || difference === transaction.gasCredits ? transaction.gasCredits : null
 }
 
 export function mapPlatformTransaction(transaction: PresentedPlatformTransaction): TransactionCardItem {

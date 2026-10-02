@@ -12,7 +12,7 @@ export type { WalletTxDto, WalletTxItem } from '@renderer/types/WalletTransactio
 
 export async function fetchTransactionOwnership(walletId: string): Promise<WalletTransactionOwnership> {
   const ownership: WalletTransactionOwnership = {
-    walletId, core: new Set(), platform: new Set(), identities: new Set(),
+    walletId, core: new Set(), platform: new Set(), identities: new Set(), shielded: new Set(),
   }
   const [walletsResult] = await Promise.allSettled([API.getAllWallets()])
   if (walletsResult.status === 'rejected') return ownership
@@ -21,10 +21,11 @@ export async function fetchTransactionOwnership(walletId: string): Promise<Walle
   if (!wallet) return ownership
 
   await Promise.all(wallets.filter(candidate => candidate.network === wallet.network).map(async candidate => {
-    const [core, platform, identities] = await Promise.allSettled([
+    const [core, platform, identities, shielded] = await Promise.allSettled([
       API.getAddresses(candidate.walletId).then(data => data as GetAddressesResponse | null),
       API.getPlatformAddresses(candidate.walletId),
       API.getIdentities(candidate.walletId).then(data => (data ?? []) as IdentityApiDto[]),
+      API.getShieldedAddresses(candidate.walletId),
     ])
     if (core.status === 'fulfilled' && core.value) {
       for (const address of [...core.value.receiving, ...core.value.change]) {
@@ -36,6 +37,9 @@ export async function fetchTransactionOwnership(walletId: string): Promise<Walle
     }
     if (identities.status === 'fulfilled') {
       for (const identity of identities.value) if (identity.identifier) ownership.identities.add(identity.identifier)
+    }
+    if (shielded.status === 'fulfilled') {
+      for (const address of shielded.value ?? []) if (address) ownership.shielded.add(address)
     }
   }))
   return ownership
@@ -50,7 +54,7 @@ export function useWalletTransactions(walletId: string | undefined, refreshInter
     { errorMessage: 'Failed to load transactions', refreshIntervalMs }
   )
   const emptyOwnership = useMemo<WalletTransactionOwnership>(() => ({
-    walletId: null, core: new Set(), platform: new Set(), identities: new Set(),
+    walletId: null, core: new Set(), platform: new Set(), identities: new Set(), shielded: new Set(),
   }), [])
   const { data: loadedOwnership } = useAsyncWithCache(
     'transaction-ownership',
