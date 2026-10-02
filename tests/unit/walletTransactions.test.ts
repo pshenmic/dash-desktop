@@ -35,7 +35,7 @@ function fundingHistory(): WalletHistory {
 function transferOwnership(): WalletTransactionOwnership {
   return {
     walletId: 'wallet-1', core: new Set(['Xsender', 'Xrecipient', 'Xchange']), platform: new Set(['ownPlatform', 'ownRemainder']),
-    identities: new Set(),
+    identities: new Set(), shielded: new Set(),
   }
 }
 
@@ -117,24 +117,30 @@ describe('mapWalletTransaction', () => {
   it.each<[string, bigint]>([
     ['0.49999999', 1n],
     ['0.49998765', 1235n],
-  ])('shows only the actual fee for transfers between owned wallets with change %s', (change, fee) => {
+  ])('preserves the wallet amount and records the actual internal-transfer fee with change %s', (change, fee) => {
     const raw = outgoingTransaction()
     raw.vout[1].value = change
     const mapped = mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange']))
-    expect(mapped).toMatchObject({title: 'Send', internalTransfer: true, direction: 'out', amount: fee, status: 'success'})
+    expect(mapped).toMatchObject({
+      title: 'Send', internalTransfer: true, internalTransferFee: fee,
+      direction: 'out', amount: raw.transferAmount, status: 'success',
+    })
   })
 
-  it('shows the same fee from the receiving owned wallet', () => {
+  it('preserves incoming funds and records the same fee for the receiving owned wallet', () => {
     const raw = {...outgoingTransaction(), direction: 1, inAmount: 0n, outAmount: 150_000_000n, transferAmount: 150_000_000n}
-    expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange'])))
-      .toMatchObject({title: 'Receive', internalTransfer: true, direction: 'out', amount: 1n})
+    const mapped = mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange']))
+    expect(mapped).toMatchObject({
+      title: 'Receive', internalTransfer: true, internalTransferFee: 1n,
+      direction: 'in', amount: raw.transferAmount, subtitleLabel: 'from',
+    })
   })
 
   it('recognizes a current-wallet self transfer from complete wallet input and output totals', () => {
     const raw = {...outgoingTransaction(), outAmount: 199_999_999n, transferAmount: 1n}
-    expect(mapWalletTransaction(raw)).toMatchObject({title: 'Send', internalTransfer: true, direction: 'out', amount: 1n})
+    expect(mapWalletTransaction(raw)).toMatchObject({title: 'Send', internalTransfer: true, internalTransferFee: 1n, direction: 'out', amount: 1n})
     expect(mapWalletTransaction(raw, new Set(['Xsender'])))
-      .toMatchObject({title: 'Send', internalTransfer: true, direction: 'out', amount: 1n})
+      .toMatchObject({title: 'Send', internalTransfer: true, internalTransferFee: 1n, direction: 'out', amount: 1n})
   })
 
   it('calculates large decimal input fees without losing duffs through floating point', () => {
@@ -145,7 +151,7 @@ describe('mapWalletTransaction', () => {
     raw.vin[0].value = '90071992.54740993'
     raw.vout = [{...raw.vout[0], value: '90071992.54740990'}]
     expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient'])))
-      .toMatchObject({title: 'Send', internalTransfer: true, amount: 3n})
+      .toMatchObject({title: 'Send', internalTransfer: true, amount: raw.transferAmount, internalTransferFee: 3n})
   })
 
   it('keeps an external payment with owned change as Send', () => {
@@ -196,7 +202,7 @@ describe('mapWalletTransaction', () => {
     const raw = outgoingTransaction()
     raw.vout.push({...raw.vout[0], address: '', value: '0.00000000', n: 2})
     expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange'])))
-      .toMatchObject({title: 'Send', internalTransfer: true, amount: 1n})
+      .toMatchObject({title: 'Send', internalTransfer: true, amount: raw.transferAmount, internalTransferFee: 1n})
   })
 
   it('does not classify transactions without inputs or monetary outputs, or with outputs exceeding inputs', () => {
@@ -238,6 +244,7 @@ describe('transaction ownership', () => {
       })),
       getPlatformAddresses: vi.fn(async (walletId: string) => [{platformAddress: `${walletId}-platform`}]),
       getIdentities: vi.fn(async (walletId: string) => [{identifier: `${walletId}-identity`}]),
+      getShieldedAddresses: vi.fn(async (walletId: string) => [`${walletId}-shielded`]),
     }
     vi.stubGlobal('window', {electronAPI: api})
     expect(await fetchTransactionOwnership('wallet-a')).toEqual({
@@ -245,8 +252,9 @@ describe('transaction ownership', () => {
       core: new Set(['wallet-a-receive', 'wallet-a-change', 'wallet-b-receive', 'wallet-b-change']),
       platform: new Set(['wallet-a-platform', 'wallet-b-platform']),
       identities: new Set(['wallet-a-identity', 'wallet-b-identity']),
+      shielded: new Set(['wallet-a-shielded', 'wallet-b-shielded']),
     })
-    for (const endpoint of [api.getAddresses, api.getPlatformAddresses, api.getIdentities]) {
+    for (const endpoint of [api.getAddresses, api.getPlatformAddresses, api.getIdentities, api.getShieldedAddresses]) {
       expect(endpoint.mock.calls.map(call => call[0])).toEqual(['wallet-a', 'wallet-b'])
     }
   })
@@ -262,12 +270,14 @@ describe('transaction ownership', () => {
       }),
       getPlatformAddresses: vi.fn().mockRejectedValue(new Error('offline')),
       getIdentities: vi.fn(async (walletId: string) => [{identifier: `${walletId}-identity`}]),
+      getShieldedAddresses: vi.fn().mockRejectedValue(new Error('offline')),
     }
     vi.stubGlobal('window', {electronAPI: api})
     const ownership = await fetchTransactionOwnership('wallet-a')
     expect(ownership).toEqual({
       walletId: 'wallet-a', core: new Set(['Xsender', 'Xchange']), platform: new Set(),
       identities: new Set(['wallet-a-identity', 'wallet-b-identity']),
+      shielded: new Set(),
     })
     const raw = outgoingTransaction()
     expect(mapWalletTransaction(raw, ownership.core)).toMatchObject({title: 'Send', amount: raw.transferAmount})
@@ -280,6 +290,7 @@ describe('transaction ownership', () => {
       getAddresses: vi.fn(async (walletId: string) => ({receiving: [{walletId, address: 'Xsender'}, {walletId, address: 'Xrecipient'}], change: [{walletId, address: 'Xchange'}]})),
       getPlatformAddresses: vi.fn().mockResolvedValue([{platformAddress: 'ownPlatform'}, {platformAddress: 'ownRemainder'}]),
       getIdentities: vi.fn().mockResolvedValue([]),
+      getShieldedAddresses: vi.fn().mockResolvedValue([]),
       getAssetLockFundingState: vi.fn().mockRejectedValue(new Error('No session funding state')),
     }
     vi.stubGlobal('window', {electronAPI: api})
@@ -287,7 +298,7 @@ describe('transaction ownership', () => {
       const ownership = await fetchTransactionOwnership('wallet-1')
       expect(ownership).toEqual(expected)
       expect(mapWalletTransaction(structuredClone(outgoingTransaction()), ownership.core))
-        .toMatchObject({title: 'Send', internalTransfer: true, amount: 1n, direction: 'out'})
+        .toMatchObject({title: 'Send', internalTransfer: true, amount: 150_000_001n, internalTransferFee: 1n, direction: 'out'})
     }
     expect(api.getAssetLockFundingState).not.toHaveBeenCalled()
   })

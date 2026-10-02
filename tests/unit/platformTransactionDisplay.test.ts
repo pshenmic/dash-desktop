@@ -10,7 +10,7 @@ import {
   platformTransactionStatus,
   platformTransactionTitle,
 } from '../../src/renderer/src/utils/platformTransactions'
-import { formatTransactionCardAmount, mergeWalletTransactions } from '../../src/renderer/src/utils/walletTransactions'
+import { formatTransactionCardAmount, mergeWalletTransactions, transactionCardDisplay } from '../../src/renderer/src/utils/walletTransactions'
 import { computeTxTotals } from '../../src/renderer/src/utils/transactionFilters'
 
 function transaction(overrides: Partial<PlatformTransaction> = {}): PlatformTransaction {
@@ -96,6 +96,7 @@ describe('Platform internal transfers', () => {
       core: new Set(['ownCore']),
       platform: new Set(['ownPlatform', 'otherOwnPlatform']),
       identities: new Set(['senderIdentity', 'recipientIdentity']),
+      shielded: new Set(),
     }
   }
 
@@ -234,19 +235,19 @@ describe('Platform internal transfers', () => {
     expect(platformInternalTransferFee(transaction({ type: 'CREDIT_TRANSFER', ...overrides }), ownership())).toBeNull()
   })
 
-  it('maps only enriched metadata to the fee while preserving the original operation and principal', () => {
+  it('keeps fee display metadata separate from the original operation and principal', () => {
     const raw = addressTransfer({ gasCredits: 1n })
     const fee = platformInternalTransferFee(raw, ownership())!
     const presented = { ...raw, internalTransferFeeCredits: fee }
-    expect(mapPlatformTransaction(presented)).toMatchObject({ title: 'Address Funds Transfer', internalTransfer: true, amount: 1n, direction: 'out' })
+    expect(mapPlatformTransaction(presented)).toMatchObject({ title: 'Address Funds Transfer', internalTransfer: true, internalTransferFee: 1n, amount: 94_219_326_000n, direction: 'neutral' })
     expect(mapPlatformTransaction(raw)).toMatchObject({ title: 'Address Funds Transfer', amount: 94_219_326_000n, direction: 'neutral' })
     expect(mapPlatformTransaction(raw).internalTransfer).toBeUndefined()
     expect(raw.type).toBe('ADDRESS_FUNDS_TRANSFER')
     expect(raw.amountCredits).toBe(94_219_326_000n)
     const history = mergeWalletTransactions([], [presented])
-    expect(history[0]).toMatchObject({ title: 'Address Funds Transfer', internalTransfer: true, amount: 1n, type: 'platform:ADDRESS_FUNDS_TRANSFER' })
-    expect(computeTxTotals(history)).toEqual({ receivedCredits: 0n, sentCredits: 1n })
-    expect(formatTransactionCardAmount(history[0])).toEqual({ value: '0.00000000001', duffs: 0n })
+    expect(history[0]).toMatchObject({ title: 'Address Funds Transfer', internalTransfer: true, internalTransferFee: 1n, amount: 94_219_326_000n, direction: 'neutral', type: 'platform:ADDRESS_FUNDS_TRANSFER' })
+    expect(computeTxTotals(history)).toEqual({ receivedCredits: 0n, sentCredits: 0n })
+    expect(formatTransactionCardAmount({ ...history[0], ...transactionCardDisplay(history[0]) })).toEqual({ value: '0.00000000001', duffs: 0n })
   })
 })
 

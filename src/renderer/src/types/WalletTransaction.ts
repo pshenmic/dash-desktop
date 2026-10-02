@@ -35,6 +35,7 @@ export type WalletTxItem = {
   kind?: 'core'
   title: 'Send' | 'Receive'
   internalTransfer?: boolean
+  internalTransferFee?: bigint
   subtitleLabel: 'from' | 'to'
   labelValue: string
   amount: bigint
@@ -56,6 +57,7 @@ export interface TransactionCardItem {
   kind?: 'core' | 'platform'
   title: string
   internalTransfer?: boolean
+  internalTransferFee?: bigint
   subtitleLabel: string
   labelValue: string
   amount: bigint
@@ -67,6 +69,8 @@ export interface TransactionCardAmount {
   value: string
   duffs: bigint
 }
+
+export type TransactionCardDisplay = Pick<TransactionCardItem, 'amount' | 'direction'>
 
 export interface TransactionCardProps extends TransactionCardItem {
   fullIdentifiers?: boolean
