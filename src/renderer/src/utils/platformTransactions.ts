@@ -77,7 +77,6 @@ export function mapPlatformTransaction(transaction: PresentedPlatformTransaction
   let direction: TransactionCardItem['direction'] = 'neutral'
   if (transaction.netCredits > 0n) direction = 'in'
   if (transaction.netCredits < 0n) direction = 'out'
-  if (internalFee !== undefined) direction = 'out'
 
   // An address transition names only our own end, so the card shows whichever
   // end the source named rather than the one the direction asks for.
@@ -89,12 +88,12 @@ export function mapPlatformTransaction(transaction: PresentedPlatformTransaction
     status: PLATFORM_TX_CARD_STATUSES[transaction.status ?? 'unknown'],
     kind: 'platform',
     title: platformTransactionTitle(transaction.type),
-    ...(internalFee !== undefined && { internalTransfer: true }),
+    ...(internalFee !== undefined && { internalTransfer: true, internalTransferFee: internalFee }),
     subtitleLabel: fromSender ? 'From' : 'To',
     labelValue: participants.length > 1
       ? `${participants.length} ${fromSender ? 'inputs' : 'outputs'}`
       : participants.map(end => end.source).join(', ') || 'Unavailable',
-    amount: internalFee ?? transaction.amountCredits,
+    amount: transaction.amountCredits,
     date: platformTransactionDateValue(transaction.date),
     direction,
   }

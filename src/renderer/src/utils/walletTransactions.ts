@@ -1,9 +1,16 @@
 import type { PlatformTransaction } from '@renderer/api/types'
-import type { TransactionCardAmount, TransactionCardItem, WalletHistoryGroup, WalletHistoryItem, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
+import type { TransactionCardAmount, TransactionCardDisplay, TransactionCardItem, WalletHistoryGroup, WalletHistoryItem, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
 import { formatCreationDate } from './date'
 import { creditsToDash, creditsToDuffs, dashToDuffs, davToDash } from './balance'
 import { mapPlatformTransaction, platformTransactionDateValue } from './platformTransactions'
 import { txType } from './transactionFilters'
+
+export function transactionCardDisplay(transaction: Pick<TransactionCardItem, 'amount' | 'direction' | 'internalTransferFee'>): TransactionCardDisplay {
+  return {
+    amount: transaction.internalTransferFee ?? transaction.amount,
+    direction: transaction.internalTransferFee !== undefined ? 'out' : transaction.direction,
+  }
+}
 
 export function formatTransactionCardAmount(transaction: Pick<TransactionCardItem, 'amount' | 'kind'>): TransactionCardAmount {
   if (transaction.kind === 'platform') {
@@ -92,7 +99,7 @@ function internalTransferFee(raw: WalletTxDto, ownedAddresses?: ReadonlySet<stri
 
 export function mapWalletTransaction(raw: WalletTxDto, ownedAddresses?: ReadonlySet<string>): WalletTxItem {
   const fee = internalTransferFee(raw, ownedAddresses)
-  const direction = fee !== null || raw.direction !== 1 ? 'out' : 'in'
+  const direction = raw.direction === 1 ? 'in' : 'out'
 
   return {
     id: raw.txid,
@@ -102,10 +109,10 @@ export function mapWalletTransaction(raw: WalletTxDto, ownedAddresses?: Readonly
     blockHeight: raw.blockHeight,
     size: raw.size,
     title: raw.direction === 1 ? 'Receive' : 'Send',
-    ...(fee !== null && { internalTransfer: true }),
+    ...(fee !== null && { internalTransfer: true, internalTransferFee: fee }),
     subtitleLabel: direction === 'in' ? 'from' : 'to',
     labelValue: direction === 'in' && raw.vin.length > 1 ? `${raw.vin.length} inputs` : raw.address,
-    amount: fee ?? raw.transferAmount,
+    amount: raw.transferAmount,
     usdAmount: raw.usdAmount,
     date: new Date(raw.date),
     direction,

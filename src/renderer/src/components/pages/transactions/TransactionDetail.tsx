@@ -108,11 +108,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
         setResolvedTransaction(transaction.internalTransfer ? {
           ...mapped,
           internalTransfer: true,
-          title: transaction.title,
-          amount: transaction.amount,
-          direction: transaction.direction,
-          subtitleLabel: transaction.subtitleLabel,
-          labelValue: transaction.labelValue,
+          internalTransferFee: transaction.internalTransferFee,
         } : mapped)
       })
       .catch((error) => {

@@ -9,7 +9,7 @@ import { TimeDelta } from "dash-ui-kit/react"
 import { cva } from "class-variance-authority"
 import { Text, Tooltip } from "@renderer/components/dash-ui-kit-enxtended"
 import type { TransactionCardProps } from "@renderer/types/WalletTransaction"
-import { formatTransactionCardAmount } from "@renderer/utils/walletTransactions"
+import { formatTransactionCardAmount, transactionCardDisplay } from "@renderer/utils/walletTransactions"
 import { useFiat } from "@renderer/hooks/useFiat"
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
 import { transactionsPage } from "@renderer/constants"
@@ -46,14 +46,16 @@ export default function TransactionCard({
   date,
   direction,
   internalTransfer = false,
+  internalTransferFee,
   fullIdentifiers = false
 } : TransactionCardProps): React.JSX.Element {
   let variantAmountSummary = TRANSACTION_CARD_STATUS_VARIANTS[status]
   if (kind === undefined && status !== 'failed') variantAmountSummary = 'muted'
-  const isIncoming = direction === 'in'
+  const display = transactionCardDisplay({ amount, direction, internalTransferFee })
+  const isIncoming = display.direction === 'in'
   const { format: formatFiat, rateReady } = useFiat()
   const { isBalanceVisible } = useBalanceVisibility()
-  const formattedAmount = formatTransactionCardAmount({ amount, kind })
+  const formattedAmount = formatTransactionCardAmount({ amount: display.amount, kind })
   const displayedId = id.toLowerCase()
 
   return (
@@ -104,8 +106,8 @@ export default function TransactionCard({
               <span className={internalTransfer ? 'text-yellow-700 dark:text-dash-yellow' : isIncoming ? 'text-dash-brand dark:text-dash-mint' : ""}>
                 {kind === 'platform' ? (
                   <CreditsAmount
-                    credits={amount}
-                    prefix={TRANSACTION_CARD_SIGNS[direction]}
+                    credits={display.amount}
+                    prefix={TRANSACTION_CARD_SIGNS[display.direction]}
                     exact
                     showFiat={false}
                     align={'end'}
@@ -113,7 +115,7 @@ export default function TransactionCard({
                   />
                 ) : (
                   <>
-                    {TRANSACTION_CARD_SIGNS[direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber>
+                    {TRANSACTION_CARD_SIGNS[display.direction]}<DashBigNumber>{formattedAmount.value}</DashBigNumber>
                     {internalTransfer && <span className="font-medium"> Dash</span>}
                   </>
                 )}
