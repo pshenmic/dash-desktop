@@ -106,7 +106,7 @@ describe('platform history', () => {
     const transactions = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
 
     expect(transactions).toHaveLength(1)
-    expect(transactions[0].hash).toBe(HASH)
+    expect(transactions[0].hash).toBe(HASH.toLowerCase())
     // -100000000 from the address, +99000000 into the identity: the gap is the
     // fee, and the row still names both participants and what they moved.
     expect(transactions[0].netCredits).toBe(-1_000_000n)
@@ -159,7 +159,7 @@ describe('platform history', () => {
       await vi.advanceTimersByTimeAsync(second)
 
       await vi.waitFor(async () =>
-        expect((await transactionDAO.getTransactions(WALLET)).map(row => row.hash)).toEqual([HASH]))
+        expect((await transactionDAO.getTransactions(WALLET)).map(row => row.hash)).toEqual([HASH.toLowerCase()]))
     } finally {
       vi.useRealTimers()
     }
@@ -172,7 +172,7 @@ describe('platform history', () => {
       : page([{...transition, hash: 'NEWER', timestamp: '2026-02-01T00:00:00.000Z'}, transition])
 
     await service.refresh(WALLET)
-    expect((mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)).toEqual(['NEWER', HASH])
+    expect((mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)).toEqual(['newer', HASH.toLowerCase()])
   })
 
   it('corrects a row it stored before the block carrying it was indexed', async () => {
@@ -204,7 +204,7 @@ describe('platform history', () => {
     await service.refresh(WALLET)
 
     const hashes = (mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)
-    expect(hashes).toContain('OLDER')
+    expect(hashes).toContain('older')
     expect(hashes).toHaveLength(fullPage.length + 1)
   })
 
@@ -227,7 +227,7 @@ describe('platform history', () => {
     await expect(service.refresh(WALLET)).rejects.toThrow(/Platform explorer request failed/)
 
     expect(service.lastRefreshFailed(WALLET)).toBe(true)
-    expect((mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)).toEqual([HASH])
+    expect((mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))).map(row => row.hash)).toEqual([HASH.toLowerCase()])
   })
 
   // An unshield tells the address it paid only what arrived there. What left
@@ -338,7 +338,7 @@ describe('platform history', () => {
     })
 
     const [row] = mergePlatformTransactions(await transactionDAO.getTransactions(WALLET))
-    expect(row.hash).toBe('SENTHASH')
+    expect(row.hash).toBe('senthash')
     expect(row.amountCredits).toBe(443_567_314_000n)
     expect(row.sender).toEqual([{source: ADDRESS, amount: 443_567_314_000n}])
     expect(row.recipient).toEqual([{source: SHIELDED, amount: 443_567_314_000n}])

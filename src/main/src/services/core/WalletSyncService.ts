@@ -65,6 +65,7 @@ export class WalletSyncService {
     lastError: null,
     updatedAt: Date.now(),
   }
+  private walletDataRevisions = new Map<string, number>()
   private activeWalletId: string | null = null
   private activeNetwork: 'mainnet' | 'testnet' | null = null
   // Re-pushes unconfirmed local txs on an interval while a wallet is synced.
@@ -207,6 +208,9 @@ export class WalletSyncService {
   private handleP2PEvent(data: P2PEvent): void {
     if (data.type === 'status') {
       const previous = this.status
+      const syncedWalletId = data.status.phase === 'synced' && previous.phase !== 'synced'
+        ? data.status.walletId
+        : null
       this.status = data.status
       if (data.status.phase !== previous.phase) {
         log.info(
@@ -219,6 +223,9 @@ export class WalletSyncService {
         log.info(`peer mode ${previous.peerMode ?? 'none'} -> ${data.status.peerMode ?? 'none'}`)
       }
       this.notifyPhase(data.status.phase)
+      if (syncedWalletId != null) {
+        this.enqueuePersist(async () => this.markWalletDataChanged(syncedWalletId))
+      }
     } else if (data.type === 'blockApplied') {
       this.persistAppliedBlock(data.block)
     } else if (data.type === 'cursorAdvanced') {
@@ -232,9 +239,13 @@ export class WalletSyncService {
       // are undone. The reseed is also what resumes the worker's held scan.
       this.enqueuePersist(async () => {
         await this.transactionDAO.rewindToHeight(data.walletId, data.height)
-        const utxos = await this.transactionDAO.getUtxos(data.walletId)
+        this.markWalletDataChanged(data.walletId)
+        const [utxos, unconfirmedInputOutpoints] = await Promise.all([
+          this.transactionDAO.getUtxos(data.walletId),
+          this.transactionDAO.getUnconfirmedInputOutpoints(data.walletId),
+        ])
         log.warn(`reorg: un-confirmed everything above h=${data.height}; reseeding ${utxos.length} utxo(s)`)
-        this.send({type: 'reseedUtxos', walletId: data.walletId, utxos})
+        this.send({type: 'reseedUtxos', walletId: data.walletId, utxos, unconfirmedInputOutpoints})
       })
     } else if (data.type === 'gapExhausted') {
       this.gapHeld.add(data.gap.walletId)
@@ -345,9 +356,11 @@ export class WalletSyncService {
     this.cursorGate.clear(walletId)
     if (!this.cursorGate.hasFailures()) this.persistenceError = null
     this.startRebroadcastLoop()
-    // Seed the worker's in-memory spend-detection map from SQL.
-    const seedUtxos = await this.transactionDAO.getUtxos(walletId)
-    const cfilterCursor = await this.transactionDAO.getCursor(walletId)
+    const [seedUtxos, unconfirmedInputOutpoints, cfilterCursor] = await Promise.all([
+      this.transactionDAO.getUtxos(walletId),
+      this.transactionDAO.getUnconfirmedInputOutpoints(walletId),
+      this.transactionDAO.getCursor(walletId),
+    ])
 
     const chainDbPath = dataPath(ChainStorageFilename, network)
     try {
@@ -359,7 +372,8 @@ export class WalletSyncService {
 
     log.info(
       `start ${walletId} on ${network}: ${watchAddresses.length} watched address(es), ` +
-      `${seedUtxos.length} utxo(s), cursor=${cfilterCursor ?? 'none'}, mode=${this.preferences.network.mode}`,
+      `${seedUtxos.length} utxo(s), ${unconfirmedInputOutpoints.length} unconfirmed input(s), ` +
+      `cursor=${cfilterCursor ?? 'none'}, mode=${this.preferences.network.mode}`,
     )
     const peerOverrides = this.preferences.network.settingsFor(network)
     this.sentPeerOverrides.set(network, peerOverridesKey(peerOverrides))
@@ -371,6 +385,7 @@ export class WalletSyncService {
       watchAddresses,
       gapLimit: CORE_ADDRESS_WINDOW.gapLimit,
       seedUtxos,
+      unconfirmedInputOutpoints,
       cfilterCursor,
       peerOverrides,
       // birthdayHeight is intentionally undefined — defaults to genesis in the
@@ -433,6 +448,13 @@ export class WalletSyncService {
   getStatus = (): WalletSyncStatus => {
     if (this.persistenceError == null) return this.status
     return {...this.status, lastError: this.persistenceError}
+  }
+
+  getWalletDataRevision = (walletId: string | null): number =>
+    walletId == null ? 0 : this.walletDataRevisions.get(walletId) ?? 0
+
+  private markWalletDataChanged(walletId: string): void {
+    this.walletDataRevisions.set(walletId, this.getWalletDataRevision(walletId) + 1)
   }
 
   // The pools live in the utility process, so this is a round trip rather than
@@ -702,6 +724,7 @@ export class WalletSyncService {
       try {
         const advanceCursor = this.cursorGate.allowsBlockCursor(block.walletId, block.height)
         await this.transactionDAO.applyBlock(block, {advanceCursor})
+        this.markWalletDataChanged(block.walletId)
         this.cursorGate.succeed(block.walletId, block.height)
         if (!this.cursorGate.hasFailures()) this.persistenceError = null
         if (block.txs.length > 0) this.notifyWalletActivity(block.walletId)
@@ -749,7 +772,9 @@ export class WalletSyncService {
   // p2p/constants.BROADCAST_POLICY; `policy` overrides the lock knobs.
   broadcastTransaction = async (txHex: string, policy?: BroadcastPolicyOverrides): Promise<BroadcastResult> => {
     // Re-forks the utility process if it died since the last send.
-    if (this.lockListenNetwork) this.startLockListen(this.lockListenNetwork)
+    if (this.lockListenNetwork) {
+      await this.startLockListen(this.lockListenNetwork, this.lockListenWalletId)
+    }
     if (!this.child) {
       throw new Error('broadcastTransaction: p2p transport not started — no wallet selected')
     }
@@ -876,12 +901,14 @@ export class WalletSyncService {
       }),
     }
     await this.transactionDAO.recordPendingTx(walletId, applied, true)
+    this.markWalletDataChanged(walletId)
   }
 
   // A payment the lock pool saw in the mempool. Recorded unconfirmed so the
   // balance moves immediately, then armed so its isdlock marks it final.
   private async recordIncomingTx(walletId: string, tx: AppliedTx): Promise<void> {
     await this.transactionDAO.recordPendingTx(walletId, tx, false)
+    this.markWalletDataChanged(walletId)
     const received = tx.outputs.filter(o => o.isMine).reduce((sum, o) => sum + BigInt(o.satoshis), 0n)
     log.info(`incoming tx ${tx.txid} recorded unconfirmed (+${received} duffs)`)
     this.watchForInstantLock(tx.txid)

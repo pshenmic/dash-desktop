@@ -12,5 +12,6 @@ export interface AppStatus {
   selectedWalletId: string | null
   network: Network | null
   connectionStatus: ConnectionStatus | null
+  walletDataRevision: number
   walletSync: WalletSyncStatus
 }

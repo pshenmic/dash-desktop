@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { API } from '@renderer/api'
 import { GetAddressesResponse, WalletAddressDto } from '@renderer/api/types'
-import { prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
+import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 type AddressesData = { receiving: WalletAddressDto[]; change: WalletAddressDto[] }
 
@@ -25,4 +25,9 @@ export function useAdresses(walletId: string | undefined, refreshIntervalMs?: nu
 
 export function prefetchAddresses(walletId: string): Promise<void> {
   return prefetchAsyncCache('addresses', walletId, () => fetchAddresses(walletId))
+}
+
+export function refreshAddresses(walletId: string): Promise<void> {
+  invalidateAsyncCache('addresses', walletId)
+  return prefetchAddresses(walletId)
 }

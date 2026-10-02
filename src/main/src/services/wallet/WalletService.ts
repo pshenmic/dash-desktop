@@ -6,6 +6,7 @@ import {AddressDAO} from '../../database/AddressDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
+import {WalletProvider} from '../../providers/WalletProvider'
 import {Network} from '../../types/Network'
 import {Address} from '../../types/Address'
 import {GroupedAddresses} from '../../types/GroupedAddresses'
@@ -271,12 +272,22 @@ export class WalletService {
     }
   }
 
+  private async coreReadProvider(wallet: Wallet): Promise<WalletProvider> {
+    while (true) {
+      const connectionType = this.preferences.general.connectionType
+      if (connectionType === 'rpc') await this.discovery.ensureXpubAddressWindow(wallet.walletId)
+      if (connectionType === this.preferences.general.connectionType) {
+        return this.providers.forWallet(wallet.walletId, wallet.network)
+      }
+    }
+  }
+
   // Both chains of one wallet, alongside getWalletBalance. Only L1 reaches the
   // network; the platform rows are a store something else keeps current.
   async getTransactions(walletId: string): Promise<WalletHistory> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
-    const provider = this.providers.forWallet(wallet.walletId, wallet.network)
+    const provider = await this.coreReadProvider(wallet)
 
     const [core, platform] = await Promise.all([
       provider.getWalletTransactions(),
@@ -319,7 +330,7 @@ export class WalletService {
   async getWalletBalance(walletId: string): Promise<WalletBalance> {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
-    const provider = this.providers.forWallet(wallet.walletId, wallet.network)
+    const provider = await this.coreReadProvider(wallet)
 
     const addressesBalance = await provider.getWalletBalance()
     const identitiesBalance = await this.identities.totalCredits(walletId, wallet.network)

@@ -47,11 +47,11 @@ const transaction = (overrides: Partial<PlatformTransaction> = {}): PlatformTran
 }
 
 describe('cached platform transactions', () => {
-  it('round-trips credits and the millisecond timestamp', async () => {
+  it('round-trips credits and the millisecond timestamp with a lower-case hash', async () => {
     const stored = transaction({netCredits: 9_007_199_254_740_993n})
     await dao.upsertTransactions(ADDRESS, [stored])
 
-    expect(await dao.getTransactions(WALLET)).toEqual([stored])
+    expect(await dao.getTransactions(WALLET)).toEqual([{...stored, hash: stored.hash.toLowerCase()}])
   })
 
   it('round-trips every participant with its own amount and position', async () => {
@@ -70,7 +70,7 @@ describe('cached platform transactions', () => {
     })
     await dao.upsertTransactions(ADDRESS, [stored])
 
-    expect(await dao.getTransactions(WALLET)).toEqual([stored])
+    expect(await dao.getTransactions(WALLET)).toEqual([{...stored, hash: stored.hash.toLowerCase()}])
   })
 
   it('keeps the two sides of one transition apart and folds them on read', async () => {
@@ -130,7 +130,9 @@ describe('cached platform transactions', () => {
     await dao.upsertTransactions(ADDRESS, [initial])
     await dao.upsertTransactions(ADDRESS, [replacement])
 
-    expect(await dao.getTransactions(WALLET)).toEqual([{...replacement, amountCredits: 5n}])
+    expect(await dao.getTransactions(WALLET)).toEqual([{
+      ...replacement, hash: replacement.hash.toLowerCase(), amountCredits: 5n,
+    }])
     expect(await knex('platform_transaction_parts')
       .where({wallet_id: WALLET, hash: 'REPLACED', parent_source: ADDRESS})
       .orderBy('side')
@@ -204,7 +206,7 @@ describe('cached platform transactions', () => {
       transaction({hash: 'NEWER', date: new Date('2026-09-17T00:01:51.733Z')}),
     ])
 
-    expect((await dao.getTransactions(WALLET)).map(row => row.hash)).toEqual(['NEWER', 'OLDER'])
+    expect((await dao.getTransactions(WALLET)).map(row => row.hash)).toEqual(['newer', 'older'])
   })
 
   // dpp hashes the transition a send just broadcast in lower case, and the walk
@@ -224,7 +226,7 @@ describe('cached platform transactions', () => {
 
     const rows = await dao.getTransactions(WALLET)
     expect(rows).toHaveLength(1)
-    expect(rows[0].hash).toBe(HASH)
+    expect(rows[0].hash).toBe(HASH.toLowerCase())
     expect(rows[0].sender).toEqual([{source: 'authoritative', amount: 3n}])
     expect(await knex('platform_transaction_parts')
       .where({wallet_id: WALLET, hash: HASH, parent_source: `${LOCAL_SOURCE_PREFIX}${ADDRESS}`}))

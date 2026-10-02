@@ -2,7 +2,7 @@ import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {BroadcastPolicyOverrides, BroadcastResult} from './broadcast'
 import {PeerInfo, PeerOverrides, PeerProbeResult} from './pool'
-import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
+import {AppliedBlock, AppliedTx, GapExhausted, UnconfirmedInputOutpoint, WalletSyncStatus, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 // IPC envelopes between the main process and the p2p utility process. P2P* is
 // the envelope; the payload keeps its consumer-side name (WalletSync* /
@@ -23,6 +23,7 @@ export interface P2PStartMessage {
   // Shipped in the command rather than read by the worker, so the utility
   // process never touches wallet-scoped storage — SQL stays the source of truth.
   seedUtxos: WalletSyncUtxo[]
+  unconfirmedInputOutpoints: UnconfirmedInputOutpoint[]
   // null = never synced. Worker resumes from max(birthday, cfilterCursor + 1).
   cfilterCursor: number | null
   peerOverrides?: PeerOverrides
@@ -106,6 +107,7 @@ export interface P2PReseedUtxosMessage {
   type: 'reseedUtxos'
   walletId: string
   utxos: WalletSyncUtxo[]
+  unconfirmedInputOutpoints: UnconfirmedInputOutpoint[]
 }
 
 // Mirrors the user's log-level preference into the child, which keeps its own
