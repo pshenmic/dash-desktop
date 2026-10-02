@@ -134,7 +134,7 @@ export class PlatformHistoryService {
       log.warn(`${walletId}: reading the shielded side failed:`, err))
   }
 
-  // One row per end it moved, each under the source whose own row replaces it,
+  // One row per participant it moved, each under the source whose own row replaces it,
   // so a send between two of ours nets to the fee rather than reading as a loss.
   async recordShieldedSend(walletId: string, send: ShieldedSend): Promise<void> {
     const header = {hash: send.hash, type: send.type, date: new Date(),
@@ -142,7 +142,7 @@ export class PlatformHistoryService {
 
     for (const side of send.sides) {
       const row = noteSideTransaction(walletId, header, side.address, side.credits)
-      // An end of ours brings a side of its own; anyone else's has only this.
+      // A participant of ours brings a side of its own; anyone else's has only this.
       const paid = send.paid != null && side.credits < 0n ? {recipient: [send.paid]} : {}
       await this.platformTransactionDAO.upsertTransactions(
         `${LOCAL_SOURCE_PREFIX}${side.address}`, [{...row, ...paid}])

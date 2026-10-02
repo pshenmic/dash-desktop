@@ -122,12 +122,12 @@ interface PlatformTransactionDTO {
   gasCredits: bigint
   netCredits: bigint
   amountCredits: bigint
-  sender: TransitionEndDTO[]
-  recipient: TransitionEndDTO[]
+  sender: PlatformTransactionPartDTO[]
+  recipient: PlatformTransactionPartDTO[]
 }
 
-// One end of a transition and what it moved there.
-interface TransitionEndDTO {
+// One participant in a transition and what it moved there.
+interface PlatformTransactionPartDTO {
   source: string
   amount: bigint
 }

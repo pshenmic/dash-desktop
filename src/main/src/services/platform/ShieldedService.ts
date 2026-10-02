@@ -724,7 +724,7 @@ export class ShieldedService {
       }))
 
     await this.assetLock.done(state, row, stHash)
-    // The L1 lock that funded it is no end of an L2 transition.
+    // The L1 lock that funded it is no participant in an L2 transition.
     await this.history.recordShieldedSend(wallet.walletId, {
       hash: stHash,
       type: SHIELDED_TRANSITION_TYPES.shieldFromAssetLock,

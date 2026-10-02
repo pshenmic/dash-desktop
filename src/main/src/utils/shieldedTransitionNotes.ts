@@ -68,7 +68,7 @@ export function noteSideTransaction(
   net: bigint,
 ): PlatformTransaction {
   const moved = net < 0n ? -net : net
-  const end = [{source: address, amount: moved}]
+  const part = [{source: address, amount: moved}]
 
   return {
     walletId,
@@ -81,7 +81,7 @@ export function noteSideTransaction(
     gasCredits: header.gasCredits,
     netCredits: net,
     amountCredits: moved,
-    sender: net < 0n ? end : [],
-    recipient: net > 0n ? end : [],
+    sender: net < 0n ? part : [],
+    recipient: net > 0n ? part : [],
   }
 }

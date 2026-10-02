@@ -1,14 +1,18 @@
 import type {Knex} from 'knex'
-import {PlatformTransaction, PlatformTxStatus} from '../types/PlatformTransaction'
+import {PlatformTransaction, PlatformTransactionPart, PlatformTxStatus} from '../types/PlatformTransaction'
 import {INSERT_CHUNK_SIZE, LOCAL_SOURCE_PREFIX} from '../constants/database'
 import {CREDITS_PER_DUFF} from '../constants/credits'
 import {chunk} from '../utils/chunk'
 
 function fromRow({
-  wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits, sender, recipient,
-}, lockedCredits: bigint | null): PlatformTransaction {
+  wallet_id, hash, type, timestamp, block_height, status, error, gas_credits, net_credits,
+}, lockedCredits: bigint | null, parts: Pick<PlatformTransaction, 'sender' | 'recipient'> | null): PlatformTransaction {
   const net = BigInt(net_credits)
-  const moved = net === 0n && lockedCredits != null ? lockedCredits : (net < 0n ? -net : net)
+  const amounts = parts == null ? [] : [...parts.sender, ...parts.recipient].map(part => part.amount)
+  const largest = amounts.length === 0 ? null : amounts.reduce((amount, next) => next > amount ? next : amount)
+  const moved = largest == null
+    ? net === 0n && lockedCredits != null ? lockedCredits : (net < 0n ? -net : net)
+    : largest === 0n && net === 0n && lockedCredits != null ? lockedCredits : largest
 
   return {
     walletId: wallet_id,
@@ -21,8 +25,8 @@ function fromRow({
     gasCredits: BigInt(gas_credits),
     netCredits: net,
     amountCredits: moved,
-    sender: sender == null ? [] : [{source: sender, amount: moved}],
-    recipient: recipient == null ? [] : [{source: recipient, amount: moved}],
+    sender: parts?.sender ?? [],
+    recipient: parts?.recipient ?? [],
   }
 }
 
@@ -34,28 +38,59 @@ export class PlatformTransactionDAO {
   }
 
   getTransactions = async (walletId: string): Promise<PlatformTransaction[]> => {
-    const [rows, fundings] = await Promise.all([
-      this.knex('platform_transactions')
-        .select('wallet_id', 'hash', 'type', 'timestamp', 'block_height', 'status',
-          'error', 'gas_credits', 'net_credits', 'sender', 'recipient')
+    const [rows, fundings, partRows] = await this.knex.transaction(async trx => Promise.all([
+      trx('platform_transactions')
+        .select('wallet_id', 'hash', 'source', 'type', 'timestamp', 'block_height', 'status',
+          'error', 'gas_credits', 'net_credits')
         .where('wallet_id', walletId)
         .orderBy('timestamp', 'desc'),
-      this.knex('asset_lock_fundings')
+      trx('asset_lock_fundings')
         .select('st_hash', 'amount_duffs')
         .where('wallet_id', walletId)
         .whereNotNull('st_hash'),
-    ])
+      trx('platform_transaction_parts')
+        .select('hash', 'parent_source', 'side', 'entry_index', 'part_source', 'amount_credits')
+        .where('wallet_id', walletId)
+        .orderBy('hash')
+        .orderBy('parent_source')
+        .orderBy('side')
+        .orderBy('entry_index'),
+    ]))
 
     const locked = new Map(fundings.map(funding => [
       (funding.st_hash as string).toLowerCase(),
       BigInt(funding.amount_duffs as string) * CREDITS_PER_DUFF,
     ]))
+    const partsByHash = new Map<string, Map<string, {sender: PlatformTransactionPart[], recipient: PlatformTransactionPart[]}>>()
 
-    return rows.map(row => fromRow(row, locked.get((row.hash as string).toLowerCase()) ?? null))
+    for (const part of partRows) {
+      const hash = part.hash as string
+      const parentSource = part.parent_source as string
+      let bySource = partsByHash.get(hash)
+      if (bySource == null) {
+        bySource = new Map()
+        partsByHash.set(hash, bySource)
+      }
+
+      let sides = bySource.get(parentSource)
+      if (sides == null) {
+        sides = {sender: [], recipient: []}
+        bySource.set(parentSource, sides)
+      }
+
+      sides[part.side as 'sender' | 'recipient'].push({
+        source: part.part_source as string,
+        amount: BigInt(part.amount_credits as string),
+      })
+    }
+
+    return rows.map(row => fromRow(
+      row,
+      locked.get((row.hash as string).toLowerCase()) ?? null,
+      partsByHash.get(row.hash as string)?.get(row.source as string) ?? null,
+    ))
   }
 
-  // A transition read again once its block was indexed carries the height and
-  // status the first read lacked. SQLite refuses a hash repeated in one upsert.
   upsertTransactions = async (source: string, transactions: PlatformTransaction[]): Promise<void> => {
     // dpp hashes a transition in lower case and the explorer answers in upper:
     // one case, or the row a send wrote is never the row a walk replaces.
@@ -63,44 +98,83 @@ export class PlatformTransactionDAO {
       .map(row => [row.hash.toUpperCase(), {...row, hash: row.hash.toUpperCase()}] as const)).values())
     if (unique.length === 0) return
 
-    for (const rows of chunk(unique, INSERT_CHUNK_SIZE)) {
-      await this.knex('platform_transactions')
-        .insert(rows.map(transaction => ({
+    await this.knex.transaction(async trx => {
+      for (const rows of chunk(unique, INSERT_CHUNK_SIZE)) {
+        await trx('platform_transactions')
+          .insert(rows.map(transaction => ({
+            wallet_id: transaction.walletId,
+            hash: transaction.hash,
+            source,
+            type: transaction.type,
+            timestamp: transaction.date.getTime(),
+            block_height: transaction.blockHeight,
+            status: transaction.status,
+            error: transaction.error,
+            gas_credits: transaction.gasCredits.toString(),
+            net_credits: transaction.netCredits.toString(),
+          })))
+          .onConflict(['wallet_id', 'hash', 'source'])
+          .merge()
+      }
+
+      await trx('platform_transaction_parts')
+        .where({wallet_id: unique[0].walletId, parent_source: source})
+        .whereIn('hash', unique.map(transaction => transaction.hash))
+        .delete()
+
+      const parts = unique.flatMap(transaction => [
+        ...transaction.sender.map((part, entryIndex) => ({
           wallet_id: transaction.walletId,
           hash: transaction.hash,
-          source,
-          type: transaction.type,
-          timestamp: transaction.date.getTime(),
-          block_height: transaction.blockHeight,
-          status: transaction.status,
-          error: transaction.error,
-          gas_credits: transaction.gasCredits.toString(),
-          net_credits: transaction.netCredits.toString(),
-          sender: transaction.sender[0]?.source ?? null,
-          recipient: transaction.recipient[0]?.source ?? null,
-        })))
-        .onConflict(['wallet_id', 'hash', 'source'])
-        .merge()
-    }
+          parent_source: source,
+          side: 'sender',
+          entry_index: entryIndex,
+          part_source: part.source,
+          amount_credits: part.amount.toString(),
+        })),
+        ...transaction.recipient.map((part, entryIndex) => ({
+          wallet_id: transaction.walletId,
+          hash: transaction.hash,
+          parent_source: source,
+          side: 'recipient',
+          entry_index: entryIndex,
+          part_source: part.source,
+          amount_credits: part.amount.toString(),
+        })),
+      ])
+      for (const rows of chunk(parts, INSERT_CHUNK_SIZE)) {
+        await trx('platform_transaction_parts').insert(rows)
+      }
 
-    // What a send guessed about this end, now that the end itself has reported.
-    if (source.startsWith(LOCAL_SOURCE_PREFIX)) return
-    await this.knex('platform_transactions')
-      .where({wallet_id: unique[0].walletId, source: `${LOCAL_SOURCE_PREFIX}${source}`})
-      .whereIn('hash', unique.map(transaction => transaction.hash))
-      .delete()
+      if (!source.startsWith(LOCAL_SOURCE_PREFIX)) {
+        const localSource = `${LOCAL_SOURCE_PREFIX}${source}`
+        await trx('platform_transaction_parts')
+          .where({wallet_id: unique[0].walletId, parent_source: localSource})
+          .whereIn('hash', unique.map(transaction => transaction.hash))
+          .delete()
+        await trx('platform_transactions')
+          .where({wallet_id: unique[0].walletId, source: localSource})
+          .whereIn('hash', unique.map(transaction => transaction.hash))
+          .delete()
+      }
+    })
   }
 
-  // A source naming an address set this wallet no longer asks about. Its rows
-  // would fold in alongside the rows that replaced them.
   deleteRetiredSources = async (walletId: string, sources: string[]): Promise<void> => {
-    await this.knex('platform_transactions')
-      .where('wallet_id', walletId)
-      .whereNotIn('source', sources)
-      // A send's own rows answer to the end that replaces them: the address it
-      // paid need not be one this wallet asks about.
-      .whereNot('source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
-      .delete()
+    await this.knex.transaction(async trx => {
+      await trx('platform_transaction_parts')
+        .where('wallet_id', walletId)
+        .whereNotIn('parent_source', sources)
+        .whereNot('parent_source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
+        .delete()
+      await trx('platform_transactions')
+        .where('wallet_id', walletId)
+        .whereNotIn('source', sources)
+        // A send's own rows answer to the participant that replaces them: the address it
+        // paid need not be one this wallet asks about.
+        .whereNot('source', 'like', `${LOCAL_SOURCE_PREFIX}%`)
+        .delete()
+    })
   }
 
   // Shielded transitions no note of ours has been counted into. Newest first,

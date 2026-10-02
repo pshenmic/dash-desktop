@@ -14,6 +14,7 @@ export const WALLET_SCOPED_TABLES = [
   'shielded_addresses',
   'shielded_notes',
   'platform_addresses',
+  'platform_transaction_parts',
   'platform_transactions',
 ] as const
 

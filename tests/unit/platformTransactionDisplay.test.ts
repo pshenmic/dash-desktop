@@ -56,7 +56,7 @@ describe('Platform transaction display', () => {
     })
   })
 
-  it('shows what the transition moved, so a transfer between the wallet\u2019s own ends is not displayed as zero', () => {
+  it('shows what the transition moved, so a transfer between the wallet\u2019s own participants is not displayed as zero', () => {
     expect(mapPlatformTransaction(transaction({ netCredits: 0n, amountCredits: 9_007_199_254_740_993n })))
       .toMatchObject({ amount: 9_007_199_254_740_993n, direction: 'neutral' })
   })

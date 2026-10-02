@@ -6,7 +6,7 @@ import {
 import {
   PlatformTransaction,
   PlatformTxStatus,
-  TransitionEnd,
+  PlatformTransactionPart,
   TransitionHeader,
 } from '../types/PlatformTransaction'
 
@@ -83,11 +83,14 @@ export function transferToPlatformTransaction(
   }
 }
 
-// Two walks reporting one end report the same movement through it, so a
-// repeat is the same end seen twice rather than a second payment.
-const union = (ends: TransitionEnd[], named: TransitionEnd[]): TransitionEnd[] => {
-  const bySource = new Map(ends.map(end => [end.source, end]))
-  for (const end of named) if (!bySource.has(end.source)) bySource.set(end.source, end)
+// Two walks reporting one participant report the same movement through it, so
+// a repeat is the same participant seen twice rather than a second payment.
+const union = (
+  parts: PlatformTransactionPart[],
+  namedParts: PlatformTransactionPart[],
+): PlatformTransactionPart[] => {
+  const bySource = new Map(parts.map(part => [part.source, part]))
+  for (const part of namedParts) if (!bySource.has(part.source)) bySource.set(part.source, part)
   return [...bySource.values()]
 }
 
