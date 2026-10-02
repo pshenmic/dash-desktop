@@ -102,7 +102,17 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
 
     API.getTransactionByHash(transaction.id, network)
       .then((raw) => {
-        if (active) setResolvedTransaction(mapWalletTransaction(raw))
+        if (!active) return
+        const mapped = mapWalletTransaction(raw)
+        setResolvedTransaction(transaction.internalTransfer ? {
+          ...mapped,
+          internalTransfer: true,
+          title: transaction.title,
+          amount: transaction.amount,
+          direction: transaction.direction,
+          subtitleLabel: transaction.subtitleLabel,
+          labelValue: transaction.labelValue,
+        } : mapped)
       })
       .catch((error) => {
         console.error('[transaction detail] fetch failed:', error)
@@ -140,10 +150,13 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
             rotate-90
           `}/>
         </button>
-        <Text size={40} weight={"medium"} color={"brand"} className={"tracking-[-0.03em]"}>
-          <span className={"opacity-50"}>{detail.titlePrefix}</span>
-          {' '}{resolvedTransaction.title}
-        </Text>
+        <div className={"flex min-w-0 flex-wrap items-center gap-3"}>
+          <Text size={40} weight={"medium"} color={"brand"} className={"tracking-[-0.03em]"}>
+            <span className={"opacity-50"}>{detail.titlePrefix}</span>
+            {' '}{resolvedTransaction.title}
+          </Text>
+          {resolvedTransaction.internalTransfer && <CustomBadge text="Internal transfer" className="shrink-0 whitespace-nowrap" />}
+        </div>
       </div>
 
       {detailsLoading && (

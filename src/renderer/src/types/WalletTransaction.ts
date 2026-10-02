@@ -32,7 +32,8 @@ export type WalletTxItem = {
   blockHeight: number | undefined
   size: number
   kind?: 'core'
-  title: 'Send' | 'Receive' | 'Internal transfer'
+  title: 'Send' | 'Receive'
+  internalTransfer?: boolean
   subtitleLabel: 'from' | 'to'
   labelValue: string
   amount: bigint
@@ -53,6 +54,7 @@ export interface TransactionCardItem {
   status: WalletTxStatus | 'unknown'
   kind?: 'core' | 'platform'
   title: string
+  internalTransfer?: boolean
   subtitleLabel: string
   labelValue: string
   amount: bigint
@@ -135,7 +137,7 @@ export interface TransactionsListProps {
 }
 
 export interface PlatformTransactionDetailProps {
-  transaction: PlatformTransaction
+  transaction: PresentedPlatformTransaction
   onBack: () => void
 }
 

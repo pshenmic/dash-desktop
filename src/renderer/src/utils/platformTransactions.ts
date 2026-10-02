@@ -37,9 +37,32 @@ export function platformInternalTransferFee(transaction: PlatformTransaction, ow
     return sender.source !== recipient.source && sender.amount === recipient.amount ? transaction.gasCredits : null
   }
 
-  if (transaction.type !== 'ADDRESS_FUNDS_TRANSFER' || transaction.status !== 'SUCCESS' || transaction.blockHeight == null || transaction.blockHeight <= 0) return null
-  return [...transaction.sender, ...transaction.recipient].every(end => ownership.platform.has(end.source))
-    ? transaction.gasCredits : null
+  if (transaction.status !== 'SUCCESS' || transaction.blockHeight == null || transaction.blockHeight <= 0) return null
+
+  if (transaction.type === 'ADDRESS_FUNDS_TRANSFER') {
+    return [...transaction.sender, ...transaction.recipient].every(end => ownership.platform.has(end.source))
+      ? transaction.gasCredits : null
+  }
+
+  switch (transaction.type) {
+    case 'IDENTITY_TOP_UP_FROM_ADDRESSES':
+    case 'IDENTITY_CREATE_FROM_ADDRESSES':
+      if (!transaction.sender.every(end => ownership.platform.has(end.source))) return null
+      if (transaction.recipient.filter(end => ownership.identities.has(end.source)).length !== 1) return null
+      if (!transaction.recipient.every(end => ownership.identities.has(end.source) || ownership.platform.has(end.source))) return null
+      break
+    case 'IDENTITY_CREDIT_TRANSFER_TO_ADDRESS':
+    case 'IDENTITY_CREDIT_TRANSFER_TO_ADDRESSES':
+      if (transaction.sender.length !== 1 || !ownership.identities.has(transaction.sender[0].source)) return null
+      if (!transaction.recipient.every(end => ownership.platform.has(end.source))) return null
+      break
+    default:
+      return null
+  }
+
+  const sent = transaction.sender.reduce((total, end) => total + end.amount, 0n)
+  const received = transaction.recipient.reduce((total, end) => total + end.amount, 0n)
+  return sent - received === transaction.gasCredits ? transaction.gasCredits : null
 }
 
 export function mapPlatformTransaction(transaction: PresentedPlatformTransaction): TransactionCardItem {
@@ -58,7 +81,8 @@ export function mapPlatformTransaction(transaction: PresentedPlatformTransaction
     id: transaction.hash,
     status: PLATFORM_TX_CARD_STATUSES[transaction.status ?? 'unknown'],
     kind: 'platform',
-    title: internalFee === undefined ? platformTransactionTitle(transaction.type) : 'Internal transfer',
+    title: platformTransactionTitle(transaction.type),
+    ...(internalFee !== undefined && { internalTransfer: true }),
     subtitleLabel: fromSender ? 'From' : 'To',
     labelValue: participants.length > 1
       ? `${participants.length} ${fromSender ? 'inputs' : 'outputs'}`

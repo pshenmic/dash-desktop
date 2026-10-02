@@ -47,6 +47,7 @@ export default function TransactionCard({
   amount,
   date,
   direction,
+  internalTransfer = false,
   fullIdentifiers = false
 } : TransactionCardProps): React.JSX.Element {
   let variantAmountSummary = TRANSACTION_CARD_STATUS_VARIANTS[status]
@@ -60,7 +61,7 @@ export default function TransactionCard({
     <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
       <TransactionCardIcons status={status} />
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
-        <div className={"flex min-w-0 items-center gap-[.3125rem]"} title={title}>
+        <div className={"flex min-w-0 flex-wrap items-center gap-[.3125rem]"} title={title}>
           <Tooltip label={kind === 'platform' ? 'L2 Dash Evo Chain' : kind === 'core' ? 'L1 Dash Core Chain' : undefined}>
             <span className="inline-flex shrink-0" title="">
               <CustomBadge
@@ -74,6 +75,7 @@ export default function TransactionCard({
           <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[120%]"}>
             {title}
           </Text>
+          {internalTransfer && <CustomBadge text="Internal transfer" className="shrink-0 whitespace-nowrap" />}
         </div>
 
         <div className={"min-w-0"} title={`${subtitleLabel}: ${labelValue}`}>

@@ -33,11 +33,11 @@ function transaction(overrides: Partial<PlatformTransaction> = {}): PlatformTran
 }
 
 describe('Platform transaction display', () => {
-  it('includes all participants on the selected side in the card', () => {
+  it('counts all participants on the selected side in the card', () => {
     expect(mapPlatformTransaction(transaction({ sender: [{ source: 'first', amount: 2n }, { source: 'second', amount: 3n }], netCredits: 1n })))
-      .toMatchObject({ subtitleLabel: 'From', labelValue: 'first, second' })
+      .toMatchObject({ subtitleLabel: 'From', labelValue: '2 inputs' })
     expect(mapPlatformTransaction(transaction({ recipient: [{ source: 'third', amount: 2n }, { source: 'fourth', amount: 3n }] })))
-      .toMatchObject({ subtitleLabel: 'To', labelValue: 'third, fourth' })
+      .toMatchObject({ subtitleLabel: 'To', labelValue: '2 outputs' })
   })
 
   it.each([
@@ -167,6 +167,55 @@ describe('Platform internal transfers', () => {
     expect(mapPlatformTransaction(raw)).toMatchObject({ title: 'Unshield', amount: raw.amountCredits })
   })
 
+  it.each(['IDENTITY_TOP_UP_FROM_ADDRESSES', 'IDENTITY_CREATE_FROM_ADDRESSES'])
+    ('recognizes %s only with owned sources, target and change and a reconciled actual fee', (type) => {
+      const raw = transaction({
+        type, gasCredits: 7n, netCredits: -7n,
+        sender: [{ source: 'ownPlatform', amount: 807n }, { source: 'otherOwnPlatform', amount: 500n }],
+        recipient: [{ source: 'recipientIdentity', amount: 1_000n }, { source: 'otherOwnPlatform', amount: 300n }],
+      })
+      expect(platformInternalTransferFee(structuredClone(raw), ownership())).toBe(7n)
+      expect(platformInternalTransferFee({ ...raw, sender: raw.sender.slice(0, 1) }, ownership())).toBeNull()
+      expect(platformInternalTransferFee({ ...raw, sender: [{ source: 'externalPlatform', amount: 1_307n }] }, ownership())).toBeNull()
+      expect(platformInternalTransferFee({ ...raw, recipient: [...raw.recipient, { source: 'externalRefund', amount: 1n }] }, ownership())).toBeNull()
+      expect(platformInternalTransferFee({ ...raw, recipient: [{ source: 'ownPlatform', amount: 1_300n }] }, ownership())).toBeNull()
+      expect(platformInternalTransferFee({ ...raw, recipient: [{ source: 'recipientIdentity', amount: 600n }, { source: 'senderIdentity', amount: 700n }] }, ownership())).toBeNull()
+    })
+
+  it.each(['IDENTITY_CREDIT_TRANSFER_TO_ADDRESS', 'IDENTITY_CREDIT_TRANSFER_TO_ADDRESSES'])
+    ('recognizes %s paying several owned Platform addresses without losing outputs', (type) => {
+      const raw = transaction({
+        type, gasCredits: 7n,
+        sender: [{ source: 'senderIdentity', amount: 1_307n }],
+        recipient: [{ source: 'ownPlatform', amount: 1_000n }, { source: 'otherOwnPlatform', amount: 300n }],
+      })
+      expect(platformInternalTransferFee(structuredClone(raw), ownership())).toBe(7n)
+      expect(platformInternalTransferFee({ ...raw, recipient: raw.recipient.slice(0, 1) }, ownership())).toBeNull()
+      expect(platformInternalTransferFee({ ...raw, recipient: [...raw.recipient, { source: 'externalPlatform', amount: 1n }] }, ownership())).toBeNull()
+      expect(platformInternalTransferFee({ ...raw, sender: [{ source: 'externalIdentity', amount: 1_307n }] }, ownership())).toBeNull()
+    })
+
+  it.each(['IDENTITY_TOP_UP_FROM_ADDRESSES', 'IDENTITY_CREATE_FROM_ADDRESSES', 'IDENTITY_CREDIT_TRANSFER_TO_ADDRESS', 'IDENTITY_CREDIT_TRANSFER_TO_ADDRESSES'])
+    ('rejects incomplete or unreconciled %s history even when the named participants are owned', (type) => {
+      const fromIdentity = type.startsWith('IDENTITY_CREDIT_TRANSFER_TO_ADDRESS')
+      const raw = transaction({
+        type, gasCredits: 7n,
+        sender: [{ source: fromIdentity ? 'senderIdentity' : 'ownPlatform', amount: 1_007n }],
+        recipient: [{ source: fromIdentity ? 'ownPlatform' : 'recipientIdentity', amount: 1_000n }],
+      })
+      expect(platformInternalTransferFee(raw, ownership())).toBe(7n)
+      for (const overrides of [
+        { sender: [] }, { recipient: [] }, { status: null }, { blockHeight: null },
+        { sender: [{ ...raw.sender[0], amount: 1_000n }] },
+        { sender: [{ ...raw.sender[0], amount: 1_008n }] },
+        { recipient: [{ ...raw.recipient[0], amount: 1_008n }] },
+      ]) {
+        const incomplete = { ...raw, ...overrides }
+        expect(platformInternalTransferFee(incomplete, ownership())).toBeNull()
+        expect(mapPlatformTransaction(incomplete).internalTransfer).toBeUndefined()
+      }
+    })
+
   it.each(['CREDIT_TRANSFER', 'IDENTITY_CREDIT_TRANSFER'])('recognizes the complete one-to-one identity operation %s', (type) => {
     const raw = transaction({ type, status: null, blockHeight: null, netCredits: 0n, gasCredits: 7_927_360n })
     expect(platformInternalTransferFee(raw, ownership())).toBe(7_927_360n)
@@ -189,12 +238,13 @@ describe('Platform internal transfers', () => {
     const raw = addressTransfer({ gasCredits: 1n })
     const fee = platformInternalTransferFee(raw, ownership())!
     const presented = { ...raw, internalTransferFeeCredits: fee }
-    expect(mapPlatformTransaction(presented)).toMatchObject({ title: 'Internal transfer', amount: 1n, direction: 'out' })
+    expect(mapPlatformTransaction(presented)).toMatchObject({ title: 'Address Funds Transfer', internalTransfer: true, amount: 1n, direction: 'out' })
     expect(mapPlatformTransaction(raw)).toMatchObject({ title: 'Address Funds Transfer', amount: 94_219_326_000n, direction: 'neutral' })
+    expect(mapPlatformTransaction(raw).internalTransfer).toBeUndefined()
     expect(raw.type).toBe('ADDRESS_FUNDS_TRANSFER')
     expect(raw.amountCredits).toBe(94_219_326_000n)
     const history = mergeWalletTransactions([], [presented])
-    expect(history[0]).toMatchObject({ title: 'Internal transfer', amount: 1n, type: 'platform:ADDRESS_FUNDS_TRANSFER' })
+    expect(history[0]).toMatchObject({ title: 'Address Funds Transfer', internalTransfer: true, amount: 1n, type: 'platform:ADDRESS_FUNDS_TRANSFER' })
     expect(computeTxTotals(history)).toEqual({ receivedCredits: 0n, sentCredits: 1n })
     expect(formatTransactionCardAmount(history[0])).toEqual({ value: '0.00000000001', duffs: 0n })
   })

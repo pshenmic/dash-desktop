@@ -121,20 +121,20 @@ describe('mapWalletTransaction', () => {
     const raw = outgoingTransaction()
     raw.vout[1].value = change
     const mapped = mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange']))
-    expect(mapped).toMatchObject({title: 'Internal transfer', direction: 'out', amount: fee, status: 'success'})
+    expect(mapped).toMatchObject({title: 'Send', internalTransfer: true, direction: 'out', amount: fee, status: 'success'})
   })
 
   it('shows the same fee from the receiving owned wallet', () => {
     const raw = {...outgoingTransaction(), direction: 1, inAmount: 0n, outAmount: 150_000_000n, transferAmount: 150_000_000n}
     expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange'])))
-      .toMatchObject({title: 'Internal transfer', direction: 'out', amount: 1n})
+      .toMatchObject({title: 'Receive', internalTransfer: true, direction: 'out', amount: 1n})
   })
 
   it('recognizes a current-wallet self transfer from complete wallet input and output totals', () => {
     const raw = {...outgoingTransaction(), outAmount: 199_999_999n, transferAmount: 1n}
-    expect(mapWalletTransaction(raw)).toMatchObject({title: 'Internal transfer', direction: 'out', amount: 1n})
+    expect(mapWalletTransaction(raw)).toMatchObject({title: 'Send', internalTransfer: true, direction: 'out', amount: 1n})
     expect(mapWalletTransaction(raw, new Set(['Xsender'])))
-      .toMatchObject({title: 'Internal transfer', direction: 'out', amount: 1n})
+      .toMatchObject({title: 'Send', internalTransfer: true, direction: 'out', amount: 1n})
   })
 
   it('calculates large decimal input fees without losing duffs through floating point', () => {
@@ -145,7 +145,7 @@ describe('mapWalletTransaction', () => {
     raw.vin[0].value = '90071992.54740993'
     raw.vout = [{...raw.vout[0], value: '90071992.54740990'}]
     expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient'])))
-      .toMatchObject({title: 'Internal transfer', amount: 3n})
+      .toMatchObject({title: 'Send', internalTransfer: true, amount: 3n})
   })
 
   it('keeps an external payment with owned change as Send', () => {
@@ -153,6 +153,7 @@ describe('mapWalletTransaction', () => {
     expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xchange'])))
       .toMatchObject({title: 'Send', direction: 'out', amount: raw.transferAmount})
     expect(mapWalletTransaction(raw)).toMatchObject({title: 'Send', amount: raw.transferAmount})
+    expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xchange'])).internalTransfer).toBeUndefined()
   })
 
   it('does not classify a transaction with an external input as an internal transfer', () => {
@@ -195,7 +196,7 @@ describe('mapWalletTransaction', () => {
     const raw = outgoingTransaction()
     raw.vout.push({...raw.vout[0], address: '', value: '0.00000000', n: 2})
     expect(mapWalletTransaction(raw, new Set(['Xsender', 'Xrecipient', 'Xchange'])))
-      .toMatchObject({title: 'Internal transfer', amount: 1n})
+      .toMatchObject({title: 'Send', internalTransfer: true, amount: 1n})
   })
 
   it('does not classify transactions without inputs or monetary outputs, or with outputs exceeding inputs', () => {
@@ -286,7 +287,7 @@ describe('transaction ownership', () => {
       const ownership = await fetchTransactionOwnership('wallet-1')
       expect(ownership).toEqual(expected)
       expect(mapWalletTransaction(structuredClone(outgoingTransaction()), ownership.core))
-        .toMatchObject({title: 'Internal transfer', amount: 1n, direction: 'out'})
+        .toMatchObject({title: 'Send', internalTransfer: true, amount: 1n, direction: 'out'})
     }
     expect(api.getAssetLockFundingState).not.toHaveBeenCalled()
   })
