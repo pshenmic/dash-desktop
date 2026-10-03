@@ -1,8 +1,8 @@
 import { AmountValidationParams } from '../api/types'
 import { TransferOperation } from '../enums/TransferOperation'
 import { SHIELDED_BALANCE_UNKNOWN_ERROR } from '../constants/sendPages'
-import { creditsToDuffs, davToDash } from './balance'
-import { isPoolIdentityDenomination } from './transferMatrix'
+import { creditsToDuffs, davToDash, duffsToCredits } from './balance'
+import { isPoolIdentityDenomination, takesPlatformFeeFromLock } from './transferMatrix'
 
 export function amountErrorFor(params: AmountValidationParams): string | null {
   const { isCoreOperation, amount, operation, amountDuffs, coreMaxDuffs, amountCredits, minCredits, availableCredits, feeCredits, maxPerTx, noteLimit } = params
@@ -10,8 +10,12 @@ export function amountErrorFor(params: AmountValidationParams): string | null {
   if (amount.length === 0) return null
 
   if (isCoreOperation) {
-    if (amountDuffs <= 0n || coreMaxDuffs === null || amountDuffs <= coreMaxDuffs) return null
-    return `Max sendable is ${davToDash(coreMaxDuffs)} Dash after fees.`
+    if (amountDuffs <= 0n) return null
+    if (coreMaxDuffs !== null && amountDuffs > coreMaxDuffs) return `Max sendable is ${davToDash(coreMaxDuffs)} Dash after fees.`
+    if (feeCredits !== null && operation !== null && takesPlatformFeeFromLock(operation) && duffsToCredits(amountDuffs) <= feeCredits) {
+      return `Amount must exceed the ${davToDash(creditsToDuffs(feeCredits))} Dash Platform fee taken out of it.`
+    }
+    return null
   }
 
   if (operation === TransferOperation.IdentityCreateFromShielded && !isPoolIdentityDenomination(amountCredits)) {
@@ -29,7 +33,8 @@ export function amountErrorFor(params: AmountValidationParams): string | null {
   }
 
   if (maxPerTx !== null && amountCredits > maxPerTx) {
-    return `Max per transaction right now is ${davToDash(creditsToDuffs(maxPerTx))} Dash (network fee + ${noteLimit ?? 0}-note limit).`
+    const reason = noteLimit === null ? 'network fee reserve' : `network fee + ${noteLimit}-note limit`
+    return `Max per transaction right now is ${davToDash(creditsToDuffs(maxPerTx))} Dash (${reason}).`
   }
 
   return null

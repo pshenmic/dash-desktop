@@ -7,6 +7,7 @@ import type {
   AppliedTxOutput,
   BlockMatch,
   ChainGapState,
+  UnconfirmedInputOutpoint,
   WalletSyncUtxo,
   WatchAddress,
 } from '../types/walletSync'
@@ -39,6 +40,7 @@ export class WatchSet {
   private matchItems: Uint8Array[] = []
   private itemsRevision = 0
   private utxos = new Map<string, WalletSyncUtxo>()
+  private unconfirmedInputOutpoints = new Map<string, UnconfirmedInputOutpoint>()
   private gap: Record<'receiving' | 'change', ChainGapState> = {
     receiving: {maxIndex: -1, lastUsed: -1},
     change: {maxIndex: -1, lastUsed: -1},
@@ -93,11 +95,14 @@ export class WatchSet {
 
   // Rebuilt rather than appended to, so that after a rewind the orphaned
   // outpoints leave the match set.
-  setUtxos(utxos: WalletSyncUtxo[]): void {
+  setWatchedOutpoints(utxos: WalletSyncUtxo[], unconfirmedInputOutpoints: UnconfirmedInputOutpoint[] = []): void {
     this.utxos = new Map(utxos.map(u => [`${u.txid}:${u.vout}`, u]))
+    this.unconfirmedInputOutpoints = new Map(unconfirmedInputOutpoints.map(o => [`${o.txid}:${o.vout}`, o]))
+    const outpoints = new Map<string, WalletSyncUtxo | UnconfirmedInputOutpoint>(this.utxos)
+    for (const [key, outpoint] of this.unconfirmedInputOutpoints) outpoints.set(key, outpoint)
     this.matchItems = [
       ...[...this.addresses].map(p2pkhScript),
-      ...utxos.map(u => new OutPoint(u.txid, u.vout).bytes()),
+      ...[...outpoints.values()].map(o => new OutPoint(o.txid, o.vout).bytes()),
     ]
     this.itemsRevision++
   }
@@ -127,12 +132,14 @@ export class WatchSet {
       for (let vin = 0; vin < tx.inputs.length; vin++) {
         const input = tx.inputs[vin]!
         inputs.push({vin, prevTxid: input.txId, prevVout: input.vOut, sequence: input.sequence})
-        const u = this.utxos.get(`${input.txId}:${input.vOut}`)
-        if (u) {
-          spends.push({prevTxid: u.txid, prevVout: u.vout, spentInTxid: txid})
-          this.utxos.delete(`${input.txId}:${input.vOut}`)
+        const key = `${input.txId}:${input.vOut}`
+        const u = this.utxos.get(key)
+        const unconfirmed = this.unconfirmedInputOutpoints.get(key)
+        if (u || unconfirmed) {
+          spends.push({prevTxid: input.txId, prevVout: input.vOut, spentInTxid: txid})
+          this.utxos.delete(key)
           isOurs = true
-          log.info(`spent ${u.txid.slice(0, 16)}…:${u.vout} -${u.satoshis} h=${height}`)
+          if (u) log.info(`spent ${u.txid.slice(0, 16)}…:${u.vout} -${u.satoshis} h=${height}`)
         }
       }
 

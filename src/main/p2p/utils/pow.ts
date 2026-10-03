@@ -1,5 +1,4 @@
 import {wireToDisplayHex} from './byteOrder'
-import {POW_LIMIT_BITS} from '../constants'
 import {x11Wire} from './x11'
 
 export function bitsToTarget(bits: number): bigint {
@@ -10,7 +9,20 @@ export function bitsToTarget(bits: number): bigint {
     : mantissa << BigInt(8 * (exponent - 3))
 }
 
-export const POW_LIMIT_TARGET = bitsToTarget(POW_LIMIT_BITS)
+// Inverse of bitsToTarget, mirroring arith_uint256::GetCompact: 0x00800000 is
+// reserved as a sign flag, so a mantissa that would set it shifts down a byte.
+export function targetToCompact(target: bigint): number {
+  if (target <= 0n) return 0
+  let size = (target.toString(16).length + 1) >> 1
+  let compact = size <= 3
+    ? Number(target << BigInt(8 * (3 - size)))
+    : Number((target >> BigInt(8 * (size - 3))) & 0xffffffn)
+  if (compact & 0x00800000) {
+    compact >>= 8
+    size++
+  }
+  return ((size << 24) | compact) >>> 0
+}
 
 // Expected hashes to satisfy `bits`. A longer branch can carry less work, so
 // branch selection compares this rather than height.

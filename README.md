@@ -54,7 +54,7 @@ A cross-platform desktop wallet for the Dash network, supporting both **Dash Cor
 
 ### Prerequisites
 
-- **Node.js** 20+ and **Yarn**
+- **Node.js** 22.12+ and **Yarn**
 
 ### Install dependencies
 

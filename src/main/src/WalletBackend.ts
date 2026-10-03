@@ -3,15 +3,18 @@ import {dataPath, ensureDataFolder} from './utils/dataPath'
 import {applyLogLevel} from './logTransport'
 import {LogsFolderName, PBKDF2_TARGET_MS, PreferencesFilename, StorageFilename} from './constants/app'
 import {SHIELDED_NOTES_CHECK_INTERVAL_MS} from './constants/credits'
+import {PLATFORM_HISTORY_REFRESH_INTERVAL_MS} from './constants/platformExplorer'
 import { WalletDAO } from './database/WalletDAO'
 import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
+import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/wallet/WalletService'
 import { IdentityRegistrationService } from './services/platform/IdentityRegistrationService'
 import { PlatformAddressService } from './services/platform/PlatformAddressService'
+import { PlatformHistoryService } from './services/platform/PlatformHistoryService'
 import { PlatformTransferService } from './services/platform/PlatformTransferService'
 import { ApplicationService } from './services/app/ApplicationService'
 import {Preferences} from "./preferences";
@@ -61,6 +64,8 @@ import {SetLanguageHandler} from "./api/setLanguage";
 import {SetLogLevelHandler} from "./api/setLogLevel";
 import {GetPreferencesHandler} from "./api/getPreferences";
 import {ResetPreferencesHandler} from "./api/resetPreferences";
+import {GetCollectMetricsHandler} from './api/getCollectMetrics'
+import {SetCollectMetricsHandler} from './api/setCollectMetrics'
 import {GetConnectedPeersHandler} from "./api/getConnectedPeers";
 import {SetPeerModeHandler} from "./api/setPeerMode";
 import {PushStaticPeerHandler} from "./api/pushStaticPeer";
@@ -127,10 +132,12 @@ const prevout = new Logger('prevout')
 const locks = new Logger('locks')
 const discoveryLog = new Logger('discovery')
 const shielded = new Logger('shielded')
+const platformLog = new Logger('platform')
 
 export class WalletBackend {
   private walletService?: WalletService
   private platformAddressService?: PlatformAddressService
+  private platformHistoryService?: PlatformHistoryService
   private platformTransferService?: PlatformTransferService
   private feeService?: FeeService
   private applicationService?: ApplicationService
@@ -152,7 +159,7 @@ export class WalletBackend {
   private identityDAO?: IdentityDAO
 
   private initHandlers(): void {
-    if (!this.walletService || !this.platformAddressService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
+    if (!this.walletService || !this.platformAddressService || !this.platformHistoryService || !this.platformTransferService || !this.feeService || !this.applicationService || !this.walletSyncService || !this.ratesService || !this.contactService || !this.shieldedService || !this.assetLockService || !this.addressDAO || !this.walletDAO || !this.identityDAO || !this.identityRegistrationService || !this.coreDiscoveryService || !this.coreLockService || !this.walletCredentialsService || !this.identityService || !this.logService || !this.platformWorkerService) {
       throw new Error('Services not initialized. Call start() first.')
     }
 
@@ -201,6 +208,8 @@ export class WalletBackend {
     registerHandler('setFiatCurrency', new SetFiatCurrencyHandler(this.applicationService).handle)
     registerHandler('setPlatformFeeMultiplier', new SetPlatformFeeMultiplierHandler(this.applicationService).handle)
     registerHandler('setCoreFeeMultiplier', new SetCoreFeeMultiplierHandler(this.applicationService).handle)
+    registerHandler('getCollectMetrics', new GetCollectMetricsHandler(this.applicationService).handle)
+    registerHandler('setCollectMetrics', new SetCollectMetricsHandler(this.applicationService).handle)
     registerHandler('setConnectionType', new SetConnectionTypeHandler(this.applicationService, this.walletService, this.coreDiscoveryService).handle)
     registerHandler('getConnectedPeers', new GetConnectedPeersHandler(this.walletSyncService).handle)
     registerHandler('setPeerMode', new SetPeerModeHandler(this.applicationService, this.walletSyncService).handle)
@@ -284,13 +293,18 @@ export class WalletBackend {
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
     this.identityService = new IdentityService(walletDAO, identityDAO, this.platformWorkerService)
-    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, this.identityService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
+    const platformAddressDAO = new PlatformAddressDAO(knex)
+    const shieldedNoteDAO = new ShieldedNoteDAO(knex)
+    const platformTransactionDAO = new PlatformTransactionDAO(knex)
+    const shieldedPoolDAO = new ShieldedPoolDAO(knex)
+    this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, platformTransactionDAO, shieldedNoteDAO, shieldedPoolDAO)
+    this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, platformTransactionDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
     this.assetLockService = new AssetLockService(walletDAO, new AssetLockDAO(knex), this.coreLockService, this.platformWorkerService)
-    this.shieldedService = new ShieldedService(walletDAO, identityDAO, new ShieldedNoteDAO(knex), new ShieldedPoolDAO(knex), shieldedAddressDAO, this.platformWorkerService, this.assetLockService, preferences)
-    this.platformAddressService = new PlatformAddressService(walletDAO, new PlatformAddressDAO(knex), this.platformWorkerService)
+    this.shieldedService = new ShieldedService(walletDAO, identityDAO, shieldedNoteDAO, shieldedPoolDAO, shieldedAddressDAO, this.platformWorkerService, this.assetLockService, this.platformHistoryService, preferences)
+    this.platformAddressService = new PlatformAddressService(walletDAO, platformAddressDAO, this.platformWorkerService)
     this.feeService = new FeeService(walletDAO, addressDAO, this.platformAddressService, this.platformWorkerService, this.shieldedService, coreTransactionService, providers, preferences)
     this.identityRegistrationService = new IdentityRegistrationService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.coreLockService, this.feeService)
-    this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformAddressService, this.platformWorkerService, this.shieldedService, this.feeService, preferences)
+    this.platformTransferService = new PlatformTransferService(walletDAO, identityDAO, this.assetLockService, this.platformWorkerService, this.shieldedService, this.platformAddressService, this.feeService, preferences)
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
     this.identityDAO = identityDAO
@@ -353,6 +367,39 @@ export class WalletBackend {
     setInterval(() => {
       fetchShieldedNotes().catch(err => shielded.error('periodic note fetch failed:', err))
     }, SHIELDED_NOTES_CHECK_INTERVAL_MS).unref()
+
+    // Refreshed here so a stalled explorer cannot hold up a read that shows L1.
+    const platformHistoryService = this.platformHistoryService
+    const refreshPlatformHistory = async (): Promise<void> => {
+      const selected = await walletDAO.getSelectedWallet()
+      if (selected != null) {
+        await platformHistoryService.refresh(selected.walletId)
+      }
+    }
+    refreshPlatformHistory().catch(err => platformLog.error('startup platform history refresh failed:', err))
+    setInterval(() => {
+      refreshPlatformHistory().catch(err => platformLog.error('periodic platform history refresh failed:', err))
+    }, PLATFORM_HISTORY_REFRESH_INTERVAL_MS).unref()
+
+    // The worker reports the broadcast, not which wallet sent: the selected one
+    // is the only wallet the periodic refresh covers either.
+    const refreshAfterBroadcast = async (): Promise<void> => {
+      const selected = await walletDAO.getSelectedWallet()
+      if (selected != null) {
+        platformHistoryService.refreshAfterSend(selected.walletId)
+      }
+    }
+    // A shielded transition says nothing to the addresses it touched beyond the
+    // surplus it sent back. What it moved is in the notes a sync just decrypted.
+    const shieldedHistoryService = this.platformHistoryService
+    this.shieldedService.onNotesSynced(walletId => {
+      shieldedHistoryService.readShieldedSides(walletId).catch(err =>
+        platformLog.error('reading the shielded side of the history failed:', err))
+    })
+
+    this.platformWorkerService.onTransitionBroadcast(() => {
+      refreshAfterBroadcast().catch(err => platformLog.error('platform history refresh after a broadcast failed:', err))
+    })
 
     this.applicationService.markReady()
   }

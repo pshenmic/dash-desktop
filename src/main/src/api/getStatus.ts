@@ -30,6 +30,7 @@ export class GetStatusHandler {
       selectedWalletId: selected?.walletId ?? null,
       network: selected?.network ?? null,
       connectionStatus,
+      walletDataRevision: this.walletSyncService.getWalletDataRevision(selected?.walletId ?? null),
       walletSync: this.walletSyncService.getStatus(),
     }
   }

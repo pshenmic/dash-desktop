@@ -6,8 +6,8 @@ export const COIN_CONTROL_INVALID_MESSAGE = 'Selected funds are no longer availa
 
 export const FIXED_SOURCE_COPY: Partial<Record<TransferOperation, CoinControlFixedSourceCopy>> = {
   [TransferOperation.Shield]: {
-    title: 'Selected Platform address',
-    description: 'Shielding spends one source address as a single input. Change it in the From field.',
+    title: 'Platform source',
+    description: 'Shielding draws on your Platform addresses automatically, or only on the address picked in the From field.',
   },
   [TransferOperation.IdentityCreateFromShielded]: {
     title: 'Automatic shielded selection',

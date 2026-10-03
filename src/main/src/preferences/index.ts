@@ -15,7 +15,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 9
+  static readonly CURRENT_VERSION = 10
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE
@@ -91,15 +91,21 @@ export class Preferences {
     const defaults = Preferences.default()
     const rawGeneral = (raw.general ?? {}) as Partial<GeneralPreferencesJSON>
 
+    const rawMultiplier = rawGeneral.platformFeeMultiplier
+    const platformFeeMultiplier = typeof rawMultiplier === 'object' && rawMultiplier !== null
+      ? rawMultiplier
+      : defaults.general.platformFeeMultiplier
+
     const instance = new Preferences()
     instance.version = Preferences.CURRENT_VERSION
     instance.general = new GeneralPreferences(
       rawGeneral.language ?? defaults.general.language,
       rawGeneral.currency ?? defaults.general.currency,
       rawGeneral.connectionType ?? defaults.general.connectionType,
-      rawGeneral.platformFeeMultiplier ?? defaults.general.platformFeeMultiplier,
+      platformFeeMultiplier,
       rawGeneral.coreFeeMultiplier ?? defaults.general.coreFeeMultiplier,
       rawGeneral.logLevel ?? defaults.general.logLevel,
+      rawGeneral.collectMetrics ?? defaults.general.collectMetrics,
     )
 
     // Hand-edited far more often than the rest of the file, so a malformed

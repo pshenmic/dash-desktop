@@ -69,20 +69,14 @@ describe('ChainWindow', () => {
   })
 
   describe('floor()', () => {
-    it('never rises above our own tip, however far ahead the chainlock is', () => {
-      const w = new ChainWindow(100)
-
-      expect(w.floor(5_000_000)).toBe(100)
-    })
-
-    it('sits at the reorg depth when no chainlock is known', () => {
+    it('spans the whole reorg window, which is all the window can answer for', () => {
       const w = new ChainWindow(1000)
 
-      expect(w.floor(0)).toBe(1000 - REORG_MAX_DEPTH)
+      expect(w.floor()).toBe(1000 - REORG_MAX_DEPTH)
     })
 
     it('never goes below genesis', () => {
-      expect(new ChainWindow(3).floor(0)).toBe(1)
+      expect(new ChainWindow(3).floor()).toBe(1)
     })
   })
 

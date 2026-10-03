@@ -54,8 +54,8 @@ export const CONNECTION_STATUS_DISPLAY: Record<ConnectionStatus, {
   },
   online: {
     label: 'Online',
-    textColor: 'text-dash-mint!',
-    shadowColor: 'var(--color-dash-mint)',
+    textColor: 'text-dash-brand! dark:text-dash-mint!',
+    shadowColor: 'currentColor',
   },
   unavailable: {
     label: 'Unavailable',
@@ -64,8 +64,8 @@ export const CONNECTION_STATUS_DISPLAY: Record<ConnectionStatus, {
   },
   synced: {
     label: 'Synced',
-    textColor: 'text-dash-mint!',
-    shadowColor: 'var(--color-dash-mint)',
+    textColor: 'text-dash-brand! dark:text-dash-mint!',
+    shadowColor: 'currentColor',
   },
   syncing: {
     label: 'Syncing',

@@ -118,6 +118,7 @@ describe('cfilter batch fan-out', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [],
       cfilterCursor: TIP - 2,
     })
 

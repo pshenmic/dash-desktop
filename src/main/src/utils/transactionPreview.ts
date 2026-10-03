@@ -29,7 +29,7 @@ export function previewEntry(
 // over is what a price is asked for, unchanged — the two addresses no fee
 // depends on are dropped rather than carried to the worker.
 export function previewFeeParams(params: PreviewParams): FeeParams {
-  const {recipients, changeTo: _changeTo, fromAddress: _fromAddress, ...priced} = params
+  const {recipients, changeTo: _changeTo, ...priced} = params
   return {...priced, recipient: recipients.map(recipient => recipient.address)}
 }
 

@@ -26,7 +26,7 @@ export function useWalletUtxos(refreshKey = 0): WalletUtxosResult {
     let cancelled = false
     const load = request.localSnapshot
       ? Promise.all([API.getTransactions(requestWalletId), API.getAddresses(requestWalletId)])
-        .then(([transactions, addresses]) => localWalletUtxos(requestWalletId, transactions, addresses as GetAddressesResponse))
+        .then(([history, addresses]) => localWalletUtxos(requestWalletId, history.core, addresses as GetAddressesResponse))
       : API.getUtxos(requestWalletId)
     load
       .then(utxos => {

@@ -52,8 +52,24 @@ jobs:
         node-version: 24.x
     - name: Install dependencies
       run: yarn
+    # electron-builder signs when CSC_LINK is set and notarizes when the APPLE_*
+    # variables are; without forceCodeSigning a missing secret would skip both
+    # and publish an unsigned dmg.
     - name: Build Mac
-      run: yarn build:mac
+      run: yarn build:mac -c.forceCodeSigning=true
+      env:
+        CSC_LINK: ${{ secrets.CSC_LINK }}
+        CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    - name: Verify signature and notarization
+      run: |
+        for app in dist/mac*/*.app; do
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+        done
     - name: Upload Mac artifacts
       uses: softprops/action-gh-release@v2
       with:

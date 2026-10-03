@@ -20,6 +20,7 @@ import {
 } from '../../types/AssetLock'
 import {CHAIN_LOCK_BACKSTOP_MS, IDENTITY_LOCK_TIMEOUT_MS} from '../../constants/chain'
 import {ASSET_LOCK_CREDIT_OUTPUT_INDEX, ASSET_LOCK_DISMISSED_ERROR} from '../../constants/credits'
+import {isStaleInstantLockProof} from '../../utils/sdkErrors'
 import {requireWallet} from '../../utils/requireWallet'
 import {coreSDK} from '../../utils/coreSDK'
 import {Logger} from '../../utils/logger'
@@ -146,6 +147,29 @@ export class AssetLockService {
     await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.StBroadcast)
   }
 
+  // A stale instant lock is rejected for good, and the stored proof a resume
+  // replays fails the same way, so the retry has to go via the chain lock.
+  async broadcastWithProof<T>(
+    state: AssetLockFundingState,
+    row: AssetLockFundingRow,
+    proof: AssetLockProofParams,
+    broadcast: (proof: AssetLockProofParams) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await broadcast(proof)
+    } catch (error) {
+      if (proof.type !== 'instantLock' || !isStaleInstantLockProof(error)) throw error
+
+      log.warn(`${row.txid}: instant lock proof rejected as stale — waiting for a chain lock instead`)
+      await this.assetLockDAO.clearProof(row.walletId, row.txid)
+      await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.L1Broadcast)
+      const chainProof = await this.awaitProof(state, {...row, assetLockProof: null}, {chainLockOnly: true})
+
+      await this.markBroadcastingSt(state, row)
+      return await broadcast(chainProof)
+    }
+  }
+
   async done(state: AssetLockFundingState, row: AssetLockFundingRow, stHash: string): Promise<void> {
     state.stHash = stHash
     state.phase = 'done'
@@ -186,7 +210,7 @@ export class AssetLockService {
       throw new Error('Funding record not found after broadcast')
     }
 
-    const proof = await this.awaitProof(state, row, {tx: built.tx})
+    const proof = await this.awaitProof(state, row, {live: built.tx})
     return {row, proof}
   }
 
@@ -199,7 +223,7 @@ export class AssetLockService {
   private async awaitProof(
     state: AssetLockFundingState,
     row: AssetLockFundingRow,
-    live?: {tx: SDKTransaction},
+    options?: {live?: SDKTransaction; chainLockOnly?: boolean},
   ): Promise<AssetLockProofParams> {
     if (row.assetLockProof != null) {
       this.applyLockKind(state, row.assetLockProof)
@@ -211,14 +235,14 @@ export class AssetLockService {
 
     state.phase = 'waitingChainLock'
 
-    const tx = live?.tx ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
+    const tx = options?.live ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
     if (tx == null) {
       throw new Error('Funding record is missing the asset lock transaction')
     }
 
-    if (live == null) await this.ensureOnNetwork(row, tx, network)
+    if (options?.live == null) await this.ensureOnNetwork(row, tx, network)
 
-    const resolved = await this.waitForAssetLockProof(tx, row.txid, network)
+    const resolved = await this.waitForAssetLockProof(tx, row.txid, network, options?.chainLockOnly === true)
 
     let proof: AssetLockProofParams
     if (resolved.type === 'instantLock') {
@@ -296,6 +320,7 @@ export class AssetLockService {
     assetLockTx: SDKTransaction,
     txid: string,
     network: Network,
+    chainLockOnly: boolean,
   ): Promise<InstantAssetLockProofParams | ChainAssetLockProofParams> {
     let settled = false
 
@@ -358,7 +383,7 @@ export class AssetLockService {
     }
 
     try {
-      return await Promise.race([instantLockRace(), chainLockRace()])
+      return await Promise.race(chainLockOnly ? [chainLockRace()] : [instantLockRace(), chainLockRace()])
     } finally {
       settled = true
     }

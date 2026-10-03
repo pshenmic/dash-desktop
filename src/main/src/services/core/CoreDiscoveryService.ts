@@ -6,7 +6,7 @@ import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Address} from '../../types/Address'
 import {AddressUsage} from '../../types/AddressDiscovery'
 import {DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
-import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
+import {CORE_ADDRESS_WINDOW, DISCOVERY_INTERVAL_MS} from '../../constants/addresses'
 import {coreAddressDeriver} from '../../utils/addressDiscovery'
 import {runAddressWindow} from '../../utils/addressWindow'
 import {WalletSyncService} from './WalletSyncService'
@@ -21,6 +21,7 @@ export class CoreDiscoveryService {
   private walletSyncService: WalletSyncService
   private providers: WalletProviderFactory
   private discoveryInflight = new Map<string, Promise<void>>()
+  private lastXpubScanAt = new Map<string, number>()
   // Wallets whose initial scan + gap-limit discovery has converged this process.
   // Avoids re-issuing the (idempotent) latch write on every discovery tick.
   private scanCompleteLatched = new Set<string>()
@@ -56,6 +57,20 @@ export class CoreDiscoveryService {
     return existing.catch(() => {}).then(() => this.discoverCoreAddresses(walletId))
   }
 
+  async ensureXpubAddressWindow(walletId: string): Promise<void> {
+    const lastScan = this.lastXpubScanAt.get(walletId)
+    if (lastScan != null && Date.now() - lastScan < DISCOVERY_INTERVAL_MS) return
+
+    const existing = this.discoveryInflight.get(walletId)
+    if (existing != null) {
+      await existing
+      const completedScan = this.lastXpubScanAt.get(walletId)
+      if (completedScan != null && Date.now() - completedScan < DISCOVERY_INTERVAL_MS) return
+    }
+
+    await this.rediscoverCoreAddresses(walletId)
+  }
+
   private async runCoreDiscovery(walletId: string): Promise<void> {
     const wallet = await this.walletDAO.getWalletById(walletId)
     if (wallet == null || wallet.coreXpub == null) return
@@ -64,7 +79,8 @@ export class CoreDiscoveryService {
     const provider = this.providers.forWallet(walletId, network)
     // Both chains read one scan: the endpoint walks the whole account, and
     // asking twice would run the gap walk twice.
-    const scanned = provider.scanAddressUsage(CORE_ADDRESS_WINDOW.gapLimit)
+    const usage = await provider.scanAddressUsage(CORE_ADDRESS_WINDOW.gapLimit)
+    const scanned = Promise.resolve(usage)
 
     const added: Address[] = []
     for (const isChange of [false, true]) {
@@ -85,24 +101,23 @@ export class CoreDiscoveryService {
 
     if (added.length > 0) {
       await this.walletSyncService.addWatchAddresses(walletId, added)
-      return
-    }
-
-    // Latching convergence lets later frontier-derived addresses skip the
-    // historical rewind (see addWatchAddresses). The gate is "discovery added
-    // nothing", not merely "reached the tip": gap batches still being found must
-    // keep triggering the rewind that finds their history.
-    //
-    // The scan tip is chainTip - SCAN_TIP_DEPTH, so a used address hiding in the
-    // last blocks can latch convergence and later derive an index whose deep
-    // history is skipped.
-    if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
+    } else if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
+      // Latching convergence lets later frontier-derived addresses skip the
+      // historical rewind (see addWatchAddresses). The gate is "discovery added
+      // nothing", not merely "reached the tip": gap batches still being found must
+      // keep triggering the rewind that finds their history.
+      //
+      // The scan tip is chainTip - SCAN_TIP_DEPTH, so a used address hiding in the
+      // last blocks can latch convergence and later derive an index whose deep
+      // history is skipped.
       this.scanCompleteLatched.add(walletId)
       await this.transactionDAO.markInitialScanComplete(walletId).catch(err => {
         this.scanCompleteLatched.delete(walletId)
         log.error('markInitialScanComplete failed:', err)
       })
     }
+
+    if (usage != null) this.lastXpubScanAt.set(walletId, Date.now())
   }
 
   private coreOracle(

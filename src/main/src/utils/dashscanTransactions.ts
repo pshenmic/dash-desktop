@@ -20,10 +20,16 @@ const dashString = (value: bigint): string => {
 const outputAddresses = (vout: DashscanVOut): string[] =>
   vout.addresses ?? (vout.address != null ? [vout.address] : [])
 
+const transactionDate = (firstSeenAt: number | undefined, timestamp: string | null): Date => {
+  if (firstSeenAt != null) return new Date(firstSeenAt)
+  return timestamp != null ? new Date(timestamp) : new Date()
+}
+
 export const dashscanToWalletTransactions = (
   txs: DashscanTransaction[],
   walletId: string,
   ownedAddresses: string[],
+  firstSeen: Map<string, number> = new Map(),
 ): Transaction[] => {
   const owned = new Set(ownedAddresses)
 
@@ -82,9 +88,7 @@ export const dashscanToWalletTransactions = (
       status: tx.instantLock != null ? 'Locked' as const : 'Pending' as const,
       size: tx.size ?? 0,
       blockHeight: tx.blockHeight ?? 0,
-      // The renderer sorts and groups on this field, so a mempool row dated to
-      // the epoch sinks to the bottom of the history.
-      date: tx.timestamp != null ? new Date(tx.timestamp) : new Date(),
+      date: transactionDate(firstSeen.get(tx.hash), tx.timestamp),
       confirmations: tx.confirmations ?? 0,
       txid: tx.hash,
       vin,

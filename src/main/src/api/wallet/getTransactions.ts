@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
-import {Transaction} from "../../types/Transaction";
+import {WalletHistory} from "../../types/WalletHistory";
 
 export class GetTransactionsHandler {
   private walletService: WalletService
@@ -9,7 +9,7 @@ export class GetTransactionsHandler {
     this.walletService = walletService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<Transaction[]> => {
+  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<WalletHistory> => {
     return this.walletService.getTransactions(walletId)
   }
 }

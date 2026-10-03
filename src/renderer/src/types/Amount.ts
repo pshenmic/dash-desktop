@@ -23,6 +23,7 @@ export interface AmountSliderProps {
 
 export interface CreditsAmountProps {
   credits: bigint
+  prefix?: string
   compact?: boolean
   exact?: boolean
   unit?: string | null

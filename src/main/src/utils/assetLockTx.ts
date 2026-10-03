@@ -1,11 +1,8 @@
 import {Output, Script} from 'dash-core-sdk'
 import {AssetLockTx} from 'dash-core-sdk/src/types/ExtraPayload/AssetLockTx.js'
 
-import {
-  ASSET_LOCK_PAYLOAD_VERSION,
-  CREDITS_PER_DUFF,
-  SHIELD_FUNDING_FEE_RESERVE_CREDITS,
-} from '../constants/credits'
+import {ASSET_LOCK_PAYLOAD_VERSION, CREDITS_PER_DUFF} from '../constants/credits'
+import type {AssetLockFeeOperation} from '../../platform/types/messages'
 
 // The L2 transition takes its fee out of the credits the lock creates, so the
 // lock has to carry that fee on top of the amount for the amount the user asked
@@ -15,14 +12,24 @@ export function lockedDuffsFor(amountDuffs: bigint, feeCredits: bigint): bigint 
   return amountDuffs + (feeCredits + CREDITS_PER_DUFF - 1n) / CREDITS_PER_DUFF
 }
 
-export function shieldAmountFromLockedDuffs(amountDuffs: bigint): bigint {
-  const totalCredits = amountDuffs * CREDITS_PER_DUFF
-  if (totalCredits <= SHIELD_FUNDING_FEE_RESERVE_CREDITS) {
+// What a lock credits once its transition's fee is taken out of it.
+export function creditsAfterFee(lockedDuffs: bigint, feeCredits: bigint): bigint {
+  requireAboveFee(lockedDuffs, feeCredits)
+  return lockedDuffs * CREDITS_PER_DUFF - feeCredits
+}
+
+export function requireAboveFee(lockedDuffs: bigint, feeCredits: bigint): void {
+  if (lockedDuffs * CREDITS_PER_DUFF <= feeCredits) {
     throw new Error(
-      `Locked amount is too small to shield — it must exceed the ${SHIELD_FUNDING_FEE_RESERVE_CREDITS.toLocaleString('en-US')} credit fee reserve`,
+      `Locked amount is too small — it must exceed the ${feeCredits.toLocaleString('en-US')} credit fee`,
     )
   }
-  return totalCredits - SHIELD_FUNDING_FEE_RESERVE_CREDITS
+}
+
+// A funding or a shield locks its L2 fee on top of the amount, so the amount is
+// what arrives; an identity lock carries only the amount and pays the fee from it.
+export function locksFeeOnTop(operation: AssetLockFeeOperation): boolean {
+  return operation === 'assetLockFunding' || operation === 'assetLockShield'
 }
 
 export function buildAssetLockOutputs(amountDuffs: bigint, creditAddress: string): {burnOutput: Output; extraPayload: AssetLockTx} {
