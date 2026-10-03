@@ -8,4 +8,11 @@ export interface Wallet {
   selected: boolean
   platformXpub: string | null
   coreXpub: string | null
+  registrationFundingXpub: string | null
+  topUpFundingXpub: string | null
+}
+
+export interface FundingXpubs {
+  registrationFundingXpub: string
+  topUpFundingXpub: string
 }

@@ -36,6 +36,8 @@ export class AssetLockService {
   private funder: AssetLockFunder
   private platform: PlatformWorkerService
   private states = new Map<string, AssetLockFundingState>()
+  // adopt writes its row across several awaits; begin must not slip in between.
+  private adopting = new Set<string>()
 
   constructor(
     walletDAO: WalletDAO,
@@ -98,12 +100,58 @@ export class AssetLockService {
     this.states.set(walletId, state)
     return state
   }
+
+  getFunding(txid: string): Promise<AssetLockFundingRow | null> {
+    return this.assetLockDAO.getFundingByTxid(txid)
+  }
+
+  // Records a lock broadcast outside this funding flow, or reopens one that was
+  // dismissed or failed, so the ordinary resume can settle it. A proof known up
+  // front — recovery already found the lock chainlocked — saves resume a wait
+  // it would otherwise repeat for nothing.
+  async adopt(funding: Omit<AssetLockFundingRow, 'id' | 'stHash' | 'error' | 'assetLockProof'>, proof?: AssetLockProofParams): Promise<AssetLockFundingState> {
+    const {walletId, txid} = funding
+    if (this.getActive(walletId) != null || this.adopting.has(walletId)) {
+      throw new Error('Cannot recover an asset lock while a funding is running')
+    }
+    this.adopting.add(walletId)
+    try {
+      const pending = await this.assetLockDAO.getActiveFunding(walletId)
+      if (pending != null) {
+        throw new Error(pending.txid === txid
+          ? 'This asset lock is already recorded — resume it'
+          : 'A previous funding is still in progress — resume or dismiss it first')
+      }
+
+      const existing = await this.assetLockDAO.getFundingByTxid(txid)
+      if (existing == null) {
+        await this.assetLockDAO.insertFunding(funding)
+      } else if (existing.walletId !== walletId) {
+        throw new Error('This asset lock is recorded by another wallet')
+      } else if (existing.status === AssetLockFundingStatus.Done) {
+        throw new Error('This asset lock was already settled')
+      } else {
+        await this.assetLockDAO.reopenFunding(funding)
+      }
+      if (proof != null) await this.assetLockDAO.saveProof(walletId, txid, proof)
+
+      this.states.set(walletId, this.idleState())
+      log.info(`${txid}: adopted as ${funding.kind}${existing != null ? `, reopened from ${existing.status}` : ''}`)
+    } finally {
+      this.adopting.delete(walletId)
+    }
+    return this.getState(walletId)
+  }
+
   // Installs the job state for a new funding. Throws when one is already
   // running or a previous one is still resumable.
   async begin(walletId: string, kind: AssetLockFundingKind, destination: string, amountDuffs: bigint): Promise<AssetLockFundingState> {
     const pending = await this.assetLockDAO.getActiveFunding(walletId)
     if (pending != null) {
       throw new Error('A previous funding is still in progress — resume it first')
+    }
+    if (this.adopting.has(walletId)) {
+      throw new Error('An asset lock is being recovered — wait for it to be recorded')
     }
 
     const state: AssetLockFundingState = {
@@ -204,6 +252,11 @@ export class AssetLockService {
     // transport can exit after delivery but before reporting propagation.
     await this.funder.broadcastAssetLock(built.tx.hex())
     log.info(`${built.txid}: L1 lock broadcast, credit ${built.creditAddress}`)
+
+    // TEMPORARY, for generating test vectors — do not commit.
+    if (process.env.ASSET_LOCK_STOP_AFTER_BROADCAST === '1') {
+      throw new Error(`${built.txid}: stopped after L1 broadcast (ASSET_LOCK_STOP_AFTER_BROADCAST)`)
+    }
 
     const row = await this.assetLockDAO.getActiveFunding(walletId)
     if (row == null) {

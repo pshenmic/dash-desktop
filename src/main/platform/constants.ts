@@ -14,6 +14,9 @@ export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
 // DAPI rejects a miss and an outage alike; this is what the miss says.
 export const IDENTITY_NOT_FOUND = /not found/i
 
+export const CORE_HEIGHT_POLL_MS = 2_000
+export const CORE_HEIGHT_WAIT_MS = 5 * 60_000
+
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
 // Stands in for a key a quote will not derive. The secp256k1 generator, so the

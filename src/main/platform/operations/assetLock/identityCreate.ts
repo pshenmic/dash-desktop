@@ -54,5 +54,8 @@ export async function identityCreateFromAssetLock(payload: Payload, ctx: Operati
     throw new OperationError('Could not derive identity identifier from state transition', 'internal')
   }
 
-  return {stHash: await broadcast(sdk, stateTransition, ctx, {idempotent: true}), identifier}
+  return {stHash: await broadcast(sdk, stateTransition, ctx, {
+    idempotent: true,
+    requiredCoreHeight: payload.assetLockProof.type === 'chainLock' ? payload.assetLockProof.coreChainLockedHeight : undefined,
+  }), identifier}
 }

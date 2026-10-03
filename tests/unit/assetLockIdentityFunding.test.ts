@@ -63,6 +63,8 @@ describe('identity funding from an asset lock', () => {
     selected: true,
     platformXpub: null,
     coreXpub: null,
+    registrationFundingXpub: null,
+    topUpFundingXpub: null,
   }
 
   const settled = (mock: ReturnType<typeof vi.fn>): Promise<void> =>

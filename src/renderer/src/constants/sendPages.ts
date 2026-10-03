@@ -26,6 +26,19 @@ export const UNFINISHED_FUNDING_LABELS: Record<AssetLockFundingKind, string> = {
   [AssetLockFundingKind.IdentityTopUp]: 'Unfinished identity top-up',
 }
 
+export const RECOVERY_KIND_LABELS: Record<AssetLockFundingKind, string> = {
+  [AssetLockFundingKind.Address]: 'Platform address',
+  [AssetLockFundingKind.Shielded]: 'Shielded address',
+  [AssetLockFundingKind.Identity]: 'New identity',
+  [AssetLockFundingKind.IdentityTopUp]: 'Identity top-up',
+}
+
+export const RECOVERY_DESTINATION_PLACEHOLDERS: Partial<Record<AssetLockFundingKind, string>> = {
+  [AssetLockFundingKind.Address]: 'Platform address of this wallet',
+  [AssetLockFundingKind.Shielded]: 'Shielded recipient address',
+  [AssetLockFundingKind.IdentityTopUp]: 'Identity id of this wallet',
+}
+
 export const SHIELDED_DESTINATION_LABELS: Partial<Record<TransferOperation, string>> = {
   [TransferOperation.ShieldedTransfer]: 'To (shielded)',
   [TransferOperation.Unshield]: 'To (Platform)',

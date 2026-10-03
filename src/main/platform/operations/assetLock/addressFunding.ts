@@ -44,5 +44,8 @@ export async function addressFundingFromAssetLock(payload: Payload, ctx: Operati
   const transition = AddressFundingFromAssetLockTransitionWASM.fromStateTransition(unsigned)
   transition.signature = creditKey.sign(unsigned.getSignableBytes())
 
-  return {stHash: await broadcast(sdk, transition.toStateTransition(), ctx, {idempotent: true})}
+  return {stHash: await broadcast(sdk, transition.toStateTransition(), ctx, {
+    idempotent: true,
+    requiredCoreHeight: payload.assetLockProof.type === 'chainLock' ? payload.assetLockProof.coreChainLockedHeight : undefined,
+  })}
 }

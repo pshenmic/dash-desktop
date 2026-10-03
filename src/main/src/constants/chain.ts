@@ -57,3 +57,10 @@ export const LOCK_WATCH_TTL_MS = 20 * 60 * 1000
 // transaction, and an rpc-mode wallet never applies blocks — so without a
 // cutoff a transaction that died would hide its inputs from selection for good.
 export const PENDING_SPEND_TTL_MS = 10 * 60 * 1000
+
+// A txid in display order, as users paste it from an explorer.
+export const TXID_PATTERN = /^[0-9a-f]{64}$/
+
+// The status name @protobuf-ts puts on RpcError.code; DAPI answers an unknown
+// txid with it.
+export const GRPC_NOT_FOUND = 'NOT_FOUND'
