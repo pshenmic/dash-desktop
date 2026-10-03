@@ -95,4 +95,23 @@ describe('coins Dashscan still lists after we spent them', () => {
 
     expect(await utxos()).toHaveLength(1)
   })
+
+  it('returns distinct inputs from zero-height transactions', async () => {
+    const secondSpend = {...spendOfCoin, txid: 'c'.repeat(64)}
+    await transactionDAO.recordPendingTx(WALLET, spendOfCoin, true)
+    await transactionDAO.recordPendingTx(WALLET, secondSpend, true)
+    await transactionDAO.applyBlock({
+      walletId: WALLET, height: 200, blockHash: 'h', blockTime: 1_700_000_000,
+      txs: [secondSpend], spends: [],
+    })
+
+    expect(await transactionDAO.getUnconfirmedInputOutpoints(WALLET)).toEqual([{txid: COIN, vout: 0}])
+
+    await transactionDAO.applyBlock({
+      walletId: WALLET, height: 201, blockHash: 'h', blockTime: 1_700_000_001,
+      txs: [spendOfCoin], spends: [],
+    })
+
+    expect(await transactionDAO.getUnconfirmedInputOutpoints(WALLET)).toEqual([])
+  })
 })

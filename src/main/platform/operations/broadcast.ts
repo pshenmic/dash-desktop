@@ -1,10 +1,13 @@
 import {setTimeout as delay} from 'node:timers/promises'
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {StateTransitionWASM} from 'pshenmic-dpp'
+import {Logger} from '../../src/utils/logger'
 import {isAlreadyInChain} from '../../src/utils/sdkErrors'
 import {consensusMessage} from './consensusMessage'
 import {BroadcastOptions, OperationContext, OperationError, throwIfAborted} from './types'
 import {CORE_HEIGHT_POLL_MS, CORE_HEIGHT_WAIT_MS} from '../constants'
+
+const log = new Logger('platform')
 
 // A transition an asset lock funds can only ever be accepted once; only those
 // pass `idempotent`, since a nonce conflict can belong to a different transition.
@@ -26,6 +29,8 @@ export async function broadcast(
     await sdk.stateTransitions.broadcast(st)
   } catch (e) {
     const message = consensusMessage(e)
+    log.error(`failed broadcast (${message}) ${stHash}`)
+    log.debug(`st hex: ${st.hex()}`)
     const alreadyInChain = isAlreadyInChain(message)
     if (alreadyInChain && options.idempotent === true) return stHash
     throw new OperationError(

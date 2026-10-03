@@ -17,6 +17,7 @@ import { davToDash } from '@renderer/utils/balance'
 
 interface AssetLockFundingModalProps {
   isOpen: boolean
+  advanced?: boolean
   onClose: () => void
   walletId: string | null
   toPlatformAddress: string
@@ -111,6 +112,7 @@ function phaseIndex(phase: AssetLockFundingPhase): number {
 
 export default function AssetLockFundingModal({
   isOpen,
+  advanced = true,
   onClose,
   walletId,
   toPlatformAddress,
@@ -236,7 +238,7 @@ export default function AssetLockFundingModal({
   let modalTitle = texts.title
   if (isDone) modalTitle = texts.doneTitle
   else if (resume) modalTitle = texts.resumeTitle
-  let confirmLabel = texts.confirm
+  let confirmLabel = advanced ? texts.confirm : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
   else if (resume) confirmLabel = 'Resume'
 
@@ -270,7 +272,7 @@ export default function AssetLockFundingModal({
               )}
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{texts.toLabel}</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{toPlatformAddress || texts.emptyTo}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{toPlatformAddress || texts.emptyTo}</Text>
               </div>
             </div>
 
@@ -384,7 +386,7 @@ export default function AssetLockFundingModal({
                 <div className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
                   <div className={"flex items-center gap-2 min-w-0"}>
-                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.toPlatformAddress}</Text>
+                    <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{state.toPlatformAddress}</Text>
                     {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
                   </div>
                 </div>

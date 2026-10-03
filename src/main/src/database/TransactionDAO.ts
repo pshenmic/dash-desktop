@@ -1,5 +1,5 @@
 import type {Knex} from 'knex'
-import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import type {AppliedBlock, AppliedTx, UnconfirmedInputOutpoint, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {AddressInfo} from '../types/AddressInfo'
 import type {PrevOutRef, ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
@@ -291,6 +291,18 @@ export class TransactionDAO {
       .where('i.wallet_id', walletId)
       .andWhere('t.block_height', 0)
       .andWhere('t.first_seen_at', '>=', sinceMs)
+
+    return rows.map(row => ({txid: row.prev_txid as string, vout: row.prev_vout as number}))
+  }
+
+  getUnconfirmedInputOutpoints = async (walletId: string): Promise<UnconfirmedInputOutpoint[]> => {
+    const rows = await this.knex('transaction_inputs as i')
+      .innerJoin('transactions as t', function() {
+        this.on('t.wallet_id', '=', 'i.wallet_id').andOn('t.txid', '=', 'i.txid')
+      })
+      .distinct('i.prev_txid', 'i.prev_vout')
+      .where('i.wallet_id', walletId)
+      .andWhere('t.block_height', 0)
 
     return rows.map(row => ({txid: row.prev_txid as string, vout: row.prev_vout as number}))
   }

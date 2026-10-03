@@ -8,7 +8,7 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {WalletProvider} from '../../src/main/src/providers/WalletProvider'
 import {AddressUsage} from '../../src/main/src/types/AddressDiscovery'
 import {coreAddressDeriver} from '../../src/main/src/utils/addressDiscovery'
-import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
+import {CORE_ADDRESS_WINDOW, DISCOVERY_INTERVAL_MS} from '../../src/main/src/constants/addresses'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const usage = (isChange: boolean, index: number, isUsed: boolean): AddressUsage =>
@@ -55,6 +55,60 @@ describe('address discovery from an xpub scan', () => {
     vi.spyOn(providers, 'forWallet').mockReturnValue(providerStub(scan))
     await discovery.discoverCoreAddresses(walletId)
   }
+
+  it('reuses a recent xpub scan', async () => {
+    const provider = providerStub([usage(false, 0, false)])
+    const forWallet = vi.spyOn(providers, 'forWallet').mockReturnValue(provider)
+
+    await discovery.ensureXpubAddressWindow(walletId)
+    await discovery.ensureXpubAddressWindow(walletId)
+
+    expect(forWallet).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares an in-flight xpub scan', async () => {
+    let resolveScan: (value: AddressUsage[]) => void = () => {}
+    const scan = new Promise<AddressUsage[]>(resolve => { resolveScan = resolve })
+    const provider = providerStub(null)
+    const scanAddressUsage = vi.fn(() => scan)
+    provider.scanAddressUsage = scanAddressUsage
+    const forWallet = vi.spyOn(providers, 'forWallet').mockReturnValue(provider)
+
+    const first = discovery.ensureXpubAddressWindow(walletId)
+    await vi.waitFor(() => expect(scanAddressUsage).toHaveBeenCalledOnce())
+    const second = discovery.ensureXpubAddressWindow(walletId)
+    resolveScan([usage(false, 0, false)])
+    await Promise.all([first, second])
+
+    expect(forWallet).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs another xpub scan after the discovery interval', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-10-02T00:00:00.000Z'))
+      const provider = providerStub([usage(false, 0, false)])
+      const forWallet = vi.spyOn(providers, 'forWallet').mockReturnValue(provider)
+
+      await discovery.ensureXpubAddressWindow(walletId)
+      await vi.advanceTimersByTimeAsync(DISCOVERY_INTERVAL_MS)
+      await discovery.ensureXpubAddressWindow(walletId)
+
+      expect(forWallet).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not treat a p2p probe as an xpub scan', async () => {
+    const provider = providerStub(null)
+    const forWallet = vi.spyOn(providers, 'forWallet').mockReturnValue(provider)
+
+    await discovery.ensureXpubAddressWindow(walletId)
+    await discovery.ensureXpubAddressWindow(walletId)
+
+    expect(forWallet).toHaveBeenCalledTimes(2)
+  })
 
   it('marks the addresses the scan reports as used', async () => {
     const before = await addressDAO.getAddressesByWalletId(walletId)

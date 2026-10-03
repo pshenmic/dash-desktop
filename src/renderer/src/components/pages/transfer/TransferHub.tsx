@@ -18,7 +18,6 @@ import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
 import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
-import { shieldedBalancesByAddress } from "@renderer/utils/shieldedBalances";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
@@ -40,6 +39,7 @@ import {
   buildCoinControlInventory,
   coinControlSelectionSummary,
   coinControlSelectionTotals,
+  expandAddressCoinControlSelection,
   isCoinControlSelectionValid,
   normalizeCoinControlSelection,
   toCoreSpendSource,
@@ -108,7 +108,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
-  const { fromKind, toKind, fromAddress, fromIdentity, toValue, amount, acked, coinControl, advanced } = draft
+  const { fromKind, toKind, fromIdentity, toValue, amount, acked, coinControl, advanced } = draft
   const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
     const next = update(draftRef.current)
     draftRef.current = next
@@ -117,7 +117,6 @@ function WalletTransferHub(): React.JSX.Element {
   }
   const setFromKind = (fromKind: SourceKind): void => updateDraft(current => ({ ...current, fromKind }))
   const setToKind = (toKind: DestinationKind): void => updateDraft(current => ({ ...current, toKind }))
-  const setFromAddress = (fromAddress: string): void => updateDraft(current => ({ ...current, fromAddress }))
   const setFromIdentity = (fromIdentity: string): void => updateDraft(current => ({ ...current, fromIdentity }))
   const setToValue = (toValue: string): void => updateDraft(current => ({ ...current, toValue }))
   const setAmount = (amount: string): void => updateDraft(current => ({ ...current, amount }))
@@ -189,12 +188,10 @@ function WalletTransferHub(): React.JSX.Element {
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId)
   const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
-  const shieldedRecipientBalances = useMemo(() => shieldedSync.phase === ShieldedSyncPhase.Done
-    ? shieldedBalancesByAddress(shieldedSync.notes) : null, [shieldedSync.phase, shieldedSync.notes])
   const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
     receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
-    shieldedBalances: shieldedRecipientBalances,
-  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedRecipientBalances])
+    shieldedNotes: shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes : null,
+  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedSync.phase, shieldedSync.notes])
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
   useErrorToast(coreAddressesError)
@@ -255,8 +252,6 @@ function WalletTransferHub(): React.JSX.Element {
     [platformAddresses],
   )
 
-  // Unpicked, a shield runs the same selection as the iOS wallet across every address.
-  const pickedShieldSource = fundedAddresses.find(a => a.platformAddress === fromAddress)
   const selectedIdentity = identities.find(i => i.identifier === fromIdentity) ?? identities[0]
 
   const coreAddresses = useMemo(
@@ -276,9 +271,12 @@ function WalletTransferHub(): React.JSX.Element {
     coreAddresses, utxos, platformAddresses: fundedAddresses, shieldedNotes: spendableNotes,
   }), [coreAddresses, utxos, fundedAddresses, spendableNotes])
   const coinControlInventory = useMemo(() => buildCoinControlInventory(coinControlFunds), [coinControlFunds])
+  const normalizedCoinControl = useMemo(() => normalizeCoinControlSelection(coinControl, operation), [coinControl, operation])
   const appliedCoinControl = useMemo(
-    () => normalizeCoinControlSelection(coinControl, operation),
-    [coinControl, operation],
+    () => operation === TransferOperation.Shield
+      ? expandAddressCoinControlSelection(normalizedCoinControl, coinControlFunds, operation)
+      : normalizedCoinControl,
+    [normalizedCoinControl, operation, coinControlFunds],
   )
   const coinControlLoading = {
     automatic: false,
@@ -303,8 +301,8 @@ function WalletTransferHub(): React.JSX.Element {
   }, [coinControlLoading, sourceInventoryError, coinControlValid])
 
   useEffect(() => {
-    if (appliedCoinControl !== coinControl) setCoinControl(appliedCoinControl)
-  }, [appliedCoinControl, coinControl])
+    if (normalizedCoinControl !== coinControl) setCoinControl(normalizedCoinControl)
+  }, [normalizedCoinControl, coinControl])
 
   const coreSpendSource = useMemo(() => toCoreSpendSource(appliedCoinControl, utxos), [appliedCoinControl, utxos])
   const platformSource = useMemo(() => withOutputFee(toPlatformSpendSource(appliedCoinControl), feeOutputIndex), [appliedCoinControl, feeOutputIndex])
@@ -329,9 +327,7 @@ function WalletTransferHub(): React.JSX.Element {
   let availableCredits: bigint | null = null
   if (fromKind === SourceKind.PlatformAddress) {
     const fundedCredits = fundedAddresses.reduce((sum, address) => sum + address.balanceCredits, 0n)
-    if (operation === TransferOperation.Shield) {
-      availableCredits = pickedShieldSource?.balanceCredits ?? fundedCredits
-    } else if (appliedCoinControl.kind === 'platformInputs' || appliedCoinControl.kind === 'platformAddress') {
+    if (appliedCoinControl.kind === 'platformInputs' || appliedCoinControl.kind === 'platformAddress') {
       availableCredits = selectedTotals.credits
     } else {
       availableCredits = fundedCredits
@@ -384,7 +380,6 @@ function WalletTransferHub(): React.JSX.Element {
     amountDuffs: isCoreOperation ? amountDuffs : null,
     coreSource: coreSpendSource ?? null,
     platformSource,
-    fromAddress: operation === TransferOperation.Shield ? pickedShieldSource?.platformAddress ?? null : null,
     identityId: selectedIdentity?.identifier ?? null,
     shieldedSource: shieldedSpendSource ?? null,
   })
@@ -556,8 +551,7 @@ function WalletTransferHub(): React.JSX.Element {
     void refreshIdentities(walletId)
   }
 
-  let coinControlSummary = coinControlSelectionSummary(appliedCoinControl, selectedTotals)
-  if (operation === TransferOperation.Shield) coinControlSummary = 'Fixed address'
+  const coinControlSummary = coinControlSelectionSummary(appliedCoinControl, selectedTotals)
 
   const resetForm = (): void => {
     setPreviewOpen(false)
@@ -615,13 +609,13 @@ function WalletTransferHub(): React.JSX.Element {
           if (k === SourceKind.Identity && identities.length === 0) reloadIdentities()
         }}
         platformAddresses={fundedAddresses}
-        selectedPlatformAddress={pickedShieldSource}
-        onPlatformAddressChange={setFromAddress}
+        selectedPlatformAddress={undefined}
+        onPlatformAddressChange={() => {}}
         platformAutomaticLabel={AUTOMATIC_PLATFORM_SELECTION}
         platformAddressesLoading={platformAddressesLoading}
         platformAddressesError={platformAddressesError}
         onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
-        showPlatformAddress={operation === TransferOperation.Shield}
+        showPlatformAddress={false}
         identities={identities}
         identitiesLoading={identitiesLoading}
         identitiesError={identitiesError}
@@ -673,7 +667,10 @@ function WalletTransferHub(): React.JSX.Element {
           )}
           {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
             <Text size={12} weight="medium" color="brand" opacity={50}>
-              {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.' : 'No saved addresses of this type in your wallet. Enter a recipient address manually.'}
+              {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.'
+                : toKind === DestinationKind.Shielded && shieldedSync.phase !== ShieldedSyncPhase.Done
+                  ? 'Sync shielded notes to find unused addresses. You can enter a recipient address manually.'
+                  : 'No unused addresses of this type in your wallet. Enter a recipient address manually.'}
             </Text>
           )}
         </>}
@@ -842,9 +839,7 @@ function WalletTransferHub(): React.JSX.Element {
       fromDisplay = 'Dash Core (L1)'
       break
     case SourceKind.PlatformAddress:
-      if (operation === TransferOperation.Shield) {
-        fromDisplay = pickedShieldSource?.platformAddress ?? AUTOMATIC_PLATFORM_SELECTION
-      } else if (appliedCoinControl.kind === 'platformAddress') {
+      if (appliedCoinControl.kind === 'platformAddress') {
         fromDisplay = appliedCoinControl.address
       } else if (appliedCoinControl.kind === 'platformInputs') {
         if (appliedCoinControl.inputs.length === 1) {
@@ -870,7 +865,6 @@ function WalletTransferHub(): React.JSX.Element {
     platformSource,
     shieldedSource: shieldedSpendSource,
     identityId: selectedIdentity?.identifier,
-    fromAddress: pickedShieldSource?.platformAddress,
     changeTo,
   })
   const previewKey = sendPreviewRequestKey({walletId, network, operation, params: previewParams})
@@ -1183,7 +1177,7 @@ function WalletTransferHub(): React.JSX.Element {
         isOpen={coinControlOpen}
         feeFromOutput={subtractFee}
         operation={operation}
-        selection={appliedCoinControl}
+        selection={normalizedCoinControl}
         coreAddresses={coreAddresses}
         coreAddressesLoading={coreAddressesLoading}
         coreAddressesError={coreAddressesError}
@@ -1200,7 +1194,7 @@ function WalletTransferHub(): React.JSX.Element {
         shieldedNotes={spendableNotes}
         identityLabel={selectedIdentity?.alias ?? null}
         identityId={selectedIdentity?.identifier ?? null}
-        platformAddress={pickedShieldSource}
+        platformAddress={undefined}
         onRetryUtxos={retryUtxos}
         onClose={() => setCoinControlOpen(false)}
         onApply={setCoinControl}
@@ -1230,10 +1224,12 @@ function WalletTransferHub(): React.JSX.Element {
 
       {operation === TransferOperation.Shield && (
         <ShieldConfirmModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
-          fromAddress={pickedShieldSource?.platformAddress ?? ''}
+          source={platformSource}
+          fromDisplay={fromDisplay}
           sourceValid={signingSourceValid}
           toAddress={trimmedTo}
           amountCredits={amountCredits.toString()}
@@ -1245,6 +1241,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {isShieldedSpendOperation && (
         <ShieldedSpendModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
@@ -1264,6 +1261,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {(operation === TransferOperation.AssetLockFunding || operation === TransferOperation.AssetLockShield || operation === TransferOperation.IdentityRegister || operation === TransferOperation.IdentityTopUpL1) && (
         <AssetLockFundingModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => { setConfirmOpen(false); setFundingRefresh(n => n + 1) }}
           walletId={walletId}
@@ -1318,6 +1316,7 @@ function WalletTransferHub(): React.JSX.Element {
 
       {isPlatformModalOperation && (
         <TransferConfirmModal
+          advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           title={info?.title ?? 'Confirm transfer'}

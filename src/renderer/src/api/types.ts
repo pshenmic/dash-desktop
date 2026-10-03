@@ -132,8 +132,6 @@ export interface FeeParams {
   coreSource?: CoreSpendSource | null
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
-  // Shield only: the one platform address to draw on; absent, the wallet selects.
-  fromAddress?: string | null
   identityId?: string | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null
@@ -253,6 +251,7 @@ export interface AppStatus {
   selectedWalletId: string | null
   network: Network | null
   connectionStatus: ConnectionStatus | null
+  walletDataRevision: number
   walletSync: WalletSyncStatus
 }
 
@@ -267,10 +266,12 @@ export interface WalletDto {
 
 // preferences
 export type ConnectionType = 'p2p' | 'rpc'
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug'
 
 export interface GeneralPreferencesJSON {
   language: string
   currency: string
+  logLevel: LogLevel
   connectionType: ConnectionType
   platformFeeMultiplier: Partial<Record<TransferOperation, number>>
   coreFeeMultiplier: number
@@ -406,17 +407,18 @@ export interface PlatformTransaction {
   // Signed net across every address and identity of this wallet the transition
   // touched, so a move between two of them leaves the fee as the only cost.
   netCredits: bigint
-  // What moved between the two ends, unsigned: a move between two of this
+  // What moved between the two participants, unsigned: a move between two of this
   // wallet's own addresses nets to the fee and still moved this much.
   amountCredits: bigint
-  // The ends, each an address or an identity, ours or not: one transition can
-  // be paid by several and pay several. Empty where no source named that end.
-  sender: TransitionEnd[]
-  recipient: TransitionEnd[]
+  // The participants, each an address or an identity, ours or not: one
+  // transition can be paid by several and pay several. Empty where no source
+  // named that participant.
+  sender: PlatformTransactionPart[]
+  recipient: PlatformTransactionPart[]
 }
 
-// One end of a transition and the credits that side gained or paid.
-export interface TransitionEnd {
+// One participant in a transition and the credits that side gained or paid.
+export interface PlatformTransactionPart {
   source: string
   amount: bigint
 }

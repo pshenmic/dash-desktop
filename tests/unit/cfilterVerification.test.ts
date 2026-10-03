@@ -106,6 +106,7 @@ describe('cfilter verification against the filter-header chain', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [],
       cfilterCursor: TIP,
     })
 
@@ -222,6 +223,7 @@ describe('cfilter verification at the bottom of the chain', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [],
       // Never synced: the scan starts at height 1.
       cfilterCursor: null,
     })

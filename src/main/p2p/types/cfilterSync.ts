@@ -2,7 +2,7 @@ import type {Network} from '../../src/types/Network'
 import type {ChainStore} from '../store/ChainStore'
 import type {PeerRotation} from '../net/peerRotation'
 import type {PoolService} from '../net/PoolService'
-import type {WalletSyncUtxo, WatchAddress} from './walletSync'
+import type {UnconfirmedInputOutpoint, WalletSyncUtxo, WatchAddress} from './walletSync'
 
 import type {Peer} from 'dash-core-p2p'
 
@@ -92,6 +92,7 @@ export interface CFilterSyncWorkerOptions {
   // main process before sending the start command — the worker never
   // reads wallet-scoped storage directly.
   seedUtxos: WalletSyncUtxo[]
+  unconfirmedInputOutpoints: UnconfirmedInputOutpoint[]
   // Persisted cfilter scan cursor (null = never synced). Worker resumes
   // from max(birthday, cfilterCursor + 1).
   cfilterCursor: number | null

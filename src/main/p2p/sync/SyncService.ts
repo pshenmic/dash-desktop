@@ -14,6 +14,7 @@ import {
   MEMPOOL_FETCH_INTERVAL_MS,
   MEMPOOL_REPORT_INTERVAL_MS,
   MEMPOOL_SEEN_LIMIT,
+  MEMPOOL_SNAPSHOT_PEERS,
   NODE_BLOOM,
 } from '../constants'
 import {PoolService} from '../net/PoolService'
@@ -69,6 +70,7 @@ export class SyncService {
   private activeGapLimit = 0
   private activeBirthdayHeight = 1
   private activeSeedUtxos: P2PStartMessage['seedUtxos'] = []
+  private activeUnconfirmedInputOutpoints: P2PStartMessage['unconfirmedInputOutpoints'] = []
   private activeCFilterCursor: number | null = null
   private cfilterStarted = false
   // Display order, not wire order. While non-empty the watcher fetches isdlock
@@ -83,7 +85,7 @@ export class SyncService {
   private lockWalletId: string | null = null
   private lockAddresses = new Set<string>()
   private mempoolSeen = new Set<string>()
-  private mempoolAsked = false
+  private mempoolRequests = new Set<Peer>()
   private mempoolFetchQueue: Array<{peer: Peer; txid: string; hash: Uint8Array}> = []
   private mempoolStats = {announced: 0, fetched: 0, matched: 0}
   private mempoolReportTimer: ReturnType<typeof setInterval> | null = null
@@ -169,18 +171,23 @@ export class SyncService {
         await this.teardownBulk()
       }
       this.startLockCore(cmd.network, cmd.peerOverrides)
-      if (cmd.walletId) this.setLockAddresses(cmd.walletId, cmd.watchAddresses ?? [])
+      this.setLockAddresses(cmd.walletId ?? null, cmd.watchAddresses ?? [])
     })
 
   // The lock pool is network-scoped and survives a wallet switch, so its match
   // set is replaced wholesale rather than merged.
-  private setLockAddresses = (walletId: string, addresses: WatchAddress[]): void => {
-    if (this.lockWalletId !== walletId) {
-      this.mempoolSeen.clear()
-      this.mempoolAsked = false
-    }
+  private setLockAddresses = (walletId: string | null, addresses: WatchAddress[]): void => {
+    const next = new Set(addresses.map(a => a.address))
+    const changed = this.lockWalletId !== walletId
+      || next.size !== this.lockAddresses.size
+      || [...next].some(address => !this.lockAddresses.has(address))
+    if (!changed) return
+
     this.lockWalletId = walletId
-    this.lockAddresses = new Set(addresses.map(a => a.address))
+    this.lockAddresses = next
+    this.mempoolSeen.clear()
+    this.mempoolRequests.clear()
+    this.mempoolFetchQueue = []
     // A wallet selected after the pool filled, or switched to: the peers that
     // seated were asked against the previous address set, or against none.
     for (const peer of this.lockPool?.readyPeers ?? []) this.requestMempool(peer)
@@ -189,10 +196,11 @@ export class SyncService {
   // A peer announces a tx once, when it first relays it, so one already in the
   // mempool when this session starts is otherwise only seen in a block.
   private requestMempool = (peer: Peer): void => {
-    if (this.mempoolAsked || !this.lockPool || this.lockAddresses.size === 0) return
+    if (!this.lockPool || this.lockAddresses.size === 0) return
+    if (this.mempoolRequests.size >= MEMPOOL_SNAPSHOT_PEERS || this.mempoolRequests.has(peer)) return
     // A node started without bloom filters disconnects on the request.
     if (((this.lockPool.peerServices.get(peer) ?? 0n) & BigInt(NODE_BLOOM)) === 0n) return
-    this.mempoolAsked = true
+    this.mempoolRequests.add(peer)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     peer.sendMessage((this.lockPool.messages as any).MemPool())
     locks.info(`mempool requested from ${peer.host}:${peer.port}`)
@@ -250,7 +258,6 @@ export class SyncService {
     // Nothing else emits status while the bulk layer is down, so lock-pool
     // churn is a lazy-mode wallet's only signal.
     this.lockPool.on('peerready', this.onLockPeerChange)
-    this.lockPool.on('peerready', this.requestMempool)
     this.lockPool.on('peerdisconnect', this.onLockPeerChange)
     this.lockPool.start()
     // The pool the status reports on just changed, and in rpc mode nothing else
@@ -272,10 +279,10 @@ export class SyncService {
     )
   }
 
-  private onLockPeerChange = (): void => {
-    // Whatever entered the mempool while the pool was empty was announced to
-    // nobody, so the peers that replace it are asked afresh.
-    if (this.lockPool?.readyPeers.size === 0) this.mempoolAsked = false
+  private onLockPeerChange = (peer: Peer): void => {
+    if (!this.lockPool?.readyPeers.has(peer)) this.mempoolRequests.delete(peer)
+    if (this.lockPool?.readyPeers.size === 0) this.mempoolRequests.clear()
+    for (const ready of this.lockPool?.readyPeers ?? []) this.requestMempool(ready)
     this.emit({})
     this.feedBulkPool()
   }
@@ -300,8 +307,9 @@ export class SyncService {
     this.activeWatchAddresses = cmd.watchAddresses ?? []
     this.activeGapLimit = cmd.gapLimit
     this.activeBirthdayHeight = cmd.birthdayHeight && cmd.birthdayHeight > 0 ? cmd.birthdayHeight : 1
-    this.activeSeedUtxos = cmd.seedUtxos ?? []
-    this.activeCFilterCursor = cmd.cfilterCursor ?? null
+    this.activeSeedUtxos = cmd.seedUtxos
+    this.activeUnconfirmedInputOutpoints = cmd.unconfirmedInputOutpoints
+    this.activeCFilterCursor = cmd.cfilterCursor
     this.cfilterStarted = false
     this.setLockAddresses(cmd.walletId, this.activeWatchAddresses)
 
@@ -347,7 +355,7 @@ export class SyncService {
       resumeHeight = GENESIS[cmd.network].height
       log.info(`genesis fallback: height=${resumeHeight} hash=${resumeHash}`)
     }
-    log.info(`starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
+    log.info(`starting sync from height=${resumeHeight} hash=${resumeHash} watchAddresses=${this.activeWatchAddresses.length} birthday=${this.activeBirthdayHeight} seedUtxos=${this.activeSeedUtxos.length} unconfirmedInputs=${this.activeUnconfirmedInputOutpoints.length} cursor=${this.activeCFilterCursor ?? 'null'}`)
 
     if (this.pinnedOnly) {
       // One pool, both jobs: a second pool dialling the same pinned hosts would
@@ -414,6 +422,7 @@ export class SyncService {
     this.activeGapLimit = 0
     this.activeBirthdayHeight = 1
     this.activeSeedUtxos = []
+    this.activeUnconfirmedInputOutpoints = []
     this.activeCFilterCursor = null
     this.emit({
       phase: 'stopped',
@@ -486,14 +495,17 @@ export class SyncService {
     const merged = new Map(this.activeWatchAddresses.map(a => [a.address, a]))
     for (const a of cmd.addresses) merged.set(a.address, a)
     this.activeWatchAddresses = [...merged.values()]
-    for (const a of cmd.addresses) this.lockAddresses.add(a.address)
+    if (this.lockWalletId === cmd.walletId) {
+      this.setLockAddresses(cmd.walletId, this.activeWatchAddresses)
+    }
     this.cfilterSyncWorker?.addWatchAddresses(cmd.addresses, cmd.rewindToHeight)
   }
 
   reseedUtxos = (cmd: P2PReseedUtxosMessage): void => {
     if (cmd.walletId !== this.activeWalletId) return
     this.activeSeedUtxos = cmd.utxos
-    this.cfilterSyncWorker?.reseedUtxos(cmd.utxos)
+    this.activeUnconfirmedInputOutpoints = cmd.unconfirmedInputOutpoints
+    this.cfilterSyncWorker?.reseedUtxos(cmd.utxos, cmd.unconfirmedInputOutpoints)
   }
 
   watchTxs = (cmd: P2PWatchTxsMessage): void => {
@@ -697,7 +709,7 @@ export class SyncService {
     if (this.mempoolReportTimer) clearInterval(this.mempoolReportTimer)
     this.mempoolReportTimer = null
     this.mempoolFetchQueue = []
-    this.mempoolAsked = false
+    this.mempoolRequests.clear()
     if (!this.lockPool) return
     this.lockPool.stop()
     this.lockPool.removeAllListeners()
@@ -776,6 +788,7 @@ export class SyncService {
       gapLimit: this.activeGapLimit,
       birthdayHeight: this.activeBirthdayHeight,
       seedUtxos: this.activeSeedUtxos,
+      unconfirmedInputOutpoints: this.activeUnconfirmedInputOutpoints,
       cfilterCursor: this.activeCFilterCursor,
     })
     this.cfilterSyncWorker.on('status', (s: CFilterSyncWorkerStatus) => this.onCFilterStatus(s))

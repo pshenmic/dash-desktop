@@ -6,14 +6,6 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        // Keep pshenmic-dpp external so the wallet's own imports resolve to the
-        // same runtime instance (native.js → threaded WASM on Windows) that the
-        // externalized dash-platform-sdk uses. Bundling it here forked a second
-        // WASM/NAPI instance, so objects (e.g. CoreScriptWASM) built wallet-side
-        // couldn't be recovered by the SDK's builders.
-        //
-        // crypto-toothpick for a related reason: it resolves its N-API addon by
-        // platform at runtime, which rollup cannot follow.
         external: ['pshenmic-dpp', 'crypto-toothpick'],
         input: {
           index: resolve('src/main/index.ts'),

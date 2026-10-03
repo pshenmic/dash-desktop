@@ -24,6 +24,7 @@ export interface TransferConfirmRow {
 
 interface TransferConfirmModalProps {
   isOpen: boolean
+  advanced?: boolean
   onClose: () => void
   title: string
   successTitle: string
@@ -40,6 +41,7 @@ interface TransferConfirmModalProps {
 
 export default function TransferConfirmModal({
   isOpen,
+  advanced = true,
   onClose,
   title,
   successTitle,
@@ -139,7 +141,7 @@ export default function TransferConfirmModal({
               {rows.map(row => (
                 <div key={row.label} className={"flex justify-between items-center gap-4"}>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{row.label}</Text>
-                  <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className={`min-w-0 break-all text-right ${row.mono ? 'font-mono' : ''}`}>
+                  <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className="min-w-0 break-all select-all text-right">
                     {row.value}
                   </Text>
                 </div>
@@ -196,7 +198,7 @@ export default function TransferConfirmModal({
                 className={"flex-1 rounded-[.9375rem] gap-2"}
               >
                 {sending && <Spinner size={16} />}
-                {sending ? 'Sending…' : 'Sign & Send'}
+                {sending ? 'Sending…' : advanced ? 'Sign & Send' : 'Confirm'}
               </Button>
             </div>
           </div>
@@ -230,11 +232,11 @@ export default function TransferConfirmModal({
             <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.fromAddress}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>
               </div>
               {sentRecipients ? <RecipientSummary {...sentRecipients} feeCredits={result?.feeCredits ?? sentRecipients.feeCredits} /> : <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{result?.toAddress}</Text>
+                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.toAddress}</Text>
               </div>}
               {result?.feeCredits != null && (
                 <div className={"flex justify-between items-center gap-4"}>

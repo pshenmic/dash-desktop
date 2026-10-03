@@ -1,9 +1,8 @@
 export const RECENT_TX_LIMIT = 3
-export const ACTIVITY_MONTH_LIMIT = 4
 
 export const dashboardPage = {
   hero: {
-    totalBalance: 'Total Balance:',
+    totalBalance: 'Total balance',
     price: 'Price:',
     core: {
       title: 'Core',
@@ -15,7 +14,7 @@ export const dashboardPage = {
     }
   },
   sections: {
-    services: 'Shielded & Platform',
+    services: 'Shielded & Identities',
     stats: 'Statistics'
   },
   shielded: {
@@ -51,22 +50,16 @@ export const dashboardPage = {
   },
   stats: {
     transactions: 'Transactions',
-    totalReceived: 'Total Received',
-    totalSent: 'Total Sent',
-    largestReceived: 'Largest Received',
-    walletAge: 'Wallet Age',
-    lastActivity: 'Last Activity',
+    totalReceived: 'Total received',
+    totalSent: 'Total sent',
+    largestReceived: 'Largest received',
+    walletAge: 'Wallet age',
+    lastActivity: 'Last activity',
     pending: 'Pending',
-    addressesUsed: 'Addresses Used'
-  },
-  activity: {
-    title: 'Activity',
-    received: 'Received',
-    sent: 'Sent',
-    noActivity: `No activity in the last ${ACTIVITY_MONTH_LIMIT} months`
+    addressesUsed: 'Addresses used'
   },
   recent: {
-    title: 'Recent Activity',
+    title: 'Recent activity',
     viewAll: 'View all',
     error: 'Failed to load wallet activity'
   },

@@ -49,10 +49,12 @@ describe('operation fee requests', () => {
   })
 
   it('invalidates a shield maximum when a source is picked or cleared', () => {
-    const shield = (fromAddress: string | null) =>
-      operationFeeRequest('wallet', TransferOperation.Shield, params({destinationValid: true, recipient: 'shielded', fromAddress}))!
+    const shield = (address: string | null) =>
+      operationFeeRequest('wallet', TransferOperation.Shield, params({
+        destinationValid: true, recipient: 'shielded', platformSource: address ? {kind: 'address', address} : null,
+      }))!
     expect(shield('picked').maxKey).not.toBe(shield(null).maxKey)
-    expect(shield('picked').feeParams.fromAddress).toBe('picked')
+    expect(shield('picked').feeParams.platformSource).toEqual({kind: 'address', address: 'picked'})
   })
 
   it('still requires a wallet, an operation and destinations for routes that need them', () => {

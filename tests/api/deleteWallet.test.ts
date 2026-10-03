@@ -20,6 +20,7 @@ const rows = (walletId: string): Record<string, Record<string, unknown>> => ({
   shielded_addresses: {wallet_id: walletId, address_index: 0, address: `sh-${walletId}`},
   shielded_notes: {wallet_id: walletId, note_index: 0, amount: '1', address: `sh-${walletId}`},
   platform_transactions: {wallet_id: walletId, hash: `st-${walletId}`, source: 'addresses', type: 'BATCH', timestamp: 0, gas_credits: '1', net_credits: '-1'},
+  platform_transaction_parts: {wallet_id: walletId, hash: `st-${walletId}`, parent_source: 'addresses', side: 'sender', entry_index: 0, part_source: `part-${walletId}`, amount_credits: '1'},
 })
 
 // Discovered rather than listed, so a table added later shows up here even

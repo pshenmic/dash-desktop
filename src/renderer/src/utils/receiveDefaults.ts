@@ -12,15 +12,16 @@ export function defaultReceivePlatformAddress(addresses: PlatformAddressDto[]): 
   return receivePlatformAddresses(addresses)[0]
 }
 
+export function receiveCoreAddresses(addresses: WalletAddressDto[]): WalletAddressDto[] {
+  return addresses.filter((address) => !address.isUsed && address.txCount === 0 && address.balance === 0n)
+}
+
 export function defaultReceiveCoreAddress(
   addresses: WalletAddressDto[],
   preferred?: string | null,
 ): WalletAddressDto | undefined {
-  const preferredMatch = addresses.find((a) => a.address === preferred)
-  if (preferredMatch != null && preferredMatch.balance === 0n) {
-    return preferredMatch
-  }
-  return addresses.find((a) => a.balance === 0n) ?? addresses[0]
+  const receiveAddresses = receiveCoreAddresses(addresses)
+  return receiveAddresses.find((address) => address.address === preferred) ?? receiveAddresses[0]
 }
 
 export function defaultReceiveShieldedAddress(

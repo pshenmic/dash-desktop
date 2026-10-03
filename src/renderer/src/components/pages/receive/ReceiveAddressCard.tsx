@@ -6,7 +6,7 @@ import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
 import CoreAddressSelect from "./CoreAddressSelect"
 import { useTheme } from "dash-ui-kit/react"
-import { defaultReceiveCoreAddress } from "@renderer/utils/receiveDefaults"
+import { defaultReceiveCoreAddress, receiveCoreAddresses } from "@renderer/utils/receiveDefaults"
 
 type ReceiveAddressCardProps = {
   addresses: WalletAddressDto[]
@@ -23,8 +23,13 @@ export default function ReceiveAddressCard({
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const { theme } = useTheme()
 
-  const selected = defaultReceiveCoreAddress(addresses, selectedAddress ?? defaultAddress)
-  const address = selected?.address ?? defaultAddress
+  const receiveAddresses = receiveCoreAddresses(addresses)
+  const selected = defaultReceiveCoreAddress(receiveAddresses, selectedAddress ?? defaultAddress)
+  if (!selected) {
+    return <Text size={12} weight={"medium"} color={"brand"} opacity={50}>No unused Core addresses available.</Text>
+  }
+
+  const address = selected.address
   const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
 
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
@@ -46,7 +51,7 @@ export default function ReceiveAddressCard({
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
               <CoreAddressSelect
-                addresses={addresses}
+                addresses={receiveAddresses}
                 selected={selected}
                 onSelect={setSelectedAddress}
               />

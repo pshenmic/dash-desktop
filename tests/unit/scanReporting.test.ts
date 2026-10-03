@@ -71,6 +71,7 @@ describe('scan completion reporting', () => {
       gapLimit: 20,
       birthdayHeight: 1,
       seedUtxos: [utxo('aa', '1000')],
+      unconfirmedInputOutpoints: [],
       cfilterCursor: TIP,
     })
     await worker.start()
@@ -100,8 +101,8 @@ describe('scan completion reporting', () => {
 
   it('reports again once the balance moves', async () => {
     await finish()
-    ;(worker as unknown as {watchSet: {setUtxos: (u: WalletSyncUtxo[]) => void}})
-      .watchSet.setUtxos([utxo('aa', '1000'), utxo('bb', '250')])
+    ;(worker as unknown as {watchSet: {setWatchedOutpoints: (u: WalletSyncUtxo[]) => void}})
+      .watchSet.setWatchedOutpoints([utxo('aa', '1000'), utxo('bb', '250')])
 
     await finish()
 

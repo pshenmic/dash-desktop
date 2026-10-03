@@ -14,6 +14,18 @@ export type WalletTxDto = Transaction
 
 export type WalletTxStatus = 'success' | 'failed' | 'pending'
 
+export interface WalletTransactionOwnership {
+  walletId: string | null
+  core: Set<string>
+  platform: Set<string>
+  identities: Set<string>
+  shielded: Set<string>
+}
+
+export type PresentedPlatformTransaction = PlatformTransaction & {
+  internalTransferFeeCredits?: bigint
+}
+
 export type WalletTxItem = {
   id: string
   status: WalletTxStatus
@@ -22,6 +34,8 @@ export type WalletTxItem = {
   size: number
   kind?: 'core'
   title: 'Send' | 'Receive'
+  internalTransfer?: boolean
+  internalTransferFee?: bigint
   subtitleLabel: 'from' | 'to'
   labelValue: string
   amount: bigint
@@ -42,6 +56,8 @@ export interface TransactionCardItem {
   status: WalletTxStatus | 'unknown'
   kind?: 'core' | 'platform'
   title: string
+  internalTransfer?: boolean
+  internalTransferFee?: bigint
   subtitleLabel: string
   labelValue: string
   amount: bigint
@@ -53,6 +69,8 @@ export interface TransactionCardAmount {
   value: string
   duffs: bigint
 }
+
+export type TransactionCardDisplay = Pick<TransactionCardItem, 'amount' | 'direction'>
 
 export interface TransactionCardProps extends TransactionCardItem {
   fullIdentifiers?: boolean
@@ -124,7 +142,7 @@ export interface TransactionsListProps {
 }
 
 export interface PlatformTransactionDetailProps {
-  transaction: PlatformTransaction
+  transaction: PresentedPlatformTransaction
   onBack: () => void
 }
 

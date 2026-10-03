@@ -15,7 +15,7 @@ vi.mock('react', async importOriginal => ({
   },
 }))
 vi.mock('react-dom', () => ({createPortal: (element: ReactNode) => element}))
-vi.mock('dash-ui-kit/react', () => ({useTheme: () => ({theme: 'light'})}))
+vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: 'light'})}))
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
 vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))
@@ -50,6 +50,94 @@ function modalProps(): CoinControlModalProps {
   }
 }
 
+function platformModalProps(operation = TransferOperation.Shield): CoinControlModalProps {
+  return {
+    ...modalProps(), operation, selection: {kind: 'automatic'},
+    platformAddresses: [
+      {platformAddress: 'platform-a', balanceCredits: 5_000_000n, nonce: 0},
+      {platformAddress: 'platform-b', balanceCredits: 7_000_000n, nonce: 0},
+    ],
+  }
+}
+
+describe('Platform coin control', () => {
+  beforeEach(() => {
+    harness.states = []
+    vi.stubGlobal('document', {body: {}})
+    vi.stubGlobal('React', React)
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('selects multiple whole address balances for Shield without offering amount caps or a fee payer', () => {
+    const props = platformModalProps()
+    const manual = render(props).find(node => node.type === 'button'
+      && elements(node).some(child => child.props.children === 'Manual'))!
+    ;(manual.props.onClick as () => void)()
+
+    const first = render(props).find(node => node.key === 'platform-a')!
+    ;(first.props.onChange as (checked: boolean) => void)(true)
+    const second = render(props).find(node => node.key === 'platform-b')!
+    ;(second.props.onChange as (checked: boolean) => void)(true)
+
+    const selected = render(props)
+    expect(selected.find(node => node.key === 'platform-a')!.props.checked).toBe(true)
+    expect(selected.find(node => node.key === 'platform-b')!.props.checked).toBe(true)
+    expect(selected.some(node => node.props.type === 'radio')).toBe(false)
+    expect(selected.some(node => String(node.props.id).startsWith('coin-control-amount-'))).toBe(false)
+    expect(selected.some(node => typeof node.props.children === 'string'
+      && node.props.children.includes('The wallet selects the amounts and fee-paying address.'))).toBe(true)
+
+    const apply = selected.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    expect(apply.props.disabled).toBe(false)
+    ;(apply.props.onClick as () => void)()
+    expect(props.onApply).toHaveBeenCalledWith({
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 5_000_000n}, {address: 'platform-b', credits: 7_000_000n}],
+      feeAddress: 'platform-a',
+    })
+  })
+
+  it('displays full Shield balances while preserving saved caps when applying an unchanged selection', () => {
+    const props = platformModalProps()
+    props.selection = {
+      kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 1_000_000n}], feeAddress: 'platform-a',
+    }
+    const nodes = render(props)
+    expect(nodes.some(node => node.props.credits === 5_000_000n)).toBe(true)
+    expect(nodes.some(node => node.props.id === 'coin-control-amount-platform-a')).toBe(false)
+    const apply = nodes.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    expect(apply.props.disabled).toBe(false)
+    ;(apply.props.onClick as () => void)()
+    expect(props.onApply).toHaveBeenCalledWith(props.selection)
+    expect(props.selection.inputs[0].credits).toBe(1_000_000n)
+
+    props.onApply = vi.fn()
+    const second = render(props).find(node => node.key === 'platform-b')!
+    ;(second.props.onChange as (checked: boolean) => void)(true)
+    const edited = render(props)
+    const editedApply = edited.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    ;(editedApply.props.onClick as () => void)()
+    expect(props.onApply).toHaveBeenCalledWith({
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 5_000_000n}, {address: 'platform-b', credits: 7_000_000n}],
+      feeAddress: 'platform-a',
+    })
+  })
+
+  it('keeps manual amount caps and fee payer controls on other Platform routes', () => {
+    const props = platformModalProps(TransferOperation.AddressFundsTransfer)
+    props.selection = {
+      kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 1_000_000n}], feeAddress: 'platform-a',
+    }
+    const nodes = render(props)
+    expect(nodes.find(node => node.props.id === 'coin-control-amount-platform-a')!.props.credits).toBe(1_000_000n)
+    expect(nodes.find(node => node.props.type === 'radio')!.props.checked).toBe(true)
+    const apply = nodes.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    ;(apply.props.onClick as () => void)()
+    expect(props.onApply).toHaveBeenCalledWith(props.selection)
+  })
+})
+
 describe('coin control UTXO refresh', () => {
   beforeEach(() => {
     harness.states = []
@@ -57,6 +145,16 @@ describe('coin control UTXO refresh', () => {
     vi.stubGlobal('React', React)
   })
   afterEach(() => vi.unstubAllGlobals())
+
+  it('keeps selected and unselected inputs visible without an Only selected filter', () => {
+    const props = modalProps()
+    const nodes = render({...props, utxos: [...props.utxos, {...props.utxos[0], txid: 'unselected'}]})
+    expect(nodes.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
+    expect(nodes.find(node => node.key === 'unselected:0')!.props.checked).toBe(false)
+    expect(nodes.some(node => node.props.children === 'Only selected')).toBe(false)
+    expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
+      && node.props.label.props.children === 'Filter dust')).toBe(true)
+  })
 
   it('updates the timestamp on an existing selected row when a pending coin confirms', () => {
     const props = modalProps()

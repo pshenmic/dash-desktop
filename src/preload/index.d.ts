@@ -127,12 +127,12 @@ interface PlatformTransactionDTO {
   gasCredits: bigint
   netCredits: bigint
   amountCredits: bigint
-  sender: TransitionEndDTO[]
-  recipient: TransitionEndDTO[]
+  sender: PlatformTransactionPartDTO[]
+  recipient: PlatformTransactionPartDTO[]
 }
 
-// One end of a transition and what it moved there.
-interface TransitionEndDTO {
+// One participant in a transition and what it moved there.
+interface PlatformTransactionPartDTO {
   source: string
   amount: bigint
 }
@@ -182,7 +182,7 @@ declare global {
       dismissAssetLockFunding: (walletId: string) => Promise<unknown>
       inspectAssetLock: (walletId: string, txid: string) => Promise<unknown>
       recoverAssetLock: (walletId: string, txid: string, password: string, destination: AssetLockRecoveryDestination) => Promise<unknown>
-      shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
+      shieldToPool: (walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
       setLanguage: (language: string) => Promise<void>

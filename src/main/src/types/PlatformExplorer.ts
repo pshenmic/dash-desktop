@@ -1,3 +1,5 @@
+import {PlatformTxStatus} from "./PlatformTransaction";
+
 export interface PlatformExplorerPage<T> {
   resultSet: T[]
   pagination: {
@@ -40,6 +42,8 @@ export interface PlatformExplorerTransfer {
   type: string
   blockHash: string | null
   gasUsed: number | null
+  status: PlatformTxStatus | null
+  error: string | null
 }
 
 export interface PlatformExplorerTransition {

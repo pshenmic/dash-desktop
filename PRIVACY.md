@@ -93,4 +93,4 @@ update the effective date.
 ## 9. Contact
 
 For questions about this policy, open an issue at
-<https://github.com/pshenmic/dash-platform-wallet-desktop/issues>.
+<https://github.com/pshenmic/dash-desktop/issues>.

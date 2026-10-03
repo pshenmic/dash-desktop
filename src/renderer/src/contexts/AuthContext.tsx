@@ -30,6 +30,7 @@ function isSameStatus(a: AppStatus | null, b: AppStatus): boolean {
     && a.selectedWalletId === b.selectedWalletId
     && a.network === b.network
     && a.connectionStatus === b.connectionStatus
+    && a.walletDataRevision === b.walletDataRevision
     && isSameSync(a.walletSync, b.walletSync)
 }
 

@@ -1,24 +1,7 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { IconProps } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
-
-export type StatTone = 'brand' | 'green' | 'orange'
-
-const TONE_CLASSES: Record<StatTone, string> = {
-  brand: 'bg-dash-brand/12 dark:bg-dash-mint/12 dash-text-primary',
-  green: 'bg-dash-green-15 text-dash-green',
-  orange: 'bg-dash-orange-15 text-dash-orange'
-}
-
-interface StatCardProps {
-  icon: React.FC<IconProps>
-  iconSize?: number
-  label: string
-  value: React.ReactNode
-  sub?: React.ReactNode
-  hidden?: boolean
-  tone?: StatTone
-}
+import { STAT_TONE_CLASSES } from '@renderer/constants/dashboardStats'
+import type { StatCardProps } from '@renderer/types/DashboardStats'
+import DashboardHeading from './DashboardHeading'
 
 export default function StatCard({
   icon: Icon,
@@ -27,32 +10,41 @@ export default function StatCard({
   value,
   sub,
   hidden = false,
-  tone = 'brand'
+  tone = 'brand',
+  body,
+  children,
+  footer,
+  compact = false,
+  className = ''
 }: StatCardProps): React.JSX.Element {
   return (
-    <div className={"flex flex-col gap-3 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)]"}>
-      <div className={"flex items-center gap-2.5"}>
-        <span className={`flex size-[1.875rem] shrink-0 items-center justify-center rounded-full ${TONE_CLASSES[tone]}`}>
+    <div className={`min-w-0 px-4 py-3.5 shadow-[0_2px_16px_#0c1c3305] dash-card-base ${STAT_TONE_CLASSES[tone]} ${compact ? 'flex flex-col gap-2.5 rounded-2xl' : 'grid grid-cols-1 grid-rows-[auto_1fr_auto] gap-x-3.5 gap-y-2 rounded-[18px]'} ${className}`}>
+      <div className="col-span-full flex items-center gap-2">
+        <span className={`flex shrink-0 items-center justify-center text-(--stat-accent) ${compact ? 'size-[22px] rounded-[7px]' : 'size-7 rounded-[9px] bg-(--stat-accent)/12'}`} aria-hidden="true">
           <Icon size={iconSize} color={"currentColor"} />
         </span>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
-          {label}
-        </Text>
+        <DashboardHeading className="text-xs! leading-[18px]!">{label}</DashboardHeading>
       </div>
-      <div className={"flex flex-col gap-1"}>
-        <Text size={20} weight={"extrabold"} color={"brand"} className={"leading-[120%]"}>
-          <SensitiveValue hidden={hidden} size={"card"}>
-            {value}
-          </SensitiveValue>
-        </Text>
-        {(sub !== undefined || hidden) && (
-          <Text size={10} weight={"medium"} color={"brand"} opacity={30} className={"leading-[120%]"}>
-            <SensitiveValue hidden={hidden} size={"subtext"} label={"Statistic detail hidden"}>
-              {sub}
-            </SensitiveValue>
-          </Text>
-        )}
+      <div className={`flex flex-col gap-[3px] ${compact ? 'min-h-[50px]' : 'col-start-1 row-start-2 justify-center'}`}>
+        {body ?? <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className={`font-extrabold tabular-nums wrap-anywhere ${compact ? 'text-lg leading-[22px] tracking-[-0.25px]' : 'text-[21px] leading-[1.25] tracking-[-0.4px]'}`}>
+              <SensitiveValue hidden={hidden} size={"card"}>
+                {value}
+              </SensitiveValue>
+            </div>
+          </div>
+          {(sub !== undefined || hidden) && (
+            <div className="text-[11px] leading-4 text-(--stat-muted)">
+              <SensitiveValue hidden={hidden} size={"subtext"} label={"Statistic detail hidden"}>
+                {sub}
+              </SensitiveValue>
+            </div>
+          )}
+        </>}
       </div>
+      {children && <div className="col-span-full row-start-3 min-w-0 self-end">{children}</div>}
+      {footer && <div className="col-span-full row-start-3">{footer}</div>}
     </div>
   )
 }

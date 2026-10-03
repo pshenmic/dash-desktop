@@ -25,9 +25,9 @@ function service(ourShielded: string[]) {
 }
 
 describe('ShieldedService.recordShield', () => {
-  // Both ends are this wallet's, so the credits never left it: the row has to
+  // Both participants are this wallet's, so the credits never left it: the row has to
   // say so, or the list reads a move between two of our own as a loss.
-  it('records both ends of a shield into our own pool', async () => {
+  it('records both participants of a shield into our own pool', async () => {
     const {svc, sends} = service([OURS])
 
     await svc.recordShield(WALLET, 'HASH', {from: FROM, to: OURS, credits: 443_567_314_000n})

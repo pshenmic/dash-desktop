@@ -145,9 +145,6 @@ export interface FeeParams {
   // Optional because most operations read none of them, and a caller spelling
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
-  // Shield only: the one platform address to draw on; absent, the wallet
-  // selects across every address the way the iOS wallet does.
-  fromAddress?: string | null
   identityId?: string | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.

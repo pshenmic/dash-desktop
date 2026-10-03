@@ -13,7 +13,7 @@ function setup() {
   const result = vi.fn().mockResolvedValue(undefined)
   const status = vi.fn().mockResolvedValue({chain: {coreChainLockedHeight: 1564252}})
   const sdk = {stateTransitions: {broadcast: send, waitForStateTransitionResult: result}, node: {status}} as unknown as DashPlatformSDK
-  const st = {hash: () => 'st-hash'} as unknown as StateTransitionWASM
+  const st = {hash: () => 'st-hash', hex: () => 'st-hex'} as unknown as StateTransitionWASM
   const controller = new AbortController()
   const ctx: OperationContext = {
     sdk, network: 'testnet', signal: controller.signal, progress: vi.fn(), notesSpent: vi.fn(),

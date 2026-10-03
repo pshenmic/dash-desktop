@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterLogLines, formatFileSize, newestLogWindow, parseLogLines } from '../../src/renderer/src/utils/logs'
+import { currentLogFile, formatFileSize, parseLogLines } from '../../src/renderer/src/utils/logs'
 
 describe('log viewer helpers', () => {
   const lines = parseLogLines([
@@ -14,14 +14,9 @@ describe('log viewer helpers', () => {
     expect(lines[1]).toMatchObject({ number: 2, raw: expect.stringContaining('connection failed') })
   })
 
-  it('combines a case-insensitive query with the level filter', () => {
-    expect(filterLogLines(lines, 'CONNECTION', 'error').map((line) => line.number)).toEqual([2])
-    expect(filterLogLines(lines, 'retry', 'error')).toEqual([])
-  })
-
   it('keeps stack trace lines with the preceding entry level', () => {
     const error = parseLogLines('[2026-08-12 10:00:00.000] [error] failed\n    at handler.ts:10')
-    expect(filterLogLines(error, '', 'error')).toHaveLength(2)
+    expect(error.map((line) => line.level)).toEqual(['error', 'error'])
   })
 
   it('formats file sizes', () => {
@@ -30,7 +25,21 @@ describe('log viewer helpers', () => {
     expect(formatFileSize(2 * 1024 * 1024)).toBe('2.0 MB')
   })
 
-  it('keeps the newest window of filtered lines', () => {
-    expect(newestLogWindow(lines, 2).map((line) => line.number)).toEqual([3, 4])
+  it('preserves the entire log beyond the former display limit', () => {
+    const content = Array.from({ length: 1200 }, (_, index) => `Line ${index + 1}`).join('\n')
+    const parsed = parseLogLines(content)
+    expect(parsed).toHaveLength(1200)
+    expect(parsed.map((line) => line.raw).join('\n')).toBe(content)
+  })
+
+  it('follows the newest active file even if a rotated or older file was modified later', () => {
+    const files = [
+      { name: 'wallet-2026-09-21.old.log', rotated: true, size: 100, modifiedAt: 3 },
+      { name: 'wallet-2026-09-20.log', rotated: false, size: 100, modifiedAt: 2 },
+      { name: 'wallet-2026-09-21.log', rotated: false, size: 0, modifiedAt: 1 }
+    ]
+    expect(currentLogFile(files)).toBe(files[2])
+    expect(currentLogFile([files[0]])).toBeUndefined()
+    expect(currentLogFile([])).toBeUndefined()
   })
 })

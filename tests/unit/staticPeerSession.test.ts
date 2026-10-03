@@ -118,6 +118,7 @@ const start = (service: SyncService, peerOverrides: PeerOverrides): Promise<void
   watchAddresses: [],
   gapLimit: 20,
   seedUtxos: [],
+  unconfirmedInputOutpoints: [],
   cfilterCursor: null,
   peerOverrides,
 })

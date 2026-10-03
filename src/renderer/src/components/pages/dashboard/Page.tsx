@@ -1,43 +1,19 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import {
-  AddressesIcon,
-  CalendarIcon,
-  ClockArrowIcon,
-  PendingIcon,
-  ReceiveIcon,
-  SendIcon,
-  TokensIcon,
-  TransactionsIcon
-} from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import NoResults from '@renderer/components/ui/NoResults'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
-import { dashboardPage, RECENT_TX_LIMIT, ACTIVITY_MONTH_LIMIT } from '@renderer/constants'
-import { useAuth } from '@renderer/contexts/AuthContext'
+import { dashboardPage, RECENT_TX_LIMIT } from '@renderer/constants'
 import type { DashboardContentProps } from '@renderer/types/WalletTransaction'
 import { mergeWalletTransactions } from '@renderer/utils/walletTransactions'
-import { useAdresses } from '@renderer/hooks/useAdresses'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { useFiat } from '@renderer/hooks/useFiat'
-import { computeWalletStats, formatWalletAge } from '@renderer/utils/dashboardStats'
-import { davToDashCompact } from '@renderer/utils/balance'
-import { formatCreationDate, timePart } from '@renderer/utils/date'
 import HeroBalance from './HeroBalance'
-import StatCard from './StatCard'
-import ActivityChart from './ActivityChart'
+import WalletAnalytics from './WalletAnalytics'
 import RecentTransactions from './RecentTransactions'
 import ShieldedCard from './ShieldedCard'
 import IdentitiesCard from './IdentitiesCard'
-import NetworkCard from './NetworkCard'
-
-function SectionHeader({ title }: { title: string }): React.JSX.Element {
-  return (
-    <Text size={12} weight={"medium"} color={"brand"} opacity={40} transform={"uppercase"} className={"tracking-[.08em] px-1"}>
-      {title}
-    </Text>
-  )
-}
+import DashboardHeading from './DashboardHeading'
 
 function DashboardSkeleton(): React.JSX.Element {
   return (
@@ -47,7 +23,7 @@ function DashboardSkeleton(): React.JSX.Element {
           <div key={i} className={"h-27 rounded-3xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
         ))}
       </div>
-      <div className={"grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4"}>
+      <div className={"grid grid-cols-1 gap-4"}>
         <div className={"h-60 rounded-3xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
         <div className={"h-60 rounded-3xl animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8"} />
       </div>
@@ -80,25 +56,16 @@ function EmptyState(): React.JSX.Element {
 }
 
 export default function DashboardContent({ groups, platform, platformFailed, loading, err, onTransactionClick }: DashboardContentProps): React.JSX.Element {
-  const { status } = useAuth()
-  const walletId = status?.selectedWalletId ?? undefined
-
-  const { receiving } = useAdresses(walletId)
   const { isBalanceVisible } = useBalanceVisibility()
-  const { format: formatFiat, rateReady } = useFiat()
 
   const transactions = useMemo(() => groups.flatMap((g) => g.transactions), [groups])
-  const stats = useMemo(() => computeWalletStats(transactions), [transactions])
   const recentTransactions = useMemo(
     () => mergeWalletTransactions(transactions, platform).slice(0, RECENT_TX_LIMIT),
     [transactions, platform]
   )
 
-  const labels = dashboardPage.stats
   const hideAmounts = !isBalanceVisible
   const hasActivity = recentTransactions.length > 0
-  const usedAddresses = receiving.filter((a) => a.isUsed).length
-  const fiatSub = (duffs: bigint): string | undefined => (rateReady ? `~ ${formatFiat(duffs)}` : undefined)
 
   return (
     <div className={"px-12 pb-8 flex flex-col gap-4 phase-fade-in"}>
@@ -120,91 +87,24 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
           : <EmptyState />
       )}
       {!loading && !err && hasActivity && (
-        <div className={"grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4"}>
+        <div className={"flex flex-col gap-4 min-w-0"}>
           <RecentTransactions
             transactions={recentTransactions}
             onTransactionClick={onTransactionClick}
           />
-          <ActivityChart months={stats.monthlyActivity.slice(-ACTIVITY_MONTH_LIMIT)} hidden={hideAmounts} />
         </div>
       )}
 
-      <SectionHeader title={dashboardPage.sections.services} />
-      <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
-        <ShieldedCard />
-        <IdentitiesCard />
-      </div>
-      <NetworkCard />
+      <section className="flex min-w-0 flex-col gap-2" aria-label={dashboardPage.sections.services}>
+        <header className="flex flex-wrap items-center justify-between gap-3 px-1"><DashboardHeading as="h2">{dashboardPage.sections.services}</DashboardHeading></header>
+        <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
+          <ShieldedCard />
+          <IdentitiesCard />
+        </div>
+      </section>
 
       {!loading && !err && hasActivity && (
-        <>
-          <SectionHeader title={dashboardPage.sections.stats} />
-          <div className={"grid grid-cols-2 xl:grid-cols-4 gap-4"}>
-            <StatCard
-              icon={TransactionsIcon}
-              iconSize={16}
-              label={labels.transactions}
-              value={stats.txCount}
-              sub={`${stats.receivedCount} received · ${stats.sentCount} sent`}
-            />
-            <StatCard
-              icon={ReceiveIcon}
-              iconSize={12}
-              label={labels.totalReceived}
-              value={`+${davToDashCompact(stats.totalReceived)} Dash`}
-              sub={fiatSub(stats.totalReceived)}
-              hidden={hideAmounts}
-              tone={"green"}
-            />
-            <StatCard
-              icon={SendIcon}
-              iconSize={12}
-              label={labels.totalSent}
-              value={`-${davToDashCompact(stats.totalSent)} Dash`}
-              sub={fiatSub(stats.totalSent)}
-              hidden={hideAmounts}
-              tone={"orange"}
-            />
-            <StatCard
-              icon={TokensIcon}
-              iconSize={15}
-              label={labels.largestReceived}
-              value={`${davToDashCompact(stats.largestReceived)} Dash`}
-              sub={fiatSub(stats.largestReceived)}
-              hidden={hideAmounts}
-            />
-            <StatCard
-              icon={CalendarIcon}
-              iconSize={14}
-              label={labels.walletAge}
-              value={formatWalletAge(stats.walletAgeDays)}
-              sub={stats.firstTxDate ? `since ${formatCreationDate(stats.firstTxDate)}` : undefined}
-            />
-            <StatCard
-              icon={ClockArrowIcon}
-              iconSize={14}
-              label={labels.lastActivity}
-              value={stats.lastTxDate ? formatCreationDate(stats.lastTxDate) : '—'}
-              sub={stats.lastTxDate ? `at ${timePart(stats.lastTxDate)}` : undefined}
-            />
-            <StatCard
-              icon={PendingIcon}
-              iconSize={14}
-              label={labels.pending}
-              value={stats.pendingCount}
-              sub={stats.pendingCount === 0 ? 'all confirmed' : 'awaiting confirmations'}
-              tone={stats.pendingCount > 0 ? 'orange' : 'green'}
-            />
-            <StatCard
-              icon={AddressesIcon}
-              iconSize={14}
-              label={labels.addressesUsed}
-              value={usedAddresses}
-              sub={`of ${receiving.length} generated`}
-            />
-          </div>
-
-        </>
+        <WalletAnalytics core={transactions} platform={platform} platformFailed={platformFailed} hidden={hideAmounts} />
       )}
     </div>
   )

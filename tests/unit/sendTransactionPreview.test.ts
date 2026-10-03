@@ -69,13 +69,30 @@ describe('send preview request parameters', () => {
     })
   })
 
-  it('passes a fixed Shield source through fromAddress instead of Platform coin control', () => {
+  it('passes every selected Platform input to the Shield preview', () => {
     const params = sendPreviewParams({
       operation: TransferOperation.Shield, recipients: [{address: 'shielded', amountDuffs: 5n}],
-      fromAddress: 'fixed-source', platformSource: {kind: 'address', address: 'old-source'},
+      platformSource: {
+        kind: 'inputs',
+        inputs: [{address: 'first-source', credits: 9_007_199_254_740_993n}, {address: 'second-source', credits: 7_000n}],
+        feeStrategy: [{kind: 'deductFromInput', address: 'first-source'}],
+      },
     })
-    expect(params.fromAddress).toBe('fixed-source')
-    expect(params.platformSource).toBeUndefined()
+    expect(params.platformSource).toEqual({
+      kind: 'inputs',
+      inputs: [{address: 'first-source', credits: 9_007_199_254_740_993n}, {address: 'second-source', credits: 7_000n}],
+      feeStrategy: [{kind: 'deductFromInput', address: 'first-source'}],
+    })
+  })
+
+  it('preserves single-address and automatic Shield sources', () => {
+    const request = {operation: TransferOperation.Shield, recipients: [{address: 'shielded', amountDuffs: 5n}]}
+    const params = sendPreviewParams({
+      ...request, platformSource: {kind: 'address', address: 'selected-source'},
+    })
+    expect(params.platformSource).toEqual({kind: 'address', address: 'selected-source'})
+    expect(sendPreviewParams({...request, platformSource: null}).platformSource).toBeNull()
+    expect(sendPreviewParams(request).platformSource).toBeUndefined()
   })
 
   it('passes the selected identity and shielded note indexes only on their own routes', () => {
@@ -203,12 +220,12 @@ describe('preview request identity and asynchronous results', () => {
     expect(sendPreviewReducer(second, {type: 'loaded', requestId: 2, data})).toMatchObject({requestId: 2, loading: false, error: null, data})
   })
 
-  it('tracks selected input amounts and fee strategy without depending on object identity', () => {
+  it.each([TransferOperation.AddressFundsTransfer, TransferOperation.Shield])('tracks selected input amounts and fee strategy for %s without depending on object identity', operation => {
     const params = sendPreviewParams({
-      operation: TransferOperation.AddressFundsTransfer, recipients: [{address: 'to', amountDuffs: 20n}],
+      operation, recipients: [{address: 'to', amountDuffs: 20n}],
       platformSource: {kind: 'inputs', inputs: [{address: 'source', credits: 22000n}], feeStrategy: [{kind: 'deductFromInput', address: 'source'}]},
     })
-    const request = {walletId: 'wallet', network: 'testnet' as const, operation: TransferOperation.AddressFundsTransfer, params}
+    const request = {walletId: 'wallet', network: 'testnet' as const, operation, params}
     const key = sendPreviewRequestKey(request)
     expect(sendPreviewRequestKey({...request, params: {...params, platformSource: {
       kind: 'inputs', inputs: [{address: 'source', credits: 22000n}], feeStrategy: [{kind: 'deductFromInput', address: 'source'}],
@@ -216,6 +233,10 @@ describe('preview request identity and asynchronous results', () => {
     expect(sendPreviewRequestKey({...request, params: {...params, platformSource: {
       kind: 'inputs', inputs: [{address: 'source', credits: 20000n}], feeStrategy: [{kind: 'reduceOutput', index: 0}],
     }}})).not.toBe(key)
+    expect(sendPreviewRequestKey({...request, params: {...params, platformSource: {
+      kind: 'inputs', inputs: [{address: 'other-source', credits: 22000n}], feeStrategy: [{kind: 'deductFromInput', address: 'other-source'}],
+    }}})).not.toBe(key)
+    expect(sendPreviewRequestKey({...request, params: {...params, platformSource: null}})).not.toBe(key)
   })
 
   it('clears a failed result for retry and ignores completion after closing', () => {
