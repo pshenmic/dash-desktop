@@ -17,6 +17,7 @@ license: MIT
 website: https://github.com/pshenmic/dash-desktop
 source-code: https://github.com/pshenmic/dash-desktop
 issues: https://github.com/pshenmic/dash-desktop/issues
+contact: https://github.com/pshenmic/dash-desktop/issues
 icon: buildResources/icon.png
 grade: stable
 confinement: strict
