@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=Dash Desktop Crypto Wallet
+Name=Dash Desktop Wallet
 Comment=Dash crypto wallet for desktop
 Exec=dash-desktop-wallet %U
 Icon=${SNAP}/meta/gui/icon.png
