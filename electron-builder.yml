@@ -66,6 +66,11 @@ linux:
   maintainer: pshenmic.dev
   category: Office;Finance;
   syncDesktopName: true
+  # Matches the snap's launcher name; productName would also rename the macOS
+  # app, the Windows installer and the deb's install folder.
+  desktop:
+    entry:
+      Name: Dash Desktop Wallet
 # The default toolset embeds a runtime that dlopens libfuse.so.2, which Ubuntu
 # 24.04 no longer ships; 1.x embeds the static type2 runtime instead.
 toolsets:
