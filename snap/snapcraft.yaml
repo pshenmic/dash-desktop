@@ -1,0 +1,73 @@
+name: dash-desktop-wallet
+title: Dash Desktop Wallet
+base: core24
+adopt-info: dash-desktop-wallet
+summary: "Desktop wallet for the Dash crypto network: Core, Platform and Shielded Transactions"
+description: |
+  A cross-platform desktop wallet for Dash, supporting both Dash Core (Layer 1)
+  and Dash Platform / Evolution (Layer 2).
+
+  - Create or import HD wallets from a BIP39 seed phrase, password-encrypted at rest
+  - L1 balance, transaction history, address book and receive with QR code
+  - Dash Platform identities, DPNS names and credit balances
+  - Shielded transactions: shield credits into the Orchard pool, send privately
+    between shielded addresses, and unshield or withdraw back out
+  - Mainnet and testnet, via Dashscan API or direct P2P (SPV) sync
+license: MIT
+website: https://github.com/pshenmic/dash-desktop
+source-code: https://github.com/pshenmic/dash-desktop
+issues: https://github.com/pshenmic/dash-desktop/issues
+icon: buildResources/icon.png
+grade: stable
+confinement: strict
+compression: lzo
+
+platforms:
+  amd64:
+
+apps:
+  dash-desktop-wallet:
+    # The Chromium SUID/namespace sandbox cannot start under strict confinement;
+    # the snap's own AppArmor/seccomp profile is the isolation boundary instead.
+    command: dash-desktop/dash-desktop --no-sandbox
+    extensions: [gnome]
+    plugs:
+      - browser-support
+      - network
+      - home
+    environment:
+      TMPDIR: $XDG_RUNTIME_DIR
+
+parts:
+  dash-desktop-wallet:
+    plugin: nil
+    source: .
+    build-snaps:
+      - node/24/stable
+    build-packages:
+      - build-essential
+      - python3
+      - git
+    # Libraries the Electron binary links that neither core24 nor the gnome
+    # extension's runtime provide.
+    stage-packages:
+      - libnss3
+      - libnspr4
+      - libasound2t64
+    override-build: |
+      craftctl set version="$(node -p "require('./package.json').version")"
+
+      # A local build copies the host's node_modules, whose native addons were
+      # compiled for the host, not for this Linux/Electron target.
+      rm -rf node_modules out dist
+
+      npm install --global --prefix "$CRAFT_PART_BUILD/.yarn" yarn@1
+      export PATH="$CRAFT_PART_BUILD/.yarn/bin:$PATH"
+
+      yarn install --frozen-lockfile
+      yarn build
+      yarn electron-builder --linux dir --publish never
+
+      mkdir -p "$CRAFT_PART_INSTALL"
+      cp -a dist/linux-unpacked "$CRAFT_PART_INSTALL/dash-desktop"
+      rm -f "$CRAFT_PART_INSTALL/dash-desktop/chrome-sandbox"
