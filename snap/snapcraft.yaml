@@ -2,7 +2,7 @@ name: dash-desktop-wallet
 title: Dash Desktop Wallet
 base: core24
 adopt-info: dash-desktop-wallet
-summary: "Desktop wallet for the Dash crypto network: Core, Platform and Shielded Transactions"
+summary: "Desktop wallet for the Dash crypto network: Web3 and Shielded Transactions"
 description: |
   A cross-platform desktop wallet for Dash, supporting both Dash Core (Layer 1)
   and Dash Platform / Evolution (Layer 2).
