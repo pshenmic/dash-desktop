@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.pshenmic.dash-desktop</id>
+
+  <name>Dash Desktop Crypto Wallet</name>
+  <summary>Dash crypto wallet with Platform and shielded transactions</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <developer id="io.github.pshenmic">
+    <name>pshenmic</name>
+  </developer>
+
+  <description>
+    <p>
+      A desktop wallet for Dash, supporting both Dash Core (Layer 1) and Dash Platform / Evolution (Layer 2).
+    </p>
+    <ul>
+      <li>Create or import HD wallets from a BIP39 seed phrase, password-encrypted at rest</li>
+      <li>L1 balance, transaction history, address book and receive with QR code</li>
+      <li>Dash Platform identities, DPNS names and credit balances</li>
+      <li>Shielded transactions: shield credits into the Orchard pool, send privately between shielded addresses, and unshield or withdraw back out</li>
+      <li>Mainnet and testnet, via Dashscan API or direct P2P (SPV) sync</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.pshenmic.dash-desktop.desktop</launchable>
+
+  <url type="homepage">https://github.com/pshenmic/dash-desktop</url>
+  <url type="bugtracker">https://github.com/pshenmic/dash-desktop/issues</url>
+  <url type="vcs-browser">https://github.com/pshenmic/dash-desktop</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/pshenmic/dash-desktop/master/flatpak/screenshots/main.png</image>
+      <caption>Wallet overview</caption>
+    </screenshot>
+  </screenshots>
+
+  <keywords>
+    <keyword>wallet</keyword>
+    <keyword>crypto</keyword>
+    <keyword>cryptocurrency</keyword>
+    <keyword>dash</keyword>
+  </keywords>
+
+  <categories>
+    <category>Office</category>
+    <category>Finance</category>
+  </categories>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="1.0.0-beta.4" date="2026-09-11"/>
+  </releases>
+</component>
