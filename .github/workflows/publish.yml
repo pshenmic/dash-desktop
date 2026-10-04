@@ -127,12 +127,13 @@ jobs:
         id: build
         uses: snapcore/action-build@v1
       - name: Publish to Snap Store
+        if: ${{ !github.event.release.prerelease }}
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         with:
           snap: ${{ steps.build.outputs.snap }}
-          release: ${{ github.event.release.prerelease && 'beta' || 'stable' }}
+          release: stable
       - name: Upload Snap artifact
         uses: softprops/action-gh-release@v2
         with:
