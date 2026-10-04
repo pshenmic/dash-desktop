@@ -46,7 +46,40 @@ A cross-platform desktop wallet for the Dash network, supporting both **Dash Cor
 |----------|--------|---------------|
 | macOS | DMG | arm64, x64 |
 | Windows | NSIS installer | x64 |
-| Linux | AppImage, `.deb` | x64 |
+| Linux | AppImage, `.deb`, Snap | x64 |
+
+---
+
+## Installation
+
+Download the installer for your platform from [GitHub Releases](https://github.com/pshenmic/dash-desktop/releases).
+
+### Debian / Ubuntu (APT repository)
+
+Stable releases are published to a signed APT repository, so the wallet updates with the rest of your system:
+
+```sh
+curl -fsSL https://pshenmic.github.io/dash-desktop/key.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/dash-desktop.gpg
+
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop stable main" \
+  | sudo tee /etc/apt/sources.list.d/dash-desktop.list
+
+sudo apt update
+sudo apt install dash-desktop
+```
+
+Updates then arrive through `sudo apt update && sudo apt upgrade`. To remove the repository:
+
+```sh
+sudo rm /etc/apt/sources.list.d/dash-desktop.list /usr/share/keyrings/dash-desktop.gpg
+```
+
+### Snap
+
+```sh
+sudo snap install dash-desktop-wallet
+```
 
 ---
 
