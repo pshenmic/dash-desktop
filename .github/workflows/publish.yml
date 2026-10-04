@@ -188,4 +188,11 @@ jobs:
     - name: Upload Windows artifacts
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/*.{exe,appx}
+        files: dist/*.exe
+    - name: Upload AppX
+      if: ${{ !github.event.release.prerelease }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: dash-desktop-appx
+        path: dist/*.appx
+        if-no-files-found: error
