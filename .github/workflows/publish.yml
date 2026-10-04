@@ -49,10 +49,10 @@ jobs:
 
       - name: Import signing key
         env:
-          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_GPG_SECRET_KEY: ${{ secrets.APT_GPG_SECRET_KEY }}
         run: |
-          test -n "$APT_GPG_PRIVATE_KEY" || { echo "::error::APT_GPG_PRIVATE_KEY is not set"; exit 1; }
-          echo "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          test -n "$APT_GPG_SECRET_KEY" || { echo "::error::APT_GPG_SECRET_KEY is not set"; exit 1; }
+          echo "$APT_GPG_SECRET_KEY" | gpg --batch --import
           echo "KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')" >> "$GITHUB_ENV"
 
       - name: Build repository
