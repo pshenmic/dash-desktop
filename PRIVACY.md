@@ -35,12 +35,12 @@ delete it yourself if you want the data gone.
 The app has to contact external servers to work. Any server it connects to
 can see your **IP address** and the requests it receives.
 
-| Service | When | What it receives |
-|---|---|---|
+| Service | When | What it receives                                                                                                                                                                             |
+|---|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Dashscan API** (`dashscan.pshenmic.dev`, operated by us) | "RPC" connection mode (the default) | Your wallet's **extended public key (xpub)** and addresses, so the server can return transactions, balances and unspent outputs. The server can link these addresses together as one wallet. |
-| **Dash network peers** (independent nodes) | Always, for broadcasting and InstantSend/ChainLock updates; also block sync in "P2P" mode | Transactions you broadcast. In P2P mode the app downloads block headers and compact filters and matches them **on your device**, so peers do not receive your address list. |
-| **Dash Platform nodes (DAPI)** (independent masternodes) | When you use Platform features (identities, credits, platform or shielded addresses) | The identity IDs, platform addresses and state transitions the app queries or submits. Shielded notes are decrypted on your device. |
-| **CoinGecko** (`api.coingecko.com`) and **CryptoCompare** (`min-api.cryptocompare.com`) | To show fiat values | A request for the DASH price. No wallet information is sent. |
+| **Dash network peers** (independent nodes) | Always, for broadcasting and InstantSend/ChainLock updates; also block sync in "P2P" mode | Transactions you broadcast. In P2P mode the app downloads block headers and compact filters and matches them **on your device**, so peers do not receive your address list.                  |
+| **Dash Platform nodes (DAPI)** (independent masternodes) | When you use Platform features (identities, credits, platform or shielded addresses) | The identity IDs, platform addresses and state transitions the app queries or submits. Shielded notes are decrypted on your device.                                                          |
+| **CoinGecko** (`api.coingecko.com`) and **CryptoCompare** (`min-api.cryptocompare.com`) | To show fiat values | A request for the DASH price. No wallet information is sent.                                                                                                                                 |
 
 Transactions on the Dash blockchain and Dash Platform are **public and
 permanent** by design. Anyone can see them, and we cannot change or delete

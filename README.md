@@ -162,21 +162,24 @@ Requires **Node.js 22.12+** and **Yarn 1**.
 git clone https://github.com/pshenmic/dash-desktop.git
 cd dash-desktop
 yarn
-yarn dev
-```
 
-A development run keeps its data in `~/.dash-desktop/dev/`, so it never touches an installed wallet.
-
-<details>
-<summary>Packaging and checks</summary>
-
-```sh
 yarn build:mac     # universal .dmg
 yarn build:win     # NSIS .exe, x64
 yarn build:linux   # AppImage + .deb, x64
 ```
 
-Output goes to `dist/`. Before opening a pull request, run:
+The installer is written to `dist/`. To compile and run the app without packaging it, use `yarn build && yarn start`.
+
+<details>
+<summary>Development</summary>
+
+```sh
+yarn dev
+```
+
+Starts the app with hot reload. A development run keeps its data in `~/.dash-desktop/dev/`, so it never touches an installed wallet.
+
+Before opening a pull request, run:
 
 ```sh
 npx tsc --noEmit -p tsconfig.node.json
