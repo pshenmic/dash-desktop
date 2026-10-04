@@ -1,62 +1,103 @@
+<div align="center">
+
+<img src="buildResources/icon.png" alt="Dash Desktop Wallet" width="128" height="128">
+
 # Dash Desktop Wallet
 
-A cross-platform desktop wallet for the Dash network, supporting both **Dash Core** (Layer 1) and **Dash Platform / Evolution** (Layer 2). Built with Electron, React, and TypeScript.
+**One wallet for all of Dash — Core payments, Platform identities and shielded transactions.**
 
-> **Current status:** read-only — balance, transaction history, addresses, and identities are fully visible. Sending and withdrawing will be available in the next release.
+Non-custodial · Open source · macOS, Windows and Linux
+
+[![Latest release](https://img.shields.io/github/v/release/pshenmic/dash-desktop?label=release&color=008de4)](https://github.com/pshenmic/dash-desktop/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/pshenmic/dash-desktop/total?color=008de4)](https://github.com/pshenmic/dash-desktop/releases)
+[![License: MIT](https://img.shields.io/github/license/pshenmic/dash-desktop?color=008de4)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-008de4)](#download)
+
+[**Download**](#download) · [Features](#features) · [Security](#security--privacy) · [Build from source](#build-from-source)
+
+<br>
+
+<img src=".github/assets/screenshot.png" alt="Dash Desktop Wallet dashboard" width="860">
+
+</div>
 
 ---
+
+## Why Dash Desktop
+
+Dash has two layers: **Dash Core** for fast, final payments and **Dash Platform** for identities, usernames and credits. Until now, using both meant juggling separate tools. Dash Desktop puts them in one app, built on a single recovery phrase, with your keys never leaving your computer.
+
+- **Both layers, one seed.** Send DASH, register an identity, top it up and withdraw back to L1 without switching apps.
+- **Private by choice.** Move credits into the shielded pool and transact between shielded addresses.
+- **Your node, if you want it.** Start instantly through Dashscan, or switch to a built-in SPV client that syncs straight from the Dash peer-to-peer network.
 
 ## Features
 
-### Wallet management
-- Create a new wallet from a freshly generated BIP39 12-word seed phrase
-- Import an existing wallet by entering your seed phrase
-- Manage multiple wallets simultaneously and switch between them at any time
-- Password-protected wallets — the mnemonic is encrypted at rest with **AES-256-GCM** and a **PBKDF2-SHA-512** key derivation function
-- Delete wallets you no longer need
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Dash Core (L1)
-- **BIP44 HD key derivation** — `m/44'/5'/0'` (mainnet) / `m/44'/1'/0'` (testnet)
-- 20-address lookahead for both receiving and change chains
-- View L1 balance in DASH alongside a fiat equivalent (USD, BTC, RUB)
-- Full transaction history per wallet with incoming/outgoing direction detection
-- Receive page with QR code and one-click copy
-- Address book — browse all derived addresses, label any address, see per-address balance
+### 💸 Dash Core (L1)
+- Send DASH with fee preview and **coin control**
+- **InstantSend** and **ChainLock** status on every transaction
+- Full history with incoming / outgoing detection
+- Receive with QR code; label any address
+- Contacts for the people you pay often
 
-### Dash Platform (L2 / Evolution)
-- Automatic discovery of Dash Platform **identities** linked to your HD key (`m/9'/5'/0'`, 10-identity lookahead)
-- Shows **DPNS aliases** (e.g. `alice.dash`) resolved via the Platform SDK
-- Displays identity **credit balance**
+</td>
+<td width="50%" valign="top">
 
-### Network & connectivity
-- Supports **mainnet** and **testnet**
-- Connect via the centralized **Insight API** (`insight.dash.org` / `insight.testnet.networks.dash.org`) — default and fully functional
-- **P2P direct mode** (work in progress) — header sync → compact filter header sync → compact filter scan (BIP157-style), with LevelDB persisting chain state across restarts
+### 🪪 Dash Platform (L2)
+- Register **identities**, funded from L1 or Platform addresses
+- Top up, transfer and **withdraw credits** back to L1
+- **DPNS usernames** (e.g. `alice.dash`) resolved automatically
+- **Platform addresses** for direct credit transfers
 
-### Preferences
-- Fiat currency: USD, BTC, RUB
-- Connection type: Insight API or P2P
-- Light / dark theme following the system setting
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
----
+### 🛡️ Shielded transactions
+- **Shield** credits into the Orchard pool
+- Send **privately** between shielded addresses
+- **Unshield** or withdraw back out when you need to
 
-## Platforms
+</td>
+<td width="50%" valign="top">
 
-| Platform | Format | Architectures |
-|----------|--------|---------------|
-| macOS | DMG | arm64, x64 |
-| Windows | NSIS installer | x64 |
-| Linux | AppImage, `.deb`, Snap | x64 |
+### 🔌 Network
+- **Mainnet** and **testnet**
+- **Dashscan** mode — instant start, no sync
+- **P2P mode** — SPV sync with BIP157/158 compact filters
+- Manage peers, DNS seeds and fee multipliers
 
----
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
 
-## Installation
+### 👛 Wallets
+Create or import BIP39 wallets · keep several and switch at any time · export your recovery phrase · change a wallet's password · see balances in USD, EUR, BTC or RUB
 
-Download the installer for your platform from [GitHub Releases](https://github.com/pshenmic/dash-desktop/releases).
+</td>
+</tr>
+</table>
 
-### Debian / Ubuntu (APT repository)
+## Download
 
-Stable releases are published to a signed APT repository, so the wallet updates with the rest of your system:
+| Platform | Package | |
+|---|---|---|
+| **macOS** | Universal `.dmg` (Apple silicon + Intel), signed and notarized | [Download](https://github.com/pshenmic/dash-desktop/releases/latest) |
+| **Windows** | `.exe` installer, x64 | [Download](https://github.com/pshenmic/dash-desktop/releases/latest) |
+| **Linux** | APT repository, Snap, `.deb`, AppImage — x64 | [See below](#linux) |
+
+> [!NOTE]
+> The Windows installer is not code-signed yet, so SmartScreen may warn on first launch. Choose **More info → Run anyway**.
+
+### Linux
+
+**Debian / Ubuntu — APT repository (recommended).** Signed, and updates with the rest of your system:
 
 ```sh
 curl -fsSL https://pshenmic.github.io/dash-desktop/key.asc \
@@ -65,130 +106,93 @@ curl -fsSL https://pshenmic.github.io/dash-desktop/key.asc \
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop stable main" \
   | sudo tee /etc/apt/sources.list.d/dash-desktop.list
 
-sudo apt update
-sudo apt install dash-desktop
+sudo apt update && sudo apt install dash-desktop
 ```
 
-Updates then arrive through `sudo apt update && sudo apt upgrade`. To remove the repository:
+<details>
+<summary>Remove the repository</summary>
 
 ```sh
+sudo apt remove dash-desktop
 sudo rm /etc/apt/sources.list.d/dash-desktop.list /usr/share/keyrings/dash-desktop.gpg
 ```
 
-### Snap
+</details>
+
+**Snap**
+
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/dash-desktop-wallet)
 
 ```sh
 sudo snap install dash-desktop-wallet
 ```
 
----
+**AppImage / `.deb`** — download from [Releases](https://github.com/pshenmic/dash-desktop/releases/latest).
 
-## Getting started
+Pre-releases are published on [GitHub Releases](https://github.com/pshenmic/dash-desktop/releases) only.
 
-### Prerequisites
+## Security & privacy
 
-- **Node.js** 22.12+ and **Yarn**
+- **Non-custodial.** Keys are derived on your machine; nobody else can move your funds.
+- **Encrypted at rest.** Your recovery phrase is encrypted with **AES-256-GCM**, using a key derived from your password with **PBKDF2-SHA-512**. It is never written in plaintext.
+- **No tracking.** No accounts, analytics, ads or crash reporting.
+- **Verified sync.** In P2P mode, headers are checked against the difficulty rules and blocks against their merkle roots before anything is trusted.
 
-### Install dependencies
+Read the full [Privacy Policy](PRIVACY.md) for exactly which services the app talks to and why.
 
-```bash
+> [!IMPORTANT]
+> Write down your recovery phrase and keep it offline. It is the only way to restore your wallet — nobody, including the developers, can recover it for you.
+
+### Where your data lives
+
+Everything is stored locally in `~/.dash-desktop/`:
+
+| Path | Contents |
+|---|---|
+| `storage.db` | Wallets, addresses, identities and transactions (SQLite) |
+| `ChainStorage/` | Block headers and compact filters for P2P mode |
+| `preferences.json` | Settings |
+| `logs/` | Application logs |
+
+## Build from source
+
+Requires **Node.js 22.12+** and **Yarn 1**.
+
+```sh
+git clone https://github.com/pshenmic/dash-desktop.git
+cd dash-desktop
 yarn
-```
-
-### Run in development
-
-```bash
 yarn dev
 ```
 
-### Build and preview
+A development run keeps its data in `~/.dash-desktop/dev/`, so it never touches an installed wallet.
 
-```bash
-yarn build   # type-check + compile
-yarn start   # preview the compiled app
+<details>
+<summary>Packaging and checks</summary>
+
+```sh
+yarn build:mac     # universal .dmg
+yarn build:win     # NSIS .exe, x64
+yarn build:linux   # AppImage + .deb, x64
 ```
 
-### Build distributables
+Output goes to `dist/`. Before opening a pull request, run:
 
-```bash
-yarn build:mac    # produces .dmg for arm64 and x64
-yarn build:win    # produces NSIS .exe installer for x64
-yarn build:linux  # produces .AppImage and .deb for x64
+```sh
+npx tsc --noEmit -p tsconfig.node.json
+npx tsc --noEmit -p tsconfig.web.json
+npx tsc --noEmit -p tests/tsconfig.json
+npx vitest run
+npx electron-vite build
 ```
 
-Output is placed in the `dist/` directory.
+</details>
 
----
-
-## Data storage
-
-All data is stored locally under `~/.dash-desktop/`. A development run
-(`yarn dev`) uses `~/.dash-desktop/dev/` instead, so it never touches the
-installed app's data.
-
-| File | Purpose |
-|------|---------|
-| `storage.db` | SQLite database — wallets, addresses, identities, transactions |
-| `ChainStorage/` | LevelDB — block headers and compact filter headers (P2P mode) |
-| `preferences.json` | User preferences (language, currency, connection type) |
-
-The mnemonic phrase is **never stored in plaintext**. It is encrypted with AES-256-GCM before being written to `storage.db`, and the decryption key is derived from your password via PBKDF2-SHA-512.
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|-------|-----------|
-| Desktop shell | Electron 39 |
-| Frontend | React 19, TypeScript 5.9, React Router 7 |
-| Build | electron-vite 5, Vite 7 |
-| UI | dash-ui-kit, Tailwind CSS v4 |
-| Wallet logic | dash-platform-sdk, dash-core-sdk, dash-core-p2p |
-| Key derivation | @scure/bip39 |
-| Local database | SQLite (Knex), LevelDB (classic-level) |
-| IPC | Electron contextBridge |
-
----
-
-## Project structure
-
-```
-src/
-├── main/           # Electron main process (Node.js backend)
-│   ├── src/
-│   │   ├── api/        # IPC handlers
-│   │   ├── database/   # DAO classes (Knex/SQLite)
-│   │   ├── services/   # Business logic
-│   │   ├── providers/  # Insight API and P2P wallet providers
-│   │   └── types/      # Domain types
-│   ├── migrations/     # Knex SQL migrations
-│   └── p2p/            # P2P sync workers (header, cfilter)
-├── preload/        # contextBridge — exposes window.electronAPI to renderer
-└── renderer/       # React SPA
-    └── src/
-        ├── pages/      # Route-level page components
-        ├── components/ # UI components
-        ├── hooks/      # React hooks
-        └── constants/  # Navigation, labels, copy
-```
-
----
-
-## Roadmap
-
-- **Next release**
-  - Send DASH (L1 transfers)
-  - Withdraw credits (L2 → L1)
-  - Direct P2P connection (no Insight API required)
-
----
+**Built with** Electron, React 19, TypeScript, [dash-platform-sdk](https://www.npmjs.com/package/dash-platform-sdk) and [dash-core-sdk](https://www.npmjs.com/package/dash-core-sdk). Architecture notes for contributors are in [`docs/`](docs/).
 
 ## Contributing
 
-Pull requests and issues are welcome. Please open an issue first for significant changes so the direction can be discussed.
-
----
+Bug reports and pull requests are welcome. For larger changes, please [open an issue](https://github.com/pshenmic/dash-desktop/issues) first so we can agree on the direction.
 
 ## License
 
