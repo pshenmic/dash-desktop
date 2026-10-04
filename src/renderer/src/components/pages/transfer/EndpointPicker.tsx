@@ -142,6 +142,7 @@ interface SourcePickerProps {
   platformAddresses: PlatformAddressDto[]
   selectedPlatformAddress: PlatformAddressDto | undefined
   onPlatformAddressChange: (address: string) => void
+  platformAutomaticLabel?: string
   platformAddressesLoading?: boolean
   platformAddressesError?: string | null
   onRetryPlatformAddresses?: () => void
@@ -163,6 +164,7 @@ export function SourcePicker({
   platformAddresses,
   selectedPlatformAddress,
   onPlatformAddressChange,
+  platformAutomaticLabel,
   platformAddressesLoading = false,
   platformAddressesError = null,
   onRetryPlatformAddresses,
@@ -189,6 +191,7 @@ export function SourcePicker({
           addresses={platformAddresses}
           selected={selectedPlatformAddress}
           onSelect={onPlatformAddressChange}
+          automaticLabel={platformAutomaticLabel}
         />
       )}
       {kind === SourceKind.Identity && (

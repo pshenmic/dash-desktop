@@ -11,6 +11,7 @@ function service(): ShieldedService {
     null as never,
     null as never,
     null as never,
+    {recordShieldedSend: async () => undefined} as never,
     Preferences.default(),
   )
 }

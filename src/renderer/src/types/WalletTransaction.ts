@@ -1,8 +1,30 @@
-import type {Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
+import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
+import type { TxBalanceChangeFilter } from '@renderer/enums/TxBalanceChangeFilter'
+import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
+import type { ReactNode } from 'react'
+
+export interface TransactionDetailTokenProps {
+  icon: ReactNode
+  label: string
+  value: ReactNode
+  subValue?: ReactNode
+}
 
 export type WalletTxDto = Transaction
 
 export type WalletTxStatus = 'success' | 'failed' | 'pending'
+
+export interface WalletTransactionOwnership {
+  walletId: string | null
+  core: Set<string>
+  platform: Set<string>
+  identities: Set<string>
+  shielded: Set<string>
+}
+
+export type PresentedPlatformTransaction = PlatformTransaction & {
+  internalTransferFeeCredits?: bigint
+}
 
 export type WalletTxItem = {
   id: string
@@ -12,6 +34,8 @@ export type WalletTxItem = {
   size: number
   kind?: 'core'
   title: 'Send' | 'Receive'
+  internalTransfer?: boolean
+  internalTransferFee?: bigint
   subtitleLabel: 'from' | 'to'
   labelValue: string
   amount: bigint
@@ -25,4 +49,106 @@ export type WalletTxItem = {
 export type TransactionGroup = {
   date: string
   transactions: WalletTxItem[]
+}
+
+export interface TransactionCardItem {
+  id: string
+  status: WalletTxStatus | 'unknown'
+  kind?: 'core' | 'platform'
+  title: string
+  internalTransfer?: boolean
+  internalTransferFee?: bigint
+  subtitleLabel: string
+  labelValue: string
+  amount: bigint
+  date: Date | null
+  direction: 'in' | 'out' | 'neutral'
+}
+
+export interface TransactionCardAmount {
+  value: string
+  duffs: bigint
+}
+
+export type TransactionCardDisplay = Pick<TransactionCardItem, 'amount' | 'direction'>
+
+export interface TransactionCardProps extends TransactionCardItem {
+  fullIdentifiers?: boolean
+}
+
+export interface WalletHistoryGroup {
+  date: Date | null
+  transactions: WalletHistoryItem[]
+}
+
+export type HistoryTransactionType = `core:${Exclude<TxTypeFilter, TxTypeFilter.All>}` | `platform:${string}`
+
+export interface WalletHistoryItem extends TransactionCardItem {
+  kind: 'core' | 'platform'
+  type: HistoryTransactionType
+  selection: SelectedTransaction
+  searchValues: Array<string | null | undefined>
+}
+
+export type SelectedTransaction =
+  | { kind: 'core'; transaction: WalletTxItem }
+  | { kind: 'platform'; hash: string }
+
+export interface TxFilter {
+  search: string
+  source: 'all' | WalletHistoryItem['kind']
+  balanceChange: TxBalanceChangeFilter
+  type: 'all' | HistoryTransactionType
+  status: 'all' | TransactionCardItem['status']
+}
+
+export interface TxFilterChip {
+  field: keyof TxFilter
+  label: string
+}
+
+export interface TxTotals {
+  receivedCredits: bigint
+  sentCredits: bigint
+}
+
+export interface FilterOption<T extends string> {
+  value: T
+  label: string
+}
+
+export interface FilterSectionProps<T extends string> {
+  label: string
+  options: Array<FilterOption<T>>
+  selected: T
+  onSelect: (value: T) => void
+}
+
+export interface TransactionsFilterProps {
+  filter: TxFilter
+  onChange: (filter: TxFilter) => void
+  transactions: PlatformTransaction[]
+}
+
+export interface TransactionsListProps {
+  filter: TxFilter
+  onFilterChange: (filter: TxFilter) => void
+  onTransactionClick: (transaction: SelectedTransaction) => void
+  groups: TransactionGroup[]
+  platform: PlatformTransaction[]
+  platformFailed: boolean
+  loading: boolean
+  err: string | null
+}
+
+export interface PlatformTransactionDetailProps {
+  transaction: PresentedPlatformTransaction
+  onBack: () => void
+}
+
+export type DashboardContentProps = Pick<TransactionsListProps, 'groups' | 'platform' | 'platformFailed' | 'loading' | 'err' | 'onTransactionClick'>
+
+export interface RecentTransactionsProps {
+  transactions: WalletHistoryItem[]
+  onTransactionClick: (transaction: SelectedTransaction) => void
 }

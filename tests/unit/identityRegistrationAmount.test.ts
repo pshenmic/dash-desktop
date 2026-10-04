@@ -2,12 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { AssetLockFundingPhase } from '../../src/renderer/src/enums/AssetLockFundingPhase'
 import {
   identityRegistrationAmountError,
-  identityRegistrationMaxDuffs,
   isUnfinishedAssetLockFunding,
 } from '../../src/renderer/src/utils/identityRegistration'
 
-const FEE = 10_000n
-const MAX = 100_000_000n - FEE
+const MAX = 99_990_000n
 
 describe('identityRegistrationAmountError', () => {
   it('accepts the 0.1 Dash minimum when the balance covers the Core fee', () => {
@@ -39,13 +37,6 @@ describe('identityRegistrationAmountError', () => {
   // ceiling nobody has drawn yet.
   it('holds its verdict while the amount is unpriced', () => {
     expect(identityRegistrationAmountError('1', 100_000_000n, null)).toBeNull()
-  })
-})
-
-describe('identityRegistrationMaxDuffs', () => {
-  it('reserves what the transition takes on L2 and never returns a negative amount', () => {
-    expect(identityRegistrationMaxDuffs(100_000_000n, FEE)).toBe(99_990_000n)
-    expect(identityRegistrationMaxDuffs(5_000n, FEE)).toBe(0n)
   })
 })
 

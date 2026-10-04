@@ -14,3 +14,10 @@ export interface EncryptedNoteRecord {
   encryptedNote: Uint8Array
   cvNet: Uint8Array
 }
+
+// One Orchard action: the note it pays and the note it spends, neither of which
+// names a party until this wallet matches it against its own notes.
+export interface ShieldedAction {
+  cmx: Uint8Array
+  nullifier: Uint8Array
+}

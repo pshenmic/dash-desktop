@@ -8,7 +8,10 @@ export class StartWalletSyncHandler {
     this.walletSyncService = walletSyncService
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<void> => {
+  handle = async (_event: IpcMainInvokeEvent, walletId: unknown): Promise<void> => {
+    if (typeof walletId !== 'string' || walletId === '') {
+      throw new Error('startWalletSync: walletId is required')
+    }
     return this.walletSyncService.startSync(walletId)
   }
 }

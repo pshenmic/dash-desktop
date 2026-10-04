@@ -5,6 +5,7 @@ import { creditsToDash, creditsToDuffs, davToDash, formatCompactCredits, formatC
 
 export default function CreditsAmount({
   credits,
+  prefix = '',
   compact = false,
   exact = false,
   unit = 'credits',
@@ -35,14 +36,14 @@ export default function CreditsAmount({
     >
       <span className={`relative inline-grid align-baseline ${justifyItems}`}>
         <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
-          <DashBigNumber className={amountClassName}>{exact ? creditsToDash(credits) : davToDash(duffs)}</DashBigNumber>
+          {prefix}<DashBigNumber className={amountClassName}>{exact ? creditsToDash(credits) : davToDash(duffs)}</DashBigNumber>
           <span className={unitClassName}>{' Dash'}</span>
         </span>
         <span
           aria-hidden
           className={`${face} opacity-0 translate-y-0.5 group-hover/credits:opacity-100 group-hover/credits:translate-y-0`}
         >
-          <span className={amountClassName}>{compact ? formatCompactCredits(credits) : formatCredits(credits)}</span>
+          <span className={amountClassName}>{prefix}{compact ? formatCompactCredits(credits) : formatCredits(credits)}</span>
           {unit && <span className={unitClassName}>{` ${unit}`}</span>}
         </span>
       </span>

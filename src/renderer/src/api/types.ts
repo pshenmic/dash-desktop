@@ -200,12 +200,10 @@ export interface PreviewRecipient {
 }
 
 // What a quote does not need and a preview does: what each recipient is paid
-// rather than how many there are, and the two addresses no price depends on.
+// rather than how many there are, and the change address no price depends on.
 export interface PreviewParams extends Omit<FeeParams, 'recipient'> {
   recipients: PreviewRecipient[]
   changeTo?: string | null
-  // Shield only: the platform address it spends.
-  fromAddress?: string | null
 }
 
 export interface AmountValidationParams {
@@ -251,6 +249,7 @@ export interface AppStatus {
   selectedWalletId: string | null
   network: Network | null
   connectionStatus: ConnectionStatus | null
+  walletDataRevision: number
   walletSync: WalletSyncStatus
 }
 
@@ -265,13 +264,16 @@ export interface WalletDto {
 
 // preferences
 export type ConnectionType = 'p2p' | 'rpc'
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug'
 
 export interface GeneralPreferencesJSON {
   language: string
   currency: string
+  logLevel: LogLevel
   connectionType: ConnectionType
-  platformFeeMultiplier: number
+  platformFeeMultiplier: Partial<Record<TransferOperation, number>>
   coreFeeMultiplier: number
+  collectMetrics: boolean
 }
 
 export type PeerMode = 'dynamic' | 'static'
@@ -385,6 +387,48 @@ export interface Transaction {
   // Whether this wallet broadcast it. Only meaningful while unconfirmed, and
   // null from sources that cannot know — the chain does not record provenance.
   isLocal: boolean | null
+}
+
+// The L2 half of getTransactions. Amounts are credits, not duffs, and `hash` is
+// a state transition hash — none of this is interchangeable with a Transaction.
+export interface PlatformTransaction {
+  walletId: string
+  hash: string
+  // As the explorer names it, e.g. ADDRESS_FUNDS_TRANSFER.
+  type: string
+  date: Date
+  blockHeight: number | null
+  // Null on a row sourced from identity transfers, which report no status.
+  status: 'SUCCESS' | 'FAIL' | null
+  error: string | null
+  gasCredits: bigint
+  // Signed net across every address and identity of this wallet the transition
+  // touched, so a move between two of them leaves the fee as the only cost.
+  netCredits: bigint
+  // What moved between the two participants, unsigned: a move between two of this
+  // wallet's own addresses nets to the fee and still moved this much.
+  amountCredits: bigint
+  // The participants, each an address or an identity, ours or not: one
+  // transition can be paid by several and pay several. Empty where no source
+  // named that participant.
+  sender: PlatformTransactionPart[]
+  recipient: PlatformTransactionPart[]
+}
+
+// One participant in a transition and the credits that side gained or paid.
+export interface PlatformTransactionPart {
+  source: string
+  amount: bigint
+}
+
+// getTransactions. Two lists, not one: a state transition counts credits and is
+// named by its own hash, so it shares no field with a Transaction.
+export interface WalletHistory {
+  core: Transaction[]
+  platform: PlatformTransaction[]
+  // The last refresh against the explorer failed, so `platform` may be short or
+  // empty for that reason rather than for want of activity.
+  platformFailed: boolean
 }
 
 export interface TxLockStatus {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { compareBigIntsDescending, creditsToDash, creditsToDuffs, davToDash, davToDashCompact, dashToCredits, dashToDuffs, duffsToCredits, formatCompactCredits } from '../../src/renderer/src/utils/balance'
+import { compareBigIntsDescending, creditsToDash, creditsToDuffs, davToDash, davToDashCompact, dashToCredits, dashToDuffs, duffsToCredits, formatCompactCredits, lockedFeeDuffs } from '../../src/renderer/src/utils/balance'
 
 const ONE_DASH = 100_000_000n
 
@@ -48,6 +48,16 @@ describe('compareBigIntsDescending', () => {
       9_007_199_254_740_993n, 9_007_199_254_740_992n, 0n,
     ])
     expect(compareBigIntsDescending(9_007_199_254_740_993n, 9_007_199_254_740_993n)).toBe(0)
+  })
+})
+
+// The main process sizes the lock with the fee rounded up, so Max has to take
+// the same number of duffs off or the lock outgrows the coins by one.
+describe('lockedFeeDuffs', () => {
+  it('rounds a sub-duff fee up to the duff the lock carries', () => {
+    expect(lockedFeeDuffs(212_851_200n)).toBe(212_852n)
+    expect(lockedFeeDuffs(62_000_000n)).toBe(62_000n)
+    expect(lockedFeeDuffs(0n)).toBe(0n)
   })
 })
 

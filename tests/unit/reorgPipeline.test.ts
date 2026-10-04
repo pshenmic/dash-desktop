@@ -44,13 +44,13 @@ vi.mock('../../src/main/p2p/sync/workers/HeaderSyncWorker', async () => {
   const {EventEmitter} = await import('events')
   return {
     HeaderSyncWorker: class extends EventEmitter {
-      finalityHeights: number[] = []
+      locks: Array<{height: number; hash: string}> = []
       constructor() {
         super()
         captured.headerWorkers.push(this as unknown as Record<string, unknown>)
       }
-      setFinalityHeight = (height: number): void => {
-        this.finalityHeights.push(height)
+      noteChainLock = (height: number, hash: string): void => {
+        this.locks.push({height, hash})
       }
       start = async (): Promise<void> => undefined
       stop = (): void => undefined
@@ -63,17 +63,19 @@ vi.mock('../../src/main/p2p/sync/workers/CFilterSyncWorker', async () => {
   return {
     CFilterSyncWorker: class extends EventEmitter {
       rewoundTo: number[] = []
-      reseeded: unknown[][] = []
-      constructor() {
+      reseeded: Array<[unknown[], unknown[]]> = []
+      options: Record<string, unknown>
+      constructor(options: Record<string, unknown>) {
         super()
+        this.options = options
         captured.cfilterWorkers.push(this as unknown as Record<string, unknown>)
       }
       onChainRewound = (height: number): void => {
         this.rewoundTo.push(height)
       }
       onChainExtended = (): void => undefined
-      reseedUtxos = (utxos: unknown[]): void => {
-        this.reseeded.push(utxos)
+      reseedUtxos = (utxos: unknown[], unconfirmedInputOutpoints: unknown[]): void => {
+        this.reseeded.push([utxos, unconfirmedInputOutpoints])
       }
       start = async (): Promise<void> => undefined
       stop = (): void => undefined
@@ -100,7 +102,7 @@ vi.mock('fs', () => {
 import {SyncService} from '../../src/main/p2p/sync/SyncService'
 import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {Preferences} from '../../src/main/src/preferences'
-import type {WalletSyncUtxo} from '../../src/main/p2p/types/walletSync'
+import type {UnconfirmedInputOutpoint, WalletSyncUtxo} from '../../src/main/p2p/types/walletSync'
 
 const WALLET = 'wallet-1'
 const sentToChild: unknown[] = []
@@ -115,6 +117,11 @@ const utxo = (n: number): WalletSyncUtxo => ({
   satoshis: '1000',
   address: 'yAddr',
   height: n,
+})
+
+const unconfirmedInput = (n: number): UnconfirmedInputOutpoint => ({
+  txid: n.toString(16).padStart(64, '0'),
+  vout: 0,
 })
 
 describe('SyncService reorg forwarding', () => {
@@ -158,6 +165,7 @@ describe('SyncService reorg forwarding', () => {
       watchAddresses: [],
       gapLimit: 20,
       seedUtxos: [],
+      unconfirmedInputOutpoints: [unconfirmedInput(3)],
       cfilterCursor: 90,
     })
     await reachCFilterPhase()
@@ -167,6 +175,11 @@ describe('SyncService reorg forwarding', () => {
     vi.restoreAllMocks()
   })
 
+  it('seeds the filter scan with unconfirmed transaction inputs', () => {
+    expect((cfilterWorker() as {options: Record<string, unknown>}).options)
+      .toMatchObject({unconfirmedInputOutpoints: [unconfirmedInput(3)]})
+  })
+
   it('drives the filter scan and main from one rewind', () => {
     ;(headerWorker() as unknown as {emit: (e: string, h: number) => void}).emit('chainRewound', 80)
 
@@ -174,20 +187,35 @@ describe('SyncService reorg forwarding', () => {
     expect(events.chainRewound).toHaveBeenCalledWith(WALLET, 80)
   })
 
-  it('feeds the chainlock height to header sync as a reorg floor', () => {
-    ;(service as unknown as {onClsig: (p: unknown, m: unknown) => void}).onClsig(null, {height: 95})
+  // Wire order in, display order on: header sync compares it against hashes it
+  // holds, so a clsig handed straight through would never match ours.
+  it('feeds the locked block, not just its height, to header sync', () => {
+    const wire = `${'ab'.repeat(31)}00`
+    ;(service as unknown as {onClsig: (p: unknown, m: unknown) => void})
+      .onClsig(null, {height: 95, blockHash: wire})
 
-    expect(headerWorker().finalityHeights).toEqual([95])
+    expect(headerWorker().locks).toEqual([{height: 95, hash: `00${'ab'.repeat(31)}`}])
+  })
+
+  it('ignores a chainlock that names no block', () => {
+    ;(service as unknown as {onClsig: (p: unknown, m: unknown) => void})
+      .onClsig(null, {height: 95, blockHash: '00'.repeat(32)})
+
+    expect(headerWorker().locks).toEqual([])
   })
 
   it('passes a reseed through to the filter scan', () => {
-    service.reseedUtxos({type: 'reseedUtxos', walletId: WALLET, utxos: [utxo(1)]})
+    service.reseedUtxos({
+      type: 'reseedUtxos', walletId: WALLET, utxos: [utxo(1)], unconfirmedInputOutpoints: [unconfirmedInput(2)],
+    })
 
-    expect(cfilterWorker().reseeded).toEqual([[utxo(1)]])
+    expect(cfilterWorker().reseeded).toEqual([[[utxo(1)], [unconfirmedInput(2)]]])
   })
 
   it('ignores a reseed aimed at a different wallet', () => {
-    service.reseedUtxos({type: 'reseedUtxos', walletId: 'other-wallet', utxos: [utxo(1)]})
+    service.reseedUtxos({
+      type: 'reseedUtxos', walletId: 'other-wallet', utxos: [utxo(1)], unconfirmedInputOutpoints: [unconfirmedInput(2)],
+    })
 
     expect(cfilterWorker().reseeded).toEqual([])
   })
@@ -200,6 +228,7 @@ describe('WalletSyncService reorg persistence', () => {
     resetCursor: ReturnType<typeof vi.fn>
     rewindToHeight: ReturnType<typeof vi.fn>
     getUtxos: ReturnType<typeof vi.fn>
+    getUnconfirmedInputOutpoints: ReturnType<typeof vi.fn>
     getInitialScanComplete: ReturnType<typeof vi.fn>
   }
   let service: WalletSyncService
@@ -228,6 +257,10 @@ describe('WalletSyncService reorg persistence', () => {
         order.push('getUtxos')
         return [utxo(1)]
       }),
+      getUnconfirmedInputOutpoints: vi.fn().mockImplementation(async () => {
+        order.push('getUnconfirmedInputOutpoints')
+        return [unconfirmedInput(2)]
+      }),
       getInitialScanComplete: vi.fn().mockResolvedValue(false),
     }
 
@@ -245,14 +278,16 @@ describe('WalletSyncService reorg persistence', () => {
 
     expect(transactionDAO.rewindToHeight).toHaveBeenCalledWith(WALLET, 80)
     expect(sentToChild.filter(m => (m as {type: string}).type !== 'setLogLevel'))
-      .toEqual([{type: 'reseedUtxos', walletId: WALLET, utxos: [utxo(1)]}])
+      .toEqual([{
+        type: 'reseedUtxos', walletId: WALLET, utxos: [utxo(1)], unconfirmedInputOutpoints: [unconfirmedInput(2)],
+      }])
   })
 
   it('reads the utxo set only after the rewind has landed', async () => {
     emit({type: 'chainRewound', walletId: WALLET, height: 80})
     await tick()
 
-    expect(order).toEqual(['rewindToHeight', 'getUtxos'])
+    expect(order).toEqual(['rewindToHeight', 'getUtxos', 'getUnconfirmedInputOutpoints'])
   })
 
   // Both ride the same persist queue.
@@ -271,7 +306,7 @@ describe('WalletSyncService reorg persistence', () => {
     emit({type: 'chainRewound', walletId: WALLET, height: 80})
     await tick()
 
-    expect(order).toEqual(['applyBlock', 'rewindToHeight', 'getUtxos'])
+    expect(order).toEqual(['applyBlock', 'rewindToHeight', 'getUtxos', 'getUnconfirmedInputOutpoints'])
   })
 
   it('does not reseed when the rewind fails, so the scan stays held', async () => {

@@ -1,9 +1,10 @@
 import type {Knex} from 'knex'
-import type {AppliedBlock, AppliedTx, WalletSyncUtxo} from '../../p2p/types/walletSync'
+import type {AppliedBlock, AppliedTx, UnconfirmedInputOutpoint, WalletSyncUtxo} from '../../p2p/types/walletSync'
 import type {AddressInfo} from '../types/AddressInfo'
 import type {PrevOutRef, ResolvedPrevOut, Transaction, TransactionInput, TransactionOutput, UnresolvedInput} from '../types/Transaction'
 import type {TxLockStatus} from '../types/TxLockStatus'
 import type {UtxoRow} from '../types/UTXO'
+import type {Outpoint} from '../types/CoinSelection'
 import type {Network} from '../types/Network'
 
 import {PendingTx} from '../types/PendingTx'
@@ -281,6 +282,31 @@ export class TransactionDAO {
     })
   }
 
+  getPendingSpends = async (walletId: string, sinceMs: number): Promise<Outpoint[]> => {
+    const rows = await this.knex('transaction_inputs as i')
+      .innerJoin('transactions as t', function() {
+        this.on('t.wallet_id', '=', 'i.wallet_id').andOn('t.txid', '=', 'i.txid')
+      })
+      .select('i.prev_txid', 'i.prev_vout')
+      .where('i.wallet_id', walletId)
+      .andWhere('t.block_height', 0)
+      .andWhere('t.first_seen_at', '>=', sinceMs)
+
+    return rows.map(row => ({txid: row.prev_txid as string, vout: row.prev_vout as number}))
+  }
+
+  getUnconfirmedInputOutpoints = async (walletId: string): Promise<UnconfirmedInputOutpoint[]> => {
+    const rows = await this.knex('transaction_inputs as i')
+      .innerJoin('transactions as t', function() {
+        this.on('t.wallet_id', '=', 'i.wallet_id').andOn('t.txid', '=', 'i.txid')
+      })
+      .distinct('i.prev_txid', 'i.prev_vout')
+      .where('i.wallet_id', walletId)
+      .andWhere('t.block_height', 0)
+
+    return rows.map(row => ({txid: row.prev_txid as string, vout: row.prev_vout as number}))
+  }
+
   // Unconfirmed (block_height = 0) txs — for rebroadcast and isdlock watching.
   getPendingTxs = async (walletId: string): Promise<PendingTx[]> => {
     const rows = await this.knex('transactions')
@@ -293,6 +319,17 @@ export class TransactionDAO {
       instantLocked: Boolean(r.instant_locked),
       isLocal: Boolean(r.is_local),
     }))
+  }
+
+  // The one date no explorer holds: when a tx this wallet broadcast, or saw in
+  // the mempool, reached it. The lock pool records both in either mode.
+  getFirstSeenTimes = async (walletId: string): Promise<Map<string, number>> => {
+    const rows = await this.knex('transactions')
+      .select('txid', 'first_seen_at')
+      .where('wallet_id', walletId)
+      .whereNotNull('first_seen_at')
+
+    return new Map(rows.map(row => [row.txid as string, row.first_seen_at as number]))
   }
 
   getTxLockStatus = async (walletId: string, txid: string): Promise<TxLockStatus> => {
@@ -541,6 +578,7 @@ export class TransactionDAO {
         this.knex.raw('COALESCE(prev.satoshis, i.prev_satoshis) as i_prev_satoshis'),
         't.block_height as t_block_height',
         't.block_time as t_block_time',
+        't.first_seen_at as t_first_seen_at',
         't.instant_locked as t_instant_locked',
         't.chainlocked as t_chainlocked',
         't.is_local as t_is_local',
@@ -612,7 +650,7 @@ async function abandonWithinTrx(trx: Knex.Transaction, walletId: string, txid: s
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const byTxid = new Map<string, {blockHeight: number; blockTime: number; size: number; instantLocked: boolean; chainlocked: boolean; isLocal: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
+  const byTxid = new Map<string, {blockHeight: number; blockTime: number; firstSeenAt: number | null; size: number; instantLocked: boolean; chainlocked: boolean; isLocal: boolean; outputs: Map<number, any>; inputs: Map<number, any>}>()
 
   for (const row of rows) {
     let acc = byTxid.get(row.t_txid)
@@ -620,6 +658,7 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
       acc = {
         blockHeight: row.t_block_height,
         blockTime: row.t_block_time,
+        firstSeenAt: row.t_first_seen_at ?? null,
         size: row.t_size,
         instantLocked: Boolean(row.t_instant_locked),
         chainlocked: Boolean(row.t_chainlocked),
@@ -682,7 +721,10 @@ function shapeRowsToTransactions(rows: any[], walletId: string): Transaction[] {
       outAmount: ourOutputsTotal,
       transferAmount,
       usdAmount: '0.0',
-      date: new Date(acc.blockTime * 1000),
+      // When this wallet saw the tx, for one it did: the block that later
+      // carried it is dated by the miner's clock, and moves the row on the list
+      // hours after the fact. Milliseconds here, unix seconds on the block.
+      date: acc.firstSeenAt != null ? new Date(acc.firstSeenAt) : new Date(acc.blockTime * 1000),
       size: acc.size,
       blockHeight: acc.blockHeight,
       status: acc.instantLocked || acc.chainlocked ? 'Locked' : 'Pending',

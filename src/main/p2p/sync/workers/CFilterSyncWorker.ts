@@ -28,9 +28,11 @@ import {CheckpointAnchors} from '../checkpointAnchors'
 import {HashIndex} from '../../store/hashIndex'
 import {PeerRotation} from '../../net/peerRotation'
 import {x11Wire} from '../../utils/x11'
+import {doubleSHA256} from '../../utils/hash'
+import {merkleRoot} from '../../utils/merkle'
 import {deriveFilterHeader, hashFilter} from '../../utils/filterHeader'
 import {GENESIS, NO_PREV_FILTER_HEADER} from '../../constants'
-import type {AppliedBlock, WalletSyncUtxo, WatchAddress} from '../../types/walletSync'
+import type {AppliedBlock, UnconfirmedInputOutpoint, WalletSyncUtxo, WatchAddress} from '../../types/walletSync'
 import type {
   CFilterBatch,
   CFilterPhase,
@@ -64,6 +66,13 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
+// A txid is the double-SHA256 of the serialised transaction; the SDK's hash()
+// is that digest reversed for display, so the leaves are taken here instead.
+function txsMatchMerkleRoot(block: Block): boolean {
+  const root = merkleRoot(block.txs.map(tx => doubleSHA256(tx.bytes())))
+  return root != null && wireToDisplayHex(root) === block.blockHeader.merkleRoot
+}
+
 export class CFilterSyncWorker extends Worker {
   readonly name = 'CFilterSyncWorker'
 
@@ -75,6 +84,7 @@ export class CFilterSyncWorker extends Worker {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly M: any
   private readonly seedUtxos: WalletSyncUtxo[]
+  private readonly unconfirmedInputOutpoints: UnconfirmedInputOutpoint[]
   private readonly initialCfilterCursor: number | null
   private readonly birthdayHeight: number
 
@@ -134,6 +144,10 @@ export class CFilterSyncWorker extends Worker {
 
   private matchedBlocks = new Map<number, Block>()
 
+  // Totals the last 'scan complete' line carried.
+  private reportedUtxos = -1
+  private reportedSatoshis = -1n
+
   // Bound peer-event listeners. Stable references kept for stop()'s off().
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly peerListeners: Array<[string, (...args: any[]) => void]> = [
@@ -157,6 +171,7 @@ export class CFilterSyncWorker extends Worker {
     this.heightToFilterHeader = new HashIndex(opts.chainTipHeight)
     this.birthdayHeight = Math.max(1, opts.birthdayHeight)
     this.seedUtxos = opts.seedUtxos
+    this.unconfirmedInputOutpoints = opts.unconfirmedInputOutpoints
     this.initialCfilterCursor = opts.cfilterCursor
     this.watchSet = new WatchSet(opts.network, opts.gapLimit, opts.watchAddresses)
 
@@ -171,12 +186,13 @@ export class CFilterSyncWorker extends Worker {
       messages: this.M,
       stopHashAt: height => this.blockHashIndex.get(height),
       onReady: (headers, fromPeer) => this.onCheckpointsReady(headers, fromPeer),
+      poolCanGrow: () => !this.peerPool.pinnedOnly,
     })
   }
 
   start = async (): Promise<void> => {
     // Restore prior per-wallet state from seed (sourced from SQL by main).
-    this.watchSet.setUtxos(this.seedUtxos)
+    this.watchSet.setWatchedOutpoints(this.seedUtxos, this.unconfirmedInputOutpoints)
 
     this.cfilter.cursor = this.initialCfilterCursor != null
       ? Math.max(this.birthdayHeight, this.initialCfilterCursor + 1)
@@ -259,9 +275,9 @@ export class CFilterSyncWorker extends Worker {
     this.emit('cursorReset', {walletId: this.walletId, height: forkHeight})
   }
 
-  reseedUtxos = (utxos: WalletSyncUtxo[]): void => {
+  reseedUtxos = (utxos: WalletSyncUtxo[], unconfirmedInputOutpoints: UnconfirmedInputOutpoint[]): void => {
     if (this.stopped) return
-    this.watchSet.setUtxos(utxos)
+    this.watchSet.setWatchedOutpoints(utxos, unconfirmedInputOutpoints)
     this.awaitingReseed = false
     log.info(`reseeded ${utxos.length} utxo(s) after rewind — resuming at h=${this.cfilter.cursor}`)
     if (this.phase === 'synced') this.emitStatus('cfilters')
@@ -444,9 +460,27 @@ export class CFilterSyncWorker extends Worker {
       return
     }
     const blockHashHex = block.hash()
-    const height = this.blockFetcher.receive(peer, displayHexToWire(blockHashHex))
+    const blockHashWire = displayHexToWire(blockHashHex)
+
+    // block.hash() covers the 80-byte header and nothing else, so matching the
+    // hash we asked for proves only that the header is ours. The transaction
+    // list underneath it is whatever the peer chose to attach until this runs.
+    if (!txsMatchMerkleRoot(block)) {
+      const owed = this.blockFetcher.reject(blockHashWire)
+      log.warn(
+        `block ${blockHashHex.slice(0, 16)}… from ${peer.host} does not match its merkle root` +
+        (owed == null ? ' (unsolicited)' : ` — re-requesting h=${owed}`),
+      )
+      return
+    }
+
+    const height = this.blockFetcher.receive(peer, blockHashWire)
     if (height == null) {
-      log.warn(`peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
+      if (this.blockFetcher.wasRequested(blockHashWire)) {
+        log.debug(`peerblock from ${peer.host} ${blockHashHex.slice(0, 16)}… — request already settled`)
+      } else {
+        log.warn(`peerblock from ${peer.host} unknown hash ${blockHashHex.slice(0, 16)}…`)
+      }
       return
     }
     log.debug(`peerblock h=${height} from ${peer.host}  inflight-blocks=${this.blockFetcher.size}`)
@@ -882,7 +916,15 @@ export class CFilterSyncWorker extends Worker {
     }
     this.emit('cursorAdvanced', {walletId: this.walletId, height: this.effectiveScanTipHeight()})
     this.emitStatus('synced')
-    log.info(`scan complete utxos=${this.watchSet.utxoCount} balance=${this.watchSet.totalSatoshis()} sats`)
+
+    // Tip-follow re-enters the scan for every block, so the totals only say
+    // something on the completion that moved them.
+    const satoshis = this.watchSet.totalSatoshis()
+    if (this.watchSet.utxoCount !== this.reportedUtxos || satoshis !== this.reportedSatoshis) {
+      this.reportedUtxos = this.watchSet.utxoCount
+      this.reportedSatoshis = satoshis
+      log.info(`scan complete utxos=${this.reportedUtxos} balance=${satoshis} sats`)
+    }
   }
 
   private filterMatcher(): FilterMatcher {

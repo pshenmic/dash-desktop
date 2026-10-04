@@ -7,27 +7,34 @@ export function ownRecipientOptions(kind: DestinationKind, inventory: OwnRecipie
   let options: DropdownFieldOption[]
   switch (kind) {
     case DestinationKind.CoreAddress:
-      options = [...inventory.receiving, ...inventory.change].map(address => ({
-        value: address.address,
-        label: address.address,
-        metadata: [`${davToDash(address.balance)} Dash`, `Tx count: ${address.txCount}`],
-        description: [address.isChange ? 'Your change address' : 'Your receiving address', address.label].filter(Boolean).join(' · '),
-      }))
+      options = [...inventory.receiving, ...inventory.change]
+        .filter(address => !address.isUsed && address.balance === 0n && address.txCount === 0)
+        .map(address => ({
+          value: address.address,
+          label: address.address,
+          metadata: [`${davToDash(address.balance)} Dash`, `Tx count: ${address.txCount}`],
+          description: [address.isChange ? 'Your change address' : 'Your receiving address', address.label].filter(Boolean).join(' · '),
+        }))
       break
     case DestinationKind.PlatformAddress:
-      options = inventory.platformAddresses.map(address => ({
-        value: address.platformAddress,
-        label: address.platformAddress,
-        metadata: [`${creditsToDash(address.balanceCredits)} Dash`, `Nonce: ${address.nonce}`],
-      }))
+      options = inventory.platformAddresses
+        .filter(address => address.balanceCredits === 0n && address.nonce === 0)
+        .map(address => ({
+          value: address.platformAddress,
+          label: address.platformAddress,
+          metadata: [`${creditsToDash(address.balanceCredits)} Dash`, `Nonce: ${address.nonce}`],
+        }))
       break
-    case DestinationKind.Shielded:
-      options = inventory.shieldedAddresses.map(address => ({
+    case DestinationKind.Shielded: {
+      if (inventory.shieldedNotes === null) return []
+      const usedAddresses = new Set(inventory.shieldedNotes.map(note => note.address))
+      options = inventory.shieldedAddresses.filter(address => !usedAddresses.has(address)).map(address => ({
         value: address,
         label: address,
-        metadata: [inventory.shieldedBalances === null ? 'Balance unknown' : `${creditsToDash(inventory.shieldedBalances.get(address) ?? 0n)} Dash`],
+        metadata: ['0 Dash'],
       }))
       break
+    }
     case DestinationKind.Identity:
       options = inventory.identities.map(identity => ({
         value: identity.identifier,

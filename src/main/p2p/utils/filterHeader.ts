@@ -1,7 +1,5 @@
-import {utils as sdkUtils} from 'dash-core-sdk'
 import {HASH_LEN} from '../constants'
-
-const {doubleSHA256} = sdkUtils
+import {doubleSHA256} from './hash'
 
 // BIP 157 links each filter to the one below it:
 //   header(h) = dSHA256( dSHA256(filter(h)) || header(h-1) )

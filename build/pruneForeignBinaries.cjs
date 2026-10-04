@@ -17,15 +17,15 @@ module.exports = async function pruneForeignBinaries(context) {
     darwin: ['apple-darwin'],
     mas: ['apple-darwin'],
     win32: ['pc-windows-msvc'],
-    linux: ['unknown-linux-gnu', 'unknown-linux-musl'],
+    // Electron is built against glibc only, so a musl build can never load.
+    linux: ['unknown-linux-gnu'],
   }[context.electronPlatformName]
 
-  // ia32, armv7l and the merged universal app have no single target to keep:
-  // the first two have no build at all and fall back to the wasm.
-  const prefix = {x64: 'x86_64', arm64: 'aarch64'}[arch]
-  if (suffixes == null || prefix == null) return
+  // ia32 and armv7l have no build at all and fall back to the wasm.
+  const prefixes = {x64: ['x86_64'], arm64: ['aarch64'], universal: ['x86_64', 'aarch64']}[arch]
+  if (suffixes == null || prefixes == null) return
 
-  const keep = new Set(suffixes.map(suffix => `${prefix}-${suffix}`))
+  const keep = new Set(prefixes.flatMap(prefix => suffixes.map(suffix => `${prefix}-${suffix}`)))
   const modules = path.join(context.packager.getResourcesDir(context.appOutDir), 'app.asar.unpacked', 'node_modules')
 
   for (const pkg of ['pshenmic-dpp', 'crypto-toothpick']) {

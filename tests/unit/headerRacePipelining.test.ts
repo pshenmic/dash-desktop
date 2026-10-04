@@ -56,6 +56,7 @@ function makeChain(fromHash: string, count: number, nonce: number): Uint8Array[]
 }
 
 class FakeChainStore {
+  readonly network = 'mainnet' as const
   state: ChainTipState = {tipHeight: 0, tipHash: null}
   iterateHeadersInRange = async (): Promise<Array<{height: number; raw: Uint8Array}>> => []
   appendHeaders = async (_h: PersistedHeader[], nextState: ChainTipState): Promise<void> => {
@@ -110,7 +111,7 @@ describe('header race response pipelining', () => {
       peerPool: pool as unknown as PoolService,
       initialTipHeight: 10,
       initialTipHash: GENESIS_HASH,
-      finalityHeight: 0,
+      chainLock: null,
     })
     extended = []
     worker.on('chainExtended', (headers: PersistedHeader[]) => extended.push(headers))

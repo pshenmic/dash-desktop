@@ -54,11 +54,16 @@ appx:
   displayName: Dash Desktop Wallet
   backgroundColor: '#4C7EFF'
 mac:
+  entitlements: buildResources/entitlements.mac.plist
+  entitlementsInherit: buildResources/entitlements.mac.plist
+  # The prebuilt N-API binaries are one file per arch, identical in both halves
+  # of a universal build; @electron/universal aborts on any such Mach-O that
+  # this glob does not cover.
+  x64ArchFiles: '**/dist/binaries/native/*-apple-darwin/*.node'
   target:
     - target: dmg
       arch:
-        - arm64
-        - x64
+        - universal
 dmg:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 linux:
@@ -71,10 +76,34 @@ linux:
         - x64
   maintainer: pshenmic.dev
   category: Office;Finance;
+  syncDesktopName: true
+  # Matches the snap's launcher name; productName would also rename the macOS
+  # app, the Windows installer and the deb's install folder.
+  desktop:
+    entry:
+      Name: Dash Desktop Wallet
+# The default toolset embeds a runtime that dlopens libfuse.so.2, which Ubuntu
+# 24.04 no longer ships; 1.x embeds the static type2 runtime instead.
+toolsets:
+  appimage: 1.0.3
 appImage:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 deb:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
+  # Setting depends replaces electron-builder's default list, so that list is
+  # repeated here. libasound2 is the addition: the Electron binary links
+  # libasound.so.2 and will not start without it.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libasound2
 #  entitlementsInherit: build/entitlements.mac.plist
 #  extendInfo:
 #    - NSCameraUsageDescription: Application requests access to the device's camera.

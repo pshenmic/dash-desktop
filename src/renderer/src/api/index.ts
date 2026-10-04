@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, Transaction, TxLockStatus, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -9,6 +9,10 @@ export class API {
 
   static async getPreferences(): Promise<PreferencesJSON> {
     return this.api.getPreferences() as Promise<PreferencesJSON>
+  }
+
+  static async setLogLevel(logLevel: LogLevel): Promise<void> {
+    return this.api.setLogLevel(logLevel)
   }
 
   static async setConnectionType(connectionType: ConnectionType): Promise<void> {
@@ -63,12 +67,20 @@ export class API {
     return this.api.setFiatCurrency(currency)
   }
 
-  static async setPlatformFeeMultiplier(platformFeeMultiplier: number): Promise<void> {
-    return this.api.setPlatformFeeMultiplier(platformFeeMultiplier)
+  static async setPlatformFeeMultiplier(operation: TransferOperation, multiplier: number): Promise<void> {
+    return this.api.setPlatformFeeMultiplier(operation, multiplier)
   }
 
   static async setCoreFeeMultiplier(coreFeeMultiplier: number): Promise<void> {
     return this.api.setCoreFeeMultiplier(coreFeeMultiplier)
+  }
+
+  static async getCollectMetrics(): Promise<boolean> {
+    return this.api.getCollectMetrics()
+  }
+
+  static async setCollectMetrics(collectMetrics: boolean): Promise<void> {
+    return this.api.setCollectMetrics(collectMetrics)
   }
 
   static async startWalletSync(walletId: string): Promise<void> {
@@ -115,8 +127,8 @@ export class API {
     return this.api.setWalletLabel(walletId, label)
   }
 
-  static async getTransactions(walletId: string): Promise<Transaction[]> {
-    return this.api.getTransactions(walletId)
+  static async getTransactions(walletId: string): Promise<WalletHistory> {
+    return this.api.getTransactions(walletId) as Promise<WalletHistory>
   }
 
   static async getUtxos(walletId: string): Promise<SelectableUtxo[]> {
@@ -291,8 +303,8 @@ export class API {
     return this.api.dismissAssetLockFunding(walletId) as Promise<AssetLockFundingState>
   }
 
-  static async shieldToPool(walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string): Promise<ShieldResult> {
-    return this.api.shieldToPool(walletId, fromAddress, toAddress, amountCredits, password) as Promise<ShieldResult>
+  static async shieldToPool(walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string): Promise<ShieldResult> {
+    return this.api.shieldToPool(walletId, source, toAddress, amountCredits, password) as Promise<ShieldResult>
   }
 
   static async startShieldedTransfer(walletId: string, recipients: ShieldedRecipient[], password: string, source?: ShieldedSpendSource): Promise<ShieldedSpendState> {

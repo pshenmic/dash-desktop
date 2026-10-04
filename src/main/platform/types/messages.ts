@@ -57,13 +57,6 @@ export interface NoteSnapshot {
   nullifier: Uint8Array
 }
 
-export interface ShieldSource {
-  platformAddress: string
-  nonce: number
-  balanceCredits: bigint
-  index: number
-}
-
 // One platform address funding a transition: which address, its derivation
 // index for signing, the nonce main read, and how much of it to spend.
 export interface AddressInput {
@@ -239,7 +232,8 @@ export interface PlatformOperations {
     result: {stHash: string; identityId: string | null; feeCredits: bigint | null}
   }
   shield: {
-    payload: {seed: Uint8Array; source: ShieldSource; recipient: string; amountCredits: bigint}
+    // Byte-ordered, so inputs[0] is the one DeductFromInput(0) charges.
+    payload: {seed: Uint8Array; inputs: AddressInput[]; recipient: string; amountCredits: bigint}
     result: {stHash: string}
   }
   shieldFromAssetLock: {
@@ -251,7 +245,9 @@ export interface PlatformOperations {
     result: {stHash: string}
   }
   addressFundingFromAssetLock: {
-    payload: AssetLockFunded & {recipient: string}
+    // The recipient gets exactly recipientCredits; the remainder address gets
+    // what the lock carries beyond it, less the fee.
+    payload: AssetLockFunded & {recipient: string; recipientCredits: bigint; remainderAddress: string}
     result: {stHash: string}
   }
   identityCreateFromAssetLock: {

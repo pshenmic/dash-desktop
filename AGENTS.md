@@ -9,6 +9,9 @@ the complete project guidance in `CLAUDE.md`; treat it as part of this file.
 - Read `CLAUDE.md` before making changes, reviewing code, or proposing an
   implementation. Its commands, architecture notes, verification gate, and
   house style are authoritative for this repository.
+- `docs/` holds the per-area detail `CLAUDE.md` only summarises, and is
+  equally authoritative. Read the file for an area before changing code in it:
+  `p2p.md`, `wallet-data.md`, `addresses.md`, `renderer.md`.
 - Interpret references to Claude Code in `CLAUDE.md` as references to the
   current coding agent. The technical rules are tool-agnostic.
 - If `AGENTS.md` and `CLAUDE.md` appear to conflict, follow the more specific

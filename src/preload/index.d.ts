@@ -101,6 +101,37 @@ interface TransactionDTO {
   isLocal: boolean | null
 }
 
+// Mirrors src/main/src/types/WalletHistory: both chains of one wallet, kept in
+// separate lists because the two shapes share no field.
+interface WalletHistoryDTO {
+  core: TransactionDTO[]
+  platform: PlatformTransactionDTO[]
+  platformFailed: boolean
+}
+
+// Mirrors src/main/src/types/PlatformTransaction: amounts are credits, `hash`
+// is a state transition hash, and nothing here is a TransactionDTO.
+interface PlatformTransactionDTO {
+  walletId: string
+  hash: string
+  type: string
+  date: Date
+  blockHeight: number | null
+  status: 'SUCCESS' | 'FAIL' | null
+  error: string | null
+  gasCredits: bigint
+  netCredits: bigint
+  amountCredits: bigint
+  sender: PlatformTransactionPartDTO[]
+  recipient: PlatformTransactionPartDTO[]
+}
+
+// One participant in a transition and what it moved there.
+interface PlatformTransactionPartDTO {
+  source: string
+  amount: bigint
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -116,7 +147,7 @@ declare global {
       getReceiveAddress: (walletId: string) => Promise<string | null>
       getStatus: () => Promise<unknown>
       getAllWallets: () => Promise<unknown>
-      getTransactions: (walletId: string) => Promise<TransactionDTO[]>
+      getTransactions: (walletId: string) => Promise<WalletHistoryDTO>
       getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
       getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
@@ -144,15 +175,17 @@ declare global {
       getAssetLockFundingState: (walletId: string) => Promise<unknown>
       resumeAssetLockFunding: (walletId: string, password: string) => Promise<unknown>
       dismissAssetLockFunding: (walletId: string) => Promise<unknown>
-      shieldToPool: (walletId: string, fromAddress: string, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
+      shieldToPool: (walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string) => Promise<{ stHash: string; amountCredits: bigint; fromAddress: string }>
       broadcastTransaction: (txHex: string) => Promise<unknown>
       getPreferences: () => Promise<unknown>
       setLanguage: (language: string) => Promise<void>
       setLogLevel: (level: string) => Promise<void>
       setFiatCurrency: (currency: string) => Promise<void>
       setConnectionType: (connectionType: 'p2p' | 'rpc') => Promise<void>
-      setPlatformFeeMultiplier: (platformFeeMultiplier: number) => Promise<void>
+      setPlatformFeeMultiplier: (operation: string, multiplier: number) => Promise<void>
       setCoreFeeMultiplier: (coreFeeMultiplier: number) => Promise<void>
+      getCollectMetrics: () => Promise<boolean>
+      setCollectMetrics: (collectMetrics: boolean) => Promise<void>
       getConnectedPeers: () => Promise<unknown>
       setPeerMode: (mode: 'dynamic' | 'static') => Promise<void>
       pushStaticPeer: (network: Network, peer: string) => Promise<unknown>

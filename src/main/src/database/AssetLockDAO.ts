@@ -73,6 +73,12 @@ export class AssetLockDAO {
       .update({asset_lock_proof: JSON.stringify(proof)})
   }
 
+  clearProof = async (walletId: string, txid: string): Promise<void> => {
+    await this.knex('asset_lock_fundings')
+      .where({wallet_id: walletId, txid})
+      .update({asset_lock_proof: null})
+  }
+
   countFundingsByKind = async (walletId: string, kind: AssetLockFundingKind): Promise<number> => {
     const row = await this.knex('asset_lock_fundings')
       .where({wallet_id: walletId, kind})
