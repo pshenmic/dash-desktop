@@ -9,7 +9,14 @@ permissions:
 
 jobs:
   build_linux:
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            os: ubuntu-22.04
+          - arch: arm64
+            os: ubuntu-22.04-arm
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -18,7 +25,7 @@ jobs:
     - name: Install dependencies
       run: yarn --frozen-lockfile
     - name: Build Linux
-      run: yarn build:linux
+      run: yarn build && yarn electron-builder --linux --${{ matrix.arch }} --publish never
     - name: Upload Linux artifacts
       uses: softprops/action-gh-release@v2
       with:
@@ -70,25 +77,36 @@ jobs:
             '[.[] | select((.draft or .prerelease) | not) | select(any(.assets[]; .name | endswith(".deb")))][:2][].tag_name')
           echo "tags: ${tags:-<none>}"
 
-          dir=dists/stable/main/binary-amd64
-          mkdir -p "$dir" pool/main/d/dash-desktop
+          archs="amd64 arm64"
+          mkdir -p pool/main/d/dash-desktop
           for tag in $tags; do
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' \
               --dir "pool/main/d/dash-desktop/$tag"
           done
-          apt-ftparchive packages pool > "$dir/Packages"
-          gzip -9kf "$dir/Packages"
+
+          # apt-ftparchive -a matches on a *_<arch>.deb filename, which these
+          # are not, so the stanzas are split on their Architecture field.
+          apt-ftparchive packages pool > Packages.all
+          for arch in $archs; do
+            dir=dists/stable/main/binary-$arch
+            mkdir -p "$dir"
+            awk -v RS= -v ORS='\n\n' -v a="$arch" '$0 ~ "\nArchitecture: " a "\n"' Packages.all > "$dir/Packages"
+            gzip -9kf "$dir/Packages"
+          done
+          rm Packages.all
 
           # apt never downgrades, so a newest release that sorts below anything
           # already live would strand every machine that installed it.
           newest=$(head -n1 <<< "$tags")
           if [ -n "$newest" ]; then
-            new=$(dpkg-deb -f pool/main/d/dash-desktop/"$newest"/*.deb Version)
-            for old in $(curl -fsSL "$BASE_URL/$dir/Packages" 2>/dev/null | awk '/^Version:/ {print $2}' || true); do
-              if dpkg --compare-versions "$new" lt "$old"; then
-                echo "::error::$new ($newest) sorts below the published $old"
-                exit 1
-              fi
+            new=$(dpkg-deb -f "$(ls pool/main/d/dash-desktop/"$newest"/*.deb | head -n1)" Version)
+            for arch in $archs; do
+              for old in $(curl -fsSL "$BASE_URL/dists/stable/main/binary-$arch/Packages" 2>/dev/null | awk '/^Version:/ {print $2}' || true); do
+                if dpkg --compare-versions "$new" lt "$old"; then
+                  echo "::error::$new ($newest) sorts below the published $old ($arch)"
+                  exit 1
+                fi
+              done
             done
           fi
 
@@ -97,7 +115,7 @@ jobs:
             -o APT::FTPArchive::Release::Label="Dash Desktop" \
             -o APT::FTPArchive::Release::Suite=stable \
             -o APT::FTPArchive::Release::Codename=stable \
-            -o APT::FTPArchive::Release::Architectures=amd64 \
+            -o APT::FTPArchive::Release::Architectures="$archs" \
             -o APT::FTPArchive::Release::Components=main \
             release dists/stable > Release.tmp
           mv Release.tmp dists/stable/Release
@@ -120,7 +138,12 @@ jobs:
         uses: actions/deploy-pages@v4
 
   publish_snap:
-    runs-on: ubuntu-24.04
+    strategy:
+      # Each arch is its own Store revision; one failing should not cancel the other's upload.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Build Snap

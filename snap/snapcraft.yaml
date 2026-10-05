@@ -25,6 +25,7 @@ compression: lzo
 
 platforms:
   amd64:
+  arm64:
 
 apps:
   dash-desktop-wallet:
@@ -70,5 +71,6 @@ parts:
       yarn electron-builder --linux dir --publish never
 
       mkdir -p "$CRAFT_PART_INSTALL"
-      cp -a dist/linux-unpacked "$CRAFT_PART_INSTALL/dash-desktop"
+      # electron-builder names it linux-unpacked on x64 and linux-<arch>-unpacked elsewhere.
+      cp -a dist/linux*-unpacked "$CRAFT_PART_INSTALL/dash-desktop"
       rm -f "$CRAFT_PART_INSTALL/dash-desktop/chrome-sandbox"
