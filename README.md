@@ -90,7 +90,7 @@ Create or import BIP39 wallets · keep several and switch at any time · export 
 |---|---|---|
 | **macOS** | Universal `.dmg` (Apple silicon + Intel), signed and notarized | [Download](https://github.com/pshenmic/dash-desktop/releases/latest) |
 | **Windows** | `.exe` installer, x64 | [Download](https://github.com/pshenmic/dash-desktop/releases/latest) |
-| **Linux** | APT repository, Snap, `.deb`, AppImage — x64 | [See below](#linux) |
+| **Linux** | APT repository, Snap, `.deb`, AppImage — x64 and arm64 | [See below](#linux) |
 
 > [!NOTE]
 > The Windows installer is not code-signed yet, so SmartScreen may warn on first launch. Choose **More info → Run anyway**.
@@ -103,7 +103,7 @@ Create or import BIP39 wallets · keep several and switch at any time · export 
 curl -fsSL https://pshenmic.github.io/dash-desktop/key.asc \
   | sudo gpg --dearmor -o /usr/share/keyrings/dash-desktop.gpg
 
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop stable main" \
+echo "deb [signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop stable main" \
   | sudo tee /etc/apt/sources.list.d/dash-desktop.list
 
 sudo apt update && sudo apt install dash-desktop
@@ -165,7 +165,7 @@ yarn
 
 yarn build:mac     # universal .dmg
 yarn build:win     # NSIS .exe, x64
-yarn build:linux   # AppImage + .deb, x64
+yarn build:linux   # AppImage + .deb for this machine's arch
 ```
 
 The installer is written to `dist/`. To compile and run the app without packaging it, use `yarn build && yarn start`.

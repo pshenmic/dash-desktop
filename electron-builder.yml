@@ -67,13 +67,11 @@ mac:
 dmg:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 linux:
+  # No arch here: a target's own arch overrides --x64/--arm64, and the native
+  # modules are compiled from source, so each arch is built on its own runner.
   target:
-    - target: AppImage
-      arch:
-        - x64
-    - target: deb
-      arch:
-        - x64
+    - AppImage
+    - deb
   maintainer: pshenmic.dev
   category: Office;Finance;
   syncDesktopName: true
