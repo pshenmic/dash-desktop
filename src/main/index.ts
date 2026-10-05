@@ -166,7 +166,11 @@ registerHandler('saveTextFile', async (_event, defaultFileName: string, content:
 })
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.pshenmic.dashplatformwallet')
+  // NSIS shortcuts carry electron-builder's appId; an MSIX package already has
+  // its own AUMID, and overriding it detaches the window from its Start entry.
+  if (!process.windowsStore) {
+    electronApp.setAppUserModelId('org.pshenmic.dashdesktop')
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
