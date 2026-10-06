@@ -14,6 +14,7 @@ import type { SettingsRowProps } from '@renderer/types/Settings'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
+import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
 import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
 import { useNavigate } from 'react-router-dom'
@@ -79,6 +80,8 @@ export default function Settings(): React.JSX.Element {
   const { currency, setCurrency } = useFiat()
   const debugMode = useDebugMode()
 
+  const [clearPending, setClearPending] = useState(false)
+  const clearPendingRef = useRef(false)
   const [exportPending, setExportPending] = useState(false)
   const [logLevel, setLogLevel] = useState<LogLevel | null>(null)
   const [logLevelLoading, setLogLevelLoading] = useState(true)
@@ -153,6 +156,26 @@ export default function Settings(): React.JSX.Element {
       toast.error(`**Rename failed** Could not update wallet name. ${getErrorMessage(err)}`)
     } finally {
       setRenamePending(false)
+    }
+  }
+
+  const handleClear = async (): Promise<void> => {
+    if (!network || clearPendingRef.current) return
+    const confirmed = window.confirm(
+      `Clear all sync data for ${network}? This deletes downloaded headers, filters and local transaction history for all wallets on this network. Wallets and recovery phrases are preserved.`,
+    )
+    if (!confirmed) return
+    clearPendingRef.current = true
+    setClearPending(true)
+    try {
+      await API.resetWalletSync(network)
+      invalidateAllAsyncCaches()
+    } catch (err) {
+      console.error('reset sync failed', err)
+      toast.error(`**Clear failed** Could not clear synchronization data. ${getErrorMessage(err)}`)
+    } finally {
+      clearPendingRef.current = false
+      setClearPending(false)
     }
   }
 
@@ -337,6 +360,16 @@ export default function Settings(): React.JSX.Element {
             description="Choose the wallet data source and manage P2P synchronization."
             actionLabel="Open Connection Settings"
             onClick={() => navigate('/connection-settings')}
+          />
+          <SettingsRow
+            title="Clear sync data"
+            description="Delete downloaded headers, filters, and local transaction history for all wallets on the current network. Wallets are preserved."
+            actionLabel="Clear sync data"
+            pendingLabel="Clearing…"
+            pending={clearPending}
+            disabled={network === null}
+            destructive
+            onClick={handleClear}
           />
         </div>
 
