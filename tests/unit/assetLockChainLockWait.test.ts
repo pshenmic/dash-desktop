@@ -25,7 +25,7 @@ import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingS
 const TXID = 'assetlock-txid'
 const TX_HEIGHT = 4_200
 
-const row = (): AssetLockFundingRow => ({
+const row = (overrides: Partial<AssetLockFundingRow> = {}): AssetLockFundingRow => ({
   id: 1,
   walletId: 'wallet-1',
   txid: TXID,
@@ -41,6 +41,7 @@ const row = (): AssetLockFundingRow => ({
   txHex: '00',
   assetLockProof: null,
   createdAt: 0,
+  ...overrides,
 })
 
 const state = (): AssetLockFundingState => ({
@@ -52,14 +53,16 @@ const state = (): AssetLockFundingState => ({
 function wire(): {
   service: AssetLockService
   waitForChainLock: ReturnType<typeof vi.fn>
+  waitForInstantLock: ReturnType<typeof vi.fn>
   request: ReturnType<typeof vi.fn>
 } {
   // No islock ever arrives, so the chain-lock path decides every case here.
   const waitForChainLock = vi.fn().mockResolvedValue(5_000)
+  const waitForInstantLock = vi.fn().mockResolvedValue(null)
   const funder = {
     buildAssetLock: vi.fn(),
     broadcastAssetLock: vi.fn(),
-    waitForInstantLock: vi.fn().mockResolvedValue(null),
+    waitForInstantLock,
     waitForChainLock,
     chainlockedHeight: vi.fn().mockReturnValue(4_999),
     // These cases are about the proof race on a funding that is already mined,
@@ -77,7 +80,7 @@ function wire(): {
     {request} as unknown as PlatformWorkerService,
   )
 
-  return {service, waitForChainLock, request}
+  return {service, waitForChainLock, waitForInstantLock, request}
 }
 
 describe('the chain-lock fallback', () => {
@@ -227,5 +230,59 @@ describe('the chain-lock fallback', () => {
     await expect(service.reacquire(state(), row())).rejects.toThrow('Timed out waiting for asset lock proof')
 
     vi.useRealTimers()
+  })
+})
+
+describe('resuming a funding platform already counts as chainlocked', () => {
+  const INSTANT_PROOF = {type: 'instantLock', instantLock: 'aa', transaction: 'bb'} as const
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    stub.getTransaction.mockReset()
+    stub.getTransaction.mockResolvedValue(chainState(TX_HEIGHT))
+    stub.createAssetLockProof.mockReset()
+    stub.createAssetLockProof.mockImplementation(
+      ({coreChainLockedHeight}: {coreChainLockedHeight: number}) => ({txid: TXID, coreChainLockedHeight}),
+    )
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('proves by chain lock without waiting on an islock', async () => {
+    const {service, waitForInstantLock, waitForChainLock} = wire()
+
+    const {proof} = await service.reacquire(state(), row())
+
+    expect(proof).toEqual({type: 'chainLock', coreChainLockedHeight: TX_HEIGHT})
+    expect(waitForInstantLock).not.toHaveBeenCalled()
+    expect(waitForChainLock).not.toHaveBeenCalled()
+  })
+
+  it('replaces a stored instant lock that was never sent', async () => {
+    const {service} = wire()
+
+    const {proof} = await service.reacquire(state(), row({status: AssetLockFundingStatus.ChainLocked, assetLockProof: INSTANT_PROOF}))
+
+    expect(proof).toEqual({type: 'chainLock', coreChainLockedHeight: TX_HEIGHT})
+  })
+
+  it('keeps the stored instant lock while platform is behind the block', async () => {
+    const {service, request, waitForChainLock} = wire()
+    request.mockResolvedValue({chain: {coreChainLockedHeight: TX_HEIGHT - 1}})
+
+    const {proof} = await service.reacquire(state(), row({status: AssetLockFundingStatus.ChainLocked, assetLockProof: INSTANT_PROOF}))
+
+    expect(proof).toEqual(INSTANT_PROOF)
+    expect(waitForChainLock).not.toHaveBeenCalled()
+  })
+
+  it('replays the proof of a transition that may already have landed', async () => {
+    const {service} = wire()
+
+    const {proof} = await service.reacquire(state(), row({status: AssetLockFundingStatus.StBroadcast, assetLockProof: INSTANT_PROOF}))
+
+    expect(proof).toEqual(INSTANT_PROOF)
+    expect(stub.getTransaction).not.toHaveBeenCalled()
   })
 })
