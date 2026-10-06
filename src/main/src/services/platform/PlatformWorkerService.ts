@@ -8,6 +8,7 @@ import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
 import {Network} from '../../types/Network'
 import {LogLevel} from '../../types/Log'
 import {Preferences} from '../../preferences'
+import {setCoreEvonodes} from '../../utils/coreSDK'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -58,6 +59,7 @@ export class PlatformWorkerService {
   // Forks the worker so the prover starts warming before anything is
   // requested. Reading status must never be what triggers work (finding P-4).
   start = (): void => {
+    setCoreEvonodes(this.preferences.network.evonodes)
     this.ensureChild()
   }
 
@@ -126,6 +128,7 @@ export class PlatformWorkerService {
   }
 
   reloadEvonodes(): void {
+    setCoreEvonodes(this.preferences.network.evonodes)
     this.child?.postMessage({type: 'setEvonodes', evonodes: this.preferences.network.evonodes})
   }
 

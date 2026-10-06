@@ -343,7 +343,6 @@ export class AssetLockService {
     // can change either answer below. Between two of them, re-asking DAPI can
     // only return what it already returned.
     const chainLockRace = async (): Promise<ChainAssetLockProofParams> => {
-      const sdk = coreSDK(network)
       const deadline = Date.now() + IDENTITY_LOCK_TIMEOUT_MS
 
       while (Date.now() < deadline) {
@@ -351,7 +350,7 @@ export class AssetLockService {
 
         // Re-read every round rather than pinning the first answer, which would
         // outlive the transaction being reorged out of the block it names.
-        const dapiTx = await sdk.getTransaction(txid).catch(() => null)
+        const dapiTx = await coreSDK(network).getTransaction(txid).catch(() => null)
 
         if (dapiTx?.isChainLocked === true) {
           // Platform validates the proof against its own core node, so its view
