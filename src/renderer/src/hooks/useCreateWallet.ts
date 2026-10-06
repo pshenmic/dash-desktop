@@ -156,7 +156,7 @@ export function useCreateWallet(): UseCreateWalletState {
       return
     }
 
-    API.startShieldedSync(walletId, password).catch(() => {})
+    API.startShieldedSync(walletId, password).catch(error => toast.error(getErrorMessage(error)))
 
     const syncEnabled = connectionMode === 'p2p' || backgroundSyncEnabled
     saveWalletConnectionSettings(connectionMode, syncEnabled)
