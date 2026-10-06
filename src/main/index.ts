@@ -2,14 +2,16 @@ import { app, shell, BrowserWindow, nativeTheme, dialog, Menu, screen } from 'el
 import { writeFile } from 'fs/promises'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import os from 'os'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
 import { initLogTransport } from './src/logTransport'
-import { WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
+import { GPU_INFO_TIMEOUT_MS, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
 import { dataPath } from './src/utils/dataPath'
 import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
 import { WindowState } from './src/types/WindowState'
+import { GPUInfo } from './src/types/Log'
 import packageJSON from '../../package.json'
 import {registerHandler} from './src/utils/ipcHandler'
 import {Logger} from './src/utils/logger'
@@ -166,6 +168,31 @@ registerHandler('saveTextFile', async (_event, defaultFileName: string, content:
 })
 
 app.whenReady().then(() => {
+  Promise.race([
+    app.getGPUInfo('complete'),
+    new Promise(resolve => setTimeout(resolve, GPU_INFO_TIMEOUT_MS, null)),
+  ])
+    .catch(() => null)
+    .then((info) => {
+      const cpu = os.cpus()[0]
+      const gpu = (info as GPUInfo | null)?.gpuDevice?.find(device => device.active)
+      const unknown = 'not recognized'
+      log.info([
+        '',
+        '========== Dash Desktop Wallet ==========',
+        `  Version   ${app.getVersion()} (${app.isPackaged ? 'packaged' : 'dev'})`,
+        `  Electron  ${process.versions.electron}`,
+        `  Chrome    ${process.versions.chrome}`,
+        `  Node      ${process.versions.node}`,
+        `  OS        ${os.type()} ${os.release()} ${process.arch}`,
+        `  CPU       ${cpu ? `${cpu.model.trim()} @ ${cpu.speed} MHz` : unknown} (${os.availableParallelism()} cores)`,
+        `  GPU       ${gpu?.deviceString || unknown}, driver ${gpu?.driverVersion || unknown}`,
+        `  Memory    ${Math.round(os.totalmem() / 1024 ** 3)} GiB`,
+        `  Locale    ${app.getLocale()}`,
+        '=========================================',
+      ].join('\n'))
+    })
+
   // NSIS shortcuts carry electron-builder's appId; an MSIX package already has
   // its own AUMID, and overriding it detaches the window from its Start entry.
   if (!process.windowsStore) {
