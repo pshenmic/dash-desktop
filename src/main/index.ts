@@ -7,7 +7,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
 import { initLogTransport } from './src/logTransport'
-import { GPU_INFO_TIMEOUT_MS, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
+import { GPU_INFO_TIMEOUT_MS, UNRECOGNIZED_HARDWARE, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
 import { dataPath } from './src/utils/dataPath'
 import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
 import { WindowState } from './src/types/WindowState'
@@ -176,7 +176,6 @@ app.whenReady().then(() => {
     .then((info) => {
       const cpu = os.cpus()[0]
       const gpu = (info as GPUInfo | null)?.gpuDevice?.find(device => device.active)
-      const unknown = 'not recognized'
       log.info([
         '',
         '========== Dash Desktop Wallet ==========',
@@ -185,8 +184,8 @@ app.whenReady().then(() => {
         `  Chrome    ${process.versions.chrome}`,
         `  Node      ${process.versions.node}`,
         `  OS        ${os.type()} ${os.release()} ${process.arch}`,
-        `  CPU       ${cpu ? `${cpu.model.trim()} @ ${cpu.speed} MHz` : unknown} (${os.availableParallelism()} cores)`,
-        `  GPU       ${gpu?.deviceString || unknown}, driver ${gpu?.driverVersion || unknown}`,
+        `  CPU       ${cpu ? `${cpu.model.trim()} @ ${cpu.speed} MHz` : UNRECOGNIZED_HARDWARE} (${os.availableParallelism()} cores)`,
+        `  GPU       ${gpu?.deviceString || UNRECOGNIZED_HARDWARE}, driver ${gpu?.driverVersion || UNRECOGNIZED_HARDWARE}`,
         `  Memory    ${Math.round(os.totalmem() / 1024 ** 3)} GiB`,
         `  Locale    ${app.getLocale()}`,
         '=========================================',

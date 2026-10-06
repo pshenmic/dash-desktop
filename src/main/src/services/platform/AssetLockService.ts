@@ -228,9 +228,8 @@ export class AssetLockService {
     const stored = row.assetLockProof
     const tx = options?.live ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
 
-    // An instant lock can go stale, a chain lock cannot. A sent transition is
-    // exempt: its hash covers the proof, and only a byte-identical replay comes
-    // back "already in chain".
+    // A sent transition's hash covers its proof, and only a byte-identical
+    // replay comes back "already in chain".
     const rechecks = options?.live == null && tx != null && stored?.type !== 'chainLock' && row.status !== AssetLockFundingStatus.StBroadcast
     if (stored != null && !rechecks) return this.reuseProof(state, row, stored)
 
@@ -388,8 +387,8 @@ export class AssetLockService {
       while (Date.now() < deadline) {
         if (settled) throw new Error('cancelled')
 
-        // Re-read every round rather than pinning the first answer, which would
-        // outlive the transaction being reorged out of the block it names.
+        // Re-read after each chainlock: a pinned answer would outlive the
+        // transaction being reorged out of the block it names.
         if (read) {
           const proof = await this.coveredChainLockProof(assetLockTx, txid, network)
           if (proof != null) return proof

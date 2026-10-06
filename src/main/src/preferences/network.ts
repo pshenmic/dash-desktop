@@ -61,7 +61,7 @@ export const NetworkPreferencesSchema = z.object({
   mode: PeerModeSchema.default('dynamic'),
   mainnet: PeerOverridesSchema,
   testnet: PeerOverridesSchema,
-  evonodes: EvonodesSchema.default({mode: 'dynamic', mainnet: [], testnet: []}),
+  evonodes: EvonodesSchema.default(emptyEvonodes),
 }).refine(
   prefs => prefs.mode !== 'static' || prefs.mainnet.staticPeers.length > 0 || prefs.testnet.staticPeers.length > 0,
   {message: 'static peer mode requires at least one peer'},
@@ -124,7 +124,7 @@ export class NetworkPreferences {
   }
 
   static default(): NetworkPreferences {
-    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides(), {mode: 'dynamic', mainnet: [], testnet: []})
+    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides(), emptyEvonodes())
   }
 }
 
@@ -139,4 +139,8 @@ function copyOverrides(overrides: PeerOverridesJSON): PeerOverridesJSON {
 
 function emptyOverrides(): PeerOverridesJSON {
   return {dnsSeeds: [], staticPeers: [], dynamicPeers: [], bannedPeers: []}
+}
+
+export function emptyEvonodes(): EvonodesJSON {
+  return {mode: 'dynamic', mainnet: [], testnet: []}
 }

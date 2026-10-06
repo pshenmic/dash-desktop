@@ -20,8 +20,6 @@ export class SdkRegistry implements SdkSource {
     this.evonodes = evonodes
   }
 
-  // Our own pool rather than `setGRPCPool`, which replaces every controller
-  // just as `setNetwork` does; an evonode change only alters which url is picked.
   get(network: Network): DashPlatformSDK {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
@@ -38,8 +36,6 @@ export class SdkRegistry implements SdkSource {
     return sdk
   }
 
-  // A static list empty for this network falls back to discovery, as p2p
-  // static mode does.
   activeEvonodes(network: Network): string[] {
     const own = this.evonodes[network]
     if (this.evonodes.mode === 'static' && own.length > 0) return [...own]

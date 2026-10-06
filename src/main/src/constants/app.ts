@@ -37,3 +37,5 @@ export const RATES_REQUEST_TIMEOUT_MS = 8_000
 export const CHILD_OUTPUT_TAIL_LIMIT = 8192
 
 export const GPU_INFO_TIMEOUT_MS = 1_000
+
+export const UNRECOGNIZED_HARDWARE = 'not recognized'

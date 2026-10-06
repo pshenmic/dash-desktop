@@ -308,9 +308,8 @@ export interface NetworkPreferencesJSON {
   evonodes: EvonodesJSON
 }
 
-// getQuorumEvonodes / getActiveEvonodes. Every field but the url is null when
-// the evonode did not answer getStatus; proTxHash too when no quorum entry
-// supplied it.
+// Every field but the url is null when the evonode did not answer getStatus;
+// proTxHash too when no quorum entry supplied it.
 export interface Evonode {
   proTxHash: string | null
   dapiUrl: string

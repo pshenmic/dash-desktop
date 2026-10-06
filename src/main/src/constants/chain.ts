@@ -15,9 +15,7 @@ export const COINBASE_PREV_TXID = '0'.repeat(64)
 
 export const REBROADCAST_INTERVAL_MS = 60_000
 
-// Dash has no reject message, so nothing ever says a pending tx died. A valid
-// one is locked within seconds; one still bare after this is not re-pushed or
-// watched again, and the cfilter scan still settles it if a block carries it.
+// Dash has no reject message, so nothing ever says a pending tx died.
 export const PENDING_TX_TTL_MS = 60 * 60 * 1000
 
 // Transactions per prev-out resolution page, and how many of the DAPI reads
