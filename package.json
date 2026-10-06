@@ -43,7 +43,7 @@
     "crypto-toothpick": "https://github.com/owl352/crypto-toothpick#291ee3edc0cd63faa27fd79666281005a3e0f8e4",
     "dash-core-p2p": "https://github.com/pshenmic/dash-core-p2p#1c5cbb23cbd8b3bfe935c3cb24940cb3f7c631b5",
     "dash-core-sdk": "1.1.3",
-    "dash-platform-sdk": "1.5.0",
+    "dash-platform-sdk": "1.6.0-dev.1",
     "dash-ui-kit": "1.0.94",
     "electron-log": "^5.4.4",
     "knex": "^3.3.0",
