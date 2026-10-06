@@ -303,19 +303,8 @@ export default function Settings(): React.JSX.Element {
           />
         </div>
 
-        <SectionLabel>Maintenance</SectionLabel>
+        <SectionLabel>Logging</SectionLabel>
         <div className="flex flex-col">
-          <SettingsRow
-            title="Advanced mode"
-            description="Show developer pages like the Shielded debug view."
-            control={
-              <SegmentedControl
-                options={ADVANCED_MODE_OPTIONS}
-                value={debugMode ? 'on' : 'off'}
-                onChange={(value) => setDebugMode(value === 'on')}
-              />
-            }
-          />
           <SettingsRow
             title="Log level"
             description="Choose how much detail is recorded in application logs."
@@ -370,6 +359,21 @@ export default function Settings(): React.JSX.Element {
             disabled={network === null}
             destructive
             onClick={handleClear}
+          />
+        </div>
+
+        <SectionLabel>Maintenance</SectionLabel>
+        <div className="flex flex-col">
+          <SettingsRow
+            title="Advanced mode"
+            description="Show developer pages like the Shielded debug view."
+            control={
+              <SegmentedControl
+                options={ADVANCED_MODE_OPTIONS}
+                value={debugMode ? 'on' : 'off'}
+                onChange={(value) => setDebugMode(value === 'on')}
+              />
+            }
           />
         </div>
 
