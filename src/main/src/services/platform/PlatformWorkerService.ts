@@ -7,6 +7,7 @@ import {PendingRequest, PlatformRequestOptions} from '../../types/PlatformWorker
 import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
 import {Network} from '../../types/Network'
 import {LogLevel} from '../../types/Log'
+import {Preferences} from '../../preferences'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -48,6 +49,11 @@ export class PlatformWorkerService {
   private readonly progressHandlers = new Map<string, PlatformRequestOptions>()
   private status: PlatformWorkerStatus = emptyPlatformStatus()
   private transitionBroadcast: (() => void) | null = null
+  private readonly preferences: Preferences
+
+  constructor(preferences: Preferences) {
+    this.preferences = preferences
+  }
 
   // Forks the worker so the prover starts warming before anything is
   // requested. Reading status must never be what triggers work (finding P-4).
@@ -119,6 +125,10 @@ export class PlatformWorkerService {
     this.child?.postMessage({type: 'setLogLevel', level})
   }
 
+  reloadEvonodes(): void {
+    this.child?.postMessage({type: 'setEvonodes', evonodes: this.preferences.network.evonodes})
+  }
+
   private send(command: PlatformCommand): void {
     this.ensureChild().postMessage(command)
   }
@@ -171,6 +181,7 @@ export class PlatformWorkerService {
     })
 
     child.postMessage({type: 'setLogLevel', level: currentLogLevel()})
+    child.postMessage({type: 'setEvonodes', evonodes: this.preferences.network.evonodes})
 
     this.child = child
     return child

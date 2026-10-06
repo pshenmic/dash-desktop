@@ -72,6 +72,12 @@ export interface AddressInfo {
   nonce: number
 }
 
+// An unbanned member of a current validator set.
+export interface Evonode {
+  proTxHash: string
+  dapiUrl: string
+}
+
 export interface Recipient {
   address: string
   amountCredits: bigint
@@ -346,6 +352,10 @@ export interface PlatformOperations {
     payload: Record<string, never>
     result: NodeStatus
   }
+  quorumEvonodes: {
+    payload: Record<string, never>
+    result: Evonode[]
+  }
   poolInfo: {
     payload: Record<string, never>
     result: {poolState: bigint | null; notesCount: bigint | null}
@@ -394,7 +404,19 @@ export interface PlatformSetLogLevel {
   level: LogLevel
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel
+// Mirrors the user's evonode preference; applied to every SDK in place.
+export interface PlatformSetEvonodes {
+  type: 'setEvonodes'
+  evonodes: Evonodes
+}
+
+export interface Evonodes {
+  mode: 'dynamic' | 'static'
+  mainnet: string[]
+  testnet: string[]
+}
+
+export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetEvonodes
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}

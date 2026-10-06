@@ -77,6 +77,10 @@ import {SetDnsSeedsHandler} from "./api/setDnsSeeds";
 import {GetDnsSeedsHandler} from "./api/getDnsSeeds";
 import {SetDynamicPeersHandler} from "./api/setDynamicPeers";
 import {GetDynamicPeersHandler} from "./api/getDynamicPeers";
+import {SetGrpcPoolModeHandler} from "./api/setGrpcPoolMode";
+import {SetEvonodesHandler} from "./api/setEvonodes";
+import {GetEvonodesHandler} from "./api/getEvonodes";
+import {GetQuorumEvonodesHandler} from "./api/getQuorumEvonodes";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
 import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
@@ -222,6 +226,10 @@ export class WalletBackend {
     registerHandler('getDnsSeeds', new GetDnsSeedsHandler(this.applicationService).handle)
     registerHandler('setDynamicPeers', new SetDynamicPeersHandler(this.applicationService, this.walletSyncService).handle)
     registerHandler('getDynamicPeers', new GetDynamicPeersHandler(this.applicationService).handle)
+    registerHandler('setGrpcPoolMode', new SetGrpcPoolModeHandler(this.applicationService, this.platformWorkerService).handle)
+    registerHandler('setEvonodes', new SetEvonodesHandler(this.applicationService, this.platformWorkerService).handle)
+    registerHandler('getEvonodes', new GetEvonodesHandler(this.applicationService).handle)
+    registerHandler('getQuorumEvonodes', new GetQuorumEvonodesHandler(this.platformWorkerService).handle)
     registerHandler('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     registerHandler('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
@@ -280,7 +288,7 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
-    this.platformWorkerService = new PlatformWorkerService()
+    this.platformWorkerService = new PlatformWorkerService(preferences)
     this.platformWorkerService.start()
 
     // Consumers depend on the asset lock primitive, never the other way round:

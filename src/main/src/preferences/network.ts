@@ -42,12 +42,26 @@ export interface PeerSettings extends PeerOverridesJSON {
   mode: PeerMode
 }
 
+// DAPI urls. 'dynamic' adds them to the SDK's seed and discovered evonodes,
+// 'static' uses them alone.
+export const EvonodesSchema = z.object({
+  mode: PeerModeSchema.default('dynamic'),
+  mainnet: StringListSchema.default([]),
+  testnet: StringListSchema.default([]),
+}).refine(
+  evonodes => evonodes.mode !== 'static' || evonodes.mainnet.length > 0 || evonodes.testnet.length > 0,
+  {message: 'static gRPC pool mode requires at least one evonode'},
+)
+
+export type EvonodesJSON = z.infer<typeof EvonodesSchema>
+
 export const NetworkPreferencesSchema = z.object({
   // One setting for the whole app — a peer list is per network, but which kind
   // of peer discovery the wallet does is not.
   mode: PeerModeSchema.default('dynamic'),
   mainnet: PeerOverridesSchema,
   testnet: PeerOverridesSchema,
+  evonodes: EvonodesSchema.default({mode: 'dynamic', mainnet: [], testnet: []}),
 }).refine(
   prefs => prefs.mode !== 'static' || prefs.mainnet.staticPeers.length > 0 || prefs.testnet.staticPeers.length > 0,
   {message: 'static peer mode requires at least one peer'},
@@ -80,11 +94,13 @@ export class NetworkPreferences {
   mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
+  evonodes: EvonodesJSON
 
-  constructor(mode: PeerMode, mainnet: PeerOverridesJSON, testnet: PeerOverridesJSON) {
+  constructor(mode: PeerMode, mainnet: PeerOverridesJSON, testnet: PeerOverridesJSON, evonodes: EvonodesJSON) {
     this.mode = mode
     this.mainnet = mainnet
     this.testnet = testnet
+    this.evonodes = evonodes
   }
 
   // A network the user pinned no peer for cannot honour static mode; the pool
@@ -98,16 +114,17 @@ export class NetworkPreferences {
       mode: this.mode,
       mainnet: copyOverrides(this.mainnet),
       testnet: copyOverrides(this.testnet),
+      evonodes: {mode: this.evonodes.mode, mainnet: [...this.evonodes.mainnet], testnet: [...this.evonodes.testnet]},
     }
   }
 
   static fromObject(value: unknown): NetworkPreferences {
-    const {mode, mainnet, testnet} = NetworkPreferencesSchema.parse(value)
-    return new NetworkPreferences(mode, mainnet, testnet)
+    const {mode, mainnet, testnet, evonodes} = NetworkPreferencesSchema.parse(value)
+    return new NetworkPreferences(mode, mainnet, testnet, evonodes)
   }
 
   static default(): NetworkPreferences {
-    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides())
+    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides(), {mode: 'dynamic', mainnet: [], testnet: []})
   }
 }
 

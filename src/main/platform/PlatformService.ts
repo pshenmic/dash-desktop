@@ -1,7 +1,8 @@
 import {DashPlatformSDK} from 'dash-platform-sdk'
 import {Logger} from '../src/utils/logger'
 import {KeyedLane, Lane} from './Lane'
-import {laneFor, PROVER_LANE} from './constants'
+import {DAPI_PORT, laneFor, PROVER_LANE} from './constants'
+import {quorumEvonodes} from '../src/utils/quorumEvonodes'
 import {SdkSource} from './types/sdk'
 import {Network} from '../src/types/Network'
 import {OperationContext} from './operations/types'
@@ -223,6 +224,7 @@ export class PlatformService {
       case 'identityInfos': return identityInfos(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
+      case 'quorumEvonodes': return quorumEvonodes((await sdk.node.getCurrentQuorumsInfo()).validatorSets, DAPI_PORT[network])
       case 'poolInfo': return poolInfo(ctx)
       case 'notesCount': return notesCount(ctx)
       case 'encryptedNotes': return encryptedNotes(request.payload, ctx)

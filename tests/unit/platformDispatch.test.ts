@@ -7,6 +7,7 @@ import {PlatformService} from '../../src/main/platform/PlatformService'
 import {SdkSource} from '../../src/main/platform/types/sdk'
 import {PlatformEvent, PlatformRequestMessage} from '../../src/main/platform/types/messages'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
+import {Preferences} from '../../src/main/src/preferences'
 
 const flush = async (): Promise<void> => {
   await vi.advanceTimersByTimeAsync(0)
@@ -102,7 +103,7 @@ describe('PlatformWorkerService correlation', () => {
     }
     const {utilityProcess} = await import('electron')
     vi.mocked(utilityProcess.fork).mockReturnValue(child as never)
-    service = new PlatformWorkerService()
+    service = new PlatformWorkerService(Preferences.default())
   })
 
   afterEach(() => {

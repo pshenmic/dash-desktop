@@ -47,6 +47,10 @@ process.parentPort.on('message', ({data}) => {
     configureLogger({level: data.level})
     return
   }
+  if (data.type === 'setEvonodes') {
+    registry.setEvonodes(data.evonodes)
+    return
+  }
   service.handle(data)
 })
 

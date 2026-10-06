@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, Evonode, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -61,6 +61,22 @@ export class API {
 
   static async getDynamicPeers(network: Network): Promise<string[]> {
     return this.api.getDynamicPeers(network) as Promise<string[]>
+  }
+
+  static async setGrpcPoolMode(mode: PeerMode): Promise<void> {
+    return this.api.setGrpcPoolMode(mode)
+  }
+
+  static async setEvonodes(network: Network, evonodes: string[]): Promise<void> {
+    return this.api.setEvonodes(network, evonodes)
+  }
+
+  static async getEvonodes(network: Network): Promise<string[]> {
+    return this.api.getEvonodes(network) as Promise<string[]>
+  }
+
+  static async getQuorumEvonodes(network: Network): Promise<Evonode[]> {
+    return this.api.getQuorumEvonodes(network) as Promise<Evonode[]>
   }
 
   static async setFiatCurrency(currency: string): Promise<void> {

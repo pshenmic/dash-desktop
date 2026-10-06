@@ -295,10 +295,23 @@ export interface PeerOverridesJSON {
   bannedPeers: string[]
 }
 
+export interface EvonodesJSON {
+  mode: PeerMode
+  mainnet: string[]
+  testnet: string[]
+}
+
 export interface NetworkPreferencesJSON {
   mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
+  evonodes: EvonodesJSON
+}
+
+// getQuorumEvonodes — an unbanned member of a current validator set.
+export interface Evonode {
+  proTxHash: string
+  dapiUrl: string
 }
 
 export interface PreferencesJSON {

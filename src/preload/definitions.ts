@@ -96,6 +96,10 @@ export const apiDefinitions = (ipcRenderer) => ({
   getDnsSeeds: (network: Network) => ipcRenderer.invoke('getDnsSeeds', network),
   setDynamicPeers: (network: Network, peers: string[]) => ipcRenderer.invoke('setDynamicPeers', network, peers),
   getDynamicPeers: (network: Network) => ipcRenderer.invoke('getDynamicPeers', network),
+  setGrpcPoolMode: (mode: 'dynamic' | 'static') => ipcRenderer.invoke('setGrpcPoolMode', mode),
+  setEvonodes: (network: Network, evonodes: string[]) => ipcRenderer.invoke('setEvonodes', network, evonodes),
+  getEvonodes: (network: Network) => ipcRenderer.invoke('getEvonodes', network),
+  getQuorumEvonodes: (network: Network) => ipcRenderer.invoke('getQuorumEvonodes', network),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),
