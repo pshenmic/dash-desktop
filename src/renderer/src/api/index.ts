@@ -79,6 +79,10 @@ export class API {
     return this.api.getQuorumEvonodes(network) as Promise<Evonode[]>
   }
 
+  static async getActiveEvonodes(network: Network): Promise<Evonode[]> {
+    return this.api.getActiveEvonodes(network) as Promise<Evonode[]>
+  }
+
   static async setFiatCurrency(currency: string): Promise<void> {
     return this.api.setFiatCurrency(currency)
   }

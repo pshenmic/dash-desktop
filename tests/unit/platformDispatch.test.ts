@@ -22,6 +22,7 @@ const hangingRegistry = (): SdkSource => ({
     shielded: {},
   }) as never,
   warmup: async () => undefined,
+  activeEvonodes: () => [],
 })
 
 const balanceRequest = (requestId: string): PlatformRequestMessage => ({

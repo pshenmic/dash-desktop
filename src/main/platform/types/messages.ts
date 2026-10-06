@@ -78,6 +78,16 @@ export interface Evonode {
   dapiUrl: string
 }
 
+// Every field but the url is null when the evonode did not answer getStatus;
+// proTxHash too when no quorum entry supplied it.
+export interface EvonodeStatus {
+  dapiUrl: string
+  proTxHash: string | null
+  pingMs: number | null
+  driveVersion: string | null
+  blockHeight: bigint | null
+}
+
 export interface Recipient {
   address: string
   amountCredits: bigint
@@ -354,7 +364,11 @@ export interface PlatformOperations {
   }
   quorumEvonodes: {
     payload: Record<string, never>
-    result: Evonode[]
+    result: EvonodeStatus[]
+  }
+  activeEvonodes: {
+    payload: Record<string, never>
+    result: EvonodeStatus[]
   }
   poolInfo: {
     payload: Record<string, never>

@@ -11,6 +11,7 @@ import {SdkSource} from './types/sdk'
 // controller, leaving anything in flight holding swapped-out objects.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
+  private readonly discoveries = new Map<Network, GRPCConnectionPool>()
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
   private evonodes: Evonodes = {mode: 'dynamic', mainnet: [], testnet: []}
@@ -24,10 +25,13 @@ export class SdkRegistry implements SdkSource {
   get(network: Network): DashPlatformSDK {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
-    const discovery = new GRPCConnectionPool(network)
+    this.discoveries.set(network, new GRPCConnectionPool(network))
     const pool: GRPCPool = {
       network,
-      getClient: abortController => createClient(this.pickEvonode(network, discovery), abortController),
+      getClient: abortController => {
+        const urls = this.activeEvonodes(network)
+        return createClient(urls[Math.floor(Math.random() * urls.length)], abortController)
+      },
     }
     const sdk = new DashPlatformSDK({network, grpc: {pool}})
     this.sdks.set(network, sdk)
@@ -36,10 +40,10 @@ export class SdkRegistry implements SdkSource {
 
   // A static list empty for this network falls back to discovery, as p2p
   // static mode does.
-  private pickEvonode(network: Network, discovery: GRPCConnectionPool): string {
+  activeEvonodes(network: Network): string[] {
     const own = this.evonodes[network]
-    const urls = this.evonodes.mode === 'static' && own.length > 0 ? own : [...discovery.dapiUrls, ...own]
-    return urls[Math.floor(Math.random() * urls.length)]
+    if (this.evonodes.mode === 'static' && own.length > 0) return [...own]
+    return [...new Set([...this.discoveries.get(network)?.dapiUrls ?? [], ...own])]
   }
 
   getBuilder(): ShieldedBuilderWASM | null {

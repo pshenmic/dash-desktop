@@ -81,6 +81,7 @@ import {SetGrpcPoolModeHandler} from "./api/setGrpcPoolMode";
 import {SetEvonodesHandler} from "./api/setEvonodes";
 import {GetEvonodesHandler} from "./api/getEvonodes";
 import {GetQuorumEvonodesHandler} from "./api/getQuorumEvonodes";
+import {GetActiveEvonodesHandler} from "./api/getActiveEvonodes";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
 import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
@@ -230,6 +231,7 @@ export class WalletBackend {
     registerHandler('setEvonodes', new SetEvonodesHandler(this.applicationService, this.platformWorkerService).handle)
     registerHandler('getEvonodes', new GetEvonodesHandler(this.applicationService).handle)
     registerHandler('getQuorumEvonodes', new GetQuorumEvonodesHandler(this.platformWorkerService).handle)
+    registerHandler('getActiveEvonodes', new GetActiveEvonodesHandler(this.platformWorkerService).handle)
     registerHandler('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     registerHandler('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)

@@ -308,10 +308,15 @@ export interface NetworkPreferencesJSON {
   evonodes: EvonodesJSON
 }
 
-// getQuorumEvonodes — an unbanned member of a current validator set.
+// getQuorumEvonodes / getActiveEvonodes. Every field but the url is null when
+// the evonode did not answer getStatus; proTxHash too when no quorum entry
+// supplied it.
 export interface Evonode {
-  proTxHash: string
+  proTxHash: string | null
   dapiUrl: string
+  pingMs: number | null
+  driveVersion: string | null
+  blockHeight: bigint | null
 }
 
 export interface PreferencesJSON {

@@ -100,6 +100,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   setEvonodes: (network: Network, evonodes: string[]) => ipcRenderer.invoke('setEvonodes', network, evonodes),
   getEvonodes: (network: Network) => ipcRenderer.invoke('getEvonodes', network),
   getQuorumEvonodes: (network: Network) => ipcRenderer.invoke('getQuorumEvonodes', network),
+  getActiveEvonodes: (network: Network) => ipcRenderer.invoke('getActiveEvonodes', network),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),

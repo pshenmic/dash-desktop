@@ -3,7 +3,7 @@ import type {EvonodeStatus} from '../../platform/types/messages'
 import {NetworkNameSchema} from '../preferences/network'
 import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
 
-export class GetQuorumEvonodesHandler {
+export class GetActiveEvonodesHandler {
   private platformWorkerService: PlatformWorkerService
 
   constructor(platformWorkerService: PlatformWorkerService) {
@@ -13,9 +13,9 @@ export class GetQuorumEvonodesHandler {
   handle = async (_event: IpcMainInvokeEvent, network: unknown): Promise<EvonodeStatus[]> => {
     const parsed = NetworkNameSchema.safeParse(network)
     if (!parsed.success) {
-      throw new Error(`getQuorumEvonodes: expected 'mainnet' or 'testnet', got ${JSON.stringify(network)}`)
+      throw new Error(`getActiveEvonodes: expected 'mainnet' or 'testnet', got ${JSON.stringify(network)}`)
     }
 
-    return this.platformWorkerService.request('quorumEvonodes', parsed.data, {})
+    return this.platformWorkerService.request('activeEvonodes', parsed.data, {})
   }
 }
