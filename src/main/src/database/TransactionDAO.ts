@@ -144,8 +144,8 @@ export class TransactionDAO {
   }
 
   // Orphaned txs go back to the block_height 0 sentinel rather than being
-  // deleted: one is normally re-mined, and that puts it back in the rebroadcast
-  // and isdlock-watch sets. is_used stays set — the address was still revealed.
+  // deleted: one is normally re-mined, and the scan's unconfirmed-input match
+  // restores its height. is_used stays set — the address was still revealed.
   rewindToHeight = async (walletId: string, height: number): Promise<void> => {
     await this.knex.transaction(async trx => {
       // An instant lock does not survive its tx losing the chain, so no
@@ -308,10 +308,11 @@ export class TransactionDAO {
   }
 
   // Unconfirmed (block_height = 0) txs — for rebroadcast and isdlock watching.
-  getPendingTxs = async (walletId: string): Promise<PendingTx[]> => {
+  getPendingTxs = async (walletId: string, sinceMs: number): Promise<PendingTx[]> => {
     const rows = await this.knex('transactions')
       .select('txid', 'raw', 'first_seen_at', 'instant_locked', 'is_local')
       .where({wallet_id: walletId, block_height: 0})
+      .andWhere('first_seen_at', '>=', sinceMs)
     return rows.map(r => ({
       txid: r.txid,
       raw: r.raw,

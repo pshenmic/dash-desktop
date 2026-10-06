@@ -79,7 +79,14 @@ height.
   every unconfirmed tx on a timer; without the filter the wallet would relay a
   stranger's transaction for as long as it stayed unconfirmed.
   `refreshWatchedTxids` deliberately does *not* filter — arming incoming txs is
-  what captures their lock. Every peer announces the same tx (~9x measured), so
+  what captures their lock.
+- **Both stop at `PENDING_TX_TTL_MS` after `first_seen_at`.** Core sends no
+  reject, so a tx that was mined while the scan missed it, or silently dropped,
+  would otherwise be re-pushed every minute forever — and keep the watch set
+  non-empty, which makes the worker fetch every isdlock on the network. The row
+  stays at `block_height = 0`; its inputs still reach the cfilter scan. Rows the
+  scan wrote have no `first_seen_at`, so an orphaned one is never re-pushed —
+  Core returns a disconnected block's txs to its own mempool. Every peer announces the same tx (~9x measured), so
   `mempoolSeen` dedupes the `getdata`. `[locks] mempool watch: …` reports counts
   every 5 min; `watching 0 address(es)` is what a wallet that never supplied its
   addresses looks like, and is otherwise silent.
@@ -103,5 +110,5 @@ height.
   `DashscanWalletProvider` does not read local SQL and nothing merges pending
   rows into its result — pending transactions reach the UI from Dashscan, which
   reports them itself. Nothing moves the local rows off `block_height = 0` in
-  that mode either (no cfilter scan), so they accumulate in `getPendingTxs` and
-  the isdlock watch set. Both are open.
+  that mode either (no cfilter scan), so they stay unconfirmed in SQL; the
+  `PENDING_TX_TTL_MS` cutoff keeps them out of the isdlock watch set.

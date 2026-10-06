@@ -13,9 +13,12 @@ export const ASSET_LOCK_PAYLOAD_BYTES = 37
 // A coinbase input names no parent transaction.
 export const COINBASE_PREV_TXID = '0'.repeat(64)
 
-// Dash has no reject message, so absence of confirmation is never proof of
-// failure — a tx is re-pushed until a block or lock settles it, never timed out.
 export const REBROADCAST_INTERVAL_MS = 60_000
+
+// Dash has no reject message, so nothing ever says a pending tx died. A valid
+// one is locked within seconds; one still bare after this is not re-pushed or
+// watched again, and the cfilter scan still settles it if a block carries it.
+export const PENDING_TX_TTL_MS = 60 * 60 * 1000
 
 // Transactions per prev-out resolution page, and how many of the DAPI reads
 // behind a page run at once. A page is a step of the walk, not a cap on it.
