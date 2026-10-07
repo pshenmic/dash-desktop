@@ -6,7 +6,7 @@ import { isValidDashChangeAddress } from '@renderer/utils/address'
 import { davToDash } from '@renderer/utils/balance'
 import { selectedChangeAddress } from '@renderer/utils/changeAddress'
 
-export default function ChangeAddressField({change, value, loading, error, previewOnly, onChange, onRetry}: ChangeAddressFieldProps): React.JSX.Element {
+export default function ChangeAddressField({compact = false, change, value, loading, error, previewOnly, onChange, onRetry}: ChangeAddressFieldProps): React.JSX.Element {
   const { status } = useAuth()
   const selected = selectedChangeAddress(change, value)
   const invalid = !!selected?.trim() && !isValidDashChangeAddress(selected, status?.network ?? undefined)
@@ -18,14 +18,14 @@ export default function ChangeAddressField({change, value, loading, error, previ
   const selectedDescription = options.find(option => option.value === selected?.trim())?.description
 
   return (
-    <section className="flex flex-col gap-2">
-      <Text size={12} weight="medium" color="brand" opacity={50}>Change address</Text>
+    <section className="flex min-w-0 flex-col gap-2">
+      {!compact && <Text size={12} weight="medium" color="brand" opacity={50}>Change address</Text>}
       <DropdownField
         ariaLabel="Change address"
         value={selected ?? ''}
         onChange={onChange}
         options={options}
-        triggerClassName="dash-block rounded-[.875rem] px-4 py-3.5"
+        triggerClassName={`dash-block rounded-[.875rem] ${compact ? 'px-3.5 py-2' : 'px-4 py-3.5'}`}
         editable
         placeholder="Enter an address or choose from your wallet"
         inputInvalid={invalid}

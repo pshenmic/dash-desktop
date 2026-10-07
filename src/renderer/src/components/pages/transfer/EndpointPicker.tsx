@@ -8,6 +8,7 @@ import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
+import { SEND_ENDPOINT_LABELS } from "@renderer/constants/sendPages";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 import DropdownField from "@renderer/components/ui/DropdownField";
 import type { DropdownFieldOption } from "@renderer/types/DropdownField";
@@ -15,7 +16,12 @@ import type { DropdownFieldOption } from "@renderer/types/DropdownField";
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
 const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
 
-function KindIcon({kind}: {kind: string}): React.JSX.Element {
+function KindIcon({kind, compact = false}: {kind: string; compact?: boolean}): React.JSX.Element {
+  if (compact && (kind === SourceKind.Core || kind === DestinationKind.CoreAddress || kind === SourceKind.PlatformAddress)) {
+    return <span className="size-6 shrink-0 rounded-full flex items-center justify-center bg-dash-brand/10 dark:bg-dash-mint/5 text-dash-brand dark:text-dash-mint text-xs font-bold">
+      {kind === SourceKind.Core || kind === DestinationKind.CoreAddress ? 'L1' : 'L2'}
+    </span>
+  }
   if (kind === SourceKind.Core || kind === DestinationKind.CoreAddress) return <DashLogo size={16} />
   if (kind === SourceKind.Shielded) return <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
   return <CreditsIcon size={16} />
@@ -25,17 +31,18 @@ interface KindDropdownProps {
   kinds: Array<{kind: string; label: string}>
   selected: string
   onSelect: (kind: string) => void
+  compact?: boolean
 }
 
-function KindDropdown({kinds, selected, onSelect}: KindDropdownProps): React.JSX.Element {
+function KindDropdown({kinds, selected, onSelect, compact = false}: KindDropdownProps): React.JSX.Element {
   return (
     <DropdownField
-      options={kinds.map((kind) => ({ value: kind.kind, label: kind.label }))}
+      options={kinds.map((kind) => ({ value: kind.kind, label: compact ? SEND_ENDPOINT_LABELS[kind.kind as SourceKind | DestinationKind] ?? kind.label : kind.label }))}
       value={selected}
       onChange={onSelect}
       ariaLabel="Select transfer type"
-      triggerClassName={fieldBox}
-      renderIcon={(kind) => <KindIcon kind={kind} />}
+      triggerClassName={compact ? 'dash-block h-[3.25rem] rounded-2xl px-3 py-3.5 [&_.truncate]:whitespace-nowrap!' : fieldBox}
+      renderIcon={(kind) => <KindIcon kind={kind} compact={compact} />}
     />
   )
 }
@@ -154,6 +161,8 @@ interface SourcePickerProps {
   selectedIdentity: IdentityApiDto | undefined
   onIdentityChange: (identifier: string) => void
   onRetryIdentities: () => void
+  compact?: boolean
+  trailingControl?: React.ReactNode
 }
 
 export function SourcePicker({
@@ -175,35 +184,52 @@ export function SourcePicker({
   selectedIdentity,
   onIdentityChange,
   onRetryIdentities,
+  compact = false,
+  trailingControl,
 }: SourcePickerProps): React.JSX.Element {
+  const sourceControl = <>
+    {kind === SourceKind.PlatformAddress && showPlatformAddress && platformAddressesLoading && (
+      <Text size={12} weight={'medium'} color={'brand'} opacity={50}>Loading Platform addresses…</Text>
+    )}
+    {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && platformAddressesError && (
+      <button type={'button'} onClick={onRetryPlatformAddresses} className={'dash-text-primary text-sm cursor-pointer self-start'}>Try again</button>
+    )}
+    {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && !platformAddressesError && (
+      <PlatformAddressSelect
+        addresses={platformAddresses}
+        selected={selectedPlatformAddress}
+        onSelect={onPlatformAddressChange}
+        automaticLabel={platformAutomaticLabel}
+      />
+    )}
+    {kind === SourceKind.Identity && (
+      <IdentitySelect
+        identities={identities}
+        loading={identitiesLoading}
+        error={identitiesError}
+        selected={selectedIdentity}
+        onSelect={onIdentityChange}
+        onRetry={onRetryIdentities}
+      />
+    )}
+  </>
+
   return (
-    <div className={"flex flex-col gap-2"}>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
-      <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
-      {kind === SourceKind.PlatformAddress && showPlatformAddress && platformAddressesLoading && (
-        <Text size={12} weight={'medium'} color={'brand'} opacity={50}>Loading Platform addresses…</Text>
-      )}
-      {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && platformAddressesError && (
-        <button type={'button'} onClick={onRetryPlatformAddresses} className={'dash-text-primary text-sm cursor-pointer self-start'}>Try again</button>
-      )}
-      {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && !platformAddressesError && (
-        <PlatformAddressSelect
-          addresses={platformAddresses}
-          selected={selectedPlatformAddress}
-          onSelect={onPlatformAddressChange}
-          automaticLabel={platformAutomaticLabel}
-        />
-      )}
-      {kind === SourceKind.Identity && (
-        <IdentitySelect
-          identities={identities}
-          loading={identitiesLoading}
-          error={identitiesError}
-          selected={selectedIdentity}
-          onSelect={onIdentityChange}
-          onRetry={onRetryIdentities}
-        />
-      )}
+    <div className={compact ? 'flex flex-col gap-2.5' : 'flex flex-col gap-2'}>
+      <Text size={compact ? 14 : 12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
+      {compact ? <div className="flex flex-col sm:flex-row! gap-3">
+        <div className="sm:w-[11.75rem]! shrink-0">
+          <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} compact />
+        </div>
+        <div className="min-w-0 flex-1 flex flex-col gap-2">
+          {sourceControl}
+          {trailingControl}
+        </div>
+      </div> : <>
+        <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
+        {sourceControl}
+        {trailingControl}
+      </>}
     </div>
   )
 }
@@ -218,6 +244,8 @@ interface DestinationPickerProps {
   error: string | null
   showValueInput: boolean
   ownOptions?: DropdownFieldOption[]
+  compact?: boolean
+  trailingControl?: React.ReactNode
 }
 
 export function DestinationPicker({
@@ -230,35 +258,48 @@ export function DestinationPicker({
   error,
   showValueInput,
   ownOptions,
+  compact = false,
+  trailingControl,
 }: DestinationPickerProps): React.JSX.Element {
+  const valueControl = showValueInput && kind !== DestinationKind.NewIdentity && (
+    ownOptions ? <DropdownField
+      editable
+      ariaLabel={kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'}
+      value={value}
+      onChange={onValueChange}
+      options={ownOptions}
+      menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
+      placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
+      inputInvalid={!!error}
+      triggerClassName={compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox}
+    /> : <div className={`${compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
+      <input
+        type={"text"}
+        value={value}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.value)}
+        className={"w-full bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"}
+        placeholder={placeholder}
+      />
+    </div>
+  )
+
   return (
-    <div className={"flex flex-col gap-2"}>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
-      <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
-      {showValueInput && kind !== DestinationKind.NewIdentity && (
-        <>
-          {ownOptions ? <DropdownField
-            editable
-            ariaLabel={kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'}
-            value={value}
-            onChange={onValueChange}
-            options={ownOptions}
-            menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
-            placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
-            inputInvalid={!!error}
-            triggerClassName={inputBox}
-          /> : <div className={`${inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
-            <input
-              type={"text"}
-              value={value}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.value)}
-              className={"w-full bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"}
-              placeholder={placeholder}
-            />
-          </div>}
-          {error && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{error}</Text>}
-        </>
-      )}
+    <div className={compact ? 'flex flex-col gap-2.5' : 'flex flex-col gap-2'}>
+      <Text size={compact ? 14 : 12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
+      {compact ? <div className="flex flex-col sm:flex-row! gap-3">
+        <div className="sm:w-[11.75rem]! shrink-0">
+          <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} compact />
+        </div>
+        <div className="min-w-0 flex-1">
+          {valueControl}
+          {trailingControl}
+        </div>
+      </div> : <>
+        <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
+        {valueControl}
+        {trailingControl}
+      </>}
+      {showValueInput && kind !== DestinationKind.NewIdentity && error && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{error}</Text>}
       {showValueInput && kind === DestinationKind.NewIdentity && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
           A new identity with a standard key set will be registered and funded from the selected address.

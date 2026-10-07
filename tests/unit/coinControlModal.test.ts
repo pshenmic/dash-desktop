@@ -17,7 +17,10 @@ vi.mock('react', async importOriginal => ({
 vi.mock('react-dom', () => ({createPortal: (element: ReactNode) => element}))
 vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: 'light'})}))
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
+vi.mock('@renderer/hooks/useFiat', () => ({useFiat: () => ({rateReady: false, format: () => '$0.00'})}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({QrCodeIcon: 'svg'}))
+vi.mock('@renderer/components/modal/AddressQrModal', () => ({default: 'dialog'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))
 vi.mock('@renderer/components/ui/CopyButton', () => ({default: 'button'}))
 vi.mock('@renderer/components/ui/CreditsAmount', () => ({default: 'span'}))
@@ -146,12 +149,13 @@ describe('coin control UTXO refresh', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('keeps selected and unselected inputs visible without an Only selected filter', () => {
+  it('keeps selected and unselected inputs visible by default', () => {
     const props = modalProps()
     const nodes = render({...props, utxos: [...props.utxos, {...props.utxos[0], txid: 'unselected'}]})
     expect(nodes.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
     expect(nodes.find(node => node.key === 'unselected:0')!.props.checked).toBe(false)
-    expect(nodes.some(node => node.props.children === 'Only selected')).toBe(false)
+    expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
+      && node.props.label.props.children === 'Only selected')).toBe(true)
     expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
       && node.props.label.props.children === 'Filter dust')).toBe(true)
   })

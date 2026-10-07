@@ -767,6 +767,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   return (
     <div className={"relative flex flex-col h-full pb-4"}>
+      <div className={coinControlOpen ? 'hidden' : 'contents'}>
       {pageHeader}
       <TransferWizard
         key={walletId}
@@ -779,6 +780,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         submitLabel={"Register identity"}
         submitDisabled={!amountReady || (fromKind === SourceKind.Core && syncIncomplete) || (fromKind === SourceKind.Shielded && !prover.ready)}
       />
+      </div>
       <CoinControlModal
         isOpen={coinControlOpen}
         operation={operation}

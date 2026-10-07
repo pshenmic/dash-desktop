@@ -44,6 +44,7 @@ export interface SendRecipientValidation {
 export interface SendRecipientsEditorProps {
   headerAction?: ReactNode
   beforeRecipients?: ReactNode
+  footer?: ReactNode
   recipients: SendRecipientDraft[]
   errors: SendRecipientError[]
   limit: number
