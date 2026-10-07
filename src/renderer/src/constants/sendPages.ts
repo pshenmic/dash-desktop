@@ -1,7 +1,14 @@
 import type { Network, OperationFee } from '../api/types'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { DestinationKind } from '../enums/DestinationKind'
+import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
+
+export const SEND_ENDPOINT_LABELS: Partial<Record<`${SourceKind | DestinationKind}`, string>> = {
+  [SourceKind.Core]: 'Dash Core (L1)',
+  [DestinationKind.CoreAddress]: 'Dash Core (L1)',
+  [SourceKind.PlatformAddress]: 'Address (L2)',
+}
 
 export const DESTINATION_PLACEHOLDERS: Record<DestinationKind, Record<Network, string>> = {
   [DestinationKind.CoreAddress]: {mainnet: 'X… (Dash address)', testnet: 'y… (Dash address)'},

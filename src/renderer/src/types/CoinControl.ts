@@ -84,6 +84,7 @@ export interface CoinControlEmptyProps {
 export interface CoinControlAmountInputProps {
   id: string
   credits: bigint
+  maxCredits: bigint
   invalid: boolean
   onChange: (credits: bigint) => void
 }
@@ -92,6 +93,7 @@ export interface CoinControlInputDetailsProps {
   label: string
   amount: ReactNode
   address: string
+  fiat?: string
 }
 
 export interface WalletUtxosRequest {

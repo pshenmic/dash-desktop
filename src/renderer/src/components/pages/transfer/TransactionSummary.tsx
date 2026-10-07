@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { useState, type ReactNode } from 'react'
+import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DropdownField from '@renderer/components/ui/DropdownField'
@@ -12,6 +12,7 @@ export default function TransactionSummary({
   children, operation, isCoreOperation, amountDuffs, maxAmountDuffs, fee, route,
   hasManualPlatformInputs, amountError, canSubmit, onRouteChange, onCoinControl, onRetryFee, onReview,
 }: TransactionSummaryProps): React.JSX.Element {
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const supportsOutputFee = operation === TransferOperation.AddressFundsTransfer
   const subtractFee = supportsOutputFee && route.subtractFee
   const amountCredits = duffsToCredits(amountDuffs)
@@ -33,7 +34,7 @@ export default function TransactionSummary({
     onRouteChange({subtractFee: checked, feeRecipientId})
   }
 
-  let receiveDisplay: ReactNode = <CreditsAmount credits={receivedCredits} align="end" exact />
+  let receiveDisplay: ReactNode = <CreditsAmount credits={receivedCredits} compact showFiat={false} exact />
   if (subtractFee && !fee.ready) receiveDisplay = '—'
   else if (isCoreOperation) receiveDisplay = `${davToDash(amountDuffs)} Dash`
 
@@ -43,15 +44,15 @@ export default function TransactionSummary({
   } else if (fee.ready) {
     const feeAmount = isCoreOperation
       ? `${davToDash(fee.totalDuffs)} Dash`
-      : <CreditsAmount credits={fee.credits ?? 0n} align="end" />
-    feeDisplay = <Text size={12} weight="medium" color="brand">{feeAmount}</Text>
+      : <CreditsAmount credits={fee.credits ?? 0n} compact showFiat={false} />
+    feeDisplay = <Text size={12} weight="extrabold" color="brand">{feeAmount}</Text>
   }
 
   let debitDisplay: ReactNode = '—'
   if (fee.ready) {
     debitDisplay = isCoreOperation
       ? `${davToDash(amountDuffs + fee.totalDuffs)} Dash`
-      : <CreditsAmount credits={totalDebitCredits} align="end" exact />
+      : <CreditsAmount credits={totalDebitCredits} compact showFiat={false} exact />
   }
   let availableDisplay: string | null = null
   if (fee.ready && maxAmountDuffs != null) {
@@ -60,60 +61,72 @@ export default function TransactionSummary({
   }
 
   return (
-    <aside className="xl:sticky xl:top-0 dash-block rounded-2xl p-5 flex flex-col gap-4 min-w-0" aria-label="Transaction summary">
-      <Text size={16} weight="extrabold" color="brand">Transaction summary</Text>
-      {children}
-      <div className="flex justify-between gap-3 items-start">
-        <Text size={12} weight="medium" color="brand" opacity={50}>{receiveLabel}</Text>
-        <Text size={14} weight="medium" color="brand" className="text-right">{receiveDisplay}</Text>
-      </div>
-      <div className="flex justify-between gap-3 items-center">
-        <Text size={12} weight="medium" color="brand" opacity={50}>Network fee</Text>
-        {feeDisplay}
-      </div>
-      {supportsOutputFee && (
-        <div className="flex flex-col gap-3">
-          <Checkbox
-            checked={subtractFee}
-            onChange={setSubtractFee}
-            label={<Text size={12} weight="medium" color="brand">Subtract fee from outputs</Text>}
-          />
-          {subtractFee && <>
-            <div className="flex flex-col gap-1">
-              <Text size={12} weight="medium" color="brand" opacity={50}>Take fee from</Text>
-              <DropdownField
-                ariaLabel="Recipient paying the fee"
-                value={feeRecipientValue}
-                onChange={value => onRouteChange({feeRecipientId: value || null})}
-                options={feeRecipientOptions}
-                triggerClassName="dash-block rounded-[.875rem] px-4 py-3.5"
-              />
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.75fr)]!">
+        <section className="min-w-0 rounded-2xl dash-block px-4 py-3" aria-label="Source balance">{children}</section>
+        <aside className="min-w-0 rounded-2xl dash-block px-4 py-3 flex flex-wrap items-center justify-between gap-3" aria-label="Transaction summary">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <Text size={14} weight="medium" color="brand">Transaction Summary</Text>
+              <button type="button" aria-expanded={optionsOpen} onClick={() => setOptionsOpen(value => !value)} className="cursor-pointer text-[.625rem] dash-text-primary whitespace-nowrap">Fee options</button>
             </div>
-            {!hasManualPlatformInputs && (
-              <button type="button" onClick={onCoinControl} className="text-left text-sm dash-text-primary cursor-pointer">
-                Select inputs in Coin Control to deduct the fee from an output.
-              </button>
-            )}
-            <Text size={12} weight="medium" color="brand" opacity={50}>The selected recipient receives less by the actual network fee.</Text>
-          </>}
-        </div>
-      )}
-      <div className="border-t border-dash-primary-dark-blue/10 dark:border-white/10 pt-3 flex justify-between gap-3 items-start">
-        <Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text>
-        <Text size={16} weight="extrabold" color="brand" className="text-right">{debitDisplay}</Text>
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <Text size={10} weight="medium" color="brand" opacity={50}>{receiveLabel}</Text>
+                <Text size={12} weight="extrabold" color="brand">{receiveDisplay}</Text>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <Text size={10} weight="medium" color="brand" opacity={50}>Network Fee</Text>
+                {feeDisplay}
+              </div>
+            </div>
+          </div>
+          <span className="flex min-w-0 flex-col gap-1 rounded-2xl dash-block-accent-10 px-4 py-2 text-xs dash-text-primary">
+            <span>Send Total:</span><span className="font-bold">{debitDisplay}</span>
+          </span>
+        </aside>
       </div>
-      {availableDisplay != null && (
-        <div className="flex justify-between gap-3">
-          <Text size={12} weight="medium" color="brand" opacity={50}>Available to allocate</Text>
-          <Text size={12} weight="medium" color="brand">{availableDisplay}</Text>
-        </div>
-      )}
+      {optionsOpen && <div className="flex flex-col gap-3 rounded-2xl dash-block p-4">
+        {supportsOutputFee && (
+          <div className="flex flex-col gap-3">
+            <Checkbox
+              checked={subtractFee}
+              onChange={setSubtractFee}
+              label={<Text size={12} weight="medium" color="brand">Subtract fee from outputs</Text>}
+            />
+            {subtractFee && <>
+              <div className="flex flex-col gap-1">
+                <Text size={12} weight="medium" color="brand" opacity={50}>Take fee from</Text>
+                <DropdownField
+                  ariaLabel="Recipient paying the fee"
+                  value={feeRecipientValue}
+                  onChange={value => onRouteChange({feeRecipientId: value || null})}
+                  options={feeRecipientOptions}
+                  triggerClassName="dash-block rounded-[.875rem] px-4 py-3.5"
+                />
+              </div>
+              {!hasManualPlatformInputs && (
+                <button type="button" onClick={onCoinControl} className="text-left text-sm dash-text-primary cursor-pointer">
+                  Select inputs in Coin Control to deduct the fee from an output.
+                </button>
+              )}
+              <Text size={12} weight="medium" color="brand" opacity={50}>The selected recipient receives less by the actual network fee.</Text>
+            </>}
+          </div>
+        )}
+        {availableDisplay != null && (
+          <div className="flex justify-between gap-3">
+            <Text size={12} weight="medium" color="brand" opacity={50}>Available to allocate</Text>
+            <Text size={12} weight="medium" color="brand">{availableDisplay}</Text>
+          </div>
+        )}
+      </div>}
       {amountError && <Text size={12} weight="medium" color="red">{amountError}</Text>}
       {subtractFee && !feeRecipientSelected && <Text size={12} weight="medium" color="red">Choose the recipient paying the fee.</Text>}
       {fee.error && (
         <button type="button" onClick={onRetryFee} className="text-sm dash-text-primary cursor-pointer">Retry fee estimate</button>
       )}
-      <Button type="button" onClick={onReview} disabled={!canSubmit} size="md" className="w-full rounded-xl">Review transaction</Button>
-    </aside>
+      <button type="button" onClick={onReview} disabled={!canSubmit} className="min-h-14.5 w-full rounded-2xl dash-block-accent-15 text-base dash-text-primary cursor-pointer hover:dash-block-accent-25 disabled:opacity-40 disabled:cursor-default">Review Transaction</button>
+    </div>
   )
 }

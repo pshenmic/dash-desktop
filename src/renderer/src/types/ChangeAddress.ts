@@ -2,6 +2,7 @@ import type { WalletAddressDto } from '../api/types'
 import type { TransferOperation } from '../enums/TransferOperation'
 
 export interface ChangeAddressFieldProps {
+  compact?: boolean
   change: WalletAddressDto[]
   value?: string
   loading: boolean
