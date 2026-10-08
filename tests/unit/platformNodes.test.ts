@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {Evonode} from '@renderer/api/types'
+import type {DapiUrlStatus} from '@renderer/api/types'
 import {
   appendPlatformNode,
   buildPlatformNodeRows,
@@ -41,19 +41,21 @@ describe('Platform node URLs', () => {
 })
 
 describe('Platform node table rows', () => {
-  const responding: Evonode = {
+  const responding: DapiUrlStatus = {
     dapiUrl: 'https://node.example.org:1443',
     proTxHash: 'pro-tx-hash',
     pingMs: 12.6,
     driveVersion: '2.0.1',
     blockHeight: 9007199254740993n,
+    error: null,
   }
-  const noResponse: Evonode = {
+  const noResponse: DapiUrlStatus = {
     dapiUrl: 'https://unavailable.example.org:1443',
-    proTxHash: 'known-quorum-member',
+    proTxHash: null,
     pingMs: null,
     driveVersion: null,
     blockHeight: null,
+    error: 'Request timed out',
   }
 
   it('displays probe results without equating pool membership with a response', () => {
@@ -67,14 +69,16 @@ describe('Platform node table rows', () => {
       proTxHash: 'pro-tx-hash',
       available: true,
       status: 'Available',
+      error: null,
     })
     expect(rows.active[1]).toMatchObject({
       driveVersion: '—',
       pingTime: '—',
       blockHeight: '—',
-      proTxHash: 'known-quorum-member',
+      proTxHash: null,
       available: false,
       status: 'No response',
+      error: 'Request timed out',
     })
   })
 
@@ -83,7 +87,7 @@ describe('Platform node table rows', () => {
     const automatic = buildPlatformNodeRows([responding, noResponse], saved, 'dynamic').static
     expect(automatic[0]).toMatchObject({entry: 'HTTPS://NODE.example.org:1443/', status: 'Available automatically', pingTime: '13 ms'})
     expect(automatic[1]).toMatchObject({status: 'No response', available: false})
-    expect(automatic[2]).toMatchObject({status: 'Saved', available: false})
+    expect(automatic[2]).toMatchObject({status: 'Saved', available: false, error: null})
     const manual = buildPlatformNodeRows([responding], saved, 'static').static
     expect(manual[0].status).toBe('Available')
     expect(manual[2].status).toBe('Not active')
@@ -100,5 +104,20 @@ describe('Platform node table rows', () => {
     expect(rows.active).toHaveLength(1)
     expect(rows.static).toHaveLength(1)
     expect(rows.active[0]).toMatchObject({available: true, pingTime: '—', blockHeight: '0'})
+  })
+
+  it('keeps failed probes unavailable even when partial metrics remain', () => {
+    const failed = {...responding, error: 'Status response was incomplete'}
+    const rows = buildPlatformNodeRows([failed], [failed.dapiUrl], 'dynamic')
+    for (const row of [rows.active[0], rows.static[0]]) {
+      expect(row).toMatchObject({
+        available: false,
+        status: 'No response',
+        error: 'Status response was incomplete',
+        driveVersion: '2.0.1',
+        pingTime: '13 ms',
+        blockHeight: responding.blockHeight!.toLocaleString(),
+      })
+    }
   })
 })

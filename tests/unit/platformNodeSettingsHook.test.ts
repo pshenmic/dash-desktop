@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import type {Evonode, Network, PeerMode} from '../../src/renderer/src/api/types'
+import type {DapiUrlStatus, Network, PeerMode} from '../../src/renderer/src/api/types'
 import type {UsePlatformNodeSettingsResult} from '../../src/renderer/src/types/connection'
 import {PEER_POLL_INTERVAL_MS} from '../../src/renderer/src/constants/connection'
 
@@ -8,10 +8,10 @@ const harness = vi.hoisted(() => ({
   mode: 'dynamic' as PeerMode,
   nodes: {mainnet: [] as string[], testnet: [] as string[]},
   getPreferences: vi.fn(),
-  getEvonodes: vi.fn(),
-  getActiveEvonodes: vi.fn(),
-  setGrpcPoolMode: vi.fn(),
-  setEvonodes: vi.fn(),
+  getDapiUrls: vi.fn(),
+  getActiveDapiUrls: vi.fn(),
+  setDapiMode: vi.fn(),
+  setDapiUrls: vi.fn(),
   index: 0,
   states: [] as unknown[],
   refs: [] as Array<{current: unknown}>,
@@ -72,10 +72,10 @@ vi.mock('react', () => {
 
 vi.mock('@renderer/api', () => ({API: {
   getPreferences: harness.getPreferences,
-  getEvonodes: harness.getEvonodes,
-  getActiveEvonodes: harness.getActiveEvonodes,
-  setGrpcPoolMode: harness.setGrpcPoolMode,
-  setEvonodes: harness.setEvonodes,
+  getDapiUrls: harness.getDapiUrls,
+  getActiveDapiUrls: harness.getActiveDapiUrls,
+  setDapiMode: harness.setDapiMode,
+  setDapiUrls: harness.setDapiUrls,
 }}))
 
 import {usePlatformNodeSettings} from '../../src/renderer/src/hooks/usePlatformNodeSettings'
@@ -84,20 +84,21 @@ const firstUrl = 'https://first.example:1443'
 const secondUrl = 'https://second.example:1443'
 const addedUrl = 'https://added.example:1443'
 const mainnetUrl = 'https://mainnet.example'
-const firstNode: Evonode = {
+const firstNode: DapiUrlStatus = {
   dapiUrl: firstUrl,
   proTxHash: 'first-pro-tx-hash',
   pingMs: 18,
   driveVersion: '2.0.0',
   blockHeight: 9007199254740993n,
+  error: null,
 }
-const mainnetNode: Evonode = {...firstNode, dapiUrl: mainnetUrl, blockHeight: 500n}
+const mainnetNode: DapiUrlStatus = {...firstNode, dapiUrl: mainnetUrl, blockHeight: 500n}
 
 function preferences() {
   return {
     network: {
       mode: 'static',
-      evonodes: {mode: harness.mode, mainnet: [...harness.nodes.mainnet], testnet: [...harness.nodes.testnet]},
+      dapi: {mode: harness.mode, mainnet: [...harness.nodes.mainnet], testnet: [...harness.nodes.testnet]},
     },
   }
 }
@@ -142,12 +143,12 @@ beforeEach(() => {
   harness.pendingLayouts = []
   harness.pendingEffects = []
   harness.getPreferences.mockReset().mockImplementation(async () => preferences())
-  harness.getEvonodes.mockReset().mockImplementation(async (network: Network) => [...harness.nodes[network]])
-  harness.getActiveEvonodes.mockReset().mockResolvedValue([firstNode])
-  harness.setGrpcPoolMode.mockReset().mockImplementation(async (mode: PeerMode) => {
+  harness.getDapiUrls.mockReset().mockImplementation(async (network: Network) => [...harness.nodes[network]])
+  harness.getActiveDapiUrls.mockReset().mockResolvedValue([firstNode])
+  harness.setDapiMode.mockReset().mockImplementation(async (mode: PeerMode) => {
     harness.mode = mode
   })
-  harness.setEvonodes.mockReset().mockImplementation(async (network: Network, nodes: string[]) => {
+  harness.setDapiUrls.mockReset().mockImplementation(async (network: Network, nodes: string[]) => {
     harness.nodes[network] = [...nodes]
   })
 })
@@ -166,24 +167,34 @@ describe('Platform node settings IPC and persistence', () => {
     expect(render()).toMatchObject({
       configuredMode: 'dynamic',
       staticNodes: [firstUrl, secondUrl],
+      hasStaticNodes: true,
       activeNodes: [firstNode],
       settingsReady: true,
       loading: false,
       activeNodesLoading: false,
       error: null,
     })
-    expect(harness.getEvonodes).toHaveBeenCalledWith('testnet')
-    expect(harness.getActiveEvonodes).toHaveBeenCalledWith('testnet')
+    expect(harness.getDapiUrls).toHaveBeenCalledWith('testnet')
+    expect(harness.getActiveDapiUrls).toHaveBeenCalledWith('testnet')
+  })
+
+  it('recognizes static nodes on another network when the selected list is empty', async () => {
+    harness.nodes.testnet = []
+    const initial = await load()
+    expect(initial).toMatchObject({staticNodes: [], hasStaticNodes: true, settingsReady: true})
+    harness.nodes.mainnet = []
+    initial.reload()
+    expect(await reconcile()).toMatchObject({staticNodes: [], hasStaticNodes: false, settingsReady: true})
   })
 
   it('adds and removes only the intended static URL without replacing unrelated nodes', async () => {
     const initial = await load()
     expect(await initial.addStaticNode(` ${addedUrl} `)).toBe(true)
-    expect(harness.setEvonodes).toHaveBeenLastCalledWith('testnet', [firstUrl, secondUrl, addedUrl])
+    expect(harness.setDapiUrls).toHaveBeenLastCalledWith('testnet', [firstUrl, secondUrl, addedUrl])
     const saved = await reconcile()
     expect(saved.staticNodes).toEqual([firstUrl, secondUrl, addedUrl])
     await saved.removeStaticNode(firstUrl)
-    expect(harness.setEvonodes).toHaveBeenLastCalledWith('testnet', [secondUrl, addedUrl])
+    expect(harness.setDapiUrls).toHaveBeenLastCalledWith('testnet', [secondUrl, addedUrl])
     expect((await reconcile()).staticNodes).toEqual([secondUrl, addedUrl])
     expect(harness.nodes.mainnet).toEqual([mainnetUrl])
   })
@@ -191,16 +202,16 @@ describe('Platform node settings IPC and persistence', () => {
   it('uses the existing global mode IPC for static and automatic modes', async () => {
     const initial = await load()
     await initial.setMode('static')
-    expect(harness.setGrpcPoolMode).toHaveBeenLastCalledWith('static')
+    expect(harness.setDapiMode).toHaveBeenLastCalledWith('static')
     const staticMode = await reconcile()
     expect(staticMode.configuredMode).toBe('static')
     await staticMode.setMode('dynamic')
-    expect(harness.setGrpcPoolMode).toHaveBeenLastCalledWith('dynamic')
+    expect(harness.setDapiMode).toHaveBeenLastCalledWith('dynamic')
     const automatic = await reconcile()
     expect(automatic.configuredMode).toBe('dynamic')
     await automatic.setMode('dynamic')
-    expect(harness.setGrpcPoolMode).toHaveBeenCalledTimes(2)
-    expect(harness.setEvonodes).not.toHaveBeenCalled()
+    expect(harness.setDapiMode).toHaveBeenCalledTimes(2)
+    expect(harness.setDapiUrls).not.toHaveBeenCalled()
   })
 
   it('keeps editing blocked until the authoritative list reload completes', async () => {
@@ -208,14 +219,14 @@ describe('Platform node settings IPC and persistence', () => {
     const reloaded = Promise.withResolvers<string[]>()
     await initial.addStaticNode(addedUrl)
     expect(render().settingsReady).toBe(false)
-    harness.getEvonodes.mockReturnValueOnce(reloaded.promise)
+    harness.getDapiUrls.mockReturnValueOnce(reloaded.promise)
     render()
     commitEffects()
     await flushPromises()
     const loading = render()
     expect(loading.settingsReady).toBe(false)
     await expect(loading.addStaticNode('https://another.example:1443')).rejects.toThrow('Wait for Platform node settings')
-    expect(harness.setEvonodes).toHaveBeenCalledTimes(1)
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
     reloaded.resolve([firstUrl, secondUrl, addedUrl])
     await flushPromises()
     expect(render()).toMatchObject({staticNodes: [firstUrl, secondUrl, addedUrl], settingsReady: true})
@@ -224,29 +235,44 @@ describe('Platform node settings IPC and persistence', () => {
   it('re-reads saved settings after a mutation fails after changing backend state', async () => {
     const initial = await load()
     const authoritative = Promise.withResolvers<string[]>()
-    harness.setEvonodes.mockImplementationOnce(async (network: Network, nodes: string[]) => {
+    harness.setDapiUrls.mockImplementationOnce(async (network: Network, nodes: string[]) => {
       harness.nodes[network] = nodes
       throw new Error('preference write failed')
     })
     await expect(initial.addStaticNode(addedUrl)).rejects.toThrow('preference write failed')
     expect(render().settingsReady).toBe(false)
-    harness.getEvonodes.mockReturnValueOnce(authoritative.promise)
+    harness.getDapiUrls.mockReturnValueOnce(authoritative.promise)
     const recovering = await reconcile()
     expect(recovering.settingsReady).toBe(false)
     await expect(recovering.removeStaticNode(secondUrl)).rejects.toThrow('Wait for Platform node settings')
-    expect(harness.setEvonodes).toHaveBeenCalledTimes(1)
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
     authoritative.resolve([firstUrl, secondUrl, addedUrl])
     await flushPromises()
     const reconciled = render()
     expect(reconciled.staticNodes).toEqual([firstUrl, secondUrl, addedUrl])
     expect(reconciled.error).toContain('preference write failed')
     expect(harness.getPreferences).toHaveBeenCalledTimes(2)
-    expect(harness.getEvonodes).toHaveBeenCalledTimes(2)
+    expect(harness.getDapiUrls).toHaveBeenCalledTimes(2)
+  })
+
+  it('retains saved nodes after the backend rejects a probe and allows retrying', async () => {
+    const initial = await load()
+    const probeError = `DAPI URL ${addedUrl} did not respond: connection refused`
+    harness.setDapiUrls.mockRejectedValueOnce(new Error(probeError))
+    await expect(initial.addStaticNode(addedUrl)).rejects.toThrow(probeError)
+    expect(harness.nodes.testnet).toEqual([firstUrl, secondUrl])
+    expect(render()).toMatchObject({staticNodes: [firstUrl, secondUrl], settingsReady: false, error: probeError})
+
+    const recovered = await reconcile()
+    expect(recovered).toMatchObject({staticNodes: [firstUrl, secondUrl], settingsReady: true, error: probeError})
+    expect(await recovered.addStaticNode(addedUrl)).toBe(true)
+    expect(harness.setDapiUrls).toHaveBeenNthCalledWith(2, 'testnet', [firstUrl, secondUrl, addedUrl])
+    expect(await reconcile()).toMatchObject({staticNodes: [firstUrl, secondUrl, addedUrl], settingsReady: true, error: null})
   })
 
   it('re-reads the authoritative mode after its setter rejects', async () => {
     const initial = await load()
-    harness.setGrpcPoolMode.mockImplementationOnce(async () => {
+    harness.setDapiMode.mockImplementationOnce(async () => {
       harness.mode = 'static'
       throw new Error('mode write failed')
     })
@@ -260,26 +286,46 @@ describe('Platform node settings IPC and persistence', () => {
     const initial = await load()
     expect(initial).toMatchObject({loading: false, settingsReady: false, staticNodes: [], activeNodes: []})
     await expect(initial.addStaticNode(addedUrl)).rejects.toThrow('Wait for Platform node settings')
-    expect(harness.getEvonodes).not.toHaveBeenCalled()
-    expect(harness.getActiveEvonodes).not.toHaveBeenCalled()
-    expect(harness.setEvonodes).not.toHaveBeenCalled()
+    expect(harness.getDapiUrls).not.toHaveBeenCalled()
+    expect(harness.getActiveDapiUrls).not.toHaveBeenCalled()
+    expect(harness.setDapiUrls).not.toHaveBeenCalled()
   })
 })
 
 describe('Platform node settings request races', () => {
+  it.each(['success', 'error'] as const)('ignores an old-pool probe %s while probing a changed mode', async outcome => {
+    const oldProbe = Promise.withResolvers<DapiUrlStatus[]>()
+    const currentProbe = Promise.withResolvers<DapiUrlStatus[]>()
+    harness.getActiveDapiUrls.mockReturnValueOnce(oldProbe.promise).mockReturnValueOnce(currentProbe.promise)
+    const initial = await load()
+    const changing = initial.setMode('static')
+    await flushPromises()
+    expect(harness.getActiveDapiUrls).toHaveBeenCalledTimes(2)
+
+    if (outcome === 'success') oldProbe.resolve([mainnetNode])
+    else oldProbe.reject(new Error('old pool probe failed'))
+    await flushPromises()
+    expect(render()).toMatchObject({activeNodes: [], activeNodesError: null, activeNodesLoading: true, pending: 'set-mode'})
+
+    currentProbe.resolve([firstNode])
+    await changing
+    expect(render()).toMatchObject({activeNodes: [firstNode], activeNodesError: null, activeNodesLoading: false, pending: null})
+    expect(await reconcile()).toMatchObject({configuredMode: 'static', activeNodes: [firstNode], settingsReady: true})
+  })
+
   it('discards previous-network settings and status responses', async () => {
     const oldPreferences = Promise.withResolvers<ReturnType<typeof preferences>>()
     const oldNodes = Promise.withResolvers<string[]>()
-    const oldActive = Promise.withResolvers<Evonode[]>()
+    const oldActive = Promise.withResolvers<DapiUrlStatus[]>()
     harness.getPreferences.mockReturnValueOnce(oldPreferences.promise)
-    harness.getEvonodes.mockReturnValueOnce(oldNodes.promise)
-    harness.getActiveEvonodes.mockReturnValueOnce(oldActive.promise).mockResolvedValueOnce([mainnetNode])
+    harness.getDapiUrls.mockReturnValueOnce(oldNodes.promise)
+    harness.getActiveDapiUrls.mockReturnValueOnce(oldActive.promise).mockResolvedValueOnce([mainnetNode])
     render()
     commitEffects()
     harness.network = 'mainnet'
     const selected = await load()
     expect(selected).toMatchObject({staticNodes: [mainnetUrl], activeNodes: [mainnetNode], settingsReady: true})
-    oldPreferences.resolve({network: {mode: 'static', evonodes: {mode: 'static', mainnet: [], testnet: []}}})
+    oldPreferences.resolve({network: {mode: 'static', dapi: {mode: 'static', mainnet: [], testnet: []}}})
     oldNodes.resolve([firstUrl])
     oldActive.resolve([firstNode])
     await flushPromises()
@@ -292,35 +338,35 @@ describe('Platform node settings request races', () => {
     await load()
     const nextNodes = Promise.withResolvers<string[]>()
     harness.network = 'mainnet'
-    harness.getEvonodes.mockReturnValueOnce(nextNodes.promise)
+    harness.getDapiUrls.mockReturnValueOnce(nextNodes.promise)
     const switching = render()
     expect(switching).toMatchObject({staticNodes: [], activeNodes: [], loading: true, settingsReady: false})
     await expect(switching.addStaticNode(addedUrl)).rejects.toThrow('Wait for Platform node settings')
     commitEffects()
     await flushPromises()
     await expect(render().addStaticNode(addedUrl)).rejects.toThrow('Wait for Platform node settings')
-    expect(harness.setEvonodes).not.toHaveBeenCalled()
+    expect(harness.setDapiUrls).not.toHaveBeenCalled()
     nextNodes.resolve([mainnetUrl])
     await flushPromises()
     await render().addStaticNode(addedUrl)
-    expect(harness.setEvonodes).toHaveBeenLastCalledWith('mainnet', [mainnetUrl, addedUrl])
+    expect(harness.setDapiUrls).toHaveBeenLastCalledWith('mainnet', [mainnetUrl, addedUrl])
   })
 
   it('does not overlap long probes or manual refreshes and waits before polling again', async () => {
-    const probe = Promise.withResolvers<Evonode[]>()
-    harness.getActiveEvonodes.mockReturnValueOnce(probe.promise)
+    const probe = Promise.withResolvers<DapiUrlStatus[]>()
+    harness.getActiveDapiUrls.mockReturnValueOnce(probe.promise)
     const initial = await load()
     expect(initial.activeNodesLoading).toBe(true)
     await vi.advanceTimersByTimeAsync(PEER_POLL_INTERVAL_MS * 3)
     initial.reload()
     await reconcile()
-    expect(harness.getActiveEvonodes).toHaveBeenCalledTimes(1)
+    expect(harness.getActiveDapiUrls).toHaveBeenCalledTimes(1)
     probe.resolve([firstNode])
     await flushPromises()
     expect(render()).toMatchObject({activeNodes: [firstNode], activeNodesLoading: false})
     await vi.advanceTimersByTimeAsync(PEER_POLL_INTERVAL_MS - 1)
-    expect(harness.getActiveEvonodes).toHaveBeenCalledTimes(1)
+    expect(harness.getActiveDapiUrls).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1)
-    expect(harness.getActiveEvonodes).toHaveBeenCalledTimes(2)
+    expect(harness.getActiveDapiUrls).toHaveBeenCalledTimes(2)
   })
 })

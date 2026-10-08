@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {API} from '@renderer/api'
-import type {Evonode, Network, PeerMode} from '@renderer/api/types'
+import type {DapiUrlStatus, Network, PeerMode} from '@renderer/api/types'
 import {PEER_POLL_INTERVAL_MS} from '@renderer/constants/connection'
 import type {PlatformNodeMutation, UsePlatformNodeSettingsResult} from '@renderer/types/connection'
 import {getErrorMessage} from '@renderer/utils/error'
@@ -9,7 +9,8 @@ import {appendPlatformNode, removePlatformNode} from '@renderer/utils/platformNo
 export function usePlatformNodeSettings(network: Network | null): UsePlatformNodeSettingsResult {
   const [configuredMode, setConfiguredMode] = useState<PeerMode | null>(null)
   const [staticNodes, setStaticNodes] = useState<string[]>([])
-  const [activeNodes, setActiveNodes] = useState<Evonode[]>([])
+  const [hasStaticNodes, setHasStaticNodes] = useState(false)
+  const [activeNodes, setActiveNodes] = useState<DapiUrlStatus[]>([])
   const [loadedNetwork, setLoadedNetwork] = useState<Network | null | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [activeNodesLoading, setActiveNodesLoading] = useState(false)
@@ -29,6 +30,7 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
     activeRequestRef.current = null
     setConfiguredMode(null)
     setStaticNodes([])
+    setHasStaticNodes(false)
     setActiveNodes([])
     setLoadedNetwork(undefined)
     setSettingsReady(false)
@@ -46,12 +48,13 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
     setSettingsReady(false)
     Promise.allSettled([
       API.getPreferences(),
-      network === null ? Promise.resolve([]) : API.getEvonodes(network),
+      network === null ? Promise.resolve([]) : API.getDapiUrls(network),
     ]).then(([preferences, nodes]) => {
       if (cancelled) return
       const failures: string[] = []
       if (preferences.status === 'fulfilled') {
-        setConfiguredMode(preferences.value.network.evonodes.mode)
+        setConfiguredMode(preferences.value.network.dapi.mode)
+        setHasStaticNodes(preferences.value.network.dapi.mainnet.length > 0 || preferences.value.network.dapi.testnet.length > 0)
       } else {
         failures.push(`node mode: ${getErrorMessage(preferences.reason)}`)
       }
@@ -72,18 +75,19 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
     if (activeRequestRef.current !== null) return activeRequestRef.current
     const generation = generationRef.current
     if (showLoading) setActiveNodesLoading(true)
-    const request = API.getActiveEvonodes(network)
+    const request = API.getActiveDapiUrls(network)
       .then(nodes => {
-        if (!mountedRef.current || generationRef.current !== generation) return
+        if (!mountedRef.current || generationRef.current !== generation || activeRequestRef.current !== request) return
         setActiveNodes(nodes)
         setActiveNodesError(null)
       })
       .catch(loadError => {
-        if (!mountedRef.current || generationRef.current !== generation) return
+        if (!mountedRef.current || generationRef.current !== generation || activeRequestRef.current !== request) return
         setActiveNodesError(`Could not load active Platform nodes. ${getErrorMessage(loadError)}`)
       })
       .finally(() => {
-        if (activeRequestRef.current === request) activeRequestRef.current = null
+        if (activeRequestRef.current !== request) return
+        activeRequestRef.current = null
         if (mountedRef.current && generationRef.current === generation) setActiveNodesLoading(false)
       })
     activeRequestRef.current = request
@@ -123,6 +127,7 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
     try {
       await action()
       if (mountedRef.current && generationRef.current === generation) {
+        activeRequestRef.current = null
         await refreshActiveNodes()
       }
     } catch (mutationError) {
@@ -142,7 +147,7 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
 
   const setMode = useCallback(async (mode: PeerMode): Promise<void> => {
     if (configuredMode === mode) return
-    await applyMutation('set-mode', () => API.setGrpcPoolMode(mode))
+    await applyMutation('set-mode', () => API.setDapiMode(mode))
   }, [applyMutation, configuredMode])
 
   const addStaticNode = useCallback(async (url: string): Promise<boolean> => {
@@ -154,14 +159,14 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
       throw validationError
     }
     if (next.length === staticNodes.length) return false
-    await applyMutation('save-nodes', () => API.setEvonodes(network!, next))
+    await applyMutation('save-nodes', () => API.setDapiUrls(network!, next))
     return true
   }, [applyMutation, network, staticNodes])
 
   const removeStaticNode = useCallback(async (url: string): Promise<void> => {
     const next = removePlatformNode(staticNodes, url)
     if (next.length === staticNodes.length) return
-    await applyMutation('save-nodes', () => API.setEvonodes(network!, next))
+    await applyMutation('save-nodes', () => API.setDapiUrls(network!, next))
   }, [applyMutation, network, staticNodes])
 
   const currentNetwork = loadedNetwork === network
@@ -175,6 +180,7 @@ export function usePlatformNodeSettings(network: Network | null): UsePlatformNod
   return {
     configuredMode: currentNetwork ? configuredMode : null,
     staticNodes: currentNetwork ? staticNodes : [],
+    hasStaticNodes: currentNetwork && hasStaticNodes,
     activeNodes: currentNetwork ? activeNodes : [],
     loading: loading || !currentNetwork,
     activeNodesLoading,

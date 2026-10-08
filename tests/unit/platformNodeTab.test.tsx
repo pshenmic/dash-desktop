@@ -123,8 +123,9 @@ beforeEach(() => {
   harness.error.mockReset()
   harness.settings = {
     configuredMode: 'dynamic',
-    activeNodes: [{dapiUrl: firstUrl, proTxHash: null, pingMs: 20, driveVersion: '2.0.0', blockHeight: 123n}],
+    activeNodes: [{dapiUrl: firstUrl, proTxHash: null, pingMs: 20, driveVersion: '2.0.0', blockHeight: 123n, error: null}],
     staticNodes: [firstUrl, secondUrl],
+    hasStaticNodes: true,
     loading: false,
     activeNodesLoading: false,
     settingsReady: true,
@@ -154,6 +155,50 @@ describe('Platform node list editing', () => {
     expect(harness.addStaticNode).not.toHaveBeenCalled()
     expect(harness.removeStaticNode).not.toHaveBeenCalled()
     expect(harness.hook).toHaveBeenCalledWith('testnet')
+  })
+
+  it('exposes a failed node probe reason in its status tooltip and accessible label', () => {
+    const probeError = 'getStatus failed: connection refused'
+    harness.settings = {
+      ...harness.settings,
+      activeNodes: [{
+        dapiUrl: firstUrl,
+        proTxHash: null,
+        pingMs: null,
+        driveVersion: null,
+        blockHeight: null,
+        error: probeError,
+      }],
+    }
+    const tree = render()
+    const badge = elements(tree).find(element => element.props.title === probeError)
+    expect(badge).toBeDefined()
+    expect(text(badge)).toBe('No response')
+    const row = elements(tree).find(element => {
+      const label = element.props['aria-label']
+      return typeof label === 'string' && label.includes(firstUrl) && label.includes(probeError)
+    })
+    expect(row).toBeDefined()
+  })
+
+  it('allows Static mode when only another network has saved nodes', async () => {
+    harness.settings = {...harness.settings, staticNodes: [], hasStaticNodes: true}
+    const mode = elements(render()).find(element => element.props['aria-label'] === 'Use Static Platform nodes')!
+    ;(mode.props.onClick as () => void)()
+    await flushPromises()
+    expect(harness.setMode).toHaveBeenCalledWith('static')
+    expect(harness.warning).not.toHaveBeenCalled()
+    expect(elements(render()).some(element => element.type === 'form')).toBe(false)
+  })
+
+  it('opens the saved-node form before enabling Static mode when both networks have no saved nodes', async () => {
+    harness.settings = {...harness.settings, staticNodes: [], hasStaticNodes: false}
+    const mode = elements(render()).find(element => element.props['aria-label'] === 'Use Static Platform nodes')!
+    ;(mode.props.onClick as () => void)()
+    await flushPromises()
+    expect(harness.setMode).not.toHaveBeenCalled()
+    expect(harness.warning).toHaveBeenCalledTimes(1)
+    expect(elements(render()).some(element => element.type === 'form')).toBe(true)
   })
 
   it('offers saved-node editing only after selecting Static and dispatches the intended URLs', async () => {

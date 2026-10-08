@@ -251,7 +251,7 @@ export const CONNECTION_SETTINGS_TOOLTIPS = {
   dapi:
     'DAPI is used to query decentralized Platform data, including balances and documents. This switch is visual only for now.',
   platformNodes:
-    'Auto selects Platform nodes automatically and can also use saved nodes. Static uses the saved list for this network. The mode applies to the whole app; saved lists are separate for each network.',
+    'Auto discovers Platform nodes automatically. Static uses the saved list for this network, falling back to automatic discovery if it is empty. The mode applies to the whole app; saved lists are separate for each network. New nodes must respond before they can be saved.',
   platformExplorer:
     'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups. These controls are visual only for now.',
 } as const

@@ -1,6 +1,6 @@
 import type {
   ConnectionType,
-  Evonode,
+  DapiUrlStatus,
   Network,
   PeerInfo,
   PeerMode,
@@ -117,8 +117,9 @@ export type PlatformNodeMutation = 'set-mode' | 'save-nodes'
 
 export interface UsePlatformNodeSettingsResult {
   configuredMode: PeerMode | null
-  activeNodes: Evonode[]
+  activeNodes: DapiUrlStatus[]
   staticNodes: string[]
+  hasStaticNodes: boolean
   loading: boolean
   activeNodesLoading: boolean
   settingsReady: boolean

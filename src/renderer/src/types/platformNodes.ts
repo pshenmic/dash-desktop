@@ -17,6 +17,7 @@ export interface PlatformNodeRow {
   status: string
   available: boolean
   proTxHash: string | null
+  error: string | null
 }
 
 export interface PlatformNodeModeSelectorProps {

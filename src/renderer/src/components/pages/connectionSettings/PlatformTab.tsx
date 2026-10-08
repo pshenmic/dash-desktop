@@ -118,7 +118,7 @@ function NodeRow({row, removable, disabled, onRemove}: PlatformNodeRowProps): Re
   const content = (
     <div
       tabIndex={removable && !disabled ? 0 : undefined}
-      aria-label={`${row.url}, ${row.status}`}
+      aria-label={`${row.url}, ${row.status}${row.error === null ? '' : `: ${row.error}`}`}
       className={`grid min-h-[3.625rem] ${PLATFORM_NODE_TABLE_GRID_CLASS_NAME} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 py-3 outline-none dark:border-white/10 ${removable && !disabled
         ? 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'
         : ''}`}
@@ -127,15 +127,17 @@ function NodeRow({row, removable, disabled, onRemove}: PlatformNodeRowProps): Re
         <Text size={14} weight="medium" color="brand" className="w-full cursor-text select-text truncate">
           {row.url}
         </Text>
-        <Text
-          size={12}
-          weight="medium"
-          className={`inline-flex w-fit rounded-full px-2.5 py-1 ${row.available
-            ? 'bg-dash-green-15 text-dash-green!'
-            : 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue/60 dark:bg-white/8 dark:text-white/60'}`}
-        >
-          {row.status}
-        </Text>
+        <span title={row.error ?? undefined}>
+          <Text
+            size={12}
+            weight="medium"
+            className={`inline-flex w-fit rounded-full px-2.5 py-1 ${row.available
+              ? 'bg-dash-green-15 text-dash-green!'
+              : 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue/60 dark:bg-white/8 dark:text-white/60'}`}
+          >
+            {row.status}
+          </Text>
+        </span>
       </div>
       <div className="truncate" title={row.driveVersion}>
         <Text size={14} weight="medium" color="brand">{row.driveVersion}</Text>
@@ -188,7 +190,7 @@ export default function PlatformTab(): React.JSX.Element {
 
   const handleModeChange = async (mode: PeerMode): Promise<void> => {
     if (!nodeSettings.settingsReady || mutationPending) return
-    if (mode === 'static' && nodeSettings.staticNodes.length === 0) {
+    if (mode === 'static' && !nodeSettings.hasStaticNodes) {
       setNodeTab('static')
       setAddNodeOpen(true)
       toast.warning(`**Static node required** ${PLATFORM_STATIC_NODE_REQUIRED_MESSAGE}`)

@@ -1,4 +1,4 @@
-import type {Evonode, PeerMode} from '@renderer/api/types'
+import type {DapiUrlStatus, PeerMode} from '@renderer/api/types'
 import {
   PLATFORM_NODE_INVALID_URL_MESSAGE,
   PLATFORM_NODE_STATE_LABELS,
@@ -37,11 +37,11 @@ export function removePlatformNode(entries: string[], input: string): string[] {
 }
 
 export function buildPlatformNodeRows(
-  activeNodes: Evonode[],
+  activeNodes: DapiUrlStatus[],
   staticNodes: string[],
   mode: PeerMode | null,
 ): Record<PlatformNodeTableTab, PlatformNodeRow[]> {
-  const activeByIdentity = new Map<string, Evonode>()
+  const activeByIdentity = new Map<string, DapiUrlStatus>()
   for (const node of activeNodes) {
     const identity = platformNodeIdentity(node.dapiUrl)
     if (!activeByIdentity.has(identity)) activeByIdentity.set(identity, node)
@@ -50,11 +50,12 @@ export function buildPlatformNodeRows(
   const buildRow = (
     entry: string,
     tab: PlatformNodeTableTab,
-    node: Evonode | undefined,
+    node: DapiUrlStatus | undefined,
   ): PlatformNodeRow => {
     const pingMs = node?.pingMs
     const hasPing = pingMs !== null && pingMs !== undefined && Number.isFinite(pingMs)
     const available = node !== undefined
+      && node.error === null
       && (hasPing || node.driveVersion !== null || node.blockHeight !== null)
     const status = available
       ? tab === 'static' && mode === 'dynamic'
@@ -75,6 +76,7 @@ export function buildPlatformNodeRows(
       status,
       available,
       proTxHash: node?.proTxHash ?? null,
+      error: node?.error ?? null,
     }
   }
 
