@@ -1,0 +1,190 @@
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {API} from '@renderer/api'
+import type {Evonode, Network, PeerMode} from '@renderer/api/types'
+import {PEER_POLL_INTERVAL_MS} from '@renderer/constants/connection'
+import type {PlatformNodeMutation, UsePlatformNodeSettingsResult} from '@renderer/types/connection'
+import {getErrorMessage} from '@renderer/utils/error'
+import {appendPlatformNode, removePlatformNode} from '@renderer/utils/platformNodes'
+
+export function usePlatformNodeSettings(network: Network | null): UsePlatformNodeSettingsResult {
+  const [configuredMode, setConfiguredMode] = useState<PeerMode | null>(null)
+  const [staticNodes, setStaticNodes] = useState<string[]>([])
+  const [activeNodes, setActiveNodes] = useState<Evonode[]>([])
+  const [loadedNetwork, setLoadedNetwork] = useState<Network | null | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
+  const [activeNodesLoading, setActiveNodesLoading] = useState(false)
+  const [settingsReady, setSettingsReady] = useState(false)
+  const [pending, setPending] = useState<PlatformNodeMutation | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [activeNodesError, setActiveNodesError] = useState<string | null>(null)
+  const [loadVersion, setLoadVersion] = useState(0)
+  const mountedRef = useRef(true)
+  const generationRef = useRef(0)
+  const pendingRef = useRef<PlatformNodeMutation | null>(null)
+  const activeRequestRef = useRef<Promise<void> | null>(null)
+
+  useLayoutEffect(() => {
+    mountedRef.current = true
+    generationRef.current += 1
+    activeRequestRef.current = null
+    setConfiguredMode(null)
+    setStaticNodes([])
+    setActiveNodes([])
+    setLoadedNetwork(undefined)
+    setSettingsReady(false)
+    setError(null)
+    setActiveNodesError(null)
+    return () => {
+      mountedRef.current = false
+      generationRef.current += 1
+    }
+  }, [network])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setSettingsReady(false)
+    Promise.allSettled([
+      API.getPreferences(),
+      network === null ? Promise.resolve([]) : API.getEvonodes(network),
+    ]).then(([preferences, nodes]) => {
+      if (cancelled) return
+      const failures: string[] = []
+      if (preferences.status === 'fulfilled') {
+        setConfiguredMode(preferences.value.network.evonodes.mode)
+      } else {
+        failures.push(`node mode: ${getErrorMessage(preferences.reason)}`)
+      }
+      if (nodes.status === 'fulfilled') setStaticNodes(nodes.value)
+      else failures.push(`static nodes: ${getErrorMessage(nodes.reason)}`)
+      setSettingsReady(network !== null && failures.length === 0)
+      setLoadedNetwork(network)
+      if (failures.length > 0) setError(`Could not load Platform settings. ${failures.join('; ')}`)
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [network, loadVersion])
+
+  const refreshActiveNodes = useCallback((showLoading = false): Promise<void> => {
+    if (network === null) return Promise.resolve()
+    if (activeRequestRef.current !== null) return activeRequestRef.current
+    const generation = generationRef.current
+    if (showLoading) setActiveNodesLoading(true)
+    const request = API.getActiveEvonodes(network)
+      .then(nodes => {
+        if (!mountedRef.current || generationRef.current !== generation) return
+        setActiveNodes(nodes)
+        setActiveNodesError(null)
+      })
+      .catch(loadError => {
+        if (!mountedRef.current || generationRef.current !== generation) return
+        setActiveNodesError(`Could not load active Platform nodes. ${getErrorMessage(loadError)}`)
+      })
+      .finally(() => {
+        if (activeRequestRef.current === request) activeRequestRef.current = null
+        if (mountedRef.current && generationRef.current === generation) setActiveNodesLoading(false)
+      })
+    activeRequestRef.current = request
+    return request
+  }, [network])
+
+  useEffect(() => {
+    if (network === null) {
+      setActiveNodesLoading(false)
+      return
+    }
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const poll = async (showLoading = false): Promise<void> => {
+      await refreshActiveNodes(showLoading)
+      if (!cancelled) timer = setTimeout(() => void poll(), PEER_POLL_INTERVAL_MS)
+    }
+    void poll(true)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [network, refreshActiveNodes])
+
+  const applyMutation = useCallback(async (
+    mutation: PlatformNodeMutation,
+    action: () => Promise<void>,
+  ): Promise<void> => {
+    if (network === null || loadedNetwork !== network || !settingsReady) {
+      throw new Error('Wait for Platform node settings to load before editing them.')
+    }
+    if (pendingRef.current !== null) throw new Error('Another Platform setting is still being applied.')
+    const generation = generationRef.current
+    pendingRef.current = mutation
+    setPending(mutation)
+    setError(null)
+    try {
+      await action()
+      if (mountedRef.current && generationRef.current === generation) {
+        await refreshActiveNodes()
+      }
+    } catch (mutationError) {
+      if (mountedRef.current && generationRef.current === generation) {
+        setError(getErrorMessage(mutationError))
+      }
+      throw mutationError
+    } finally {
+      pendingRef.current = null
+      if (mountedRef.current) {
+        setSettingsReady(false)
+        setPending(null)
+        setLoadVersion(current => current + 1)
+      }
+    }
+  }, [loadedNetwork, network, refreshActiveNodes, settingsReady])
+
+  const setMode = useCallback(async (mode: PeerMode): Promise<void> => {
+    if (configuredMode === mode) return
+    await applyMutation('set-mode', () => API.setGrpcPoolMode(mode))
+  }, [applyMutation, configuredMode])
+
+  const addStaticNode = useCallback(async (url: string): Promise<boolean> => {
+    let next: string[]
+    try {
+      next = appendPlatformNode(staticNodes, url)
+    } catch (validationError) {
+      setError(getErrorMessage(validationError))
+      throw validationError
+    }
+    if (next.length === staticNodes.length) return false
+    await applyMutation('save-nodes', () => API.setEvonodes(network!, next))
+    return true
+  }, [applyMutation, network, staticNodes])
+
+  const removeStaticNode = useCallback(async (url: string): Promise<void> => {
+    const next = removePlatformNode(staticNodes, url)
+    if (next.length === staticNodes.length) return
+    await applyMutation('save-nodes', () => API.setEvonodes(network!, next))
+  }, [applyMutation, network, staticNodes])
+
+  const currentNetwork = loadedNetwork === network
+  const reload = useCallback((): void => {
+    if (pendingRef.current !== null) return
+    setError(null)
+    setLoadVersion(current => current + 1)
+    void refreshActiveNodes(true)
+  }, [refreshActiveNodes])
+
+  return {
+    configuredMode: currentNetwork ? configuredMode : null,
+    staticNodes: currentNetwork ? staticNodes : [],
+    activeNodes: currentNetwork ? activeNodes : [],
+    loading: loading || !currentNetwork,
+    activeNodesLoading,
+    settingsReady: currentNetwork && settingsReady,
+    pending,
+    error: currentNetwork ? error : null,
+    activeNodesError: currentNetwork ? activeNodesError : null,
+    reload,
+    setMode,
+    addStaticNode,
+    removeStaticNode,
+  }
+}
