@@ -1,5 +1,6 @@
 import type {
   ConnectionType,
+  DapiUrlStatus,
   Network,
   PeerInfo,
   PeerMode,
@@ -100,14 +101,57 @@ export interface UsePeerSettingsResult {
   unbanPeer: (peer: string) => Promise<void>
 }
 
-export interface ConnectionSelectOption {
-  value: string
-  label: string
-}
-
 export interface ConnectionModeDetails {
   title: string
   highlight: string
   description: string
   timing: string
+}
+
+export type PlatformNodeMutation = 'set-mode' | 'save-nodes'
+
+export interface PlatformNodeMutationSnapshot {
+  pending: PlatformNodeMutation | null
+  revision: number
+}
+
+export interface UsePlatformNodeSettingsResult {
+  configuredMode: PeerMode | null
+  activeNodes: DapiUrlStatus[]
+  staticNodes: string[]
+  hasStaticNodes: boolean
+  loading: boolean
+  activeNodesLoading: boolean
+  settingsReady: boolean
+  pending: PlatformNodeMutation | null
+  error: string | null
+  activeNodesError: string | null
+  reload: () => void
+  setMode: (mode: PeerMode) => Promise<void>
+  addStaticNode: (url: string) => Promise<boolean>
+  removeStaticNode: (url: string) => Promise<void>
+}
+
+export interface ConnectionSectionTitleProps {
+  label: string
+  tooltip: string
+  className?: string
+}
+
+export interface ConnectionSwitchPosition {
+  label: string
+  ariaLabel: string
+}
+
+export interface ConnectionSwitchProps {
+  checked: boolean | null
+  disabled?: boolean
+  label: string
+  positions?: readonly [ConnectionSwitchPosition, ConnectionSwitchPosition]
+  onChange: (checked: boolean) => void
+}
+
+export interface ConnectionSettingsRowProps {
+  label: string
+  children: React.ReactNode
 }

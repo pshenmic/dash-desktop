@@ -1,11 +1,12 @@
 import { ConnectionStatus, ConnectionType, Network, WalletSyncPhase } from '@renderer/api/types'
 import type {
   ConnectionModeDetails,
-  ConnectionSelectOption,
   ConnectionSettingsTabDefinition,
+  ConnectionSwitchPosition,
   PeerTableTab,
   PeerTableTabDefinition,
 } from '@renderer/types/connection'
+import type {DropdownFieldOption} from '@renderer/types/DropdownField'
 
 export const WALLET_CONNECTION_MODE_STORAGE_KEY = 'wallet.connection.desired'
 
@@ -102,29 +103,32 @@ export const REFRESH_FAILED_MESSAGE = '**Refresh incomplete** Some data could no
 
 export const RPC_CONNECTION_NAME = 'dashscan.io'
 
+export const RPC_CONNECTION_OPTIONS: DropdownFieldOption[] = [
+  {value: RPC_CONNECTION_NAME, label: RPC_CONNECTION_NAME},
+]
+
+export const PLATFORM_EXPLORER_CONNECTION_NAME = 'platform-explorer.pshenmic.dev'
+
+export const PLATFORM_EXPLORER_CONNECTION_OPTIONS: DropdownFieldOption[] = [
+  {value: PLATFORM_EXPLORER_CONNECTION_NAME, label: PLATFORM_EXPLORER_CONNECTION_NAME},
+]
+
 export const CONNECTION_SETTINGS_TABS: ConnectionSettingsTabDefinition[] = [
   {value: 'core', label: 'Core'},
-  // {value: 'platform', label: 'Platform'},
+  {value: 'platform', label: 'Platform'},
 ]
 
 export const CONNECTION_SETTINGS_DESCRIPTION =
-  'Here you can change your connection settings with flexible options. Turning on RPC and P2P Modes for Core at the same time will result in synchronization with both of those options. (You can use wallet while P2P data synchronizes)'
+  'Manage your Core and Platform connections. Core can synchronize P2P data in the background while you use RPC. For Platform, choose automatic node selection or manage your static nodes.'
 
 export const CORE_CONNECTION_MODE_LABELS: Record<ConnectionType, string> = {
   p2p: 'P2P',
   rpc: 'RPC',
 }
 
-export const CORE_CONNECTION_MODE_OPTIONS: ConnectionType[] = ['p2p', 'rpc']
-
-export const RPC_CONNECTION_OPTIONS: ConnectionSelectOption[] = [
-  {value: RPC_CONNECTION_NAME, label: RPC_CONNECTION_NAME},
-]
-
-export const PLATFORM_EXPLORER_CONNECTION_NAME = 'platform-explorer.pshenmic.dev'
-
-export const PLATFORM_EXPLORER_CONNECTION_OPTIONS: ConnectionSelectOption[] = [
-  {value: PLATFORM_EXPLORER_CONNECTION_NAME, label: PLATFORM_EXPLORER_CONNECTION_NAME},
+export const CORE_CONNECTION_SWITCH_POSITIONS: readonly [ConnectionSwitchPosition, ConnectionSwitchPosition] = [
+  {label: CORE_CONNECTION_MODE_LABELS.p2p, ariaLabel: 'Use P2P mode'},
+  {label: CORE_CONNECTION_MODE_LABELS.rpc, ariaLabel: 'Use RPC mode'},
 ]
 
 export const PEER_TABLE_TABS: PeerTableTabDefinition[] = [
@@ -234,11 +238,6 @@ export const DEFAULT_PEER_PORTS: Record<Network, number> = {
   testnet: 19999,
 }
 
-export const PLATFORM_ROW_LABELS = {
-  dapi: 'Enable GRPC',
-  explorer: 'Enable Platform Explorer API',
-} as const
-
 export const CONNECTION_SETTINGS_TOOLTIPS = {
   general:
     'Choose whether the wallet displays Core data from Dashscan RPC or locally synchronized P2P data.',
@@ -249,9 +248,11 @@ export const CONNECTION_SETTINGS_TOOLTIPS = {
   peers:
     'View connected peers and manage per-network dynamic, banned, and static peer lists. Static peer mode applies to the whole app, while each network keeps its own peer list.',
   dapi:
-    'DAPI is used to query decentralized Platform data, including balances and documents. This switch is visual only for now.',
+    'DAPI is used to query decentralized Platform data, including balances and documents.',
+  platformNodes:
+    'Auto discovers Platform nodes automatically. Static uses the saved list for this network, falling back to automatic discovery if it is empty. The mode applies to the whole app; saved lists are separate for each network. New nodes must respond before they can be saved.',
   platformExplorer:
-    'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups. These controls are visual only for now.',
+    'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups.',
 } as const
 
 export const SYNC_PROGRESS_COMPLETE_HOLD_MS = 500

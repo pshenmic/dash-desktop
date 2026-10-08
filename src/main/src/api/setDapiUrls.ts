@@ -1,10 +1,11 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
 import {z} from 'zod'
+import {DAPI_URL_HOSTNAME_PATTERN, DAPI_URL_PROTOCOL_PATTERN} from '../constants/dapi'
 import {NetworkNameSchema} from '../preferences/network'
 import {ApplicationService} from '../services/app/ApplicationService'
 import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
 
-const ArgsSchema = z.object({network: NetworkNameSchema, dapiUrls: z.array(z.url({protocol: /^https$/}))})
+const ArgsSchema = z.object({network: NetworkNameSchema, dapiUrls: z.array(z.url({protocol: DAPI_URL_PROTOCOL_PATTERN, hostname: DAPI_URL_HOSTNAME_PATTERN}))})
 
 export class SetDapiUrlsHandler {
   private applicationService: ApplicationService
