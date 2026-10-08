@@ -23,6 +23,15 @@ export class SetEvonodesHandler {
     }
 
     const preferences = this.applicationService.preferences
+    const stored = preferences.network.evonodes[args.data.network]
+    const added = args.data.evonodes.filter(dapiUrl => !stored.includes(dapiUrl))
+    const statuses = await Promise.all(added.map(dapiUrl =>
+      this.platformWorkerService.request('evonodeStatus', args.data.network, {dapiUrl})))
+    const unreachable = statuses.filter(status => status.error != null)
+    if (unreachable.length > 0) {
+      throw new Error(`Unreachable evonode ${unreachable.map(status => `${status.dapiUrl}: ${status.error}`).join(', ')}`)
+    }
+
     await preferences.apply({
       ...preferences,
       network: {

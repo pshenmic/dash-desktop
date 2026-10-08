@@ -308,14 +308,15 @@ export interface NetworkPreferencesJSON {
   evonodes: EvonodesJSON
 }
 
-// Every field but the url is null when the evonode did not answer getStatus;
-// proTxHash too when no quorum entry supplied it.
+// Every field but the url and `error` is null when the evonode did not answer
+// getStatus; `error` says why.
 export interface Evonode {
   proTxHash: string | null
   dapiUrl: string
   pingMs: number | null
   driveVersion: string | null
   blockHeight: bigint | null
+  error: string | null
 }
 
 export interface PreferencesJSON {

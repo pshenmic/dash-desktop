@@ -72,13 +72,15 @@ export interface AddressInfo {
   nonce: number
 }
 
-// Every field but the url is null when the evonode did not answer getStatus.
+// Every field but the url and `error` is null when the evonode did not answer
+// getStatus; `error` says why.
 export interface EvonodeStatus {
   dapiUrl: string
   proTxHash: string | null
   pingMs: number | null
   driveVersion: string | null
   blockHeight: bigint | null
+  error: string | null
 }
 
 export interface Recipient {
@@ -358,6 +360,10 @@ export interface PlatformOperations {
   activeEvonodes: {
     payload: Record<string, never>
     result: EvonodeStatus[]
+  }
+  evonodeStatus: {
+    payload: {dapiUrl: string}
+    result: EvonodeStatus
   }
   poolInfo: {
     payload: Record<string, never>

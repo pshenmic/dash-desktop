@@ -94,6 +94,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityScan':
     case 'nodeStatus':
     case 'activeEvonodes':
+    case 'evonodeStatus':
     case 'poolInfo':
     case 'notesCount':
     case 'encryptedNotes':

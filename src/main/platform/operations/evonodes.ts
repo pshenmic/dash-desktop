@@ -5,10 +5,12 @@ import {EVONODE_STATUS_TIMEOUT_MS} from '../constants'
 import {EvonodeStatus} from '../types/messages'
 
 export function probeActiveEvonodes(dapiUrls: string[], network: Network): Promise<EvonodeStatus[]> {
-  return Promise.all(dapiUrls.map(dapiUrl => probe(dapiUrl, network)))
+  return Promise.all(dapiUrls.map(dapiUrl => probeEvonode(dapiUrl, network)))
 }
 
-async function probe(dapiUrl: string, network: Network): Promise<EvonodeStatus> {
+// Every failure answers rather than rejecting: a caller waiting on the IPC
+// reply would otherwise sit out its own timeout for an error already known.
+export async function probeEvonode(dapiUrl: string, network: Network): Promise<EvonodeStatus> {
   const abortController = new AbortController()
   const timer = setTimeout(() => abortController.abort(), EVONODE_STATUS_TIMEOUT_MS)
   const started = performance.now()
@@ -20,9 +22,13 @@ async function probe(dapiUrl: string, network: Network): Promise<EvonodeStatus> 
       pingMs: Math.round(performance.now() - started),
       driveVersion: nodeStatus.version?.software?.drive ?? null,
       blockHeight: nodeStatus.chain != null ? BigInt(nodeStatus.chain.latestBlockHeight) : null,
+      error: null,
     }
-  } catch {
-    return {dapiUrl, proTxHash: null, pingMs: null, driveVersion: null, blockHeight: null}
+  } catch (err) {
+    const error = abortController.signal.aborted
+      ? `no getStatus answer within ${EVONODE_STATUS_TIMEOUT_MS}ms`
+      : err instanceof Error ? err.message : String(err)
+    return {dapiUrl, proTxHash: null, pingMs: null, driveVersion: null, blockHeight: null, error}
   } finally {
     clearTimeout(timer)
   }
