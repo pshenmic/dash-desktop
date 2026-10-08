@@ -14,6 +14,10 @@ export type WordCount = 12 | 24
 
 export type WalletCreationPath = 'create' | 'import'
 
+export interface AuthBackgroundProps {
+  variant: 'welcome' | 'create' | 'login'
+}
+
 export interface UseCreateWalletState {
   step: CreateWalletStep
   password: string

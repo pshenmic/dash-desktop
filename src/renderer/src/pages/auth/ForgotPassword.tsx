@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DashLogo, useTheme } from 'dash-ui-kit/react'
-import { Text, Button, Input, WalletIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { ChevronIcon, DashLogo, useTheme } from 'dash-ui-kit/react'
+import { Text, Button, Input } from '@renderer/components/dash-ui-kit-enxtended'
 import { Link } from 'react-router-dom'
 import {
   authTexts,
@@ -12,9 +12,8 @@ import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { toast } from '@renderer/components/ui/Toast'
 import { toDropdownOptions } from '@renderer/utils/wallets'
 import { getPasswordValidationError } from '@renderer/utils/passwordValidation'
-import bgLight from '@renderer/assets/images/pageAuthorization/bg-light.svg'
-import bgDark from '@renderer/assets/images/pageAuthorization/bg-dark.svg'
-import wave from '@renderer/assets/images/pageAuthorization/wave.png'
+import { useRipple } from '@renderer/hooks/useRipple'
+import AuthBackground from '@renderer/components/pages/auth/AuthBackground'
 import WalletSelect from '@renderer/components/ui/WalletSelect'
 import ImportSeedPhrase from '@renderer/components/pages/auth/ImportSeedPhrase'
 import { API } from '@renderer/api'
@@ -24,8 +23,8 @@ export default function ForgotPasswordPage(): React.JSX.Element {
   const { seedPhraseWarning } = authTexts
   const { forgotPassword: { seedMismatch, resetFailed }, createWallet: { passwordValidation } } = messages
   const { theme } = useTheme()
-  const backgroundImage = theme === 'dark' ? bgDark : bgLight
   const iconColor = theme === 'dark' ? '#ffffff' : ''
+  const hoverAnimation = useRipple()
 
   const wallets = useWallets()
   const walletOptions = useMemo(() => toDropdownOptions(wallets), [wallets])
@@ -93,18 +92,22 @@ export default function ForgotPasswordPage(): React.JSX.Element {
 
   return (
     <div className={"relative flex min-h-screen items-end"}>
-      <img
-        src={backgroundImage}
-        alt={"background gradient"}
-        className={"dash-bg-image-auth"}
-      />
-      <img
-        src={wave}
-        alt={"wave"}
-        className={"dash-bg-image-auth"}
-      />
+      <AuthBackground variant="login" />
 
-      <div className={"relative flex flex-col w-full h-full p-12 pt-[25vh]"}>
+      {step !== ForgotPasswordStep.Success && (
+        <Link
+          to="/"
+          aria-label={form.backToLogin}
+          onMouseEnter={hoverAnimation.onMouseEnter}
+          onMouseMove={hoverAnimation.onMouseMove}
+          onMouseLeave={hoverAnimation.onMouseLeave}
+          className="absolute top-12 left-12 z-50 flex size-12 items-center justify-center overflow-hidden rounded-[.9375rem] bg-dash-brand/80 dark:bg-white/12 backdrop-blur-[.5rem] cursor-pointer"
+        >
+          <ChevronIcon size={17} className="rotate-90 text-white" />
+        </Link>
+      )}
+
+      <div className={"relative flex flex-col w-full h-full p-12 pt-[max(9rem,25vh)]"}>
         <div className={"flex flex-col w-full mb-8"}>
           <DashLogo containerSize={50} />
           <Text as={"h1"} className={"mt-6 leading-[78%] tracking-[-0.03em]"} color={"brand"} size={64} weight={"extrabold"}>
@@ -201,40 +204,6 @@ export default function ForgotPasswordPage(): React.JSX.Element {
               {form.backToLogin}
             </Button>
           </Link>
-        )}
-
-        {step !== ForgotPasswordStep.Success && (
-          <div className={"flex items-center justify-center gap-[.9375rem] mt-6"}>
-            <Link
-              to={"/"}
-              className={"flex items-center gap-2 group"}
-              aria-label={`${form.backToLogin} link`}
-            >
-              <WalletIcon
-                size={16}
-                className={`
-                  dash-text-default opacity-35
-                  group-hover:opacity-100
-                  group-hover:text-dash-brand
-                  dark:group-hover:text-dash-mint
-                  transition-[opacity,color]
-                `}
-              />
-              <Text
-                size={16}
-                color={"brand"}
-                opacity={30}
-                className={`
-                  group-hover:opacity-100
-                  group-hover:text-dash-brand
-                  dark:group-hover:text-dash-mint
-                  transition-[opacity,color]
-                `}
-              >
-                {form.backToLogin}
-              </Text>
-            </Link>
-          </div>
         )}
 
       </div>
