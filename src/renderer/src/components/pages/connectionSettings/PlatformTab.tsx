@@ -23,7 +23,7 @@ import {
   ADD_PLATFORM_NODE_PLACEHOLDER,
   PLATFORM_NODE_COLUMN_LABELS,
   PLATFORM_NODE_MODE_LABELS,
-  PLATFORM_NODE_MODE_OPTIONS,
+  PLATFORM_NODE_SWITCH_POSITIONS,
   PLATFORM_NODE_TABLE_GRID_CLASS_NAME,
   PLATFORM_NODE_TABLE_TABS,
   PLATFORM_STATIC_NODE_REQUIRED_MESSAGE,
@@ -31,35 +31,12 @@ import {
 import type {PeerMode} from '@renderer/api/types'
 import type {
   AddPlatformNodeFormProps,
-  PlatformNodeModeSelectorProps,
   PlatformNodeRowProps,
   PlatformNodeTableTab,
 } from '@renderer/types/platformNodes'
 import {buildPlatformNodeRows, getPlatformNodeEmptyLabel} from '@renderer/utils/platformNodes'
 import {getErrorMessage} from '@renderer/utils/error'
-import {SectionTitle, SettingsRow} from './SettingsControls'
-
-function NodeModeSelector({mode, disabled, onChange}: PlatformNodeModeSelectorProps): React.JSX.Element {
-  return (
-    <div role="group" aria-label="Platform node selection mode" className="flex shrink-0 rounded-full bg-dash-primary-dark-blue/8 p-1 dark:bg-white/10">
-      {PLATFORM_NODE_MODE_OPTIONS.map(option => (
-        <button
-          key={option}
-          type="button"
-          aria-label={`Use ${PLATFORM_NODE_MODE_LABELS[option]} Platform nodes`}
-          aria-pressed={mode === option}
-          disabled={disabled}
-          onClick={() => mode !== option && onChange(option)}
-          className={`cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${mode === option
-            ? 'bg-dash-brand text-white shadow-sm dark:bg-dash-mint dark:text-dash-primary-dark-blue'
-            : 'text-dash-primary-dark-blue/50 dark:text-white/50'}`}
-        >
-          {PLATFORM_NODE_MODE_LABELS[option]}
-        </button>
-      ))}
-    </div>
-  )
-}
+import {SectionTitle, SettingsRow, SwitchControl} from './SettingsControls'
 
 function AddNodeForm({disabled, onClose, onSubmit}: AddPlatformNodeFormProps): React.JSX.Element {
   const [url, setUrl] = useState('')
@@ -232,10 +209,12 @@ export default function PlatformTab(): React.JSX.Element {
       <SectionTitle label="DAPI Connection" tooltip={CONNECTION_SETTINGS_TOOLTIPS.dapi} />
       <div className="grid max-w-[24rem] gap-4">
         <SettingsRow label="Node Selection">
-          <NodeModeSelector
-            mode={nodeSettings.configuredMode}
+          <SwitchControl
+            checked={nodeSettings.configuredMode === null ? null : nodeSettings.configuredMode === 'static'}
             disabled={!nodeSettings.settingsReady || mutationPending}
-            onChange={mode => void handleModeChange(mode)}
+            label="Platform node selection mode"
+            positions={PLATFORM_NODE_SWITCH_POSITIONS}
+            onChange={checked => void handleModeChange(checked ? 'static' : 'dynamic')}
           />
         </SettingsRow>
       </div>

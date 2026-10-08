@@ -18,8 +18,7 @@ import {
   ADD_PEER_PLACEHOLDER,
   BANNED_PEER_STATUS_LABEL,
   CONNECTION_SETTINGS_TOOLTIPS,
-  CORE_CONNECTION_MODE_LABELS,
-  CORE_CONNECTION_MODE_OPTIONS,
+  CORE_CONNECTION_SWITCH_POSITIONS,
   DYNAMIC_PEER_ADDED_MESSAGE,
   DYNAMIC_PEER_ALREADY_ADDED_MESSAGE,
   DYNAMIC_PEER_MODE_ENABLED_MESSAGE,
@@ -57,60 +56,9 @@ import type {
   PeerRowAction,
   PeerTableRow,
   PeerTableTab,
-  WalletConnectionMode,
   WalletSyncAction,
 } from '@renderer/types/connection'
 import {SectionTitle, SettingsRow, SwitchControl} from './SettingsControls'
-
-function WalletConnectionSelector({
-  desired,
-  ready,
-  setDesired,
-}: {
-  desired: WalletConnectionMode
-  ready: boolean
-  setDesired: (next: WalletConnectionMode) => void
-}): React.JSX.Element {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Wallet connection mode"
-      className="relative grid h-10 w-[3.25rem] shrink-0 grid-cols-2"
-    >
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-6 rounded-full bg-dash-primary-dark-blue/15 dark:bg-white/15"
-      >
-        <span
-          className={`
-            block size-6 rounded-full bg-dash-brand shadow-sm transition-transform dark:bg-dash-mint
-            ${desired === 'rpc' ? 'translate-x-7' : 'translate-x-0'}
-          `}
-        />
-      </div>
-      {CORE_CONNECTION_MODE_OPTIONS.map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          role="radio"
-          aria-label={`Use ${CORE_CONNECTION_MODE_LABELS[mode]} mode`}
-          aria-checked={desired === mode}
-          disabled={!ready}
-          onClick={() => desired !== mode && setDesired(mode)}
-          className={`
-            relative z-10 flex cursor-pointer items-start justify-center text-[9px] font-medium leading-none
-            disabled:cursor-wait disabled:opacity-60
-            ${desired === mode
-              ? 'text-dash-brand dark:text-dash-mint'
-              : 'text-dash-primary-dark-blue/45 dark:text-white/45'}
-          `}
-        >
-          {CORE_CONNECTION_MODE_LABELS[mode]}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function AddPeerForm({
   pendingLabel,
@@ -501,7 +449,13 @@ export default function CoreTab(): React.JSX.Element {
       <SectionTitle label="General" tooltip={CONNECTION_SETTINGS_TOOLTIPS.general} />
       <div className="max-w-[24rem]">
         <SettingsRow label="Wallet Connection">
-          <WalletConnectionSelector desired={desired} ready={ready} setDesired={setDesired} />
+          <SwitchControl
+            checked={desired === 'rpc'}
+            disabled={!ready}
+            label="Wallet connection mode"
+            positions={CORE_CONNECTION_SWITCH_POSITIONS}
+            onChange={checked => setDesired(checked ? 'rpc' : 'p2p')}
+          />
         </SettingsRow>
       </div>
 

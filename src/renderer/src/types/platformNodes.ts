@@ -1,5 +1,3 @@
-import type {PeerMode} from '@renderer/api/types'
-
 export type PlatformNodeTableTab = 'active' | 'static'
 
 export interface PlatformNodeTableTabDefinition {
@@ -18,12 +16,6 @@ export interface PlatformNodeRow {
   available: boolean
   proTxHash: string | null
   error: string | null
-}
-
-export interface PlatformNodeModeSelectorProps {
-  mode: PeerMode | null
-  disabled: boolean
-  onChange: (mode: PeerMode) => void
 }
 
 export interface AddPlatformNodeFormProps {

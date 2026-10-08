@@ -2,6 +2,7 @@ import { ConnectionStatus, ConnectionType, Network, WalletSyncPhase } from '@ren
 import type {
   ConnectionModeDetails,
   ConnectionSettingsTabDefinition,
+  ConnectionSwitchPosition,
   PeerTableTab,
   PeerTableTabDefinition,
 } from '@renderer/types/connection'
@@ -125,7 +126,10 @@ export const CORE_CONNECTION_MODE_LABELS: Record<ConnectionType, string> = {
   rpc: 'RPC',
 }
 
-export const CORE_CONNECTION_MODE_OPTIONS: ConnectionType[] = ['p2p', 'rpc']
+export const CORE_CONNECTION_SWITCH_POSITIONS: readonly [ConnectionSwitchPosition, ConnectionSwitchPosition] = [
+  {label: CORE_CONNECTION_MODE_LABELS.p2p, ariaLabel: 'Use P2P mode'},
+  {label: CORE_CONNECTION_MODE_LABELS.rpc, ariaLabel: 'Use RPC mode'},
+]
 
 export const PEER_TABLE_TABS: PeerTableTabDefinition[] = [
   {value: 'active', label: 'Active'},

@@ -1,12 +1,16 @@
 import type {PeerMode} from '@renderer/api/types'
 import type {PlatformNodeTableTabDefinition} from '@renderer/types/platformNodes'
-
-export const PLATFORM_NODE_MODE_OPTIONS: PeerMode[] = ['dynamic', 'static']
+import type {ConnectionSwitchPosition} from '@renderer/types/connection'
 
 export const PLATFORM_NODE_MODE_LABELS: Record<PeerMode, string> = {
   dynamic: 'Auto',
   static: 'Static',
 }
+
+export const PLATFORM_NODE_SWITCH_POSITIONS: readonly [ConnectionSwitchPosition, ConnectionSwitchPosition] = [
+  {label: PLATFORM_NODE_MODE_LABELS.dynamic, ariaLabel: 'Use Auto Platform nodes'},
+  {label: PLATFORM_NODE_MODE_LABELS.static, ariaLabel: 'Use Static Platform nodes'},
+]
 
 export const PLATFORM_STATIC_NODE_REQUIRED_MESSAGE =
   'Add a static node for this network before enabling Static mode.'

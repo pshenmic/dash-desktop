@@ -138,11 +138,17 @@ export interface ConnectionSectionTitleProps {
   className?: string
 }
 
+export interface ConnectionSwitchPosition {
+  label: string
+  ariaLabel: string
+}
+
 export interface ConnectionSwitchProps {
-  checked: boolean
+  checked: boolean | null
   disabled?: boolean
   label: string
-  onChange: () => void
+  positions?: readonly [ConnectionSwitchPosition, ConnectionSwitchPosition]
+  onChange: (checked: boolean) => void
 }
 
 export interface ConnectionSettingsRowProps {
