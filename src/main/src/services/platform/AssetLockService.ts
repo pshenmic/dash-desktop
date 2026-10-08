@@ -222,7 +222,7 @@ export class AssetLockService {
 
     // Platform validates the proof against its own chainlocked core height.
     if (dapiTx == null || dapiTx.confirmations < 1 || (chain?.coreChainLockedHeight ?? 0) < dapiTx.height) {
-      throw new Error('The asset lock transaction is not chainlocked yet — please wait a few minutes and resume again')
+      throw new Error('The asset lock transaction is not chainlocked yet - please wait a few minutes and resume again')
     }
 
     const proof: AssetLockProofParams = {type: 'chainLock', coreChainLockedHeight: dapiTx.height}
