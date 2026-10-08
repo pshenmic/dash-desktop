@@ -25,7 +25,7 @@ export const PLATFORM_NODE_TABLE_GRID_CLASS_NAME =
 
 export const PLATFORM_NODE_COLUMN_LABELS = ['Nodes', 'Drive Version', 'Block Height', 'Ping Time'] as const
 
-export const ADD_PLATFORM_NODE_PLACEHOLDER = 'Enter HTTPS URL (https://host:port)'
+export const ADD_PLATFORM_NODE_PLACEHOLDER = 'Enter node URL (https://1.2.3.4:1443)'
 
 export const PLATFORM_NODE_UNAVAILABLE_LABEL = '—'
 
@@ -44,4 +44,12 @@ export const PLATFORM_NODE_EMPTY_LABELS = {
   static: 'No static Platform nodes.',
 } as const
 
-export const PLATFORM_NODE_INVALID_URL_MESSAGE = 'Enter a valid HTTPS URL, for example https://node.example.org:1443.'
+export const PLATFORM_NODE_INVALID_URL_MESSAGE =
+  'Enter an http or https URL with an IP address host, for example https://1.2.3.4:1443.'
+
+export const PLATFORM_NODE_URL_PROTOCOLS = ['http:', 'https:'] as const
+
+export const IPV4_HOST_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/
+
+// The scheme, optional userinfo, and host exactly as typed, before URL canonicalises it.
+export const TYPED_URL_HOST_PATTERN = /^[a-z][a-z\d+.-]*:\/\/(?:[^@/?#]*@)?([^:/?#]*)/i

@@ -87,10 +87,10 @@ vi.mock('@renderer/api', () => ({API: {
 
 import {usePlatformNodeSettings} from '../../src/renderer/src/hooks/usePlatformNodeSettings'
 
-const firstUrl = 'https://first.example:1443'
-const secondUrl = 'https://second.example:1443'
-const addedUrl = 'https://added.example:1443'
-const mainnetUrl = 'https://mainnet.example'
+const firstUrl = 'https://10.0.0.1:1443'
+const secondUrl = 'https://10.0.0.2:1443'
+const addedUrl = 'https://10.0.0.3:1443'
+const mainnetUrl = 'https://10.0.0.4'
 const firstNode: DapiUrlStatus = {
   dapiUrl: firstUrl,
   proTxHash: 'first-pro-tx-hash',
@@ -242,7 +242,7 @@ describe('Platform node settings IPC and persistence', () => {
     await flushPromises()
     const loading = render()
     expect(loading.settingsReady).toBe(false)
-    await expect(loading.addStaticNode('https://another.example:1443')).rejects.toThrow('Wait for Platform node settings')
+    await expect(loading.addStaticNode('https://10.0.0.5:1443')).rejects.toThrow('Wait for Platform node settings')
     expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
     reloaded.resolve([firstUrl, secondUrl, addedUrl])
     await flushPromises()
@@ -314,7 +314,7 @@ describe('Platform node settings request races', () => {
     const initial = await load()
     const write = Promise.withResolvers<void>()
     const authoritative = Promise.withResolvers<string[]>()
-    const nextUrl = 'https://next.example:1443'
+    const nextUrl = 'https://10.0.0.6:1443'
     harness.setDapiUrls.mockImplementationOnce(async (network: Network, nodes: string[]) => {
       await write.promise
       harness.nodes[network] = [...nodes]
@@ -347,7 +347,7 @@ describe('Platform node settings request races', () => {
     unmount()
     const current = await load()
     await current.addStaticNode(addedUrl)
-    await expect(stale.addStaticNode('https://stale.example:1443')).rejects.toThrow('Wait for Platform node settings')
+    await expect(stale.addStaticNode('https://10.0.0.7:1443')).rejects.toThrow('Wait for Platform node settings')
     expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
     expect((await reconcile()).staticNodes).toEqual([firstUrl, secondUrl, addedUrl])
   })
@@ -387,7 +387,7 @@ describe('Platform node settings request races', () => {
     await rejected
     const reloading = await reconcile()
     expect(reloading).toMatchObject({settingsReady: false, pending: null})
-    await expect(reloading.addStaticNode('https://next.example:1443')).rejects.toThrow('Wait for Platform node settings')
+    await expect(reloading.addStaticNode('https://10.0.0.6:1443')).rejects.toThrow('Wait for Platform node settings')
     expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
     authoritative.resolve([firstUrl, secondUrl, addedUrl])
     await flushPromises()

@@ -37,27 +37,37 @@ describe('Platform node URLs', () => {
     expect(platformNodeIdentity(' malformed saved entry ')).toBe('malformed saved entry')
   })
 
-  it('rejects missing, malformed, and non-HTTPS entries with a useful error', () => {
-    for (const input of ['', 'node.example.org:1443', 'https://', 'http://node.example.org', 'ftp://node.example.org']) {
-      expect(() => appendPlatformNode([], input)).toThrow('Enter a valid HTTPS URL')
+  it('rejects missing, malformed, non-HTTP and non-IP entries with a useful error', () => {
+    for (const input of [
+      '', '1.2.3.4:1443', 'https://', 'ftp://1.2.3.4', 'https://node.example.org:1443', 'http://localhost:1443',
+      'https://1.2.3.256:1443', 'https://127.1:1443', 'https://0x7f.0.0.1:1443', 'https://2130706433:1443',
+      'https://127.0.0.01:1443',
+    ]) {
+      expect(() => appendPlatformNode([], input)).toThrow('Enter an http or https URL with an IP address host')
     }
-    expect(appendPlatformNode([], ' https://[2001:db8::1]:1443 '))
-      .toEqual(['https://[2001:db8::1]:1443'])
+  })
+
+  it('accepts IPv4 and IPv6 hosts over http or https', () => {
+    for (const input of [
+      'https://127.0.0.1:1443', 'http://127.0.0.1:1443', 'https://1.2.3.4', 'https://[2001:db8::1]:1443',
+    ]) {
+      expect(appendPlatformNode([], ` ${input} `)).toEqual([input])
+    }
   })
 
   it('adds and removes normalized targets without rewriting unrelated saved entries', () => {
-    const entries = [' HTTPS://NODE.example.org:443 ', 'https://other.example.org:1443', 'https://other.example.org:1443/']
-    expect(appendPlatformNode(entries, 'https://node.example.org/')).toEqual([
-      'HTTPS://NODE.example.org:443', 'https://other.example.org:1443', 'https://other.example.org:1443/',
+    const entries = [' HTTPS://1.2.3.4:443 ', 'https://5.6.7.8:1443', 'https://5.6.7.8:1443/']
+    expect(appendPlatformNode(entries, 'https://1.2.3.4/')).toEqual([
+      'HTTPS://1.2.3.4:443', 'https://5.6.7.8:1443', 'https://5.6.7.8:1443/',
     ])
-    expect(appendPlatformNode(entries, ' https://third.example.org:1443 ')).toEqual([
-      'HTTPS://NODE.example.org:443', 'https://other.example.org:1443', 'https://other.example.org:1443/',
-      'https://third.example.org:1443',
+    expect(appendPlatformNode(entries, ' http://9.10.11.12:1443 ')).toEqual([
+      'HTTPS://1.2.3.4:443', 'https://5.6.7.8:1443', 'https://5.6.7.8:1443/',
+      'http://9.10.11.12:1443',
     ])
-    expect(removePlatformNode(entries, 'https://node.example.org/')).toEqual([
-      'https://other.example.org:1443', 'https://other.example.org:1443/',
+    expect(removePlatformNode(entries, 'https://1.2.3.4/')).toEqual([
+      'https://5.6.7.8:1443', 'https://5.6.7.8:1443/',
     ])
-    expect(removePlatformNode(['https://node.example.org:443'], 'https://node.example.org/')).toEqual([])
+    expect(removePlatformNode(['https://1.2.3.4:443'], 'https://1.2.3.4/')).toEqual([])
   })
 })
 

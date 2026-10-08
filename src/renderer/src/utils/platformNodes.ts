@@ -1,9 +1,12 @@
 import type {DapiUrlStatus, Network, PeerMode} from '@renderer/api/types'
 import {
+  IPV4_HOST_PATTERN,
   PLATFORM_NODE_EMPTY_LABELS,
   PLATFORM_NODE_INVALID_URL_MESSAGE,
   PLATFORM_NODE_STATE_LABELS,
   PLATFORM_NODE_UNAVAILABLE_LABEL,
+  PLATFORM_NODE_URL_PROTOCOLS,
+  TYPED_URL_HOST_PATTERN,
 } from '@renderer/constants/platformNodes'
 import type {PlatformNodeRow, PlatformNodeTableTab} from '@renderer/types/platformNodes'
 
@@ -22,13 +25,24 @@ export function platformNodeIdentity(input: string): string {
   }
 }
 
+export function isPlatformNodeUrl(input: string): boolean {
+  let url: URL
+  try {
+    url = new URL(input)
+  } catch {
+    return false
+  }
+  if (!(PLATFORM_NODE_URL_PROTOCOLS as readonly string[]).includes(url.protocol)) return false
+  // URL validates bracketed IPv6 itself, but resolves any other host it can read
+  // as a number (1, 127.1, 0x7f.0.0.1) to a dotted quad, so IPv4 is checked as typed.
+  if (url.hostname.startsWith('[')) return true
+  const typedHost = TYPED_URL_HOST_PATTERN.exec(input)?.[1]
+  return typedHost === url.hostname && IPV4_HOST_PATTERN.test(typedHost)
+}
+
 export function appendPlatformNode(entries: string[], input: string): string[] {
   const trimmed = input.trim()
-  try {
-    if (new URL(trimmed).protocol !== 'https:') throw new Error()
-  } catch {
-    throw new Error(PLATFORM_NODE_INVALID_URL_MESSAGE)
-  }
+  if (!isPlatformNodeUrl(trimmed)) throw new Error(PLATFORM_NODE_INVALID_URL_MESSAGE)
 
   const identity = platformNodeIdentity(trimmed)
   const saved = entries.map(entry => entry.trim())
