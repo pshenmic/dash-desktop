@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach} from 'vitest'
-import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/manage/createWallet'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'

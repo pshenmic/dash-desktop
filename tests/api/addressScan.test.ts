@@ -4,7 +4,7 @@ import {WalletProviderFactory} from '../../src/main/src/providers/WalletProvider
 import {Knex} from 'knex'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
-import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/manage/createWallet'
 import {WalletProvider} from '../../src/main/src/providers/WalletProvider'
 import {AddressUsage} from '../../src/main/src/types/AddressDiscovery'
 import {coreAddressDeriver} from '../../src/main/src/utils/addressDiscovery'

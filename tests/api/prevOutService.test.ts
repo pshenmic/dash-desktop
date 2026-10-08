@@ -1,6 +1,6 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {Output, Transaction as SDKTransaction} from 'dash-core-sdk'
-import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/manage/createWallet'
 import {CorePrevOutService} from '../../src/main/src/services/core/CorePrevOutService'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'

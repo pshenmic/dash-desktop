@@ -1,6 +1,6 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
-import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/manage/createWallet'
 import {WalletProvider} from '../../src/main/src/providers/WalletProvider'
 import {WalletProviderFactory} from '../../src/main/src/providers/WalletProviderFactory'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'

@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach, vi} from 'vitest'
-import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/manage/createWallet'
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'

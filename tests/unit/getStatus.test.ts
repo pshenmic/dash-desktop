@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {GetStatusHandler} from '../../src/main/src/api/getStatus'
+import {GetStatusHandler} from '../../src/main/src/api/app/getStatus'
 
 describe('getStatus', () => {
   it('returns the selected wallet data revision', async () => {
