@@ -104,11 +104,11 @@ export const RPC_CONNECTION_NAME = 'dashscan.io'
 
 export const CONNECTION_SETTINGS_TABS: ConnectionSettingsTabDefinition[] = [
   {value: 'core', label: 'Core'},
-  // {value: 'platform', label: 'Platform'},
+  {value: 'platform', label: 'Platform'},
 ]
 
 export const CONNECTION_SETTINGS_DESCRIPTION =
-  'Here you can change your connection settings with flexible options. Turning on RPC and P2P Modes for Core at the same time will result in synchronization with both of those options. (You can use wallet while P2P data synchronizes)'
+  'Manage your Core and Platform connections. Core can synchronize P2P data in the background while you use RPC. For Platform, choose automatic node selection or manage your static nodes.'
 
 export const CORE_CONNECTION_MODE_LABELS: Record<ConnectionType, string> = {
   p2p: 'P2P',
@@ -250,6 +250,8 @@ export const CONNECTION_SETTINGS_TOOLTIPS = {
     'View connected peers and manage per-network dynamic, banned, and static peer lists. Static peer mode applies to the whole app, while each network keeps its own peer list.',
   dapi:
     'DAPI is used to query decentralized Platform data, including balances and documents. This switch is visual only for now.',
+  platformNodes:
+    'Auto selects Platform nodes automatically and can also use saved nodes. Static uses the saved list for this network. The mode applies to the whole app; saved lists are separate for each network.',
   platformExplorer:
     'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups. These controls are visual only for now.',
 } as const

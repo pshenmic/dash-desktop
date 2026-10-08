@@ -1,5 +1,6 @@
 import type {
   ConnectionType,
+  Evonode,
   Network,
   PeerInfo,
   PeerMode,
@@ -110,4 +111,40 @@ export interface ConnectionModeDetails {
   highlight: string
   description: string
   timing: string
+}
+
+export type PlatformNodeMutation = 'set-mode' | 'save-nodes'
+
+export interface UsePlatformNodeSettingsResult {
+  configuredMode: PeerMode | null
+  activeNodes: Evonode[]
+  staticNodes: string[]
+  loading: boolean
+  activeNodesLoading: boolean
+  settingsReady: boolean
+  pending: PlatformNodeMutation | null
+  error: string | null
+  activeNodesError: string | null
+  reload: () => void
+  setMode: (mode: PeerMode) => Promise<void>
+  addStaticNode: (url: string) => Promise<boolean>
+  removeStaticNode: (url: string) => Promise<void>
+}
+
+export interface ConnectionSectionTitleProps {
+  label: string
+  tooltip: string
+  className?: string
+}
+
+export interface ConnectionSwitchProps {
+  checked: boolean
+  disabled?: boolean
+  label: string
+  onChange: () => void
+}
+
+export interface ConnectionSettingsRowProps {
+  label: string
+  children: React.ReactNode
 }
