@@ -61,8 +61,6 @@ function wire(): {
     waitForChainLock: vi.fn().mockResolvedValue(5_000),
     chainlockedHeight: vi.fn().mockReturnValue(4_999),
     broadcastAssetLock: vi.fn(),
-    getTxLockStatus: vi.fn().mockResolvedValue({instantLocked: true, chainlocked: false, confirmed: false}),
-    getTransaction: vi.fn(),
   } as unknown as AssetLockFunder
 
   const dao = {clearProof: vi.fn(), saveProof: vi.fn(), updateStatus: vi.fn()}
