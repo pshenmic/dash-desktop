@@ -2,14 +2,14 @@ import {describe, it, expect, vi} from 'vitest'
 import {Preferences} from '../../src/main/src/preferences'
 
 const EMPTY = {dnsSeeds: [], staticPeers: [], dynamicPeers: [], bannedPeers: []}
-const NO_EVONODES ={mode: 'dynamic', mainnet: [], testnet: []}
+const NO_DAPI ={mode: 'dynamic', mainnet: [], testnet: []}
 
 describe('Preferences network section', () => {
   it('defaults to built-in dynamic discovery for a file written before the section existed', () => {
     const prefs = Preferences.fromObject({version: 5, general: {language: 'en', currency: 'usd', connectionType: 'rpc'}})
 
     expect(prefs.version).toBe(Preferences.CURRENT_VERSION)
-    expect(prefs.network.toJSON()).toEqual({mode: 'dynamic', mainnet: EMPTY, testnet: EMPTY, evonodes: NO_EVONODES})
+    expect(prefs.network.toJSON()).toEqual({mode: 'dynamic', mainnet: EMPTY, testnet: EMPTY, dapi: NO_DAPI})
   })
 
   it('keeps hand-edited seeds, peers and bans', () => {
@@ -19,7 +19,7 @@ describe('Preferences network section', () => {
       testnet: {dnsSeeds: [], staticPeers: ['node.test:19999'], dynamicPeers: [], bannedPeers: []},
     }
 
-    expect(Preferences.fromObject({version: 9, network}).network.toJSON()).toEqual({...network, evonodes: NO_EVONODES})
+    expect(Preferences.fromObject({version: 9, network}).network.toJSON()).toEqual({...network, dapi: NO_DAPI})
   })
 
   // v7 wrote `peers` and `banned`. The schema defaults the names that replaced
@@ -35,7 +35,7 @@ describe('Preferences network section', () => {
       mode: 'static',
       mainnet: {dnsSeeds: ['seed.example.com'], staticPeers: ['1.2.3.4:9999'], dynamicPeers: [], bannedPeers: ['9.9.9.9:9999']},
       testnet: EMPTY,
-      evonodes: NO_EVONODES,
+      dapi: NO_DAPI,
     })
   })
 
@@ -58,7 +58,7 @@ describe('Preferences network section', () => {
     }
     const prefs = Preferences.fromObject({version: 9, network})
 
-    expect(prefs.network.toJSON()).toEqual({...network, evonodes: NO_EVONODES})
+    expect(prefs.network.toJSON()).toEqual({...network, dapi: NO_DAPI})
     expect(prefs.network.settingsFor('mainnet')).toEqual({mode: 'static', ...EMPTY, staticPeers: ['1.2.3.4:9999']})
     expect(prefs.network.settingsFor('testnet')).toEqual({mode: 'static', ...EMPTY, staticPeers: ['5.6.7.8:19999']})
   })
@@ -110,7 +110,7 @@ describe('Preferences network section', () => {
 
     const prefs = Preferences.fromObject({version: 6, network: {mainnet: {dnsSeeds: 'seed.example.com'}}})
 
-    expect(prefs.network.toJSON()).toEqual({mode: 'dynamic', mainnet: EMPTY, testnet: EMPTY, evonodes: NO_EVONODES})
+    expect(prefs.network.toJSON()).toEqual({mode: 'dynamic', mainnet: EMPTY, testnet: EMPTY, dapi: NO_DAPI})
   })
 
   it('survives the spread-and-apply the general setters use', async () => {

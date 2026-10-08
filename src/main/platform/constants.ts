@@ -5,7 +5,7 @@ export const PROVER_LANE = 'prover'
 
 export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
 
-export const EVONODE_STATUS_TIMEOUT_MS = 5000
+export const DAPI_STATUS_TIMEOUT_MS = 5000
 
 export const ERROR_CODES: readonly string[] =
   ['cancelled', 'alreadyInChain', 'insufficientFunds', 'network', 'internal']
@@ -93,8 +93,8 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityInfos':
     case 'identityScan':
     case 'nodeStatus':
-    case 'activeEvonodes':
-    case 'evonodeStatus':
+    case 'activeDapi':
+    case 'dapiStatus':
     case 'poolInfo':
     case 'notesCount':
     case 'encryptedNotes':

@@ -72,9 +72,9 @@ export interface AddressInfo {
   nonce: number
 }
 
-// Every field but the url and `error` is null when the evonode did not answer
+// Every field but the url and `error` is null when the node did not answer
 // getStatus; `error` says why.
-export interface EvonodeStatus {
+export interface DapiStatus {
   dapiUrl: string
   proTxHash: string | null
   pingMs: number | null
@@ -357,13 +357,13 @@ export interface PlatformOperations {
     payload: Record<string, never>
     result: NodeStatus
   }
-  activeEvonodes: {
+  activeDapi: {
     payload: Record<string, never>
-    result: EvonodeStatus[]
+    result: DapiStatus[]
   }
-  evonodeStatus: {
+  dapiStatus: {
     payload: {dapiUrl: string}
-    result: EvonodeStatus
+    result: DapiStatus
   }
   poolInfo: {
     payload: Record<string, never>
@@ -413,19 +413,19 @@ export interface PlatformSetLogLevel {
   level: LogLevel
 }
 
-// Mirrors the user's evonode preference; applied to every SDK in place.
-export interface PlatformSetEvonodes {
-  type: 'setEvonodes'
-  evonodes: Evonodes
+// Mirrors the user's DAPI preference; applied to every SDK in place.
+export interface PlatformSetDapi {
+  type: 'setDapi'
+  dapi: Dapi
 }
 
-export interface Evonodes {
+export interface Dapi {
   mode: 'dynamic' | 'static'
   mainnet: string[]
   testnet: string[]
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetEvonodes
+export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetDapi
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}

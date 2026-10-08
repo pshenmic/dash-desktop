@@ -3,7 +3,7 @@ import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 
 import {NETWORKS} from './constants'
-import {Evonodes} from './types/messages'
+import {Dapi} from './types/messages'
 import {SdkSource} from './types/sdk'
 
 // One SDK per network, constructed once and never mutated. `setNetwork` is
@@ -14,10 +14,10 @@ export class SdkRegistry implements SdkSource {
   private readonly discoveries = new Map<Network, GRPCConnectionPool>()
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
-  private evonodes: Evonodes = {mode: 'dynamic', mainnet: [], testnet: []}
+  private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
 
-  setEvonodes(evonodes: Evonodes): void {
-    this.evonodes = evonodes
+  setDapi(dapi: Dapi): void {
+    this.dapi = dapi
   }
 
   get(network: Network): DashPlatformSDK {
@@ -27,7 +27,7 @@ export class SdkRegistry implements SdkSource {
     const pool: GRPCPool = {
       network,
       getClient: abortController => {
-        const urls = this.activeEvonodes(network)
+        const urls = this.activeDapi(network)
         return createClient(urls[Math.floor(Math.random() * urls.length)], abortController)
       },
     }
@@ -36,9 +36,9 @@ export class SdkRegistry implements SdkSource {
     return sdk
   }
 
-  activeEvonodes(network: Network): string[] {
-    const own = this.evonodes[network]
-    if (this.evonodes.mode === 'static' && own.length > 0) return [...own]
+  activeDapi(network: Network): string[] {
+    const own = this.dapi[network]
+    if (this.dapi.mode === 'static' && own.length > 0) return [...own]
     return [...new Set([...this.discoveries.get(network)?.dapiUrls ?? [], ...own])]
   }
 

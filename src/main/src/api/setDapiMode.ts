@@ -3,7 +3,7 @@ import {PeerModeSchema} from '../preferences/network'
 import {ApplicationService} from '../services/app/ApplicationService'
 import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
 
-export class SetGrpcPoolModeHandler {
+export class SetDapiModeHandler {
   private applicationService: ApplicationService
   private platformWorkerService: PlatformWorkerService
 
@@ -15,15 +15,15 @@ export class SetGrpcPoolModeHandler {
   handle = async (_event: IpcMainInvokeEvent, mode: unknown): Promise<void> => {
     const parsed = PeerModeSchema.safeParse(mode)
     if (!parsed.success) {
-      throw new Error(`setGrpcPoolMode: expected 'dynamic' or 'static', got ${JSON.stringify(mode)}`)
+      throw new Error(`setDapiMode: expected 'dynamic' or 'static', got ${JSON.stringify(mode)}`)
     }
 
     const preferences = this.applicationService.preferences
     await preferences.apply({
       ...preferences,
-      network: {...preferences.network, evonodes: {...preferences.network.evonodes, mode: parsed.data}},
+      network: {...preferences.network, dapi: {...preferences.network.dapi, mode: parsed.data}},
     })
 
-    this.platformWorkerService.reloadEvonodes()
+    this.platformWorkerService.reloadDapi()
   }
 }

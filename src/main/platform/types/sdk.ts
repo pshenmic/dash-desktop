@@ -6,5 +6,5 @@ import type {Network} from '../../src/types/Network'
 export interface SdkSource {
   get: (network: Network) => DashPlatformSDK
   warmup: () => Promise<void>
-  activeEvonodes: (network: Network) => string[]
+  activeDapi: (network: Network) => string[]
 }

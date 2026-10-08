@@ -44,16 +44,16 @@ export interface PeerSettings extends PeerOverridesJSON {
 
 // DAPI urls. 'dynamic' adds them to the SDK's seed and discovered evonodes,
 // 'static' uses them alone.
-export const EvonodesSchema = z.object({
+export const DapiSchema = z.object({
   mode: PeerModeSchema.default('dynamic'),
   mainnet: StringListSchema.default([]),
   testnet: StringListSchema.default([]),
 }).refine(
-  evonodes => evonodes.mode !== 'static' || evonodes.mainnet.length > 0 || evonodes.testnet.length > 0,
-  {message: 'static gRPC pool mode requires at least one evonode'},
+  dapi => dapi.mode !== 'static' || dapi.mainnet.length > 0 || dapi.testnet.length > 0,
+  {message: 'static DAPI mode requires at least one url'},
 )
 
-export type EvonodesJSON = z.infer<typeof EvonodesSchema>
+export type DapiJSON = z.infer<typeof DapiSchema>
 
 export const NetworkPreferencesSchema = z.object({
   // One setting for the whole app — a peer list is per network, but which kind
@@ -61,7 +61,7 @@ export const NetworkPreferencesSchema = z.object({
   mode: PeerModeSchema.default('dynamic'),
   mainnet: PeerOverridesSchema,
   testnet: PeerOverridesSchema,
-  evonodes: EvonodesSchema.default(emptyEvonodes),
+  dapi: DapiSchema.default(emptyDapi),
 }).refine(
   prefs => prefs.mode !== 'static' || prefs.mainnet.staticPeers.length > 0 || prefs.testnet.staticPeers.length > 0,
   {message: 'static peer mode requires at least one peer'},
@@ -94,13 +94,13 @@ export class NetworkPreferences {
   mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
-  evonodes: EvonodesJSON
+  dapi: DapiJSON
 
-  constructor(mode: PeerMode, mainnet: PeerOverridesJSON, testnet: PeerOverridesJSON, evonodes: EvonodesJSON) {
+  constructor(mode: PeerMode, mainnet: PeerOverridesJSON, testnet: PeerOverridesJSON, dapi: DapiJSON) {
     this.mode = mode
     this.mainnet = mainnet
     this.testnet = testnet
-    this.evonodes = evonodes
+    this.dapi = dapi
   }
 
   // A network the user pinned no peer for cannot honour static mode; the pool
@@ -114,17 +114,17 @@ export class NetworkPreferences {
       mode: this.mode,
       mainnet: copyOverrides(this.mainnet),
       testnet: copyOverrides(this.testnet),
-      evonodes: {mode: this.evonodes.mode, mainnet: [...this.evonodes.mainnet], testnet: [...this.evonodes.testnet]},
+      dapi: {mode: this.dapi.mode, mainnet: [...this.dapi.mainnet], testnet: [...this.dapi.testnet]},
     }
   }
 
   static fromObject(value: unknown): NetworkPreferences {
-    const {mode, mainnet, testnet, evonodes} = NetworkPreferencesSchema.parse(value)
-    return new NetworkPreferences(mode, mainnet, testnet, evonodes)
+    const {mode, mainnet, testnet, dapi} = NetworkPreferencesSchema.parse(value)
+    return new NetworkPreferences(mode, mainnet, testnet, dapi)
   }
 
   static default(): NetworkPreferences {
-    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides(), emptyEvonodes())
+    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides(), emptyDapi())
   }
 }
 
@@ -141,6 +141,6 @@ function emptyOverrides(): PeerOverridesJSON {
   return {dnsSeeds: [], staticPeers: [], dynamicPeers: [], bannedPeers: []}
 }
 
-export function emptyEvonodes(): EvonodesJSON {
+export function emptyDapi(): DapiJSON {
   return {mode: 'dynamic', mainnet: [], testnet: []}
 }

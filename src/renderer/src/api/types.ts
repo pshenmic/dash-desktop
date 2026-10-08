@@ -295,7 +295,7 @@ export interface PeerOverridesJSON {
   bannedPeers: string[]
 }
 
-export interface EvonodesJSON {
+export interface DapiJSON {
   mode: PeerMode
   mainnet: string[]
   testnet: string[]
@@ -305,12 +305,12 @@ export interface NetworkPreferencesJSON {
   mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
-  evonodes: EvonodesJSON
+  dapi: DapiJSON
 }
 
-// Every field but the url and `error` is null when the evonode did not answer
+// Every field but the url and `error` is null when the node did not answer
 // getStatus; `error` says why.
-export interface Evonode {
+export interface DapiStatus {
   proTxHash: string | null
   dapiUrl: string
   pingMs: number | null

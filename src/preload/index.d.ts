@@ -197,10 +197,10 @@ declare global {
       getDnsSeeds: (network: Network) => Promise<unknown>
       setDynamicPeers: (network: Network, peers: string[]) => Promise<void>
       getDynamicPeers: (network: Network) => Promise<unknown>
-      setGrpcPoolMode: (mode: 'dynamic' | 'static') => Promise<void>
-      setEvonodes: (network: Network, evonodes: string[]) => Promise<void>
-      getEvonodes: (network: Network) => Promise<unknown>
-      getActiveEvonodes: (network: Network) => Promise<unknown>
+      setDapiMode: (mode: 'dynamic' | 'static') => Promise<void>
+      setDapi: (network: Network, dapiUrls: string[]) => Promise<void>
+      getDapi: (network: Network) => Promise<unknown>
+      getActiveDapi: (network: Network) => Promise<unknown>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

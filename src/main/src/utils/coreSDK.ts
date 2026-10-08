@@ -1,12 +1,12 @@
 import {DashCoreSDK} from 'dash-core-sdk'
-import {emptyEvonodes, EvonodesJSON} from '../preferences/network'
+import {emptyDapi, DapiJSON} from '../preferences/network'
 import {Network} from '../types/Network'
 
 const instances = new Map<Network, DashCoreSDK>()
-let evonodes: EvonodesJSON = emptyEvonodes()
+let dapi: DapiJSON = emptyDapi()
 
-export function setCoreEvonodes(value: EvonodesJSON): void {
-  evonodes = value
+export function setCoreDapi(value: DapiJSON): void {
+  dapi = value
   instances.clear()
 }
 
@@ -15,8 +15,8 @@ export function setCoreEvonodes(value: EvonodesJSON): void {
 export function coreSDK(network: Network): DashCoreSDK {
   let sdk = instances.get(network)
   if (sdk == null) {
-    const own = evonodes[network]
-    if (evonodes.mode === 'static' && own.length > 0) {
+    const own = dapi[network]
+    if (dapi.mode === 'static' && own.length > 0) {
       // Typed as a string, but handed as is to a pool that takes and pins a list.
       sdk = new DashCoreSDK({network, dapiUrl: [...own] as unknown as string})
     } else {

@@ -77,10 +77,10 @@ import {SetDnsSeedsHandler} from "./api/setDnsSeeds";
 import {GetDnsSeedsHandler} from "./api/getDnsSeeds";
 import {SetDynamicPeersHandler} from "./api/setDynamicPeers";
 import {GetDynamicPeersHandler} from "./api/getDynamicPeers";
-import {SetGrpcPoolModeHandler} from "./api/setGrpcPoolMode";
-import {SetEvonodesHandler} from "./api/setEvonodes";
-import {GetEvonodesHandler} from "./api/getEvonodes";
-import {GetActiveEvonodesHandler} from "./api/getActiveEvonodes";
+import {SetDapiModeHandler} from "./api/setDapiMode";
+import {SetDapiHandler} from "./api/setDapi";
+import {GetDapiHandler} from "./api/getDapi";
+import {GetActiveDapiHandler} from "./api/getActiveDapi";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
 import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
@@ -226,10 +226,10 @@ export class WalletBackend {
     registerHandler('getDnsSeeds', new GetDnsSeedsHandler(this.applicationService).handle)
     registerHandler('setDynamicPeers', new SetDynamicPeersHandler(this.applicationService, this.walletSyncService).handle)
     registerHandler('getDynamicPeers', new GetDynamicPeersHandler(this.applicationService).handle)
-    registerHandler('setGrpcPoolMode', new SetGrpcPoolModeHandler(this.applicationService, this.platformWorkerService).handle)
-    registerHandler('setEvonodes', new SetEvonodesHandler(this.applicationService, this.platformWorkerService).handle)
-    registerHandler('getEvonodes', new GetEvonodesHandler(this.applicationService).handle)
-    registerHandler('getActiveEvonodes', new GetActiveEvonodesHandler(this.platformWorkerService).handle)
+    registerHandler('setDapiMode', new SetDapiModeHandler(this.applicationService, this.platformWorkerService).handle)
+    registerHandler('setDapi', new SetDapiHandler(this.applicationService, this.platformWorkerService).handle)
+    registerHandler('getDapi', new GetDapiHandler(this.applicationService).handle)
+    registerHandler('getActiveDapi', new GetActiveDapiHandler(this.platformWorkerService).handle)
     registerHandler('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     registerHandler('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
