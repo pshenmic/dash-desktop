@@ -30,7 +30,8 @@ import type {
   PlatformNodeRowProps,
   PlatformNodeTableTab,
 } from '@renderer/types/platformNodes'
-import {buildPlatformNodeRows} from '@renderer/utils/platformNodes'
+import {buildPlatformNodeRows, getPlatformNodeEmptyLabel} from '@renderer/utils/platformNodes'
+import {getErrorMessage} from '@renderer/utils/error'
 import {SectionTitle, SettingsRow} from './SettingsControls'
 
 function NodeModeSelector({mode, disabled, onChange}: PlatformNodeModeSelectorProps): React.JSX.Element {
@@ -62,9 +63,8 @@ function AddNodeForm({disabled, onClose, onSubmit}: AddPlatformNodeFormProps): R
     if (url.trim().length === 0 || submitting || disabled) return
     setSubmitting(true)
     try {
-      await onSubmit(url.trim())
-      onClose()
-    } catch {
+      if (await onSubmit(url.trim())) onClose()
+    } finally {
       setSubmitting(false)
     }
   }
@@ -177,10 +177,6 @@ export default function PlatformTab(): React.JSX.Element {
     setAddNodeOpen(false)
   }, [network])
 
-  useEffect(() => {
-    if (nodeSettings.error !== null) toast.error(nodeSettings.error)
-  }, [nodeSettings.error])
-
   const handleModeChange = async (mode: PeerMode): Promise<void> => {
     if (!nodeSettings.settingsReady || mutationPending) return
     if (mode === 'static' && !nodeSettings.hasStaticNodes) {
@@ -194,13 +190,21 @@ export default function PlatformTab(): React.JSX.Element {
       toast.success(`${PLATFORM_NODE_MODE_LABELS[mode]} Platform node mode enabled.`)
     } catch (error) {
       console.error('set Platform node mode failed', error)
+      toast.error(getErrorMessage(error))
     }
   }
 
-  const handleAddNode = async (url: string): Promise<void> => {
-    const added = await nodeSettings.addStaticNode(url)
-    if (added) toast.success('Static Platform node added.')
-    else toast.warning('This node is already in the static list.')
+  const handleAddNode = async (url: string): Promise<boolean> => {
+    try {
+      const added = await nodeSettings.addStaticNode(url)
+      if (added) toast.success('Static Platform node added.')
+      else toast.warning('This node is already in the static list.')
+      return true
+    } catch (error) {
+      console.error('add Platform node failed', error)
+      toast.error(getErrorMessage(error))
+      return false
+    }
   }
 
   const handleRemoveNode = async (url: string): Promise<void> => {
@@ -209,17 +213,12 @@ export default function PlatformTab(): React.JSX.Element {
       toast.success('Static Platform node removed.')
     } catch (error) {
       console.error('remove Platform node failed', error)
+      toast.error(getErrorMessage(error))
     }
   }
 
   const listLoading = nodeSettings.loading || (nodeTab === 'active' && nodeSettings.activeNodesLoading)
-  const emptyLabel = network === null
-    ? 'Select a wallet to manage Platform nodes.'
-    : listLoading
-      ? 'Loading Platform nodes…'
-      : nodeTab === 'active'
-        ? 'No active Platform nodes.'
-        : 'No static Platform nodes.'
+  const emptyLabel = getPlatformNodeEmptyLabel(network, listLoading, nodeTab)
   const listError = nodeSettings.error ?? nodeSettings.activeNodesError
 
   return (

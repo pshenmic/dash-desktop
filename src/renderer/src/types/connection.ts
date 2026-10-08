@@ -110,6 +110,11 @@ export interface ConnectionModeDetails {
 
 export type PlatformNodeMutation = 'set-mode' | 'save-nodes'
 
+export interface PlatformNodeMutationSnapshot {
+  pending: PlatformNodeMutation | null
+  revision: number
+}
+
 export interface UsePlatformNodeSettingsResult {
   configuredMode: PeerMode | null
   activeNodes: DapiUrlStatus[]

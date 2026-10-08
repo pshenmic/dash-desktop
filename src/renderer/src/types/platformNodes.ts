@@ -29,7 +29,7 @@ export interface PlatformNodeModeSelectorProps {
 export interface AddPlatformNodeFormProps {
   disabled: boolean
   onClose: () => void
-  onSubmit: (url: string) => Promise<void>
+  onSubmit: (url: string) => Promise<boolean>
 }
 
 export interface PlatformNodeRowProps {

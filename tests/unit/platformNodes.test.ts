@@ -3,9 +3,30 @@ import type {DapiUrlStatus} from '@renderer/api/types'
 import {
   appendPlatformNode,
   buildPlatformNodeRows,
+  getPlatformNodeEmptyLabel,
   platformNodeIdentity,
   removePlatformNode,
 } from '@renderer/utils/platformNodes'
+
+describe('Platform node empty labels', () => {
+  it('asks to select a wallet before showing a loading message', () => {
+    expect(getPlatformNodeEmptyLabel(null, true, 'active'))
+      .toBe('Select a wallet to manage Platform nodes.')
+  })
+
+  it('shows a loading message for either node list', () => {
+    expect(getPlatformNodeEmptyLabel('mainnet', true, 'active')).toBe('Loading Platform nodes…')
+    expect(getPlatformNodeEmptyLabel('testnet', true, 'static')).toBe('Loading Platform nodes…')
+  })
+
+  it('identifies an empty active node list', () => {
+    expect(getPlatformNodeEmptyLabel('mainnet', false, 'active')).toBe('No active Platform nodes.')
+  })
+
+  it('identifies an empty static node list', () => {
+    expect(getPlatformNodeEmptyLabel('testnet', false, 'static')).toBe('No static Platform nodes.')
+  })
+})
 
 describe('Platform node URLs', () => {
   it('matches equivalent URL spellings without folding path case', () => {

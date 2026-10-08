@@ -107,6 +107,14 @@ async function flushPromises(): Promise<void> {
   for (let i = 0; i < 6; i++) await Promise.resolve()
 }
 
+function openAddForm(url: string): UiElement {
+  selectList(render(), 'Static')
+  ;(button(render(), 'Add Node').props.onClick as () => void)()
+  const input = elements(render()).find(element => element.type === 'input')!
+  ;(input.props.onChange as (event: {target: {value: string}}) => void)({target: {value: url}})
+  return elements(render()).find(element => element.type === 'form')!
+}
+
 beforeEach(() => {
   vi.stubGlobal('React', React)
   harness.states = []
@@ -135,7 +143,10 @@ beforeEach(() => {
   harness.hook.mockReset().mockImplementation(() => harness.settings)
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 describe('Platform node list editing', () => {
   it('keeps active nodes read-only in Auto mode', () => {
@@ -218,6 +229,89 @@ describe('Platform node list editing', () => {
     await flushPromises()
     expect(preventDefault).toHaveBeenCalled()
     expect(harness.addStaticNode).toHaveBeenCalledWith(addedUrl)
+  })
+
+  it('closes the form after adding a node successfully', async () => {
+    const form = openAddForm(addedUrl)
+    ;(form.props.onSubmit as (event: {preventDefault: () => void}) => void)({preventDefault: vi.fn()})
+    await flushPromises()
+    expect(harness.success).toHaveBeenCalledWith('Static Platform node added.')
+    expect(elements(render()).some(element => element.type === 'form')).toBe(false)
+    expect(harness.error).not.toHaveBeenCalled()
+  })
+
+  it('closes the form with a warning when the node is already saved', async () => {
+    harness.addStaticNode.mockResolvedValue(false)
+    const form = openAddForm(firstUrl)
+    ;(form.props.onSubmit as (event: {preventDefault: () => void}) => void)({preventDefault: vi.fn()})
+    await flushPromises()
+    expect(harness.warning).toHaveBeenCalledWith('This node is already in the static list.')
+    expect(elements(render()).some(element => element.type === 'form')).toBe(false)
+    expect(harness.success).not.toHaveBeenCalled()
+  })
+
+  it('reports a rejected add once and preserves the entered URL for retrying', async () => {
+    const failure = new Error('DAPI node did not respond')
+    harness.addStaticNode.mockRejectedValueOnce(failure)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const form = openAddForm(addedUrl)
+    ;(form.props.onSubmit as (event: {preventDefault: () => void}) => void)({preventDefault: vi.fn()})
+    await flushPromises()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith('add Platform node failed', failure)
+    expect(harness.error).toHaveBeenCalledTimes(1)
+    expect(harness.error).toHaveBeenCalledWith(failure.message)
+    const tree = render()
+    expect(elements(tree).some(element => element.type === 'form')).toBe(true)
+    const input = elements(tree).find(element => element.type === 'input')!
+    expect(input.props).toMatchObject({value: addedUrl, disabled: false})
+    const confirm = elements(tree).find(element => element.props['aria-label'] === 'Confirm Platform node')!
+    expect(confirm.props.disabled).toBe(false)
+    expect(harness.success).not.toHaveBeenCalled()
+  })
+
+  it('reports an add failure after its view has been discarded', async () => {
+    const write = Promise.withResolvers<boolean>()
+    const failure = new Error('preference write failed')
+    harness.addStaticNode.mockReturnValueOnce(write.promise)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const form = openAddForm(addedUrl)
+    ;(form.props.onSubmit as (event: {preventDefault: () => void}) => void)({preventDefault: vi.fn()})
+    harness.states = []
+    write.reject(failure)
+    await flushPromises()
+    expect(log).toHaveBeenCalledWith('add Platform node failed', failure)
+    expect(harness.error).toHaveBeenCalledTimes(1)
+    expect(harness.error).toHaveBeenCalledWith(failure.message)
+    expect(harness.success).not.toHaveBeenCalled()
+  })
+
+  it('reports a mode change failure directly', async () => {
+    const failure = new Error('mode write failed')
+    harness.setMode.mockRejectedValueOnce(failure)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const mode = elements(render()).find(element => element.props['aria-label'] === 'Use Static Platform nodes')!
+    ;(mode.props.onClick as () => void)()
+    await flushPromises()
+    expect(log).toHaveBeenCalledWith('set Platform node mode failed', failure)
+    expect(harness.error).toHaveBeenCalledTimes(1)
+    expect(harness.error).toHaveBeenCalledWith(failure.message)
+    expect(harness.success).not.toHaveBeenCalled()
+  })
+
+  it('reports a remove failure directly', async () => {
+    const failure = new Error('node write failed')
+    harness.removeStaticNode.mockRejectedValueOnce(failure)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    selectList(render(), 'Static')
+    const menu = elements(render()).find(element => element.type === 'mock-context-menu')!
+    const actions = menu.props.items as ContextMenuItem[]
+    actions[0].onSelect?.()
+    await flushPromises()
+    expect(log).toHaveBeenCalledWith('remove Platform node failed', failure)
+    expect(harness.error).toHaveBeenCalledTimes(1)
+    expect(harness.error).toHaveBeenCalledWith(failure.message)
+    expect(harness.success).not.toHaveBeenCalled()
   })
 
   it.each([

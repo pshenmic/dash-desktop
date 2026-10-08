@@ -1,10 +1,17 @@
-import type {DapiUrlStatus, PeerMode} from '@renderer/api/types'
+import type {DapiUrlStatus, Network, PeerMode} from '@renderer/api/types'
 import {
+  PLATFORM_NODE_EMPTY_LABELS,
   PLATFORM_NODE_INVALID_URL_MESSAGE,
   PLATFORM_NODE_STATE_LABELS,
   PLATFORM_NODE_UNAVAILABLE_LABEL,
 } from '@renderer/constants/platformNodes'
 import type {PlatformNodeRow, PlatformNodeTableTab} from '@renderer/types/platformNodes'
+
+export function getPlatformNodeEmptyLabel(network: Network | null, loading: boolean, tab: PlatformNodeTableTab): string {
+  if (network === null) return PLATFORM_NODE_EMPTY_LABELS.noWallet
+  if (loading) return PLATFORM_NODE_EMPTY_LABELS.loading
+  return PLATFORM_NODE_EMPTY_LABELS[tab]
+}
 
 export function platformNodeIdentity(input: string): string {
   const trimmed = input.trim()
@@ -57,15 +64,15 @@ export function buildPlatformNodeRows(
     const available = node !== undefined
       && node.error === null
       && (hasPing || node.driveVersion !== null || node.blockHeight !== null)
-    const status = available
-      ? tab === 'static' && mode === 'dynamic'
-        ? PLATFORM_NODE_STATE_LABELS.automatic
-        : PLATFORM_NODE_STATE_LABELS.available
-      : node !== undefined
-        ? PLATFORM_NODE_STATE_LABELS.noResponse
-        : mode === 'static'
-          ? PLATFORM_NODE_STATE_LABELS.inactive
-          : PLATFORM_NODE_STATE_LABELS.saved
+    let status: string = PLATFORM_NODE_STATE_LABELS.saved
+    if (available) {
+      status = PLATFORM_NODE_STATE_LABELS.available
+      if (tab === 'static' && mode === 'dynamic') status = PLATFORM_NODE_STATE_LABELS.automatic
+    } else if (node !== undefined) {
+      status = PLATFORM_NODE_STATE_LABELS.noResponse
+    } else if (mode === 'static') {
+      status = PLATFORM_NODE_STATE_LABELS.inactive
+    }
     return {
       id: `${tab}:${platformNodeIdentity(entry)}`,
       entry,

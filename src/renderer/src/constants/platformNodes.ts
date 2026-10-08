@@ -33,4 +33,11 @@ export const PLATFORM_NODE_STATE_LABELS = {
   inactive: 'Not active',
 } as const
 
+export const PLATFORM_NODE_EMPTY_LABELS = {
+  noWallet: 'Select a wallet to manage Platform nodes.',
+  loading: 'Loading Platform nodes…',
+  active: 'No active Platform nodes.',
+  static: 'No static Platform nodes.',
+} as const
+
 export const PLATFORM_NODE_INVALID_URL_MESSAGE = 'Enter a valid HTTPS URL, for example https://node.example.org:1443.'

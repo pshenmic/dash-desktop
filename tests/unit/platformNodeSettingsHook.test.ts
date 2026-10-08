@@ -61,6 +61,13 @@ vi.mock('react', () => {
       }
       return harness.callbacks[index].value as T
     },
+    useSyncExternalStore: <T>(subscribe: (listener: () => void) => () => void, getSnapshot: () => T): T => {
+      const index = harness.index++
+      if (!(index in harness.effects)) {
+        harness.effects[index] = {deps: [], cleanup: subscribe(() => {})}
+      }
+      return getSnapshot()
+    },
     useLayoutEffect: (effect: () => void | (() => void), deps: unknown[]) => {
       registerEffect(effect, deps, harness.pendingLayouts)
     },
@@ -113,6 +120,16 @@ function commitEffects(): void {
   for (const effect of harness.pendingEffects.splice(0)) effect()
 }
 
+function unmount(): void {
+  for (const effect of harness.effects) effect?.cleanup?.()
+  harness.states = []
+  harness.refs = []
+  harness.callbacks = []
+  harness.effects = []
+  harness.pendingLayouts = []
+  harness.pendingEffects = []
+}
+
 async function flushPromises(): Promise<void> {
   for (let i = 0; i < 12; i++) await Promise.resolve()
 }
@@ -154,7 +171,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  for (const effect of harness.effects) effect?.cleanup?.()
+  unmount()
   vi.clearAllTimers()
   vi.useRealTimers()
 })
@@ -293,6 +310,93 @@ describe('Platform node settings IPC and persistence', () => {
 })
 
 describe('Platform node settings request races', () => {
+  it('preserves a slow add across remount and reloads its result before allowing the next add', async () => {
+    const initial = await load()
+    const write = Promise.withResolvers<void>()
+    const authoritative = Promise.withResolvers<string[]>()
+    const nextUrl = 'https://next.example:1443'
+    harness.setDapiUrls.mockImplementationOnce(async (network: Network, nodes: string[]) => {
+      await write.promise
+      harness.nodes[network] = [...nodes]
+    })
+    const adding = initial.addStaticNode(addedUrl)
+    unmount()
+    const remounted = await load()
+    expect(remounted).toMatchObject({settingsReady: false, pending: 'save-nodes'})
+    await expect(remounted.addStaticNode(nextUrl)).rejects.toThrow()
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
+
+    harness.getDapiUrls.mockReturnValueOnce(authoritative.promise)
+    write.resolve()
+    await adding
+    const reloading = await reconcile()
+    expect(reloading).toMatchObject({settingsReady: false, pending: null})
+    await expect(reloading.addStaticNode(nextUrl)).rejects.toThrow('Wait for Platform node settings')
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
+    authoritative.resolve([firstUrl, secondUrl, addedUrl])
+    await flushPromises()
+    const ready = render()
+    expect(ready).toMatchObject({staticNodes: [firstUrl, secondUrl, addedUrl], settingsReady: true})
+    await ready.addStaticNode(nextUrl)
+    expect(harness.setDapiUrls).toHaveBeenLastCalledWith('testnet', [firstUrl, secondUrl, addedUrl, nextUrl])
+    expect(harness.nodes.testnet).toEqual([firstUrl, secondUrl, addedUrl, nextUrl])
+  })
+
+  it('rejects a callback captured before another mount completes a mutation', async () => {
+    const stale = await load()
+    unmount()
+    const current = await load()
+    await current.addStaticNode(addedUrl)
+    await expect(stale.addStaticNode('https://stale.example:1443')).rejects.toThrow('Wait for Platform node settings')
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
+    expect((await reconcile()).staticNodes).toEqual([firstUrl, secondUrl, addedUrl])
+  })
+
+  it('discards a settings read started before a mutation completed', async () => {
+    const initial = await load()
+    const staleNodes = Promise.withResolvers<string[]>()
+    harness.getDapiUrls.mockReturnValueOnce(staleNodes.promise)
+    initial.reload()
+    render()
+    commitEffects()
+    await initial.addStaticNode(addedUrl)
+    staleNodes.resolve([firstUrl, secondUrl])
+    await flushPromises()
+    const stale = render()
+    expect(stale.settingsReady).toBe(false)
+    await expect(stale.removeStaticNode(firstUrl)).rejects.toThrow('Wait for Platform node settings')
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
+    expect(await reconcile()).toMatchObject({staticNodes: [firstUrl, secondUrl, addedUrl], settingsReady: true})
+  })
+
+  it('unlocks after a failed mutation from an unmounted view and reloads authoritative settings', async () => {
+    const initial = await load()
+    const write = Promise.withResolvers<void>()
+    const authoritative = Promise.withResolvers<string[]>()
+    harness.setDapiUrls.mockImplementationOnce(async (network: Network, nodes: string[]) => {
+      await write.promise
+      harness.nodes[network] = [...nodes]
+      throw new Error('preference write failed')
+    })
+    const adding = initial.addStaticNode(addedUrl)
+    const rejected = expect(adding).rejects.toThrow('preference write failed')
+    unmount()
+    expect(await load()).toMatchObject({settingsReady: false, pending: 'save-nodes'})
+    harness.getDapiUrls.mockReturnValueOnce(authoritative.promise)
+    write.resolve()
+    await rejected
+    const reloading = await reconcile()
+    expect(reloading).toMatchObject({settingsReady: false, pending: null})
+    await expect(reloading.addStaticNode('https://next.example:1443')).rejects.toThrow('Wait for Platform node settings')
+    expect(harness.setDapiUrls).toHaveBeenCalledTimes(1)
+    authoritative.resolve([firstUrl, secondUrl, addedUrl])
+    await flushPromises()
+    const ready = render()
+    expect(ready).toMatchObject({staticNodes: [firstUrl, secondUrl, addedUrl], settingsReady: true})
+    await ready.removeStaticNode(firstUrl)
+    expect(harness.setDapiUrls).toHaveBeenLastCalledWith('testnet', [secondUrl, addedUrl])
+  })
+
   it.each(['success', 'error'] as const)('ignores an old-pool probe %s while probing a changed mode', async outcome => {
     const oldProbe = Promise.withResolvers<DapiUrlStatus[]>()
     const currentProbe = Promise.withResolvers<DapiUrlStatus[]>()
