@@ -101,11 +101,6 @@ export interface UsePeerSettingsResult {
   unbanPeer: (peer: string) => Promise<void>
 }
 
-export interface ConnectionSelectOption {
-  value: string
-  label: string
-}
-
 export interface ConnectionModeDetails {
   title: string
   highlight: string

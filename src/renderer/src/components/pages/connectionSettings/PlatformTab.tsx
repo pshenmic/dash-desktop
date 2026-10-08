@@ -9,17 +9,11 @@ import {
   Text,
 } from '@renderer/components/dash-ui-kit-enxtended'
 import ContextMenu from '@renderer/components/ui/ContextMenu'
-import DropdownField from '@renderer/components/ui/DropdownField'
 import Spinner from '@renderer/components/ui/Spinner'
 import {toast} from '@renderer/components/ui/Toast'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {usePlatformNodeSettings} from '@renderer/hooks/usePlatformNodeSettings'
-import {
-  CONNECTION_SETTINGS_TOOLTIPS,
-  PLATFORM_EXPLORER_CONNECTION_NAME,
-  PLATFORM_EXPLORER_CONNECTION_OPTIONS,
-  PLATFORM_ROW_LABELS,
-} from '@renderer/constants/connection'
+import {CONNECTION_SETTINGS_TOOLTIPS} from '@renderer/constants/connection'
 import {
   ADD_PLATFORM_NODE_PLACEHOLDER,
   PLATFORM_NODE_COLUMN_LABELS,
@@ -37,7 +31,7 @@ import type {
   PlatformNodeTableTab,
 } from '@renderer/types/platformNodes'
 import {buildPlatformNodeRows} from '@renderer/utils/platformNodes'
-import {SectionTitle, SettingsRow, SwitchControl} from './SettingsControls'
+import {SectionTitle, SettingsRow} from './SettingsControls'
 
 function NodeModeSelector({mode, disabled, onChange}: PlatformNodeModeSelectorProps): React.JSX.Element {
   return (
@@ -172,7 +166,6 @@ export default function PlatformTab(): React.JSX.Element {
   const nodeSettings = usePlatformNodeSettings(network)
   const [nodeTab, setNodeTab] = useState<PlatformNodeTableTab>('active')
   const [addNodeOpen, setAddNodeOpen] = useState(false)
-  const [explorerConnection, setExplorerConnection] = useState(PLATFORM_EXPLORER_CONNECTION_NAME)
   const mutationPending = nodeSettings.pending !== null
   const rows = useMemo(() => buildPlatformNodeRows(
     nodeSettings.activeNodes,
@@ -233,9 +226,6 @@ export default function PlatformTab(): React.JSX.Element {
     <div className="px-1 pb-2">
       <SectionTitle label="DAPI Connection" tooltip={CONNECTION_SETTINGS_TOOLTIPS.dapi} />
       <div className="grid max-w-[24rem] gap-4">
-        <SettingsRow label={PLATFORM_ROW_LABELS.dapi}>
-          <SwitchControl checked disabled label={PLATFORM_ROW_LABELS.dapi} onChange={() => {}} />
-        </SettingsRow>
         <SettingsRow label="Node Selection">
           <NodeModeSelector
             mode={nodeSettings.configuredMode}
@@ -244,20 +234,6 @@ export default function PlatformTab(): React.JSX.Element {
           />
         </SettingsRow>
       </div>
-
-      <SectionTitle label="Platform Explorer Connection" tooltip={CONNECTION_SETTINGS_TOOLTIPS.platformExplorer} className="mt-7" />
-      <fieldset disabled className="grid max-w-[24rem] gap-4">
-        <DropdownField
-          options={PLATFORM_EXPLORER_CONNECTION_OPTIONS}
-          value={explorerConnection}
-          onChange={setExplorerConnection}
-          ariaLabel="Platform explorer connection"
-          triggerClassName="h-[3.75rem] rounded-[1.25rem] border border-dash-primary-dark-blue/25 px-5 dark:border-white/25"
-        />
-        <SettingsRow label={PLATFORM_ROW_LABELS.explorer}>
-          <SwitchControl checked disabled label={PLATFORM_ROW_LABELS.explorer} onChange={() => {}} />
-        </SettingsRow>
-      </fieldset>
 
       <div className="mt-7">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
