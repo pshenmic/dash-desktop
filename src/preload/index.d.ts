@@ -200,7 +200,6 @@ declare global {
       setGrpcPoolMode: (mode: 'dynamic' | 'static') => Promise<void>
       setEvonodes: (network: Network, evonodes: string[]) => Promise<void>
       getEvonodes: (network: Network) => Promise<unknown>
-      getQuorumEvonodes: (network: Network) => Promise<unknown>
       getActiveEvonodes: (network: Network) => Promise<unknown>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>

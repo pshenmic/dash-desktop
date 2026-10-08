@@ -5,9 +5,6 @@ export const PROVER_LANE = 'prover'
 
 export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
 
-// Quorum members carry only an IP; evonodes serve DAPI on the network's port.
-export const DAPI_PORT: Record<Network, number> = {mainnet: 443, testnet: 1443}
-
 export const EVONODE_STATUS_TIMEOUT_MS = 5000
 
 export const ERROR_CODES: readonly string[] =
@@ -96,7 +93,6 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityInfos':
     case 'identityScan':
     case 'nodeStatus':
-    case 'quorumEvonodes':
     case 'activeEvonodes':
     case 'poolInfo':
     case 'notesCount':

@@ -72,14 +72,7 @@ export interface AddressInfo {
   nonce: number
 }
 
-// An unbanned member of a current validator set.
-export interface Evonode {
-  proTxHash: string
-  dapiUrl: string
-}
-
-// Every field but the url is null when the evonode did not answer getStatus;
-// proTxHash too when no quorum entry supplied it.
+// Every field but the url is null when the evonode did not answer getStatus.
 export interface EvonodeStatus {
   dapiUrl: string
   proTxHash: string | null
@@ -361,10 +354,6 @@ export interface PlatformOperations {
   nodeStatus: {
     payload: Record<string, never>
     result: NodeStatus
-  }
-  quorumEvonodes: {
-    payload: Record<string, never>
-    result: EvonodeStatus[]
   }
   activeEvonodes: {
     payload: Record<string, never>

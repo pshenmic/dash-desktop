@@ -6,7 +6,7 @@ import {SdkSource} from './types/sdk'
 import {Network} from '../src/types/Network'
 import {OperationContext} from './operations/types'
 import {nodeStatus} from './operations/nodeStatus'
-import {probeActiveEvonodes, probeQuorumEvonodes} from './operations/evonodes'
+import {probeActiveEvonodes} from './operations/evonodes'
 import {spendFeeCurve, transitionFee} from './operations/fee'
 import {addressInfos} from './operations/address/infos'
 import {addressTransfer} from './operations/address/transfer'
@@ -224,7 +224,6 @@ export class PlatformService {
       case 'identityInfos': return identityInfos(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
-      case 'quorumEvonodes': return probeQuorumEvonodes(ctx)
       case 'activeEvonodes': return probeActiveEvonodes(this.registry.activeEvonodes(network), network)
       case 'poolInfo': return poolInfo(ctx)
       case 'notesCount': return notesCount(ctx)

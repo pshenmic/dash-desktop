@@ -75,10 +75,6 @@ export class API {
     return this.api.getEvonodes(network) as Promise<string[]>
   }
 
-  static async getQuorumEvonodes(network: Network): Promise<Evonode[]> {
-    return this.api.getQuorumEvonodes(network) as Promise<Evonode[]>
-  }
-
   static async getActiveEvonodes(network: Network): Promise<Evonode[]> {
     return this.api.getActiveEvonodes(network) as Promise<Evonode[]>
   }
