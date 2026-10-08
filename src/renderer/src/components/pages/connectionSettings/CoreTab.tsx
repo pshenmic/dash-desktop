@@ -10,6 +10,7 @@ import {
   TurnOffIcon,
 } from '@renderer/components/dash-ui-kit-enxtended'
 import ContextMenu, {type ContextMenuItem} from '@renderer/components/ui/ContextMenu'
+import DropdownField from '@renderer/components/ui/DropdownField'
 import Spinner from '@renderer/components/ui/Spinner'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {useConnectionModeContext} from '@renderer/contexts/ConnectionModeContext'
@@ -35,6 +36,8 @@ import {
   PEER_TABLE_TABS,
   PEER_UNBANNED_MESSAGE,
   PEER_UNAVAILABLE_LABEL,
+  RPC_CONNECTION_NAME,
+  RPC_CONNECTION_OPTIONS,
   STATIC_PEER_ADDED_MESSAGE,
   STATIC_PEER_ALREADY_ADDED_MESSAGE,
   STATIC_PEER_MODE_ENABLED_MESSAGE,
@@ -324,6 +327,7 @@ export default function CoreTab(): React.JSX.Element {
   const syncInactive = isWalletSyncInactive(phase)
   const [pendingSyncAction, setPendingSyncAction] = useState<WalletSyncAction | null>(null)
   const [peerTab, setPeerTab] = useState<PeerTableTab>('active')
+  const [rpcConnection, setRpcConnection] = useState(RPC_CONNECTION_NAME)
   const [addPeerOpen, setAddPeerOpen] = useState(false)
   const peerSettings = usePeerSettings(network, peerTab !== 'banned')
   const syncPending = pendingSyncAction !== null
@@ -520,6 +524,17 @@ export default function CoreTab(): React.JSX.Element {
           />
         </SettingsRow>
       </div>
+
+      <SectionTitle label="RPC Connection" tooltip={CONNECTION_SETTINGS_TOOLTIPS.rpc} className="mt-6" />
+      <fieldset disabled className="max-w-[24rem]">
+        <DropdownField
+          options={RPC_CONNECTION_OPTIONS}
+          value={rpcConnection}
+          onChange={setRpcConnection}
+          ariaLabel="RPC connection"
+          triggerClassName="h-[3.75rem] rounded-[1.25rem] border border-dash-primary-dark-blue/25 px-5 dark:border-white/25"
+        />
+      </fieldset>
 
       <div className="mt-7">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">

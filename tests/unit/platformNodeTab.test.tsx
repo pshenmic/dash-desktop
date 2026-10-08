@@ -54,6 +54,11 @@ vi.mock('@renderer/components/ui/ContextMenu', () => ({
     'mock-context-menu', {items}, children as ReactNode,
   ),
 }))
+vi.mock('@renderer/components/ui/DropdownField', () => ({
+  default: ({ariaLabel, disabled, value, options}: Record<string, unknown>) => React.createElement('button', {
+    type: 'button', 'aria-label': ariaLabel, disabled, value, options,
+  }, value as string),
+}))
 vi.mock('@renderer/components/ui/Spinner', () => ({default: () => null}))
 
 import PlatformTab from '../../src/renderer/src/components/pages/connectionSettings/PlatformTab'
@@ -340,13 +345,19 @@ describe('Platform node list editing', () => {
     expect(harness.setMode).not.toHaveBeenCalled()
   })
 
-  it('keeps working node modes available without unsupported connection settings', () => {
+  it('keeps the explorer fixed and node modes available without unsupported switches', () => {
     const tree = render()
     expect(elements(tree).some(element => element.props.role === 'switch')).toBe(false)
-    expect(elements(tree).some(element => element.type === 'fieldset')).toBe(false)
-    expect(elements(tree).some(element => element.props['aria-label'] === 'Platform explorer connection')).toBe(false)
+    const explorer = elements(tree).find(element => element.props['aria-label'] === 'Platform explorer connection')!
+    expect(explorer.props).toMatchObject({
+      value: 'platform-explorer.pshenmic.dev',
+      options: [{value: 'platform-explorer.pshenmic.dev', label: 'platform-explorer.pshenmic.dev'}],
+    })
+    const explorerGroup = elements(tree).find(element => element.type === 'fieldset'
+      && elements(element).includes(explorer))
+    expect(explorerGroup?.props.disabled).toBe(true)
     expect(text(tree)).not.toContain('Enable GRPC')
-    expect(text(tree)).not.toContain('Explorer')
+    expect(text(tree)).not.toContain('Enable Platform Explorer API')
     const modeGroup = elements(tree).find(element => element.props['aria-label'] === 'Platform node selection mode')
     const modes = elements(modeGroup).filter(element => element.type === 'button')
     expect(modes.map(element => text(element))).toEqual(['Auto', 'Static'])

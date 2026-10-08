@@ -5,6 +5,7 @@ import type {
   PeerTableTab,
   PeerTableTabDefinition,
 } from '@renderer/types/connection'
+import type {DropdownFieldOption} from '@renderer/types/DropdownField'
 
 export const WALLET_CONNECTION_MODE_STORAGE_KEY = 'wallet.connection.desired'
 
@@ -98,6 +99,18 @@ export const WALLET_SYNC_PHASE_LABELS: Record<WalletSyncPhase, string> = {
 export const REFRESH_DATA_LABEL = 'Refresh data'
 
 export const REFRESH_FAILED_MESSAGE = '**Refresh incomplete** Some data could not be refreshed.'
+
+export const RPC_CONNECTION_NAME = 'dashscan.io'
+
+export const RPC_CONNECTION_OPTIONS: DropdownFieldOption[] = [
+  {value: RPC_CONNECTION_NAME, label: RPC_CONNECTION_NAME},
+]
+
+export const PLATFORM_EXPLORER_CONNECTION_NAME = 'platform-explorer.pshenmic.dev'
+
+export const PLATFORM_EXPLORER_CONNECTION_OPTIONS: DropdownFieldOption[] = [
+  {value: PLATFORM_EXPLORER_CONNECTION_NAME, label: PLATFORM_EXPLORER_CONNECTION_NAME},
+]
 
 export const CONNECTION_SETTINGS_TABS: ConnectionSettingsTabDefinition[] = [
   {value: 'core', label: 'Core'},
@@ -226,12 +239,16 @@ export const CONNECTION_SETTINGS_TOOLTIPS = {
     'Choose whether the wallet displays Core data from Dashscan RPC or locally synchronized P2P data.',
   p2p:
     'P2P synchronization downloads wallet data in the background. It can keep running in parallel while RPC remains the wallet display source.',
+  rpc:
+    'RPC supplies the wallet data shown in the app when RPC mode is selected. Background P2P synchronization can remain enabled at the same time.',
   peers:
     'View connected peers and manage per-network dynamic, banned, and static peer lists. Static peer mode applies to the whole app, while each network keeps its own peer list.',
   dapi:
     'DAPI is used to query decentralized Platform data, including balances and documents.',
   platformNodes:
     'Auto discovers Platform nodes automatically. Static uses the saved list for this network, falling back to automatic discovery if it is empty. The mode applies to the whole app; saved lists are separate for each network. New nodes must respond before they can be saved.',
+  platformExplorer:
+    'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups.',
 } as const
 
 export const SYNC_PROGRESS_COMPLETE_HOLD_MS = 500
