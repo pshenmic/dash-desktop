@@ -310,7 +310,7 @@ export interface NetworkPreferencesJSON {
 
 // Every field but the url and `error` is null when the node did not answer
 // getStatus; `error` says why.
-export interface DapiStatus {
+export interface DapiUrlStatus {
   proTxHash: string | null
   dapiUrl: string
   pingMs: number | null

@@ -198,9 +198,9 @@ declare global {
       setDynamicPeers: (network: Network, peers: string[]) => Promise<void>
       getDynamicPeers: (network: Network) => Promise<unknown>
       setDapiMode: (mode: 'dynamic' | 'static') => Promise<void>
-      setDapi: (network: Network, dapiUrls: string[]) => Promise<void>
-      getDapi: (network: Network) => Promise<unknown>
-      getActiveDapi: (network: Network) => Promise<unknown>
+      setDapiUrls: (network: Network, dapiUrls: string[]) => Promise<void>
+      getDapiUrls: (network: Network) => Promise<unknown>
+      getActiveDapiUrls: (network: Network) => Promise<unknown>
       resetPreferences: () => Promise<void>
       startWalletSync: (walletId: string) => Promise<void>
       stopWalletSync: () => Promise<void>

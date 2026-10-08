@@ -2,15 +2,15 @@ import {createClient} from 'dash-platform-sdk'
 import status from 'dash-platform-sdk/src/node/status.js'
 import {Network} from '../../src/types/Network'
 import {DAPI_STATUS_TIMEOUT_MS} from '../constants'
-import {DapiStatus} from '../types/messages'
+import {DapiUrlStatus} from '../types/messages'
 
-export function probeActiveDapi(dapiUrls: string[], network: Network): Promise<DapiStatus[]> {
-  return Promise.all(dapiUrls.map(dapiUrl => probeDapi(dapiUrl, network)))
+export function probeActiveDapiUrls(dapiUrls: string[], network: Network): Promise<DapiUrlStatus[]> {
+  return Promise.all(dapiUrls.map(dapiUrl => probeDapiUrl(dapiUrl, network)))
 }
 
 // Every failure answers rather than rejecting: a caller waiting on the IPC
 // reply would otherwise sit out its own timeout for an error already known.
-export async function probeDapi(dapiUrl: string, network: Network): Promise<DapiStatus> {
+export async function probeDapiUrl(dapiUrl: string, network: Network): Promise<DapiUrlStatus> {
   const abortController = new AbortController()
   const timer = setTimeout(() => abortController.abort(), DAPI_STATUS_TIMEOUT_MS)
   const started = performance.now()

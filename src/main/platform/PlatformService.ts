@@ -6,7 +6,7 @@ import {SdkSource} from './types/sdk'
 import {Network} from '../src/types/Network'
 import {OperationContext} from './operations/types'
 import {nodeStatus} from './operations/nodeStatus'
-import {probeActiveDapi, probeDapi} from './operations/dapi'
+import {probeActiveDapiUrls, probeDapiUrl} from './operations/dapi'
 import {spendFeeCurve, transitionFee} from './operations/fee'
 import {addressInfos} from './operations/address/infos'
 import {addressTransfer} from './operations/address/transfer'
@@ -224,8 +224,8 @@ export class PlatformService {
       case 'identityInfos': return identityInfos(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
-      case 'activeDapi': return probeActiveDapi(this.registry.activeDapi(network), network)
-      case 'dapiStatus': return probeDapi(request.payload.dapiUrl, network)
+      case 'activeDapiUrls': return probeActiveDapiUrls(this.registry.activeDapiUrls(network), network)
+      case 'dapiUrlStatus': return probeDapiUrl(request.payload.dapiUrl, network)
       case 'poolInfo': return poolInfo(ctx)
       case 'notesCount': return notesCount(ctx)
       case 'encryptedNotes': return encryptedNotes(request.payload, ctx)

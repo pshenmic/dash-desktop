@@ -93,8 +93,8 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityInfos':
     case 'identityScan':
     case 'nodeStatus':
-    case 'activeDapi':
-    case 'dapiStatus':
+    case 'activeDapiUrls':
+    case 'dapiUrlStatus':
     case 'poolInfo':
     case 'notesCount':
     case 'encryptedNotes':

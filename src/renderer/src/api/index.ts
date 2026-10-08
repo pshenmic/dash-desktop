@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -67,16 +67,16 @@ export class API {
     return this.api.setDapiMode(mode)
   }
 
-  static async setDapi(network: Network, dapiUrls: string[]): Promise<void> {
-    return this.api.setDapi(network, dapiUrls)
+  static async setDapiUrls(network: Network, dapiUrls: string[]): Promise<void> {
+    return this.api.setDapiUrls(network, dapiUrls)
   }
 
-  static async getDapi(network: Network): Promise<string[]> {
-    return this.api.getDapi(network) as Promise<string[]>
+  static async getDapiUrls(network: Network): Promise<string[]> {
+    return this.api.getDapiUrls(network) as Promise<string[]>
   }
 
-  static async getActiveDapi(network: Network): Promise<DapiStatus[]> {
-    return this.api.getActiveDapi(network) as Promise<DapiStatus[]>
+  static async getActiveDapiUrls(network: Network): Promise<DapiUrlStatus[]> {
+    return this.api.getActiveDapiUrls(network) as Promise<DapiUrlStatus[]>
   }
 
   static async setFiatCurrency(currency: string): Promise<void> {

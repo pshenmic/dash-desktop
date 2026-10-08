@@ -64,7 +64,7 @@ const setup = (): {
   const registry: SdkSource = {
     get: (network: Network) => sdks[network] as unknown as ReturnType<SdkSource['get']>,
     warmup,
-    activeDapi: () => [],
+    activeDapiUrls: () => [],
   }
   const service = new PlatformService(registry, event => events.push(event))
   return {service, sdks, events, warmup}

@@ -27,7 +27,7 @@ export class SdkRegistry implements SdkSource {
     const pool: GRPCPool = {
       network,
       getClient: abortController => {
-        const urls = this.activeDapi(network)
+        const urls = this.activeDapiUrls(network)
         return createClient(urls[Math.floor(Math.random() * urls.length)], abortController)
       },
     }
@@ -36,7 +36,7 @@ export class SdkRegistry implements SdkSource {
     return sdk
   }
 
-  activeDapi(network: Network): string[] {
+  activeDapiUrls(network: Network): string[] {
     const own = this.dapi[network]
     if (this.dapi.mode === 'static' && own.length > 0) return [...own]
     return [...new Set([...this.discoveries.get(network)?.dapiUrls ?? [], ...own])]

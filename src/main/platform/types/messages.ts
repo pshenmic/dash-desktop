@@ -74,7 +74,7 @@ export interface AddressInfo {
 
 // Every field but the url and `error` is null when the node did not answer
 // getStatus; `error` says why.
-export interface DapiStatus {
+export interface DapiUrlStatus {
   dapiUrl: string
   proTxHash: string | null
   pingMs: number | null
@@ -357,13 +357,13 @@ export interface PlatformOperations {
     payload: Record<string, never>
     result: NodeStatus
   }
-  activeDapi: {
+  activeDapiUrls: {
     payload: Record<string, never>
-    result: DapiStatus[]
+    result: DapiUrlStatus[]
   }
-  dapiStatus: {
+  dapiUrlStatus: {
     payload: {dapiUrl: string}
-    result: DapiStatus
+    result: DapiUrlStatus
   }
   poolInfo: {
     payload: Record<string, never>

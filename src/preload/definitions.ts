@@ -97,9 +97,9 @@ export const apiDefinitions = (ipcRenderer) => ({
   setDynamicPeers: (network: Network, peers: string[]) => ipcRenderer.invoke('setDynamicPeers', network, peers),
   getDynamicPeers: (network: Network) => ipcRenderer.invoke('getDynamicPeers', network),
   setDapiMode: (mode: 'dynamic' | 'static') => ipcRenderer.invoke('setDapiMode', mode),
-  setDapi: (network: Network, dapiUrls: string[]) => ipcRenderer.invoke('setDapi', network, dapiUrls),
-  getDapi: (network: Network) => ipcRenderer.invoke('getDapi', network),
-  getActiveDapi: (network: Network) => ipcRenderer.invoke('getActiveDapi', network),
+  setDapiUrls: (network: Network, dapiUrls: string[]) => ipcRenderer.invoke('setDapiUrls', network, dapiUrls),
+  getDapiUrls: (network: Network) => ipcRenderer.invoke('getDapiUrls', network),
+  getActiveDapiUrls: (network: Network) => ipcRenderer.invoke('getActiveDapiUrls', network),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),
