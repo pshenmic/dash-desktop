@@ -42,8 +42,6 @@ export interface PeerSettings extends PeerOverridesJSON {
   mode: PeerMode
 }
 
-// DAPI urls. 'dynamic' adds them to the SDK's seed and discovered evonodes,
-// 'static' uses them alone.
 export const DapiSchema = z.object({
   mode: PeerModeSchema.default('dynamic'),
   mainnet: StringListSchema.default([]),

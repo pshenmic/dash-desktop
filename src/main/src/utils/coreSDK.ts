@@ -16,15 +16,10 @@ export function coreSDK(network: Network): DashCoreSDK {
   let sdk = instances.get(network)
   if (sdk == null) {
     const own = dapi[network]
-    if (dapi.mode === 'static' && own.length > 0) {
+    sdk = dapi.mode === 'static' && own.length > 0
       // Typed as a string, but handed as is to a pool that takes and pins a list.
-      sdk = new DashCoreSDK({network, dapiUrl: [...own] as unknown as string})
-    } else {
-      sdk = new DashCoreSDK({network})
-      const pool = sdk.grpcConnectionPool
-      // Joined only once the first discovery round has swapped its list in.
-      if (own.length > 0) void pool.ready().then(() => { pool.dapiUrls = [...new Set([...pool.dapiUrls, ...own])] })
-    }
+      ? new DashCoreSDK({network, dapiUrl: [...own] as unknown as string})
+      : new DashCoreSDK({network})
     instances.set(network, sdk)
   }
   return sdk

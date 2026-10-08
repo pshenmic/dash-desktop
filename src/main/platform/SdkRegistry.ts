@@ -1,4 +1,4 @@
-import {createClient, DashPlatformSDK, GRPCConnectionPool, GRPCPool} from 'dash-platform-sdk'
+import {DashPlatformSDK, GRPCConnectionPool} from 'dash-platform-sdk'
 import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 
@@ -6,40 +6,38 @@ import {NETWORKS} from './constants'
 import {Dapi} from './types/messages'
 import {SdkSource} from './types/sdk'
 
-// One SDK per network, constructed once and never mutated. `setNetwork` is
-// deliberately never called: it rebuilds the gRPC pool and replaces every
-// controller, leaving anything in flight holding swapped-out objects.
+// One SDK per network, replaced on a DAPI change and otherwise never mutated.
+// `setNetwork` is deliberately never called: it rebuilds the gRPC pool and
+// replaces every controller, leaving anything in flight holding swapped-out
+// objects. A replaced SDK keeps serving whatever already holds it.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
-  private readonly discoveries = new Map<Network, GRPCConnectionPool>()
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
   private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
 
   setDapi(dapi: Dapi): void {
     this.dapi = dapi
+    this.sdks.clear()
   }
 
   get(network: Network): DashPlatformSDK {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
-    this.discoveries.set(network, new GRPCConnectionPool(network))
-    const pool: GRPCPool = {
-      network,
-      getClient: abortController => {
-        const urls = this.activeDapiUrls(network)
-        return createClient(urls[Math.floor(Math.random() * urls.length)], abortController)
-      },
-    }
-    const sdk = new DashPlatformSDK({network, grpc: {pool}})
+    const own = this.dapi[network]
+    const sdk = this.dapi.mode === 'static' && own.length > 0
+      ? new DashPlatformSDK({network, grpc: {dapiUrl: [...own]}})
+      : new DashPlatformSDK({network})
+    // init assigns the builder before its first await; the warmed builder's
+    // own init is memoised.
+    if (this.builder != null) void sdk.shielded.init(this.builder)
     this.sdks.set(network, sdk)
     return sdk
   }
 
   activeDapiUrls(network: Network): string[] {
-    const own = this.dapi[network]
-    if (this.dapi.mode === 'static' && own.length > 0) return [...own]
-    return [...new Set([...this.discoveries.get(network)?.dapiUrls ?? [], ...own])]
+    const pool = this.get(network).grpcPool
+    return pool instanceof GRPCConnectionPool ? [...pool.dapiUrls] : []
   }
 
   getBuilder(): ShieldedBuilderWASM | null {
