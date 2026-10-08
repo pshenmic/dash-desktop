@@ -19,11 +19,14 @@ import {AssetLockDAO} from '../../src/main/src/database/AssetLockDAO'
 import {AssetLockService} from '../../src/main/src/services/platform/AssetLockService'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {AssetLockFundingState} from '../../src/main/src/types/AssetLockFunding'
+import {AssetLockProofParams} from '../../src/main/platform/types/messages'
 import {AssetLockFundingRow, AssetLockFunder} from '../../src/main/src/types/AssetLock'
 import {AssetLockFundingStatus} from '../../src/main/src/enums/AssetLockFundingStatus'
 
 const TXID = 'assetlock-txid'
 const TX_HEIGHT = 4_200
+const INSTANT_PROOF: AssetLockProofParams = {type: 'instantLock', instantLock: 'aa', transaction: 'bb'}
+const STALE = new Error("Instant lock proof signature is invalid or wasn't created recently. Please try chain asset lock proof instead.")
 
 const row = (): AssetLockFundingRow => ({
   id: 1,
@@ -62,23 +65,26 @@ function wire(): {
     waitForInstantLock: vi.fn().mockResolvedValue(null),
     waitForChainLock,
     chainlockedHeight: vi.fn().mockReturnValue(4_999),
-    // These cases are about the proof race on a funding that is already mined,
-    // so the resume path's network check passes straight through.
-    getTxLockStatus: vi.fn().mockResolvedValue({instantLocked: false, chainlocked: false, confirmed: true}),
-    getTransaction: vi.fn(),
   } as unknown as AssetLockFunder
 
   const request = vi.fn().mockResolvedValue({chain: {coreChainLockedHeight: TX_HEIGHT + 1}})
 
   const service = new AssetLockService(
     {getWalletById: vi.fn().mockResolvedValue({walletId: 'wallet-1', network: 'testnet'})} as unknown as WalletDAO,
-    {saveProof: vi.fn(), updateStatus: vi.fn()} as unknown as AssetLockDAO,
+    {clearProof: vi.fn(), saveProof: vi.fn(), updateStatus: vi.fn()} as unknown as AssetLockDAO,
     funder,
     {request} as unknown as PlatformWorkerService,
   )
 
   return {service, waitForChainLock, request}
 }
+
+// A resume never waits, so a stale instant lock is the one way into the race.
+const prove = (service: AssetLockService): Promise<AssetLockProofParams> =>
+  service.broadcastWithProof(state(), row(), INSTANT_PROOF, async proof => {
+    if (proof.type === 'instantLock') throw STALE
+    return proof
+  })
 
 describe('the chain-lock fallback', () => {
   beforeEach(() => {
@@ -97,7 +103,7 @@ describe('the chain-lock fallback', () => {
   it('builds the proof once the tx is chainlocked and platform is past it', async () => {
     const {service} = wire()
 
-    const {proof} = await service.reacquire(state(), row())
+    const proof = await prove(service)
 
     expect(proof).toEqual({type: 'chainLock', coreChainLockedHeight: TX_HEIGHT})
   })
@@ -110,7 +116,7 @@ describe('the chain-lock fallback', () => {
       .mockResolvedValueOnce(chainState(0, false))
       .mockResolvedValue(chainState(TX_HEIGHT))
 
-    await service.reacquire(state(), row())
+    await prove(service)
 
     expect(stub.getTransaction).toHaveBeenCalledTimes(2)
     expect(waitForChainLock).toHaveBeenCalledTimes(1)
@@ -126,7 +132,7 @@ describe('the chain-lock fallback', () => {
     const {service, request} = wire()
     request.mockResolvedValue({chain: {coreChainLockedHeight: TX_HEIGHT + 7}})
 
-    await service.reacquire(state(), row())
+    await prove(service)
 
     expect(stub.createAssetLockProof).toHaveBeenCalledWith(
       expect.objectContaining({coreChainLockedHeight: TX_HEIGHT}),
@@ -137,7 +143,7 @@ describe('the chain-lock fallback', () => {
     const {service, request, waitForChainLock} = wire()
     request.mockResolvedValue({chain: {coreChainLockedHeight: TX_HEIGHT}})
 
-    await service.reacquire(state(), row())
+    await prove(service)
 
     expect(waitForChainLock).not.toHaveBeenCalled()
     expect(stub.createAssetLockProof).toHaveBeenCalledWith(
@@ -151,7 +157,7 @@ describe('the chain-lock fallback', () => {
     request.mockResolvedValueOnce({chain: {coreChainLockedHeight: TX_HEIGHT - 1}})
     request.mockResolvedValue({chain: {coreChainLockedHeight: TX_HEIGHT}})
 
-    await service.reacquire(state(), row())
+    await prove(service)
 
     expect(waitForChainLock).toHaveBeenCalledTimes(1)
   })
@@ -164,7 +170,7 @@ describe('the chain-lock fallback', () => {
       .mockResolvedValueOnce(chainState(TX_HEIGHT, false))
       .mockResolvedValue(chainState(TX_HEIGHT))
 
-    await service.reacquire(state(), row())
+    await prove(service)
 
     expect(waitForChainLock).toHaveBeenCalledTimes(1)
   })
@@ -173,7 +179,7 @@ describe('the chain-lock fallback', () => {
     const {service, request} = wire()
     request.mockRejectedValueOnce(new Error('evonode unreachable'))
 
-    const {proof} = await service.reacquire(state(), row())
+    const proof = await prove(service)
 
     expect(proof).toEqual({type: 'chainLock', coreChainLockedHeight: TX_HEIGHT})
   })
@@ -184,7 +190,7 @@ describe('the chain-lock fallback', () => {
       .mockRejectedValueOnce(new Error('No such mempool or blockchain transaction'))
       .mockResolvedValue(chainState(TX_HEIGHT))
 
-    const {proof} = await service.reacquire(state(), row())
+    const proof = await prove(service)
 
     expect(proof).toEqual({type: 'chainLock', coreChainLockedHeight: TX_HEIGHT})
   })
@@ -195,7 +201,7 @@ describe('the chain-lock fallback', () => {
     const {service} = wire()
     stub.createAssetLockProof.mockImplementation(() => { throw new Error('malformed outpoint') })
 
-    await expect(service.reacquire(state(), row())).rejects.toThrow('malformed outpoint')
+    await expect(prove(service)).rejects.toThrow('malformed outpoint')
   })
 
   // R-2: a funding that fails left no trace at all, so "it hung" arrived with
@@ -224,7 +230,7 @@ describe('the chain-lock fallback', () => {
     })
     vi.useFakeTimers()
 
-    await expect(service.reacquire(state(), row())).rejects.toThrow('Timed out waiting for asset lock proof')
+    await expect(prove(service)).rejects.toThrow('Timed out waiting for asset lock proof')
 
     vi.useRealTimers()
   })

@@ -147,8 +147,8 @@ export class AssetLockService {
     await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.StBroadcast)
   }
 
-  // A stale instant lock is rejected for good, and the stored proof a resume
-  // replays fails the same way, so the retry has to go via the chain lock.
+  // A stale instant lock is rejected for good, so the retry has to go via the
+  // chain lock.
   async broadcastWithProof<T>(
     state: AssetLockFundingState,
     row: AssetLockFundingRow,
@@ -163,7 +163,7 @@ export class AssetLockService {
       log.warn(`${row.txid}: instant lock proof rejected as stale — waiting for a chain lock instead`)
       await this.assetLockDAO.clearProof(row.walletId, row.txid)
       await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.L1Broadcast)
-      const chainProof = await this.awaitProof(state, {...row, assetLockProof: null}, {chainLockOnly: true})
+      const chainProof = await this.awaitProof(state, row, {chainLockOnly: true})
 
       await this.markBroadcastingSt(state, row)
       return await broadcast(chainProof)
@@ -214,10 +214,23 @@ export class AssetLockService {
     return {row, proof}
   }
 
-  // Waits for the proof of a funding that was already broadcast, rebuilding the
-  // transaction from the stored row.
+  // A resume always proves by chain lock: the instant lock may be stale by now.
   async reacquire(state: AssetLockFundingState, row: AssetLockFundingRow): Promise<AcquiredAssetLock> {
-    return {row, proof: await this.awaitProof(state, row)}
+    const network = (await requireWallet(this.walletDAO, row.walletId)).network
+    const dapiTx = await coreSDK(network).getTransaction(row.txid).catch(() => null)
+    const {chain} = await this.platform.request('nodeStatus', network, {})
+
+    // Platform validates the proof against its own chainlocked core height.
+    if (dapiTx == null || dapiTx.confirmations < 1 || (chain?.coreChainLockedHeight ?? 0) < dapiTx.height) {
+      throw new Error('The asset lock transaction is not chainlocked yet — please wait a few minutes and resume again')
+    }
+
+    const proof: AssetLockProofParams = {type: 'chainLock', coreChainLockedHeight: dapiTx.height}
+    this.applyLockKind(state, proof)
+    log.info(`${row.txid}: resumed by chain lock at h=${dapiTx.height}`)
+    await this.assetLockDAO.saveProof(row.walletId, row.txid, proof)
+    await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.ChainLocked)
+    return {row, proof}
   }
 
   private async awaitProof(
@@ -225,29 +238,16 @@ export class AssetLockService {
     row: AssetLockFundingRow,
     options?: {live?: SDKTransaction; chainLockOnly?: boolean},
   ): Promise<AssetLockProofParams> {
-    const stored = row.assetLockProof
-    const tx = options?.live ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
-
-    // A sent transition's hash covers its proof, and only a byte-identical
-    // replay comes back "already in chain".
-    const rechecks = options?.live == null && tx != null && stored?.type !== 'chainLock' && row.status !== AssetLockFundingStatus.StBroadcast
-    if (stored != null && !rechecks) return this.reuseProof(state, row, stored)
-
     const network = (await requireWallet(this.walletDAO, row.walletId)).network
-    const covered = rechecks ? await this.coveredChainLockProof(tx, row.txid, network) : null
-    if (stored != null && covered == null) return this.reuseProof(state, row, stored)
 
     state.phase = 'waitingChainLock'
 
+    const tx = options?.live ?? (row.txHex != null ? SDKTransaction.fromHex(row.txHex) : null)
     if (tx == null) {
       throw new Error('Funding record is missing the asset lock transaction')
     }
 
-    let resolved: InstantAssetLockProofParams | ChainAssetLockProofParams | null = covered
-    if (resolved == null) {
-      if (options?.live == null) await this.ensureOnNetwork(row, tx, network)
-      resolved = await this.waitForAssetLockProof(tx, row.txid, network, options?.chainLockOnly === true, rechecks)
-    }
+    const resolved = await this.waitForAssetLockProof(tx, row.txid, network, options?.chainLockOnly === true)
 
     let proof: AssetLockProofParams
     if (resolved.type === 'instantLock') {
@@ -271,83 +271,11 @@ export class AssetLockService {
     return proof
   }
 
-  private reuseProof(state: AssetLockFundingState, row: AssetLockFundingRow, proof: AssetLockProofParams): AssetLockProofParams {
-    this.applyLockKind(state, proof)
-    log.info(`${row.txid}: reusing stored ${proof.type} proof`)
-    return proof
-  }
-
-  // A resumed funding may never have reached the network, and a lock that
-  // cannot arrive is worth ruling out before spending the timeout on it.
-  private async ensureOnNetwork(row: AssetLockFundingRow, tx: SDKTransaction, network: Network): Promise<void> {
-    // recordOptimisticSpend writes our own transaction locally at broadcast
-    // time, so only a confirmation or a lock is evidence a peer accepted it.
-    const status = await this.funder.getTxLockStatus(row.walletId, row.txid)
-    if (status.confirmed || status.instantLocked || status.chainlocked) return
-
-    // The wallet's own scan can sit arbitrarily far behind the chain; a
-    // transaction DAPI can see is one the network already took.
-    const seen = await coreSDK(network).getTransaction(row.txid).catch(() => null)
-    if (seen != null) return
-
-    const conflict = await this.findConflictingSpend(row, tx)
-    if (conflict != null) {
-      const message = `Asset lock inputs were already spent by ${conflict} — this funding can never confirm`
-      await this.assetLockDAO.updateStatus(row.walletId, row.txid, AssetLockFundingStatus.Error, {error: message})
-      throw new Error(message)
-    }
-
-    // Best-effort: peers that already hold the transaction never request it, so
-    // a rebroadcast of a live funding reports no propagation and lands here.
-    log.info(`${row.txid}: no confirmation or lock on record — rebroadcasting`)
-    await this.funder.broadcastAssetLock(tx.hex()).catch(err =>
-      log.warn(`${row.txid}: rebroadcast did not propagate:`, err))
-  }
-
-  // Only a positive answer is actionable: a source that cannot say who spent an
-  // outpoint is not saying the funding is dead.
-  private async findConflictingSpend(row: AssetLockFundingRow, tx: SDKTransaction): Promise<string | null> {
-    for (const input of tx.inputs) {
-      const prev = await this.funder.getTransaction(row.walletId, input.txId).catch(() => null)
-      if (prev == null) continue
-
-      const spender = prev.vout.find(output => output.n === input.vOut)?.spentTxId
-      if (spender != null && spender !== '' && spender !== row.txid) return spender
-    }
-    return null
-  }
-
   private applyLockKind(state: AssetLockFundingState, proof: AssetLockProofParams): void {
     state.lockKind = proof.type === 'instantLock' ? 'instant' : 'chain'
     if (proof.type === 'chainLock') {
       state.chainLockedHeight = proof.coreChainLockedHeight
     }
-  }
-
-  // A chain lock proof needs no clsig of its own: Platform only advances its
-  // core height over chainlocked blocks, and validates against that height.
-  private async coveredChainLockProof(
-    assetLockTx: SDKTransaction,
-    txid: string,
-    network: Network,
-  ): Promise<ChainAssetLockProofParams | null> {
-    const dapiTx = await coreSDK(network).getTransaction(txid).catch(() => null)
-    if (dapiTx?.isChainLocked !== true) return null
-
-    const platformHeight = await this.platform.request('nodeStatus', network, {})
-      .then(({chain}) => chain?.coreChainLockedHeight ?? 0)
-      .catch(err => {
-        log.warn(`${txid}: platform node status unavailable:`, err)
-        return 0
-      })
-    if (platformHeight < dapiTx.height) return null
-
-    log.info(`${txid}: chainlocked at h=${dapiTx.height}, platform at h=${platformHeight} — building proof`)
-    return coreUtils.createAssetLockProof({
-      transaction: assetLockTx,
-      coreChainLockedHeight: dapiTx.height,
-      outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
-    }) as ChainAssetLockProofParams
   }
 
   // Races the instant lock against the chain lock, first to resolve wins. Both
@@ -358,7 +286,6 @@ export class AssetLockService {
     txid: string,
     network: Network,
     chainLockOnly: boolean,
-    checked: boolean,
   ): Promise<InstantAssetLockProofParams | ChainAssetLockProofParams> {
     let settled = false
 
@@ -381,22 +308,38 @@ export class AssetLockService {
     // can change either answer below. Between two of them, re-asking DAPI can
     // only return what it already returned.
     const chainLockRace = async (): Promise<ChainAssetLockProofParams> => {
+      const sdk = coreSDK(network)
       const deadline = Date.now() + IDENTITY_LOCK_TIMEOUT_MS
-      let read = !checked
 
       while (Date.now() < deadline) {
         if (settled) throw new Error('cancelled')
 
-        // Re-read after each chainlock: a pinned answer would outlive the
-        // transaction being reorged out of the block it names.
-        if (read) {
-          const proof = await this.coveredChainLockProof(assetLockTx, txid, network)
-          if (proof != null) return proof
+        // Re-read every round rather than pinning the first answer, which would
+        // outlive the transaction being reorged out of the block it names.
+        const dapiTx = await sdk.getTransaction(txid).catch(() => null)
+
+        if (dapiTx?.isChainLocked === true) {
+          // Platform validates the proof against its own core node, so its view
+          // of the chainlocked tip is the one that has to have reached the tx.
+          const platformHeight = await this.platform.request('nodeStatus', network, {})
+            .then(({chain}) => chain?.coreChainLockedHeight ?? 0)
+            .catch(err => {
+              log.warn(`${txid}: platform node status unavailable:`, err)
+              return 0
+            })
+
+          if (platformHeight >= dapiTx.height) {
+            log.info(`${txid}: chainlocked at h=${dapiTx.height}, platform at h=${platformHeight} — building proof`)
+            return coreUtils.createAssetLockProof({
+              transaction: assetLockTx,
+              coreChainLockedHeight: dapiTx.height,
+              outputIndex: ASSET_LOCK_CREDIT_OUTPUT_INDEX,
+            }) as ChainAssetLockProofParams
+          }
         }
-        read = true
 
         const seen = this.funder.chainlockedHeight(network)
-        log.info(`${txid}: not covered by platform's chain lock yet — waiting past h=${seen}`)
+        log.info(`${txid}: not chainlocked yet (tx ${dapiTx == null ? 'not on DAPI' : `h=${dapiTx.height}`}) — waiting past h=${seen}`)
         const remaining = Math.max(0, deadline - Date.now())
         await this.funder.waitForChainLock(network, seen + 1, Math.min(remaining, CHAIN_LOCK_BACKSTOP_MS))
       }
