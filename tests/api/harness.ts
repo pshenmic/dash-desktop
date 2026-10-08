@@ -1,6 +1,6 @@
 import {vi} from 'vitest'
 import {Knex} from 'knex'
-import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
+import {CreateWalletHandler} from '../../src/main/src/api/wallet/manage/createWallet'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
 import {WalletSyncService} from '../../src/main/src/services/core/WalletSyncService'
 import {ApplicationService} from '../../src/main/src/services/app/ApplicationService'

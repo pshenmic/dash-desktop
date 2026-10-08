@@ -24,7 +24,9 @@ message passing. A new utility-process entry must be added to the `input` map in
 
 **Layers (`src/main/src/`):** `api/` (one handler class per channel, each
 `handle = async (event, ...args) => …`, constructed and registered in
-`WalletBackend`) → `services/` (business logic only) → `database/` (Knex DAOs,
+`WalletBackend`; grouped `app/`, `network/`, `wallet/`. Under `wallet/`, each
+layer folder keeps reads at its root, fund-moving handlers in `spend/`, and sync
+in `sync/`) → `services/` (business logic only) → `database/` (Knex DAOs,
 plain SQL). Alongside: `utils/` (pure, unit-tested helpers — a helper-only
 module goes here, NOT in `services/`), `providers/`, `types/` (domain types with
 `fromRow` factories).
