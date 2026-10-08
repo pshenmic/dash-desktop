@@ -220,8 +220,11 @@ export class AssetLockService {
     const dapiTx = await coreSDK(network).getTransaction(row.txid).catch(() => null)
     const {chain} = await this.platform.request('nodeStatus', network, {})
 
-    // Platform validates the proof against its own chainlocked core height.
-    if (dapiTx == null || dapiTx.confirmations < 1 || (chain?.coreChainLockedHeight ?? 0) < dapiTx.height) {
+    if (dapiTx == null) {
+      throw new Error('Your transaction could not be found, please make sure it has been sent')
+    }
+
+    if (dapiTx.confirmations < 1 || (chain?.coreChainLockedHeight ?? 0) < dapiTx.height) {
       throw new Error('The asset lock transaction is not chainlocked yet - please wait a few minutes and resume again')
     }
 
