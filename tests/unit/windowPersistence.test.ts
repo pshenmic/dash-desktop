@@ -58,7 +58,7 @@ class TestWindow extends EventEmitter {
 const launch = async (): Promise<TestWindow> => {
   vi.resetModules()
   vi.doMock('electron', () => ({
-    app: Object.assign(new EventEmitter(), { whenReady: async () => {}, quit: vi.fn() }),
+    app: Object.assign(new EventEmitter(), { whenReady: async () => {}, quit: vi.fn(), getVersion: () => '0.0.0', getLocale: () => 'en-US', getGPUInfo: async () => ({}) }),
     BrowserWindow: TestWindow,
     ipcMain: { handle: vi.fn() },
     nativeTheme: new EventEmitter(),

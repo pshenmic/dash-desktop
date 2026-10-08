@@ -35,3 +35,7 @@ export const RATES_REQUEST_TIMEOUT_MS = 8_000
 // The retained tail rides along on request and broadcast failures, so a worker
 // crash carries its own cause instead of just "code=1".
 export const CHILD_OUTPUT_TAIL_LIMIT = 8192
+
+export const GPU_INFO_TIMEOUT_MS = 1_000
+
+export const UNRECOGNIZED_HARDWARE = 'not recognized'

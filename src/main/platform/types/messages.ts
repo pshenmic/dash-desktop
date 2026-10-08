@@ -72,6 +72,17 @@ export interface AddressInfo {
   nonce: number
 }
 
+// Every field but the url and `error` is null when the node did not answer
+// getStatus; `error` says why.
+export interface DapiUrlStatus {
+  dapiUrl: string
+  proTxHash: string | null
+  pingMs: number | null
+  driveVersion: string | null
+  blockHeight: bigint | null
+  error: string | null
+}
+
 export interface Recipient {
   address: string
   amountCredits: bigint
@@ -346,6 +357,14 @@ export interface PlatformOperations {
     payload: Record<string, never>
     result: NodeStatus
   }
+  activeDapiUrls: {
+    payload: Record<string, never>
+    result: DapiUrlStatus[]
+  }
+  dapiUrlStatus: {
+    payload: {dapiUrl: string}
+    result: DapiUrlStatus
+  }
   poolInfo: {
     payload: Record<string, never>
     result: {poolState: bigint | null; notesCount: bigint | null}
@@ -394,7 +413,19 @@ export interface PlatformSetLogLevel {
   level: LogLevel
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel
+// Mirrors the user's DAPI preference; applied to every SDK in place.
+export interface PlatformSetDapi {
+  type: 'setDapi'
+  dapi: Dapi
+}
+
+export interface Dapi {
+  mode: 'dynamic' | 'static'
+  mainnet: string[]
+  testnet: string[]
+}
+
+export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetDapi
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}

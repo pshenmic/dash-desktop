@@ -96,6 +96,10 @@ export const apiDefinitions = (ipcRenderer) => ({
   getDnsSeeds: (network: Network) => ipcRenderer.invoke('getDnsSeeds', network),
   setDynamicPeers: (network: Network, peers: string[]) => ipcRenderer.invoke('setDynamicPeers', network, peers),
   getDynamicPeers: (network: Network) => ipcRenderer.invoke('getDynamicPeers', network),
+  setDapiMode: (mode: 'dynamic' | 'static') => ipcRenderer.invoke('setDapiMode', mode),
+  setDapiUrls: (network: Network, dapiUrls: string[]) => ipcRenderer.invoke('setDapiUrls', network, dapiUrls),
+  getDapiUrls: (network: Network) => ipcRenderer.invoke('getDapiUrls', network),
+  getActiveDapiUrls: (network: Network) => ipcRenderer.invoke('getActiveDapiUrls', network),
   resetPreferences: () => ipcRenderer.invoke('resetPreferences'),
 
   startWalletSync: (walletId: string) => ipcRenderer.invoke('startWalletSync', walletId),

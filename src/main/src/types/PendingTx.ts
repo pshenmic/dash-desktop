@@ -1,5 +1,5 @@
 // A tx still awaiting confirmation, ours or an incoming one the lock pool saw.
-// raw is replayed for rebroadcast; firstSeenAt drives that cadence.
+// raw is replayed for rebroadcast.
 export interface PendingTx {
   txid: string
   raw: Uint8Array

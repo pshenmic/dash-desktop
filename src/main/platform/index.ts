@@ -47,6 +47,10 @@ process.parentPort.on('message', ({data}) => {
     configureLogger({level: data.level})
     return
   }
+  if (data.type === 'setDapi') {
+    registry.setDapi(data.dapi)
+    return
+  }
   service.handle(data)
 })
 
