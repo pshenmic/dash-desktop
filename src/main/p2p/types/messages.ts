@@ -211,7 +211,6 @@ export interface P2PChainLockedMessage {
   height: number
 }
 
-// The valid evonodes of a verified masternode list.
 export interface P2PEvonodeDapiUrlsMessage {
   type: 'evonodeDapiUrls'
   network: Network

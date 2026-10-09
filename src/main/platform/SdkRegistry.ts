@@ -15,8 +15,8 @@ const log = new Logger('platform')
 // replaces every controller, leaving anything in flight holding swapped-out
 // objects. A replaced SDK keeps serving whatever already holds it.
 //
-// Until the first evonode list is probed — a first launch — the SDK runs its own
-// seed discovery.
+// Before the first evonode list is probed the SDK is built on no urls at all:
+// given none, it would run a discovery of its own against dead seed nodes.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
   private readonly pinnedDapiUrls = new Map<Network, string[]>()
@@ -38,9 +38,7 @@ export class SdkRegistry implements SdkSource {
     if (existing != null) return existing
     const own = this.dapi[network]
     const dapiUrls = this.dapi.mode === 'static' && own.length > 0 ? own : this.pinnedDapiUrls.get(network)
-    const sdk = dapiUrls != null
-      ? new DashPlatformSDK({network, grpc: {dapiUrl: [...dapiUrls]}})
-      : new DashPlatformSDK({network})
+    const sdk = new DashPlatformSDK({network, grpc: {dapiUrl: [...dapiUrls ?? []]}})
     // init assigns the builder before its first await; the warmed builder's
     // own init is memoised.
     if (this.builder != null) void sdk.shielded.init(this.builder)

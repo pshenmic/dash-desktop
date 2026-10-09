@@ -1,7 +1,6 @@
 import {MnListDiff, MnType} from 'dash-core-p2p'
 
-// The DAPI urls of a full list's valid evonodes, or null when the entries do not
-// hash to the merkleRootMNList its coinbase commits to.
+// Null when the entries do not hash to the merkleRootMNList the coinbase commits to.
 export function evonodeDapiUrls(diff: MnListDiff): string[] | null {
   if (diff.merkleRootMNList !== MnListDiff.calcMerkleRootMNList(diff.mnList)) return null
   const urls = diff.mnList

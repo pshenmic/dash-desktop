@@ -86,7 +86,6 @@ export class WalletSyncService {
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
-  // The evonodes of each verified masternode list the lock pool fetches.
   onEvonodeDapiUrls: ((network: Network, dapiUrls: string[]) => void) | null = null
   // Wallets whose scan is held waiting for addresses. The worker resumes at the
   // held height, so the addresses answering it must not also rewind the cursor.

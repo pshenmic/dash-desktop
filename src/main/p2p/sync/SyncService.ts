@@ -683,9 +683,8 @@ export class SyncService {
     if (tip != null && (peer.bestHeight ?? 0) >= best) this.requestMasternodeList(peer, wireToDisplayHex(tip))
   }
 
-  // Every peer is asked for a block it announced itself, while the list is missing
-  // or due a refresh. A reply is checked against its own coinbase, so the first
-  // verified one wins and a silent peer costs nothing.
+  // A peer is asked for a block it announced itself, so it always holds it; a reply
+  // is checked against its own coinbase, so the first verified one wins.
   private requestMasternodeList(peer: Peer, blockHash: string): void {
     if (!this.lockPool || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
     log.info(`asking ${peer.host}:${peer.port} for the masternode list at ${blockHash}`)

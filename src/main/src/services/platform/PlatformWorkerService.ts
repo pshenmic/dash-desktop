@@ -54,9 +54,8 @@ export class PlatformWorkerService {
   private transitionBroadcast: (() => void) | null = null
   private readonly preferences: Preferences
   private readonly evonodeDAO: EvonodeDAO
-  // Networks the current worker has pinned evonodes for, and requests waiting on one.
   private readonly pinnedNetworks = new Set<Network>()
-  private readonly pinWaiters = new Map<Network, Array<() => void>>()
+  private readonly pinWaiters = new Map<Network, Set<() => void>>()
 
   constructor(preferences: Preferences, evonodeDAO: EvonodeDAO) {
     this.preferences = preferences
@@ -148,14 +147,17 @@ export class PlatformWorkerService {
     if (this.pinnedNetworks.has(network) || (dapi.mode === 'static' && dapi[network].length > 0)) return null
     this.ensureChild()
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`no reachable evonode for ${network} after ${DAPI_URLS_WAIT_MS / 1000}s`)),
-        DAPI_URLS_WAIT_MS,
-      )
-      this.pinWaiters.set(network, [...this.pinWaiters.get(network) ?? [], () => {
+      const waiters = this.pinWaiters.get(network) ?? new Set<() => void>()
+      this.pinWaiters.set(network, waiters)
+      const wake = (): void => {
         clearTimeout(timer)
         resolve()
-      }])
+      }
+      const timer = setTimeout(() => {
+        waiters.delete(wake)
+        reject(new Error(`no reachable evonode for ${network} after ${DAPI_URLS_WAIT_MS / 1000}s`))
+      }, DAPI_URLS_WAIT_MS)
+      waiters.add(wake)
     })
   }
 

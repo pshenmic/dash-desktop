@@ -7,8 +7,6 @@ import {Logger} from '../../src/utils/logger'
 
 const log = new Logger('platform')
 
-// Probes a random batch at a time and settles on the first DAPI_POOL_READY that
-// answer — or on fewer, once a whole batch has answered or failed.
 export async function reachableDapiUrls(candidates: string[], network: Network): Promise<string[]> {
   const shuffled = [...candidates]
   for (let i = shuffled.length - 1; i > 0; i--) {
