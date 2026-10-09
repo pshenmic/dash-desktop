@@ -161,7 +161,7 @@ export class PlatformWorkerService {
   // Saved before it is forwarded, so a worker forked later starts from it too.
   setEvonodeDapiUrls = async (network: Network, dapiUrls: string[]): Promise<void> => {
     await this.evonodeDAO.replaceDapiUrls(network, dapiUrls)
-    log.info(`${network}: saved ${dapiUrls.length} evonode(s) from the masternode list`)
+    log.info(`${network}: pinning gRPC from the p2p masternode list (${dapiUrls.length} evonode(s), saved to db)`)
     this.child?.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
   }
 
@@ -223,7 +223,7 @@ export class PlatformWorkerService {
       .then(byNetwork => {
         if (this.child !== child) return
         for (const [network, dapiUrls] of byNetwork) {
-          log.info(`${network}: handing the worker ${dapiUrls.length} saved evonode(s)`)
+          log.info(`${network}: pinning gRPC from db (${dapiUrls.length} saved evonode(s))`)
           child.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
         }
       })
