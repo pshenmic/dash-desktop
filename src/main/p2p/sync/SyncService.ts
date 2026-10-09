@@ -16,8 +16,6 @@ import {
   MEMPOOL_SEEN_LIMIT,
   MEMPOOL_SNAPSHOT_PEERS,
   MNLIST_REFRESH_MS,
-  MNLIST_RETRY_MS,
-  MNLIST_TIP_DEPTH,
   NODE_BLOOM,
 } from '../constants'
 import {evonodeDapiUrls} from '../utils/masternodeList'
@@ -93,11 +91,7 @@ export class SyncService {
   private mempoolFetchQueue: Array<{peer: Peer; txid: string; hash: Uint8Array}> = []
   private mempoolStats = {announced: 0, fetched: 0, matched: 0}
   private mempoolReportTimer: ReturnType<typeof setInterval> | null = null
-  // The latest tip a peer announced, the peers asked for a list at it, and the
-  // timer that moves on to the next peer or, once a list verifies, refreshes it.
-  private masternodeListTip: string | null = null
-  private readonly masternodeListAsked = new Set<Peer>()
-  private masternodeListTimer: ReturnType<typeof setTimeout> | null = null
+  private masternodeListVerifiedAt = 0
 
   private status: WalletSyncStatus = {
     phase: 'idle',
@@ -230,8 +224,7 @@ export class SyncService {
     this.lockOverridesKey = overridesKey
     this.watchedTxids = new Set()
     this.chainLock = null
-    this.masternodeListTip = null
-    this.masternodeListAsked.clear()
+    this.masternodeListVerifiedAt = 0
 
     const pinned = overrides?.mode === 'static' ? overrides.staticPeers : []
     this.pinnedOnly = pinned.length > 0
@@ -562,7 +555,7 @@ export class SyncService {
         this.mempoolSeen.add(txid)
         this.mempoolFetchQueue.push({peer, txid, hash: item.hash})
       } else if (item.type === Inventory.TYPE.BLOCK) {
-        this.noteMasternodeListTip(wireToDisplayHex(item.hash))
+        this.requestMasternodeList(peer, wireToDisplayHex(item.hash))
       } else if (item.type === Inventory.TYPE.CLSIG) {
         if (wantChainlocks) wanted.push({type: item.type, hash: item.hash})
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
@@ -678,7 +671,6 @@ export class SyncService {
 
     this.chainLock = {height, hash}
     this.headerSyncWorker?.noteChainLock(height, hash)
-    this.noteMasternodeListTip(hash)
     locks.info(`chainlock h=${height} ${hash} — ${this.headerSyncWorker ? 'checking our branch' : 'no header sync'}`)
     this.events.chainLocked(this.lockNetwork, height)
   }
@@ -687,50 +679,29 @@ export class SyncService {
   // A peer still syncing would name a block long buried, so only the highest count.
   private onPeerTip = (peer: Peer, msg: Message & {starts?: Uint8Array[]}): void => {
     const best = Math.max(...[...this.lockPool?.readyPeers ?? []].map(ready => ready.bestHeight ?? 0))
-    const starts = msg.starts ?? []
-    const hash = starts[Math.min(MNLIST_TIP_DEPTH, starts.length - 1)]
-    if (hash != null && (peer.bestHeight ?? 0) >= best) this.noteMasternodeListTip(wireToDisplayHex(hash))
+    const tip = msg.starts?.[0]
+    if (tip != null && (peer.bestHeight ?? 0) >= best) this.requestMasternodeList(peer, wireToDisplayHex(tip))
   }
 
-  // The first tip asks at once; later ones keep the next request current.
-  private noteMasternodeListTip(blockHash: string): void {
-    this.masternodeListTip = blockHash
-    if (this.masternodeListTimer == null) this.requestMasternodeList()
-  }
-
-  // One peer at a time: a reply is checked against its own coinbase, so any
-  // answer will do, and a peer that stays silent hands over to the next.
-  private requestMasternodeList = (): void => {
-    this.masternodeListTimer = null
-    const ready = [...this.lockPool?.readyPeers ?? []]
-    if (!this.lockPool || this.masternodeListTip == null || ready.length === 0) return
-    let peer = ready.find(candidate => !this.masternodeListAsked.has(candidate))
-    if (peer == null) {
-      this.masternodeListAsked.clear()
-      peer = ready[0]!
-    }
-    this.masternodeListAsked.add(peer)
-    log.info(`asking ${peer.host}:${peer.port} for the masternode list at ${this.masternodeListTip}`)
+  // Every peer is asked for a block it announced itself, while the list is missing
+  // or due a refresh. A reply is checked against its own coinbase, so the first
+  // verified one wins and a silent peer costs nothing.
+  private requestMasternodeList(peer: Peer, blockHash: string): void {
+    if (!this.lockPool || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
+    log.info(`asking ${peer.host}:${peer.port} for the masternode list at ${blockHash}`)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    peer.sendMessage((this.lockPool.messages as any).GetMnListDiff({blockHash: this.masternodeListTip}))
-    this.scheduleMasternodeList(MNLIST_RETRY_MS)
-  }
-
-  private scheduleMasternodeList(delayMs: number): void {
-    if (this.masternodeListTimer != null) clearTimeout(this.masternodeListTimer)
-    this.masternodeListTimer = setTimeout(this.requestMasternodeList, delayMs)
-    this.masternodeListTimer.unref?.()
+    peer.sendMessage((this.lockPool.messages as any).GetMnListDiff({blockHash}))
   }
 
   private onMasternodeList = (peer: Peer, msg: Message & {mnlistdiff?: MnListDiff}): void => {
-    if (!this.lockNetwork || msg.mnlistdiff == null) return
+    // A peer answering after the list verified would only repeat it.
+    if (!this.lockNetwork || msg.mnlistdiff == null || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
     const dapiUrls = evonodeDapiUrls(msg.mnlistdiff)
     if (dapiUrls == null) {
       log.warn(`${peer.host}:${peer.port} sent a masternode list its coinbase does not commit to`)
       return
     }
-    this.masternodeListAsked.clear()
-    this.scheduleMasternodeList(MNLIST_REFRESH_MS)
+    this.masternodeListVerifiedAt = Date.now()
     log.info(`masternode list at ${msg.mnlistdiff.blockHash} from ${peer.host}:${peer.port}: ${dapiUrls.length} evonode DAPI url(s)`)
     this.events.evonodeDapiUrls(this.lockNetwork, dapiUrls)
   }
@@ -778,8 +749,6 @@ export class SyncService {
     this.mempoolReportTimer = null
     this.mempoolFetchQueue = []
     this.mempoolRequests.clear()
-    if (this.masternodeListTimer != null) clearTimeout(this.masternodeListTimer)
-    this.masternodeListTimer = null
     if (!this.lockPool) return
     this.lockPool.stop()
     this.lockPool.removeAllListeners()

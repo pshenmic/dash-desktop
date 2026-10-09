@@ -371,12 +371,4 @@ export const BROADCAST_POLICY = {
 
 // ── Masternode list ─────────────────────────────────────────────────────────
 
-// Some nodes never answer `getmnlistd` (measured on testnet v24), so a request
-// unanswered this long moves on to the next peer.
-export const MNLIST_RETRY_MS = 3_000
-
 export const MNLIST_REFRESH_MS = 60 * 60_000
-
-// Locator depth of the block asked for: a peer's own tip is the one block its
-// neighbours may not hold yet.
-export const MNLIST_TIP_DEPTH = 2
