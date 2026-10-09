@@ -91,6 +91,7 @@ import {PlatformWorkerService} from './services/platform/PlatformWorkerService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
 import {ShieldedPoolDAO} from './database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
+import {EvonodeDAO} from './database/EvonodeDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
 import {GetShieldedNotesInfoHandler} from './api/shielded/getShieldedNotesInfo'
@@ -288,8 +289,14 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
-    this.platformWorkerService = new PlatformWorkerService(preferences)
+    this.platformWorkerService = new PlatformWorkerService(preferences, new EvonodeDAO(knex))
     this.platformWorkerService.start()
+
+    const platformWorkerService = this.platformWorkerService
+    this.walletSyncService.onEvonodeDapiUrls = (network, dapiUrls) => {
+      platformWorkerService.setEvonodeDapiUrls(network, dapiUrls).catch(err =>
+        platformLog.error(`saving ${network} evonodes failed:`, err))
+    }
 
     // Consumers depend on the asset lock primitive, never the other way round:
     // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,

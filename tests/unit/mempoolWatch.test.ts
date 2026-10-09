@@ -71,6 +71,7 @@ const noopEvents = {
   broadcastResult: () => undefined,
   txInstantLocked: () => undefined,
   chainLocked: () => undefined,
+  evonodeDapiUrls: () => undefined,
 }
 
 const makePeer = (): {host: string; port: number; sent: unknown[]; sendMessage: (m: unknown) => void} => {

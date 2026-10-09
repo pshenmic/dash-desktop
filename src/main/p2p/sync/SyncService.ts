@@ -15,8 +15,10 @@ import {
   MEMPOOL_REPORT_INTERVAL_MS,
   MEMPOOL_SEEN_LIMIT,
   MEMPOOL_SNAPSHOT_PEERS,
+  MNLIST_REFRESH_MS,
   NODE_BLOOM,
 } from '../constants'
+import {evonodeDapiUrls} from '../utils/masternodeList'
 import {PoolService} from '../net/PoolService'
 import {PeerRegistry} from '../net/peerRegistry'
 import {entryTarget} from '../net/peerAddress'
@@ -30,7 +32,7 @@ import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PR
 import {Network} from '../../src/types/Network'
 import {BroadcastResult} from '../types/broadcast'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from '../types/walletSync'
-import {Inventory, Message, Peer} from 'dash-core-p2p'
+import {Inventory, Message, MnListDiff, Peer} from 'dash-core-p2p'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from '../types/chainStore'
 import {SyncServiceEvents} from '../types/sync'
@@ -89,6 +91,7 @@ export class SyncService {
   private mempoolFetchQueue: Array<{peer: Peer; txid: string; hash: Uint8Array}> = []
   private mempoolStats = {announced: 0, fetched: 0, matched: 0}
   private mempoolReportTimer: ReturnType<typeof setInterval> | null = null
+  private masternodeListVerifiedAt = 0
 
   private status: WalletSyncStatus = {
     phase: 'idle',
@@ -221,6 +224,7 @@ export class SyncService {
     this.lockOverridesKey = overridesKey
     this.watchedTxids = new Set()
     this.chainLock = null
+    this.masternodeListVerifiedAt = 0
 
     const pinned = overrides?.mode === 'static' ? overrides.staticPeers : []
     this.pinnedOnly = pinned.length > 0
@@ -254,6 +258,8 @@ export class SyncService {
     this.lockPool.on('peerisdlock', this.onIsdlock)
     this.lockPool.on('peertx', this.onTx)
     this.lockPool.on('peerclsig', this.onClsig)
+    this.lockPool.on('peergetheaders', this.onPeerTip)
+    this.lockPool.on('peermnlistdiff', this.onMasternodeList)
     this.lockPool.on('peeraddr', this.feedBulkPool)
     // Nothing else emits status while the bulk layer is down, so lock-pool
     // churn is a lazy-mode wallet's only signal.
@@ -548,6 +554,8 @@ export class SyncService {
         if (this.mempoolSeen.size >= MEMPOOL_SEEN_LIMIT) this.mempoolSeen.clear()
         this.mempoolSeen.add(txid)
         this.mempoolFetchQueue.push({peer, txid, hash: item.hash})
+      } else if (item.type === Inventory.TYPE.BLOCK) {
+        this.requestMasternodeList(peer, wireToDisplayHex(item.hash))
       } else if (item.type === Inventory.TYPE.CLSIG) {
         if (wantChainlocks) wanted.push({type: item.type, hash: item.hash})
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
@@ -665,6 +673,36 @@ export class SyncService {
     this.headerSyncWorker?.noteChainLock(height, hash)
     locks.info(`chainlock h=${height} ${hash} — ${this.headerSyncWorker ? 'checking our branch' : 'no header sync'}`)
     this.events.chainLocked(this.lockNetwork, height)
+  }
+
+  // Core opens every connection with a getheaders whose locator starts at its tip.
+  // A peer still syncing would name a block long buried, so only the highest count.
+  private onPeerTip = (peer: Peer, msg: Message & {starts?: Uint8Array[]}): void => {
+    const best = Math.max(...[...this.lockPool?.readyPeers ?? []].map(ready => ready.bestHeight ?? 0))
+    const tip = msg.starts?.[0]
+    if (tip != null && (peer.bestHeight ?? 0) >= best) this.requestMasternodeList(peer, wireToDisplayHex(tip))
+  }
+
+  // A peer is asked for a block it announced itself, so it always holds it; a reply
+  // is checked against its own coinbase, so the first verified one wins.
+  private requestMasternodeList(peer: Peer, blockHash: string): void {
+    if (!this.lockPool || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
+    log.info(`asking ${peer.host}:${peer.port} for the masternode list at ${blockHash}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    peer.sendMessage((this.lockPool.messages as any).GetMnListDiff({blockHash}))
+  }
+
+  private onMasternodeList = (peer: Peer, msg: Message & {mnlistdiff?: MnListDiff}): void => {
+    // A peer answering after the list verified would only repeat it.
+    if (!this.lockNetwork || msg.mnlistdiff == null || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
+    const dapiUrls = evonodeDapiUrls(msg.mnlistdiff)
+    if (dapiUrls == null) {
+      log.warn(`${peer.host}:${peer.port} sent a masternode list its coinbase does not commit to`)
+      return
+    }
+    this.masternodeListVerifiedAt = Date.now()
+    log.info(`masternode list at ${msg.mnlistdiff.blockHash} from ${peer.host}:${peer.port}: ${dapiUrls.length} evonode DAPI url(s)`)
+    this.events.evonodeDapiUrls(this.lockNetwork, dapiUrls)
   }
 
   // ── private ───────────────────────────────────────────────────────────────

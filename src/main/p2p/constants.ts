@@ -33,6 +33,7 @@ export const FORWARDED_EVENTS: Array<keyof PoolServiceEventMap> = [
   'peerping', 'peerpong',
   'peercfcheckpt', 'peercfheaders', 'peercfilter',
   'peerislock', 'peerisdlock', 'peerclsig',
+  'peergetheaders', 'peermnlistdiff',
   'seederror',
 ]
 
@@ -367,3 +368,7 @@ export const BROADCAST_POLICY = {
   unsolicitedPushAfterMs: 5_000,
   failOnReject: true,
 } as const
+
+// ── Masternode list ─────────────────────────────────────────────────────────
+
+export const MNLIST_REFRESH_MS = 60 * 60_000

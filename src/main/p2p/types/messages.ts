@@ -211,6 +211,12 @@ export interface P2PChainLockedMessage {
   height: number
 }
 
+export interface P2PEvonodeDapiUrlsMessage {
+  type: 'evonodeDapiUrls'
+  network: Network
+  dapiUrls: string[]
+}
+
 // A mempool tx paying one of our addresses, seen on the lock pool before any
 // block carries it. Recorded unconfirmed; its isdlock is what makes it final.
 export interface P2PIncomingTxMessage {
@@ -239,5 +245,6 @@ export type P2PEvent =
   | P2PPeerProbeMessage
   | P2PTxInstantLockedMessage
   | P2PChainLockedMessage
+  | P2PEvonodeDapiUrlsMessage
   | P2PChainRewoundMessage
   | P2PIncomingTxMessage

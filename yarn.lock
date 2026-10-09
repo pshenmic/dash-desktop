@@ -2812,9 +2812,9 @@ csstype@^3.2.2:
   resolved "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
   integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
-"dash-core-p2p@https://github.com/pshenmic/dash-core-p2p#5583107bd7a48fc27c006a8aca938c3bd616a59b":
+"dash-core-p2p@https://github.com/pshenmic/dash-core-p2p#857d5314cb668586bd4493bcc4d3721ce8a91a81":
   version "0.0.1"
-  resolved "https://github.com/pshenmic/dash-core-p2p#5583107bd7a48fc27c006a8aca938c3bd616a59b"
+  resolved "https://github.com/pshenmic/dash-core-p2p#857d5314cb668586bd4493bcc4d3721ce8a91a81"
   dependencies:
     bloom-filter "^0.1.0"
     dash-core-sdk "1.1.4"

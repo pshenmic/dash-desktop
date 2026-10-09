@@ -3,6 +3,7 @@ import {emptyDapi, DapiJSON} from '../preferences/network'
 import {Network} from '../types/Network'
 
 const instances = new Map<Network, DashCoreSDK>()
+const evonodeDapiUrls = new Map<Network, string[]>()
 let dapi: DapiJSON = emptyDapi()
 
 export function setCoreDapi(value: DapiJSON): void {
@@ -10,16 +11,20 @@ export function setCoreDapi(value: DapiJSON): void {
   instances.clear()
 }
 
-// The constructor starts evonode discovery in the background, so one is kept per
-// network.
+export function setCoreDapiUrls(network: Network, dapiUrls: string[]): void {
+  evonodeDapiUrls.set(network, dapiUrls)
+  instances.delete(network)
+}
+
+// Before the first evonode list arrives the SDK is built on no urls at all: given
+// none, it would run a discovery of its own against dead seed nodes.
 export function coreSDK(network: Network): DashCoreSDK {
   let sdk = instances.get(network)
   if (sdk == null) {
     const own = dapi[network]
-    sdk = dapi.mode === 'static' && own.length > 0
-      // Typed as a string, but handed as is to a pool that takes and pins a list.
-      ? new DashCoreSDK({network, dapiUrl: [...own] as unknown as string})
-      : new DashCoreSDK({network})
+    const dapiUrls = dapi.mode === 'static' && own.length > 0 ? own : evonodeDapiUrls.get(network) ?? []
+    // Typed as a string, but handed as is to a pool that takes and pins a list.
+    sdk = new DashCoreSDK({network, dapiUrl: [...dapiUrls] as unknown as string})
     instances.set(network, sdk)
   }
   return sdk

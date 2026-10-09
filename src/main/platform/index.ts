@@ -39,8 +39,9 @@ declare const process: NodeJS.Process & {
   }
 }
 
-const registry = new SdkRegistry()
-const service = new PlatformService(registry, event => process.parentPort.postMessage(event))
+const emit = (event: PlatformEvent): void => process.parentPort.postMessage(event)
+const registry = new SdkRegistry(emit)
+const service = new PlatformService(registry, emit)
 
 process.parentPort.on('message', ({data}) => {
   if (data.type === 'setLogLevel') {
@@ -49,6 +50,10 @@ process.parentPort.on('message', ({data}) => {
   }
   if (data.type === 'setDapi') {
     registry.setDapi(data.dapi)
+    return
+  }
+  if (data.type === 'setEvonodeDapiUrls') {
+    registry.setEvonodeDapiUrls(data.network, data.dapiUrls)
     return
   }
   service.handle(data)
