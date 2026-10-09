@@ -18,26 +18,39 @@ export async function identityScan(payload: Payload, ctx: OperationContext): Pro
   let nextFreeIndex: number | null = null
   let gap = 0
 
-  for (let scanned = 0; scanned < scanLimit && gap < gapLimit; scanned++) {
-    throwIfAborted(ctx.signal)
-
-    const index = startIndex + scanned
+  const lookup = async (index: number): Promise<{index: number; identifier: string | null}> => {
     const derived = sdk.keyPair.deriveIdentityPrivateKey(hdKey, index, 0, network)
+
     if (derived.privateKey == null) {
       throw new OperationError(`Could not derive identity key at index ${index}`, 'internal')
     }
+
     const pkh = PrivateKeyWASM.fromBytes(derived.privateKey, network).getPublicKeyHash()
 
     const existing =
       await lookupIdentity(sdk.identities.getIdentityByPublicKeyHash(pkh), `index ${index}`) ??
       await lookupIdentity(sdk.identities.getIdentityByNonUniquePublicKeyHash(pkh), `index ${index}`)
 
-    if (existing == null) {
-      nextFreeIndex ??= index
-      gap++
-    } else {
-      identities.push({index, identifier: existing.id.base58()})
-      gap = 0
+    return {index, identifier: existing?.id.base58() ?? null}
+  }
+
+  // A gap's worth of indexes at a time: every lookup is a round trip, and a new
+  // wallet walks at least one full gap.
+  for (let scanned = 0; scanned < scanLimit && gap < gapLimit; scanned += gapLimit) {
+    throwIfAborted(ctx.signal)
+    const count = Math.min(gapLimit, scanLimit - scanned)
+    const batch = await Promise.all(Array.from({length: count}, (_, i) => lookup(startIndex + scanned + i)))
+
+    for (const {index, identifier} of batch) {
+      if (gap >= gapLimit) break
+
+      if (identifier == null) {
+        nextFreeIndex ??= index
+        gap++
+      } else {
+        identities.push({index, identifier})
+        gap = 0
+      }
     }
   }
 
