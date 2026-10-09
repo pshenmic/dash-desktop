@@ -146,6 +146,7 @@ export class PlatformWorkerService {
   private untilPinned(network: Network): Promise<void> | null {
     const {dapi} = this.preferences.network
     if (this.pinnedNetworks.has(network) || (dapi.mode === 'static' && dapi[network].length > 0)) return null
+    this.ensureChild()
     return new Promise((resolve, reject) => {
       const timer = setTimeout(
         () => reject(new Error(`no reachable evonode for ${network} after ${DAPI_URLS_WAIT_MS / 1000}s`)),
