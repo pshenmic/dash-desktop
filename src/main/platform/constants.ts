@@ -12,6 +12,10 @@ export const DAPI_STATUS_TIMEOUT_MS = 5000
 export const DAPI_PROBE_BATCH = 12
 export const DAPI_POOL_READY = 5
 
+// A list none of whose evonodes answered is probed again after this long, rather
+// than waiting out the hour until p2p fetches the next one.
+export const DAPI_REPROBE_MS = 30_000
+
 export const ERROR_CODES: readonly string[] =
   ['cancelled', 'alreadyInChain', 'insufficientFunds', 'network', 'internal']
 

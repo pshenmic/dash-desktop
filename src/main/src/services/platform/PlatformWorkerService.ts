@@ -224,6 +224,9 @@ export class PlatformWorkerService {
         if (this.child !== child) return
         for (const [network, dapiUrls] of byNetwork) {
           log.info(`${network}: pinning gRPC from db (${dapiUrls.length} saved evonode(s))`)
+          // Unprobed, but real evonodes rather than the core SDK's own seeds until
+          // the worker's probed set replaces them.
+          setCoreDapiUrls(network, dapiUrls)
           child.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
         }
       })

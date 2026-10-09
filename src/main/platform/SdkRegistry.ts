@@ -3,7 +3,7 @@ import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 import {Logger} from '../src/utils/logger'
 
-import {NETWORKS} from './constants'
+import {DAPI_REPROBE_MS, NETWORKS} from './constants'
 import {reachableDapiUrls} from './operations/dapi'
 import {Dapi, PlatformEvent} from './types/messages'
 import {SdkSource} from './types/sdk'
@@ -20,6 +20,8 @@ const log = new Logger('platform')
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
   private readonly pinnedDapiUrls = new Map<Network, string[]>()
+  // The list each network was last asked to probe, so only the latest is retried.
+  private readonly latestDapiUrls = new Map<Network, string[]>()
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
   private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
@@ -47,6 +49,7 @@ export class SdkRegistry implements SdkSource {
   }
 
   setEvonodeDapiUrls(network: Network, dapiUrls: string[]): void {
+    this.latestDapiUrls.set(network, dapiUrls)
     log.info(`${network}: probing ${dapiUrls.length} evonode(s)`)
     const started = Date.now()
     reachableDapiUrls(dapiUrls, network)
@@ -57,7 +60,13 @@ export class SdkRegistry implements SdkSource {
         this.sdks.delete(network)
         this.emit({type: 'pinnedDapiUrls', network, dapiUrls: reachable})
       })
-      .catch(err => log.warn(`${network}: no reachable evonode:`, err))
+      .catch(err => {
+        if (this.latestDapiUrls.get(network) !== dapiUrls) return
+        log.warn(`${network}: no reachable evonode, probing again in ${DAPI_REPROBE_MS / 1000}s:`, err)
+        setTimeout(() => {
+          if (this.latestDapiUrls.get(network) === dapiUrls) this.setEvonodeDapiUrls(network, dapiUrls)
+        }, DAPI_REPROBE_MS).unref?.()
+      })
   }
 
   activeDapiUrls(network: Network): string[] {
