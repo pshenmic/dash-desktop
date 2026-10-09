@@ -137,6 +137,11 @@ export class WalletService {
       log.error('core address discovery after wallet creation failed:', e)
     }
 
+    // The scan waits on the masternode list the lock pool fetches, which a first
+    // launch only starts here.
+    await this.walletSyncService.startLockListen(network, walletId)
+      .catch(err => locks.error('failed to start lock listener:', err))
+
     // The wallet and addresses are already persisted, so a scan that cannot
     // reach the worker must not abandon them — a retry would create a second
     // wallet for the same seed.

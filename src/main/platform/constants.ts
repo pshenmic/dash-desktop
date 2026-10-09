@@ -7,6 +7,11 @@ export const NETWORKS: readonly Network[] = ['mainnet', 'testnet']
 
 export const DAPI_STATUS_TIMEOUT_MS = 5000
 
+// Evonodes probed at once, and how many answers are enough to build the SDK on.
+// Some evonodes serve a certificate fetch rejects, so a list cannot be used unprobed.
+export const DAPI_PROBE_BATCH = 12
+export const DAPI_POOL_READY = 5
+
 export const ERROR_CODES: readonly string[] =
   ['cancelled', 'alreadyInChain', 'insufficientFunds', 'network', 'internal']
 

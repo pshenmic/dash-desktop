@@ -425,7 +425,20 @@ export interface Dapi {
   testnet: string[]
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetDapi
+// The valid evonodes of the latest verified masternode list. In dynamic mode the
+// SDK is pinned to the ones that answer a probe; the SDK's own seeds are never used.
+export interface PlatformSetEvonodeDapiUrls {
+  type: 'setEvonodeDapiUrls'
+  network: Network
+  dapiUrls: string[]
+}
+
+export type PlatformCommand =
+  | PlatformRequestMessage
+  | PlatformCancel
+  | PlatformSetLogLevel
+  | PlatformSetDapi
+  | PlatformSetEvonodeDapiUrls
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}
@@ -439,6 +452,7 @@ export type PlatformEvent =
   | {type: 'progress'; requestId: string; phase: PlatformPhase; fetched: number; total: number}
   | {type: 'notesSpent'; requestId: string; indexes: number[]}
   | {type: 'status'; status: PlatformWorkerStatus}
+  | {type: 'pinnedDapiUrls'; network: Network; dapiUrls: string[]}
   | {type: 'error'; message: string}
 
 export interface PlatformNetworkStatus {

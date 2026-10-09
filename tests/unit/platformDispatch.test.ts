@@ -8,6 +8,7 @@ import {SdkSource} from '../../src/main/platform/types/sdk'
 import {PlatformEvent, PlatformRequestMessage} from '../../src/main/platform/types/messages'
 import {PlatformWorkerService} from '../../src/main/src/services/platform/PlatformWorkerService'
 import {Preferences} from '../../src/main/src/preferences'
+import {EvonodeDAO} from '../../src/main/src/database/EvonodeDAO'
 
 const flush = async (): Promise<void> => {
   await vi.advanceTimersByTimeAsync(0)
@@ -104,7 +105,9 @@ describe('PlatformWorkerService correlation', () => {
     }
     const {utilityProcess} = await import('electron')
     vi.mocked(utilityProcess.fork).mockReturnValue(child as never)
-    service = new PlatformWorkerService(Preferences.default())
+    service = new PlatformWorkerService(Preferences.default(), {getDapiUrls: async () => new Map()} as unknown as EvonodeDAO)
+    service.start()
+    listeners.get('message')?.({type: 'pinnedDapiUrls', network: 'testnet', dapiUrls: []} as never)
   })
 
   afterEach(() => {
