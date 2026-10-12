@@ -19,6 +19,7 @@ import {identityCreditTransfer} from './operations/identity/creditTransfer'
 import {identityCreditsToAddresses} from './operations/identity/creditsToAddresses'
 import {identityExists} from './operations/identity/exists'
 import {identityInfos} from './operations/identity/infos'
+import {aliasStatus} from './operations/alias/status'
 import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
@@ -222,6 +223,7 @@ export class PlatformService {
       case 'identityBalance': return identityBalance(request.payload, ctx)
       case 'identityNonce': return identityNonce(request.payload, ctx)
       case 'identityInfos': return identityInfos(request.payload, ctx)
+      case 'aliasStatus': return aliasStatus(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
       case 'activeDapiUrls': return probeActiveDapiUrls(this.registry.activeDapiUrls(network), network)
