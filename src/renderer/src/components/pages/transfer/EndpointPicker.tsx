@@ -5,6 +5,7 @@ import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
+import LayerBadge from "@renderer/components/ui/LayerBadge";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
@@ -18,9 +19,7 @@ const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
 
 function KindIcon({kind, compact = false}: {kind: string; compact?: boolean}): React.JSX.Element {
   if (compact && (kind === SourceKind.Core || kind === DestinationKind.CoreAddress || kind === SourceKind.PlatformAddress)) {
-    return <span className="size-6 shrink-0 rounded-full flex items-center justify-center bg-dash-brand/10 dark:bg-dash-mint/5 text-dash-brand dark:text-dash-mint text-xs font-bold">
-      {kind === SourceKind.Core || kind === DestinationKind.CoreAddress ? 'L1' : 'L2'}
-    </span>
+    return <LayerBadge layer={kind === SourceKind.Core || kind === DestinationKind.CoreAddress ? 'L1' : 'L2'} />
   }
   if (kind === SourceKind.Core || kind === DestinationKind.CoreAddress) return <DashLogo size={16} />
   if (kind === SourceKind.Shielded) return <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />

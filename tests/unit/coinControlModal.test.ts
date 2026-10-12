@@ -155,7 +155,7 @@ describe('coin control UTXO refresh', () => {
     expect(nodes.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
     expect(nodes.find(node => node.key === 'unselected:0')!.props.checked).toBe(false)
     expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
-      && node.props.label.props.children === 'Only selected')).toBe(true)
+      && node.props.label.props.children === 'Only selected')).toBe(false)
     expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
       && node.props.label.props.children === 'Filter dust')).toBe(true)
   })

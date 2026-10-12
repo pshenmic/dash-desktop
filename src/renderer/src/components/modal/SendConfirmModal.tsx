@@ -181,7 +181,7 @@ export default function SendConfirmModal({
                   </div>
                   <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
                     <Text size={14} weight="medium" color="brand" opacity={50}>Total</Text>
-                    <Text size={14} weight="extrabold" color="brand" className="text-right">{davToDash(amountDuffs + feeDuffs)} Dash</Text>
+                    <Text size={14} weight="extrabold" color="brand" className="text-right">{davToDash(amountDuffs + feeDuffs)}<span className="font-normal"> Dash</span></Text>
                   </div>
                 </div>
               )}
@@ -245,7 +245,7 @@ export default function SendConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? davToDash(result.amount) : ''} Dash sent
+                {result ? davToDash(result.amount) : ''}<span className="font-normal"> Dash</span> sent
               </Text>
               <div className={"mt-2 flex items-center justify-center gap-2"}>
                 {lockFinal

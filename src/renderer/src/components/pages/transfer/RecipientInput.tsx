@@ -14,6 +14,7 @@ export default function RecipientInput({
   onChange,
   data,
   compact = false,
+  appearance = 'default',
   ariaLabel,
   ownOptions,
 }: RecipientInputProps) {
@@ -81,7 +82,7 @@ export default function RecipientInput({
       {!compact && <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>}
-      <div className={"dash-input-block rounded-[.875rem]"} ref={containerRef}>
+      <div className={`rounded-[.875rem] ${appearance === 'subtle' ? 'dash-block-5 border border-transparent' : 'dash-input-block'}`} ref={containerRef}>
         {ownOptions ? <DropdownField
           editable
           ariaLabel={ariaLabel ?? data.label}
@@ -94,7 +95,7 @@ export default function RecipientInput({
           inputInvalid={trimmedValue.length > 0 && !isValidRecipient}
           inputSuffix={<div className="flex items-center gap-3">
             {trimmedValue.length > 0 && (isValidRecipient
-              ? <CheckIcon size={18} className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />
+              ? <CheckIcon size={18} color="currentColor" className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />
               : <Text size={10} weight="medium" color="red">Invalid</Text>)}
             <button type="button" aria-label={data.addressBook} title={data.addressBook} aria-expanded={open}
               onClick={() => setOpen(current => !current)}
@@ -112,13 +113,13 @@ export default function RecipientInput({
             aria-label={ariaLabel ?? data.label}
             value={value}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 rounded-none! p-0 min-w-0 w-full"}
+            className={`outline-none text-[.875rem] dash-text-default ${appearance === 'subtle' ? 'placeholder:opacity-30' : 'placeholder:opacity-40'} !ring-0 rounded-none! p-0 min-w-0 w-full`}
             placeholder={data.placeholder}
             colorScheme={"transparent"}
           />
           {trimmedValue.length > 0 && (
             isValidRecipient ? (
-              <CheckIcon size={18} className={"text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden"} />
+              <CheckIcon size={18} color={"currentColor"} className={"text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden"} />
             ) : (
               <Text size={10} weight={"medium"} color={"red"} className={"shrink-0"}>Invalid</Text>
             )

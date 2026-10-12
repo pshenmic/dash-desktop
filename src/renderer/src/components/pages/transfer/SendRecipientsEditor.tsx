@@ -10,6 +10,7 @@ import { dashToDuffs, davToDash, duffsToCredits } from '@renderer/utils/balance'
 import { capSendAmount, recipientPercent, recipientRemainingDuffs, recipientSliderAmount, recipientTotalDuffs, splitRecipientTotal } from '@renderer/utils/sendRecipients'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientInput from './RecipientInput'
+import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 
 export default function SendRecipientsEditor({
   recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, headerAction, beforeRecipients, footer, onChange,
@@ -50,7 +51,7 @@ export default function SendRecipientsEditor({
         </div>
       </div>
       {beforeRecipients && <div className="mb-2 shrink-0">{beforeRecipients}</div>}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto scrollbar-hide">
+      <FadingScrollArea className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto scrollbar-hide">
         {recipients.map((recipient, index) => {
           const amount = dashToDuffs(recipient.amount)
           const remaining = budgetDuffs == null ? null : recipientRemainingDuffs(recipients, recipient.id, budgetDuffs)
@@ -95,7 +96,7 @@ export default function SendRecipientsEditor({
               <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]!">
                 <div className="min-w-0">
                   {destination === DestinationKind.CoreAddress ? (
-                    <RecipientInput compact ariaLabel={`Recipient ${index + 1} address`} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
+                    <RecipientInput compact appearance="subtle" ariaLabel={`Recipient ${index + 1} address`} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
                   ) : (
                     <label className="flex min-w-0 flex-col gap-2">
                       <span className={`rounded-[.875rem] dash-block-5 px-3 py-3 ${addressError ? 'outline outline-1 outline-dash-red' : ''}`}>
@@ -169,7 +170,7 @@ export default function SendRecipientsEditor({
             </section>
           )
         })}
-      </div>
+      </FadingScrollArea>
       {footer && <div className="mt-6 shrink-0">{footer}</div>}
     </div>
   )

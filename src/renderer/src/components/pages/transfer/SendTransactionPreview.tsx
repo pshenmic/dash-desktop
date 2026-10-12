@@ -16,7 +16,7 @@ function PreviewAmount({amount, unit}: SendPreviewAmountProps): React.JSX.Elemen
   const {format, rateReady} = useFiat()
   if (unit === 'credits') return <CreditsAmount credits={amount} exact align="end" />
   return <span className="inline-flex flex-col items-end">
-    <span className="whitespace-nowrap"><DashBigNumber>{davToDash(amount)}</DashBigNumber> Dash</span>
+    <span className="whitespace-nowrap"><DashBigNumber>{davToDash(amount)}</DashBigNumber><span className="font-normal"> Dash</span></span>
     {rateReady && <span className="text-[.625rem] font-medium dash-text-primary">~ {format(amount)}</span>}
   </span>
 }

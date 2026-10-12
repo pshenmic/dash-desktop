@@ -22,6 +22,7 @@ export interface RecipientInputProps {
   onChange: (value: string) => void
   data: TransferPageType['recipient']
   compact?: boolean
+  appearance?: 'default' | 'subtle'
   ariaLabel?: string
   ownOptions?: DropdownFieldOption[]
 }

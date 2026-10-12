@@ -36,14 +36,14 @@ export default function TransactionSummary({
 
   let receiveDisplay: ReactNode = <CreditsAmount credits={receivedCredits} compact showFiat={false} exact />
   if (subtractFee && !fee.ready) receiveDisplay = '—'
-  else if (isCoreOperation) receiveDisplay = `${davToDash(amountDuffs)} Dash`
+  else if (isCoreOperation) receiveDisplay = <>{davToDash(amountDuffs)}<span className="font-normal"> Dash</span></>
 
   let feeDisplay = <Text size={12} weight="medium" color="brand" opacity={50}>—</Text>
   if (fee.loading) {
     feeDisplay = <Spinner size={14} className="text-dash-brand dark:text-dash-mint" />
   } else if (fee.ready) {
     const feeAmount = isCoreOperation
-      ? `${davToDash(fee.totalDuffs)} Dash`
+      ? <>{davToDash(fee.totalDuffs)}<span className="font-normal"> Dash</span></>
       : <CreditsAmount credits={fee.credits ?? 0n} compact showFiat={false} />
     feeDisplay = <Text size={12} weight="extrabold" color="brand">{feeAmount}</Text>
   }
@@ -51,7 +51,7 @@ export default function TransactionSummary({
   let debitDisplay: ReactNode = '—'
   if (fee.ready) {
     debitDisplay = isCoreOperation
-      ? `${davToDash(amountDuffs + fee.totalDuffs)} Dash`
+      ? <>{davToDash(amountDuffs + fee.totalDuffs)}<span className="font-normal"> Dash</span></>
       : <CreditsAmount credits={totalDebitCredits} compact showFiat={false} exact />
   }
   let availableDisplay: string | null = null

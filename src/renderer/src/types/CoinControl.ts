@@ -81,6 +81,8 @@ export interface CoinControlEmptyProps {
   text: string
 }
 
+export type CoinControlAutomaticIllustrationProps = Pick<CoinControlFunds, 'utxos' | 'platformAddresses'>
+
 export interface CoinControlAmountInputProps {
   id: string
   credits: bigint

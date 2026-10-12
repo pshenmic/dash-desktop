@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
 import { Text, ArrowIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { CoinControlListIcon, TransferChevronDownIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
 import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
+import LayerBadge from "@renderer/components/ui/LayerBadge";
 import Checkbox from "@renderer/components/ui/Checkbox";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
@@ -71,6 +73,14 @@ import type { CoinControlSelection } from "@renderer/types/CoinControl";
 import type { SendPreviewRequest } from "@renderer/types/SendTransactionPreview";
 import { sendPreviewParams, sendPreviewRequestKey } from "@renderer/utils/sendTransactionPreview";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
+import {
+  TRANSFER_CARD_PATH,
+  TRANSFER_FROM_BORDER_PATH,
+  TRANSFER_PROTRUSION_BORDER_PATH,
+  TRANSFER_PROTRUSION_PATH,
+  TRANSFER_TO_BORDER_PATH,
+  TRANSFER_TO_MASK_STYLE,
+} from '@renderer/constants/transferCards';
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import { AUTOMATIC_PLATFORM_SELECTION, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
@@ -490,6 +500,7 @@ function WalletTransferHub(): React.JSX.Element {
   const canCustomizeChange = advanced && isCoreOperation && allocationReady && coinControlValid
     && coreMaxDuffs !== null && coreMaxDuffs > 0n && amountDuffs < coreMaxDuffs
   const customChangeControl = canCustomizeChange ? <Checkbox
+    appearance="subtle"
     className="flex-row-reverse!"
     checked={advancedRoute.customChangeEnabled ?? false}
     onChange={customChangeEnabled => updateAdvancedRoute({customChangeEnabled})}
@@ -607,11 +618,26 @@ function WalletTransferHub(): React.JSX.Element {
   }
   const routeStep = (
     <>
-      <div className="flex flex-col gap-1">
-        <div className="relative px-4 pt-5 pb-6.5">
-          <svg aria-hidden="true" className="absolute inset-0 size-full text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none">
-            <path fill="currentColor" className="stroke-dash-primary-dark-blue/12 dark:stroke-white/12" strokeWidth="1" vectorEffect="non-scaling-stroke" d="M24 0H646Q670 0 670 24V104Q670 128 646 128H395Q366 128 351 113Q335 97 319 113Q304 128 275 128H24Q0 128 0 104V24Q0 0 24 0Z" />
+      <div className="flex flex-col">
+        <div className="relative z-10 px-4 pt-5 pb-6.5">
+          <svg aria-hidden="true" className="absolute inset-0 size-full overflow-visible text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none">
+            <path fill="currentColor" d={TRANSFER_CARD_PATH} />
           </svg>
+          <svg aria-hidden="true" className="absolute inset-x-0 top-full h-8 w-full text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 32" preserveAspectRatio="none">
+            <path fill="currentColor" d={TRANSFER_PROTRUSION_PATH} />
+          </svg>
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[calc(100%_+_2rem)] text-dash-primary-dark-blue dark:text-white opacity-[.08] [mask-image:linear-gradient(to_bottom,transparent,black_calc(100%_-_.5625rem))] [mask-clip:no-clip] [mask-repeat:repeat-x] pointer-events-none">
+            <svg className="absolute inset-x-0 top-0 h-[calc(100%_-_2rem)] w-full overflow-visible" viewBox="0 0 670 128" preserveAspectRatio="none" fill="none">
+              <path stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" d={TRANSFER_FROM_BORDER_PATH} />
+            </svg>
+            <svg className="absolute inset-x-0 bottom-0 h-8 w-full overflow-visible" viewBox="0 0 670 32" preserveAspectRatio="none" fill="none">
+              <path stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" d={TRANSFER_PROTRUSION_BORDER_PATH} />
+            </svg>
+          </div>
+          <span aria-hidden="true" className="absolute left-1/2 top-full flex size-6 -translate-x-1/2 -translate-y-[4px] flex-col items-center justify-center gap-[4px] dash-text-default pointer-events-none">
+            <TransferChevronDownIcon className="shrink-0 opacity-75" />
+            <TransferChevronDownIcon className="shrink-0" />
+          </span>
           <div className="relative">
             <SourcePicker
               compact
@@ -622,9 +648,9 @@ function WalletTransferHub(): React.JSX.Element {
                   className="w-full min-h-13 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl dash-block hover:dash-block-accent-10 transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-3">
-                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" className="dash-text-default shrink-0">
-                      <path d="M8 5H17M8 10H17M8 15H17M3 4H5V6H3ZM3 9H5V11H3ZM3 14H5V16H3Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
+                      <CoinControlListIcon className="dash-text-default" />
+                    </span>
                     <Text size={14} weight="medium" color="brand">Coin Control</Text>
                   </span>
                   <Text size={12} weight="medium" color="blue-mint" className="text-right">{coinControlSummary}</Text>
@@ -653,14 +679,12 @@ function WalletTransferHub(): React.JSX.Element {
             />
           </div>
         </div>
-        <div className="relative h-0 flex justify-center">
-          <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" className="absolute -top-3 dash-text-default opacity-70">
-            <path d="M6 7L12 13L18 7M6 12L12 18L18 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
         <div className="relative px-4 pt-6.5 pb-5">
-          <svg aria-hidden="true" className="absolute inset-0 size-full text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none">
-            <path fill="currentColor" className="stroke-dash-primary-dark-blue/12 dark:stroke-white/12" strokeWidth="1" vectorEffect="non-scaling-stroke" d="M24 0H275Q304 0 319 15Q335 31 351 15Q366 0 395 0H646Q670 0 670 24V104Q670 128 646 128H24Q0 128 0 104V24Q0 0 24 0Z" />
+          <svg aria-hidden="true" className="absolute inset-0 size-full text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none" style={TRANSFER_TO_MASK_STYLE}>
+            <path fill="currentColor" d={TRANSFER_CARD_PATH} />
+          </svg>
+          <svg aria-hidden="true" className="absolute inset-0 size-full text-dash-primary-dark-blue dark:text-white opacity-[.08] [mask-image:linear-gradient(to_bottom,transparent,black)] pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none" fill="none">
+            <path stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" d={TRANSFER_TO_BORDER_PATH} />
           </svg>
           <div className="relative flex flex-col gap-2">
             <DestinationPicker
@@ -668,12 +692,16 @@ function WalletTransferHub(): React.JSX.Element {
               trailingControl={advancedMulti ? (
                 <button type="button" onClick={() => setRecipientDraft(savedAdvancedRoute)} className="w-full min-h-13 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl dash-block hover:dash-block-accent-10 transition-colors cursor-pointer">
                   <span className="flex items-center gap-3">
-                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" className="dash-text-default shrink-0">
-                      <path d="M8 5H17M8 10H17M8 15H17M3 4H5V6H3ZM3 9H5V11H3ZM3 14H5V16H3Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
+                      <CoinControlListIcon className="dash-text-default" />
+                    </span>
                     <Text size={14} weight="medium" color="brand">Recipients</Text>
                   </span>
-                  <Text size={14} weight="medium" color="blue-mint">({activeRecipients.length}/{recipientLimit})</Text>
+                  <Text size={14} weight="medium" color="blue-mint">
+                    <span className="opacity-[.48]">(</span>
+                    <strong className="font-bold">{activeRecipients.length}</strong>
+                    <span className="opacity-[.48]">/{recipientLimit})</span>
+                  </Text>
                 </button>
               ) : coreRecipientInput ? <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} /> : undefined}
               kind={toKind}
@@ -803,6 +831,13 @@ function WalletTransferHub(): React.JSX.Element {
     sourceBalanceDisplay = <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Available: <CreditsAmount credits={availableCredits} /></Text>
   }
 
+  let totalSourceBalanceDisplay = sourceBalanceDisplay
+  if (isCoreOperation) {
+    totalSourceBalanceDisplay = <span>{davToDashCompact(balanceDuffs)}<span className="font-normal"> Dash</span></span>
+  } else if (availableCredits != null) {
+    totalSourceBalanceDisplay = <CreditsAmount credits={availableCredits} compact showFiat={false} />
+  }
+
   let feeDisplay = <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
   if (isCoreOperation) {
     feeDisplay = <Text size={12} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
@@ -832,7 +867,7 @@ function WalletTransferHub(): React.JSX.Element {
               className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${amountCredits === denomination ? 'dash-bg-inverse' : 'dash-block-3'}`}
             >
               <Text size={12} weight={"extrabold"} color={amountCredits === denomination ? "blue-mint" : "brand"}>
-                {davToDash(creditsToDuffs(denomination))} Dash
+                {davToDash(creditsToDuffs(denomination))}<span className="font-normal"> Dash</span>
               </Text>
             </button>
           ))}
@@ -972,7 +1007,7 @@ function WalletTransferHub(): React.JSX.Element {
             <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
             <div className={"flex justify-between items-baseline gap-3"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + totalFeeDuffs)} Dash</Text>
+              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + totalFeeDuffs)}<span className="font-normal"> Dash</span></Text>
             </div>
             {operation !== null && takesPlatformFeeFromLock(operation) && feeCredits !== null && (
               <div className={"flex justify-between items-baseline gap-3"}>
@@ -1119,7 +1154,7 @@ function WalletTransferHub(): React.JSX.Element {
             </Text>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex gap-1 dash-block p-1 rounded-full" aria-label="Send mode">
+            <div className="flex gap-1 p-1 rounded-full" aria-label="Send mode">
               {[false, true].map(mode => (
                 <button
                   key={String(mode)}
@@ -1184,7 +1219,13 @@ function WalletTransferHub(): React.JSX.Element {
               <div className="flex flex-col gap-4">{routeStep}</div>
               {!advancedMulti && <>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <Text size={16} weight="extrabold" color="brand">Recipients (1/1)</Text>
+                  <Text size={16} weight="extrabold" color="brand">
+                    Recipients <span className="font-medium">
+                      <span className="opacity-[.48]">(</span>
+                      <strong className="font-bold">1</strong>
+                      <span className="opacity-[.48]">/1)</span>
+                    </span>
+                  </Text>
                   {customChangeControl}
                 </div>
                 {customChangeField}
@@ -1207,11 +1248,11 @@ function WalletTransferHub(): React.JSX.Element {
               onRetryFee={retryFee}
               onReview={reviewTransaction}
             >
-              <span className="inline-block rounded-md dash-block-accent-10 px-1.5 py-1 text-xs dash-text-primary">{fromKind === SourceKind.Core ? 'L1' : 'L2'}</span>
+              <LayerBadge layer={fromKind === SourceKind.Core ? 'L1' : 'L2'} />
               <div className="mt-2 flex items-end justify-between gap-2">
                 <div className="flex min-w-0 flex-col gap-0.5 text-xs font-extrabold dash-text-default">
                   <Text size={12} weight="medium" color="brand" opacity={50}>Balance:</Text>
-                  {isCoreOperation ? `${davToDashCompact(balanceDuffs)} Dash` : availableCredits != null ? <CreditsAmount credits={availableCredits} compact showFiat={false} /> : sourceBalanceDisplay}
+                  {totalSourceBalanceDisplay}
                 </div>
                 {rateReady && (isCoreOperation || availableCredits != null) && <span className="shrink-0 rounded-md dash-block-accent-10 px-2 py-1 text-[.625rem] dash-text-primary">~ {formatFiat(isCoreOperation ? balanceDuffs : creditsToDuffs(availableCredits!))}</span>}
               </div>

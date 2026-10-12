@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, ArrowIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { QrCodeIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useFiat } from '@renderer/hooks/useFiat'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import QrButton from '@renderer/components/ui/QrButton'
+import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CoinControlAmountInput from './CoinControlAmountInput'
+import CoinControlAutomaticIllustration from './CoinControlAutomaticIllustration'
 import type { PlatformAddressDto } from '@renderer/api/types'
 import { FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
@@ -66,14 +68,12 @@ export default function CoinControlModal({
   const {format: formatFiat, rateReady} = useFiat()
   const [draftSelection, setDraft] = useState<CoinControlSelection>(selection)
   const [filterDust, setFilterDust] = useState(false)
-  const [onlySelected, setOnlySelected] = useState(false)
   const [qrAddress, setQrAddress] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
     setDraft(selection)
     setFilterDust(false)
-    setOnlySelected(false)
     setQrAddress(null)
   }, [isOpen, selection])
 
@@ -95,16 +95,13 @@ export default function CoinControlModal({
   const funds = {coreAddresses, utxos, platformAddresses, shieldedNotes}
   const draft = expandAddressCoinControlSelection(draftSelection, funds, operation)
   const nonDustShieldedNotes = shieldedNotes.filter(note => note.amount >= SHIELDED_DUST_FILTER_CREDITS)
-  const visibleShieldedNotes = (filterDust ? nonDustShieldedNotes : shieldedNotes)
-    .filter(note => !onlySelected || (draft.kind === 'shieldedNotes' && draft.noteIndexes.includes(note.index)))
+  const visibleShieldedNotes = filterDust ? nonDustShieldedNotes : shieldedNotes
   const nonDustUtxos = utxos.filter(utxo => utxo.satoshis >= CORE_DUST_FILTER_DUFFS)
-  const visibleUtxos = (filterDust ? nonDustUtxos : utxos)
-    .filter(utxo => !onlySelected || (draft.kind === 'coreOutpoints' && draft.outpoints.includes(outpointKey(utxo))))
+  const visibleUtxos = filterDust ? nonDustUtxos : utxos
 
   const nonDustPlatformAddresses = platformAddresses.filter(address => address.balanceCredits >= PLATFORM_DUST_FILTER_CREDITS)
   const selectedPlatformInputs = draft.kind === 'platformInputs' ? draft.inputs : []
-  const visiblePlatformAddresses = (filterDust ? nonDustPlatformAddresses : platformAddresses)
-    .filter(address => !onlySelected || selectedPlatformInputs.some(input => input.address === address.platformAddress))
+  const visiblePlatformAddresses = filterDust ? nonDustPlatformAddresses : platformAddresses
   const {count: selectedCount, duffs: selectedAmountDuffs, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
   const isCoreSend = operation === TransferOperation.CoreSend
   const selectedItemLabel = coinControlInputLabel(sourceKind, selectedCount)
@@ -112,7 +109,6 @@ export default function CoinControlModal({
     && isCoinControlSelectionValid(draft, buildCoinControlInventory(funds))
 
   const chooseMode = (nextMode: CoinControlMode): void => {
-    setOnlySelected(false)
     if (nextMode === CoinControlMode.Automatic) {
       setDraft(automaticCoinControl())
       return
@@ -294,14 +290,11 @@ export default function CoinControlModal({
                   ? `${davToDash(selectedAmountDuffs)} Dash`
                   : <CreditsAmount credits={selectedAmountCredits} exact showFiat={false} />}</span>
               </div>
-              <div className={'ml-auto flex flex-wrap items-center gap-6'}>
-                <Checkbox checked={onlySelected} onChange={setOnlySelected} label={<Text size={14} weight={'medium'} color={'brand'} opacity={50}>Only selected</Text>} className={'flex-row-reverse!'} />
-                <Checkbox checked={filterDust} onChange={toggleDustFilter} label={<Text size={14} weight={'medium'} color={'brand'} opacity={50}>Filter dust</Text>} className={'flex-row-reverse!'} />
-              </div>
+              <Checkbox appearance="subtle" checked={filterDust} onChange={toggleDustFilter} label={<Text size={14} weight={'medium'} color={'brand'} opacity={50}>Filter dust</Text>} className={'ml-auto flex-row-reverse!'} />
             </div>
           )}
 
-        <div className={'flex-1 min-w-0 min-h-0 overflow-y-auto scrollbar-hide'}>
+        <FadingScrollArea enabled={mode === CoinControlMode.Inputs} className={'flex-1 min-w-0 min-h-0 overflow-y-auto scrollbar-hide'}>
           {utxosLocalSnapshot && sourceKind === SourceKind.Core && (
             <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-3 block'}>
               P2P sync is paused. UTXOs reflect the latest locally saved data. Resume sync before sending.
@@ -326,22 +319,7 @@ export default function CoinControlModal({
             <>
               {mode === CoinControlMode.Automatic && (
                 <div className={'relative flex h-full min-h-64 flex-col items-center justify-center overflow-hidden py-8 text-center'}>
-                  <svg aria-hidden={'true'} viewBox={'0 0 640 200'} className={'absolute inset-x-0 top-4 w-full dash-text-default opacity-20'} fill={'none'}>
-                    <path d={'M40 40L320 140 140 80M500 30L320 140 600 90M0 140H640'} stroke={'currentColor'} />
-                    <g fill={'currentColor'} fontSize={'6'}>
-                      <g transform={'rotate(9 10 25)'}><rect x={'10'} y={'25'} width={'130'} height={'20'} rx={'8'} fillOpacity={'.15'} /><text x={'18'} y={'38'}>{utxos[0]?.address ?? platformAddresses[0]?.platformAddress}</text></g>
-                      <g transform={'rotate(-8 140 65)'}><rect x={'140'} y={'65'} width={'150'} height={'20'} rx={'8'} fillOpacity={'.15'} /><text x={'148'} y={'78'}>{utxos[1]?.address ?? platformAddresses[1]?.platformAddress}</text></g>
-                      <g transform={'rotate(-5 405 20)'}><rect x={'405'} y={'20'} width={'155'} height={'20'} rx={'8'} fillOpacity={'.15'} /><text x={'413'} y={'33'}>{utxos[2]?.address ?? platformAddresses[2]?.platformAddress}</text></g>
-                      <g transform={'rotate(10 485 82)'}><rect x={'485'} y={'82'} width={'140'} height={'20'} rx={'8'} fillOpacity={'.15'} /><text x={'493'} y={'95'}>{utxos[3]?.address ?? platformAddresses[3]?.platformAddress}</text></g>
-                    </g>
-                  </svg>
-                  <div className={'relative flex size-25 items-center justify-center rounded-full border border-dash-brand/10 dark:border-dash-mint/10 mb-3'}>
-                    <div className={'flex size-16 items-center justify-center rounded-full dash-block'}>
-                      <svg aria-hidden={'true'} width={'28'} height={'28'} viewBox={'0 0 28 28'} fill={'none'} className={'dash-text-default'}>
-                        <path d={'M4 15L8 5H20L24 15M4 15V22C4 23 5 24 6 24H22C23 24 24 23 24 22V15H18L16 18H12L10 15H4Z'} stroke={'currentColor'} strokeLinecap={'round'} strokeLinejoin={'round'} />
-                      </svg>
-                    </div>
-                  </div>
+                  <CoinControlAutomaticIllustration utxos={utxos} platformAddresses={platformAddresses} />
                   <div><Text size={16} weight={'extrabold'} color={'brand'}>Let the wallet choose</Text></div>
                   <div className={'mt-1 leading-[140%] relative'}>
                     <Text size={12} weight={'medium'} color={'brand'} opacity={50}>
@@ -356,7 +334,7 @@ export default function CoinControlModal({
                 <div className={'flex flex-col gap-2'} aria-busy={refreshingCoreInputs}>
                   {utxos.length === 0 && <Empty text={'No spendable UTXOs'} />}
                   {utxos.length > 0 && visibleUtxos.length === 0 && (
-                    <Empty text={onlySelected ? 'No selected UTXOs match these filters.' : 'All UTXOs are below the dust threshold.'} />
+                    <Empty text={'All UTXOs are below the dust threshold.'} />
                   )}
                   {visibleUtxos.map(utxo => {
                     const key = outpointKey(utxo)
@@ -369,14 +347,12 @@ export default function CoinControlModal({
                               <span className={'min-w-0 flex items-center gap-2'}>
                                 <Text reset size={12} weight={'medium'} color={'brand'} className={'min-w-0 break-all'}>{utxo.address}</Text>
                                 <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={utxo.address} /></span>
-                                <button type={'button'} onClick={() => setQrAddress(utxo.address)} aria-label={`Show QR code for ${utxo.address}`} className={'pointer-events-auto shrink-0 rounded dash-text-default opacity-50 hover:opacity-100 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint'}>
-                                  <QrCodeIcon size={12} color={'currentColor'} />
-                                </button>
+                                <QrButton iconSize={12} onClick={() => setQrAddress(utxo.address)} ariaLabel={`Show QR code for ${utxo.address}`} className={'pointer-events-auto shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint'} />
                               </span>
                               <div className={'ml-auto flex flex-wrap items-center justify-end gap-2 pointer-events-auto'}>
                                 <Text reset size={14} weight={'bold'} color={'brand'} className={'whitespace-nowrap text-right tabular-nums'}>
                                   {isCoreSend
-                                    ? `${davToDash(utxo.satoshis)} Dash`
+                                    ? <>{davToDash(utxo.satoshis)}<span className="font-normal"> Dash</span></>
                                     : <CreditsAmount credits={duffsToCredits(utxo.satoshis)} exact showFiat={false} align={'end'} />}
                                 </Text>
                                 {rateReady && <span className={'rounded-lg px-2 py-1 dash-block-accent-10 text-[.625rem] dash-text-primary whitespace-nowrap'}>~ {formatFiat(utxo.satoshis)}</span>}
@@ -406,7 +382,7 @@ export default function CoinControlModal({
                   {feeFromOutput && <Text size={12} weight="medium" color="brand" opacity={50}>The network fee will be deducted from the recipient selected on Send.</Text>}
                   {platformAddresses.length === 0 && <Empty text={'No funded Platform addresses'} />}
                   {platformAddresses.length > 0 && visiblePlatformAddresses.length === 0 && (
-                    <Empty text={onlySelected ? 'No selected Platform inputs match these filters.' : 'All Platform inputs are below the dust threshold.'} />
+                    <Empty text={'All Platform inputs are below the dust threshold.'} />
                   )}
                   {visiblePlatformAddresses.map(entry => {
                     const selected = selectedPlatformInputs.find(input => input.address === entry.platformAddress)
@@ -452,7 +428,7 @@ export default function CoinControlModal({
                   <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'mb-1'}>Choose up to {SHIELDED_NOTE_LIMIT} notes.</Text>
                   {shieldedNotes.length === 0 && <Empty text={'No spendable shielded notes'} />}
                   {shieldedNotes.length > 0 && visibleShieldedNotes.length === 0 && (
-                    <Empty text={onlySelected ? 'No selected notes match these filters.' : 'All shielded notes are below the dust threshold.'} />
+                    <Empty text={'All shielded notes are below the dust threshold.'} />
                   )}
                   {visibleShieldedNotes.map(note => {
                     const picked = draft.kind === 'shieldedNotes' ? draft.noteIndexes : []
@@ -468,7 +444,7 @@ export default function CoinControlModal({
               )}
             </>
           )}
-        </div>
+        </FadingScrollArea>
 
         <div className={'mt-6 flex gap-3 shrink-0'}>
           {!fixed && (
@@ -517,7 +493,7 @@ function InputDetails({label, amount, address, fiat}: CoinControlInputDetailsPro
 function CheckRow({label, checked, onChange, children, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
   return (
     <div className={`relative min-w-0 rounded-[.9375rem] p-3.5 transition-colors ${checked ? 'dash-block-accent-5' : 'dash-block hover:dash-block-accent-5'} ${disabled ? 'opacity-40' : ''}`}>
-      <Checkbox className={`absolute inset-0 p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
+      <Checkbox appearance="subtle" className={`absolute inset-0 p-3 ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
       <div className={'relative pointer-events-none min-w-0 ml-7'}>{children}</div>
     </div>
   )
