@@ -1,7 +1,6 @@
 import { ChevronIcon } from 'dash-ui-kit/react'
 import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
-import CopyableError from '@renderer/components/ui/CopyableError'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
@@ -10,6 +9,7 @@ import { SEND_PREVIEW_ROLE_LABELS } from '@renderer/constants/sendTransactionPre
 import type { SendPreviewAmountProps, SendPreviewRowsProps, SendTransactionPreviewProps } from '@renderer/types/SendTransactionPreview'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { useErrorToast } from '@renderer/hooks/useErrorToast'
 import { creditsToDuffs, davToDash } from '@renderer/utils/balance'
 
 function PreviewAmount({amount, unit}: SendPreviewAmountProps): React.JSX.Element {
@@ -50,19 +50,16 @@ export default function SendTransactionPreview({
   data, loading, error, valid, canRefresh, onBack, onRetry, onSign,
 }: SendTransactionPreviewProps): React.JSX.Element {
   const {status} = useAuth()
+  useErrorToast(error)
   return <div className="flex-1 min-h-0 overflow-y-auto px-6 xl:px-12 pt-2 pb-6">
     <div className="flex items-center gap-4 mb-6">
       <button type="button" onClick={onBack} aria-label="Back to send" className="flex size-12 shrink-0 items-center justify-center rounded-[.9375rem] dash-block dash-black-border hover:opacity-70 cursor-pointer">
         <ChevronIcon size={17} className="dash-text-default rotate-90" />
       </button>
       <Text size={40} weight="medium" color="brand" className="tracking-[-0.03em]">Transaction details</Text>
+      {loading && <span role="status" aria-label="Preparing transaction preview" className="ml-auto flex items-center"><Spinner size={20} className="dash-text-primary" /></span>}
     </div>
     <div className="mx-auto max-w-280 flex flex-col gap-4" aria-busy={loading}>
-      {loading && <div role="status" className="dash-card-base rounded-[.9375rem] p-6 flex items-center gap-3">
-        <Spinner size={20} className="dash-text-primary" />
-        <Text size={14} weight="medium" color="brand">Preparing transaction preview…</Text>
-      </div>}
-      {error && <div role="alert" className="dash-card-base rounded-[.9375rem] p-4"><CopyableError message={error} /></div>}
       {data && <>
         <section className="dash-card-base rounded-[.9375rem] p-4 flex flex-col gap-4 shadow-[0_0_50px_0_rgba(0,0,0,0.1)]">
           <div className="flex items-center justify-between gap-4">

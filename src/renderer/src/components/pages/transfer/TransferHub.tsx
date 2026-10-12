@@ -146,7 +146,6 @@ function WalletTransferHub(): React.JSX.Element {
   const [resumeOpen, setResumeOpen] = useState(false)
   const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
   const [dismissBusy, setDismissBusy] = useState(false)
-  const [dismissError, setDismissError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!walletId) return
@@ -166,14 +165,13 @@ function WalletTransferHub(): React.JSX.Element {
   const dismissFunding = async (): Promise<void> => {
     if (!walletId || dismissBusy) return
     setDismissBusy(true)
-    setDismissError(null)
     try {
       await API.dismissAssetLockFunding(walletId)
       setResumableFunding(null)
       setResumeOpen(false)
       setDismissConfirmOpen(false)
     } catch (error) {
-      setDismissError(error instanceof Error ? error.message : 'Could not dismiss the pending funding.')
+      toast.error(`**Could not dismiss pending funding** ${getErrorMessage(error)}`)
     } finally {
       setDismissBusy(false)
     }
@@ -196,6 +194,7 @@ function WalletTransferHub(): React.JSX.Element {
   useErrorToast(platformAddressesError)
   useErrorToast(identitiesError)
   useErrorToast(shieldedSync.error)
+  useErrorToast(savedShielded.errorMessage, !advanced && toKind === DestinationKind.Shielded)
 
   const operation = resolveOperation(fromKind, toKind)
   const recipientLimit = operation == null ? 1 : SEND_RECIPIENT_LIMITS[operation] ?? 1
@@ -309,9 +308,8 @@ function WalletTransferHub(): React.JSX.Element {
   const coinControlValid = !coinControlLoading && !sourceInventoryError
     && isCoinControlSelectionValid(appliedCoinControl, coinControlInventory)
 
-  useEffect(() => {
-    if (!coinControlLoading && !sourceInventoryError && !coinControlValid) toast.error(COIN_CONTROL_INVALID_MESSAGE)
-  }, [coinControlLoading, sourceInventoryError, coinControlValid])
+  const coinControlSelectionError = !coinControlLoading && !sourceInventoryError && !coinControlValid
+    ? COIN_CONTROL_INVALID_MESSAGE : null
 
   useEffect(() => {
     if (normalizedCoinControl !== coinControl) setCoinControl(normalizedCoinControl)
@@ -597,7 +595,7 @@ function WalletTransferHub(): React.JSX.Element {
     [DestinationKind.CoreAddress]: coreAddressesError,
     [DestinationKind.PlatformAddress]: platformAddressesError,
     [DestinationKind.Identity]: identitiesError,
-    [DestinationKind.Shielded]: savedShielded.error,
+    [DestinationKind.Shielded]: savedShielded.errorMessage,
     [DestinationKind.NewIdentity]: null,
   }[toKind]
   const retryOwnRecipients = (): void => {
@@ -677,6 +675,7 @@ function WalletTransferHub(): React.JSX.Element {
               onIdentityChange={setFromIdentity}
               onRetryIdentities={reloadIdentities}
             />
+            {coinControlSelectionError && <Text size={12} weight="medium" color="red" className="mt-2 block">{coinControlSelectionError}</Text>}
           </div>
         </div>
         <div className="relative px-4 pt-6.5 pb-5">
@@ -703,7 +702,7 @@ function WalletTransferHub(): React.JSX.Element {
                     <span className="opacity-[.48]">/{recipientLimit})</span>
                   </Text>
                 </button>
-              ) : coreRecipientInput ? <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} /> : undefined}
+              ) : coreRecipientInput ? <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} ownOptionsLoading={!advanced && ownRecipientsLoading} ownOptionsError={!advanced ? ownRecipientsError : null} onRetryOwnOptions={retryOwnRecipients} /> : undefined}
               kind={toKind}
               kinds={destinationKinds}
               onKindChange={changeDestinationKind}
@@ -713,17 +712,14 @@ function WalletTransferHub(): React.JSX.Element {
               error={advancedMulti ? null : destinationError}
               showValueInput={!advancedMulti && !coreRecipientInput && operation != null}
               ownOptions={!advanced ? ownRecipients : undefined}
+              ownOptionsLoading={!advanced && ownRecipientsLoading}
+              ownOptionsError={!advanced ? ownRecipientsError : null}
+              onRetryOwnOptions={retryOwnRecipients}
             />
             {coreRecipientInput && <>
               {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
             </>}
             {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
-              {ownRecipientsLoading && (
-                <Text size={12} weight="medium" color="brand" opacity={50}>Loading your recipients…</Text>
-              )}
-              {ownRecipientsError && (
-                <button type="button" onClick={retryOwnRecipients} className="self-start dash-text-primary text-xs cursor-pointer">Could not load your recipients. Try again</button>
-              )}
               {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
                 <Text size={12} weight="medium" color="brand" opacity={50}>
                   {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.'
@@ -1180,14 +1176,12 @@ function WalletTransferHub(): React.JSX.Element {
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
                 {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === AssetLockFundingKind.Identity ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
               </Text>
-              {dismissError && <Text size={12} weight={"medium"} color={"red"}>{dismissError}</Text>}
             </div>
             <div className={"shrink-0 flex items-center gap-2"}>
               {resumableFunding.phase === AssetLockFundingPhase.Resumable && (
                 <button
                   type={"button"}
                   onClick={() => {
-                    setDismissError(null)
                     setDismissConfirmOpen(true)
                   }}
                   disabled={dismissBusy}
@@ -1400,7 +1394,6 @@ function WalletTransferHub(): React.JSX.Element {
       <DismissAssetLockFundingModal
         isOpen={dismissConfirmOpen}
         busy={dismissBusy}
-        error={dismissError}
         onClose={() => {
           if (!dismissBusy) setDismissConfirmOpen(false)
         }}

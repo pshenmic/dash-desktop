@@ -25,6 +25,9 @@ export interface RecipientInputProps {
   appearance?: 'default' | 'subtle'
   ariaLabel?: string
   ownOptions?: DropdownFieldOption[]
+  ownOptionsLoading?: boolean
+  ownOptionsError?: string | null
+  onRetryOwnOptions?: () => void
 }
 
 export interface SendRecipientError {

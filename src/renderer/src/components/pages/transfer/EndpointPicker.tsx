@@ -12,7 +12,9 @@ import { DestinationKind } from "@renderer/enums/DestinationKind";
 import { SEND_ENDPOINT_LABELS } from "@renderer/constants/sendPages";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 import DropdownField from "@renderer/components/ui/DropdownField";
-import type { DropdownFieldOption } from "@renderer/types/DropdownField";
+import type { DestinationPickerProps } from "@renderer/types/EndpointPicker";
+import Spinner from "@renderer/components/ui/Spinner";
+import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
 
 const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
 const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
@@ -72,17 +74,17 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
         </Text>
       </div>
     )
-  } else if (loading) {
-    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Loading identities…</Text>
-  } else if (error) {
+  } else if (loading || error) {
     content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Identities</Text>
   } else {
     content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
   }
 
   let action: React.JSX.Element | null = null
-  if (error) {
-    action = <Text size={12} weight={"medium"} color={"blue-mint"}>Try again</Text>
+  if (loading) {
+    action = <span role="status" aria-label="Loading identities"><Spinner size={14} className="dash-text-primary" /></span>
+  } else if (error || identities.length === 0) {
+    action = <RefreshIcon size={14} color="currentColor" className="dash-text-primary" />
   } else if (identities.length > 0) {
     action = (
       <ChevronIcon
@@ -90,8 +92,6 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
         className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
       />
     )
-  } else if (!loading) {
-    action = <Text size={12} weight={"medium"} color={"blue-mint"}>Try again</Text>
   }
 
   const handleClick = (): void => {
@@ -106,6 +106,9 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
     <div className={"relative"} ref={ref}>
       <button
         type={"button"}
+        aria-label={error || identities.length === 0 ? 'Reload identities' : 'Select identity'}
+        aria-busy={loading}
+        disabled={loading}
         onClick={handleClick}
         className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
       >
@@ -187,18 +190,15 @@ export function SourcePicker({
   trailingControl,
 }: SourcePickerProps): React.JSX.Element {
   const sourceControl = <>
-    {kind === SourceKind.PlatformAddress && showPlatformAddress && platformAddressesLoading && (
-      <Text size={12} weight={'medium'} color={'brand'} opacity={50}>Loading Platform addresses…</Text>
-    )}
-    {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && platformAddressesError && (
-      <button type={'button'} onClick={onRetryPlatformAddresses} className={'dash-text-primary text-sm cursor-pointer self-start'}>Try again</button>
-    )}
-    {kind === SourceKind.PlatformAddress && showPlatformAddress && !platformAddressesLoading && !platformAddressesError && (
+    {kind === SourceKind.PlatformAddress && showPlatformAddress && (
       <PlatformAddressSelect
         addresses={platformAddresses}
         selected={selectedPlatformAddress}
         onSelect={onPlatformAddressChange}
         automaticLabel={platformAutomaticLabel}
+        loading={platformAddressesLoading}
+        error={platformAddressesError}
+        onRetry={onRetryPlatformAddresses}
       />
     )}
     {kind === SourceKind.Identity && (
@@ -233,20 +233,6 @@ export function SourcePicker({
   )
 }
 
-interface DestinationPickerProps {
-  kind: DestinationKind
-  kinds: Array<{kind: string; label: string}>
-  onKindChange: (kind: DestinationKind) => void
-  value: string
-  onValueChange: (value: string) => void
-  placeholder: string
-  error: string | null
-  showValueInput: boolean
-  ownOptions?: DropdownFieldOption[]
-  compact?: boolean
-  trailingControl?: React.ReactNode
-}
-
 export function DestinationPicker({
   kind,
   kinds,
@@ -257,23 +243,39 @@ export function DestinationPicker({
   error,
   showValueInput,
   ownOptions,
+  ownOptionsLoading = false,
+  ownOptionsError = null,
+  onRetryOwnOptions,
   compact = false,
   trailingControl,
 }: DestinationPickerProps): React.JSX.Element {
+  const recipientLabel = kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'
+  let recipientOptionsStatus: React.JSX.Element | undefined
+  if (ownOptionsLoading || (ownOptionsError && onRetryOwnOptions)) {
+    recipientOptionsStatus = <span className="flex items-center gap-2">
+      {ownOptionsLoading && <span role="status" aria-label="Loading recipient options"><Spinner size={12} className="dash-text-primary" /></span>}
+      {!ownOptionsLoading && ownOptionsError && onRetryOwnOptions && <button type="button" onClick={onRetryOwnOptions} aria-label="Reload recipient options" title="Reload recipient options" className="dash-text-primary cursor-pointer hover:opacity-70">
+        <RefreshIcon size={14} color="currentColor" />
+      </button>}
+    </span>
+  }
   const valueControl = showValueInput && kind !== DestinationKind.NewIdentity && (
     ownOptions ? <DropdownField
       editable
-      ariaLabel={kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'}
+      ariaLabel={recipientLabel}
       value={value}
       onChange={onValueChange}
       options={ownOptions}
       menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
       placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
       inputInvalid={!!error}
-      triggerClassName={compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox}
+      inputSuffix={recipientOptionsStatus}
+      triggerClassName={`${compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}
     /> : <div className={`${compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
       <input
         type={"text"}
+        aria-label={recipientLabel}
+        aria-invalid={!!error}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.value)}
         className={"w-full bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"}

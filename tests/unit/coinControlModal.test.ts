@@ -19,7 +19,7 @@ vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: '
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
 vi.mock('@renderer/hooks/useFiat', () => ({useFiat: () => ({rateReady: false, format: () => '$0.00'})}))
 vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({QrCodeIcon: 'svg'}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({QrCodeIcon: 'svg', RefreshIcon: 'svg'}))
 vi.mock('@renderer/components/modal/AddressQrModal', () => ({default: 'dialog'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))
 vi.mock('@renderer/components/ui/CopyButton', () => ({default: 'button'}))
@@ -27,6 +27,7 @@ vi.mock('@renderer/components/ui/CreditsAmount', () => ({default: 'span'}))
 vi.mock('@renderer/components/pages/transfer/CoinControlAmountInput', () => ({default: 'input'}))
 
 import CoinControlModal from '../../src/renderer/src/components/pages/transfer/CoinControlModal'
+import Spinner from '../../src/renderer/src/components/ui/Spinner'
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements)
@@ -90,7 +91,7 @@ describe('Platform coin control', () => {
     expect(selected.some(node => typeof node.props.children === 'string'
       && node.props.children.includes('The wallet selects the amounts and fee-paying address.'))).toBe(true)
 
-    const apply = selected.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    const apply = selected.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     expect(apply.props.disabled).toBe(false)
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith({
@@ -108,7 +109,7 @@ describe('Platform coin control', () => {
     const nodes = render(props)
     expect(nodes.some(node => node.props.credits === 5_000_000n)).toBe(true)
     expect(nodes.some(node => node.props.id === 'coin-control-amount-platform-a')).toBe(false)
-    const apply = nodes.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    const apply = nodes.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     expect(apply.props.disabled).toBe(false)
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith(props.selection)
@@ -118,7 +119,7 @@ describe('Platform coin control', () => {
     const second = render(props).find(node => node.key === 'platform-b')!
     ;(second.props.onChange as (checked: boolean) => void)(true)
     const edited = render(props)
-    const editedApply = edited.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    const editedApply = edited.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     ;(editedApply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith({
       kind: 'platformInputs',
@@ -135,7 +136,7 @@ describe('Platform coin control', () => {
     const nodes = render(props)
     expect(nodes.find(node => node.props.id === 'coin-control-amount-platform-a')!.props.credits).toBe(1_000_000n)
     expect(nodes.find(node => node.props.type === 'radio')!.props.checked).toBe(true)
-    const apply = nodes.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    const apply = nodes.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith(props.selection)
   })
@@ -201,7 +202,7 @@ describe('coin control UTXO refresh', () => {
     expect(pendingRow.props.checked).toBe(true)
     expect(pending.some(node => node.props['aria-busy'] === true)).toBe(true)
     expect(pending.some(node => typeof node.props.children === 'string' && node.props.children.startsWith('Wallet sync'))).toBe(false)
-    const updating = pending.find(node => node.type === 'button' && node.props.children === 'Updating…')!
+    const updating = pending.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     expect(updating.props.disabled).toBe(true)
     ;(updating.props.onClick as () => void)()
     expect(props.onApply).not.toHaveBeenCalled()
@@ -209,7 +210,7 @@ describe('coin control UTXO refresh', () => {
     const refreshed = render({...props, utxos: [...props.utxos, {...props.utxos[0], txid: 'new-coin'}]})
     expect(refreshed.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
     expect(refreshed.some(node => node.key === 'new-coin:0')).toBe(true)
-    const apply = refreshed.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    const apply = refreshed.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     expect(apply.props.disabled).toBe(false)
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith(props.selection)
@@ -220,8 +221,8 @@ describe('coin control UTXO refresh', () => {
     render(props)
     const failed = render({...props, utxosError: 'Could not load spendable UTXOs.'})
     expect(failed.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
-    expect(failed.find(node => node.type === 'button' && node.props.children === 'Apply')!.props.disabled).toBe(true)
-    const retry = failed.find(node => node.type === 'button' && node.props.children === 'Try again')!
+    expect(failed.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!.props.disabled).toBe(true)
+    const retry = failed.find(node => node.type === 'button' && node.props['aria-label'] === 'Retry loading funds')!
     ;(retry.props.onClick as () => void)()
     expect(props.onRetryUtxos).toHaveBeenCalledOnce()
   })
@@ -232,7 +233,7 @@ describe('coin control UTXO refresh', () => {
     expect(nodes.some(node => node.key === 'coin:0')).toBe(true)
     expect(nodes.some(node => typeof node.props.children === 'string' && node.props.children.startsWith('P2P sync is paused.'))).toBe(true)
     expect(nodes.some(node => node.props['aria-busy'] === true)).toBe(false)
-    const apply = nodes.find(node => node.type === 'button' && node.props.children === 'Apply')!
+    const apply = nodes.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
     expect(apply.props.disabled).toBe(false)
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith(props.selection)
@@ -240,7 +241,7 @@ describe('coin control UTXO refresh', () => {
 
   it('reports an empty saved snapshot while paused after loading finishes', () => {
     const props = {...modalProps(), utxos: [], utxosLocalSnapshot: true, coreSyncIncomplete: true}
-    expect(render({...props, utxosLoading: true}).some(node => node.props.children === 'Loading available funds…')).toBe(true)
+    expect(render({...props, utxosLoading: true}).some(node => node.type === Spinner)).toBe(true)
     expect(render(props).some(node => node.props.text === 'No spendable UTXOs')).toBe(true)
   })
 
@@ -250,16 +251,16 @@ describe('coin control UTXO refresh', () => {
     const refreshed = render({...props, utxos: [{...props.utxos[0], txid: 'replacement'}]})
     expect(refreshed.some(node => node.key === 'coin:0')).toBe(false)
     expect(refreshed.some(node => node.key === 'replacement:0')).toBe(true)
-    expect(refreshed.find(node => node.type === 'button' && node.props.children === 'Apply')!.props.disabled).toBe(true)
+    expect(refreshed.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!.props.disabled).toBe(true)
   })
 
   it('shows initial loading and reports an empty inventory only after a successful response', () => {
     const props = {...modalProps(), utxos: []}
     const pending = render({...props, utxosLoading: true})
-    expect(pending.some(node => node.props.children === 'Loading available funds…')).toBe(true)
+    expect(pending.some(node => node.type === Spinner)).toBe(true)
     expect(pending.some(node => node.props.text === 'No spendable UTXOs')).toBe(false)
     const failed = render({...props, utxosError: 'Could not load spendable UTXOs.'})
-    expect(failed.some(node => node.props.children === 'Try again')).toBe(true)
+    expect(failed.some(node => node.props['aria-label'] === 'Retry loading funds')).toBe(true)
     expect(failed.some(node => node.props.text === 'No spendable UTXOs')).toBe(false)
     expect(render(props).some(node => node.props.text === 'No spendable UTXOs')).toBe(true)
   })

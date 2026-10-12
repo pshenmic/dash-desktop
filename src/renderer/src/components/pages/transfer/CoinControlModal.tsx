@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, ArrowIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useFiat } from '@renderer/hooks/useFiat'
 import Checkbox from '@renderer/components/ui/Checkbox'
@@ -8,6 +9,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import Spinner from '@renderer/components/ui/Spinner'
 import CoinControlAmountInput from './CoinControlAmountInput'
 import CoinControlAutomaticIllustration from './CoinControlAutomaticIllustration'
 import type { PlatformAddressDto } from '@renderer/api/types'
@@ -160,7 +162,7 @@ export default function CoinControlModal({
   const hasCoreInputs = sourceKind === SourceKind.Core && mode === CoinControlMode.Inputs && utxos.length > 0
   const refreshingCoreInputs = hasCoreInputs && sourceLoading
   const waitingForCoreSync = coreSyncIncomplete && !utxosLocalSnapshot && sourceKind === SourceKind.Core
-  const showLoadingMessage = sourceLoading && !hasCoreInputs && (!waitingForCoreSync || showSyncWarning)
+  const showSourceSpinner = sourceLoading && (!waitingForCoreSync || showSyncWarning)
 
   const fixed = sourceKind == null
   const fixedCopy = FIXED_SOURCE_COPY[operation] ?? FIXED_IDENTITY_SOURCE_COPY
@@ -280,6 +282,8 @@ export default function CoinControlModal({
           {!fixed && <div className={'flex gap-6 shrink-0 border-b border-dash-primary-dark-blue/12 dark:border-white/12'}>
             {modeButton(CoinControlMode.Automatic, 'Automatic')}
             {modeButton(CoinControlMode.Inputs, 'Manual')}
+            {showSourceSpinner && <span role="status" aria-label="Loading available funds" className="ml-auto flex items-center self-center pb-2.5"><Spinner size={16} className="dash-text-primary" /></span>}
+            {!sourceLoading && sourceError && <button type="button" onClick={retrySource} aria-label="Retry loading funds" title="Retry loading funds" className="ml-auto mb-2.5 self-center flex size-5 items-center justify-center rounded-[.3125rem] dash-block-5 dash-text-primary hover:opacity-80 cursor-pointer focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40"><RefreshIcon size={12} color="currentColor" /></button>}
           </div>}
 
           {!fixed && mode === CoinControlMode.Inputs && (
@@ -300,10 +304,7 @@ export default function CoinControlModal({
               P2P sync is paused. UTXOs reflect the latest locally saved data. Resume sync before sending.
             </Text>
           )}
-          {showLoadingMessage && <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{waitingForCoreSync ? 'Wallet sync must finish before funds can be listed.' : 'Loading available funds…'}</Text>}
-          {!sourceLoading && sourceError && (
-            <button type={'button'} onClick={retrySource} className={'dash-text-primary text-sm cursor-pointer'}>Try again</button>
-          )}
+          {waitingForCoreSync && !hasCoreInputs && showSyncWarning && mode === CoinControlMode.Inputs && <Text size={12} weight="medium" color="brand" opacity={50}>Wallet sync must finish before funds can be listed.</Text>}
           {fixed ? (
             <div className={'dash-block rounded-[.9375rem] p-4'}>
               <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{fixedCopy.title}</Text>
@@ -459,9 +460,9 @@ export default function CoinControlModal({
             variant={'solid'}
             colorScheme={'primary'}
             size={'md'}
-            className={'flex-1 h-[3.625rem]! rounded-[.9375rem]'}
+            className={'flex-1 h-[3.625rem]! rounded-[.9375rem] disabled:opacity-40!'}
           >
-            {fixed ? 'Done' : refreshingCoreInputs ? 'Updating…' : 'Apply'}
+            {fixed ? 'Done' : 'Apply'}
           </Button>
         </div>
       </div>
