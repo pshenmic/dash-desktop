@@ -35,7 +35,7 @@ export default function TransferWizard({steps, onSubmit, submitLabel = 'Send', s
                   ? `size-8 border ${active || done ? 'border-dash-brand dark:border-dash-mint bg-dash-brand/5 dark:bg-dash-mint/5' : 'border-dash-primary-dark-blue/15 dark:border-white/15'}`
                   : `size-7 ${active ? 'dash-bg-inverse' : done ? 'dash-block-accent-15' : 'dash-block'}`}`}>
                   {done
-                    ? <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
+                    ? <CheckIcon size={14} color={"currentColor"} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
                     : <Text size={sendPresentation ? 14 : 12} weight={"medium"} color={active ? 'blue-mint' : 'brand'} opacity={active ? 100 : 40}>{i + 1}</Text>}
                 </div>
                 <Text size={sendPresentation ? 16 : 12} weight={sendPresentation && active ? 'extrabold' : 'medium'} color={sendPresentation && (active || done) ? 'blue-mint' : 'brand'} opacity={active || done ? 100 : 40} className={sendPresentation ? 'mt-2 sm:mt-0! sm:ml-2! whitespace-nowrap text-xs! sm:text-base!' : 'ml-2 whitespace-nowrap'}>{s.label}</Text>
