@@ -27,6 +27,20 @@ export const IDENTITY_NOT_FOUND = /not found/i
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
+export const DPNS_PARENT_DOMAIN = 'dash'
+export const DPNS_CONTESTED_INDEX = 'parentNameAndLabel'
+
+// Drive's default_vote_poll_time_duration (VOTING_VERSION_V2, protocol 13+),
+// counted from the block the first contender landed in.
+export const VOTE_POLL_DURATION_MS: Record<Network, number> = {
+  mainnet: 1_209_600_000,
+  testnet: 5_400_000,
+}
+
+// The SDK throws this for a name no contest was ever opened on, and a network
+// failure would otherwise read as the same "no contest".
+export const VOTE_STATE_NOT_FOUND = /vote state not found/i
+
 // Stands in for a key a quote will not derive. The secp256k1 generator, so the
 // bytes are certainly a valid point; which point it is moves no fee.
 export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
@@ -100,6 +114,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityBalance':
     case 'identityNonce':
     case 'identityInfos':
+    case 'aliasStatus':
     case 'identityScan':
     case 'nodeStatus':
     case 'activeDapiUrls':

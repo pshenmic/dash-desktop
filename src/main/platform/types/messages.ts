@@ -1,4 +1,5 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
+import {AliasCheck} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
@@ -348,6 +349,10 @@ export interface PlatformOperations {
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
     result: {infos: Array<{identifier: string; balance: bigint; alias: string | null}>}
+  }
+  aliasStatus: {
+    payload: {identifier: string; label: string}
+    result: AliasCheck
   }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}
