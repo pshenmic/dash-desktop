@@ -14,6 +14,10 @@ files:
   - '!tests{,/**/*}'
   - '!review{,/**/*}'
   - '!build{,/**/*}'
+  - '!{snap,flatpak}{,/**/*}'
+  # Offline build inputs the Flatpak manifest unpacks into the source tree.
+  - '!{flatpak-node,.electron-gyp}{,/**/*}'
+  - '!.yarnrc'
   - '!{.claude,.idea,.obsidian}{,/**/*}'
   - '!{AGENTS.md,CLAUDE.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
