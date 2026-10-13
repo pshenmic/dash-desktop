@@ -137,6 +137,11 @@ export class WalletService {
       log.error('core address discovery after wallet creation failed:', e)
     }
 
+    // The scan waits on the masternode list the lock pool fetches, which a first
+    // launch only starts here.
+    await this.walletSyncService.startLockListen(network, walletId)
+      .catch(err => locks.error('failed to start lock listener:', err))
+
     // The wallet and addresses are already persisted, so a scan that cannot
     // reach the worker must not abandon them — a retry would create a second
     // wallet for the same seed.
@@ -164,7 +169,15 @@ export class WalletService {
   }
 
   async deleteWallet(walletId: string): Promise<void> {
-    return this.walletDAO.deleteWallet(walletId)
+    await this.walletSyncService.forgetWallet(walletId)
+    await this.walletDAO.deleteWallet(walletId)
+
+    // The DAO may have selected a survivor, and nothing else re-listens for it.
+    const selected = await this.walletDAO.getSelectedWallet()
+    if (selected != null) {
+      await this.walletSyncService.startLockListen(selected.network, selected.walletId)
+        .catch(err => locks.error('failed to start lock listener:', err))
+    }
   }
 
   async getAllWallets(): Promise<Wallet[]> {
