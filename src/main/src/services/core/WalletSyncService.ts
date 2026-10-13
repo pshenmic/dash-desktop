@@ -415,8 +415,7 @@ export class WalletSyncService {
     this.activeWalletId = null
   }
 
-  // Before the wallet's rows are deleted: a block or mempool tx already on its
-  // way, or a write still queued, would otherwise put them back.
+  // Events and queued writes still in flight for the wallet would recreate its rows.
   forgetWallet = async (walletId: string): Promise<void> => {
     this.deletedWalletIds.add(walletId)
     if (this.activeWalletId === walletId) this.stopSync()
@@ -590,7 +589,7 @@ export class WalletSyncService {
   }
 
   private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
-    // The child stops it too; this keeps a peer-settings rebuild from restarting it.
+    // Left set, a peer-settings rebuild would restart the old network's sync.
     if (this.activeNetwork != null && this.activeNetwork !== network) this.stopSync()
     this.lockListenNetwork = network
     this.lockListenWalletId = walletId

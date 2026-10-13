@@ -46,7 +46,6 @@ describe('quorum keys proven by p2p', () => {
     expect(captured.explorer).not.toHaveBeenCalled()
   })
 
-  // A set left behind the tip misses the newest quorum; refusing would fail every proof it signs.
   it('asks Platform Explorer for a quorum p2p has not proven', async () => {
     registry.setQuorumKeys('testnet', new Map([[`6:${HASH}`, KEY]]))
     registry.get('testnet')

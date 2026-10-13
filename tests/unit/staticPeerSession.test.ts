@@ -239,8 +239,7 @@ describe('static peers run one pool', () => {
     expect(captured.pools).toHaveLength(1)
   })
 
-  // Identical settings on both networks give one overrides key, and the old
-  // session would take the new network's chainlocks for its own.
+  // Default settings give both networks one overrides key.
   it('stops the sync layer when the pool moves to another network', async () => {
     await start(service, DYNAMIC)
     await service.listen({type: 'listen', network: 'mainnet', peerOverrides: DYNAMIC})

@@ -34,9 +34,8 @@ export class SdkRegistry implements SdkSource {
     this.sdks.clear()
   }
 
-  // Proofs check against p2p-proven keys once there are any, and against Platform
-  // Explorer for a quorum p2p has not proven yet — a set behind the tip misses the
-  // newest. Switching rebuilds the SDK so Explorer keys cached before p2p go.
+  // Explorer answers only what p2p has not proven: a set behind the tip lacks the newest.
+  // Rebuilt on switching, or Explorer keys cached before p2p would be served first.
   setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
     const local = keys.size > 0
     if (this.quorumKeys.has(network) !== local) {

@@ -170,10 +170,8 @@ export class SyncService {
   // session rather than restarting it.
   listen = (cmd: P2PListenMessage): Promise<void> =>
     this.runExclusive(async () => {
-      // Changed peer settings rebuild the pool, and in static mode that is the
-      // pool the workers hold; main's own `stop` normally gets here first. The
-      // overrides key carries no network, and a session left on the old one
-      // would check the new pool's chainlocks against its own headers.
+      // Static-mode workers hold the pool being rebuilt, and a session on the old network
+      // would check the new one's chainlocks against its headers; main's `stop` usually lands first.
       if (this.syncPool && (this.chainStore?.network !== cmd.network
         || this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides))) {
         log.info(`listen on ${cmd.network} with a different pool under a running session — stopping the sync layer`)
@@ -421,8 +419,7 @@ export class SyncService {
         this.activeCFilterCursor = Math.min(this.activeCFilterCursor, height)
       }
       if (this.activeWalletId) this.events.chainRewound(this.activeWalletId, height)
-      // Core refuses a diff based on a block off its active chain, and scores the ask;
-      // the next request then fetches the whole set. The keys stay until it lands.
+      // Core refuses, and scores, a diff based on a block off its active chain.
       if (this.quorums != null && this.quorums.height > height) this.quorums = null
     })
     this.headerSyncWorker.on('error', err =>
@@ -743,8 +740,7 @@ export class SyncService {
       return
     }
     this.quorums = {blockHash: diff.blockHash, height, commitments}
-    // Every type: the SDK knows which one signs Platform, and quorums of two types
-    // can share a hash.
+    // Unfiltered: the SDK checks the type itself, and two types can share a hash.
     this.events.platformQuorums(store.network, new Map(commitments.map(quorum =>
       [`${quorum.llmqType}:${quorum.quorumHash}`, Uint8Array.from(Buffer.from(quorum.quorumPublicKey, 'hex'))])))
   }
