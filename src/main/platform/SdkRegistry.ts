@@ -25,6 +25,7 @@ export class SdkRegistry implements SdkSource {
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
   private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
+  private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
 
   constructor(private readonly emit: (event: PlatformEvent) => void) {}
 
@@ -33,12 +34,30 @@ export class SdkRegistry implements SdkSource {
     this.sdks.clear()
   }
 
+  // Proofs check against Platform Explorer until p2p has proven keys, then only
+  // those. Switching rebuilds the SDK so its key cache never mixes the two.
+  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    const local = keys.size > 0
+    if (this.quorumKeys.has(network) !== local) {
+      this.sdks.delete(network)
+      log.info(`${network}: proofs now verified with ${local ? `${keys.size} quorum key(s) proven by p2p` : 'Platform Explorer quorum keys'}`)
+    }
+    if (local) this.quorumKeys.set(network, keys)
+    else this.quorumKeys.delete(network)
+  }
+
   get(network: Network): DashPlatformSDK {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
     const own = this.dapi[network]
     const dapiUrls = this.dapi.mode === 'static' && own.length > 0 ? own : this.pinnedDapiUrls.get(network)
-    const sdk = new DashPlatformSDK({network, grpc: {dapiUrl: [...dapiUrls ?? []]}})
+    const sdk = new DashPlatformSDK({
+      network,
+      grpc: {dapiUrl: [...dapiUrls ?? []]},
+      proofs: this.quorumKeys.has(network)
+        ? {quorumKeyProvider: async ({quorumHash}) => this.quorumKeys.get(network)?.get(Buffer.from(quorumHash).toString('hex')) ?? null}
+        : undefined,
+    })
     // init assigns the builder before its first await; the warmed builder's
     // own init is memoised.
     if (this.builder != null) void sdk.shielded.init(this.builder)

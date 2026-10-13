@@ -135,6 +135,10 @@ export class PlatformWorkerService {
     this.child?.postMessage({type: 'setLogLevel', level})
   }
 
+  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    this.child?.postMessage({type: 'setQuorumKeys', network, keys})
+  }
+
   reloadDapi(): void {
     setCoreDapi(this.preferences.network.dapi)
     this.child?.postMessage({type: 'setDapi', dapi: this.preferences.network.dapi})

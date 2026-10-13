@@ -372,3 +372,9 @@ export const BROADCAST_POLICY = {
 // ── Masternode list ─────────────────────────────────────────────────────────
 
 export const MNLIST_REFRESH_MS = 60 * 60_000
+
+// LLMQ type that signs Platform blocks: LLMQ_100_67 on mainnet, LLMQ_25_67 on testnet.
+export const PLATFORM_LLMQ_TYPE: Record<Network, number> = {mainnet: 4, testnet: 6}
+
+// Lock peers asked for each quorum update; most never answer getmnlistd.
+export const PLATFORM_QUORUM_PEERS = 3

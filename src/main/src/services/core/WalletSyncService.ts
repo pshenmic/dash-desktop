@@ -87,6 +87,7 @@ export class WalletSyncService {
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
   onEvonodeDapiUrls: ((network: Network, dapiUrls: string[]) => void) | null = null
+  onPlatformQuorums: ((network: Network, keys: Map<string, Uint8Array>) => void) | null = null
   // Wallets whose scan is held waiting for addresses. The worker resumes at the
   // held height, so the addresses answering it must not also rewind the cursor.
   private gapHeld = new Set<string>()
@@ -288,6 +289,8 @@ export class WalletSyncService {
       this.recordChainLock(data.network, data.height)
     } else if (data.type === 'evonodeDapiUrls') {
       this.onEvonodeDapiUrls?.(data.network, data.dapiUrls)
+    } else if (data.type === 'platformQuorums') {
+      this.onPlatformQuorums?.(data.network, data.keys)
     } else if (data.type === 'error') {
       log.error('utility process error:', data.message)
     }

@@ -109,6 +109,7 @@ const noopEvents = {
   txInstantLocked: () => undefined,
   chainLocked: () => undefined,
   evonodeDapiUrls: () => undefined,
+  platformQuorums: () => undefined,
 }
 
 const start = (service: SyncService, peerOverrides: PeerOverrides): Promise<void> => service.start({

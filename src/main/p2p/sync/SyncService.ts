@@ -17,8 +17,11 @@ import {
   MEMPOOL_SNAPSHOT_PEERS,
   MNLIST_REFRESH_MS,
   NODE_BLOOM,
+  PLATFORM_LLMQ_TYPE,
+  PLATFORM_QUORUM_PEERS,
 } from '../constants'
-import {evonodeDapiUrls} from '../utils/masternodeList'
+import {committedQuorums, evonodeDapiUrls} from '../utils/masternodeList'
+import {hashHeaderRaw} from '../utils/pow'
 import {PoolService} from '../net/PoolService'
 import {PeerRegistry} from '../net/peerRegistry'
 import {entryTarget} from '../net/peerAddress'
@@ -32,7 +35,7 @@ import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PR
 import {Network} from '../../src/types/Network'
 import {BroadcastResult} from '../types/broadcast'
 import {AppliedBlock, AppliedTx, GapExhausted, WalletSyncStatus, WatchAddress} from '../types/walletSync'
-import {Inventory, Message, MnListDiff, Peer} from 'dash-core-p2p'
+import {FinalCommitment, Inventory, Message, MnListDiff, Peer} from 'dash-core-p2p'
 import {Transaction as SDKTransaction} from 'dash-core-sdk'
 import {ChainTipState, PersistedHeader} from '../types/chainStore'
 import {SyncServiceEvents} from '../types/sync'
@@ -92,6 +95,7 @@ export class SyncService {
   private mempoolStats = {announced: 0, fetched: 0, matched: 0}
   private mempoolReportTimer: ReturnType<typeof setInterval> | null = null
   private masternodeListVerifiedAt = 0
+  private quorums: {blockHash: string; height: number; commitments: FinalCommitment[]} | null = null
 
   private status: WalletSyncStatus = {
     phase: 'idle',
@@ -405,6 +409,7 @@ export class SyncService {
     this.headerSyncWorker.on('status', (s: HeaderSyncWorkerStatus) => this.onHeaderStatus(s))
     this.headerSyncWorker.on('chainExtended', (headers: PersistedHeader[]) => {
       this.cfilterSyncWorker?.onChainExtended(headers)
+      if (this.status.phase !== 'syncing-headers') this.requestQuorums(headers.at(-1)!.hash)
     })
     this.headerSyncWorker.on('chainRewound', (height: number) => {
       this.cfilterSyncWorker?.onChainRewound(height)
@@ -693,16 +698,49 @@ export class SyncService {
   }
 
   private onMasternodeList = (peer: Peer, msg: Message & {mnlistdiff?: MnListDiff}): void => {
-    // A peer answering after the list verified would only repeat it.
-    if (!this.lockNetwork || msg.mnlistdiff == null || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
-    const dapiUrls = evonodeDapiUrls(msg.mnlistdiff)
+    const diff = msg.mnlistdiff
+    if (!this.lockNetwork || diff == null) return
+    this.applyQuorums(peer, diff).catch(err => log.warn(`quorums from ${peer.host}:${peer.port} failed:`, err))
+    // Only a full list carries every evonode, and a peer answering after the
+    // list verified would only repeat it.
+    if (/[^0]/.test(diff.baseBlockHash) || Date.now() - this.masternodeListVerifiedAt < MNLIST_REFRESH_MS) return
+    const dapiUrls = evonodeDapiUrls(diff)
     if (dapiUrls == null) {
       log.warn(`${peer.host}:${peer.port} sent a masternode list its coinbase does not commit to`)
       return
     }
     this.masternodeListVerifiedAt = Date.now()
-    log.info(`masternode list at ${msg.mnlistdiff.blockHash} from ${peer.host}:${peer.port}: ${dapiUrls.length} evonode DAPI url(s)`)
+    log.info(`masternode list at ${diff.blockHash} from ${peer.host}:${peer.port}: ${dapiUrls.length} evonode DAPI url(s)`)
     this.events.evonodeDapiUrls(this.lockNetwork, dapiUrls)
+  }
+
+  // A diff from the last verified quorum set, so following the tip costs a few KB a block.
+  private requestQuorums(blockHash: string): void {
+    if (!this.lockPool) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const request = (this.lockPool.messages as any).GetMnListDiff({baseBlockHash: this.quorums?.blockHash, blockHash})
+    const peers = [...this.lockPool.readyPeers].sort(() => Math.random() - 0.5).slice(0, PLATFORM_QUORUM_PEERS)
+    for (const peer of peers) peer.sendMessage(request)
+  }
+
+  // Quorums are trusted only at a block on our own header chain: its work vouches
+  // for the coinbase, and the coinbase for the commitments.
+  private async applyQuorums(peer: Peer, diff: MnListDiff): Promise<void> {
+    const store = this.chainStore
+    const height = (diff.cbTx.extraPayload as {height?: number} | undefined)?.height
+    if (store == null || height == null) return
+    const header = await store.getHeaderByHeight(height)
+    const current = this.quorums
+    if (header == null || hashHeaderRaw(header) !== diff.blockHash || store !== this.chainStore || height <= (current?.height ?? 0)) return
+    const commitments = committedQuorums(diff, header, diff.baseBlockHash === current?.blockHash ? current.commitments : [])
+    if (commitments == null) {
+      log.warn(`${peer.host}:${peer.port} sent quorums block ${height} does not commit to`)
+      return
+    }
+    this.quorums = {blockHash: diff.blockHash, height, commitments}
+    const platform = commitments.filter(quorum => quorum.llmqType === PLATFORM_LLMQ_TYPE[store.network])
+    this.events.platformQuorums(store.network, new Map(platform.map(quorum =>
+      [quorum.quorumHash, Uint8Array.from(Buffer.from(quorum.quorumPublicKey, 'hex'))])))
   }
 
   // ── private ───────────────────────────────────────────────────────────────
@@ -733,6 +771,8 @@ export class SyncService {
       this.bulkPool = null
     }
     this.syncPool = null
+    if (this.chainStore && this.quorums) this.events.platformQuorums(this.chainStore.network, new Map())
+    this.quorums = null
     if (this.chainStore) {
       await this.chainStore.close().catch(() => { /* ignore */ })
       this.chainStore = null
