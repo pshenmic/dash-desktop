@@ -249,6 +249,15 @@ describe('static peers run one pool', () => {
     expect(service.getStatus()).toMatchObject({phase: 'stopped', walletId: null})
   })
 
+  it('reports the sync layer stopped when new peer settings rebuild the pool', async () => {
+    await start(service, PINNED)
+    await service.listen({type: 'listen', network: 'testnet', peerOverrides: DYNAMIC})
+
+    expect(service.getStatus()).toMatchObject({phase: 'stopped', walletId: null})
+    await start(service, DYNAMIC)
+    expect(captured.headerPools).toHaveLength(2)
+  })
+
   // Dynamic mode dials these on top of DNS and gossip; the pinned list is not
   // what it reads. A lone peer stays on the pool rpc mode also runs.
   it('hands the dynamic peers to the pools discovery runs', async () => {
