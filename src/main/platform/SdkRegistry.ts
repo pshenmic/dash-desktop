@@ -1,4 +1,4 @@
-import {DashPlatformSDK, GRPCConnectionPool} from 'dash-platform-sdk'
+import {DashPlatformSDK, GRPCConnectionPool, platformExplorerQuorumKeyProvider} from 'dash-platform-sdk'
 import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 import {Logger} from '../src/utils/logger'
@@ -34,8 +34,9 @@ export class SdkRegistry implements SdkSource {
     this.sdks.clear()
   }
 
-  // Proofs check against Platform Explorer until p2p has proven keys, then only
-  // those. Switching rebuilds the SDK so its key cache never mixes the two.
+  // Proofs check against p2p-proven keys once there are any, and against Platform
+  // Explorer for a quorum p2p has not proven yet — a set behind the tip misses the
+  // newest. Switching rebuilds the SDK so Explorer keys cached before p2p go.
   setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
     const local = keys.size > 0
     if (this.quorumKeys.has(network) !== local) {
@@ -55,7 +56,9 @@ export class SdkRegistry implements SdkSource {
       network,
       grpc: {dapiUrl: [...dapiUrls ?? []]},
       proofs: this.quorumKeys.has(network)
-        ? {quorumKeyProvider: async ({quorumHash}) => this.quorumKeys.get(network)?.get(Buffer.from(quorumHash).toString('hex')) ?? null}
+        ? {quorumKeyProvider: async request =>
+          this.quorumKeys.get(network)?.get(Buffer.from(request.quorumHash).toString('hex'))
+            ?? platformExplorerQuorumKeyProvider(request)}
         : undefined,
     })
     // init assigns the builder before its first await; the warmed builder's

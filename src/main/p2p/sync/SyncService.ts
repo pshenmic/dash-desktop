@@ -422,6 +422,9 @@ export class SyncService {
         this.activeCFilterCursor = Math.min(this.activeCFilterCursor, height)
       }
       if (this.activeWalletId) this.events.chainRewound(this.activeWalletId, height)
+      // Core refuses a diff based on a block off its active chain, and scores the ask;
+      // the next request then fetches the whole set. The keys stay until it lands.
+      if (this.quorums != null && this.quorums.height > height) this.quorums = null
     })
     this.headerSyncWorker.on('error', err =>
       this.handleWorkerError('HeaderSyncWorker', err.message)
