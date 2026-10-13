@@ -1,4 +1,4 @@
-import {DashPlatformSDK, GRPCConnectionPool, platformExplorerQuorumKeyProvider} from 'dash-platform-sdk'
+import {DashPlatformSDK, GRPCConnectionPool, platformExplorerQuorumKeyProvider, ProofVerificationOptions} from 'dash-platform-sdk'
 import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 import {Logger} from '../src/utils/logger'
@@ -10,13 +10,10 @@ import {SdkSource} from './types/sdk'
 
 const log = new Logger('platform')
 
-// One SDK per network, replaced on a DAPI change and otherwise never mutated.
+// One SDK per network, replaced on a DAPI change.
 // `setNetwork` is deliberately never called: it rebuilds the gRPC pool and
 // replaces every controller, leaving anything in flight holding swapped-out
 // objects. A replaced SDK keeps serving whatever already holds it.
-//
-// Before the first evonode list is probed the SDK is built on no urls at all:
-// given none, it would run a discovery of its own against dead seed nodes.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
   private readonly pinnedDapiUrls = new Map<Network, string[]>()
@@ -26,6 +23,12 @@ export class SdkRegistry implements SdkSource {
   private warming: Promise<void> | null = null
   private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
   private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
+  // Explorer answers only what p2p has not proven: a set behind the tip lacks the newest.
+  private readonly proofs: ProofVerificationOptions = {
+    quorumKeyProvider: async request =>
+      this.quorumKeys.get(request.network)?.get(`${request.quorumType}:${Buffer.from(request.quorumHash).toString('hex')}`)
+        ?? platformExplorerQuorumKeyProvider(request),
+  }
 
   constructor(private readonly emit: (event: PlatformEvent) => void) {}
 
@@ -34,12 +37,11 @@ export class SdkRegistry implements SdkSource {
     this.sdks.clear()
   }
 
-  // Explorer answers only what p2p has not proven: a set behind the tip lacks the newest.
-  // Rebuilt on switching, or Explorer keys cached before p2p would be served first.
   setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
     const local = keys.size > 0
     if (this.quorumKeys.has(network) !== local) {
-      this.sdks.delete(network)
+      // Drops the keys the SDK cached from the other source.
+      this.sdks.get(network)?.setProofOptions(this.proofs)
       log.info(`${network}: proofs now verified with ${local ? `${keys.size} quorum key(s) proven by p2p` : 'Platform Explorer quorum keys'}`)
     }
     if (local) this.quorumKeys.set(network, keys)
@@ -54,11 +56,7 @@ export class SdkRegistry implements SdkSource {
     const sdk = new DashPlatformSDK({
       network,
       grpc: {dapiUrl: [...dapiUrls ?? []]},
-      proofs: this.quorumKeys.has(network)
-        ? {quorumKeyProvider: async request =>
-          this.quorumKeys.get(network)?.get(`${request.quorumType}:${Buffer.from(request.quorumHash).toString('hex')}`)
-            ?? platformExplorerQuorumKeyProvider(request)}
-        : undefined,
+      proofs: this.proofs,
     })
     // init assigns the builder before its first await; the warmed builder's
     // own init is memoised.
