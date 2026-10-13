@@ -57,7 +57,7 @@ export class SdkRegistry implements SdkSource {
       grpc: {dapiUrl: [...dapiUrls ?? []]},
       proofs: this.quorumKeys.has(network)
         ? {quorumKeyProvider: async request =>
-          this.quorumKeys.get(network)?.get(Buffer.from(request.quorumHash).toString('hex'))
+          this.quorumKeys.get(network)?.get(`${request.quorumType}:${Buffer.from(request.quorumHash).toString('hex')}`)
             ?? platformExplorerQuorumKeyProvider(request)}
         : undefined,
     })

@@ -17,7 +17,6 @@ import {
   MEMPOOL_SNAPSHOT_PEERS,
   MNLIST_REFRESH_MS,
   NODE_BLOOM,
-  PLATFORM_LLMQ_TYPE,
   PLATFORM_QUORUM_PEERS,
 } from '../constants'
 import {committedQuorums, evonodeDapiUrls} from '../utils/masternodeList'
@@ -744,9 +743,10 @@ export class SyncService {
       return
     }
     this.quorums = {blockHash: diff.blockHash, height, commitments}
-    const platform = commitments.filter(quorum => quorum.llmqType === PLATFORM_LLMQ_TYPE[store.network])
-    this.events.platformQuorums(store.network, new Map(platform.map(quorum =>
-      [quorum.quorumHash, Uint8Array.from(Buffer.from(quorum.quorumPublicKey, 'hex'))])))
+    // Every type: the SDK knows which one signs Platform, and quorums of two types
+    // can share a hash.
+    this.events.platformQuorums(store.network, new Map(commitments.map(quorum =>
+      [`${quorum.llmqType}:${quorum.quorumHash}`, Uint8Array.from(Buffer.from(quorum.quorumPublicKey, 'hex'))])))
   }
 
   // ── private ───────────────────────────────────────────────────────────────

@@ -56,6 +56,7 @@ export class PlatformWorkerService {
   private readonly evonodeDAO: EvonodeDAO
   private readonly pinnedNetworks = new Set<Network>()
   private readonly pinWaiters = new Map<Network, Set<() => void>>()
+  private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
 
   constructor(preferences: Preferences, evonodeDAO: EvonodeDAO) {
     this.preferences = preferences
@@ -135,7 +136,10 @@ export class PlatformWorkerService {
     this.child?.postMessage({type: 'setLogLevel', level})
   }
 
+  // Held so a worker forked later, or restarted, starts from them too.
   setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    if (keys.size > 0) this.quorumKeys.set(network, keys)
+    else this.quorumKeys.delete(network)
     this.child?.postMessage({type: 'setQuorumKeys', network, keys})
   }
 
@@ -226,6 +230,7 @@ export class PlatformWorkerService {
 
     child.postMessage({type: 'setLogLevel', level: currentLogLevel()})
     child.postMessage({type: 'setDapi', dapi: this.preferences.network.dapi})
+    for (const [network, keys] of this.quorumKeys) child.postMessage({type: 'setQuorumKeys', network, keys})
     this.evonodeDAO.getDapiUrls()
       .then(byNetwork => {
         if (this.child !== child) return

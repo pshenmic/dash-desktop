@@ -217,7 +217,7 @@ export interface P2PEvonodeDapiUrlsMessage {
   dapiUrls: string[]
 }
 
-// Public keys of the active Platform quorums by quorum hash, proven against our
+// Public keys of every active quorum by `llmqType:quorumHash`, proven against our
 // header chain at its tip; empty once that chain closes.
 export interface P2PPlatformQuorumsMessage {
   type: 'platformQuorums'

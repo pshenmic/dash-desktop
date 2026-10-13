@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest'
 
 const captured = vi.hoisted(() => ({
-  options: [] as Array<{proofs?: {quorumKeyProvider?: (request: {quorumHash: Uint8Array}) => Promise<Uint8Array | null>}}>,
+  options: [] as Array<{proofs?: {quorumKeyProvider?: (request: {quorumType: number; quorumHash: Uint8Array}) => Promise<Uint8Array | null>}}>,
   explorer: vi.fn(),
 }))
 
@@ -19,7 +19,8 @@ import {SdkRegistry} from '../../src/main/platform/SdkRegistry'
 
 const HASH = '00000020d10c69ac9aa6b78072691d62bb215028a6847c662dd78fddb1bba8cd'
 const KEY = new Uint8Array(48).fill(7)
-const request = (hash: string): {quorumHash: Uint8Array} => ({quorumHash: Uint8Array.from(Buffer.from(hash, 'hex'))})
+const request = (hash: string, quorumType = 6): {quorumType: number; quorumHash: Uint8Array} =>
+  ({quorumType, quorumHash: Uint8Array.from(Buffer.from(hash, 'hex'))})
 
 describe('quorum keys proven by p2p', () => {
   let registry: SdkRegistry
@@ -38,7 +39,7 @@ describe('quorum keys proven by p2p', () => {
   })
 
   it('answers a proven quorum without asking Platform Explorer', async () => {
-    registry.setQuorumKeys('testnet', new Map([[HASH, KEY]]))
+    registry.setQuorumKeys('testnet', new Map([[`6:${HASH}`, KEY]]))
     registry.get('testnet')
 
     await expect(captured.options[0]!.proofs!.quorumKeyProvider!(request(HASH))).resolves.toBe(KEY)
@@ -47,11 +48,19 @@ describe('quorum keys proven by p2p', () => {
 
   // A set left behind the tip misses the newest quorum; refusing would fail every proof it signs.
   it('asks Platform Explorer for a quorum p2p has not proven', async () => {
-    registry.setQuorumKeys('testnet', new Map([[HASH, KEY]]))
+    registry.setQuorumKeys('testnet', new Map([[`6:${HASH}`, KEY]]))
     registry.get('testnet')
 
     const other = request('11'.repeat(32))
     await captured.options[0]!.proofs!.quorumKeyProvider!(other)
     expect(captured.explorer).toHaveBeenCalledWith(other)
+  })
+
+  it('never answers with the key of another quorum type sharing the hash', async () => {
+    registry.setQuorumKeys('testnet', new Map([[`1:${HASH}`, KEY]]))
+    registry.get('testnet')
+
+    await captured.options[0]!.proofs!.quorumKeyProvider!(request(HASH))
+    expect(captured.explorer).toHaveBeenCalledTimes(1)
   })
 })

@@ -433,7 +433,7 @@ export interface PlatformSetEvonodeDapiUrls {
   dapiUrls: string[]
 }
 
-// Public keys of the active Platform quorums by quorum hash, proven by p2p
+// Public keys of every active quorum by `llmqType:quorumHash`, proven by p2p
 // against its header chain. Empty until that chain syncs, and after it closes.
 export interface PlatformSetQuorumKeys {
   type: 'setQuorumKeys'
