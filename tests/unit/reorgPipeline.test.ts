@@ -370,6 +370,14 @@ describe('WalletSyncService incoming mempool tx', () => {
     expect(transactionDAO.recordPendingTx.mock.calls[0][2]).toBe(false)
   })
 
+  it('writes nothing back for a wallet already deleted', async () => {
+    await service.forgetWallet(WALLET)
+    emit(incoming('aa'.repeat(32)))
+    await tick()
+
+    expect(transactionDAO.recordPendingTx).not.toHaveBeenCalled()
+  })
+
   it('arms the lock watch so the isdlock can mark it final', async () => {
     await withChild()
 
@@ -387,7 +395,7 @@ describe('WalletSyncService incoming mempool tx', () => {
       {txid: 'bb'.repeat(32), raw: new Uint8Array([2]), firstSeenAt: 0, instantLocked: false, isLocal: true},
     ])
     await withChild()
-    ;(service as unknown as {activeWalletId: string}).activeWalletId = WALLET
+    ;(service as unknown as {lockListenWalletId: string}).lockListenWalletId = WALLET
 
     await (service as unknown as {rebroadcastPending: () => Promise<void>}).rebroadcastPending()
 

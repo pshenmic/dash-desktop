@@ -172,10 +172,13 @@ export class SyncService {
   listen = (cmd: P2PListenMessage): Promise<void> =>
     this.runExclusive(async () => {
       // Changed peer settings rebuild the pool, and in static mode that is the
-      // pool the workers hold; main's own `stop` normally gets here first.
-      if (this.syncPool && this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides)) {
-        log.info('peer settings changed under a running session — stopping the sync layer')
-        await this.teardownBulk()
+      // pool the workers hold; main's own `stop` normally gets here first. The
+      // overrides key carries no network, and a session left on the old one
+      // would check the new pool's chainlocks against its own headers.
+      if (this.syncPool && (this.chainStore?.network !== cmd.network
+        || this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides))) {
+        log.info(`listen on ${cmd.network} with a different pool under a running session — stopping the sync layer`)
+        await this.stopInner()
       }
       this.startLockCore(cmd.network, cmd.peerOverrides)
       this.setLockAddresses(cmd.walletId ?? null, cmd.watchAddresses ?? [])

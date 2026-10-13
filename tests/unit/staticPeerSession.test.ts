@@ -239,6 +239,16 @@ describe('static peers run one pool', () => {
     expect(captured.pools).toHaveLength(1)
   })
 
+  // Identical settings on both networks give one overrides key, and the old
+  // session would take the new network's chainlocks for its own.
+  it('stops the sync layer when the pool moves to another network', async () => {
+    await start(service, DYNAMIC)
+    await service.listen({type: 'listen', network: 'mainnet', peerOverrides: DYNAMIC})
+
+    expect(captured.pools[1]!.stopped).toBe(true)
+    expect(service.getStatus()).toMatchObject({phase: 'stopped', walletId: null})
+  })
+
   // Dynamic mode dials these on top of DNS and gossip; the pinned list is not
   // what it reads. A lone peer stays on the pool rpc mode also runs.
   it('hands the dynamic peers to the pools discovery runs', async () => {

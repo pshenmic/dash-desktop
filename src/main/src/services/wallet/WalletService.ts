@@ -169,7 +169,15 @@ export class WalletService {
   }
 
   async deleteWallet(walletId: string): Promise<void> {
-    return this.walletDAO.deleteWallet(walletId)
+    await this.walletSyncService.forgetWallet(walletId)
+    await this.walletDAO.deleteWallet(walletId)
+
+    // The DAO may have selected a survivor, and nothing else re-listens for it.
+    const selected = await this.walletDAO.getSelectedWallet()
+    if (selected != null) {
+      await this.walletSyncService.startLockListen(selected.network, selected.walletId)
+        .catch(err => locks.error('failed to start lock listener:', err))
+    }
   }
 
   async getAllWallets(): Promise<Wallet[]> {
