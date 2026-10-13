@@ -847,6 +847,7 @@ export class SyncService {
 
     if (s.phase === 'synced' && !this.cfilterStarted && this.chainStore && this.syncPool && s.tipHash) {
       this.cfilterStarted = true
+      this.requestQuorums(s.tipHash)
       this.startCFilterWorker(s.tipHeight, s.tipHash).catch(err =>
         this.handleWorkerError('CFilterSyncWorker', err instanceof Error ? err.message : String(err))
       )
