@@ -7,12 +7,13 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { isValidDashChangeAddress } from '@renderer/utils/address'
 import { davToDash } from '@renderer/utils/balance'
 import { selectedChangeAddress } from '@renderer/utils/changeAddress'
+import { receiveCoreAddresses } from '@renderer/utils/receiveDefaults'
 
 export default function ChangeAddressField({compact = false, change, value, loading, error, previewOnly, onChange, onRetry}: ChangeAddressFieldProps): React.JSX.Element {
   const { status } = useAuth()
   const selected = selectedChangeAddress(change, value)
   const invalid = !!selected?.trim() && !isValidDashChangeAddress(selected, status?.network ?? undefined)
-  const options = change.map(address => ({
+  const options = receiveCoreAddresses(change).map(address => ({
     value: address.address,
     label: address.address,
     description: `${davToDash(address.balance)} Dash`,
@@ -41,7 +42,7 @@ export default function ChangeAddressField({compact = false, change, value, load
       />
       {invalid && <Text size={12} weight="medium" color="red">Enter a valid P2PKH Dash address for this network.</Text>}
       {!previewOnly && !selected?.trim() && <Text size={12} weight="medium" color="brand" opacity={50}>Change address will be selected automatically.</Text>}
-      {!loading && !error && options.length === 0 && <Text size={12} weight="medium" color="brand" opacity={50}>No change addresses available. Enter an address manually.</Text>}
+      {!loading && !error && options.length === 0 && <Text size={12} weight="medium" color="brand" opacity={50}>No unused change addresses available. Enter an address manually.</Text>}
       {previewOnly && <Text size={12} weight="medium" color="brand" opacity={50}>
         Preview only. Sending currently uses the automatic change address.
       </Text>}

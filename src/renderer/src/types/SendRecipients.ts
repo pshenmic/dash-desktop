@@ -57,5 +57,6 @@ export interface SendRecipientsEditorProps {
   feeRecipientId: string | null
   feeCredits: bigint | null
   budgetIsEstimate: boolean
+  amountDenominations?: readonly bigint[]
   onChange: (recipients: SendRecipientDraft[]) => void
 }

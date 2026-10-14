@@ -6,14 +6,14 @@ import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { DESTINATION_PLACEHOLDERS, sendPageData } from '@renderer/constants/sendPages'
 import { SEND_AMOUNT_PATTERN } from '@renderer/constants/sendRecipients'
 import type { SendRecipientsEditorProps } from '@renderer/types/SendRecipients'
-import { dashToDuffs, davToDash, duffsToCredits } from '@renderer/utils/balance'
+import { creditsToDuffs, dashToDuffs, davToDash, duffsToCredits } from '@renderer/utils/balance'
 import { capSendAmount, recipientPercent, recipientRemainingDuffs, recipientSliderAmount, recipientTotalDuffs, splitRecipientTotal } from '@renderer/utils/sendRecipients'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientInput from './RecipientInput'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 
 export default function SendRecipientsEditor({
-  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, headerAction, beforeRecipients, footer, onChange,
+  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, amountDenominations, headerAction, beforeRecipients, footer, onChange,
 }: SendRecipientsEditorProps): React.JSX.Element {
   const {status} = useAuth()
   const {format, rateReady} = useFiat()
@@ -38,16 +38,18 @@ export default function SendRecipientsEditor({
             </button>
           )}
           {headerAction}
-          <button
-            type="button"
-            disabled={recipients.length >= limit}
-            onClick={addRecipient}
-            title={`${recipients.length} of ${limit} recipients`}
-            className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg dash-block-accent-10 px-2 py-1 text-xs dash-text-primary hover:dash-block-accent-15 focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40 disabled:cursor-default disabled:opacity-40"
-          >
-            <PlusIcon size={12} color="currentColor" />
-            Add Recipient
-          </button>
+          {limit > 1 && (
+            <button
+              type="button"
+              disabled={recipients.length >= limit}
+              onClick={addRecipient}
+              title={`${recipients.length} of ${limit} recipients`}
+              className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg dash-block-accent-10 px-2 py-1 text-xs dash-text-primary hover:dash-block-accent-15 focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40 disabled:cursor-default disabled:opacity-40"
+            >
+              <PlusIcon size={12} color="currentColor" />
+              Add Recipient
+            </button>
+          )}
         </div>
       </div>
       {beforeRecipients && <div className="mb-2 shrink-0">{beforeRecipients}</div>}
@@ -59,7 +61,20 @@ export default function SendRecipientsEditor({
           const fiatAmount = rateReady && amount > 0n ? format(amount) : null
           const isFeeRecipient = feeRecipientId === recipient.id && feeCredits != null
           const receivedCredits = duffsToCredits(amount) - (feeCredits ?? 0n)
-          const addressError = recipient.address.length > 0 && errors[index]?.address
+          const creatingIdentity = destination === DestinationKind.NewIdentity
+          const addressError = !creatingIdentity && recipient.address.length > 0 && errors[index]?.address
+          let recipientLabel = `Recipient ${index + 1}`
+          let inputLabel = `Recipient ${index + 1} address`
+          let inputValue = recipient.address
+          let inputClassName = 'w-full min-w-0 bg-transparent outline-none text-xs dash-text-default placeholder:opacity-30'
+          if (destination === DestinationKind.Identity) {
+            recipientLabel += ' identity ID'
+            inputLabel = recipientLabel
+          } else if (creatingIdentity) {
+            inputLabel = `Recipient ${index + 1} new identity`
+            inputValue = 'New identity'
+            inputClassName += ' opacity-50'
+          }
           let allocationHint = 'Share of available funds'
           if (budgetIsEstimate) allocationHint += ' · Fee not included yet'
           else if (remaining != null) allocationHint += ` · Up to ${davToDash(remaining)} Dash for this recipient`
@@ -78,10 +93,31 @@ export default function SendRecipientsEditor({
             update(recipient.id, 'amount', recipientSliderAmount(recipients, recipient.id, budgetDuffs, percent))
           }
 
+          let recipientField: React.JSX.Element
+          if (destination === DestinationKind.CoreAddress) {
+            recipientField = <RecipientInput compact appearance="subtle" ariaLabel={inputLabel} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
+          } else {
+            recipientField = (
+              <label className="flex min-w-0 flex-col gap-2">
+                <span className={`rounded-[.875rem] dash-block-5 px-3 py-3 ${addressError ? 'outline outline-1 outline-dash-red' : ''}`}>
+                  <input
+                    aria-label={inputLabel}
+                    value={inputValue}
+                    readOnly={creatingIdentity}
+                    onChange={event => update(recipient.id, 'address', event.target.value)}
+                    placeholder={DESTINATION_PLACEHOLDERS[destination][status?.network ?? 'testnet']}
+                    aria-invalid={!!addressError}
+                    className={inputClassName}
+                  />
+                </span>
+              </label>
+            )
+          }
+
           return (
             <section key={recipient.id} className="flex min-w-0 shrink-0 flex-col gap-3 rounded-2xl dash-block px-3.5 py-3">
               <div className="flex items-center justify-between gap-3">
-                <Text size={12} weight="medium" color="brand" opacity={50}>Recipient {index + 1}</Text>
+                <Text size={12} weight="medium" color="brand" opacity={50}>{recipientLabel}</Text>
                 {recipients.length > 1 && (
                   <button
                     type="button"
@@ -95,27 +131,28 @@ export default function SendRecipientsEditor({
               </div>
               <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]!">
                 <div className="min-w-0">
-                  {destination === DestinationKind.CoreAddress ? (
-                    <RecipientInput compact appearance="subtle" ariaLabel={`Recipient ${index + 1} address`} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} data={sendPageData.recipient} />
-                  ) : (
-                    <label className="flex min-w-0 flex-col gap-2">
-                      <span className={`rounded-[.875rem] dash-block-5 px-3 py-3 ${addressError ? 'outline outline-1 outline-dash-red' : ''}`}>
-                        <input
-                          aria-label={`Recipient ${index + 1} address`}
-                          value={recipient.address}
-                          onChange={event => update(recipient.id, 'address', event.target.value)}
-                          placeholder={DESTINATION_PLACEHOLDERS[destination][status?.network ?? 'testnet']}
-                          aria-invalid={!!addressError}
-                          className="w-full min-w-0 bg-transparent outline-none text-xs dash-text-default placeholder:opacity-30"
-                        />
-                      </span>
-                    </label>
-                  )}
+                  {recipientField}
                   {addressError && (
                     <Text size={10} weight="medium" color="red" className="mt-1 block">{addressError}</Text>
                   )}
                 </div>
                 <div className="flex min-w-0 flex-col gap-1.5">
+                  {amountDenominations != null && <div className="flex flex-wrap gap-2">
+                    {amountDenominations.map(denomination => {
+                      const selected = duffsToCredits(amount) === denomination
+                      return <button
+                        key={denomination.toString()}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => update(recipient.id, 'amount', davToDash(creditsToDuffs(denomination)))}
+                        className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${selected ? 'dash-bg-inverse' : 'dash-block-3'}`}
+                      >
+                        <Text size={12} weight="extrabold" color={selected ? 'blue-mint' : 'brand'}>
+                          {davToDash(creditsToDuffs(denomination))}<span className="font-normal"> Dash</span>
+                        </Text>
+                      </button>
+                    })}
+                  </div>}
                   <div className="flex min-w-0 items-center gap-3">
                     <label className={`flex min-w-0 flex-1 items-center gap-2 rounded-b-lg border-b px-2 py-1 ${recipient.amount.length > 0 && errors[index]?.amount ? 'border-dash-red' : 'border-dash-primary-dark-blue/15 dark:border-white/15 focus-within:border-dash-brand dark:focus-within:border-dash-mint'}`}>
                       <input
@@ -133,7 +170,7 @@ export default function SendRecipientsEditor({
                     </label>
                     {fiatAmount != null && <span className="shrink-0 rounded-b-lg border-b border-dash-primary-dark-blue/10 px-2 py-1 text-[.625rem] tabular-nums dash-text-default opacity-50 dark:border-white/10">{fiatAmount}</span>}
                   </div>
-                  <div className="flex items-center gap-4" title={allocationHint}>
+                  {amountDenominations == null && <div className="flex items-center gap-4" title={allocationHint}>
                     <div className="relative flex h-5 min-w-0 flex-1 items-center">
                       <progress
                         aria-hidden="true"
@@ -155,7 +192,7 @@ export default function SendRecipientsEditor({
                       />
                     </div>
                     <button type="button" onClick={useRemaining} disabled={remaining == null || budgetIsEstimate} title="Use remaining" className="shrink-0 rounded-md dash-block-accent-10 px-2 py-1 text-[.625rem] font-medium dash-text-primary cursor-pointer hover:dash-block-accent-15 focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40 disabled:cursor-default disabled:opacity-40">Max</button>
-                  </div>
+                  </div>}
                   {budgetIsEstimate && <Text size={10} weight="medium" color="brand" opacity={40}>{allocationHint}</Text>}
                   {isFeeRecipient && (
                     <Text size={10} weight="medium" color="brand">

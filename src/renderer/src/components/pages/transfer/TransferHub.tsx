@@ -199,6 +199,7 @@ function WalletTransferHub(): React.JSX.Element {
   const operation = resolveOperation(fromKind, toKind)
   const recipientLimit = operation == null ? 1 : SEND_RECIPIENT_LIMITS[operation] ?? 1
   const advancedMulti = advanced && recipientLimit > 1
+  const usesRecipientEditor = advanced && operation != null
   const savedAdvancedRoute = useMemo(() => getAdvancedSendRoute(draft, operation), [draft.advancedRoutes, operation])
   const advancedRoute = recipientDraft ?? savedAdvancedRoute
   const updateAdvancedRoute = (update: Partial<AdvancedSendRoute>): void => {
@@ -222,7 +223,7 @@ function WalletTransferHub(): React.JSX.Element {
     }))
     setRecipientDraft(null)
   }
-  const activeRecipients = useMemo(() => advancedMulti ? advancedRoute.recipients : [{id: 'simple', address: toValue, amount}], [advancedMulti, advancedRoute.recipients, toValue, amount])
+  const activeRecipients = useMemo(() => usesRecipientEditor ? advancedRoute.recipients : [{id: 'simple', address: toValue, amount}], [usesRecipientEditor, advancedRoute.recipients, toValue, amount])
   const orderedRecipients = useMemo(
     () => operation === TransferOperation.AddressFundsTransfer ? orderPlatformRecipients(activeRecipients) : activeRecipients,
     [operation, activeRecipients],
@@ -254,10 +255,10 @@ function WalletTransferHub(): React.JSX.Element {
   useEffect(() => {
     if (!destinationKinds.some(d => d.kind === toKind)) {
       setToKind(destinationKinds[0].kind)
-      setToValue('')
+      if (!advanced) setToValue('')
       setAcked(false)
     }
-  }, [destinationKinds, toKind])
+  }, [destinationKinds, toKind, advanced])
 
   const fundedAddresses = useMemo(
     () => platformAddresses.filter(a => BigInt(a.balanceCredits) > 0n),
@@ -355,7 +356,7 @@ function WalletTransferHub(): React.JSX.Element {
   const isCoreOperation = fromKind === SourceKind.Core
   const amountDuffs = useMemo(() => recipientTotalDuffs(activeRecipients), [activeRecipients])
   const minCredits = info?.minCredits ?? 0n
-  const trimmedTo = toValue.trim()
+  const trimmedTo = usesRecipientEditor ? activeRecipients[0]?.address.trim() ?? '' : toValue.trim()
 
   const amountCredits = isCoreOperation ? 0n : duffsToCredits(amountDuffs)
 
@@ -452,14 +453,14 @@ function WalletTransferHub(): React.JSX.Element {
 
   useEffect(() => {
     if (operation !== TransferOperation.CoreSend || allocationBudgetDuffs == null) return
-    if (advancedMulti) {
+    if (usesRecipientEditor) {
       const recipients = capRecipientAmounts(activeRecipients, allocationBudgetDuffs)
       if (recipients !== activeRecipients) updateAdvancedRoute({recipients})
     } else {
       const capped = capSendAmount(amount, allocationBudgetDuffs)
       if (capped !== amount) setAmount(capped)
     }
-  }, [operation, advancedMulti, activeRecipients, amount, allocationBudgetDuffs])
+  }, [operation, usesRecipientEditor, activeRecipients, amount, allocationBudgetDuffs])
 
   const selfSend =
     (operation === TransferOperation.AddressFundsTransfer && destinationValid
@@ -491,7 +492,8 @@ function WalletTransferHub(): React.JSX.Element {
       && (maxPerTx === null || amountCredits <= maxPerTx)
       && (operation !== TransferOperation.IdentityCreateFromShielded || isPoolIdentityDenomination(amountCredits))
 
-  const recipientsReady = !advancedMulti || (activeRecipients.length <= recipientLimit && recipientErrors.every(error => !error.address && !error.amount))
+  const recipientsReady = !usesRecipientEditor || (activeRecipients.length > 0 && activeRecipients.length <= recipientLimit
+    && (!advancedMulti || recipientErrors.every(error => !error.address && !error.amount)))
   const changeTo = coreSendChangeTo({advanced, customChangeEnabled: advancedRoute.customChangeEnabled, operation, amountDuffs, maxDuffs: coreMaxDuffs, change, selected: advancedRoute.changeAddress})
   const changeAddressValid = changeTo === undefined || isValidDashChangeAddress(changeTo, network ?? undefined)
   const canSubmit = routeReady && amountReady && recipientsReady && feeSourceValid && quoteReady && changeAddressValid
@@ -546,9 +548,10 @@ function WalletTransferHub(): React.JSX.Element {
 
   const destinationPlaceholder = DESTINATION_PLACEHOLDERS[toKind][network ?? 'testnet']
 
+  const recipientAmount = usesRecipientEditor ? activeRecipients[0]?.amount ?? '' : amount
   const amountError = amountErrorFor({
     isCoreOperation,
-    amount: advancedMulti ? davToDash(amountDuffs) : amount,
+    amount: advancedMulti ? davToDash(amountDuffs) : recipientAmount,
     coreMaxDuffs,
     operation,
     amountDuffs,
@@ -559,6 +562,7 @@ function WalletTransferHub(): React.JSX.Element {
     maxPerTx,
     noteLimit,
   })
+  const editorRecipientErrors = advancedMulti ? recipientErrors : [{address: destinationError, amount: amountError}]
 
   const reloadIdentities = (): void => {
     if (!walletId) return
@@ -583,7 +587,7 @@ function WalletTransferHub(): React.JSX.Element {
     }
   }
 
-  const coreRecipientInput = !advancedMulti && toKind === DestinationKind.CoreAddress && operation != null
+  const coreRecipientInput = !advanced && toKind === DestinationKind.CoreAddress && operation != null
   const ownRecipientsLoading = {
     [DestinationKind.CoreAddress]: coreAddressesLoading,
     [DestinationKind.PlatformAddress]: platformAddressesLoading,
@@ -607,12 +611,32 @@ function WalletTransferHub(): React.JSX.Element {
   }
   const changeDestinationKind = (kind: DestinationKind): void => {
     setToKind(kind)
-    if (!advancedMulti) setToValue('')
+    if (!advanced) setToValue('')
     setAcked(false)
   }
   const changeSendMode = (mode: boolean): void => {
     updateDraft(current => setSendAdvanced(current, mode))
     setWizardKey(key => key + 1)
+  }
+  let recipientControl: React.ReactNode
+  if (usesRecipientEditor) {
+    recipientControl = (
+      <button type="button" onClick={() => setRecipientDraft(savedAdvancedRoute)} className="w-full min-h-13 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl dash-block hover:bg-dash-brand/10 dark:hover:bg-dash-mint/10 transition-colors cursor-pointer">
+        <span className="flex items-center gap-3">
+          <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
+            <CoinControlListIcon className="dash-text-default" />
+          </span>
+          <Text size={14} weight="medium" color="brand">Recipients</Text>
+        </span>
+        <Text size={14} weight="medium" color="blue-mint">
+          <span className="opacity-[.48]">(</span>
+          <strong className="font-bold">{activeRecipients.length}</strong>
+          <span className="opacity-[.48]">/{recipientLimit})</span>
+        </Text>
+      </button>
+    )
+  } else if (coreRecipientInput) {
+    recipientControl = <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={ownRecipients} ownOptionsLoading={ownRecipientsLoading} ownOptionsError={ownRecipientsError} onRetryOwnOptions={retryOwnRecipients} />
   }
   const routeStep = (
     <>
@@ -688,29 +712,15 @@ function WalletTransferHub(): React.JSX.Element {
           <div className="relative flex flex-col gap-2">
             <DestinationPicker
               compact
-              trailingControl={advancedMulti ? (
-                <button type="button" onClick={() => setRecipientDraft(savedAdvancedRoute)} className="w-full min-h-13 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl dash-block hover:dash-block-accent-10 transition-colors cursor-pointer">
-                  <span className="flex items-center gap-3">
-                    <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
-                      <CoinControlListIcon className="dash-text-default" />
-                    </span>
-                    <Text size={14} weight="medium" color="brand">Recipients</Text>
-                  </span>
-                  <Text size={14} weight="medium" color="blue-mint">
-                    <span className="opacity-[.48]">(</span>
-                    <strong className="font-bold">{activeRecipients.length}</strong>
-                    <span className="opacity-[.48]">/{recipientLimit})</span>
-                  </Text>
-                </button>
-              ) : coreRecipientInput ? <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={!advanced ? ownRecipients : undefined} ownOptionsLoading={!advanced && ownRecipientsLoading} ownOptionsError={!advanced ? ownRecipientsError : null} onRetryOwnOptions={retryOwnRecipients} /> : undefined}
+              trailingControl={recipientControl}
               kind={toKind}
               kinds={destinationKinds}
               onKindChange={changeDestinationKind}
               value={coreRecipientInput ? trimmedTo : toValue}
               onValueChange={setToValue}
               placeholder={destinationPlaceholder}
-              error={advancedMulti ? null : destinationError}
-              showValueInput={!advancedMulti && !coreRecipientInput && operation != null}
+              error={usesRecipientEditor ? null : destinationError}
+              showValueInput={!advanced && !coreRecipientInput && operation != null}
               ownOptions={!advanced ? ownRecipients : undefined}
               ownOptionsLoading={!advanced && ownRecipientsLoading}
               ownOptionsError={!advanced ? ownRecipientsError : null}
@@ -843,16 +853,17 @@ function WalletTransferHub(): React.JSX.Element {
     feeDisplay = <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
   }
 
+  const withdrawalNotice = (operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal) && (
+    <div className="mb-4 flex flex-col gap-1.5 rounded-2xl dash-block-3 p-3.5">
+      <Text size={14} weight="extrabold" color="brand">Cross-chain withdrawal</Text>
+      <Text size={12} weight="medium" color="brand" opacity={50} className="leading-[130%]">
+        The Dash payout arrives asynchronously after the withdrawal is processed.
+      </Text>
+    </div>
+  )
   const amountStep = (
     <div>
-      {(operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal) && (
-        <div className="mb-4 flex flex-col gap-1.5 rounded-2xl dash-block-3 p-3.5">
-          <Text size={14} weight="extrabold" color="brand">Cross-chain withdrawal</Text>
-          <Text size={12} weight="medium" color="brand" opacity={50} className="leading-[130%]">
-            The Dash payout arrives asynchronously after the withdrawal is processed.
-          </Text>
-        </div>
-      )}
+      {withdrawalNotice}
       {operation === TransferOperation.IdentityCreateFromShielded && (
         <div className={"mb-3 flex flex-wrap gap-2"}>
           {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
@@ -1118,15 +1129,16 @@ function WalletTransferHub(): React.JSX.Element {
           <div className="mt-7">
             <SendRecipientsEditor
               recipients={activeRecipients}
-              errors={recipientErrors}
+              errors={editorRecipientErrors}
               limit={recipientLimit}
               destination={toKind}
               budgetDuffs={allocationBudgetDuffs}
               feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
               feeCredits={feeCredits}
               budgetIsEstimate={!allocationReady}
+              amountDenominations={operation === TransferOperation.IdentityCreateFromShielded ? POOL_IDENTITY_DENOMINATIONS : undefined}
               headerAction={customChangeControl}
-              beforeRecipients={customChangeField}
+              beforeRecipients={withdrawalNotice || customChangeField ? <>{withdrawalNotice}{customChangeField}</> : undefined}
               onChange={recipients => updateAdvancedRoute({recipients})}
               footer={<div className="grid grid-cols-2 gap-3">
                 <button type="button" onClick={() => updateAdvancedRoute({
@@ -1211,21 +1223,6 @@ function WalletTransferHub(): React.JSX.Element {
           <div className="mt-10 flex min-w-0 flex-col gap-10 pb-6">
             <div className="flex flex-col gap-5 min-w-0">
               <div className="flex flex-col gap-4">{routeStep}</div>
-              {!advancedMulti && <>
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <Text size={16} weight="extrabold" color="brand">
-                    Recipients <span className="font-medium">
-                      <span className="opacity-[.48]">(</span>
-                      <strong className="font-bold">1</strong>
-                      <span className="opacity-[.48]">/1)</span>
-                    </span>
-                  </Text>
-                  {customChangeControl}
-                </div>
-                {customChangeField}
-                <Text size={12} weight="medium" color="brand" opacity={50}>This route supports one recipient.</Text>
-                {amountStep}
-              </>}
             </div>
             <TransactionSummary
               operation={operation}
