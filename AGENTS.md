@@ -21,6 +21,13 @@ the complete project guidance in `CLAUDE.md`; treat it as part of this file.
   Do not silently weaken or omit a rule when porting guidance between them.
 - Use Yarn for dependency operations. Do not use pnpm, even though a
   `pnpm-lock.yaml` may exist.
+- Before creating **any UI component**, you MUST search both the project
+  codebase and the installed `dash-ui-kit`, inspect matching components and
+  their existing usage, and reuse suitable implementations. Compose or extend
+  existing components before introducing a new one; a new component requires
+  a concrete gap in both inventories. This applies to mock/demo UI too.
+- Follow existing UI/UX patterns for comparable screens and interactions.
+  Read `docs/renderer.md` for the required discovery and consistency workflow.
 - Before declaring an implementation complete, run the full green gate from
   `CLAUDE.md` unless the user explicitly narrows verification or an external
   blocker makes a command impossible. Report any command that was not run or

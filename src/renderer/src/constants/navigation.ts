@@ -51,6 +51,16 @@ export const navGroups: NavGroup[] = [
         to: '/identities'
       },
       {
+        id: 'dashpay',
+        label: 'DashPay',
+        to: '/dashpay'
+      },
+      {
+        id: 'masternodes',
+        label: 'Masternodes',
+        to: '/masternodes'
+      },
+      {
         id: 'shielded',
         label: 'Shielded',
         to: '/shielded',

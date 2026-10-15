@@ -11,6 +11,9 @@ import ReceivePage from "./pages/Receive"
 import ShieldedPage from "./pages/Shielded"
 import IdentitiesPage from "./pages/Identities"
 import IdentityRegistrationPage from "./pages/IdentityRegistration"
+import DashpayPage from "./pages/Dashpay"
+import MasternodesPage from "./pages/Masternodes"
+import DemoLayout from "./pages/DemoLayout"
 import AddressesPage from "./pages/Addresses"
 import SettingsPage from "./pages/Settings"
 import LogsPage from "./pages/Logs"
@@ -64,6 +67,10 @@ function App(): React.JSX.Element {
             <Route path={"/addresses"} element={<AddressesPage />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/identities/register"} element={<IdentityRegistrationPage />} />
+            <Route element={<DemoLayout />}>
+              <Route path={"/dashpay"} element={<DashpayPage />} />
+              <Route path={"/masternodes"} element={<MasternodesPage />} />
+            </Route>
             <Route path={"/settings"} element={<SettingsPage />} />
             <Route path={"/settings/logs"} element={<LogsPage />} />
             <Route path={"/connection-settings"} element={<ConnectionSettingsPage />} />

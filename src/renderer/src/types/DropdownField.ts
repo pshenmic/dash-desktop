@@ -8,6 +8,8 @@ export interface DropdownFieldOption {
 }
 
 export interface DropdownFieldProps {
+  id?: string
+  disabled?: boolean
   options: DropdownFieldOption[]
   value: string
   onChange: (value: string) => void

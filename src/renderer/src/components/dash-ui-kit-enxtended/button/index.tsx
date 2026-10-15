@@ -44,6 +44,7 @@ const styles = cva(
         disabled: 'hover:!cursor-not-allowed'
       },
       size: {
+        xs: 'dash-btn-sm !min-h-9 !rounded-[.625rem] !px-3 !py-2 !text-xs normal-case',
         sm: 'dash-block-sm',
         md: 'dash-block-md',
       },
@@ -381,7 +382,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** Color scheme for the button */
   colorScheme?: 'brand' | 'mint' | 'gray' | 'red' | 'lightBlue' | 'lightGray' | 'primary' | 'brand-mint' | 'primary-light' | 'lightBlue-mint' | 'danger-light' | 'red-strong'
   /** Size of the button */
-  size?: 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md'
 }
 
 /**

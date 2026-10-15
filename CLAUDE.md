@@ -156,7 +156,15 @@ FVK.**
 
 → `docs/addresses.md`
 
-### Renderer (`src/renderer/src/`)
+### Frontend Renderer (`src/renderer/src/`)
+
+Before creating **any UI component**, you MUST search both the project codebase
+and the installed `dash-ui-kit`, inspect matching components and their existing
+usage, and reuse suitable implementations. Compose or extend existing
+components before introducing a new one; a new component requires a concrete
+gap in both inventories. This applies to mock/demo UI too. Follow existing
+UI/UX patterns for comparable screens and interactions; the required discovery
+and consistency workflow is in `docs/renderer.md`.
 
 React Router v7 (`HashRouter`), `dash-ui-kit` + Tailwind v4. App state is
 `useAuth()`, not `App.tsx`, read at the component that needs it rather than
