@@ -8,9 +8,11 @@ import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
 import { LockKind } from '@renderer/enums/LockKind'
 import Spinner from '@renderer/components/ui/Spinner'
 import HashField from '@renderer/components/ui/HashField'
-import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import { toast } from '@renderer/components/ui/Toast'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { useErrorToast } from '@renderer/hooks/useErrorToast'
+import { getErrorMessage } from '@renderer/utils/error'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
 import { ASSET_LOCK_FUNDING_POLL_MS, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { davToDash } from '@renderer/utils/balance'
@@ -134,6 +136,7 @@ export default function AssetLockFundingModal({
   const [started, setStarted] = useState(false)
   const [state, setState] = useState<AssetLockFundingState | null>(null)
   const notified = useRef(false)
+  const pollingErrorNotified = useRef(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -143,6 +146,7 @@ export default function AssetLockFundingModal({
       setStarted(false)
       setState(null)
       notified.current = false
+      pollingErrorNotified.current = false
     }
   }, [isOpen])
 
@@ -161,7 +165,11 @@ export default function AssetLockFundingModal({
         setState(current)
         setStarted(true)
       })
-      .catch(() => {})
+      .catch(error => {
+        if (dead) return
+        console.error('Failed to load asset lock funding state', error)
+        toast.error(getErrorMessage(error))
+      })
 
     return () => { dead = true }
   }, [isOpen, resume, walletId, kind])
@@ -175,6 +183,7 @@ export default function AssetLockFundingModal({
       try {
         const next = await API.getAssetLockFundingState(walletId)
         if (dead) return
+        pollingErrorNotified.current = false
         setState(next)
         if (next.phase === AssetLockFundingPhase.Done && !notified.current) {
           notified.current = true
@@ -183,7 +192,12 @@ export default function AssetLockFundingModal({
         if (next.phase !== AssetLockFundingPhase.Done && next.phase !== AssetLockFundingPhase.Error && next.phase !== AssetLockFundingPhase.Resumable) {
           timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to refresh asset lock funding state', error)
+        if (!dead && !pollingErrorNotified.current) {
+          pollingErrorNotified.current = true
+          toast.error(getErrorMessage(error))
+        }
         if (!dead) timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
       }
     }
@@ -194,6 +208,10 @@ export default function AssetLockFundingModal({
       if (timer !== undefined) clearTimeout(timer)
     }
   }, [started, walletId, onSuccess])
+
+  const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
+  const error = isError ? state?.error ?? 'Funding failed.' : null
+  useErrorToast(error, isOpen)
 
   if (!isOpen) return null
 
@@ -221,7 +239,8 @@ export default function AssetLockFundingModal({
       setStarted(true)
       setBusy(false)
     } catch (e) {
-      setPreError(e instanceof Error ? e.message : 'Could not start the funding.')
+      console.error('Could not start asset lock funding', e)
+      toast.error(getErrorMessage(e))
       setBusy(false)
     }
   }
@@ -232,7 +251,6 @@ export default function AssetLockFundingModal({
 
   const isDone = started && state?.phase === AssetLockFundingPhase.Done
   const doneTxid = state?.txid ?? null
-  const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
   const texts = TEXTS[kind]
   const phases = PHASE_LABELS[kind]
   let modalTitle = texts.title
@@ -294,10 +312,7 @@ export default function AssetLockFundingModal({
                 autoFocus
               />
             </div>
-            <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-              <CopyableError message={preError ?? ''} />
-            </div>
-
+            {preError && <Text size={12} weight="medium" color="red" className="mt-2 block">{preError}</Text>}
             <div className={"mt-4.5 flex gap-2"}>
               <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
                 Cancel
@@ -341,9 +356,6 @@ export default function AssetLockFundingModal({
 
         {isError && state && (
           <div className={"phase-fade-in"} key={"error"}>
-            <div className={"mt-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <CopyableError message={state.error ?? 'Funding failed.'} />
-            </div>
             {state.txid && (
               <div className={"mt-3"}>
                 <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
