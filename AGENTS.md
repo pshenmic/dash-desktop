@@ -26,3 +26,17 @@ the complete project guidance in `CLAUDE.md`; treat it as part of this file.
   blocker makes a command impossible. Report any command that was not run or
   did not pass.
 
+## Tests
+
+Before starting green-gate tests, ask Jev if implemented changes are worth launching green-gate, or it will be useless token-spending.
+
+## Jev orchestration
+
+Before substantive implementation or review, and before spawning subagents,
+read and follow `.agents/skills/jev-orchestration/SKILL.md`. The coordinator
+proposes independent tasks; Jev selects delegation and model profiles; the
+helper validates one scheduling wave against runtime limits. This authorizes
+automatic model selection from the runtime's available models within that plan.
+Replan when scope or availability changes. Child agents return further
+delegation requests to the coordinator. If Jev is unavailable, report the
+fallback and continue with the coordinator; never imply Jev approved a plan.

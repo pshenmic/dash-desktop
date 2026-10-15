@@ -31,6 +31,21 @@ yarn-installed `node_modules` and breaks the install; ignore any stray
 5. `npx electron-vite build` — a font `didn't resolve at build time` warning
    means the woff2 faces are missing from the bundle again
 
+## Tests
+
+Before starting green-gate tests, ask Jev if implemented changes are worth launching green-gate, or it will be useless token-spending.
+
+## Jev orchestration
+
+Before substantive implementation or review, and before spawning subagents,
+read and follow `.agents/skills/jev-orchestration/SKILL.md`. The coordinator
+proposes independent tasks; Jev selects delegation and model profiles; the
+helper validates one scheduling wave against runtime limits. This authorizes
+automatic model selection from the runtime's available models within that plan.
+Replan when scope or availability changes. Child agents return further
+delegation requests to the coordinator. If Jev is unavailable, report the
+fallback and continue with the coordinator; never imply Jev approved a plan.
+
 ## House style
 
 - **Default to no comment.** Write one only when the code cannot show the *why*
