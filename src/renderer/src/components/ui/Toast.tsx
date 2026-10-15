@@ -106,9 +106,10 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
         : <ErrorIcon size={27} className="shrink-0 rounded-full" />}
       <div className={"flex-1 min-w-0"}>
         <Text
+          reset
           size={12}
           weight="medium"
-          className={`leading-[120%] whitespace-pre-wrap ${success ? 'text-dash-green!' : warning ? 'text-dash-orange!' : 'text-white!'}`}
+          className={`block leading-[120%] whitespace-pre-wrap wrap-anywhere ${success ? 'text-dash-green!' : warning ? 'text-dash-orange!' : 'text-white!'}`}
         >
           {renderBoldText(item.text)}
         </Text>

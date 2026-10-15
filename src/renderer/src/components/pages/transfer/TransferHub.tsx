@@ -182,7 +182,7 @@ function WalletTransferHub(): React.JSX.Element {
   const { receiving, change, loading: coreAddressesLoading, err: coreAddressesError } = useAdresses(walletId ?? undefined)
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
-  const shieldedSync = useShieldedSyncState(walletId)
+  const shieldedSync = useShieldedSyncState(walletId, true)
   const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
   const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
     receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
@@ -193,7 +193,6 @@ function WalletTransferHub(): React.JSX.Element {
   useErrorToast(coreAddressesError)
   useErrorToast(platformAddressesError)
   useErrorToast(identitiesError)
-  useErrorToast(shieldedSync.error)
   useErrorToast(savedShielded.errorMessage, !advanced && toKind === DestinationKind.Shielded)
 
   const operation = resolveOperation(fromKind, toKind)
