@@ -16,6 +16,7 @@ out
 .claude
 
 *.snap
+.agents/
 .agents/*
 !.agents/skills/
 .agents/skills/*
