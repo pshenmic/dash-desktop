@@ -34,8 +34,9 @@ export const CONTEST_JOIN_WINDOW_MS: Record<Network, number> = {
   testnet: 2_700_000,
 }
 
-// Drive's contested_document_vote_resolution_fund_required_amount, 0.2 DASH.
-export const CONTEST_FUND_CREDITS = 20_000_000_000n
+// Drive's contested_document_vote_resolution_fund_required_amount: 0.1 DASH
+// from FEE_VERSION3 (protocol 14), 0.2 DASH before it.
+export const CONTEST_FUND_CREDITS = 10_000_000_000n
 
 // The SDK throws this for a name no contest was ever opened on, and a network
 // failure would otherwise read as the same "no contest".

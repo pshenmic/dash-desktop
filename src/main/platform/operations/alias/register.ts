@@ -24,7 +24,7 @@ export async function aliasRegister(payload: Payload, ctx: OperationContext): Pr
     throw new OperationError(`The contest for ${name} no longer accepts contenders`, 'internal')
   }
   if (check.isContested && await sdk.identities.getIdentityBalance(identifier) < CONTEST_FUND_CREDITS) {
-    throw new OperationError(`${name} is contested and needs 0.2 DASH of identity credits for the vote`, 'insufficientFunds')
+    throw new OperationError(`${name} is contested and the identity cannot fund its vote`, 'insufficientFunds')
   }
 
   const {privateKey} = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')
