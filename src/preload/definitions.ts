@@ -55,6 +55,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getIdentities: (walletId: string) => ipcRenderer.invoke('getIdentities', walletId),
   getAliases: (walletId: string) => ipcRenderer.invoke('getAliases', walletId),
   registerAlias: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerAlias', walletId, identifier, label, password),
+  resolveAlias: (walletId: string, label: string): Promise<string | null> => ipcRenderer.invoke('resolveAlias', walletId, label),
   getIdentityBalance: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityBalance', identifier),
   getIdentityNonce: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityNonce', identifier),
   getPlatformAddresses: (walletId: string) => ipcRenderer.invoke('getPlatformAddresses', walletId),

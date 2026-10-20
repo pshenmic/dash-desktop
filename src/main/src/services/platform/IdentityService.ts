@@ -80,6 +80,12 @@ export class IdentityService {
     return this.aliasDAO.getAliases(walletId)
   }
 
+  async resolveAlias(walletId: string, label: string): Promise<string | null> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const {identifier} = await this.platform.request('aliasResolve', wallet.network, {label})
+    return identifier
+  }
+
   async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<Alias> {
     const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
     if (identity == null) {

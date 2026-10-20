@@ -354,6 +354,10 @@ export interface PlatformOperations {
     payload: {identifier: string; label: string}
     result: AliasCheck
   }
+  aliasResolve: {
+    payload: {label: string}
+    result: {identifier: string | null}
+  }
   // Answers with the check it ran before spending anything. A domain refused
   // after its preorder landed is answered, not thrown, so its salt reaches main.
   aliasRegister: {

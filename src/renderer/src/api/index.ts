@@ -163,6 +163,10 @@ export class API {
     return this.api.getAliases(walletId) as Promise<AliasDto[]>
   }
 
+  static async resolveAlias(walletId: string, label: string): Promise<string | null> {
+    return this.api.resolveAlias(walletId, label)
+  }
+
   static async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<AliasDto> {
     return this.api.registerAlias(walletId, identifier, label, password) as Promise<AliasDto>
   }

@@ -153,6 +153,7 @@ declare global {
       getIdentities: (walletId: string) => Promise<unknown>
       getAliases: (walletId: string) => Promise<unknown>
       registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
+      resolveAlias: (walletId: string, label: string) => Promise<string | null>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>
