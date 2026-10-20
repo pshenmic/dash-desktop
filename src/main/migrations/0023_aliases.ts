@@ -14,6 +14,9 @@ export async function up(knex: Knex): Promise<void> {
     table.text('status').notNullable()
       .checkIn(['pending', 'registered', 'voting', 'locked', 'taken', 'missing'])
     table.text('document_id')
+    // Kept so a domain that failed after its preorder is retried against that
+    // preorder rather than paying for another.
+    table.binary('preorder_salt')
     // Set only while or after a contest runs; null for an uncontested name.
     table.integer('votes_for')
     table.integer('votes_lock')

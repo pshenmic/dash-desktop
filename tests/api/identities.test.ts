@@ -8,6 +8,8 @@ import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const IDENTIFIER = 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec'
 
+const SALT = Buffer.alloc(32, 1)
+
 const UNCHECKED: AliasCheck = {
   status: 'missing', isContested: true, documentId: null, votesFor: null, votesLock: null, votesAbstain: null, voteEndsAt: null,
 }
@@ -56,7 +58,7 @@ describe('listing identities', () => {
   it('keeps a pending name pending until the chain shows it, then follows its vote', async () => {
     await aliasDAO.save({
       ...UNCHECKED, walletId, identifier: IDENTIFIER, label: 'owl', normalizedLabel: '0w1',
-      status: 'pending', createdAt: 1, checkedAt: null,
+      status: 'pending', preorderSalt: null, createdAt: 1, checkedAt: null,
     })
     let check = UNCHECKED
     request.mockImplementation(async (kind: string) => kind === 'aliasStatus' ? check : {infos: []})
@@ -79,13 +81,28 @@ describe('listing identities', () => {
   })
 
   it('records a registered name as pending under the identity that sent it', async () => {
-    request.mockResolvedValue(UNCHECKED)
+    request.mockResolvedValue({...UNCHECKED, preorderSalt: SALT, error: null})
 
     const alias = await identities.registerAlias(walletId, IDENTIFIER, 'Owl', PASSWORD)
 
-    expect(request).toHaveBeenCalledWith('aliasRegister', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, label: 'Owl'}))
+    expect(request).toHaveBeenCalledWith('aliasRegister', 'testnet', expect.objectContaining({
+      identifier: IDENTIFIER, identityIndex: 0, label: 'Owl', preorderSalt: null,
+    }))
     expect(alias).toMatchObject({status: 'pending', label: 'Owl', normalizedLabel: '0w1', isContested: true})
     expect(await identities.getAliases(walletId)).toEqual([alias])
+  })
+
+  it('keeps the salt of a domain refused after its preorder, and resumes the preorder next time', async () => {
+    request.mockResolvedValue({...UNCHECKED, preorderSalt: SALT, error: 'insufficient balance'})
+
+    await expect(identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)).rejects.toThrow('insufficient balance')
+    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'missing', preorderSalt: SALT})
+
+    request.mockResolvedValue({...UNCHECKED, preorderSalt: SALT, error: null})
+    await identities.registerAlias(walletId, IDENTIFIER, 'OWL', PASSWORD)
+    expect(request).toHaveBeenLastCalledWith('aliasRegister', 'testnet', expect.objectContaining({preorderSalt: SALT}))
+    expect(await identities.getAliases(walletId)).toHaveLength(1)
+    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'pending', label: 'OWL'})
   })
 
   it('registers nothing for an identity outside the wallet or with a wrong password', async () => {

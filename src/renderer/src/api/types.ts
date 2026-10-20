@@ -56,6 +56,7 @@ export interface AliasDto {
   isContested: boolean
   status: 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
   documentId: string | null
+  preorderSalt: Uint8Array | null
   votesFor: number | null
   votesLock: number | null
   votesAbstain: number | null

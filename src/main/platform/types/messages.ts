@@ -354,10 +354,11 @@ export interface PlatformOperations {
     payload: {identifier: string; label: string}
     result: AliasCheck
   }
-  // Answers with the check it ran before spending anything.
+  // Answers with the check it ran before spending anything. A domain refused
+  // after its preorder landed is answered, not thrown, so its salt reaches main.
   aliasRegister: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
-    result: AliasCheck
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string; preorderSalt: Uint8Array | null}
+    result: AliasCheck & {preorderSalt: Uint8Array | null; error: string | null}
   }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}

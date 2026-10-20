@@ -28,6 +28,7 @@ export interface Alias extends Omit<AliasCheck, 'status'> {
   label: string
   normalizedLabel: string
   status: AliasStatus
+  preorderSalt: Uint8Array | null
   createdAt: number
   checkedAt: number | null
 }

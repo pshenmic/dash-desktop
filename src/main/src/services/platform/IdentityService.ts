@@ -86,14 +86,22 @@ export class IdentityService {
       throw new Error('Identity not found in this wallet')
     }
 
-    const check = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('aliasRegister', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, label}))
+    // Registering a name again resumes a preorder an earlier attempt paid for.
+    const normalizedLabel = convertToHomographSafeChars(label)
+    const earlier = (await this.aliasDAO.getAliases(walletId))
+      .find(alias => alias.identifier === identifier && alias.normalizedLabel === normalizedLabel)
+
+    const {error, ...check} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('aliasRegister', wallet.network, {
+        seed, identifier, identityIndex: identity.identityIndex, label, preorderSalt: earlier?.preorderSalt ?? null,
+      }))
     const now = Date.now()
-    const alias: Alias = {
-      ...check, walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label),
-      status: 'pending', createdAt: now, checkedAt: now,
-    }
+    const status = error == null ? 'pending' : 'missing'
+    const alias: Alias = {...check, walletId, identifier, label, normalizedLabel, status, createdAt: now, checkedAt: now}
     await this.aliasDAO.save(alias)
+    if (error != null) {
+      throw new Error(error)
+    }
     return alias
   }
 
