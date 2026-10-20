@@ -37,7 +37,7 @@ describe('listing identities', () => {
 
   // The one caller that displays aliases, so it has to keep paying for them.
   it('asks for aliases', async () => {
-    request.mockResolvedValue({infos: [{identifier: IDENTIFIER, balance: 5n, alias: 'alice.dash'}]})
+    request.mockResolvedValue({infos: [{identifier: IDENTIFIER, balance: 5n, aliasesList: ['alice.dash', 'bob.dash']}]})
 
     const listed = await identities.getIdentities(walletId)
 
@@ -46,7 +46,7 @@ describe('listing identities', () => {
       'testnet',
       expect.objectContaining({skipDPNS: false}),
     )
-    expect(listed[0]!.alias).toBe('alice.dash')
+    expect(listed[0]).toMatchObject({alias: 'alice.dash', aliasesList: ['alice.dash', 'bob.dash']})
   })
 
   it('skips an identity Platform does not know yet', async () => {

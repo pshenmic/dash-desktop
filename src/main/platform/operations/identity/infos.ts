@@ -6,13 +6,12 @@ type Payload = PlatformOperations['identityInfos']['payload']
 type Result = PlatformOperations['identityInfos']['result']
 
 // A transfer moves a name's owner but not its records.identity, which the
-// search matches on; of the names still owned, the oldest is the one shown.
-async function resolveAlias(sdk: OperationContext['sdk'], identifier: string): Promise<string | null> {
-  const [document] = (await sdk.names.searchByIdentity(identifier).catch(() => []))
+// search matches on, so only the names still owned are kept, oldest first.
+async function resolveAliasesList(sdk: OperationContext['sdk'], identifier: string): Promise<string[]> {
+  return (await sdk.names.searchByIdentity(identifier).catch(() => []))
     .filter(document => document.ownerId.base58() === identifier)
     .sort((a, b) => Number(a.createdAt) - Number(b.createdAt))
-  const {label, parentDomainName} = document?.properties ?? {}
-  return label != null && parentDomainName != null ? `${label}.${parentDomainName}` : null
+    .map(document => `${document.properties.label}.${document.properties.parentDomainName}`)
 }
 
 // An identifier this wallet recorded before its transition landed is not on
@@ -28,7 +27,7 @@ export async function identityInfos(payload: Payload, ctx: OperationContext): Pr
     return {
       identifier: identity.id.base58(),
       balance: BigInt(identity.balance),
-      alias: payload.skipDPNS ? null : await resolveAlias(sdk, identifier),
+      aliasesList: payload.skipDPNS ? [] : await resolveAliasesList(sdk, identifier),
     }
   }))
 

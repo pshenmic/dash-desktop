@@ -352,7 +352,7 @@ export interface PlatformOperations {
     // identity fetch.
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
-    result: {infos: Array<{identifier: string; balance: bigint; alias: string | null}>}
+    result: {infos: Array<{identifier: string; balance: bigint; aliasesList: string[]}>}
   }
   aliasStatus: {
     payload: {identifier: string; label: string}
