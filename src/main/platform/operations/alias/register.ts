@@ -5,6 +5,9 @@ import {consensusMessage} from '../consensusMessage'
 import {aliasRegisterFee} from '../fee'
 import {signingKey} from '../identity/signingKey'
 import {aliasStatus} from './status'
+import {Logger} from '../../../src/utils/logger'
+
+const log = new Logger('platform')
 
 type Payload = PlatformOperations['aliasRegister']['payload']
 type Result = PlatformOperations['aliasRegister']['result']
@@ -25,6 +28,7 @@ export async function aliasRegister(payload: Payload, ctx: OperationContext): Pr
     throw new OperationError(`The contest for ${name} no longer accepts contenders`, 'internal')
   }
   const [cost, balance] = await Promise.all([aliasRegisterFee(ctx, label, identifier), sdk.identities.getIdentityBalance(identifier)])
+  log.info(`${name}: free, contested=${check.isContested}, costs ${cost.feeCredits} + ${cost.fixedCredits} of ${balance} credits`)
   if (balance < cost.feeCredits + cost.fixedCredits) {
     throw new OperationError(`The identity cannot afford to register ${name}`, 'insufficientFunds')
   }

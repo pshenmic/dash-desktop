@@ -6,6 +6,7 @@ export type IdentityApiDto = {
   identityIndex: number
   identifier: string
   alias: string | null
+  aliasesList: string[]
   balance: {
     amount: bigint
     usdAmount: string

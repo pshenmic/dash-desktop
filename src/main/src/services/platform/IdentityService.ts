@@ -69,6 +69,7 @@ export class IdentityService {
       try {
         const check = await this.platform.request('aliasStatus', network, {identifier: alias.identifier, label: alias.label})
         const status = alias.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
+        if (status !== alias.status) log.info(`${alias.label}: ${alias.status} -> ${status}`)
         await this.aliasDAO.save({...alias, ...check, status, checkedAt: Date.now()})
       } catch (err) {
         log.warn(`${alias.label}: alias check failed:`, err)
@@ -98,17 +99,21 @@ export class IdentityService {
     const earlier = (await this.aliasDAO.getAliases(walletId))
       .find(alias => alias.identifier === identifier && alias.normalizedLabel === normalizedLabel)
 
+    const preorderSalt = earlier?.preorderSalt ?? null
+    log.info(`${label}: registering for ${identifier}${preorderSalt == null ? '' : ', resuming its paid preorder'}`)
     const {error, ...check} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
       this.platform.request('aliasRegister', wallet.network, {
-        seed, identifier, identityIndex: identity.identityIndex, label, preorderSalt: earlier?.preorderSalt ?? null,
+        seed, identifier, identityIndex: identity.identityIndex, label, preorderSalt,
       }))
     const now = Date.now()
     const status = error == null ? 'pending' : 'missing'
     const alias: Alias = {...check, walletId, identifier, label, normalizedLabel, status, createdAt: now, checkedAt: now}
     await this.aliasDAO.save(alias)
     if (error != null) {
+      log.warn(`${label}: domain refused after its preorder, salt kept to resume: ${error}`)
       throw new Error(error)
     }
+    log.info(`${label}: sent, pending`)
     return alias
   }
 

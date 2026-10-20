@@ -46,6 +46,9 @@ import {
   SHIELD_FUNDING_ACTIONS,
   STORED_BYTE_CREDITS,
 } from '../../src/constants/fee/platform'
+import {Logger} from '../../src/utils/logger'
+
+const log = new Logger('platform')
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
@@ -89,6 +92,7 @@ export function documentsFee(contract: DataContractWASM, writes: Array<{document
       .reduce((sum: number, field: string) => sum + 2 * indexValueBytes(document, field), 0)
     return total + BigInt(document.bytes(contract).length + keyBytes) + overheadBytes
   }, 0n)
+  log.debug(`documents fee: ${writes.map(({document}) => document.documentTypeName).join(' + ')} add ${bytes} bytes`)
   return bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n
 }
 

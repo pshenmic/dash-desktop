@@ -22,7 +22,7 @@ function inventory(): OwnRecipientInventory {
     ],
     shieldedAddresses: ['shielded-saved'],
     shieldedNotes: [],
-    identities: [{identityIndex: 0, identifier: 'identity-empty', alias: 'Personal', balance: {amount: 0n, usdAmount: '0'}, derivationPath: '', assetLockTxid: null}],
+    identities: [{identityIndex: 0, identifier: 'identity-empty', alias: 'Personal', aliasesList: ['Personal'], balance: {amount: 0n, usdAmount: '0'}, derivationPath: '', assetLockTxid: null}],
   }
 }
 
