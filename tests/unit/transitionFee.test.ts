@@ -47,6 +47,7 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   assetLockShield: '',
   identityRegister: '',
   identityTopUpL1: IDENTITY,
+  aliasRegister: 'owl352-testnet',
 }
 
 const FUNDING_TXID = '11'.repeat(32)
@@ -77,6 +78,11 @@ function assetLockTransaction(inputCount: number): SDKTransaction {
 // suite stays offline.
 const sdk = new DashPlatformSDK({network: 'testnet'})
 Object.assign(sdk.node, {getEpochsInfo: async () => [{protocolVersion: 13}]})
+// A registration's two state reads: has the identity written to DPNS, and does
+// it already own a name.
+const dpnsState = {contractNonce: 1n, named: true}
+Object.assign(sdk.identities, {getIdentityContractNonce: async () => dpnsState.contractNonce})
+Object.assign(sdk.documents, {query: async () => dpnsState.named ? [{}] : []})
 
 const ctx = {
   sdk,
@@ -236,5 +242,30 @@ describe('transitionFee', () => {
     }).calculateMinRequiredFee()
 
     expect(await feeOf('identityRegister', {recipient: ''})).toBe(overInstantProof)
+  })
+
+  // What testnet charged at protocol 14, preorder plus domain, for each state a
+  // registration can meet. The quote carries a 5% margin on top.
+  it('prices a name registration within 1% of what Drive charged', async () => {
+    const charged: Array<[string, number, boolean, number]> = [
+      ['owl352-e2e-3302', 1, true, 57_514_297],
+      ['owl352-e2e-long-6356-0123456789abcdefghjkmnpqrstuvwxyz012345678', 1, true, 63_280_568],
+      ['owl352-e2e-6546', 0, false, 74_443_585],
+      ['owl-check-kfjp', 1, true, 107_152_959],
+    ]
+    for (const [label, contractNonce, named, credits] of charged) {
+      Object.assign(dpnsState, {contractNonce: BigInt(contractNonce), named})
+      const quote = await transitionFee({operation: 'aliasRegister', params: params({recipient: label})}, ctx)
+      const error = Number(quote.feeCredits * 100n / 105n) / credits - 1
+      expect(Math.abs(error), label).toBeLessThan(0.01)
+    }
+    Object.assign(dpnsState, {contractNonce: 1n, named: true})
+  })
+
+  it('quotes a contested name its vote fund apart, so no multiplier scales it', async () => {
+    const plain = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl352-e2e-3302'})}, ctx)
+    const contested = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl-check-kfjp'})}, ctx)
+    expect(plain.fixedCredits).toBe(0n)
+    expect(contested.fixedCredits).toBe(10_000_000_000n)
   })
 })

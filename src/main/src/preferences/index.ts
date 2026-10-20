@@ -92,8 +92,9 @@ export class Preferences {
     const rawGeneral = (raw.general ?? {}) as Partial<GeneralPreferencesJSON>
 
     const rawMultiplier = rawGeneral.platformFeeMultiplier
+    // Merged over the defaults, so an operation added since keeps its own.
     const platformFeeMultiplier = typeof rawMultiplier === 'object' && rawMultiplier !== null
-      ? rawMultiplier
+      ? {...defaults.general.platformFeeMultiplier, ...rawMultiplier}
       : defaults.general.platformFeeMultiplier
 
     const instance = new Preferences()

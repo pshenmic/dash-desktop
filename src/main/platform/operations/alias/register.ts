@@ -1,7 +1,8 @@
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
-import {CONTEST_FUND_CREDITS, CONTEST_JOIN_WINDOW_MS, DPNS_PARENT_DOMAIN, VOTE_POLL_DURATION_MS} from '../../constants'
+import {CONTEST_JOIN_WINDOW_MS, DPNS_PARENT_DOMAIN, VOTE_POLL_DURATION_MS} from '../../constants'
 import {consensusMessage} from '../consensusMessage'
+import {aliasRegisterFee} from '../fee'
 import {signingKey} from '../identity/signingKey'
 import {aliasStatus} from './status'
 
@@ -23,8 +24,9 @@ export async function aliasRegister(payload: Payload, ctx: OperationContext): Pr
   if (check.voteEndsAt != null && Date.now() > check.voteEndsAt - VOTE_POLL_DURATION_MS[network] + CONTEST_JOIN_WINDOW_MS[network]) {
     throw new OperationError(`The contest for ${name} no longer accepts contenders`, 'internal')
   }
-  if (check.isContested && await sdk.identities.getIdentityBalance(identifier) < CONTEST_FUND_CREDITS) {
-    throw new OperationError(`${name} is contested and the identity cannot fund its vote`, 'insufficientFunds')
+  const [cost, balance] = await Promise.all([aliasRegisterFee(ctx, label, identifier), sdk.identities.getIdentityBalance(identifier)])
+  if (balance < cost.feeCredits + cost.fixedCredits) {
+    throw new OperationError(`The identity cannot afford to register ${name}`, 'insufficientFunds')
   }
 
   const {privateKey} = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')

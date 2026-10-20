@@ -117,8 +117,10 @@ export type IdentityFeeOperation =
   | 'identityToIdentity'
   | 'identityWithdrawal'
 
+// recipient is the label being registered, identityId the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
+  | 'aliasRegister'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -128,7 +130,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -192,6 +194,8 @@ export interface FeeQuoteParams extends FeeParams {
 export interface FeeQuote {
   feeCredits: bigint
   metered: boolean
+  // Charged as is on top, never scaled by a fee multiplier: a contest's vote fund.
+  fixedCredits: bigint
 }
 
 export type AssetLockProofParams =

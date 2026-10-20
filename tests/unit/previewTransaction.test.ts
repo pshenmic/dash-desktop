@@ -69,7 +69,7 @@ function service(options: {utxos?: UTXO[]; candidates?: PlatformSourceCandidate[
     switch (kind) {
       case 'previewTransition': return {unsignedHex: TRANSITION_HEX}
       case 'identityNonce': return {nonce: NONCE}
-      default: return {feeCredits: BASE_FEE, metered: true}
+      default: return {feeCredits: BASE_FEE, metered: true, fixedCredits: 0n}
     }
   })
   const planSpend = vi.fn(async () => options.plan)

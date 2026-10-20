@@ -168,6 +168,7 @@ export class FeeService {
       case 'identityToAddress':
       case 'identityToIdentity':
       case 'identityWithdrawal':
+      case 'aliasRegister':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -360,6 +361,10 @@ export class FeeService {
         }
       }
 
+      // A preorder and its domain, signed in the worker one after the other.
+      case 'aliasRegister':
+        throw new Error('A name registration is two transitions, so it has no single transaction to preview')
+
       case 'shield': {
         requireAutomaticSelection(params.coreSource)
         const {feeCredits, plan} = await this.shieldPlan(wallet, feeParams)
@@ -431,7 +436,7 @@ export class FeeService {
       params: {...params, inputCount, coreFeePerByte: coreFeePerByte(coreFeeMultiplier)},
     })
     if (!quote.metered) return quote.feeCredits
-    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation])
+    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation]) + quote.fixedCredits
     if (operation !== 'identityToIdentity') return feeCredits
     return feeCredits > IDENTITY_TRANSFER_MIN_FEE_CREDITS ? feeCredits : IDENTITY_TRANSFER_MIN_FEE_CREDITS
   }

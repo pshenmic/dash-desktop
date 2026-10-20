@@ -76,6 +76,7 @@ describe('the per-operation fee multipliers', () => {
       addressWithdrawal: true,
       identityCreate: true,
       identityTopUp: true,
+      aliasRegister: true,
     }
     expect([...TRANSITION_FEE_OPERATIONS].sort()).toEqual(Object.keys(priced).sort())
   })

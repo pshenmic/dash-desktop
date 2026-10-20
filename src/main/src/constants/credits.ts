@@ -16,6 +16,7 @@ export const TRANSITION_FEE_OPERATIONS = [
   'addressWithdrawal',
   'identityCreate',
   'identityTopUp',
+  'aliasRegister',
 ] as const satisfies readonly TransitionFeeOperation[]
 
 export const MIN_FEE_MULTIPLIER = 1
