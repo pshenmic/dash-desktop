@@ -9,7 +9,14 @@ interface Calls {
   names: string[]
 }
 
-function context(known: string[] = KNOWN): {ctx: OperationContext; calls: Calls} {
+function domain(label: string, owner: string, createdAt: bigint) {
+  return {ownerId: {base58: () => owner}, createdAt, properties: {label, parentDomainName: 'dash'}}
+}
+
+function context(
+  known: string[] = KNOWN,
+  names = (identifier: string) => [domain('alice', identifier, 1n)],
+): {ctx: OperationContext; calls: Calls} {
   const calls: Calls = {identities: [], names: []}
 
   const ctx = {
@@ -24,7 +31,7 @@ function context(known: string[] = KNOWN): {ctx: OperationContext; calls: Calls}
       names: {
         searchByIdentity: vi.fn(async (identifier: string) => {
           calls.names.push(identifier)
-          return [{properties: {label: 'alice', parentDomainName: 'dash'}}]
+          return names(identifier)
         }),
       },
     } as never,
@@ -45,6 +52,18 @@ describe('identityInfos', () => {
 
     expect(infos.map(i => i.alias)).toEqual(['alice.dash', 'alice.dash'])
     expect(calls.names).toEqual(KNOWN)
+  })
+
+  it('shows the oldest name the identity still owns', async () => {
+    const {ctx} = context(['id-one'], () => [
+      domain('bebra', 'id-one', 2n),
+      domain('given-away', 'someone-else', 0n),
+      domain('owl352-testnet', 'id-one', 1n),
+    ])
+
+    const {infos} = await identityInfos({identifiers: ['id-one'], skipDPNS: false}, ctx)
+
+    expect(infos[0]!.alias).toBe('owl352-testnet.dash')
   })
 
   // The balance path pays for this search on every identity and never reads it.

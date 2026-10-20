@@ -21,3 +21,13 @@ export interface AliasCheck {
   votesAbstain: number | null
   voteEndsAt: number | null
 }
+
+export interface Alias extends Omit<AliasCheck, 'status'> {
+  walletId: string
+  identifier: string
+  label: string
+  normalizedLabel: string
+  status: AliasStatus
+  createdAt: number
+  checkedAt: number | null
+}

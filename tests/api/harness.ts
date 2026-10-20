@@ -9,6 +9,7 @@ import {ShieldedService} from '../../src/main/src/services/platform/ShieldedServ
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {AliasDAO} from '../../src/main/src/database/AliasDAO'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
@@ -41,6 +42,7 @@ export interface Harness {
   coreLockService: CoreLockService
   walletCredentialsService: WalletCredentialsService
   identityService: IdentityService
+  aliasDAO: AliasDAO
   applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -76,7 +78,8 @@ export async function harness(): Promise<Harness> {
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers, preferences)
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
-  const identityService = new IdentityService(walletDAO, identityDAO, platform)
+  const aliasDAO = new AliasDAO(knex)
+  const identityService = new IdentityService(walletDAO, identityDAO, aliasDAO, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.
@@ -103,6 +106,7 @@ export async function harness(): Promise<Harness> {
     coreLockService,
     walletCredentialsService,
     identityService,
+    aliasDAO,
     applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,

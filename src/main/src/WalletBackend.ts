@@ -9,6 +9,7 @@ import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
 import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
+import { AliasDAO } from './database/AliasDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/wallet/WalletService'
@@ -300,7 +301,7 @@ export class WalletBackend {
     this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
-    this.identityService = new IdentityService(walletDAO, identityDAO, this.platformWorkerService)
+    this.identityService = new IdentityService(walletDAO, identityDAO, new AliasDAO(knex), this.platformWorkerService)
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
     const platformTransactionDAO = new PlatformTransactionDAO(knex)

@@ -5,8 +5,12 @@ import {lookupIdentity} from '../identityLookup'
 type Payload = PlatformOperations['identityInfos']['payload']
 type Result = PlatformOperations['identityInfos']['result']
 
+// A transfer moves a name's owner but not its records.identity, which the
+// search matches on; of the names still owned, the oldest is the one shown.
 async function resolveAlias(sdk: OperationContext['sdk'], identifier: string): Promise<string | null> {
-  const [document] = await sdk.names.searchByIdentity(identifier).catch(() => [])
+  const [document] = (await sdk.names.searchByIdentity(identifier).catch(() => []))
+    .filter(document => document.ownerId.base58() === identifier)
+    .sort((a, b) => Number(a.createdAt) - Number(b.createdAt))
   const {label, parentDomainName} = document?.properties ?? {}
   return label != null && parentDomainName != null ? `${label}.${parentDomainName}` : null
 }

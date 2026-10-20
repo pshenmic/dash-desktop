@@ -1,9 +1,13 @@
+import {AliasDAO} from '../../database/AliasDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {IdentityInfo} from '../../types/Identity'
 import {Network} from '../../types/Network'
+import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {PlatformWorkerService} from './PlatformWorkerService'
+
+const log = new Logger('identities')
 
 // Reads the identities a wallet already owns. Creating them is
 // IdentityRegistrationService — that path funds an asset lock, this one only
@@ -11,11 +15,13 @@ import {PlatformWorkerService} from './PlatformWorkerService'
 export class IdentityService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
+  private aliasDAO: AliasDAO
   private platform: PlatformWorkerService
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, platform: PlatformWorkerService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, aliasDAO: AliasDAO, platform: PlatformWorkerService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
+    this.aliasDAO = aliasDAO
     this.platform = platform
   }
 
@@ -23,10 +29,13 @@ export class IdentityService {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
     const stored = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const {infos} = await this.platform.request('identityInfos', wallet.network, {
-      identifiers: stored.map(entry => entry.identifier),
-      skipDPNS: false,
-    })
+    const [{infos}] = await Promise.all([
+      this.platform.request('identityInfos', wallet.network, {
+        identifiers: stored.map(entry => entry.identifier),
+        skipDPNS: false,
+      }),
+      this.recheckAliases(walletId, wallet.network),
+    ])
     const byIdentifier = new Map(infos.map(info => [info.identifier, info]))
 
     // An identity the worker could not resolve is not registered yet — skipped.
@@ -46,6 +55,21 @@ export class IdentityService {
         assetLockTxid: entry.assetLockTxid ?? null
       }]
     })
+  }
+
+  // A pending name stays pending while the chain shows nothing: its domain
+  // document or contest lands a block or two after the broadcast.
+  private async recheckAliases(walletId: string, network: Network): Promise<void> {
+    const unsettled = await this.aliasDAO.getUnsettled(walletId)
+    await Promise.all(unsettled.map(async alias => {
+      try {
+        const check = await this.platform.request('aliasStatus', network, {identifier: alias.identifier, label: alias.label})
+        const status = alias.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
+        await this.aliasDAO.save({...alias, ...check, status, checkedAt: Date.now()})
+      } catch (err) {
+        log.warn(`${alias.label}: alias check failed:`, err)
+      }
+    }))
   }
 
   // Feeds the credits half of the wallet balance, so it skips the DPNS lookup
