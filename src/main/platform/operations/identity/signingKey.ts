@@ -17,6 +17,8 @@ export async function signingKey(
   network: Network,
   identifier: string,
   identityIndex: number,
+  purpose = 'TRANSFER',
+  securityLevel?: string,
 ): Promise<{privateKey: PrivateKeyWASM; publicKey: IdentityPublicKeyWASM}> {
   const identityKeys = await sdk.identities.getIdentityPublicKeys(identifier)
   const hdKey = sdk.keyPair.seedToHdKey(seed, network)
@@ -32,13 +34,17 @@ export async function signingKey(
   }
 
   const match = matchIdentityKey(
-    identityKeys.map(key => ({keyId: key.keyId, purpose: key.purpose, publicKeyHashHex: key.getPublicKeyHash()})),
+    identityKeys.map(key => ({
+      keyId: key.keyId, purpose: key.purpose, securityLevel: key.securityLevel, publicKeyHashHex: key.getPublicKeyHash(),
+    })),
     hashes,
+    purpose,
+    securityLevel,
   )
   const privateKey = match != null ? derived.find(entry => entry.keyIndex === match.keyIndex)?.privateKey : undefined
   const publicKey = match != null ? identityKeys.find(key => key.keyId === match.keyId) : undefined
   if (privateKey == null || publicKey == null) {
-    throw new OperationError('This identity has no transfer key this wallet can sign with', 'internal')
+    throw new OperationError(`This identity has no ${purpose.toLowerCase()} key this wallet can sign with`, 'internal')
   }
 
   return {privateKey, publicKey}

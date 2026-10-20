@@ -354,6 +354,11 @@ export interface PlatformOperations {
     payload: {identifier: string; label: string}
     result: AliasCheck
   }
+  // Answers with the check it ran before spending anything.
+  aliasRegister: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
+    result: AliasCheck
+  }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}
     result: {identities: Array<{index: number; identifier: string}>; nextFreeIndex: number}

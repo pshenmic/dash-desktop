@@ -26,6 +26,8 @@ import { GetStatusHandler } from './api/getStatus'
 import { GetAllWalletsHandler } from './api/wallet/getAllWallets'
 import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
+import { GetAliasesHandler } from './api/wallet/getAliases'
+import { RegisterAliasHandler } from './api/wallet/registerAlias'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
 import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
@@ -181,6 +183,8 @@ export class WalletBackend {
     registerHandler('getBalance', new GetBalance(this.walletService).handle)
     registerHandler("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
     registerHandler('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
+    registerHandler('getAliases', new GetAliasesHandler(this.identityService).handle)
+    registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
     registerHandler('getIdentityBalance', new GetIdentityBalance(this.identityService).handle)
     registerHandler('getIdentityNonce', new GetIdentityNonce(this.identityService).handle)
     registerHandler('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)

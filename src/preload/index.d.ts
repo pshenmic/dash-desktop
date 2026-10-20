@@ -151,6 +151,8 @@ declare global {
       getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
       getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
+      getAliases: (walletId: string) => Promise<unknown>
+      registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>

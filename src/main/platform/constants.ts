@@ -28,6 +28,15 @@ export const VOTE_POLL_DURATION_MS: Record<Network, number> = {
   testnet: 5_400_000,
 }
 
+// Drive's allow_other_contenders_time: how long after a contest opens others may join it.
+export const CONTEST_JOIN_WINDOW_MS: Record<Network, number> = {
+  mainnet: 604_800_000,
+  testnet: 2_700_000,
+}
+
+// Drive's contested_document_vote_resolution_fund_required_amount, 0.2 DASH.
+export const CONTEST_FUND_CREDITS = 20_000_000_000n
+
 // The SDK throws this for a name no contest was ever opened on, and a network
 // failure would otherwise read as the same "no contest".
 export const VOTE_STATE_NOT_FOUND = /vote state not found/i
@@ -95,6 +104,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
+    case 'aliasRegister':
       return `${request.network}:identity:${request.payload.identifier}`
 
     case 'transitionFee':

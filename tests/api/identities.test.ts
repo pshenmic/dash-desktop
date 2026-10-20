@@ -62,15 +62,36 @@ describe('listing identities', () => {
     request.mockImplementation(async (kind: string) => kind === 'aliasStatus' ? check : {infos: []})
 
     await identities.getIdentities(walletId)
-    expect((await aliasDAO.getUnsettled(walletId))[0]).toMatchObject({status: 'pending'})
+    expect((await aliasDAO.getAliases(walletId))[0]).toMatchObject({status: 'pending'})
 
     check = {...UNCHECKED, status: 'voting', votesFor: 4, votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000}
     await identities.getIdentities(walletId)
-    expect((await aliasDAO.getUnsettled(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
+    expect((await aliasDAO.getAliases(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
 
     check = {...check, status: 'registered', documentId: 'doc'}
     await identities.getIdentities(walletId)
-    expect(await aliasDAO.getUnsettled(walletId)).toEqual([])
+    expect((await aliasDAO.getAliases(walletId))[0]).toMatchObject({status: 'registered', documentId: 'doc'})
     expect(request).toHaveBeenCalledWith('aliasStatus', 'testnet', {identifier: IDENTIFIER, label: 'owl'})
+
+    request.mockClear()
+    await identities.getIdentities(walletId)
+    expect(request).not.toHaveBeenCalledWith('aliasStatus', expect.anything(), expect.anything())
+  })
+
+  it('records a registered name as pending under the identity that sent it', async () => {
+    request.mockResolvedValue(UNCHECKED)
+
+    const alias = await identities.registerAlias(walletId, IDENTIFIER, 'Owl', PASSWORD)
+
+    expect(request).toHaveBeenCalledWith('aliasRegister', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, label: 'Owl'}))
+    expect(alias).toMatchObject({status: 'pending', label: 'Owl', normalizedLabel: '0w1', isContested: true})
+    expect(await identities.getAliases(walletId)).toEqual([alias])
+  })
+
+  it('registers nothing for an identity outside the wallet or with a wrong password', async () => {
+    await expect(identities.registerAlias(walletId, 'someone-else', 'owl', PASSWORD)).rejects.toThrow('Identity not found')
+    await expect(identities.registerAlias(walletId, IDENTIFIER, 'owl', 'wrong')).rejects.toThrow('Invalid wallet password')
+    expect(request).not.toHaveBeenCalledWith('aliasRegister', expect.anything(), expect.anything())
+    expect(await identities.getAliases(walletId)).toEqual([])
   })
 })

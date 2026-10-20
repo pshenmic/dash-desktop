@@ -46,6 +46,24 @@ export interface PlatformAddressDto {
   nonce: number
 }
 
+// getAliases, registerAlias — a DPNS name this wallet registered. Votes and the
+// end date are set only for a contested name; voteEndsAt is in milliseconds.
+export interface AliasDto {
+  walletId: string
+  identifier: string
+  label: string
+  normalizedLabel: string
+  isContested: boolean
+  status: 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
+  documentId: string | null
+  votesFor: number | null
+  votesLock: number | null
+  votesAbstain: number | null
+  voteEndsAt: number | null
+  createdAt: number
+  checkedAt: number | null
+}
+
 // estimateFee — the one fee endpoint. What gets priced for each operation is
 export interface Outpoint {
   txid: string

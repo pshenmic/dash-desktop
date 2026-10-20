@@ -1,6 +1,7 @@
 export interface IdentityKeyDescriptor {
   keyId: number
   purpose: string
+  securityLevel: string
   publicKeyHashHex: string
 }
 

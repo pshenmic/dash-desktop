@@ -26,12 +26,11 @@ export class AliasDAO {
     this.knex = knex
   }
 
-  // The only statuses a later check can still change.
-  getUnsettled = async (walletId: string): Promise<Alias[]> => {
+  getAliases = async (walletId: string): Promise<Alias[]> => {
     const rows = await this.knex('aliases')
       .select('*')
       .where('wallet_id', walletId)
-      .whereIn('status', ['pending', 'voting'])
+      .orderBy('created_at', 'asc')
     return rows.map(fromRow)
   }
 

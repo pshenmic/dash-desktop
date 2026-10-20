@@ -1,17 +1,19 @@
+import convertToHomographSafeChars from 'dash-platform-sdk/src/utils/convertToHomographSafeChars.js'
 import {AliasDAO} from '../../database/AliasDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {WalletDAO} from '../../database/WalletDAO'
+import {Alias} from '../../types/Alias'
 import {IdentityInfo} from '../../types/Identity'
 import {Network} from '../../types/Network'
 import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
+import {withUnlockedWallet} from '../../utils/walletSeed'
 import {PlatformWorkerService} from './PlatformWorkerService'
 
 const log = new Logger('identities')
 
-// Reads the identities a wallet already owns. Creating them is
-// IdentityRegistrationService — that path funds an asset lock, this one only
-// resolves what the worker can see.
+// Reads the identities a wallet already owns and registers their DPNS names.
+// Creating identities is IdentityRegistrationService — that path funds an asset lock.
 export class IdentityService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
@@ -60,7 +62,8 @@ export class IdentityService {
   // A pending name stays pending while the chain shows nothing: its domain
   // document or contest lands a block or two after the broadcast.
   private async recheckAliases(walletId: string, network: Network): Promise<void> {
-    const unsettled = await this.aliasDAO.getUnsettled(walletId)
+    const unsettled = (await this.aliasDAO.getAliases(walletId))
+      .filter(alias => alias.status === 'pending' || alias.status === 'voting')
     await Promise.all(unsettled.map(async alias => {
       try {
         const check = await this.platform.request('aliasStatus', network, {identifier: alias.identifier, label: alias.label})
@@ -70,6 +73,28 @@ export class IdentityService {
         log.warn(`${alias.label}: alias check failed:`, err)
       }
     }))
+  }
+
+  async getAliases(walletId: string): Promise<Alias[]> {
+    await requireWallet(this.walletDAO, walletId)
+    return this.aliasDAO.getAliases(walletId)
+  }
+
+  async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<Alias> {
+    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+
+    const check = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('aliasRegister', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, label}))
+    const now = Date.now()
+    const alias: Alias = {
+      ...check, walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label),
+      status: 'pending', createdAt: now, checkedAt: now,
+    }
+    await this.aliasDAO.save(alias)
+    return alias
   }
 
   // Feeds the credits half of the wallet balance, so it skips the DPNS lookup
