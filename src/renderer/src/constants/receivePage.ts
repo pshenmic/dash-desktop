@@ -13,7 +13,6 @@ export interface ReceivePageType {
     addressText: string
     amount: string
     placeholder: string
-    description: string
   }
 }
 
@@ -30,7 +29,16 @@ export const receivePage = {
   receiveAddressCard: {
     addressText: 'Dash Address',
     amount: 'Amount',
-    placeholder: 'Enter Requesting Amount',
-    description: 'You can send any amount convenient for you. We are ready to accept a transfer at any time!',
+    placeholder: 'Optional',
   },
+}
+
+export const receiveCardCopy = {
+  platformNote: 'Accepts Dash Platform credits only.',
+  privateChip: 'Private',
+  shieldedUnlockPrompt: 'Enter your wallet password to show your shielded address.',
+  showAddress: 'Show address',
+  loadFailed: "Couldn't load the address. Try again.",
+  allShieldedFunded: 'Every shielded address already holds funds.',
+  generating: 'Generating…',
 }

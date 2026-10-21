@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Tabs } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { LogFileContent, LogFileInfo } from '@renderer/api/types'
-import { Button, ChevronIcon, DocumentIcon, Heading, InfoCircleIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, ChevronIcon, DocumentIcon, Heading, InfoCircleIcon, InfoTooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import Spinner from '@renderer/components/ui/Spinner'
 import { toast } from '@renderer/components/ui/Toast'
 import { LOG_POLL_INTERVAL } from '@renderer/constants/logsPage'
@@ -85,15 +85,20 @@ export default function LogsPage(): React.JSX.Element {
           </button>
           <Heading as="h1" size="xl" weight="extrabold" color="brand-white">Application logs</Heading>
         </div>
-        {activeTab === 'current' && <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => current && void showInFolder(current.name)} disabled={!current}>Show in folder</Button>}
+        <div className="flex items-center gap-4">
+          <span role="status" className="dash-text-default flex items-center gap-2 text-xs">
+            <span className={`size-1.5 rounded-full ${error ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+            <span className="opacity-60">{error ? 'Reconnecting' : 'Live'}</span>
+            {error && <InfoTooltip content={error} side="bottom" ariaLabel="Show connection error" className="-my-0.5" />}
+          </span>
+          {activeTab === 'current' && <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => current && void showInFolder(current.name)} disabled={!current}>Show in folder</Button>}
+        </div>
       </div>
 
       <div className="dash-text-default mb-6 flex items-center gap-2 opacity-50">
         <InfoCircleIcon size={14} color="currentColor" className="shrink-0" />
-        <span className="text-xs">Logs may contain wallet addresses and technical details. Review a file before sharing it.</span>
+        <span className="text-xs">Logs may include wallet addresses — review before sharing.</span>
       </div>
-
-      {error && <div role="alert" className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300">Could not load logs: {error}. Retrying automatically…</div>}
 
       <Tabs value={activeTab} onValueChange={(value) => {
         following.current = true
@@ -105,7 +110,7 @@ export default function LogsPage(): React.JSX.Element {
         <section className="mt-4 flex h-[calc(100vh-21rem)] min-h-[24rem] min-w-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b1626]">
           <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-xs text-slate-400">
             <span>{current ? `${current.name} · ${formatFileSize(current.size)}` : 'Current log'}</span>
-            <span className="flex shrink-0 items-center gap-2"><span className={`size-1.5 rounded-full ${error ? 'bg-amber-400' : 'bg-emerald-400'}`} />{error ? 'Reconnecting' : 'Live'} · {lines.length} lines</span>
+            <span className="shrink-0">{lines.length} lines</span>
           </div>
           <div ref={attachViewport} onScroll={() => {
             const element = viewport.current

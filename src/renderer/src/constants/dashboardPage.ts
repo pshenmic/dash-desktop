@@ -23,13 +23,9 @@ export const dashboardPage = {
     balance: 'Shielded balance',
     poolTotal: 'Pool total',
     spendableNotes: 'spendable notes',
-    pool: 'pool',
-    credits: 'credits',
-    notesInTree: 'notes in tree',
-    proverPreparing: 'prover preparing…',
-    proverError: 'prover error',
-    syncBalances: 'Sync balances',
-    checkNotes: 'Check notes',
+    proverUnavailable: 'Private sending unavailable',
+    sync: 'Sync',
+    syncNotes: 'Sync notes',
     syncing: 'Syncing…'
   },
   identities: {
@@ -56,12 +52,18 @@ export const dashboardPage = {
     walletAge: 'Wallet age',
     lastActivity: 'Last activity',
     pending: 'Pending',
-    addressesUsed: 'Addresses used'
+    addressesUsed: 'Addresses used',
+    evoHistoryIncomplete: 'Evo history incomplete'
+  },
+  analytics: {
+    excluded: 'excluded',
+    undatedHint: 'No date available'
   },
   recent: {
     title: 'Recent activity',
     viewAll: 'View all',
-    error: 'Failed to load wallet activity'
+    error: 'Failed to load wallet activity',
+    empty: 'No transactions found'
   },
   empty: {
     title: 'No activity yet',

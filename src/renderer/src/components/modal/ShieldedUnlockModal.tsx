@@ -56,8 +56,7 @@ export default function ShieldedUnlockModal({
     <Modal
       open={isOpen}
       onClose={onClose}
-      title={"Check my notes"}
-      description={"Enter your wallet password to derive your viewing key and scan the shielded pool for your notes. Your seed never leaves this device."}
+      title={"Sync shielded notes"}
       size={ModalSize.Md}
       dismissible={!loading}
     >
@@ -77,7 +76,7 @@ export default function ShieldedUnlockModal({
       <ModalActions
         secondary={{ label: 'Cancel', onClick: onClose, disabled: loading }}
         primary={{
-          label: loading ? 'Syncing…' : 'Sync my balances',
+          label: loading ? 'Syncing…' : 'Sync',
           onClick: handleConfirm,
           disabled: password.length === 0 || loading,
         }}

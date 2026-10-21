@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { DATA_REFRESH_STALE_MESSAGE } from '@renderer/constants/connection'
 import { useAsyncRefreshFailures } from '@renderer/hooks/useAsyncWithCache'
 
 export default function DataRefreshNotice(): React.JSX.Element | null {
@@ -28,7 +29,7 @@ export default function DataRefreshNotice(): React.JSX.Element | null {
       <div className={"flex items-center gap-2.5"}>
         <span className={"size-2 shrink-0 rounded-full bg-dash-orange"} />
         <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
-          Some data could not be refreshed and may be out of date. Check your connection and try again.
+          {DATA_REFRESH_STALE_MESSAGE}
         </Text>
       </div>
       <button

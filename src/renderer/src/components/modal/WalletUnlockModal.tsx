@@ -10,6 +10,7 @@ interface WalletUnlockModalProps {
   isOpen: boolean
   onClose: () => void
   walletId: string | null
+  walletName: string | null
   onUnlock: (password: string) => void | Promise<void>
 }
 
@@ -17,6 +18,7 @@ export default function WalletUnlockModal({
   isOpen,
   onClose,
   walletId,
+  walletName,
   onUnlock,
 }: WalletUnlockModalProps): React.JSX.Element {
   const [password, setPassword] = useState('')
@@ -55,8 +57,7 @@ export default function WalletUnlockModal({
     <Modal
       open={isOpen}
       onClose={onClose}
-      title={"Open wallet"}
-      description={"Enter your wallet password to open this wallet and scan the shielded pool for your notes. Your seed never leaves this device."}
+      title={`Open ${walletName ?? 'wallet'}`}
       size={ModalSize.Md}
       dismissible={!loading}
     >

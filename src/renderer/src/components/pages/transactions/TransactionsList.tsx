@@ -96,20 +96,10 @@ export default function TransactionsList({
           </div>
         )}
         <div className="flex flex-col gap-5" aria-busy={showSkeleton}>
-          <PartialDataNotice />
-          {platformFailed && (
-            <div role={'status'} className={'flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3 self-start'}>
-              <span className={'size-1.5 shrink-0 rounded-full bg-dash-orange'} />
-              <Text size={12} weight={'medium'} color={'brand'} opacity={50}>
-                Platform history could not be refreshed. Transactions may be missing or out of date.
-              </Text>
-            </div>
-          )}
+          <PartialDataNotice platformFailed={platformFailed} />
           {showSkeleton && <ListSkeleton rows={3} rowClassName={'h-[4.25rem] rounded-[.875rem]'} />}
           {err && <NoResults noResults={'Failed to load transactions'} />}
-          {!showSkeleton && !loading && !err && !hasData && (
-            <NoResults noResults={platformFailed ? 'No transactions available. Platform history could not be loaded.' : 'No transactions found'} />
-          )}
+          {!showSkeleton && !loading && !err && !hasData && <NoResults noResults={'No transactions found'} />}
           {!showSkeleton && !loading && hasData && filtered.length === 0 && <NoResults noResults={filters.noMatch} />}
           {!showSkeleton && filteredGroups.map((group) => (
             <div key={group.date?.getTime() ?? 'unknown'} className={'flex flex-col gap-[.9375rem]'}>

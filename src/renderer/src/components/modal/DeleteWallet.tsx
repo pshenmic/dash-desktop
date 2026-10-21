@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { toast } from "../ui/Toast"
 import { API } from "@renderer/api"
 import { Input } from "../dash-ui-kit-enxtended"
-import { renderBoldText } from "@renderer/utils/renderBoldText"
 import { useAuth } from "@renderer/contexts/AuthContext"
 import { getErrorMessage } from "@renderer/utils/error"
 import { ModalSize } from "@renderer/enums/ModalSize"
@@ -12,7 +11,7 @@ import ModalActions from "@renderer/components/ui/ModalActions"
 
 const DELETE_CONFIRM_TEXT = 'Delete'
 
-export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, setWalletToDelete, refreshWallets }) {
+export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, walletName, setWalletToDelete, refreshWallets }) {
   const [confirmText, setConfirmText] = useState('')
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const {lock} = useAuth()
@@ -33,10 +32,10 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
       refreshWallets()
       closeDeleteModal()
       lock()
-      toast.error('Wallet deleted')
+      toast.success('Wallet deleted')
     } catch (e) {
       console.error(e)
-      toast.error(`Failed to delete wallet. ${getErrorMessage(e)}`)
+      toast.error(`**Delete failed** ${getErrorMessage(e)}`)
     }
   }
 
@@ -59,15 +58,15 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
       <Modal
         open={isDeleteOpen}
         onClose={closeDeleteModal}
-        title={"Delete Wallet"}
-        description={renderBoldText(`Enter the word **${DELETE_CONFIRM_TEXT}** to confirm the action`)}
+        title={"Delete wallet"}
+        description={<>Without a recovery phrase backup, funds in <span className={"font-extrabold"}>{walletName ?? 'this wallet'}</span> are lost. Type <span className={"font-extrabold"}>{DELETE_CONFIRM_TEXT}</span> to confirm.</>}
         size={ModalSize.Md}
       >
         <div className={"mt-4.5"}>
           <Input
             id={"delete-wallet-confirmation"}
             type={"text"}
-            placeholder={"Enter Confirmation..."}
+            placeholder={DELETE_CONFIRM_TEXT}
             value={confirmText}
             variant={"outlined"}
             onChange={(e) => setConfirmText(e.target.value)}

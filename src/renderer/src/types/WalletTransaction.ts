@@ -1,14 +1,6 @@
 import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
 import type { TxBalanceChangeFilter } from '@renderer/enums/TxBalanceChangeFilter'
 import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
-import type { ReactNode } from 'react'
-
-export interface TransactionDetailTokenProps {
-  icon: ReactNode
-  label: string
-  value: ReactNode
-  subValue?: ReactNode
-}
 
 export type WalletTxDto = Transaction
 

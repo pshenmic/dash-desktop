@@ -1,5 +1,20 @@
 import type { AssetLockFundingKind, CoreSpendSource } from '../api/types'
+import type { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import type { TxSummaryEndpoint } from './TxSummary'
+
+export interface AssetLockFundingPhaseLabel {
+  key: AssetLockFundingPhase
+  label: string
+}
+
+export interface AssetLockFundingTexts {
+  title: string
+  resumeTitle: string
+  doneTitle: string
+  doneHeading: string
+  emptyTo: string
+  confirm: string
+}
 
 interface AssetLockFundingModalBaseProps {
   isOpen: boolean

@@ -16,6 +16,7 @@ import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
+import { SHIELDED_PROVING_LABEL } from '@renderer/constants/shieldedProgress'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export default function ShieldConfirmModal({
@@ -110,10 +111,7 @@ export default function ShieldConfirmModal({
           {shielding ? (
             <div className={"mt-4 flex items-center gap-3 p-[.875rem] rounded-[.9375rem] dash-block"}>
               <Spinner size={18} className={"text-dash-brand dark:text-dash-mint"} />
-              <div className={"flex flex-col"}>
-                <Text size={14} weight={"medium"} color={"brand"}>Generating zero-knowledge proof…</Text>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Proving then broadcasting — this can take a few seconds.</Text>
-              </div>
+              <Text size={14} weight={"medium"} color={"brand"}>{SHIELDED_PROVING_LABEL}…</Text>
             </div>
           ) : (
             <PasswordField
@@ -122,7 +120,6 @@ export default function ShieldConfirmModal({
               onChange={(value) => { setError(null); setPassword(value) }}
               onSubmit={handleConfirm}
               error={error}
-              hint={"Used to prove and broadcast."}
               className={"mt-4"}
             />
           )}
@@ -145,9 +142,6 @@ export default function ShieldConfirmModal({
             </div>
             <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
               {result && <CreditsAmount credits={result.amountCredits} align={"center"} />}
-            </Text>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-              Moved into the shielded pool. If it went to your own address, re-sync notes to see it.
             </Text>
           </div>
 

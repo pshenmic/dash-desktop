@@ -19,18 +19,11 @@ import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { coreRecipientEndpoints } from '@renderer/utils/txSummaryEndpoints'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { SEND_LOCK_PHASE_COPY } from '@renderer/constants/sendConfirmModal'
 
 const LOCK_POLL_INTERVAL_MS = 2_000
 const FALLBACK_POLL_INTERVAL_MS = 10_000
 const INSTANT_LOCK_FALLBACK_MS = 15_000
-
-const LOCK_PHASE_COPY: Record<SendLockPhase, string> = {
-  [SendLockPhase.Waiting]: 'Waiting for InstantSend confirmation…',
-  [SendLockPhase.Fallback]: 'No InstantSend lock yet — waiting for block confirmation (ChainLock). This can take a few minutes; you can close this window, the transaction list will update.',
-  [SendLockPhase.Instant]: 'Confirmed by InstantSend — the payment is final.',
-  [SendLockPhase.Chainlocked]: 'Confirmed by ChainLock — the payment is final.',
-  [SendLockPhase.Confirmed]: 'Confirmed in a block.',
-}
 
 export default function SendConfirmModal({
   isOpen,
@@ -189,7 +182,7 @@ export default function SendConfirmModal({
                 color={lockFinal ? 'blue-mint' : 'brand'}
                 opacity={lockFinal ? 100 : 50}
               >
-                {LOCK_PHASE_COPY[lockPhase]}
+                {SEND_LOCK_PHASE_COPY[lockPhase]}
               </Text>
             </div>
           </div>

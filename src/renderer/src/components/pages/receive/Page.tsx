@@ -13,34 +13,6 @@ import { useAdresses } from "@renderer/hooks/useAdresses";
 import { refreshBalance } from "@renderer/hooks/useWalletBalance";
 import SyncGateNotice from "@renderer/components/ui/SyncGateNotice";
 
-const coreDescription = (
-  <span>This is your <span className={"font-extrabold"}>Dash Core</span>{' '}
-    receival address. You can use this address to send funds to your wallet. It is{' '}
-    <span className={"font-extrabold"}>highly suggested to not reuse the same address</span>{' '}
-    for full privacy. You can also create a new address.
-  </span>
-)
-
-const shieldedDescription = (
-  <span>This is your <span className={"font-extrabold"}>Shielded</span>{' '}
-    receival address. Payments to it are fully private — sender, recipient and amount{' '}
-    are <span className={"font-extrabold"}>hidden on-chain</span>, so it is safe to reuse this address.
-  </span>
-)
-
-const platformDescription = (
-  <span>This is your <span className={"font-extrabold"}>Platform</span>{' '}
-    receival address. Use it to receive credits on Dash Platform (L2). Balances are{' '}
-    <span className={"font-extrabold"}>account-based</span>, so it is safe to reuse this address.
-  </span>
-)
-
-const descriptions: Record<string, React.JSX.Element> = {
-  core: coreDescription,
-  shielded: shieldedDescription,
-  platform: platformDescription,
-}
-
 export default function Receive({pageData}: {pageData: ReceivePageType}): React.JSX.Element {
   const [activeTab, setActiveTab] = useState('core')
   const { status } = useAuth()
@@ -90,7 +62,7 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
 
   return (
     <div className={`relative flex flex-col pb-12`}>
-        <Header data={{...pageData.header, description: descriptions[activeTab] ?? coreDescription}} />
+        <Header data={pageData.header} />
         <div className={"px-12 mt-8"}>
           <Tabs
             items={tabItems}

@@ -34,7 +34,6 @@ export interface StatVolumeChartProps {
   direction: 'received' | 'sent'
   hidden: boolean
   period: AnalyticsPeriod
-  platformFailed?: boolean
 }
 
 export interface StatFlowSource {
@@ -49,7 +48,6 @@ export interface StatFlowAmountsProps {
   flows: StatFlowSource[]
   metric: 'received' | 'sent' | 'largestReceived'
   hidden: boolean
-  platformFailed: boolean
   showFiat?: boolean
 }
 

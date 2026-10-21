@@ -45,9 +45,6 @@ export interface ImportSeedPhraseTexts extends BaseTexts {
 
 export interface ConnectionModeTexts extends BaseTexts {
   backgroundSyncTitle: string
-  backgroundSyncDescription: string
-  requiredSyncTitle: string
-  requiredSyncDescription: string
   buttonCreate: string
   buttonImport: string
 }
@@ -103,29 +100,29 @@ export const CREATE_WALLET_PROGRESS: Record<WalletCreationPath, {
 export const authTexts: AuthTexts = {
   createWallet: {
     title: 'Create Wallet',
-    description: 'You will use this password to unlock your wallet. Do not share your password with others',
+    description: 'This password unlocks the wallet on this device.',
     labelPassword: 'Password',
     labelConfirmPassword: 'Confirm Password',
     placeholderPassword: 'Type Your Password',
     placeholderConfirmPassword: 'Repeat your Password',
     buttonNext: 'Next',
     importWallet: 'Import wallet instead',
-    slowCreationNotice: 'Securing your wallet is in the progress. Don\'t worry, it will take a few more seconds.'
+    slowCreationNotice: 'Securing your wallet…'
   },
   saveYourSeedPhrase: {
     title: 'Save your Seed Phrase',
-    description: 'This recovery phrase is your wallet\'s only backup. If you lose it, no one can help you access your funds. Your recovery phrase is safest when written on paper and stored in a secure place.',
+    description: 'Write these words on paper — they are your wallet\'s only backup.',
     buttonContinue: 'Continue',
     buttonCopy: 'Copy'
   },
   fillInYourSeedPhrase: {
     title: 'Fill in your Seed Phrase',
-    description: 'This recovery phrase is your wallet\'s only backup. If you lose it, no one can help you access your funds. Your recovery phrase is safest when written on paper and stored in a secure place.',
+    description: 'Fill in the missing words to confirm your backup.',
     buttonContinue: 'Continue'
   },
   seedPhraseWarning: {
-    title: 'DO NOT share your recovery phrase with ANYONE.',
-    description: 'Anyone with your recovery phrase can have full control over your assets. Please stay vigilant against phishing attacks at all times.'
+    title: 'Never share your recovery phrase',
+    description: 'Anyone with these words can spend your funds.'
   },
   success: {
     title: 'Your Wallet Was',
@@ -154,10 +151,7 @@ export const authTexts: AuthTexts = {
   connectionMode: {
     title: 'Choose a connection mode',
     description: 'You can change this later in Connection Settings.',
-    backgroundSyncTitle: 'Synchronize P2P in the background',
-    backgroundSyncDescription: 'Use RPC immediately while the private P2P data source prepares in the background.',
-    requiredSyncTitle: 'P2P synchronization is required',
-    requiredSyncDescription: 'The wallet will start synchronizing as soon as creation is complete.',
+    backgroundSyncTitle: 'Also sync P2P in the background',
     buttonCreate: 'Create Wallet',
     buttonImport: 'Import Wallet',
   },

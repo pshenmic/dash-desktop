@@ -49,7 +49,7 @@ export default function ConnectionModeStep({
               disabled={loading}
               onClick={() => onModeChange(connectionMode)}
               className={`
-                relative flex min-h-52 cursor-pointer flex-col items-start rounded-[1.25rem] border p-5 text-left transition-colors
+                relative flex cursor-pointer flex-col items-start rounded-[1.25rem] border p-5 text-left transition-colors
                 disabled:cursor-wait disabled:opacity-60
                 ${selected
                   ? 'border-dash-brand bg-dash-brand/6 dark:border-dash-mint dark:bg-dash-mint/6'
@@ -79,47 +79,24 @@ export default function ConnectionModeStep({
               <Text size={14} weight="medium" color="brand" opacity={60} className="mt-4 leading-[150%]">
                 {details.description}
               </Text>
-              <Text size={12} weight="medium" color="brand" opacity={40} className="mt-3 leading-[150%]">
-                {details.timing}
-              </Text>
             </button>
           )
         })}
       </div>
 
-      <div className="rounded-[1.25rem] dash-block px-5 py-4">
-        {mode === 'rpc' ? (
+      {mode === 'rpc' && (
+        <div className="rounded-[1.25rem] dash-block px-5 py-4">
           <Checkbox
             checked={backgroundSyncEnabled}
             onChange={onBackgroundSyncChange}
-            className="items-start"
             label={(
-              <span className="flex flex-col gap-1">
-                <Text size={14} weight="bold" color="brand">
-                  {texts.backgroundSyncTitle}
-                </Text>
-                <Text size={12} weight="medium" color="brand" opacity={50}>
-                  {texts.backgroundSyncDescription}
-                </Text>
-              </span>
+              <Text size={14} weight="bold" color="brand">
+                {texts.backgroundSyncTitle}
+              </Text>
             )}
           />
-        ) : (
-          <div className="flex items-start gap-2.5">
-            <span className="flex size-[1.125rem] shrink-0 items-center justify-center rounded-[.375rem] bg-dash-brand text-white dark:bg-dash-mint dark:text-dash-primary-dark-blue">
-              <CheckIcon size={12} color="currentColor" className="[&_circle]:hidden" />
-            </span>
-            <span className="flex flex-col gap-1">
-              <Text size={14} weight="bold" color="brand">
-                {texts.requiredSyncTitle}
-              </Text>
-              <Text size={12} weight="medium" color="brand" opacity={50}>
-                {texts.requiredSyncDescription}
-              </Text>
-            </span>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <Button
         type="button"

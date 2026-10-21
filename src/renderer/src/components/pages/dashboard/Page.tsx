@@ -69,21 +69,14 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
 
   return (
     <div className={"px-12 pb-8 flex flex-col gap-4 phase-fade-in"}>
-      <PartialDataNotice />
+      <PartialDataNotice platformFailed={platformFailed} />
       <HeroBalance />
 
-      {platformFailed && (
-        <div role="status">
-          <Text size={12} color="brand" opacity={50}>
-            Platform history could not be refreshed. Transactions may be missing or out of date.
-          </Text>
-        </div>
-      )}
       {loading && <DashboardSkeleton />}
       {!loading && err && <NoResults noResults={dashboardPage.recent.error} />}
       {!loading && !err && !hasActivity && (
         platformFailed
-          ? <NoResults noResults="No transactions available. Platform history could not be loaded." />
+          ? <NoResults noResults={dashboardPage.recent.empty} />
           : <EmptyState />
       )}
       {!loading && !err && hasActivity && (

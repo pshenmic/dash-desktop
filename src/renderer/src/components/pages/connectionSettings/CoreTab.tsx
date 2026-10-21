@@ -355,7 +355,7 @@ export default function CoreTab(): React.JSX.Element {
     if (enabling && peerSettings.staticPeers.length === 0) {
       setPeerTab('static')
       setAddPeerOpen(true)
-      toast.warning(`**Static peer required** ${STATIC_PEER_REQUIRED_MESSAGE}`)
+      toast.warning(STATIC_PEER_REQUIRED_MESSAGE)
       return
     }
 

@@ -10,7 +10,7 @@ import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { defaultReceiveShieldedAddress, receiveShieldedAddresses } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
-import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { addressFormCopy, INVALID_WALLET_PASSWORD_MESSAGE, receiveCardCopy } from '@renderer/constants'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
@@ -21,7 +21,6 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [syncOpen, setSyncOpen] = useState(false)
   const { theme } = useTheme()
 
@@ -35,7 +34,6 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     setSelectedAddress(null)
     setPassword('')
     setError(null)
-    setShowNewAddressForm(false)
     if (!walletId) {
       setChecking(false)
       return
@@ -63,9 +61,8 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
       setAddresses(nextAddresses)
       setSelectedAddress(defaultReceiveShieldedAddress(nextAddresses, balances) ?? null)
       setPassword('')
-      setShowNewAddressForm(false)
     } catch {
-      setError('Could not derive a new shielded address. Please try again.')
+      setError(addressFormCopy.addFailed)
     } finally {
       setRevealing(false)
     }
@@ -98,53 +95,37 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
             <Text size={14} weight={"extrabold"} color={"brand"}>New shielded address</Text>
           </div>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            All of your shielded addresses currently hold funds. Generate a new address to receive another private payment.
+            {receiveCardCopy.allShieldedFunded}
           </Text>
-          {showNewAddressForm ? (
-            <>
-              <Input
-                id={"shielded-new-address-password"}
-                type={"password"}
-                placeholder={"Wallet password"}
-                value={password}
-                variant={"outlined"}
-                onChange={(e) => {
-                  setError(null)
-                  setPassword(e.target.value)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddAddress()
-                }}
-                className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={error ? 'error' : 'primary'}
-                disabled={revealing}
-                autoFocus
-              />
-              {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
-              <Button
-                type={"button"}
-                onClick={handleAddAddress}
-                disabled={password.length === 0 || revealing}
-                variant={"solid"}
-                colorScheme={"primary"}
-                size={"sm"}
-                className={"min-h-0! py-2! rounded-[.75rem] self-start"}
-              >
-                {revealing ? 'Deriving…' : 'Generate address'}
-              </Button>
-            </>
-          ) : (
-            <Button
-              type={"button"}
-              onClick={() => setShowNewAddressForm(true)}
-              variant={"solid"}
-              colorScheme={"primary"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem] self-start"}
-            >
-              Generate new address
-            </Button>
-          )}
+          <Input
+            id={"shielded-new-address-password"}
+            type={"password"}
+            placeholder={"Wallet password"}
+            value={password}
+            variant={"outlined"}
+            onChange={(e) => {
+              setError(null)
+              setPassword(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddAddress()
+            }}
+            className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
+            colorScheme={error ? 'error' : 'primary'}
+            disabled={revealing}
+          />
+          {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
+          <Button
+            type={"button"}
+            onClick={handleAddAddress}
+            disabled={password.length === 0 || revealing}
+            variant={"solid"}
+            colorScheme={"primary"}
+            size={"sm"}
+            className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+          >
+            {revealing ? receiveCardCopy.generating : 'Generate address'}
+          </Button>
         </div>
       )
     }
@@ -169,9 +150,15 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
 
           <div className={"flex flex-1 flex-col"}>
             <div className={"flex flex-col gap-[.5rem]"}>
-              <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
-                Shielded Address
-              </Text>
+              <div className={"flex items-center gap-2"}>
+                <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+                  Shielded Address
+                </Text>
+                <div className={"flex items-center gap-1 px-2 py-0.5 rounded-[.5rem] dash-block-5"}>
+                  <ShieldSmallIcon size={12} className={"text-dash-brand dark:text-dash-mint"} />
+                  <Text size={10} weight={"medium"} color={"blue-mint"}>{receiveCardCopy.privateChip}</Text>
+                </div>
+              </div>
               <div className={"flex items-center gap-[.625rem]"}>
                 <ShieldedAddressSelect
                   addresses={receiveAddresses}
@@ -182,10 +169,6 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
                 <CopyButton text={selected} />
               </div>
             </div>
-
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
-              Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
-            </Text>
           </div>
         </div>
         </div>
@@ -212,7 +195,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
       setAddresses(await API.getShieldedAddresses(walletId, password))
       setPassword('')
     } catch {
-      setError('Could not derive the shielded address. Please try again.')
+      setError(receiveCardCopy.loadFailed)
     } finally {
       setRevealing(false)
     }
@@ -225,7 +208,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
         <Text size={14} weight={"extrabold"} color={"brand"}>Shielded address</Text>
       </div>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-        Your shielded address is derived from your seed. Enter your wallet password to reveal it. Your seed never leaves this device.
+        {receiveCardCopy.shieldedUnlockPrompt}
       </Text>
       <Input
         id={"shielded-receive-password"}
@@ -254,7 +237,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
         size={"sm"}
         className={"min-h-0! py-2! rounded-[.75rem] self-start"}
       >
-        {revealing ? 'Deriving…' : 'Reveal address'}
+        {revealing ? addressFormCopy.loading : receiveCardCopy.showAddress}
       </Button>
     </div>
   )

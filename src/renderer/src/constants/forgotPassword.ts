@@ -19,8 +19,8 @@ export const forgotPasswordTexts: ForgotPasswordTexts = {
   title: 'Reset Password',
   description: {
     [ForgotPasswordStep.Seed]: 'Enter the recovery phrase of the selected wallet to prove ownership.',
-    [ForgotPasswordStep.Password]: 'The recovery phrase matches. Choose a new password for your wallet.',
-    [ForgotPasswordStep.Success]: 'Your password has been updated. Log in with your new password.',
+    [ForgotPasswordStep.Password]: 'Choose a new password.',
+    [ForgotPasswordStep.Success]: 'Password updated.',
   },
   form: {
     walletLabel: 'Wallet',

@@ -5,8 +5,9 @@ export const DEFAULT_ANALYTICS_PERIOD: AnalyticsPeriod = 30
 export const CHART_WIDTH = 1000
 export const CHART_HEIGHT = 200
 export const EVO_TYPE_LIMIT = 5
+export const SHIELDED_SEGMENT_LABEL = 'Shielded'
 export const BALANCE_SEGMENTS = [
   { label: 'Core', color: 'var(--chart-core)' },
   { label: 'Platform', color: 'var(--chart-evo)' },
-  { label: 'Shielded', color: 'var(--chart-shielded)' },
+  { label: SHIELDED_SEGMENT_LABEL, color: 'var(--chart-shielded)' },
 ]

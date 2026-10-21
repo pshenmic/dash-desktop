@@ -3,7 +3,6 @@ import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
-import { LockKind } from '@renderer/enums/LockKind'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import Spinner from '@renderer/components/ui/Spinner'
 import Modal from '@renderer/components/ui/Modal'
@@ -16,79 +15,17 @@ import TxSummary from '@renderer/components/ui/TxSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
 import { ASSET_LOCK_FUNDING_POLL_MS, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import {
+  ASSET_LOCK_FUNDING_TEXTS,
+  ASSET_LOCK_INSTANT_LOCK_FALLBACK_MS,
+  ASSET_LOCK_LOCK_STEP_LABELS,
+  ASSET_LOCK_PHASE_LABELS,
+} from '@renderer/constants/assetLockFunding'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { assetLockSummaryCosts, resumedAssetLockAmount } from '@renderer/utils/txSummaryCosts'
+import { assetLockLockStep } from '@renderer/utils/assetLockFunding'
 import type { AssetLockFundingModalProps } from '@renderer/types/AssetLockFundingModal'
 import type { TxSummaryEndpoint } from '@renderer/types/TxSummary'
-
-const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: AssetLockFundingPhase; label: string}>> = {
-  address: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Crediting the Platform address' },
-  ],
-  shielded: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Proving and shielding the credits' },
-  ],
-  identity: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Registering the identity on Platform' },
-  ],
-  identityTopUp: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Topping up the identity on Platform' },
-  ],
-}
-
-function lockStepLabel(state: AssetLockFundingState, active: boolean): string {
-  if (state.lockKind === LockKind.Instant) return 'InstantSend lock received'
-  if (state.lockKind === LockKind.Chain) return 'ChainLock received'
-  if (active) return 'Waiting for an InstantSend lock (usually seconds; ChainLock fallback takes minutes)'
-  return 'Network lock (InstantSend or ChainLock)'
-}
-
-const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; emptyTo: string; confirm: string}> = {
-  address: {
-    title: 'Fund Platform address',
-    resumeTitle: 'Resume funding',
-    doneTitle: 'Address funded',
-    doneHeading: 'Platform address funded',
-    doneNote: 'The locked Dash is now available as credits.',
-    emptyTo: '',
-    confirm: 'Sign & Send',
-  },
-  shielded: {
-    title: 'Shield from L1',
-    resumeTitle: 'Resume shielding',
-    doneTitle: 'Credits shielded',
-    doneHeading: 'Credits shielded',
-    doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
-    emptyTo: '',
-    confirm: 'Sign & Send',
-  },
-  identity: {
-    title: 'Register identity',
-    resumeTitle: 'Resume registration',
-    doneTitle: 'Identity registered',
-    doneHeading: 'Identity registered',
-    doneNote: "The locked Dash is now this identity's credit balance.",
-    emptyTo: 'New Platform identity with 6 keys',
-    confirm: 'Sign & Send',
-  },
-  identityTopUp: {
-    title: 'Top up identity from L1',
-    resumeTitle: 'Resume top-up',
-    doneTitle: 'Identity topped up',
-    doneHeading: 'Identity topped up',
-    doneNote: "The locked Dash is now credits on the identity's balance.",
-    emptyTo: '',
-    confirm: 'Sign & Send',
-  },
-}
 
 function phaseIndex(phase: AssetLockFundingPhase): number {
   if (phase === AssetLockFundingPhase.Building || phase === AssetLockFundingPhase.BroadcastingL1) return 0
@@ -120,7 +57,10 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(false)
   const [state, setState] = useState<AssetLockFundingState | null>(null)
+  const [resumeRequested, setResumeRequested] = useState(false)
+  const [lockFallback, setLockFallback] = useState(false)
   const notified = useRef(false)
+  const resuming = props.resume || resumeRequested
 
   useEffect(() => {
     if (isOpen) {
@@ -129,6 +69,8 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
       setBusy(false)
       setStarted(false)
       setState(null)
+      setResumeRequested(false)
+      setLockFallback(false)
       notified.current = false
     }
   }, [isOpen])
@@ -183,9 +125,16 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
   }, [started, walletId, onSuccess])
 
   const running = started && state != null && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error && state.phase !== AssetLockFundingPhase.Resumable
+  const awaitingLock = running && state?.phase === AssetLockFundingPhase.WaitingChainLock && state.lockKind == null
+
+  useEffect(() => {
+    if (!awaitingLock) return
+    const timer = setTimeout(() => setLockFallback(true), ASSET_LOCK_INSTANT_LOCK_FALLBACK_MS)
+    return () => clearTimeout(timer)
+  }, [awaitingLock])
 
   const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || started || !sourceValidRef.current) return
+    if (!walletId || password.length === 0 || busy || started || (!resuming && !sourceValidRef.current)) return
     setBusy(true)
     setPreError(null)
     try {
@@ -195,13 +144,14 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
         setBusy(false)
         return
       }
-      if (!sourceValidRef.current) {
+      if (!resuming && !sourceValidRef.current) {
         setBusy(false)
         return
       }
-      const initial = props.resume
+      const initial = resuming
         ? await API.resumeAssetLockFunding(walletId, password)
         : await API.startAssetLockFunding(walletId, toPlatformAddress, props.amountDuffs, password, kind, props.source)
+      if (resuming) setLockFallback(true)
       setState(initial)
       setStarted(true)
       setBusy(false)
@@ -215,37 +165,43 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
     onClose()
   }
 
+  const requestResume = (): void => {
+    setPassword('')
+    setPreError(null)
+    setResumeRequested(true)
+    setStarted(false)
+  }
+
   const isDone = started && state?.phase === AssetLockFundingPhase.Done
   const doneTxid = state?.txid ?? null
   const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
-  const texts = TEXTS[kind]
-  const phases = PHASE_LABELS[kind]
+  const texts = ASSET_LOCK_FUNDING_TEXTS[kind]
+  const phases = ASSET_LOCK_PHASE_LABELS[kind]
   let modalTitle = texts.title
   if (isDone) modalTitle = texts.doneTitle
-  else if (resume) modalTitle = texts.resumeTitle
+  else if (resuming) modalTitle = texts.resumeTitle
   let confirmLabel = advanced ? texts.confirm : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
-  else if (resume) confirmLabel = 'Resume'
+  else if (resuming) confirmLabel = 'Resume'
 
   const to: TxSummaryEndpoint[] = []
   if (toPlatformAddress) to.push({ value: toPlatformAddress, kind: kind === AssetLockFundingKind.Shielded ? TxEndpointKind.Shielded : TxEndpointKind.Address })
   else if (texts.emptyTo) to.push({ value: texts.emptyTo, kind: TxEndpointKind.Label })
 
-  const costs = props.resume ? undefined : assetLockSummaryCosts(kind, props.amountDuffs, props.feeDuffs, props.feeCredits)
+  const costs = resuming ? undefined : assetLockSummaryCosts(kind, props.amountDuffs, props.feeDuffs, props.feeCredits)
 
   return (
     <Modal
       open={isOpen}
       onClose={requestClose}
       title={modalTitle}
-      description={!started ? 'The funding waits for the network to lock the L1 transaction — usually a few seconds with InstantSend, or a few minutes if it falls back to a ChainLock. If the app is closed meanwhile, the funding can be resumed.' : undefined}
       size={ModalSize.Lg}
     >
       {!started && (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary
             unit={"duffs"}
-            amount={props.resume ? resumedAssetLockAmount(kind, props.amountDuffs) : props.amountDuffs}
+            amount={resuming ? resumedAssetLockAmount(kind, props.amountDuffs) : props.amountDuffs}
             from={from}
             to={to}
             fees={costs?.fees}
@@ -269,7 +225,7 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
             primary={{
               label: confirmLabel,
               onClick: handleConfirm,
-              disabled: password.length === 0 || !sourceValid,
+              disabled: password.length === 0 || (!resuming && !sourceValid),
               loading: busy,
             }}
           />
@@ -283,7 +239,9 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
               const current = phaseIndex(state.phase)
               const done = i < current
               const active = i === current
-              const label = p.key === AssetLockFundingPhase.WaitingChainLock ? lockStepLabel(state, active) : p.label
+              const label = p.key === AssetLockFundingPhase.WaitingChainLock
+                ? ASSET_LOCK_LOCK_STEP_LABELS[assetLockLockStep(state.lockKind, active, lockFallback)]
+                : p.label
               return (
                 <div key={p.key} className={"flex items-center gap-2"}>
                   {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
@@ -299,9 +257,7 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
               <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
           )}
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-            You can close this window — the funding keeps running and its progress remains available in the wallet.
-          </Text>
+          <ModalActions primary={{ label: 'Continue in background', onClick: onClose }} />
         </div>
       )}
 
@@ -315,12 +271,19 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
               <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
           )}
-          {state.phase === AssetLockFundingPhase.Resumable && (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-              The locked Dash is safe — you can return to this flow and resume the funding.
-            </Text>
+          {state.phase === AssetLockFundingPhase.Resumable ? (
+            <>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
+                Your Dash is safe.
+              </Text>
+              <ModalActions
+                secondary={{ label: 'Close', onClick: onClose }}
+                primary={{ label: 'Resume', onClick: requestResume }}
+              />
+            </>
+          ) : (
+            <ModalActions primary={{ label: 'Close', onClick: onClose }} />
           )}
-          <ModalActions primary={{ label: 'Close', onClick: onClose }} />
         </div>
       )}
 
@@ -331,9 +294,6 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
               <SuccessIcon size={56} />
             </div>
             <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{texts.doneHeading}</Text>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-              {texts.doneNote}
-            </Text>
           </div>
           <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
             {state.identityIdentifier ? (

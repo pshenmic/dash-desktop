@@ -11,6 +11,7 @@ import CustomBadge from '@renderer/components/ui/CustomBadge'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { PLATFORM_TX_STATUS_VARIANTS } from '@renderer/constants/platformTransactions'
+import { transactionsPage } from '@renderer/constants/transactionsPage'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { useRipple } from '@renderer/hooks/useRipple'
@@ -38,6 +39,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
   const { format: formatFiat, rateReady } = useFiat()
   const date = platformTransactionDateValue(transaction.date)
   const displayedId = transaction.hash.toLowerCase()
+  const { platformDetail } = transactionsPage
 
   return (
     <div className={'flex flex-col gap-4 px-12 pb-8'}>
@@ -105,6 +107,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
           <DetailToken
             icon={<DashLogo size={14} color={theme === 'light' ? 'var(--color-dash-brand)' : 'var(--color-dash-mint)'} />}
             label={'Balance change:'}
+            hint={platformDetail.balanceChangeHint}
             value={<SensitiveValue hidden={!isBalanceVisible} size={'card'}>
               <CreditsAmount credits={transaction.netCredits} prefix={transaction.netCredits > 0n ? '+ ' : ''} exact showFiat={false} align={'end'} amountClassName={'font-extrabold'} className={`text-sm ${transaction.netCredits > 0n ? 'dash-text-primary' : 'dash-text-default'}`} />
             </SensitiveValue>}
@@ -115,6 +118,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
           <DetailToken
             icon={<DashLogo size={14} color={theme === 'light' ? 'var(--color-dash-brand)' : 'var(--color-dash-mint)'} />}
             label={'Transition fee:'}
+            hint={platformDetail.feeHint}
             value={<SensitiveValue hidden={!isBalanceVisible} size={'card'}>
               <CreditsAmount credits={transaction.gasCredits} exact showFiat={false} align={'end'} amountClassName={'font-extrabold'} className={'text-sm dash-text-default'} />
             </SensitiveValue>}
@@ -131,9 +135,6 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
             subValue={transaction.blockHeight !== null ? 'Height' : undefined}
           />
         </div>
-        <Text size={12} weight={'medium'} color={'brand'} opacity={50}>
-          Balance change is the net change across this wallet’s Platform addresses and identities. The transition fee may be paid by another participant.
-        </Text>
       </div>
         {(['sender', 'recipient'] as const).map(side => transaction[side].length > 0 && (
           <section key={side} className={'flex flex-col gap-5 p-[.9375rem] rounded-[.9375rem] dash-card-base shadow-[0_0_50px_0_rgba(0,0,0,0.1)]'} aria-label={side === 'sender' ? 'From' : 'To'}>

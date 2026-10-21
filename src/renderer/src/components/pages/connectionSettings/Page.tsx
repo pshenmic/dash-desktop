@@ -3,10 +3,7 @@ import {useNavigate} from 'react-router-dom'
 import {Tabs} from 'dash-ui-kit/react'
 import {ArrowIcon} from '@renderer/components/dash-ui-kit-enxtended/icons'
 import {Text} from '@renderer/components/dash-ui-kit-enxtended'
-import {
-  CONNECTION_SETTINGS_DESCRIPTION,
-  CONNECTION_SETTINGS_TABS,
-} from '@renderer/constants/connection'
+import {CONNECTION_SETTINGS_TABS} from '@renderer/constants/connection'
 import type {ConnectionSettingsTab} from '@renderer/types/connection'
 import CoreTab from './CoreTab'
 import PlatformTab from './PlatformTab'
@@ -25,26 +22,21 @@ export default function ConnectionSettings(): React.JSX.Element {
 
   return (
     <div className="w-full px-12 pb-12">
-      <div className="mb-8">
-        <div className="mb-5 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className={`
-              flex size-9 items-center justify-center rounded-[.625rem]
-              dash-block cursor-pointer dash-text-default
-              hover:bg-dash-primary-dark-blue/8 dark:hover:bg-white/8
-            `}
-            title="Go back"
-          >
-            <ArrowIcon size={11} className="dash-text-default" />
-          </button>
-          <Text as="h1" size={32} weight="medium" color="brand">
-            Connection Settings
-          </Text>
-        </div>
-        <Text as="p" size={14} weight="medium" color="brand" opacity={50} className="max-w-[65rem] leading-[1.35]">
-          {CONNECTION_SETTINGS_DESCRIPTION}
+      <div className="mb-8 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className={`
+            flex size-9 items-center justify-center rounded-[.625rem]
+            dash-block cursor-pointer dash-text-default
+            hover:bg-dash-primary-dark-blue/8 dark:hover:bg-white/8
+          `}
+          title="Go back"
+        >
+          <ArrowIcon size={11} className="dash-text-default" />
+        </button>
+        <Text as="h1" size={32} weight="medium" color="brand">
+          Connection Settings
         </Text>
       </div>
 

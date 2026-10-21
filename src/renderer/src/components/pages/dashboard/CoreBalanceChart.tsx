@@ -16,7 +16,7 @@ export default function CoreBalanceChart({ core, days, hidden }: CoreBalanceChar
     : history === null ? 'Balance history is incomplete' : null
 
   return (
-    <ChartCard title="Core balance" description="Daily closing balance reconstructed from current Core balance and transaction history, including pending transactions · today shows the current balance">
+    <ChartCard title="Core balance" description="Daily closing balance, incl. pending.">
       {message ? <div className="flex h-[227px] items-center justify-center text-center text-xs text-(--chart-muted)" role="status">{message}</div> : <DailyChart days={history!} />}
     </ChartCard>
   )

@@ -9,7 +9,6 @@ export default function PasswordField({
   onChange,
   onSubmit,
   error = null,
-  hint,
   label = WALLET_PASSWORD_LABEL,
   disabled = false,
   className = '',
@@ -36,9 +35,6 @@ export default function PasswordField({
       <div className={`overflow-hidden transition-all duration-200 ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
         <CopyableError message={error ?? ''} />
       </div>
-      {hint && !error && (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block leading-[140%]"}>{hint}</Text>
-      )}
     </div>
   )
 }

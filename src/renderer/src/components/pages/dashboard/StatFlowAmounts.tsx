@@ -6,7 +6,7 @@ import type { StatFlowAmountsProps } from '@renderer/types/DashboardStats'
 import { creditsToDash, creditsToDuffs } from '@renderer/utils/balance'
 import { formatStatCredits } from '@renderer/utils/dashboardStatCharts'
 
-export default function StatFlowAmounts({ flows, metric, hidden, platformFailed, showFiat = true }: StatFlowAmountsProps): React.JSX.Element {
+export default function StatFlowAmounts({ flows, metric, hidden, showFiat = true }: StatFlowAmountsProps): React.JSX.Element {
   const { format, rateReady } = useFiat()
   const compact = metric === 'largestReceived'
 
@@ -21,9 +21,9 @@ export default function StatFlowAmounts({ flows, metric, hidden, platformFailed,
                 {formatStatCredits(flow[metric])} <small className="text-[9px] font-medium whitespace-nowrap text-(--stat-muted)">DASH</small>
               </SensitiveValue>
             </div>
-            {(showFiat || (flow.source === 'evo' && platformFailed)) && <div className="text-[9px] leading-3 text-(--stat-muted) [&_.sensitive-value]:max-w-full">
+            {showFiat && <div className="text-[9px] leading-3 text-(--stat-muted) [&_.sensitive-value]:max-w-full">
               <SensitiveValue hidden={hidden} size="subtext" label="Statistic detail hidden">
-                {flow.source === 'evo' && platformFailed ? 'Partial history' : rateReady ? `≈ ${format(creditsToDuffs(flow[metric]))}` : undefined}
+                {rateReady ? `≈ ${format(creditsToDuffs(flow[metric]))}` : undefined}
               </SensitiveValue>
             </div>}
           </div>

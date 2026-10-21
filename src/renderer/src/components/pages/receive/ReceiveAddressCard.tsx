@@ -79,10 +79,6 @@ export default function ReceiveAddressCard({
               size={'md'}
             />
           </label>
-
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
-            {data.description}
-          </Text>
         </div>
       </div>
   )

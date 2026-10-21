@@ -43,12 +43,13 @@ describe('statistics chart visibility', () => {
     expect(markup).not.toMatch(/NaN|Infinity/)
   })
 
-  it('labels incomplete Evo history instead of presenting it as a complete zero', () => {
+  it('marks incomplete Evo history once, on the Evo legend', () => {
     const now = new Date()
+    vi.stubGlobal('React', React)
     const days = buildDashboardAnalytics([], [], 7, now).days
-    const markup = renderToStaticMarkup(<StatVolumeChart flows={buildStatFlows([], [], days, now)} direction="sent" period={7} hidden={false} platformFailed />)
-    expect(markup).toContain('Evo partial')
-    expect(markup).toContain('Evo history is incomplete')
+    const markup = renderToStaticMarkup(<Statistics transactions={[]} platform={[]} platformFailed period={7} days={days} />)
+    expect(markup.match(/Evo history incomplete/g)).toHaveLength(1)
+    expect(markup).not.toMatch(/partial/i)
   })
 })
 

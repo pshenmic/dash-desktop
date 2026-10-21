@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
-import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
@@ -110,7 +109,6 @@ export default function TransferConfirmModal({
             onSubmit={handleConfirm}
             error={error}
             disabled={sending}
-            hint={"Used to sign and broadcast."}
             className={"mt-5"}
           />
 
@@ -133,21 +131,10 @@ export default function TransferConfirmModal({
             <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
               {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
             </Text>
-            {sentRecipients?.feeOutputIndex !== undefined && (
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                Total debited, including the fee deducted from a recipient.
-              </Text>
-            )}
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-              Broadcast to Platform. It will confirm shortly.
-            </Text>
             {successNote && (
-              <div className={"mt-3 flex items-start gap-2 w-full p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10 text-left"}>
-                <ExclamationIcon size={16} className={"text-dash-orange shrink-0"} />
-                <Text size={12} weight={"medium"} className={"leading-[130%] text-dash-orange!"}>
-                  {successNote}
-                </Text>
-              </div>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+                {successNote}
+              </Text>
             )}
           </div>
 

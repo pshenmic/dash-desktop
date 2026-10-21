@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
-import { CalendarIcon, ClockArrowIcon, ReceiveIcon, SendIcon, TokensIcon, TransactionsIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { CalendarIcon, ClockArrowIcon, ExclamationIcon, ReceiveIcon, SendIcon, TokensIcon, TransactionsIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import type { StatisticsProps } from '@renderer/types/DashboardStats'
@@ -36,16 +36,20 @@ export default function Statistics({ transactions, platform, platformFailed, per
     <div className="@container/statistics flex min-w-0 flex-col gap-3 text-(--stat-text) [--stat-text:var(--color-dash-primary-dark-blue)] [--stat-muted:color-mix(in_srgb,var(--stat-text)_62%,transparent)] [--stat-track:color-mix(in_srgb,var(--stat-text)_10%,transparent)] [--stat-received:#16856f] [--stat-sent:#bc650d] [--stat-brand:var(--color-dash-brand)] [--stat-evo:#8956ce] dark:[--stat-text:#fff] dark:[--stat-received:#60e6c5] dark:[--stat-sent:#ffb369] dark:[--stat-brand:var(--color-dash-mint)] dark:[--stat-evo:#c6a5ff]" role="group" aria-label={dashboardPage.sections.stats}>
       <div className="grid grid-cols-3 gap-3 @max-[760px]/statistics:grid-cols-2 @max-[600px]/statistics:grid-cols-1">
         <StatCard icon={TransactionsIcon} iconSize={16} label={labels.transactions} value={null} className="@max-[760px]/statistics:col-span-full"
-          body={<Tooltip label={`${activity.coreCount} Core · ${activity.evoCount} Evo${platformFailed ? ' · Evo history incomplete' : ''}`}>
-            <div role="group" aria-label={`${periodLabel}: ${activity.coreCount} Core and ${activity.evoCount} Evo transactions${platformFailed ? '. Evo history incomplete' : ''}`}>
+          body={<Tooltip label={`${activity.coreCount} Core · ${activity.evoCount} Evo`}>
+            <div role="group" aria-label={`${periodLabel}: ${activity.coreCount} Core and ${activity.evoCount} Evo transactions`}>
               <div className="text-[28px] leading-[1.25] font-extrabold tracking-[-0.4px] tabular-nums wrap-anywhere">{totalCount}</div>
-              <div className="text-[11px] leading-4 text-(--stat-muted)">{periodLabel}{platformFailed ? ' · Evo partial' : ''}</div>
+              <div className="text-[11px] leading-4 text-(--stat-muted)">{periodLabel}</div>
             </div>
           </Tooltip>}
           footer={<div className="flex flex-col gap-2.5">
             <div className="flex min-w-0 flex-wrap justify-between gap-x-3 gap-y-[5px] text-[11px] text-(--stat-muted)">
               <span title={`${stats.receivedCount} received · ${stats.sentCount} sent`}><i className="mr-1.5 inline-block size-1.5 rounded-full bg-(--stat-brand)" />Core <strong className="ml-[5px] text-base font-bold text-(--stat-text) tabular-nums">{activity.coreCount}</strong></span>
-              <span><i className="mr-1.5 inline-block size-1.5 rounded-full bg-(--stat-evo)" />Evo{platformFailed ? ' (partial)' : ''} <strong className="ml-[5px] text-base font-bold text-(--stat-text) tabular-nums">{activity.evoCount}</strong></span>
+              <span><i className="mr-1.5 inline-block size-1.5 rounded-full bg-(--stat-evo)" />Evo{platformFailed && <Tooltip label={labels.evoHistoryIncomplete}>
+                <span role="img" aria-label={labels.evoHistoryIncomplete} className="ml-1 inline-flex size-3 items-center justify-center rounded-full bg-dash-orange/15 align-middle text-dash-orange">
+                  <ExclamationIcon size={7} color="currentColor" />
+                </span>
+              </Tooltip>} <strong className="ml-[5px] text-base font-bold text-(--stat-text) tabular-nums">{activity.evoCount}</strong></span>
             </div>
             <div className="flex h-[5px] overflow-hidden rounded-[5px] bg-(--stat-track)" aria-hidden="true">
               <span className="h-full bg-(--stat-brand)" style={{ width: `${coreShare}%` }} />
@@ -53,17 +57,17 @@ export default function Statistics({ transactions, platform, platformFailed, per
             </div>
           </div>} />
         <StatCard icon={ReceiveIcon} iconSize={12} label={labels.totalReceived} tone="green" value={null}
-          body={<StatFlowAmounts flows={flows} metric="received" hidden={hidden} platformFailed={platformFailed} />}>
-          <StatVolumeChart key={period} flows={flows} direction="received" hidden={hidden} platformFailed={platformFailed} period={period} />
+          body={<StatFlowAmounts flows={flows} metric="received" hidden={hidden} />}>
+          <StatVolumeChart key={period} flows={flows} direction="received" hidden={hidden} period={period} />
         </StatCard>
         <StatCard icon={SendIcon} iconSize={12} label={labels.totalSent} tone="orange" value={null}
-          body={<StatFlowAmounts flows={flows} metric="sent" hidden={hidden} platformFailed={platformFailed} />}>
-          <StatVolumeChart key={period} flows={flows} direction="sent" hidden={hidden} platformFailed={platformFailed} period={period} />
+          body={<StatFlowAmounts flows={flows} metric="sent" hidden={hidden} />}>
+          <StatVolumeChart key={period} flows={flows} direction="sent" hidden={hidden} period={period} />
         </StatCard>
       </div>
       <div className="grid grid-cols-4 gap-3 @max-[760px]/statistics:grid-cols-2 @max-[460px]/statistics:grid-cols-1">
         <StatCard compact icon={TokensIcon} iconSize={15} label={labels.largestReceived} value={null}
-          body={<StatFlowAmounts flows={flows} metric="largestReceived" hidden={hidden} platformFailed={platformFailed} showFiat={false} />} />
+          body={<StatFlowAmounts flows={flows} metric="largestReceived" hidden={hidden} showFiat={false} />} />
         <StatCard compact icon={CalendarIcon} label={labels.walletAge} value={walletActivity.firstDate ? formatWalletAge(walletActivity.ageDays) : '—'}
           sub={walletActivity.firstDate ? `since ${formatCreationDate(walletActivity.firstDate)}` : 'No dated activity'} />
         <StatCard compact icon={ClockArrowIcon} label={labels.lastActivity}

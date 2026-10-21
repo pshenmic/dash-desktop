@@ -8,6 +8,7 @@ import PlatformUnlockTab from '@renderer/components/pages/addresses/PlatformUnlo
 import PlatformAddressSelect from '@renderer/components/pages/transfer/PlatformAddressSelect'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { defaultReceivePlatformAddress, receivePlatformAddresses } from '@renderer/utils/receiveDefaults'
+import { receiveCardCopy } from '@renderer/constants'
 
 export default function PlatformReceiveCard({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const { platformAddresses, loading, err } = usePlatformAddresses(walletId)
@@ -61,7 +62,7 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
         </div>
 
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
-          Share this address to receive credits on Dash Platform. Balances are account-based, so it is safe to reuse this address.
+          {receiveCardCopy.platformNote}
         </Text>
       </div>
     </div>

@@ -13,11 +13,14 @@ import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import { isUsedCoreAddress } from '@renderer/utils/addressUsage'
+import { addressesPage } from '@renderer/constants'
 
 export default function AddressCard({
   address,
   balance,
   txCount,
+  isUsed,
 }: WalletAddressDto): React.JSX.Element {
   const [isQrOpen, setIsQrOpen] = useState(false)
   const { format: formatFiat, rateReady } = useFiat()
@@ -47,9 +50,12 @@ export default function AddressCard({
             </button>
           )}
         </div>
-        <Text size={10} weight={"medium"} color={"default"} opacity={50}>
-          Tx count: <span className={"font-bold"}>{txCount}</span>
-        </Text>
+        <div className={"flex items-center gap-[.3125rem]"}>
+          <Text size={10} weight={"medium"} color={"default"} opacity={50}>
+            Tx count: <span className={"font-bold"}>{txCount}</span>
+          </Text>
+          {isUsedCoreAddress({ isUsed, txCount }) && <CustomBadge text={addressesPage.usedBadge} variant="muted" size="xs" />}
+        </div>
       </div>
 
       {isQrOpen && <AddressQrModal address={address} onClose={() => setIsQrOpen(false)} />}

@@ -13,6 +13,8 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
+import Spinner from '@renderer/components/ui/Spinner'
+import StatusChip from '@renderer/components/ui/StatusChip'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { transactionsPage } from '@renderer/constants'
 import { WalletTxItem } from '@renderer/hooks/useWalletTransactions'
@@ -82,7 +84,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
   const [qrAddress, setQrAddress] = useState<string | null>(null)
   const [resolvedTransaction, setResolvedTransaction] = useState(transaction)
   const [detailsLoading, setDetailsLoading] = useState(false)
-  const [detailsError, setDetailsError] = useState<string | null>(null)
+  const [detailsFailed, setDetailsFailed] = useState(false)
   const isIncoming = resolvedTransaction.direction === 'in'
   const displayedId = resolvedTransaction.id.toLowerCase()
   const hoverNotification = useRipple()
@@ -91,7 +93,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
 
   useEffect(() => {
     setResolvedTransaction(transaction)
-    setDetailsError(null)
+    setDetailsFailed(false)
 
     if (network == null) {
       setDetailsLoading(false)
@@ -113,7 +115,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
       })
       .catch((error) => {
         console.error('[transaction detail] fetch failed:', error)
-        if (active) setDetailsError('Could not load complete transaction details. Showing cached data.')
+        if (active) setDetailsFailed(true)
       })
       .finally(() => {
         if (active) setDetailsLoading(false)
@@ -153,19 +155,16 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
             {' '}{resolvedTransaction.title}
           </Text>
           {resolvedTransaction.internalTransfer && <CustomBadge text="Internal transfer" className="shrink-0 whitespace-nowrap" />}
+          {detailsLoading && (
+            <span role={"status"} className={"flex shrink-0"}>
+              <Spinner size={20} className={"text-dash-brand dark:text-dash-mint"} />
+              <span className={"sr-only"}>{detail.loadingDetails}</span>
+            </span>
+          )}
         </div>
       </div>
 
-      {detailsLoading && (
-        <Text size={14} weight={"medium"} color={"brand"} opacity={50}>
-          Loading complete transaction details...
-        </Text>
-      )}
-      {detailsError && (
-        <Text size={14} weight={"medium"} color={"brand"}>
-          {detailsError}
-        </Text>
-      )}
+      {detailsFailed && <StatusChip>{detail.cachedDetails}</StatusChip>}
 
       <div className={cardStyles()}>
         <div className={"flex items-center gap-[.625rem]"}>

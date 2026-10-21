@@ -23,14 +23,14 @@ export default function DismissAssetLockFundingModal({
       open={isOpen}
       onClose={onClose}
       title={"Dismiss pending funding?"}
-      description={"Use Dismiss only if Resume does not work and the funding completed successfully, but the wallet still shows it as pending. Before continuing, confirm that the destination balance or identity was updated."}
+      description={"Only dismiss if the funds already arrived."}
       size={ModalSize.Md}
       dismissible={!busy}
     >
       <div className={"mt-4 flex items-start gap-2 p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10"}>
         <ExclamationIcon size={16} className={"text-dash-orange shrink-0 mt-0.5"} />
         <Text size={12} weight={"medium"} className={"leading-[140%] text-dash-orange!"}>
-          Dismiss only clears this wallet's local pending record. It does not cancel the L1 transaction or return locked funds. This funding will no longer be available to resume in the wallet.
+          {"This clears the pending record only. It won't cancel or refund the L1 transaction, and the funding can't be resumed afterwards."}
         </Text>
       </div>
 

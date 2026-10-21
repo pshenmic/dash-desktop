@@ -5,7 +5,7 @@ import { buildStatChartSeries } from '@renderer/utils/dashboardStatCharts'
 import { chartDate } from '@renderer/utils/dashboardAnalytics'
 import { creditsToDash } from '@renderer/utils/balance'
 
-export default function StatVolumeChart({ flows, direction, hidden, period, platformFailed = false }: StatVolumeChartProps): React.JSX.Element {
+export default function StatVolumeChart({ flows, direction, hidden, period }: StatVolumeChartProps): React.JSX.Element {
   const [active, setActive] = useState<number | null>(null)
   const gradientId = useId()
   const days = flows[0]?.days ?? []
@@ -20,10 +20,9 @@ export default function StatVolumeChart({ flows, direction, hidden, period, plat
     <div className="flex flex-col gap-[5px]">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-[3px] text-[10px] text-(--stat-muted)">
         <span>{periodLabel}</span>
-        {platformFailed && <span className="font-semibold text-(--stat-evo)">Evo partial</span>}
       </div>
       <div className="relative h-8 rounded-[3px] text-(--stat-accent) focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-(--stat-accent)" tabIndex={0} role="group"
-        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same DASH scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} DASH`).join('. ')}. ${platformFailed ? 'Evo history is incomplete. ' : ''}Hover or use left and right arrows to explore amounts.`}
+        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same DASH scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} DASH`).join('. ')}. Hover or use left and right arrows to explore amounts.`}
         onPointerLeave={() => setActive(null)} onFocus={() => setActive(days.length - 1)} onBlur={() => setActive(null)}
         onKeyDown={event => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return

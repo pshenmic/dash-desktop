@@ -77,6 +77,12 @@ interface TransactionsPage {
     receivingBadge: string
     changeBadge: string
     qrTitle: string
+    cachedDetails: string
+    loadingDetails: string
+  }
+  platformDetail: {
+    balanceChangeHint: string
+    feeHint: string
   }
 }
 
@@ -140,5 +146,11 @@ export const transactionsPage: TransactionsPage = {
     receivingBadge: 'Receiving',
     changeBadge: 'Change',
     qrTitle: 'Address',
+    cachedDetails: 'Showing cached details',
+    loadingDetails: 'Loading details',
+  },
+  platformDetail: {
+    balanceChangeHint: 'Net across your Platform addresses and identities',
+    feeHint: 'May be paid by another participant',
   }
 }

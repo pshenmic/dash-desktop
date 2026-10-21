@@ -47,14 +47,9 @@ export default function P2pReadyNotice(): React.JSX.Element | null {
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-dash-brand text-white dark:bg-dash-mint dark:text-dash-primary-dark-blue">
           <CheckIcon size={18} color="currentColor" className="[&_circle]:hidden" />
         </span>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <Text size={14} weight="bold" color="brand">
-            {P2P_READY_PROMPT.title}
-          </Text>
-          <Text size={12} weight="medium" color="brand" opacity={50}>
-            {P2P_READY_PROMPT.description}
-          </Text>
-        </div>
+        <Text size={14} weight="bold" color="brand" className="min-w-0">
+          {P2P_READY_PROMPT.title}
+        </Text>
       </div>
       <div className="flex items-center gap-2">
         <button

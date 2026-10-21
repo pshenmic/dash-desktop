@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Text } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
-import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { authTexts, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import SeedPhraseWarning from '@renderer/components/pages/auth/SeedPhraseWarning'
 import Modal from '@renderer/components/ui/Modal'
@@ -65,7 +65,6 @@ export default function ExportMnemonic({
       open={isOpen}
       onClose={onClose}
       title={"Recovery phrase"}
-      description={words.length === 0 ? 'Enter your wallet password to reveal the secret recovery phrase.' : undefined}
       size={ModalSize.Md}
     >
       {words.length === 0 ? (
@@ -95,10 +94,7 @@ export default function ExportMnemonic({
       ) : (
         <div className={"phase-fade-in"} key={"revealed"}>
           <div className={"mt-4"}>
-            <SeedPhraseWarning
-              title={"Never share your recovery phrase"}
-              description={"Anyone with these words can spend your funds. Keep them offline and private."}
-            />
+            <SeedPhraseWarning {...authTexts.seedPhraseWarning} />
           </div>
 
           <div className={"mt-4 grid grid-cols-3 gap-2.5"}>

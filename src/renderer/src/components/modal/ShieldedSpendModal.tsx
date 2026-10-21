@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
-import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import PasswordField from '@renderer/components/ui/PasswordField'
@@ -17,18 +16,14 @@ import Spinner from '@renderer/components/ui/Spinner'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import { INVALID_WALLET_PASSWORD_MESSAGE, SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
+import { SHIELDED_SPEND_STEPS } from '@renderer/constants/shieldedProgress'
+import { SHIELDED_SPEND_ESTIMATE_PREFIX } from '@renderer/constants/shieldedSpendModal'
 import { shieldedSpendSummaryCosts } from '@renderer/utils/txSummaryCosts'
 import { shieldedSpendEndpoints } from '@renderer/utils/txSummaryEndpoints'
 import type { ShieldedSpendModalProps } from '@renderer/types/ShieldedSpendModal'
 
-const PHASES = [
-  { key: ShieldedSpendPhase.Syncing, label: 'Syncing notes' },
-  { key: ShieldedSpendPhase.Proving, label: 'Generating zero-knowledge proof' },
-  { key: ShieldedSpendPhase.Broadcasting, label: 'Broadcasting' },
-] as const
-
 function phaseIndex(phase: ShieldedSpendPhase): number {
-  return PHASES.findIndex(p => p.key === phase)
+  return SHIELDED_SPEND_STEPS.findIndex(p => p.key === phase)
 }
 
 
@@ -60,6 +55,7 @@ export default function ShieldedSpendModal({
   const [started, setStarted] = useState(false)
   const [spend, setSpend] = useState<ShieldedSpendState | null>(null)
   const [sentAmount, setSentAmount] = useState<bigint | null>(null)
+  const [sentFee, setSentFee] = useState<bigint | null>(null)
   const [sentRecipients, setSentRecipients] = useState<PlatformRecipient[] | null>(null)
   const notified = useRef(false)
 
@@ -71,6 +67,7 @@ export default function ShieldedSpendModal({
       setStarted(false)
       setSpend(null)
       setSentAmount(null)
+      setSentFee(null)
       setSentRecipients(null)
       notified.current = false
     }
@@ -123,6 +120,7 @@ export default function ShieldedSpendModal({
         return
       }
       setSentAmount(amountCredits)
+      setSentFee(feeCredits)
       setSentRecipients(recipients?.map(recipient => ({ ...recipient })) ?? null)
       const initial = await start(password)
       setSpend(initial)
@@ -151,6 +149,7 @@ export default function ShieldedSpendModal({
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = sentAmount ?? amountCredits
   const costs = shieldedSpendSummaryCosts(kind, amountCredits, feeCredits)
+  const sentDetails = shieldedSpendSummaryCosts(kind, sentCredits, sentFee).details ?? []
   let confirmLabel = advanced ? 'Sign & Send' : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
   else if (!proverReady) confirmLabel = 'Preparing…'
@@ -179,7 +178,6 @@ export default function ShieldedSpendModal({
             onSubmit={handleConfirm}
             error={preError}
             disabled={busy}
-            hint={"Syncing and proving can take a little while."}
             className={"mt-5"}
           />
 
@@ -198,7 +196,7 @@ export default function ShieldedSpendModal({
       {running && spend && (
         <div className={"phase-fade-in"} key={"progress"}>
           <div className={"mt-5 flex flex-col gap-4 p-[.875rem] rounded-[.9375rem] dash-block"}>
-            {PHASES.map((p, i) => {
+            {SHIELDED_SPEND_STEPS.map((p, i) => {
               const current = phaseIndex(spend.phase)
               const done = i < current
               const active = i === current
@@ -224,9 +222,6 @@ export default function ShieldedSpendModal({
               )
             })}
           </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={40} className={"mt-3 block text-center"}>
-            This can't be cancelled once the proof is being generated.
-          </Text>
         </div>
       )}
 
@@ -247,25 +242,23 @@ export default function ShieldedSpendModal({
           <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
             <div className={"success-pop"}><SuccessIcon size={56} /></div>
             <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-              {spend?.identityId ? 'Identity created' : <CreditsAmount credits={sentCredits} align={"center"} />}
-            </Text>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-              {spend?.identityId
-                ? <>Funded with <CreditsAmount credits={sentCredits} showFiat={false} /> from the pool (minus the Platform fee). Re-sync notes to update your balance.</>
-                : 'Broadcast to Platform. Re-sync notes to update your balance.'}
+              <CreditsAmount credits={sentCredits} align={"center"} />
             </Text>
             {successNote && (
-              <div className={"mt-3 flex items-start gap-2 w-full p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10 text-left"}>
-                <ExclamationIcon size={16} className={"text-dash-orange shrink-0"} />
-                <Text size={12} weight={"medium"} className={"leading-[130%] text-dash-orange!"}>
-                  {successNote}
-                </Text>
-              </div>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+                {successNote}
+              </Text>
             )}
           </div>
           <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
             {sentRecipients && <RecipientSummary recipients={sentRecipients} />}
             {spend?.identityId && <HashField hash={spend.identityId} label={"Identity"} />}
+            {sentDetails.map(line => line.amount !== null && (
+              <div key={line.label} className={"flex justify-between items-center gap-4"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{line.label}</Text>
+                <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={line.amount} prefix={SHIELDED_SPEND_ESTIMATE_PREFIX} align={"end"} /></Text>
+              </div>
+            ))}
             {spend?.stHash && <HashField hash={spend.stHash} explorerUrl={network ? platformTransactionUrl(spend.stHash, network) : null} />}
           </div>
           <ModalActions primary={{ label: 'Done', onClick: onClose }} />
