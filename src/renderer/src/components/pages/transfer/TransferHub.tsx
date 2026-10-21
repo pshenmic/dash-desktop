@@ -73,7 +73,9 @@ import { sendPreviewParams, sendPreviewRequestKey } from "@renderer/utils/sendTr
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
-import { AUTOMATIC_PLATFORM_SELECTION, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SHIELDED_DESTINATION_LABELS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
+import { AUTOMATIC_PLATFORM_SELECTION, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
+import { TX_SUMMARY_LABELS } from "@renderer/constants/txSummary";
+import { destinationEndpoint, recipientEndpoints, sourceEndpoint } from "@renderer/utils/txSummaryEndpoints";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import SendRecipientsEditor from "./SendRecipientsEditor";
@@ -843,6 +845,7 @@ function WalletTransferHub(): React.JSX.Element {
       break
   }
 
+  const fromEndpoint = sourceEndpoint(fromKind, normalizedCoinControl, coinControlSummary, selectedIdentity?.identifier)
   const toDisplay = toKind === DestinationKind.NewIdentity ? 'New identity' : trimmedTo
 
   const previewParams = operation == null ? null : sendPreviewParams({
@@ -1012,7 +1015,6 @@ function WalletTransferHub(): React.JSX.Element {
   const isPlatformModalOperation = operation === TransferOperation.AddressFundsTransfer || operation === TransferOperation.IdentityTopUp
     || operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal
     || operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity || operation === TransferOperation.IdentityCreate
-  const isShieldedSpendOperation = info?.spendKind != null
 
   return (
     <div className={"relative flex flex-col h-full pb-4"} inert={confirmOpen || coinControlOpen || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
@@ -1190,8 +1192,8 @@ function WalletTransferHub(): React.JSX.Element {
           network={network}
           recipients={recipientsDuffs}
           advanced={advanced}
+          from={fromEndpoint}
           feeDuffs={confirmationFeeDuffs}
-          amountFiat={amountFiat}
           source={coreSpendSource}
           changeTo={changeTo}
           sourceValid={signingSourceValid}
@@ -1211,27 +1213,29 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
           source={platformSource}
-          fromDisplay={fromDisplay}
+          from={fromEndpoint}
           sourceValid={signingSourceValid}
           toAddress={trimmedTo}
-          amountCredits={amountCredits.toString()}
+          amountCredits={amountCredits}
           feeCredits={confirmationFeeCredits}
+          totalCredits={confirmationFeeCredits === null ? null : confirmationDebitCredits}
           proverReady={prover.ready}
           onSuccess={resetForm}
         />
       )}
 
-      {isShieldedSpendOperation && (
+      {info?.spendKind != null && (
         <ShieldedSpendModal
           advanced={advanced}
           isOpen={confirmOpen}
           onClose={() => setConfirmOpen(false)}
           walletId={walletId}
-          title={info?.title ?? 'Send'}
-          toLabel={SHIELDED_DESTINATION_LABELS[operation ?? TransferOperation.ShieldedWithdrawal] ?? 'To (Core L1)'}
+          title={info.title}
+          kind={info.spendKind}
+          from={fromEndpoint}
           toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
           recipients={operation === TransferOperation.ShieldedTransfer ? recipientsCredits : undefined}
-          amountCredits={amountCredits.toString()}
+          amountCredits={amountCredits}
           feeCredits={confirmationFeeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
@@ -1248,7 +1252,10 @@ function WalletTransferHub(): React.JSX.Element {
           onClose={() => { setConfirmOpen(false); setFundingRefresh(n => n + 1) }}
           walletId={walletId}
           toPlatformAddress={operation === TransferOperation.IdentityRegister ? '' : trimmedTo}
-          amountDuffs={amountDuffs.toString()}
+          amountDuffs={amountDuffs}
+          feeDuffs={confirmationFeeDuffs}
+          feeCredits={confirmationFeeCredits}
+          from={fromEndpoint}
           resume={false}
           kind={OPERATION_FUNDING_KINDS[operation] ?? AssetLockFundingKind.Address}
           source={coreSpendSource}
@@ -1267,7 +1274,7 @@ function WalletTransferHub(): React.JSX.Element {
         onClose={() => setResumeOpen(false)}
         walletId={walletId}
         toPlatformAddress={resumableFunding?.toPlatformAddress ?? ''}
-        amountDuffs={''}
+        amountDuffs={resumableFunding?.amountDuffs ?? null}
         resume={true}
         kind={resumableFunding?.kind ?? AssetLockFundingKind.Address}
         onSuccess={() => {
@@ -1296,13 +1303,16 @@ function WalletTransferHub(): React.JSX.Element {
           recipients={operation === TransferOperation.AddressFundsTransfer ? displayRecipientsCredits : undefined}
           feeOutputIndex={displayFeeOutputIndex}
           feeCredits={confirmationFeeCredits}
-          rows={[
-            {label: 'Amount', value: <CreditsAmount credits={amountCredits} align={"end"} />},
-            ...(confirmationFeeCredits !== null ? [{label: 'Reserved for fee', value: <CreditsAmount credits={confirmationFeeCredits} align={"end"} />}] : []),
-            {label: 'Total debit', value: <CreditsAmount credits={confirmationDebitCredits} align={"end"} />},
-            {label: 'From', value: fromDisplay, mono: true},
-            ...(operation === TransferOperation.AddressFundsTransfer ? [] : [{label: 'To', value: toDisplay, mono: true}]),
-          ]}
+          summary={{
+            unit: 'credits',
+            amount: amountCredits,
+            from: fromEndpoint,
+            to: operation === TransferOperation.AddressFundsTransfer
+              ? recipientEndpoints(displayRecipientsCredits, displayFeeOutputIndex)
+              : [destinationEndpoint(toKind, toDisplay)],
+            fees: [{label: TX_SUMMARY_LABELS.reservedFee, amount: confirmationFeeCredits, unit: 'credits'}],
+            total: confirmationFeeCredits === null ? null : confirmationDebitCredits,
+          }}
           run={runPlatformOperation}
           sourceValid={signingSourceValid}
           onSuccess={resetForm}

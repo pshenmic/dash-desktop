@@ -5,6 +5,7 @@ import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
+import TxSummary from '@renderer/components/ui/TxSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { PlatformRecipient, ShieldedSpendState } from '@renderer/api/types'
@@ -15,24 +16,9 @@ import Spinner from '@renderer/components/ui/Spinner'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import { INVALID_WALLET_PASSWORD_MESSAGE, SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
-
-interface ShieldedSpendModalProps {
-  isOpen: boolean
-  advanced?: boolean
-  onClose: () => void
-  walletId: string | null
-  title: string
-  toLabel: string
-  toValue: string
-  amountCredits: string
-  feeCredits: bigint | null
-  recipients?: PlatformRecipient[]
-  proverReady: boolean
-  start: (password: string) => Promise<ShieldedSpendState>
-  sourceValid?: boolean
-  onSuccess: () => void
-  successNote?: string
-}
+import { shieldedSpendSummaryCosts } from '@renderer/utils/txSummaryCosts'
+import { shieldedSpendEndpoints } from '@renderer/utils/txSummaryEndpoints'
+import type { ShieldedSpendModalProps } from '@renderer/types/ShieldedSpendModal'
 
 const PHASES = [
   { key: ShieldedSpendPhase.Syncing, label: 'Syncing notes' },
@@ -51,7 +37,8 @@ export default function ShieldedSpendModal({
   onClose,
   walletId,
   title,
-  toLabel,
+  kind,
+  from,
   toValue,
   amountCredits,
   feeCredits,
@@ -71,7 +58,7 @@ export default function ShieldedSpendModal({
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(false)
   const [spend, setSpend] = useState<ShieldedSpendState | null>(null)
-  const [sentAmount, setSentAmount] = useState('')
+  const [sentAmount, setSentAmount] = useState<bigint | null>(null)
   const [sentRecipients, setSentRecipients] = useState<PlatformRecipient[] | null>(null)
   const notified = useRef(false)
 
@@ -82,7 +69,7 @@ export default function ShieldedSpendModal({
       setBusy(false)
       setStarted(false)
       setSpend(null)
-      setSentAmount('')
+      setSentAmount(null)
       setSentRecipients(null)
       notified.current = false
     }
@@ -161,7 +148,8 @@ export default function ShieldedSpendModal({
 
   const isDone = spend?.phase === ShieldedSpendPhase.Done
   const isError = started && spend?.phase === ShieldedSpendPhase.Error
-  const sentCredits = BigInt(sentAmount || amountCredits || '0')
+  const sentCredits = sentAmount ?? amountCredits
+  const costs = shieldedSpendSummaryCosts(kind, amountCredits, feeCredits)
   let confirmLabel = advanced ? 'Sign & Send' : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
   else if (!proverReady) confirmLabel = 'Preparing…'
@@ -172,23 +160,16 @@ export default function ShieldedSpendModal({
     <Modal open={isOpen} onClose={requestClose} title={modalTitle} size={ModalSize.Lg} dismissible={!running && !busy}>
       {!started && (
         <div className={"phase-fade-in"} key={"confirm"}>
-          <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-            <div className={"flex justify-between items-center gap-4"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-              <Text size={14} weight={"extrabold"} color={"brand"}><CreditsAmount credits={BigInt(amountCredits)} align={"end"} /></Text>
-            </div>
-            {feeCredits !== null && (
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
-                <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
-              </div>
-            )}
-            {recipients ? <RecipientSummary recipients={recipients} /> : <div className={"flex justify-between items-center gap-4"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{toLabel}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{toValue}</Text>
-            </div>}
-            {recipients && feeCredits != null && <div className="flex justify-between gap-4"><Text size={12} weight="medium" color="brand" opacity={50}>Total debit</Text><Text size={14} weight="extrabold" color="brand"><CreditsAmount credits={BigInt(amountCredits) + feeCredits} align="end" exact /></Text></div>}
-          </div>
+          <TxSummary
+            unit={"credits"}
+            amount={amountCredits}
+            from={from}
+            to={shieldedSpendEndpoints(kind, toValue, recipients)}
+            fees={costs.fees}
+            total={costs.total}
+            details={costs.details}
+            className={"mt-4"}
+          />
 
           <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
             Enter your wallet password. Syncing and proving can take a little while.

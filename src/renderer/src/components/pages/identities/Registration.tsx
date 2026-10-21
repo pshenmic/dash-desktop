@@ -11,21 +11,23 @@ import CoinControlModal from '@renderer/components/pages/transfer/CoinControlMod
 import ProverPill from '@renderer/components/pages/shielded/ProverPill'
 import { SourcePicker } from '@renderer/components/pages/transfer/EndpointPicker'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
-import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import { API } from '@renderer/api'
 import type { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
-import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
+import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT, PLATFORM_FUNDED_IDENTITY_LABEL } from '@renderer/constants'
+import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { AssetLockFundingKind } from '@renderer/enums/AssetLockFundingKind'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
+import { ShieldedSpendKind } from '@renderer/enums/ShieldedSpendKind'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
+import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
@@ -60,6 +62,7 @@ import {
   POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
 } from '@renderer/utils/transferMatrix'
+import { sourceEndpoint } from '@renderer/utils/txSummaryEndpoints'
 import type { CoinControlSelection } from '@renderer/types/CoinControl'
 
 export default function IdentityRegistration(): React.JSX.Element {
@@ -482,7 +485,7 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           walletId={walletId}
           toPlatformAddress={unfinishedFunding.toPlatformAddress ?? ''}
-          amountDuffs={unfinishedFunding.amountDuffs?.toString() ?? ''}
+          amountDuffs={unfinishedFunding.amountDuffs ?? null}
           resume={true}
           kind={AssetLockFundingKind.Identity}
           onSuccess={handleCoreSuccess}
@@ -707,6 +710,7 @@ export default function IdentityRegistration(): React.JSX.Element {
       <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
     )
   }
+  const fromEndpoint = sourceEndpoint(fromKind, appliedCoinControl, coinControlSummary)
 
   const reviewStep = (
     <>
@@ -810,7 +814,10 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           walletId={walletId}
           toPlatformAddress={''}
-          amountDuffs={amountDuffs.toString()}
+          amountDuffs={amountDuffs}
+          feeDuffs={feeDuffs}
+          feeCredits={feeCredits}
+          from={fromEndpoint}
           resume={false}
           kind={AssetLockFundingKind.Identity}
           source={coreSpendSource}
@@ -824,12 +831,14 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           title={"Register identity"}
           successTitle={"Identity registered"}
-          rows={[
-            { label: 'From', value: coinControlSummary },
-            { label: 'Identity funding', value: <CreditsAmount credits={amountCredits} showFiat={false} align={"end"} /> },
-            ...(feeCredits !== null ? [{ label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} showFiat={false} align={"end"} /> }] : []),
-            { label: 'Creates', value: 'New Platform identity with 4 keys' },
-          ]}
+          summary={{
+            unit: 'credits',
+            amount: amountCredits,
+            from: fromEndpoint,
+            to: [{ value: PLATFORM_FUNDED_IDENTITY_LABEL, kind: TxEndpointKind.Label }],
+            fees: [{ label: TX_SUMMARY_LABELS.reservedFee, amount: feeCredits, unit: 'credits' }],
+            total: feeCredits === null ? null : amountCredits + feeCredits,
+          }}
           run={runPlatformRegistration}
           sourceValid={amountReady}
           onSuccess={handlePlatformSuccess}
@@ -841,9 +850,10 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           walletId={walletId}
           title={"Register identity from Shield"}
-          toLabel={"Creates"}
+          kind={ShieldedSpendKind.IdentityCreate}
+          from={fromEndpoint}
           toValue={"New Platform identity with 6 keys"}
-          amountCredits={amountCredits.toString()}
+          amountCredits={amountCredits}
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedRegistration}

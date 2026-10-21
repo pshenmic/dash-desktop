@@ -14,6 +14,9 @@ import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
+import TxSummary from '@renderer/components/ui/TxSummary'
+import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
+import { coreRecipientEndpoints } from '@renderer/utils/txSummaryEndpoints'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
@@ -36,7 +39,7 @@ export default function SendConfirmModal({
   network,
   recipients,
   advanced = false,
-  amountFiat,
+  from,
   feeDuffs,
   source,
   changeTo,
@@ -137,30 +140,15 @@ export default function SendConfirmModal({
     <Modal open={isOpen} onClose={requestClose} title={modalTitle} size={ModalSize.Lg} dismissible={!sending}>
       {phase !== ConfirmModalPhase.Done ? (
         <div className={"phase-fade-in"} key={"confirm"}>
-          <div className="mt-5 flex flex-col gap-4 rounded-2xl p-4 dash-block-3">
-            <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
-              <Text size={14} weight="medium" color="brand" opacity={50}>Sending</Text>
-              <div className="min-w-0 flex flex-col items-end gap-1 text-right">
-                <Text size={24} weight="extrabold" color="brand" className="break-words">
-                  {davToDash(amountDuffs)} <span className="text-sm font-medium">Dash</span>
-                </Text>
-                {amountFiat && <Text size={12} weight="medium" color="brand" opacity={50}>≈ {amountFiat}</Text>}
-              </div>
-            </div>
-            {!advanced && <RecipientSummary recipients={recipients} />}
-            {feeDuffs != null && (
-              <div className="flex flex-col gap-3 border-t border-dash-primary-dark-blue/10 pt-3 dark:border-white/10">
-                <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
-                  <Text size={14} weight="medium" color="brand" opacity={50}>Network fee (est.)</Text>
-                  <Text size={12} weight="medium" color="brand" className="text-right">{davToDash(feeDuffs)} Dash</Text>
-                </div>
-                <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
-                  <Text size={14} weight="medium" color="brand" opacity={50}>Total</Text>
-                  <Text size={14} weight="extrabold" color="brand" className="text-right">{davToDash(amountDuffs + feeDuffs)} Dash</Text>
-                </div>
-              </div>
-            )}
-          </div>
+          <TxSummary
+            unit={"duffs"}
+            amount={amountDuffs}
+            from={from}
+            to={coreRecipientEndpoints(recipients)}
+            fees={[{ label: TX_SUMMARY_LABELS.networkFee, amount: feeDuffs ?? null, unit: 'duffs' }]}
+            total={feeDuffs == null ? null : amountDuffs + feeDuffs}
+            className={"mt-5"}
+          />
 
           <div className={"mt-5"}>
             <Input

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { PlatformRecipient, PlatformSendResult } from '@renderer/api/types'
+import { PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
@@ -12,32 +12,11 @@ import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
+import TxSummary from '@renderer/components/ui/TxSummary'
 import type { RecipientSummaryProps } from '@renderer/types/RecipientSummary'
+import type { TransferConfirmModalProps } from '@renderer/types/TransferConfirmModal'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-
-export interface TransferConfirmRow {
-  label: string
-  value: string | React.ReactNode
-  mono?: boolean
-}
-
-interface TransferConfirmModalProps {
-  isOpen: boolean
-  advanced?: boolean
-  onClose: () => void
-  title: string
-  successTitle: string
-  rows: TransferConfirmRow[]
-  recipients?: PlatformRecipient[]
-  feeOutputIndex?: number
-  feeCredits?: bigint | null
-  run: (password: string) => Promise<PlatformSendResult>
-  sourceValid?: boolean
-  onSuccess: () => void
-  successNote?: string
-}
-
 
 export default function TransferConfirmModal({
   isOpen,
@@ -45,7 +24,7 @@ export default function TransferConfirmModal({
   onClose,
   title,
   successTitle,
-  rows,
+  summary,
   recipients,
   feeOutputIndex,
   feeCredits,
@@ -122,17 +101,7 @@ export default function TransferConfirmModal({
     >
       {phase !== ConfirmModalPhase.Done ? (
         <div className={"phase-fade-in"} key={"confirm"}>
-          <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-            {rows.map(row => (
-              <div key={row.label} className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{row.label}</Text>
-                <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className="min-w-0 break-all select-all text-right">
-                  {row.value}
-                </Text>
-              </div>
-            ))}
-            {recipients && <RecipientSummary recipients={recipients} feeOutputIndex={feeOutputIndex} feeCredits={feeCredits} />}
-          </div>
+          <TxSummary {...summary} className={"mt-4"} />
 
           <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
             Enter your wallet password to sign and broadcast.

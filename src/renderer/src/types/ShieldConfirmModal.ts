@@ -1,4 +1,5 @@
 import type { PlatformSpendSource } from '../api/types'
+import type { TxSummaryEndpoint } from './TxSummary'
 
 export interface ShieldConfirmModalProps {
   isOpen: boolean
@@ -6,10 +7,11 @@ export interface ShieldConfirmModalProps {
   onClose: () => void
   walletId: string | null
   source: PlatformSpendSource | null
-  fromDisplay: string
+  from: TxSummaryEndpoint
   toAddress: string
-  amountCredits: string
+  amountCredits: bigint
   feeCredits: bigint | null
+  totalCredits: bigint | null
   proverReady: boolean
   sourceValid?: boolean
   onSuccess: () => void

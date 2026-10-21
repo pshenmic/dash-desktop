@@ -1,6 +1,7 @@
 import type { Network, OperationFee } from '../api/types'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { DestinationKind } from '../enums/DestinationKind'
+import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
 
 export const DESTINATION_PLACEHOLDERS: Record<DestinationKind, Record<Network, string>> = {
@@ -24,13 +25,6 @@ export const UNFINISHED_FUNDING_LABELS: Record<AssetLockFundingKind, string> = {
   [AssetLockFundingKind.Shielded]: 'Unfinished L1 shielding',
   [AssetLockFundingKind.Identity]: 'Unfinished identity registration',
   [AssetLockFundingKind.IdentityTopUp]: 'Unfinished identity top-up',
-}
-
-export const SHIELDED_DESTINATION_LABELS: Partial<Record<TransferOperation, string>> = {
-  [TransferOperation.ShieldedTransfer]: 'To (shielded)',
-  [TransferOperation.Unshield]: 'To (Platform)',
-  [TransferOperation.IdentityCreateFromShielded]: 'Creates',
-  [TransferOperation.ShieldedWithdrawal]: 'To (Core L1)',
 }
 
 export const OPERATION_FUNDING_KINDS: Partial<Record<TransferOperation, AssetLockFundingKind>> = {
@@ -68,6 +62,12 @@ export const SHIELDED_BALANCE_UNKNOWN_ERROR = 'Shielded balance is unknown — s
 export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
 
 export const AUTOMATIC_PLATFORM_SELECTION = 'Automatic Platform selection'
+
+export const AUTOMATIC_SOURCE_LABELS: Record<Exclude<SourceKind, SourceKind.Identity>, string> = {
+  [SourceKind.Core]: 'Dash Core (L1)',
+  [SourceKind.PlatformAddress]: AUTOMATIC_PLATFORM_SELECTION,
+  [SourceKind.Shielded]: 'Your shielded balance',
+}
 
 // What an operation reads as before its fee is known.
 export const NO_OPERATION_FEE: OperationFee = { feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null }

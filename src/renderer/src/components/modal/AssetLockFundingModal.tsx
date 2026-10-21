@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
-import { AssetLockFundingKind, AssetLockFundingState, CoreSpendSource } from '@renderer/api/types'
+import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
 import { LockKind } from '@renderer/enums/LockKind'
 import { ModalSize } from '@renderer/enums/ModalSize'
@@ -11,24 +11,14 @@ import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import TxSummary from '@renderer/components/ui/TxSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
 import { ASSET_LOCK_FUNDING_POLL_MS, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-import { davToDash } from '@renderer/utils/balance'
-
-interface AssetLockFundingModalProps {
-  isOpen: boolean
-  advanced?: boolean
-  onClose: () => void
-  walletId: string | null
-  toPlatformAddress: string
-  amountDuffs: string
-  resume: boolean
-  kind: AssetLockFundingKind
-  source?: CoreSpendSource
-  sourceValid?: boolean
-  onSuccess: () => void
-}
+import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
+import { assetLockSummaryCosts, resumedAssetLockAmount } from '@renderer/utils/txSummaryCosts'
+import type { AssetLockFundingModalProps } from '@renderer/types/AssetLockFundingModal'
+import type { TxSummaryEndpoint } from '@renderer/types/TxSummary'
 
 const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: AssetLockFundingPhase; label: string}>> = {
   address: [
@@ -60,14 +50,13 @@ function lockStepLabel(state: AssetLockFundingState, active: boolean): string {
   return 'Network lock (InstantSend or ChainLock)'
 }
 
-const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; emptyTo: string; confirm: string}> = {
+const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; emptyTo: string; confirm: string}> = {
   address: {
     title: 'Fund Platform address',
     resumeTitle: 'Resume funding',
     doneTitle: 'Address funded',
     doneHeading: 'Platform address funded',
     doneNote: 'The locked Dash is now available as credits.',
-    toLabel: 'To (Platform)',
     emptyTo: '',
     confirm: 'Sign & Send',
   },
@@ -77,7 +66,6 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneTitle: 'Credits shielded',
     doneHeading: 'Credits shielded',
     doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
-    toLabel: 'To (Shielded)',
     emptyTo: '',
     confirm: 'Sign & Send',
   },
@@ -87,7 +75,6 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneTitle: 'Identity registered',
     doneHeading: 'Identity registered',
     doneNote: "The locked Dash is now this identity's credit balance.",
-    toLabel: 'Creates',
     emptyTo: 'New Platform identity with 6 keys',
     confirm: 'Sign & Send',
   },
@@ -97,7 +84,6 @@ const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; d
     doneTitle: 'Identity topped up',
     doneHeading: 'Identity topped up',
     doneNote: "The locked Dash is now credits on the identity's balance.",
-    toLabel: 'Identity',
     emptyTo: '',
     confirm: 'Sign & Send',
   },
@@ -111,19 +97,19 @@ function phaseIndex(phase: AssetLockFundingPhase): number {
   return 0
 }
 
-export default function AssetLockFundingModal({
-  isOpen,
-  advanced = true,
-  onClose,
-  walletId,
-  toPlatformAddress,
-  amountDuffs,
-  resume,
-  kind,
-  source,
-  sourceValid = true,
-  onSuccess,
-}: AssetLockFundingModalProps): React.JSX.Element {
+export default function AssetLockFundingModal(props: AssetLockFundingModalProps): React.JSX.Element {
+  const {
+    isOpen,
+    advanced = true,
+    onClose,
+    walletId,
+    toPlatformAddress,
+    from,
+    resume,
+    kind,
+    sourceValid = true,
+    onSuccess,
+  } = props
   const sourceValidRef = useRef(sourceValid)
   sourceValidRef.current = sourceValid
   const { status } = useAuth()
@@ -212,9 +198,9 @@ export default function AssetLockFundingModal({
         setBusy(false)
         return
       }
-      const initial = resume
+      const initial = props.resume
         ? await API.resumeAssetLockFunding(walletId, password)
-        : await API.startAssetLockFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind, source)
+        : await API.startAssetLockFunding(walletId, toPlatformAddress, props.amountDuffs, password, kind, props.source)
       setState(initial)
       setStarted(true)
       setBusy(false)
@@ -240,22 +226,26 @@ export default function AssetLockFundingModal({
   if (busy) confirmLabel = 'Starting…'
   else if (resume) confirmLabel = 'Resume'
 
+  const to: TxSummaryEndpoint[] = []
+  if (toPlatformAddress) to.push({ value: toPlatformAddress, kind: kind === AssetLockFundingKind.Shielded ? TxEndpointKind.Shielded : TxEndpointKind.Address })
+  else if (texts.emptyTo) to.push({ value: texts.emptyTo, kind: TxEndpointKind.Label })
+
+  const costs = props.resume ? undefined : assetLockSummaryCosts(kind, props.amountDuffs, props.feeDuffs, props.feeCredits)
+
   return (
     <Modal open={isOpen} onClose={requestClose} title={modalTitle} size={ModalSize.Lg}>
       {!started && (
         <div className={"phase-fade-in"} key={"confirm"}>
-          <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-            {amountDuffs.length > 0 && (
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount to lock</Text>
-                <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(BigInt(amountDuffs))} Dash</Text>
-              </div>
-            )}
-            <div className={"flex justify-between items-center gap-4"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{texts.toLabel}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{toPlatformAddress || texts.emptyTo}</Text>
-            </div>
-          </div>
+          <TxSummary
+            unit={"duffs"}
+            amount={props.resume ? resumedAssetLockAmount(kind, props.amountDuffs) : props.amountDuffs}
+            from={from}
+            to={to}
+            fees={costs?.fees}
+            total={costs?.total}
+            details={costs?.details}
+            className={"mt-4"}
+          />
 
           <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
             Enter your wallet password. The funding waits for the network to lock the L1 transaction — usually a few seconds with InstantSend, or a few minutes if it falls back to a ChainLock. If the app is closed meanwhile, the funding can be resumed.

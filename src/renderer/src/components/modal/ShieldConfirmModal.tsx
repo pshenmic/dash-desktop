@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Text, SuccessIcon, ShieldSmallIcon } from '../dash-ui-kit-enxtended'
+import { Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
@@ -13,6 +13,9 @@ import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import TxSummary from '@renderer/components/ui/TxSummary'
+import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
+import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 
 export default function ShieldConfirmModal({
@@ -21,10 +24,11 @@ export default function ShieldConfirmModal({
   onClose,
   walletId,
   source,
-  fromDisplay,
+  from,
   toAddress,
   amountCredits,
   feeCredits,
+  totalCredits,
   proverReady,
   sourceValid = true,
   onSuccess,
@@ -64,7 +68,7 @@ export default function ShieldConfirmModal({
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
-      const res = await API.shieldToPool(walletId, source, toAddress, BigInt(amountCredits), password)
+      const res = await API.shieldToPool(walletId, source, toAddress, amountCredits, password)
       setResult(res)
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
@@ -93,29 +97,15 @@ export default function ShieldConfirmModal({
     >
       {phase !== ConfirmModalPhase.Done ? (
         <div className={"phase-fade-in"} key={"confirm"}>
-          <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-            <div className={"flex justify-between items-center gap-4"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-              <Text size={14} weight={"extrabold"} color={"brand"}><CreditsAmount credits={BigInt(amountCredits)} align={"end"} /></Text>
-            </div>
-            {feeCredits !== null && (
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
-                <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
-              </div>
-            )}
-            <div className={"flex justify-between items-center gap-4"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{fromDisplay}</Text>
-            </div>
-            <div className={"flex justify-between items-center gap-4"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-              <div className={"flex items-center gap-1.5 min-w-0"}>
-                <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-                <Text size={12} weight={"medium"} color={"blue-mint"} className={"min-w-0 break-all select-all text-right"}>{toAddress}</Text>
-              </div>
-            </div>
-          </div>
+          <TxSummary
+            unit={"credits"}
+            amount={amountCredits}
+            from={from}
+            to={[{ value: toAddress, kind: TxEndpointKind.Shielded }]}
+            fees={[{ label: TX_SUMMARY_LABELS.reservedFee, amount: feeCredits, unit: 'credits' }]}
+            total={totalCredits}
+            className={"mt-4"}
+          />
 
           {shielding ? (
             <div className={"mt-4 flex items-center gap-3 p-[.875rem] rounded-[.9375rem] dash-block"}>
