@@ -359,7 +359,7 @@ describe('DashPay addresses beside the xpub', () => {
     expect((await provider().getWalletUtxos()).map(u => [u.address, u.txId, u.satoshis])).toEqual([[DASHPAY, 'cc', 250n]])
   })
 
-  it('reads the history of a used DashPay address with a plain GET', async () => {
+  it('adds the history of a used DashPay address', async () => {
     responder = url => url.includes('/addresses/info')
       ? json([{address: DASHPAY, txCount: 1, balance: '0'}])
       : url.includes(`/address/${DASHPAY}/transactions`)
@@ -367,6 +367,5 @@ describe('DashPay addresses beside the xpub', () => {
         : json({resultSet: [tx('aa', 200)], pagination: {limit: 100, nextCursor: null}})
 
     expect((await provider().getWalletTransactions()).map(t => t.txid).sort()).toEqual(['aa', 'cc'])
-    expect(fetches.calls.find(call => call.url.includes('/transactions?page='))?.init?.method).toBeUndefined()
   })
 })

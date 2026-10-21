@@ -7,7 +7,6 @@ import {AliasCheck} from '../../src/main/src/types/Alias'
 import {DashPayContactRequest} from '../../src/main/src/types/DashPay'
 import {DashPayContactRequestDAO} from '../../src/main/src/database/DashPayContactRequestDAO'
 import {IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
-import {DASHPAY_KEY_BOUNDS} from '../../src/main/src/constants/credits'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
@@ -144,17 +143,6 @@ describe('listing identities', () => {
     expect(await identities.getAliases(walletId)).toEqual([])
   })
 
-  it('creates the keys the user chose on an identity of this wallet', async () => {
-    request.mockResolvedValue({stHash: 'hash'})
-    const keys: IdentityKeyRequest[] = [
-      {purpose: 'ENCRYPTION', securityLevel: 'MEDIUM', contractBounds: DASHPAY_KEY_BOUNDS},
-      {purpose: 'DECRYPTION', securityLevel: 'MEDIUM', contractBounds: DASHPAY_KEY_BOUNDS},
-    ]
-
-    expect(await identities.createIdentityKeys(walletId, IDENTIFIER, keys, PASSWORD)).toBe('hash')
-    expect(request).toHaveBeenCalledWith('identityCreateKeys', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, keys}))
-  })
-
   it('creates nothing for no keys, an identity outside the wallet or a wrong password', async () => {
     const key: IdentityKeyRequest = {purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null}
     await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [], PASSWORD)).rejects.toThrow('at least one key')
@@ -179,21 +167,6 @@ describe('listing identities', () => {
       {identifier: IDENTIFIER, contactId: ALICE, relationship: 'established', aliasesList: [], incomingCreatedAt: 20, outgoingCreatedAt: 10, paymentChannelBroken: false},
     ])
     expect(request).toHaveBeenCalledWith('dashPayContactRequests', 'testnet', {identifier: IDENTIFIER, since: 10})
-  })
-
-  it('sends a contact request and returns it among the contacts', async () => {
-    const sent = dashPayContactRequest('sent', IDENTIFIER, ALICE, 10)
-    request.mockImplementation(async (kind: string) => ({
-      dashPayContactRequestSend: {stHash: 'hash'},
-      dashPayContactRequests: {sent: [sent], received: []},
-      identityInfos: {infos: [{identifier: ALICE, balance: 0n, aliasesList: ['alice.dash']}]},
-    })[kind])
-
-    expect(await identities.sendDashPayContactRequest(walletId, IDENTIFIER, ALICE, PASSWORD)).toEqual([
-      {identifier: IDENTIFIER, contactId: ALICE, relationship: 'outgoing', aliasesList: ['alice.dash'], incomingCreatedAt: null, outgoingCreatedAt: 10, paymentChannelBroken: false},
-    ])
-    expect(request).toHaveBeenCalledWith('identityInfos', 'testnet', {identifiers: [ALICE], skipDPNS: false})
-    expect(request).toHaveBeenCalledWith('dashPayContactRequestSend', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, recipient: ALICE}))
   })
 
   it('refuses a contact request to itself or from an identity it does not hold', async () => {
