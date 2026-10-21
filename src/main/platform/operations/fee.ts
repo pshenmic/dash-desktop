@@ -24,7 +24,6 @@ import {
   DPNS_PARENT_DOMAIN,
   FEE_QUOTE_PUBLIC_KEY,
   FUNDING_REMAINDER_STAND_IN,
-  KEY_SPECS,
   PLATFORM_ADDRESS_BYTES,
 } from '../constants'
 import type {ChainAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
@@ -216,9 +215,8 @@ function builtTransition(
     // The inputs carry their own nonces, so neither of these reads the network.
     case 'identityCreate':
       return sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
-        publicKeys: KEY_SPECS.map((spec, keyId) =>
-          new IdentityPublicKeyInCreationWASM(
-            keyId, spec.purpose, spec.securityLevel, 'ECDSA_SECP256K1', false, FEE_QUOTE_PUBLIC_KEY)),
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) =>
+          new IdentityPublicKeyInCreationWASM(id, purpose, securityLevel, keyType, false, FEE_QUOTE_PUBLIC_KEY)),
         inputs: quoteInputs(params.inputCount),
         feeStrategy: DEDUCT_FROM_FIRST,
         inputWitness: [],

@@ -3,7 +3,7 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {signInputs, toFeeStrategy, toInputAddresses} from './signInputs'
-import {KEY_SPECS} from '../../constants'
+import {IDENTITY_KEY_DEFINITIONS} from '../../../src/constants/credits'
 
 type Payload = PlatformOperations['identityCreateFromAddresses']['payload']
 type Result = PlatformOperations['identityCreateFromAddresses']['result']
@@ -14,13 +14,12 @@ export async function identityCreateFromAddresses(payload: Payload, ctx: Operati
   const {seed, identityIndex, inputs} = payload
 
   const hdKey = sdk.keyPair.seedToHdKey(seed, network)
-  const keys = KEY_SPECS.map((spec, keyId) => {
-    const child = sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, keyId, network)
+  const keys = IDENTITY_KEY_DEFINITIONS.map(spec => {
+    const child = sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, spec.id, network)
     if (!child.privateKey || !child.publicKey) {
-      throw new OperationError(`Failed to derive identity key at index ${keyId}`, 'internal')
+      throw new OperationError(`Failed to derive identity key at index ${spec.id}`, 'internal')
     }
     return {
-      keyId,
       spec,
       privateKey: PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network),
       publicKey: child.publicKey as Uint8Array,
@@ -30,7 +29,7 @@ export async function identityCreateFromAddresses(payload: Payload, ctx: Operati
   ctx.progress('signing', 0, 0)
   const unsigned = sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
     publicKeys: keys.map(key =>
-      new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey)),
+      new IdentityPublicKeyInCreationWASM(key.spec.id, key.spec.purpose, key.spec.securityLevel, key.spec.keyType, false, key.publicKey)),
     inputs: toInputAddresses(inputs),
     feeStrategy: toFeeStrategy(payload.feeStrategy),
     inputWitness: [],
@@ -41,7 +40,7 @@ export async function identityCreateFromAddresses(payload: Payload, ctx: Operati
   const transition = IdentityCreateFromAddressesTransitionWASM.fromStateTransition(unsigned)
   // Each key signs a proof-of-possession over the same signable bytes.
   transition.publicKeys = keys.map(key =>
-    new IdentityPublicKeyInCreationWASM(key.keyId, key.spec.purpose, key.spec.securityLevel, 'ECDSA_SECP256K1', false, key.publicKey, key.privateKey.sign(signable)))
+    new IdentityPublicKeyInCreationWASM(key.spec.id, key.spec.purpose, key.spec.securityLevel, key.spec.keyType, false, key.publicKey, key.privateKey.sign(signable)))
   transition.inputWitness = await signInputs(sdk, signable, inputs, seed, network)
 
   const stHash = await broadcast(sdk, transition.toStateTransition(), ctx)

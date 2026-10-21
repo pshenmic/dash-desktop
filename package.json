@@ -34,6 +34,7 @@
     "@electron-toolkit/preload": "3.0.2",
     "@electron-toolkit/utils": "4.0.0",
     "@fontsource/manrope": "^5.2.8",
+    "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
     "@scure/base": "^2.0.0",
     "@scure/bip32": "2.0.1",

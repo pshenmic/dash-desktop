@@ -335,6 +335,11 @@ export interface PlatformOperations {
     }
     result: {stHash: string}
   }
+  // stHash is null when the identity already has both keys.
+  identityAddEncryptionKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number}
+    result: {stHash: string | null}
+  }
   identityExists: {
     payload: {identifier: string}
     result: {exists: boolean}

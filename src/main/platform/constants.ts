@@ -64,13 +64,6 @@ export const PROVED_QUERY_LIMIT = 100
 export const PLATFORM_VERSION_TTL_MS = 10 * 60_000
 export const PLATFORM_VERSION_RETRY_MS = 30_000
 
-export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
-  {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
-  {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
-  {purpose: 'AUTHENTICATION', securityLevel: 'CRITICAL'},
-  {purpose: 'TRANSFER', securityLevel: 'CRITICAL'},
-]
-
 // Prover-lane work saturates the single thread this process has, so serialising
 // it costs nothing and guarantees a spend sees what the sync before it
 // recovered. Reads get no lane: they are socket waits.
@@ -105,6 +98,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
+    case 'identityAddEncryptionKeys':
     case 'aliasRegister':
       return `${request.network}:identity:${request.payload.identifier}`
 
