@@ -4,6 +4,7 @@ import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {signInputs, toFeeStrategy, toInputAddresses} from './signInputs'
 import {IDENTITY_KEY_DEFINITIONS} from '../../../src/constants/credits'
+import {contractBoundsWASM} from '../identity/contractBounds'
 
 type Payload = PlatformOperations['identityCreateFromAddresses']['payload']
 type Result = PlatformOperations['identityCreateFromAddresses']['result']
@@ -29,7 +30,7 @@ export async function identityCreateFromAddresses(payload: Payload, ctx: Operati
   ctx.progress('signing', 0, 0)
   const unsigned = sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
     publicKeys: keys.map(key =>
-      new IdentityPublicKeyInCreationWASM(key.spec.id, key.spec.purpose, key.spec.securityLevel, key.spec.keyType, false, key.publicKey)),
+      new IdentityPublicKeyInCreationWASM(key.spec.id, key.spec.purpose, key.spec.securityLevel, key.spec.keyType, false, key.publicKey, undefined, contractBoundsWASM(key.spec.contractBounds))),
     inputs: toInputAddresses(inputs),
     feeStrategy: toFeeStrategy(payload.feeStrategy),
     inputWitness: [],
@@ -40,7 +41,7 @@ export async function identityCreateFromAddresses(payload: Payload, ctx: Operati
   const transition = IdentityCreateFromAddressesTransitionWASM.fromStateTransition(unsigned)
   // Each key signs a proof-of-possession over the same signable bytes.
   transition.publicKeys = keys.map(key =>
-    new IdentityPublicKeyInCreationWASM(key.spec.id, key.spec.purpose, key.spec.securityLevel, key.spec.keyType, false, key.publicKey, key.privateKey.sign(signable)))
+    new IdentityPublicKeyInCreationWASM(key.spec.id, key.spec.purpose, key.spec.securityLevel, key.spec.keyType, false, key.publicKey, key.privateKey.sign(signable), contractBoundsWASM(key.spec.contractBounds)))
   transition.inputWitness = await signInputs(sdk, signable, inputs, seed, network)
 
   const stHash = await broadcast(sdk, transition.toStateTransition(), ctx)

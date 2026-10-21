@@ -5,6 +5,7 @@ import {
   DataContractWASM,
   DocumentWASM,
   IdentifierWASM,
+  IdentityPublicKeyWASM,
   PlatformAddressWASM,
   PlatformVersionWASM,
   ShieldFromAssetLockTransitionWASM,
@@ -21,7 +22,6 @@ import {
 import {coreAddressToScript} from '../../src/utils/coreScript'
 import {
   CONTEST_FUND_CREDITS,
-  DASHPAY_CONTRACT_ID,
   DPNS_PARENT_DOMAIN,
   FEE_QUOTE_PUBLIC_KEY,
   FUNDING_REMAINDER_STAND_IN,
@@ -34,8 +34,9 @@ import {buildAssetLockProof} from './assetLockProof'
 import {platformVersion} from './platformVersion'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
-import {missingEncryptionKeys} from './identity/addEncryptionKeys'
-import {IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
+import {contractBoundsWASM, sdkContractBounds} from './identity/contractBounds'
+import {IdentityKeyRequest} from '../../src/types/IdentityKeys'
+import {DASHPAY_CONTRACT_ID, IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
 import {
   ASSET_LOCK_BASE_COST_CREDITS,
   CONTRACT_NONCE_BYTES,
@@ -46,6 +47,8 @@ import {
   DPNS_IDENTITY_SUBTREE_BYTES,
   DPNS_PREORDER_BYTES,
   SHIELD_FUNDING_ACTIONS,
+  IDENTITY_CONTRACT_BOUNDS_BYTES,
+  IDENTITY_KEY_BOUNDS_BYTES,
   IDENTITY_KEY_BYTES,
   STORED_BYTE_CREDITS,
 } from '../../src/constants/fee/platform'
@@ -78,6 +81,9 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   const {operation, params} = payload
   if (operation === 'aliasRegister') return aliasRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
   if (operation === 'dashPayContactRequest') return dashPayContactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'identityCreateKeys') {
+    return identityCreateKeysFee(params.keys ?? [], await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
+  }
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
@@ -143,13 +149,11 @@ export async function aliasRegisterFee(ctx: OperationContext, label: string, ide
   }
 }
 
-// Our encryption keys go on in an identity update first when they are missing.
 export async function dashPayContactRequestFee(ctx: OperationContext, recipient: string, identityId: string): Promise<Result> {
   const {sdk} = ctx
-  const [contract, contractNonce, keys] = await Promise.all([
+  const [contract, contractNonce] = await Promise.all([
     sdk.dataContracts.getDataContractByIdentifier(DASHPAY_CONTRACT_ID),
     sdk.identities.getIdentityContractNonce(identityId, DASHPAY_CONTRACT_ID),
-    sdk.identities.getIdentityPublicKeys(identityId),
   ])
 
   const request = sdk.documents.create(DASHPAY_CONTRACT_ID, 'contactRequest', {
@@ -163,14 +167,28 @@ export async function dashPayContactRequestFee(ctx: OperationContext, recipient:
   request.createdAt = Date.now()
   request.createdAtCoreBlockHeight = 0
 
-  const keysBytes = BigInt(missingEncryptionKeys(keys).length) * IDENTITY_KEY_BYTES
   return {
     feeCredits: documentsFee(contract, [
       {document: request, overheadBytes: DASHPAY_CONTACT_REQUEST_BYTES + (contractNonce === 0n ? CONTRACT_NONCE_BYTES : 0n)},
-    ]) + keysBytes * STORED_BYTE_CREDITS,
+    ]),
     metered: true,
     fixedCredits: 0n,
   }
+}
+
+// dpp prices an identity update at its flat floor too, so each key is priced by
+// what adding it stores, which for a contract-bounded key depends on whether the
+// identity already has one bound to that contract.
+export function identityCreateKeysFee(keys: IdentityKeyRequest[], existing: IdentityPublicKeyWASM[]): Result {
+  const bound = new Set(existing.flatMap(key => key.contractBounds == null ? [] : [key.contractBounds.identifier.base58()]))
+  let bytes = 0n
+  for (const {contractBounds} of keys) {
+    bytes += IDENTITY_KEY_BYTES
+    if (contractBounds == null) continue
+    bytes += IDENTITY_KEY_BOUNDS_BYTES + (bound.has(contractBounds.contractId) ? 0n : IDENTITY_CONTRACT_BOUNDS_BYTES)
+    bound.add(contractBounds.contractId)
+  }
+  return {feeCredits: bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
 }
 
 // Shield's own minimum omits note storage, but consensus checks its claims
@@ -180,7 +198,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest'>,
+  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,
@@ -250,8 +268,8 @@ function builtTransition(
     // The inputs carry their own nonces, so neither of these reads the network.
     case 'identityCreate':
       return sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
-        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) =>
-          new IdentityPublicKeyInCreationWASM(id, purpose, securityLevel, keyType, false, FEE_QUOTE_PUBLIC_KEY)),
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType, contractBounds}) =>
+          new IdentityPublicKeyInCreationWASM(id, purpose, securityLevel, keyType, false, FEE_QUOTE_PUBLIC_KEY, undefined, contractBoundsWASM(contractBounds))),
         inputs: quoteInputs(params.inputCount),
         feeStrategy: DEDUCT_FROM_FIRST,
         inputWitness: [],
@@ -282,8 +300,8 @@ function builtTransition(
       })
     case 'identityRegister':
       return sdk.identities.createStateTransition('create', {
-        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) => ({
-          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY,
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType, contractBounds}) => ({
+          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY, contractBounds: sdkContractBounds(contractBounds),
         })),
         assetLockProof: proof,
       })

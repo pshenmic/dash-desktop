@@ -2,6 +2,7 @@ import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {DashPayContactRequest} from '../../src/types/DashPay'
+import {IdentityKey, IdentityKeyRequest} from '../../src/types/IdentityKeys'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -124,6 +125,7 @@ export type TransitionFeeOperation =
   | 'shield'
   | 'aliasRegister'
   | 'dashPayContactRequest'
+  | 'identityCreateKeys'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -133,7 +135,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -163,6 +165,8 @@ export interface FeeParams {
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
+  // identityCreateKeys only: the keys being created.
+  keys?: IdentityKeyRequest[] | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
   shieldedSource?: ShieldedSpendSource | null
@@ -338,10 +342,9 @@ export interface PlatformOperations {
     }
     result: {stHash: string}
   }
-  // stHash is null when the identity already has both keys.
-  identityAddEncryptionKeys: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number}
-    result: {stHash: string | null}
+  identityCreateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; keys: IdentityKeyRequest[]}
+    result: {stHash: string}
   }
   identityExists: {
     payload: {identifier: string}
@@ -360,7 +363,7 @@ export interface PlatformOperations {
     // identity fetch.
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
-    result: {infos: Array<{identifier: string; balance: bigint; aliasesList: string[]}>}
+    result: {infos: Array<{identifier: string; balance: bigint; aliasesList: string[]; keys: IdentityKey[]}>}
   }
   aliasStatus: {
     payload: {identifier: string; label: string}

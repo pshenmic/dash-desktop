@@ -87,8 +87,8 @@ service's params, a worker's event map all go there, not beside the class.
 Three things are shared deliberately: `src/types/Network`, and the protocol
 numbers in `src/constants/credits`, `src/constants/fee/platform` and
 `src/constants/addresses` (`COIN_TYPE`, `PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`),
-all read by `platform/`, plus `src/types/IdentityKeys` in one signing-key
-operation. Separately, `platform/` reaches into a few `src/utils/` helpers —
+all read by `platform/`, plus `src/types/IdentityKeys` in the identity-key
+operations. Separately, `platform/` reaches into a few `src/utils/` helpers —
 `addressOrder`, `coreScript`, `dashPayKeys`, `identityKeys`, `sdkErrors`,
 `shieldedNoteSelection`. That is pure shared logic, not the rule's subject, but
 do not read the rule as "nothing crosses".

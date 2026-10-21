@@ -14,6 +14,9 @@ type CoreSpendSource =
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
 
+// Mirrors IdentityKeyRequest in src/main/src/types/IdentityKeys.
+type IdentityKeyRequest = { purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }
+
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
 type ShieldedSpendSource =
@@ -153,6 +156,7 @@ declare global {
       getIdentities: (walletId: string) => Promise<unknown>
       getAliases: (walletId: string) => Promise<unknown>
       registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
+      createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => Promise<string>
       resolveAlias: (walletId: string, label: string) => Promise<string | null>
       searchAliases: (walletId: string, prefix: string) => Promise<unknown>
       getDashPayContacts: (walletId: string) => Promise<unknown>

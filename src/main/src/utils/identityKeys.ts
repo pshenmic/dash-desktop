@@ -1,6 +1,7 @@
 import {COIN_TYPE, IDENTITY_SCAN_LIMIT} from '../constants/addresses'
 import {Network} from '../types/Network'
-import {DerivedKeyHash, IdentityKeyDescriptor} from '../types/IdentityKeys'
+import {DerivedKeyHash, IdentityKeyDescriptor, IdentityKeyRequest} from '../types/IdentityKeys'
+import {CREATABLE_KEY_PURPOSES, CREATABLE_KEY_SECURITY_LEVELS} from '../constants/credits'
 import {PlatformWorkerService} from '../services/platform/PlatformWorkerService'
 
 // The first index Platform does not already know an identity at. Registration
@@ -48,5 +49,13 @@ export function matchIdentityKey(
     }
   }
 
+  return null
+}
+
+// Why a key cannot be created for an identity, or null when it can.
+export function identityKeyRequestError(key: IdentityKeyRequest): string | null {
+  if (!CREATABLE_KEY_PURPOSES.includes(key.purpose)) return `A ${key.purpose} key cannot be created for an identity`
+  if (!CREATABLE_KEY_SECURITY_LEVELS.includes(key.securityLevel)) return `A ${key.securityLevel} key cannot be created for an identity`
+  if (key.purpose === 'TRANSFER' && key.securityLevel !== 'CRITICAL') return 'A TRANSFER key must be CRITICAL'
   return null
 }

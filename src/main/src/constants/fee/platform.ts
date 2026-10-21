@@ -18,6 +18,7 @@ export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, num
   identityToIdentity: 70,
   aliasRegister: 1,
   dashPayContactRequest: 1,
+  identityCreateKeys: 1,
 }
 
 // FEE_VERSION3's 27,000 storage plus 400 processing credits for every byte a
@@ -40,6 +41,10 @@ export const DPNS_IDENTITY_SUBTREE_BYTES = 283n
 export const DASHPAY_CONTACT_REQUEST_BYTES = 2_860n
 // What adding one identity key stores, measured on testnet at protocol 14.
 export const IDENTITY_KEY_BYTES = 452n
+// On top for a contract-bounded key: its reference under the contract. The
+// identity's first key bound to a contract also opens that contract's subtree.
+export const IDENTITY_KEY_BOUNDS_BYTES = 493n
+export const IDENTITY_CONTRACT_BOUNDS_BYTES = 302n
 
 export const IDENTITY_TRANSFER_MIN_FEE_CREDITS = 200_000_000n
 

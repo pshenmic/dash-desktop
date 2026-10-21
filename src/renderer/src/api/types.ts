@@ -93,6 +93,32 @@ export interface AliasDto {
   checkedAt: number | null
 }
 
+// Limits a key to one contract, or to one document type of it.
+export interface IdentityKeyBoundsDto {
+  contractId: string
+  documentType: string | null
+}
+
+// A key for createIdentityKeys to derive from the mnemonic and register on the
+// identity, always ECDSA_SECP256K1. A TRANSFER key
+// must be CRITICAL; ENCRYPTION and DECRYPTION keys for DashPay are bound to its
+// contactRequest document type.
+export interface IdentityKeyRequestDto {
+  purpose: 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
+  securityLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM'
+  contractBounds: IdentityKeyBoundsDto | null
+}
+
+// getIdentities — one key on an identity, purpose and levels by name.
+export interface IdentityKeyDto {
+  keyId: number
+  purpose: string
+  securityLevel: string
+  keyType: string
+  disabled: boolean
+  contractBounds: IdentityKeyBoundsDto | null
+}
+
 // estimateFee — the one fee endpoint. What gets priced for each operation is
 export interface Outpoint {
   txid: string
@@ -178,6 +204,8 @@ export interface FeeParams {
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
+  // identityCreateKeys only: the keys being created.
+  keys?: IdentityKeyRequestDto[] | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null
 }

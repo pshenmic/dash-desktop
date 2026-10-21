@@ -6,6 +6,8 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {AliasCheck} from '../../src/main/src/types/Alias'
 import {DashPayContactRequest} from '../../src/main/src/types/DashPay'
 import {DashPayContactRequestDAO} from '../../src/main/src/database/DashPayContactRequestDAO'
+import {IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
+import {DASHPAY_KEY_BOUNDS} from '../../src/main/src/constants/credits'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
@@ -76,25 +78,40 @@ describe('listing identities', () => {
     let check = UNCHECKED
     request.mockImplementation(async (kind: string) => kind === 'aliasStatus' ? check : {infos: []})
 
-    await identities.getIdentities(walletId)
-    expect((await aliasDAO.getAliases(walletId))[0]).toMatchObject({status: 'pending'})
+    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'pending'})
 
     check = {...UNCHECKED, status: 'voting', votesFor: 4, votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000}
-    await identities.getIdentities(walletId)
-    expect((await aliasDAO.getAliases(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
+    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
 
     check = {...check, status: 'registered', documentId: 'doc'}
-    await identities.getIdentities(walletId)
-    expect((await aliasDAO.getAliases(walletId))[0]).toMatchObject({status: 'registered', documentId: 'doc'})
+    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'registered', documentId: 'doc'})
     expect(request).toHaveBeenCalledWith('aliasStatus', 'testnet', {identifier: IDENTIFIER, label: 'owl'})
 
     request.mockClear()
-    await identities.getIdentities(walletId)
+    await identities.getAliases(walletId)
+    expect(request).not.toHaveBeenCalledWith('aliasStatus', expect.anything(), expect.anything())
+  })
+
+  // The same mnemonic on a fresh database finds the names it registered before.
+  it('stores a name the chain shows that this wallet has no row for', async () => {
+    request.mockImplementation(async (kind: string) => kind === 'aliasStatus'
+      ? {...UNCHECKED, status: 'registered', isContested: false, documentId: 'doc'}
+      : {infos: [{identifier: IDENTIFIER, balance: 0n, aliasesList: ['Owl.dash']}]})
+
+    expect(await identities.getAliases(walletId)).toMatchObject([
+      {identifier: IDENTIFIER, label: 'Owl', normalizedLabel: '0w1', status: 'registered', documentId: 'doc', preorderSalt: null},
+    ])
+    request.mockClear()
+    await identities.getAliases(walletId)
     expect(request).not.toHaveBeenCalledWith('aliasStatus', expect.anything(), expect.anything())
   })
 
   it('records a registered name as pending under the identity that sent it', async () => {
-    request.mockResolvedValue({...UNCHECKED, preorderSalt: SALT, error: null})
+    request.mockImplementation(async (kind: string) => ({
+      identityInfos: {infos: []},
+      aliasStatus: UNCHECKED,
+      aliasRegister: {...UNCHECKED, preorderSalt: SALT, error: null},
+    })[kind])
 
     const alias = await identities.registerAlias(walletId, IDENTIFIER, 'Owl', PASSWORD)
 
@@ -102,16 +119,17 @@ describe('listing identities', () => {
       identifier: IDENTIFIER, identityIndex: 0, label: 'Owl', preorderSalt: null,
     }))
     expect(alias).toMatchObject({status: 'pending', label: 'Owl', normalizedLabel: '0w1', isContested: true})
-    expect(await identities.getAliases(walletId)).toEqual([alias])
+    expect(await identities.getAliases(walletId)).toMatchObject([{...alias, checkedAt: expect.any(Number)}])
   })
 
   it('keeps the salt of a domain refused after its preorder, and resumes the preorder next time', async () => {
-    request.mockResolvedValue({...UNCHECKED, preorderSalt: SALT, error: 'insufficient balance'})
+    let error: string | null = 'insufficient balance'
+    request.mockImplementation(async (kind: string) => kind === 'identityInfos' ? {infos: []} : {...UNCHECKED, preorderSalt: SALT, error})
 
     await expect(identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)).rejects.toThrow('insufficient balance')
     expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'missing', preorderSalt: SALT})
 
-    request.mockResolvedValue({...UNCHECKED, preorderSalt: SALT, error: null})
+    error = null
     await identities.registerAlias(walletId, IDENTIFIER, 'OWL', PASSWORD)
     expect(request).toHaveBeenLastCalledWith('aliasRegister', 'testnet', expect.objectContaining({preorderSalt: SALT}))
     expect(await identities.getAliases(walletId)).toHaveLength(1)
@@ -119,30 +137,49 @@ describe('listing identities', () => {
   })
 
   it('registers nothing for an identity outside the wallet or with a wrong password', async () => {
+    request.mockResolvedValue({infos: []})
     await expect(identities.registerAlias(walletId, 'someone-else', 'owl', PASSWORD)).rejects.toThrow('Identity not found')
     await expect(identities.registerAlias(walletId, IDENTIFIER, 'owl', 'wrong')).rejects.toThrow('Invalid wallet password')
     expect(request).not.toHaveBeenCalledWith('aliasRegister', expect.anything(), expect.anything())
     expect(await identities.getAliases(walletId)).toEqual([])
   })
 
+  it('creates the keys the user chose on an identity of this wallet', async () => {
+    request.mockResolvedValue({stHash: 'hash'})
+    const keys: IdentityKeyRequest[] = [
+      {purpose: 'ENCRYPTION', securityLevel: 'MEDIUM', contractBounds: DASHPAY_KEY_BOUNDS},
+      {purpose: 'DECRYPTION', securityLevel: 'MEDIUM', contractBounds: DASHPAY_KEY_BOUNDS},
+    ]
+
+    expect(await identities.createIdentityKeys(walletId, IDENTIFIER, keys, PASSWORD)).toBe('hash')
+    expect(request).toHaveBeenCalledWith('identityCreateKeys', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, keys}))
+  })
+
+  it('creates nothing for a refused key, an identity outside the wallet or a wrong password', async () => {
+    const key: IdentityKeyRequest = {purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null}
+    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [{...key, purpose: 'TRANSFER'}], PASSWORD)).rejects.toThrow('must be CRITICAL')
+    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [], PASSWORD)).rejects.toThrow('at least one key')
+    await expect(identities.createIdentityKeys(walletId, 'someone-else', [key], PASSWORD)).rejects.toThrow('Identity not found')
+    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [key], 'wrong')).rejects.toThrow('Invalid wallet password')
+    expect(request).not.toHaveBeenCalledWith('identityCreateKeys', expect.anything(), expect.anything())
+  })
+
   // Only what is newer than the newest stored request is asked for, and the
   // boundary millisecond is asked for again, so what comes back twice is kept once.
-  it('stores new contact requests from the refresh and pairs them into contacts', async () => {
+  it('fetches new contact requests and pairs them into contacts', async () => {
     const sent = dashPayContactRequest('sent', IDENTIFIER, ALICE, 10)
     const received = dashPayContactRequest('received', ALICE, IDENTIFIER, 20)
     request.mockImplementation(async (kind: string) => kind === 'dashPayContactRequests' ? {sent: [sent], received: []} : {infos: []})
-    await identities.getIdentities(walletId)
-    expect(request).toHaveBeenCalledWith('dashPayContactRequests', 'testnet', {identifier: IDENTIFIER, since: 0})
     expect(await identities.getDashPayContacts(walletId)).toEqual([
       {identifier: IDENTIFIER, contactId: ALICE, relationship: 'outgoing', aliasesList: [], incomingCreatedAt: null, outgoingCreatedAt: 10, paymentChannelBroken: false},
     ])
+    expect(request).toHaveBeenCalledWith('dashPayContactRequests', 'testnet', {identifier: IDENTIFIER, since: 0})
 
     request.mockImplementation(async (kind: string) => kind === 'dashPayContactRequests' ? {sent: [sent], received: [received]} : {infos: []})
-    await identities.getIdentities(walletId)
-    expect(request).toHaveBeenLastCalledWith('dashPayContactRequests', 'testnet', {identifier: IDENTIFIER, since: 10})
     expect(await identities.getDashPayContacts(walletId)).toEqual([
       {identifier: IDENTIFIER, contactId: ALICE, relationship: 'established', aliasesList: [], incomingCreatedAt: 20, outgoingCreatedAt: 10, paymentChannelBroken: false},
     ])
+    expect(request).toHaveBeenCalledWith('dashPayContactRequests', 'testnet', {identifier: IDENTIFIER, since: 10})
   })
 
   it('sends a contact request and returns it among the contacts', async () => {

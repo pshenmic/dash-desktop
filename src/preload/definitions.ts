@@ -12,6 +12,9 @@ type CoreSpendSource =
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
 
+// Mirrors IdentityKeyRequest in src/main/src/types/IdentityKeys.
+type IdentityKeyRequest = { purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }
+
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
 type ShieldedSpendSource =
@@ -55,6 +58,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getIdentities: (walletId: string) => ipcRenderer.invoke('getIdentities', walletId),
   getAliases: (walletId: string) => ipcRenderer.invoke('getAliases', walletId),
   registerAlias: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerAlias', walletId, identifier, label, password),
+  createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => ipcRenderer.invoke('createIdentityKeys', walletId, identifier, keys, password),
   resolveAlias: (walletId: string, label: string): Promise<string | null> => ipcRenderer.invoke('resolveAlias', walletId, label),
   searchAliases: (walletId: string, prefix: string) => ipcRenderer.invoke('searchAliases', walletId, prefix),
   getDashPayContacts: (walletId: string) => ipcRenderer.invoke('getDashPayContacts', walletId),

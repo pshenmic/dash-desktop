@@ -1,4 +1,5 @@
 import { API } from '@renderer/api'
+import { IdentityKeyDto } from '@renderer/api/types'
 import { IDENTITIES_REFRESH_MS } from '@renderer/constants'
 import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
@@ -7,6 +8,7 @@ export type IdentityApiDto = {
   identifier: string
   alias: string | null
   aliasesList: string[]
+  keys: IdentityKeyDto[]
   balance: {
     amount: bigint
     usdAmount: string

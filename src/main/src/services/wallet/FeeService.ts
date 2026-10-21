@@ -170,6 +170,7 @@ export class FeeService {
       case 'identityWithdrawal':
       case 'aliasRegister':
       case 'dashPayContactRequest':
+      case 'identityCreateKeys':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -366,9 +367,13 @@ export class FeeService {
       case 'aliasRegister':
         throw new Error('A name registration is two transitions, so it has no single transaction to preview')
 
-      // Adds the identity's encryption keys first when it lacks them.
+      // Its encryptedPublicKey is encrypted with a key only the seed derives.
       case 'dashPayContactRequest':
-        throw new Error('A contact request can be two transitions, so it has no single transaction to preview')
+        throw new Error('A contact request is encrypted with the seed, so there is nothing to show before it is unlocked')
+
+      // Each new key signs a proof of possession only the seed can make.
+      case 'identityCreateKeys':
+        throw new Error('Creating keys needs the seed to derive them, so there is nothing to show before it is unlocked')
 
       case 'shield': {
         requireAutomaticSelection(params.coreSource)

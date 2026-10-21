@@ -28,6 +28,16 @@ export async function identityInfos(payload: Payload, ctx: OperationContext): Pr
       identifier: identity.id.base58(),
       balance: BigInt(identity.balance),
       aliasesList: payload.skipDPNS ? [] : await resolveAliasesList(sdk, identifier),
+      keys: identity.getPublicKeys().map(key => ({
+        keyId: key.keyId,
+        purpose: key.purpose,
+        securityLevel: key.securityLevel,
+        keyType: key.keyType,
+        disabled: key.disabledAt != null,
+        contractBounds: key.contractBounds == null
+          ? null
+          : {contractId: key.contractBounds.identifier.base58(), documentType: key.contractBounds.documentTypeName},
+      })),
     }
   }))
 

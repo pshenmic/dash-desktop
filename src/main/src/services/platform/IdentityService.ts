@@ -8,9 +8,11 @@ import {WalletDAO} from '../../database/WalletDAO'
 import {Alias, AliasSearchResult} from '../../types/Alias'
 import {DashPayContact} from '../../types/DashPay'
 import {IdentityInfo} from '../../types/Identity'
+import {IdentityKeyRequest} from '../../types/IdentityKeys'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
+import {identityKeyRequestError} from '../../utils/identityKeys'
 import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {withUnlockedWallet} from '../../utils/walletSeed'
@@ -40,14 +42,10 @@ export class IdentityService {
     const wallet = await requireWallet(this.walletDAO, walletId)
 
     const stored = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    const [{infos}] = await Promise.all([
-      this.platform.request('identityInfos', wallet.network, {
-        identifiers: stored.map(entry => entry.identifier),
-        skipDPNS: false,
-      }),
-      this.recheckAliases(walletId, wallet.network),
-      this.recheckDashPayContactRequests(walletId, wallet.network, stored.map(entry => entry.identifier)),
-    ])
+    const {infos} = await this.platform.request('identityInfos', wallet.network, {
+      identifiers: stored.map(entry => entry.identifier),
+      skipDPNS: false,
+    })
     const byIdentifier = new Map(infos.map(info => [info.identifier, info]))
 
     // An identity the worker could not resolve is not registered yet — skipped.
@@ -60,6 +58,7 @@ export class IdentityService {
         identifier: info.identifier,
         alias: info.aliasesList[0] ?? null,
         aliasesList: info.aliasesList,
+        keys: info.keys,
         balance: {
           amount: info.balance,
           usdAmount: '0.0'
@@ -72,10 +71,15 @@ export class IdentityService {
 
   // A pending name stays pending while the chain shows nothing: its domain
   // document or contest lands a block or two after the broadcast.
-  private async recheckAliases(walletId: string, network: Network): Promise<void> {
-    const unsettled = (await this.aliasDAO.getAliases(walletId))
-      .filter(alias => alias.status === 'pending' || alias.status === 'voting')
-    await Promise.all(unsettled.map(async alias => {
+  private async recheckAliases(walletId: string, network: Network, infos: Array<{identifier: string; aliasesList: string[]}>): Promise<void> {
+    const stored = await this.aliasDAO.getAliases(walletId)
+    const unsettled = stored.filter(alias => alias.status === 'pending' || alias.status === 'voting')
+    // A name the chain shows with no row here was registered elsewhere, or before this database.
+    const unknown = infos.flatMap(({identifier, aliasesList}) => aliasesList.map(name => {
+      const [label] = name.split('.')
+      return {walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label), status: 'missing' as const, preorderSalt: null, createdAt: Date.now()}
+    })).filter(alias => !stored.some(known => known.identifier === alias.identifier && known.normalizedLabel === alias.normalizedLabel))
+    await Promise.all([...unsettled, ...unknown].map(async alias => {
       try {
         const check = await this.platform.request('aliasStatus', network, {identifier: alias.identifier, label: alias.label})
         const status = alias.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
@@ -110,6 +114,7 @@ export class IdentityService {
   async getDashPayContacts(walletId: string): Promise<DashPayContact[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
+    await this.recheckDashPayContactRequests(walletId, wallet.network, identities.map(entry => entry.identifier))
     const contacts = dashPayContacts(await this.dashPayContactRequestDAO.getContactRequests(walletId), identities.map(entry => entry.identifier))
     if (contacts.length === 0) return contacts
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
@@ -176,7 +181,12 @@ export class IdentityService {
   }
 
   async getAliases(walletId: string): Promise<Alias[]> {
-    await requireWallet(this.walletDAO, walletId)
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const {infos} = await this.platform.request('identityInfos', wallet.network, {
+      identifiers: (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier),
+      skipDPNS: false,
+    })
+    await this.recheckAliases(walletId, wallet.network, infos)
     return this.aliasDAO.getAliases(walletId)
   }
 
@@ -219,6 +229,26 @@ export class IdentityService {
     }
     log.info(`${label}: sent, pending`)
     return alias
+  }
+
+  async createIdentityKeys(walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string): Promise<string> {
+    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+    if (keys.length === 0) {
+      throw new Error('Choose at least one key to create')
+    }
+    const refusal = keys.map(identityKeyRequestError).find(error => error != null)
+    if (refusal != null) {
+      throw new Error(refusal)
+    }
+
+    log.info(`${identifier}: creating ${keys.map(key => `${key.purpose} ${key.securityLevel}`).join(', ')}`)
+    const {stHash} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('identityCreateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, keys}))
+    log.info(`${identifier}: keys created in ${stHash}`)
+    return stHash
   }
 
   // Feeds the credits half of the wallet balance, so it skips the DPNS lookup

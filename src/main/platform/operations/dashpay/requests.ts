@@ -1,7 +1,8 @@
 import {DocumentWASM, IdentifierWASM} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext} from '../types'
-import {DASHPAY_CONTRACT_ID, PROVED_QUERY_LIMIT} from '../../constants'
+import {PROVED_QUERY_LIMIT} from '../../constants'
+import {DASHPAY_CONTRACT_ID} from '../../../src/constants/credits'
 import {DashPayContactRequest} from '../../../src/types/DashPay'
 
 type Payload = PlatformOperations['dashPayContactRequests']['payload']

@@ -5,9 +5,9 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {dashPayContactRequestFee} from '../fee'
-import {DASHPAY_CONTRACT_ID, DASHPAY_RECIPIENT_KEY_PURPOSES} from '../../constants'
+import {DASHPAY_RECIPIENT_KEY_PURPOSES} from '../../constants'
+import {DASHPAY_CONTRACT_ID} from '../../../src/constants/credits'
 import {accountReference, dashPayAccountPath, dashPaySharedKey, deriveDashPayContactKey, encryptDashPayContactKey} from '../../../src/utils/dashPayKeys'
-import {identityAddEncryptionKeys} from '../identity/addEncryptionKeys'
 import {applySignature, signingKey} from '../identity/signingKey'
 import {Logger} from '../../../src/utils/logger'
 
@@ -21,20 +21,25 @@ export async function dashPayContactRequestSend(payload: Payload, ctx: Operation
   const {sdk, network} = ctx
   const {seed, identifier, identityIndex, recipient} = payload
 
-  const [recipientKeys, [earlier]] = await Promise.all([
+  const [ourKeys, recipientKeys, [earlier]] = await Promise.all([
+    sdk.identities.getIdentityPublicKeys(identifier),
     sdk.identities.getIdentityPublicKeys(recipient),
     sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest', [['$ownerId', '==', identifier], ['toUserId', '==', recipient]], undefined, 1),
   ])
   if (earlier != null) throw new OperationError('A contact request to this identity was already sent', 'internal')
+  if (!ourKeys.some(key => key.purpose === 'ENCRYPTION' && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null)) {
+    throw new OperationError('Create DashPay keys for this identity before sending a contact request', 'internal')
+  }
   const recipientKey = DASHPAY_RECIPIENT_KEY_PURPOSES
     .map(purpose => recipientKeys.find(key => key.purpose === purpose && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null))
     .find(key => key != null)
-  if (recipientKey == null) throw new OperationError('This identity has no key to receive contact requests with', 'internal')
+  if (recipientKey == null) {
+    throw new OperationError('This identity cannot receive contact requests until its wallet adds an encryption key to it', 'internal')
+  }
   const [cost, balance] = await Promise.all([dashPayContactRequestFee(ctx, recipient, identifier), sdk.identities.getIdentityBalance(identifier)])
   log.info(`contact request ${identifier} -> ${recipient}: costs ${cost.feeCredits} of ${balance} credits`)
   if (balance < cost.feeCredits) throw new OperationError('The identity cannot afford a contact request', 'insufficientFunds')
 
-  await identityAddEncryptionKeys({seed, identifier, identityIndex}, ctx)
   const encryption = await signingKey(sdk, seed, network, identifier, identityIndex, 'ENCRYPTION')
   const account = HDKey.fromMasterSeed(seed).derive(dashPayAccountPath(network))
   const contactKey = deriveDashPayContactKey(account, new IdentifierWASM(identifier).bytes(), new IdentifierWASM(recipient).bytes())

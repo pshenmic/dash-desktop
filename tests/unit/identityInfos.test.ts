@@ -4,6 +4,14 @@ import {OperationContext} from '../../src/main/platform/operations/types'
 
 const KNOWN = ['id-one', 'id-two']
 
+const KEYS = [
+  {keyId: 0, purpose: 'AUTHENTICATION', securityLevel: 'MASTER', keyType: 'ECDSA_SECP256K1', disabledAt: 5n, contractBounds: undefined},
+  {
+    keyId: 3, purpose: 'ENCRYPTION', securityLevel: 'MEDIUM', keyType: 'ECDSA_SECP256K1', disabledAt: undefined,
+    contractBounds: {identifier: {base58: () => 'dashpay'}, documentTypeName: 'contactRequest'},
+  },
+]
+
 interface Calls {
   identities: string[]
   names: string[]
@@ -25,7 +33,7 @@ function context(
         getIdentityByIdentifier: vi.fn(async (identifier: string) => {
           calls.identities.push(identifier)
           if (!known.includes(identifier)) throw new Error('not found')
-          return {id: {base58: () => identifier}, balance: 1_000n}
+          return {id: {base58: () => identifier}, balance: 1_000n, getPublicKeys: () => KEYS}
         }),
       },
       names: {
@@ -45,6 +53,20 @@ function context(
 }
 
 describe('identityInfos', () => {
+  it('reports every key, its bounds and whether it is disabled', async () => {
+    const {ctx} = context(['id-one'])
+
+    const {infos} = await identityInfos({identifiers: ['id-one'], skipDPNS: true}, ctx)
+
+    expect(infos[0]!.keys).toEqual([
+      {keyId: 0, purpose: 'AUTHENTICATION', securityLevel: 'MASTER', keyType: 'ECDSA_SECP256K1', disabled: true, contractBounds: null},
+      {
+        keyId: 3, purpose: 'ENCRYPTION', securityLevel: 'MEDIUM', keyType: 'ECDSA_SECP256K1', disabled: false,
+        contractBounds: {contractId: 'dashpay', documentType: 'contactRequest'},
+      },
+    ])
+  })
+
   it('resolves aliases when asked for them', async () => {
     const {ctx, calls} = context()
 
@@ -101,7 +123,7 @@ describe('identityInfos', () => {
             peak = Math.max(peak, inFlight)
             await new Promise(resolve => setTimeout(resolve, 5))
             inFlight--
-            return {id: {base58: () => identifier}, balance: 1n}
+            return {id: {base58: () => identifier}, balance: 1n, getPublicKeys: () => []}
           }),
         },
         names: {searchByIdentity: vi.fn(async () => [])},
