@@ -21,10 +21,7 @@ export const IDENTITY_KEY_LOOKAHEAD = 20
 export const DPNS_PARENT_DOMAIN = 'dash'
 export const DPNS_CONTESTED_INDEX = 'parentNameAndLabel'
 
-// dash-sdk's DashPay key rules. Most mobile identities have no DECRYPTION key
-// and are written to on their ENCRYPTION key, so a request we send prefers one
-// and falls back to the other; requests already on chain name more purposes.
-export const DASHPAY_RECIPIENT_KEY_PURPOSES = ['DECRYPTION', 'ENCRYPTION']
+// dash-sdk's DashPay key rules: requests already on chain may name these purposes.
 export const DASHPAY_RECEIVED_RECIPIENT_KEY_PURPOSES = ['DECRYPTION', 'ENCRYPTION', 'AUTHENTICATION', 'TRANSFER']
 export const DASHPAY_RECEIVED_SENDER_KEY_PURPOSES = ['ENCRYPTION', 'AUTHENTICATION']
 
@@ -119,7 +116,6 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityNonce':
     case 'identityInfos':
     case 'aliasStatus':
-    case 'aliasResolve':
     case 'aliasSearch':
     case 'dashPayContactRequests':
     case 'dashPayContactKey':

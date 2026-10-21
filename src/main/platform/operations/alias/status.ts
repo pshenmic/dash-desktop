@@ -43,24 +43,17 @@ async function contest({sdk, network}: OperationContext, normalizedLabel: string
   }
 }
 
-// Exact match: the SDK's searchByName matches a prefix.
-export async function findDomain(sdk: OperationContext['sdk'], normalizedLabel: string): Promise<DocumentWASM | undefined> {
-  const [domain] = await sdk.documents.query(DPNS_DATA_CONTRACT_ID, 'domain', [
-    ['normalizedParentDomainName', '==', DPNS_PARENT_DOMAIN],
-    ['normalizedLabel', '==', normalizedLabel],
-  ])
-  return domain
-}
-
 export async function aliasStatus(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {sdk} = ctx
   const {identifier, label} = payload
   const normalizedLabel = sdk.names.normalizeLabel(label)
   const isContested = sdk.names.testNameContested(`${label}.${DPNS_PARENT_DOMAIN}`)
 
-  const domain = await findDomain(sdk, normalizedLabel)
+  const [domain] = await sdk.documents.query(DPNS_DATA_CONTRACT_ID, 'domain', [
+    ['normalizedParentDomainName', '==', DPNS_PARENT_DOMAIN],
+    ['normalizedLabel', '==', normalizedLabel],
+  ])
   throwIfAborted(ctx.signal)
-
   const vote = isContested ? await contest(ctx, normalizedLabel) : null
   const ours = vote?.contenders.find(contender => contender.identifier === identifier)
 

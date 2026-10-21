@@ -163,10 +163,6 @@ export class API {
     return this.api.getAliases(walletId) as Promise<AliasDto[]>
   }
 
-  static async resolveAlias(walletId: string, label: string): Promise<string | null> {
-    return this.api.resolveAlias(walletId, label)
-  }
-
   // Find users by the start of their name, e.g. to send a contact request.
   static async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResultDto[]> {
     return this.api.searchAliases(walletId, prefix) as Promise<AliasSearchResultDto[]>

@@ -363,17 +363,11 @@ export class FeeService {
         }
       }
 
-      // A preorder and its domain, signed in the worker one after the other.
+      // Each is built and signed in one worker call, from keys only the seed derives.
       case 'aliasRegister':
-        throw new Error('A name registration is two transitions, so it has no single transaction to preview')
-
-      // Its encryptedPublicKey is encrypted with a key only the seed derives.
       case 'dashPayContactRequest':
-        throw new Error('A contact request is encrypted with the seed, so there is nothing to show before it is unlocked')
-
-      // Each new key signs a proof of possession only the seed can make.
       case 'identityCreateKeys':
-        throw new Error('Creating keys needs the seed to derive them, so there is nothing to show before it is unlocked')
+        throw new Error(`${operation} has no transaction to preview before the wallet is unlocked`)
 
       case 'shield': {
         requireAutomaticSelection(params.coreSource)

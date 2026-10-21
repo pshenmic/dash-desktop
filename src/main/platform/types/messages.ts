@@ -369,10 +369,6 @@ export interface PlatformOperations {
     payload: {identifier: string; label: string}
     result: AliasCheck
   }
-  aliasResolve: {
-    payload: {label: string}
-    result: {identifier: string | null}
-  }
   // Names whose label starts with prefix, in label order, at most one proved page.
   aliasSearch: {
     payload: {prefix: string}

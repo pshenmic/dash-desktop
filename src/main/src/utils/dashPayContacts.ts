@@ -1,4 +1,4 @@
-import {DashPayContactRequest, DashPayContact, DashPayPayment} from '../types/DashPay'
+import {DashPayContactRequest, DashPayContact, DashPayContactRelationship, DashPayPayment} from '../types/DashPay'
 import {Transaction} from '../types/Transaction'
 import {DUFFS_PER_DASH} from '../constants/chain'
 
@@ -16,11 +16,12 @@ export function dashPayContacts(requests: DashPayContactRequest[], identifiers: 
       Object.assign(pair(request.toUserId, request.ownerId), {incomingCreatedAt: request.createdAt, paymentChannelBroken: request.paymentChannelBroken})
     }
   }
-  return [...pairs.values()].map(contact => ({
-    ...contact,
-    relationship: contact.incomingCreatedAt == null ? 'outgoing' : contact.outgoingCreatedAt == null ? 'incoming' : 'established',
-    aliasesList: [],
-  }))
+  return [...pairs.values()].map(contact => ({...contact, relationship: relationship(contact), aliasesList: []}))
+}
+
+function relationship({incomingCreatedAt, outgoingCreatedAt}: Pick<DashPayContact, 'incomingCreatedAt' | 'outgoingCreatedAt'>): DashPayContactRelationship {
+  if (incomingCreatedAt != null && outgoingCreatedAt != null) return 'established'
+  return incomingCreatedAt != null ? 'incoming' : 'outgoing'
 }
 
 // Our transactions with outputs on one friendship's chains: ours for what they

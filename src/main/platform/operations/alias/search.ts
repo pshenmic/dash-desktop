@@ -8,7 +8,7 @@ type Result = PlatformOperations['aliasSearch']['result']
 
 // The SDK's searchByName validates its argument as a whole name, which refuses
 // the short prefix a user is still typing, so the same query runs here directly.
-// Owners, as aliasResolve answers: a transferred name keeps its old record.
+// Owners, not records.identity: a transferred name keeps its old record.
 export async function aliasSearch(payload: Payload, {sdk}: OperationContext): Promise<Result> {
   const domains = await sdk.documents.query(DPNS_DATA_CONTRACT_ID, 'domain', [
     ['normalizedParentDomainName', '==', DPNS_PARENT_DOMAIN],

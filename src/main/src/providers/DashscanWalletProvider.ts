@@ -106,8 +106,7 @@ export class DashscanWalletProvider implements WalletProvider {
       if (pagination.nextCursor == null || pagination.nextCursor === cursor) break
       cursor = pagination.nextCursor
     }
-    const dashPay = await this.dashPayAddresses()
-    const used = dashPay.length === 0 ? [] : (await this.addressInfo(dashPay)).filter(info => info.txCount > 0)
+    const used = (await this.addressInfo(await this.dashPayAddresses())).filter(info => info.txCount > 0)
     for (const {address} of used) {
       for (let page = 1; page <= XPUB_MAX_PAGES; page++) {
         const {resultSet} = await requestJson<DashscanPage<DashscanTransaction>>(

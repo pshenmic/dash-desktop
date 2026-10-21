@@ -5,7 +5,6 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {dashPayContactRequestFee} from '../fee'
-import {DASHPAY_RECIPIENT_KEY_PURPOSES} from '../../constants'
 import {DASHPAY_CONTRACT_ID} from '../../../src/constants/credits'
 import {accountReference, dashPayAccountPath, dashPaySharedKey, deriveDashPayContactKey, encryptDashPayContactKey} from '../../../src/utils/dashPayKeys'
 import {applySignature, signingKey} from '../identity/signingKey'
@@ -21,18 +20,14 @@ export async function dashPayContactRequestSend(payload: Payload, ctx: Operation
   const {sdk, network} = ctx
   const {seed, identifier, identityIndex, recipient} = payload
 
-  const [ourKeys, recipientKeys, [earlier]] = await Promise.all([
-    sdk.identities.getIdentityPublicKeys(identifier),
+  const [recipientKeys, [earlier]] = await Promise.all([
     sdk.identities.getIdentityPublicKeys(recipient),
     sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest', [['$ownerId', '==', identifier], ['toUserId', '==', recipient]], undefined, 1),
   ])
   if (earlier != null) throw new OperationError('A contact request to this identity was already sent', 'internal')
-  if (!ourKeys.some(key => key.purpose === 'ENCRYPTION' && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null)) {
-    throw new OperationError('Create DashPay keys for this identity before sending a contact request', 'internal')
-  }
-  const recipientKey = DASHPAY_RECIPIENT_KEY_PURPOSES
-    .map(purpose => recipientKeys.find(key => key.purpose === purpose && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null))
-    .find(key => key != null)
+  // Most mobile identities have no DECRYPTION key and are written to on their ENCRYPTION key.
+  const usable = recipientKeys.filter(key => key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null)
+  const recipientKey = usable.find(key => key.purpose === 'DECRYPTION') ?? usable.find(key => key.purpose === 'ENCRYPTION')
   if (recipientKey == null) {
     throw new OperationError('This identity cannot receive contact requests until its wallet adds an encryption key to it', 'internal')
   }

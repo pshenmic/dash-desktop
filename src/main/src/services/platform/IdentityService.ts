@@ -7,7 +7,7 @@ import {IdentityDAO} from '../../database/IdentityDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {Alias, AliasSearchResult} from '../../types/Alias'
 import {DashPayContact} from '../../types/DashPay'
-import {IdentityInfo} from '../../types/Identity'
+import {Identity, IdentityInfo} from '../../types/Identity'
 import {IdentityKeyRequest} from '../../types/IdentityKeys'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
@@ -68,6 +68,14 @@ export class IdentityService {
     })
   }
 
+  private async requireIdentity(walletId: string, identifier: string): Promise<Identity> {
+    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
+    if (identity == null) {
+      throw new Error('Identity not found in this wallet')
+    }
+    return identity
+  }
+
   // A pending name stays pending while the chain shows nothing: its domain
   // document or contest lands a block or two after the broadcast.
   private async recheckAliases(walletId: string, network: Network, infos: Array<{identifier: string; aliasesList: string[]}>): Promise<void> {
@@ -126,10 +134,7 @@ export class IdentityService {
 
   // Accepting a request is sending one back, so this does both.
   async sendDashPayContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContact[]> {
-    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
-    if (identity == null) {
-      throw new Error('Identity not found in this wallet')
-    }
+    const identity = await this.requireIdentity(walletId, identifier)
     if (recipient === identifier) {
       throw new Error('An identity cannot send a contact request to itself')
     }
@@ -189,12 +194,6 @@ export class IdentityService {
     return this.aliasDAO.getAliases(walletId)
   }
 
-  async resolveAlias(walletId: string, label: string): Promise<string | null> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-    const {identifier} = await this.platform.request('aliasResolve', wallet.network, {label})
-    return identifier
-  }
-
   async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResult[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const {results} = await this.platform.request('aliasSearch', wallet.network, {prefix})
@@ -202,10 +201,7 @@ export class IdentityService {
   }
 
   async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<Alias> {
-    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
-    if (identity == null) {
-      throw new Error('Identity not found in this wallet')
-    }
+    const identity = await this.requireIdentity(walletId, identifier)
 
     // Registering a name again resumes a preorder an earlier attempt paid for.
     const normalizedLabel = convertToHomographSafeChars(label)
@@ -231,10 +227,7 @@ export class IdentityService {
   }
 
   async createIdentityKeys(walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string): Promise<string> {
-    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
-    if (identity == null) {
-      throw new Error('Identity not found in this wallet')
-    }
+    const identity = await this.requireIdentity(walletId, identifier)
     if (keys.length === 0) {
       throw new Error('Choose at least one key to create')
     }

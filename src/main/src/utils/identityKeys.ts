@@ -29,7 +29,7 @@ export function identityPath(network: 'mainnet' | 'testnet', identityIndex: numb
 export function matchIdentityKey(
   identityKeys: IdentityKeyDescriptor[],
   derivedHashes: DerivedKeyHash[],
-  purpose = 'TRANSFER',
+  purpose: string,
   securityLevel?: string,
 ): { keyId: number; keyIndex: number } | null {
   const keyIndexByHash = new Map(
@@ -37,8 +37,7 @@ export function matchIdentityKey(
   )
 
   const wantedKeys = identityKeys
-    .filter(key => key.purpose.toUpperCase() === purpose)
-    .filter(key => securityLevel == null || key.securityLevel.toUpperCase() === securityLevel)
+    .filter(key => key.purpose.toUpperCase() === purpose && (securityLevel == null || key.securityLevel.toUpperCase() === securityLevel))
     .sort((a, b) => a.keyId - b.keyId)
 
   for (const key of wantedKeys) {

@@ -442,10 +442,13 @@ export class WalletSyncService {
       // Through the persist queue: applied directly, a cursorAdvanced enqueued
       // before this rewind would run after it, and advanceCursor's MAX would
       // swallow the reset.
-      // A floor above the cursor would skip blocks: a scan still below it reaches these addresses anyway.
       await this.enqueuePersist(async () => {
-        const cursor = opts.fromHeight == null ? null : await this.transactionDAO.getCursor(walletId)
-        if (cursor == null || rewindToHeight < cursor) await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+        // A floor above the cursor would skip blocks: a scan still below it reaches these addresses anyway.
+        if (opts.fromHeight != null) {
+          const cursor = await this.transactionDAO.getCursor(walletId)
+          if (cursor != null && cursor <= rewindToHeight) return
+        }
+        await this.transactionDAO.resetCursor(walletId, rewindToHeight)
       })
     }
     if (!this.child) return

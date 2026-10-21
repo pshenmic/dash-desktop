@@ -171,7 +171,8 @@ export class CoreDiscoveryService {
         const rows = derived.map(address => ({...this.coreAddressRow(wallet.walletId, false, address), index: DASHPAY_WATCH_INDEX}))
         // A new chain may already hold payments in blocks the scan has passed,
         // but none older than the request that handed it out.
-        if (derived.some(address => address.index === 0)) {
+        const isNewChain = derived.some(address => address.index === 0)
+        if (isNewChain) {
           await this.walletSyncService.addWatchAddresses(wallet.walletId, rows, {fromHeight: coreHeightCreatedAt})
         } else {
           added.push(...rows)
