@@ -22,9 +22,9 @@ import {identityInfos} from './operations/identity/infos'
 import {aliasStatus} from './operations/alias/status'
 import {aliasRegister} from './operations/alias/register'
 import {aliasResolve} from './operations/alias/resolve'
-import {contactRequestSend} from './operations/contact/send'
-import {contactRequests} from './operations/contact/requests'
-import {contactKey} from './operations/contact/key'
+import {dashPayContactRequestSend} from './operations/dashpay/send'
+import {dashPayContactRequests} from './operations/dashpay/requests'
+import {dashPayContactKey} from './operations/dashpay/key'
 import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
@@ -233,9 +233,9 @@ export class PlatformService {
       case 'aliasStatus': return aliasStatus(request.payload, ctx)
       case 'aliasRegister': return aliasRegister(request.payload, ctx)
       case 'aliasResolve': return aliasResolve(request.payload, ctx)
-      case 'contactRequestSend': return contactRequestSend(request.payload, ctx)
-      case 'contactRequests': return contactRequests(request.payload, ctx)
-      case 'contactKey': return contactKey(request.payload, ctx)
+      case 'dashPayContactRequestSend': return dashPayContactRequestSend(request.payload, ctx)
+      case 'dashPayContactRequests': return dashPayContactRequests(request.payload, ctx)
+      case 'dashPayContactKey': return dashPayContactKey(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
       case 'activeDapiUrls': return probeActiveDapiUrls(this.registry.activeDapiUrls(network), network)

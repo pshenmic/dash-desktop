@@ -30,24 +30,24 @@ export function deriveChild256(parent: HDKey, index: bigint, hardened: boolean):
 }
 
 // DIP-15: the key a contact derives our payment addresses from.
-export function deriveContactKey(seed: Uint8Array, network: Network, ours: Uint8Array, theirs: Uint8Array): HDKey {
+export function deriveDashPayContactKey(seed: Uint8Array, network: Network, ours: Uint8Array, theirs: Uint8Array): HDKey {
   const account = HDKey.fromMasterSeed(seed).derive(`m/9'/${COIN_TYPE[network]}'/15'/0'`)
   return deriveChild256(deriveChild256(account, bytesToNumberBE(ours), false), bytesToNumberBE(theirs), false)
 }
 
 // libsecp256k1's default ECDH hash: SHA-256 of the compressed shared point.
-export function contactSharedKey(privateKey: Uint8Array, publicKey: Uint8Array): Uint8Array {
+export function dashPaySharedKey(privateKey: Uint8Array, publicKey: Uint8Array): Uint8Array {
   return sha256(secp256k1.getSharedSecret(privateKey, publicKey, true))
 }
 
 // IV || AES-256-CBC(parent fingerprint || chain code || public key): 96 bytes.
-export function encryptContactKey(sharedKey: Uint8Array, key: HDKey): Uint8Array {
+export function encryptDashPayContactKey(sharedKey: Uint8Array, key: HDKey): Uint8Array {
   const iv = randomBytes(16)
   const cipher = createCipheriv('aes-256-cbc', sharedKey, iv)
-  return concatBytes(iv, cipher.update(contactKeyBytes(key)), cipher.final())
+  return concatBytes(iv, cipher.update(dashPayContactKeyBytes(key)), cipher.final())
 }
 
-export function decryptContactKey(sharedKey: Uint8Array, encrypted: Uint8Array): HDKey {
+export function decryptDashPayContactKey(sharedKey: Uint8Array, encrypted: Uint8Array): HDKey {
   const decipher = createDecipheriv('aes-256-cbc', sharedKey, encrypted.subarray(0, 16))
   const plain = concatBytes(decipher.update(encrypted.subarray(16)), decipher.final())
   return new HDKey({chainCode: plain.subarray(4, 36), publicKey: plain.subarray(36)})
@@ -55,11 +55,11 @@ export function decryptContactKey(sharedKey: Uint8Array, encrypted: Uint8Array):
 
 // DIP-15 for account 0, version 0: the top 28 bits of HMAC-SHA256(secret, key).
 export function accountReference(key: HDKey): number {
-  return Number(bytesToNumberBE(hmac(sha256, key.privateKey!, contactKeyBytes(key)).subarray(0, 4)) >> 4n)
+  return Number(bytesToNumberBE(hmac(sha256, key.privateKey!, dashPayContactKeyBytes(key)).subarray(0, 4)) >> 4n)
 }
 
 // A contact key is ours alone to pay into, so our own history shows how far it is used.
-export function nextContactAddress(xpub: string, network: Network, paid: Set<string>): string {
+export function nextDashPayContactAddress(xpub: string, network: Network, paid: Set<string>): string {
   const key = HDKey.fromExtendedKey(xpub)
   const keyPair = new KeyPairController()
   for (let index = 0; ; index++) {
@@ -68,6 +68,6 @@ export function nextContactAddress(xpub: string, network: Network, paid: Set<str
   }
 }
 
-function contactKeyBytes(key: HDKey): Uint8Array {
+function dashPayContactKeyBytes(key: HDKey): Uint8Array {
   return concatBytes(numberToBytesBE(key.parentFingerprint, 4), key.chainCode!, key.publicKey!)
 }

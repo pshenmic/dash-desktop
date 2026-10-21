@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { IdentityService } from '../../services/platform/IdentityService'
-import { DashPayContact } from '../../types/Contact'
+import { DashPayContact } from '../../types/DashPay'
 
 export class GetDashPayContactsHandler {
   private identities: IdentityService
@@ -10,6 +10,6 @@ export class GetDashPayContactsHandler {
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<DashPayContact[]> => {
-    return this.identities.getContacts(walletId)
+    return this.identities.getDashPayContacts(walletId)
   }
 }

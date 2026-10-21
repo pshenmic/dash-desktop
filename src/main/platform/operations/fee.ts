@@ -77,7 +77,7 @@ export async function spendFeeCurve(payload: CurvePayload, ctx: OperationContext
 export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {operation, params} = payload
   if (operation === 'aliasRegister') return aliasRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
-  if (operation === 'contactRequest') return contactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'dashPayContactRequest') return dashPayContactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
@@ -144,7 +144,7 @@ export async function aliasRegisterFee(ctx: OperationContext, label: string, ide
 }
 
 // Our encryption keys go on in an identity update first when they are missing.
-export async function contactRequestFee(ctx: OperationContext, recipient: string, identityId: string): Promise<Result> {
+export async function dashPayContactRequestFee(ctx: OperationContext, recipient: string, identityId: string): Promise<Result> {
   const {sdk} = ctx
   const [contract, contractNonce, keys] = await Promise.all([
     sdk.dataContracts.getDataContractByIdentifier(DASHPAY_CONTRACT_ID),
@@ -180,7 +180,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'contactRequest'>,
+  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,

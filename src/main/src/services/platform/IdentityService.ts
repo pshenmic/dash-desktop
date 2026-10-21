@@ -1,10 +1,10 @@
 import convertToHomographSafeChars from 'dash-platform-sdk/src/utils/convertToHomographSafeChars.js'
 import {AliasDAO} from '../../database/AliasDAO'
-import {ContactRequestDAO} from '../../database/ContactRequestDAO'
+import {DashPayContactRequestDAO} from '../../database/DashPayContactRequestDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {Alias} from '../../types/Alias'
-import {DashPayContact} from '../../types/Contact'
+import {DashPayContact} from '../../types/DashPay'
 import {IdentityInfo} from '../../types/Identity'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
@@ -22,14 +22,14 @@ export class IdentityService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
   private aliasDAO: AliasDAO
-  private contactRequestDAO: ContactRequestDAO
+  private dashPayContactRequestDAO: DashPayContactRequestDAO
   private platform: PlatformWorkerService
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, aliasDAO: AliasDAO, contactRequestDAO: ContactRequestDAO, platform: PlatformWorkerService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, aliasDAO: AliasDAO, dashPayContactRequestDAO: DashPayContactRequestDAO, platform: PlatformWorkerService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
     this.aliasDAO = aliasDAO
-    this.contactRequestDAO = contactRequestDAO
+    this.dashPayContactRequestDAO = dashPayContactRequestDAO
     this.platform = platform
   }
 
@@ -43,7 +43,7 @@ export class IdentityService {
         skipDPNS: false,
       }),
       this.recheckAliases(walletId, wallet.network),
-      this.recheckContactRequests(walletId, wallet.network, stored.map(entry => entry.identifier)),
+      this.recheckDashPayContactRequests(walletId, wallet.network, stored.map(entry => entry.identifier)),
     ])
     const byIdentifier = new Map(infos.map(info => [info.identifier, info]))
 
@@ -85,32 +85,40 @@ export class IdentityService {
   }
 
   // Each identity asks only for what is newer than its newest stored request.
-  private async recheckContactRequests(walletId: string, network: Network, identifiers: string[]): Promise<void> {
-    const stored = await this.contactRequestDAO.getContactRequests(walletId)
+  private async recheckDashPayContactRequests(walletId: string, network: Network, identifiers: string[]): Promise<void> {
+    const stored = await this.dashPayContactRequestDAO.getContactRequests(walletId)
     await Promise.all(identifiers.map(async identifier => {
       const own = stored.filter(request => request.ownerId === identifier || request.toUserId === identifier)
       try {
-        const {sent, received} = await this.platform.request('contactRequests', network, {
+        const {sent, received} = await this.platform.request('dashPayContactRequests', network, {
           identifier,
           since: Math.max(0, ...own.map(request => request.createdAt)),
         })
         const fresh = [...sent, ...received].filter(request => !own.some(known => known.id === request.id))
         for (const request of fresh) log.info(`contact request ${request.ownerId} -> ${request.toUserId} found`)
-        await this.contactRequestDAO.saveAll(walletId, fresh)
+        await this.dashPayContactRequestDAO.saveAll(walletId, fresh)
       } catch (err) {
         log.warn(`${identifier}: contact request check failed:`, err)
       }
     }))
   }
 
-  async getContacts(walletId: string): Promise<DashPayContact[]> {
-    await requireWallet(this.walletDAO, walletId)
+  // Names are read live: one can be registered or transferred at any time.
+  async getDashPayContacts(walletId: string): Promise<DashPayContact[]> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
     const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    return dashPayContacts(await this.contactRequestDAO.getContactRequests(walletId), identities.map(entry => entry.identifier))
+    const contacts = dashPayContacts(await this.dashPayContactRequestDAO.getContactRequests(walletId), identities.map(entry => entry.identifier))
+    if (contacts.length === 0) return contacts
+    const {infos} = await this.platform.request('identityInfos', wallet.network, {
+      identifiers: [...new Set(contacts.map(contact => contact.contactId))],
+      skipDPNS: false,
+    })
+    const names = new Map(infos.map(info => [info.identifier, info.aliasesList]))
+    return contacts.map(contact => ({...contact, aliasesList: names.get(contact.contactId) ?? []}))
   }
 
   // Accepting a request is sending one back, so this does both.
-  async sendContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContact[]> {
+  async sendDashPayContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContact[]> {
     const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
     if (identity == null) {
       throw new Error('Identity not found in this wallet')
@@ -121,26 +129,26 @@ export class IdentityService {
 
     log.info(`contact request ${identifier} -> ${recipient}: sending`)
     const network = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
-      const {stHash} = await this.platform.request('contactRequestSend', wallet.network, {
+      const {stHash} = await this.platform.request('dashPayContactRequestSend', wallet.network, {
         seed, identifier, identityIndex: identity.identityIndex, recipient,
       })
       log.info(`contact request ${identifier} -> ${recipient}: sent ${stHash}`)
       return wallet.network
     })
-    await this.recheckContactRequests(walletId, network, [identifier])
-    return this.getContacts(walletId)
+    await this.recheckDashPayContactRequests(walletId, network, [identifier])
+    return this.getDashPayContacts(walletId)
   }
 
   // Decrypting it takes our DECRYPTION key, so the seed.
-  async contactKey(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
+  async dashPayContactKey(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
     const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
-    const request = (await this.contactRequestDAO.getContactRequests(walletId))
+    const request = (await this.dashPayContactRequestDAO.getContactRequests(walletId))
       .findLast(request => request.ownerId === contactId && request.toUserId === identifier)
     if (identity == null || request == null) {
       throw new Error('This identity has no contact request from that contact')
     }
     const {xpub} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('contactKey', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, request}))
+      this.platform.request('dashPayContactKey', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, request}))
     return xpub
   }
 

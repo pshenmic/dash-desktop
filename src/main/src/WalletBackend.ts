@@ -10,7 +10,7 @@ import { PlatformAddressDAO } from './database/PlatformAddressDAO'
 import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
 import { AliasDAO } from './database/AliasDAO'
-import { ContactRequestDAO } from './database/ContactRequestDAO'
+import { DashPayContactRequestDAO } from './database/DashPayContactRequestDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/wallet/WalletService'
@@ -31,8 +31,8 @@ import { GetAliasesHandler } from './api/wallet/getAliases'
 import { RegisterAliasHandler } from './api/wallet/registerAlias'
 import { ResolveAliasHandler } from './api/wallet/resolveAlias'
 import { GetDashPayContactsHandler } from './api/wallet/getDashPayContacts'
-import { SendContactRequestHandler } from './api/wallet/sendContactRequest'
-import { GetContactAddressHandler } from './api/wallet/getContactAddress'
+import { SendDashPayContactRequestHandler } from './api/wallet/sendDashPayContactRequest'
+import { GetDashPayContactAddressHandler } from './api/wallet/getDashPayContactAddress'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
 import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
@@ -192,8 +192,8 @@ export class WalletBackend {
     registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
     registerHandler('resolveAlias', new ResolveAliasHandler(this.identityService).handle)
     registerHandler('getDashPayContacts', new GetDashPayContactsHandler(this.identityService).handle)
-    registerHandler('sendContactRequest', new SendContactRequestHandler(this.identityService).handle)
-    registerHandler('getContactAddress', new GetContactAddressHandler(this.walletService).handle)
+    registerHandler('sendDashPayContactRequest', new SendDashPayContactRequestHandler(this.identityService).handle)
+    registerHandler('getDashPayContactAddress', new GetDashPayContactAddressHandler(this.walletService).handle)
     registerHandler('getIdentityBalance', new GetIdentityBalance(this.identityService).handle)
     registerHandler('getIdentityNonce', new GetIdentityNonce(this.identityService).handle)
     registerHandler('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
@@ -314,7 +314,7 @@ export class WalletBackend {
     this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
-    this.identityService = new IdentityService(walletDAO, identityDAO, new AliasDAO(knex), new ContactRequestDAO(knex), this.platformWorkerService)
+    this.identityService = new IdentityService(walletDAO, identityDAO, new AliasDAO(knex), new DashPayContactRequestDAO(knex), this.platformWorkerService)
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
     const platformTransactionDAO = new PlatformTransactionDAO(knex)

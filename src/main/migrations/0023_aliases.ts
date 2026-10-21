@@ -31,7 +31,7 @@ export async function up(knex: Knex): Promise<void> {
 
   // DashPay contactRequest documents sent or received by this wallet's
   // identities. A document between two of them is still one row.
-  await knex.schema.createTable('contact_requests', table => {
+  await knex.schema.createTable('dashpay_contact_requests', table => {
     table.text('wallet_id').notNullable().references('wallet_id').inTable('wallet')
     table.text('document_id').notNullable()
     table.text('owner_id').notNullable()
@@ -47,6 +47,6 @@ export async function up(knex: Knex): Promise<void> {
 }
 
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTableIfExists('contact_requests')
+  await knex.schema.dropTableIfExists('dashpay_contact_requests')
   await knex.schema.dropTableIfExists('aliases')
 }

@@ -1,34 +1,36 @@
 import {describe, it, expect} from 'vitest'
-import {ContactRequest} from '../../src/main/src/types/Contact'
+import {DashPayContactRequest} from '../../src/main/src/types/DashPay'
 import {dashPayContacts} from '../../src/main/src/utils/dashPayContacts'
 
-function request(id: string, ownerId: string, toUserId: string): ContactRequest {
-  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0, encryptedPublicKey: new Uint8Array(96), createdAt: 0}
+function request(id: string, ownerId: string, toUserId: string, createdAt = 0): DashPayContactRequest {
+  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0, encryptedPublicKey: new Uint8Array(96), createdAt}
 }
+
+const contact = (identifier: string, contactId: string, relationship: string, incomingCreatedAt: number | null, outgoingCreatedAt: number | null) =>
+  ({identifier, contactId, relationship, aliasesList: [], incomingCreatedAt, outgoingCreatedAt})
 
 describe('dashPayContacts', () => {
   it('pairs a request each way into one established contact', () => {
-    const sent = request('s', 'ours', 'alice')
-    const received = request('r', 'alice', 'ours')
-    expect(dashPayContacts([sent, received], ['ours'])).toEqual([{identifier: 'ours', contactId: 'alice', sent, received}])
+    expect(dashPayContacts([request('s', 'ours', 'alice', 1), request('r', 'alice', 'ours', 2)], ['ours']))
+      .toEqual([contact('ours', 'alice', 'established', 2, 1)])
   })
 
-  it('keeps a one-way request as pending on its side', () => {
-    expect(dashPayContacts([request('s', 'ours', 'alice'), request('r', 'bob', 'ours')], ['ours'])).toEqual([
-      {identifier: 'ours', contactId: 'alice', sent: expect.objectContaining({id: 's'}), received: null},
-      {identifier: 'ours', contactId: 'bob', sent: null, received: expect.objectContaining({id: 'r'})},
+  it('keeps a one-way request as outgoing or incoming', () => {
+    expect(dashPayContacts([request('s', 'ours', 'alice', 1), request('r', 'bob', 'ours', 2)], ['ours'])).toEqual([
+      contact('ours', 'alice', 'outgoing', null, 1),
+      contact('ours', 'bob', 'incoming', 2, null),
     ])
   })
 
   // One stored row between two of our identities is a contact for each of them.
   it('lists a request between two of our identities on both sides', () => {
-    expect(dashPayContacts([request('x', 'ours', 'other')], ['ours', 'other'])).toEqual([
-      {identifier: 'ours', contactId: 'other', sent: expect.objectContaining({id: 'x'}), received: null},
-      {identifier: 'other', contactId: 'ours', sent: null, received: expect.objectContaining({id: 'x'})},
+    expect(dashPayContacts([request('x', 'ours', 'other', 5)], ['ours', 'other'])).toEqual([
+      contact('ours', 'other', 'outgoing', null, 5),
+      contact('other', 'ours', 'incoming', 5, null),
     ])
   })
 
-  it('takes the latest request to the same contact', () => {
-    expect(dashPayContacts([request('old', 'ours', 'alice'), request('new', 'ours', 'alice')], ['ours'])[0].sent?.id).toBe('new')
+  it('dates each side by its latest request', () => {
+    expect(dashPayContacts([request('old', 'ours', 'alice', 1), request('new', 'ours', 'alice', 9)], ['ours'])[0].outgoingCreatedAt).toBe(9)
   })
 })

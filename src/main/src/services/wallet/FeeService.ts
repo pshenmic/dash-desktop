@@ -169,7 +169,7 @@ export class FeeService {
       case 'identityToIdentity':
       case 'identityWithdrawal':
       case 'aliasRegister':
-      case 'contactRequest':
+      case 'dashPayContactRequest':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -367,7 +367,7 @@ export class FeeService {
         throw new Error('A name registration is two transitions, so it has no single transaction to preview')
 
       // Adds the identity's encryption keys first when it lacks them.
-      case 'contactRequest':
+      case 'dashPayContactRequest':
         throw new Error('A contact request can be two transitions, so it has no single transaction to preview')
 
       case 'shield': {

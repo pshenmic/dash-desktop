@@ -49,7 +49,7 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   identityRegister: '',
   identityTopUpL1: IDENTITY,
   aliasRegister: 'owl352-testnet',
-  contactRequest: IDENTITY,
+  dashPayContactRequest: IDENTITY,
 }
 
 const FUNDING_TXID = '11'.repeat(32)
@@ -274,7 +274,7 @@ describe('transitionFee', () => {
   it('prices a contact request at most 9% over what Drive charged', async () => {
     Object.assign(dpnsState, {contractNonce: 0n})
     for (const credits of [102_138_659, 105_515_575]) {
-      const error = Number(await feeOf('contactRequest')) / credits - 1
+      const error = Number(await feeOf('dashPayContactRequest')) / credits - 1
       expect(error).toBeGreaterThanOrEqual(0)
       expect(error).toBeLessThan(0.09)
     }
@@ -282,9 +282,9 @@ describe('transitionFee', () => {
   })
 
   it('adds the encryption keys the sender still needs to a contact request', async () => {
-    const withKeys = await feeOf('contactRequest')
+    const withKeys = await feeOf('dashPayContactRequest')
     identityKeys.purposes = [Purpose.AUTHENTICATION]
-    expect(await feeOf('contactRequest') - withKeys).toBe(2n * 452n * 27_400n)
+    expect(await feeOf('dashPayContactRequest') - withKeys).toBe(2n * 452n * 27_400n)
     identityKeys.purposes = [Purpose.AUTHENTICATION, Purpose.ENCRYPTION, Purpose.DECRYPTION]
   })
 

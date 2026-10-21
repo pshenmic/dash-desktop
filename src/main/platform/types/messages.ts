@@ -1,7 +1,7 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {AliasCheck} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
-import {ContactRequest} from '../../src/types/Contact'
+import {DashPayContactRequest} from '../../src/types/DashPay'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -119,11 +119,11 @@ export type IdentityFeeOperation =
   | 'identityWithdrawal'
 
 // For aliasRegister the recipient is the label being registered, for
-// contactRequest the identity asked; identityId is the identity paying.
+// dashPayContactRequest the identity asked; identityId is the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
   | 'aliasRegister'
-  | 'contactRequest'
+  | 'dashPayContactRequest'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -133,7 +133,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'contactRequest'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -376,18 +376,18 @@ export interface PlatformOperations {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string; preorderSalt: Uint8Array | null}
     result: AliasCheck & {preorderSalt: Uint8Array | null; error: string | null}
   }
-  contactRequestSend: {
+  dashPayContactRequestSend: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
     result: {stHash: string}
   }
-  contactKey: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; request: ContactRequest}
+  dashPayContactKey: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; request: DashPayContactRequest}
     result: {xpub: string}
   }
   // Oldest first, every request created at or after `since`.
-  contactRequests: {
+  dashPayContactRequests: {
     payload: {identifier: string; since: number}
-    result: {sent: ContactRequest[]; received: ContactRequest[]}
+    result: {sent: DashPayContactRequest[]; received: DashPayContactRequest[]}
   }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}

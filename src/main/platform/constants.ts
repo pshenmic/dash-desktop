@@ -102,7 +102,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
     case 'identityAddEncryptionKeys':
-    case 'contactRequestSend':
+    case 'dashPayContactRequestSend':
     case 'aliasRegister':
       return `${request.network}:identity:${request.payload.identifier}`
 
@@ -116,8 +116,8 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityInfos':
     case 'aliasStatus':
     case 'aliasResolve':
-    case 'contactRequests':
-    case 'contactKey':
+    case 'dashPayContactRequests':
+    case 'dashPayContactKey':
     case 'identityScan':
     case 'nodeStatus':
     case 'activeDapiUrls':

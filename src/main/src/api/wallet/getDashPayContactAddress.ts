@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
 
-export class GetContactAddressHandler {
+export class GetDashPayContactAddressHandler {
   private walletService: WalletService
 
   constructor(walletService: WalletService) {
@@ -15,6 +15,6 @@ export class GetContactAddressHandler {
     contactId: string,
     password: string,
   ): Promise<string> => {
-    return this.walletService.getContactAddress(walletId, identifier, contactId, password)
+    return this.walletService.getDashPayContactAddress(walletId, identifier, contactId, password)
   }
 }

@@ -10,7 +10,7 @@ import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {AliasDAO} from '../../src/main/src/database/AliasDAO'
-import {ContactRequestDAO} from '../../src/main/src/database/ContactRequestDAO'
+import {DashPayContactRequestDAO} from '../../src/main/src/database/DashPayContactRequestDAO'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
@@ -44,7 +44,7 @@ export interface Harness {
   walletCredentialsService: WalletCredentialsService
   identityService: IdentityService
   aliasDAO: AliasDAO
-  contactRequestDAO: ContactRequestDAO
+  dashPayContactRequestDAO: DashPayContactRequestDAO
   applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -81,8 +81,8 @@ export async function harness(): Promise<Harness> {
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
   const aliasDAO = new AliasDAO(knex)
-  const contactRequestDAO = new ContactRequestDAO(knex)
-  const identityService = new IdentityService(walletDAO, identityDAO, aliasDAO, contactRequestDAO, platform)
+  const dashPayContactRequestDAO = new DashPayContactRequestDAO(knex)
+  const identityService = new IdentityService(walletDAO, identityDAO, aliasDAO, dashPayContactRequestDAO, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.
@@ -110,7 +110,7 @@ export async function harness(): Promise<Harness> {
     walletCredentialsService,
     identityService,
     aliasDAO,
-    contactRequestDAO,
+    dashPayContactRequestDAO,
     applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,
