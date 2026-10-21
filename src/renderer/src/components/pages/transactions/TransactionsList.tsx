@@ -4,8 +4,10 @@ import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { CloseIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { transactionsPage } from '@renderer/constants'
 import { DEFAULT_TX_FILTER } from '@renderer/constants/transactionFilters'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import TransactionCard from './TransactionCard'
 import TransactionsFilter from './TransactionsFilter'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import NoResults from '@renderer/components/ui/NoResults'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
@@ -26,7 +28,7 @@ export default function TransactionsList({
   loading,
   err,
 }: TransactionsListProps): React.JSX.Element {
-  const { title, filters } = transactionsPage.transactions
+  const { filters } = transactionsPage.transactions
   const { isBalanceVisible } = useBalanceVisibility()
   const appliedFilter = useDeferredValue(filter)
   const isFiltering = appliedFilter !== filter
@@ -40,37 +42,35 @@ export default function TransactionsList({
 
   return (
     <div className={'px-12 pb-8'}>
+      <PageHeader title={PAGE_HEADERS.transactions.title} subtitle={PAGE_HEADERS.transactions.subtitle} />
       <div className={'flex flex-col gap-6 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)]'}>
-        <div className={'flex flex-wrap items-center justify-between gap-4'}>
-          <Text size={16} weight={'medium'} color={'brand'}>{title}</Text>
-          {(hasData || activeFilters.length > 0) && (
-            <div className={'flex flex-wrap items-center gap-4'}>
-              <div className={'flex flex-wrap items-center gap-3'}>
-                <div className={'flex items-center gap-1.5'}>
-                  <Text size={12} weight={'medium'} color={'brand'} opacity={40}>
-                    {filters.totals.received}:
-                  </Text>
-                  <Text size={12} weight={'medium'} color={'blue-mint'}>
-                    <SensitiveValue hidden={!isBalanceVisible} size={'compact'} tone={'accent'}>
-                      +{creditsToDash(totals.receivedCredits)} Dash
-                    </SensitiveValue>
-                  </Text>
-                </div>
-                <div className={'flex items-center gap-1.5'}>
-                  <Text size={12} weight={'medium'} color={'brand'} opacity={40}>
-                    {filters.totals.sent}:
-                  </Text>
-                  <Text size={12} weight={'medium'} color={'brand'}>
-                    <SensitiveValue hidden={!isBalanceVisible} size={'compact'}>
-                      -{creditsToDash(totals.sentCredits)} Dash
-                    </SensitiveValue>
-                  </Text>
-                </div>
+        {(hasData || activeFilters.length > 0) && (
+          <div className={'flex flex-wrap items-center justify-between gap-4'}>
+            <div className={'flex flex-wrap items-center gap-3'}>
+              <div className={'flex items-center gap-1.5'}>
+                <Text size={12} weight={'medium'} color={'brand'} opacity={40}>
+                  {filters.totals.received}:
+                </Text>
+                <Text size={12} weight={'medium'} color={'blue-mint'}>
+                  <SensitiveValue hidden={!isBalanceVisible} size={'compact'} tone={'accent'}>
+                    +{creditsToDash(totals.receivedCredits)} Dash
+                  </SensitiveValue>
+                </Text>
               </div>
-              <TransactionsFilter filter={filter} onChange={onFilterChange} transactions={platform} />
+              <div className={'flex items-center gap-1.5'}>
+                <Text size={12} weight={'medium'} color={'brand'} opacity={40}>
+                  {filters.totals.sent}:
+                </Text>
+                <Text size={12} weight={'medium'} color={'brand'}>
+                  <SensitiveValue hidden={!isBalanceVisible} size={'compact'}>
+                    -{creditsToDash(totals.sentCredits)} Dash
+                  </SensitiveValue>
+                </Text>
+              </div>
             </div>
-          )}
-        </div>
+            <TransactionsFilter filter={filter} onChange={onFilterChange} transactions={platform} />
+          </div>
+        )}
         {activeFilters.length > 0 && (
           <div aria-label={'Active transaction filters'} className={'flex flex-wrap items-center gap-2'}>
             {activeFilters.map(({ field, label }) => (

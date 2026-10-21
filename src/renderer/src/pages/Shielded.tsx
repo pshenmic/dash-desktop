@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
 import Spinner from '@renderer/components/ui/Spinner'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { groupShieldedNotesByAddress } from '@renderer/utils/shieldedBalances'
@@ -14,6 +15,7 @@ import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import { shieldedPage } from '@renderer/constants/shieldedPage'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 
 function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
   if (status.prover === ShieldedProverState.Ready) {
@@ -124,19 +126,13 @@ export default function ShieldedPage(): React.JSX.Element {
   const notesCount = poolInfo.notesCount !== null ? poolInfo.notesCount.toLocaleString('en-US') : null
 
   return (
-    <div className={"flex flex-col gap-8 px-12 pb-10"}>
-      <div className={"flex items-end justify-between gap-6"}>
-        <div className={"flex flex-col gap-3"}>
-          <div className={"flex items-center gap-3"}>
-            <ShieldSmallIcon size={28} className={"text-dash-brand dark:text-dash-mint"} />
-            <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Shielded</Text>
-          </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%] max-w-152.5"}>
-            {shieldedPage.subtitle}
-          </Text>
-        </div>
-        <ProverBadge status={prover} />
-      </div>
+    <div className={"flex flex-col px-12 pb-10"}>
+      <PageHeader
+        title={PAGE_HEADERS.shielded.title}
+        subtitle={PAGE_HEADERS.shielded.subtitle}
+        icon={<ShieldSmallIcon size={28} className={"text-dash-brand dark:text-dash-mint"} />}
+        actions={<ProverBadge status={prover} />}
+      />
 
       <div className={"flex flex-col gap-4 w-full"}>
         <div className={"flex flex-col gap-4 p-5 rounded-[.9375rem] dash-block-3"}>

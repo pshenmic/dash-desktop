@@ -1,5 +1,4 @@
 export interface AddressesPage {
-  title: string
   filter: string
   tabs: {
     receiving: string
@@ -14,7 +13,6 @@ export interface AddressesPage {
 }
 
 export const addressesPage: AddressesPage = {
-  title: 'Addresses',
   filter: 'Filter',
   tabs: {
     receiving: 'Receiving',

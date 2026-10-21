@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { API } from '@renderer/api'
 import type { LogLevel } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Button, Heading, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import { toast } from '@renderer/components/ui/Toast'
 import { useFiat } from '@renderer/hooks/useFiat'
@@ -10,6 +11,7 @@ import { useThemePreference, setThemePreference } from '@renderer/hooks/useTheme
 import { useZoomPreference, setZoomPreference } from '@renderer/hooks/useZoomController'
 import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
 import { ADVANCED_MODE_OPTIONS, CURRENCY_OPTIONS, LOG_LEVEL_OPTIONS, THEME_OPTIONS, ZOOM_OPTIONS } from '@renderer/constants/settingsPage'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import type { SettingsRowProps } from '@renderer/types/Settings'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -215,13 +217,8 @@ export default function Settings(): React.JSX.Element {
 
   return (
     <div className="w-full px-12 pb-12">
+      <PageHeader title={PAGE_HEADERS.settings.title} subtitle={PAGE_HEADERS.settings.subtitle} />
       <div className="shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-8">
-        <div className="mb-6">
-          <Heading as="h1" size="xl" weight="extrabold" color="brand-white">
-            Settings
-          </Heading>
-        </div>
-
         <SectionLabel>Wallet</SectionLabel>
         <div className="flex flex-col">
           <SettingsRow

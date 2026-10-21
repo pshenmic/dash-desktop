@@ -11,6 +11,7 @@ import CoinControlModal from '@renderer/components/pages/transfer/CoinControlMod
 import { SourcePicker } from '@renderer/components/pages/transfer/EndpointPicker'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
 import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
 import StatusChip from '@renderer/components/ui/StatusChip'
@@ -22,6 +23,7 @@ import {
   IN_PROGRESS_FUNDING_LABELS,
   NEW_IDENTITY_LABEL,
 } from '@renderer/constants'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
@@ -387,8 +389,13 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
 
   const pageHeader = (
-    <div className={"flex items-end justify-between gap-6 px-12 pt-2"}>
-      <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Identity registration</Text>
+    <div className={"px-12"}>
+      <PageHeader
+        title={PAGE_HEADERS.identityRegistration.title}
+        subtitle={PAGE_HEADERS.identityRegistration.subtitle}
+        onBack={() => navigate('/identities')}
+        backLabel={PAGE_HEADERS.identityRegistration.back}
+      />
     </div>
   )
 
@@ -407,7 +414,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 rounded-3xl dash-card-base p-8 text-center"}>
+        <div className={"mx-12 rounded-3xl dash-card-base p-8 text-center"}>
           <Text size={16} weight={"bold"} color={"brand"}>Select a wallet to register an identity.</Text>
         </div>
       </div>
@@ -418,7 +425,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex justify-center"}>
+        <div className={"mx-12 flex justify-center"}>
           <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
         </div>
       </div>
@@ -429,7 +436,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+        <div className={"mx-12 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
           <div className={"flex items-center gap-3"}>
             <span className={"flex size-10 items-center justify-center rounded-full bg-dash-orange/12 text-dash-orange"}>
               <InfoCircleIcon size={18} color={"currentColor"} />
@@ -455,13 +462,13 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+        <div className={"mx-12 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
           <div className={"flex items-center gap-3"}>
             <span className={"flex size-10 items-center justify-center rounded-full dash-block-accent-12 dash-text-primary"}>
               <KeyIcon size={18} color={"currentColor"} />
             </span>
             <div className={"flex flex-wrap items-center gap-x-3 gap-y-1"}>
-              <Text size={20} weight={"extrabold"} color={"brand"}>Identity registration is already in progress</Text>
+              <Text size={20} weight={"extrabold"} color={"brand"}>Already in progress</Text>
               <StatusChip loading={!isResumable}>
                 {isResumable ? 'Ready to resume' : 'Processing'}
               </StatusChip>
@@ -540,7 +547,6 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const amountStep = (
     <>
-      <Text size={20} weight={"extrabold"} color={"brand"}>Choose identity funding</Text>
       <SourcePicker
         kind={fromKind}
         onKindChange={(kind) => {
@@ -673,7 +679,6 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const reviewStep = (
     <>
-      <Text size={20} weight={"extrabold"} color={"brand"}>Review registration</Text>
       <div className={"flex flex-col gap-3 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>

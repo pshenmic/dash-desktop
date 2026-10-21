@@ -33,7 +33,6 @@ interface TransactionsPage {
     comparedToYesterday: string
   }
   transactions: {
-    title: string
     filter: string
     types: {
       receive: TransactionType
@@ -93,7 +92,6 @@ export const transactionsPage: TransactionsPage = {
     comparedToYesterday: 'Compared to yesterday'
   },
   transactions: {
-    title: 'Transactions',
     filter: 'Filter',
     types: {
       receive: {

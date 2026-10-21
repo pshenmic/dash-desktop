@@ -1,9 +1,5 @@
 
 export interface ReceivePageType {
-  header: {
-    title: string
-    balance: string
-  },
   tabs: {
     core: string
     shielded: string
@@ -17,10 +13,6 @@ export interface ReceivePageType {
 }
 
 export const receivePage = {
-  header: {
-    title: 'Receive',
-    balance: 'Balance',
-  },
   tabs: {
     core: 'Core',
     shielded: 'Shielded',

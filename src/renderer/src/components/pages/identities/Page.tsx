@@ -4,6 +4,8 @@ import { useAuth } from "@renderer/contexts/AuthContext";
 import IdentityCard from "./IdentityCard";
 import NoResults from "@renderer/components/ui/NoResults";
 import ListSkeleton from "@renderer/components/ui/Skeleton";
+import PageHeader from "@renderer/components/ui/PageHeader";
+import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
 import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
 import { useNavigate } from "react-router-dom";
 
@@ -60,16 +62,12 @@ export default function Identities(): React.JSX.Element {
 
   return (
     <div className={"relative flex flex-col pb-12"}>
-      <div className={"flex items-end justify-between gap-6 px-12 pt-2"}>
-        <div className={"flex flex-col gap-3"}>
-          <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Identities</Text>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%] max-w-152.5"}>
-            Manage your Dash Platform identities and their credit balances.
-          </Text>
-        </div>
-        <Button type={"button"} size={"sm"} onClick={() => navigate('/identities/register')}>Register identity</Button>
-      </div>
-      <div className={"px-12 mt-8"}>
+      <div className={"px-12"}>
+        <PageHeader
+          title={PAGE_HEADERS.identities.title}
+          subtitle={PAGE_HEADERS.identities.subtitle}
+          actions={<Button type={"button"} size={"sm"} onClick={() => navigate('/identities/register')}>Register identity</Button>}
+        />
         <div className={"relative shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-[.9375rem]"}>
           <Tabs
             items={assetsList}

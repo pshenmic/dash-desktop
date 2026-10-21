@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Tabs } from "dash-ui-kit/react";
 import { RECEIVE_REFRESH_MS, ReceivePageType } from "@renderer/constants";
-import Header from "./Header";
+import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
+import PageHeader from "@renderer/components/ui/PageHeader";
 import ReceiveAddressCard from "./ReceiveAddressCard";
 import ShieldedReceiveCard from "./ShieldedReceiveCard";
 import PlatformReceiveCard from "./PlatformReceiveCard";
@@ -62,8 +63,8 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
 
   return (
     <div className={`relative flex flex-col pb-12`}>
-        <Header data={pageData.header} />
-        <div className={"px-12 mt-8"}>
+        <div className={"px-12"}>
+          <PageHeader title={PAGE_HEADERS.receive.title} subtitle={PAGE_HEADERS.receive.subtitle} />
           <Tabs
             items={tabItems}
             value={activeTab}

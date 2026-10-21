@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { Tabs } from 'dash-ui-kit/react'
 import { API } from '@renderer/api'
 import { LogFileContent, LogFileInfo } from '@renderer/api/types'
-import { Button, ChevronIcon, DocumentIcon, Heading, InfoCircleIcon, InfoTooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, DocumentIcon, InfoTooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import Spinner from '@renderer/components/ui/Spinner'
 import { toast } from '@renderer/components/ui/Toast'
 import { LOG_POLL_INTERVAL } from '@renderer/constants/logsPage'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import { currentLogFile, formatFileSize, parseLogLines } from '@renderer/utils/logs'
 
 export default function LogsPage(): React.JSX.Element {
@@ -78,27 +80,20 @@ export default function LogsPage(): React.JSX.Element {
 
   return (
     <div className="w-full px-12 pb-8">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => navigate('/settings')} className="dash-text-default flex size-8 items-center justify-center rounded-[.625rem] hover:bg-dash-primary-dark-blue/8 dark:hover:bg-white/10" aria-label="Back to settings" title="Back to settings">
-            <ChevronIcon size={14} color="currentColor" className="rotate-90" />
-          </button>
-          <Heading as="h1" size="xl" weight="extrabold" color="brand-white">Application logs</Heading>
-        </div>
-        <div className="flex items-center gap-4">
+      <PageHeader
+        title={PAGE_HEADERS.logs.title}
+        subtitle={PAGE_HEADERS.logs.subtitle}
+        onBack={() => navigate('/settings')}
+        backLabel={PAGE_HEADERS.logs.back}
+        actions={<>
           <span role="status" className="dash-text-default flex items-center gap-2 text-xs">
             <span className={`size-1.5 rounded-full ${error ? 'bg-amber-400' : 'bg-emerald-400'}`} />
             <span className="opacity-60">{error ? 'Reconnecting' : 'Live'}</span>
             {error && <InfoTooltip content={error} side="bottom" ariaLabel="Show connection error" className="-my-0.5" />}
           </span>
           {activeTab === 'current' && <Button size="sm" colorScheme="primary-light" className="h-8! min-h-0! rounded-[.625rem]! px-3!" onClick={() => current && void showInFolder(current.name)} disabled={!current}>Show in folder</Button>}
-        </div>
-      </div>
-
-      <div className="dash-text-default mb-6 flex items-center gap-2 opacity-50">
-        <InfoCircleIcon size={14} color="currentColor" className="shrink-0" />
-        <span className="text-xs">Logs may include wallet addresses — review before sharing.</span>
-      </div>
+        </>}
+      />
 
       <Tabs value={activeTab} onValueChange={(value) => {
         following.current = true
@@ -107,7 +102,7 @@ export default function LogsPage(): React.JSX.Element {
         triggerClassName="font-medium data-[state=active]:text-dash-primary-dark-blue data-[state=inactive]:text-dash-primary-dark-blue/40 dark:data-[state=active]:text-white dark:data-[state=inactive]:text-white/40"
         items={[
           { value: 'current', label: 'Current log', content: (
-        <section className="mt-4 flex h-[calc(100vh-21rem)] min-h-[24rem] min-w-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b1626]">
+        <section className="mt-4 flex h-[calc(100vh-22.5rem)] min-h-[24rem] min-w-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b1626]">
           <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-xs text-slate-400">
             <span>{current ? `${current.name} · ${formatFileSize(current.size)}` : 'Current log'}</span>
             <span className="shrink-0">{lines.length} lines</span>
