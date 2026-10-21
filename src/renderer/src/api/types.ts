@@ -56,6 +56,8 @@ export interface DashPayContactDto {
   aliasesList: string[]
   incomingCreatedAt: number | null
   outgoingCreatedAt: number | null
+  // Their request can never be decrypted: hide Pay, they have to send a new one.
+  paymentChannelBroken: boolean
 }
 
 // getAliases, registerAlias — a DPNS name this wallet registered. Votes and the

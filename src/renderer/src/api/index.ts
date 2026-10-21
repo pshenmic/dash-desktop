@@ -175,9 +175,10 @@ export class API {
     return this.api.getDashPayContacts(walletId) as Promise<DashPayContactDto[]>
   }
 
-  // The next L1 address to pay a contact on; sendTransaction pays it.
-  static async getDashPayContactAddress(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
-    return this.api.getDashPayContactAddress(walletId, identifier, contactId, password)
+  // An L1 send to a contact; its address is worked out in the backend. Quote it
+  // with estimateFee('coreSend') — the fee does not depend on the address.
+  static async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
+    return this.api.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password) as Promise<SendResult>
   }
 
   static async sendDashPayContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContactDto[]> {

@@ -1,7 +1,8 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { WalletService } from '../../services/wallet/WalletService'
+import { SendResult } from '../../types/SendResult'
 
-export class GetDashPayContactAddressHandler {
+export class SendDashPayPaymentHandler {
   private walletService: WalletService
 
   constructor(walletService: WalletService) {
@@ -13,8 +14,9 @@ export class GetDashPayContactAddressHandler {
     walletId: string,
     identifier: string,
     contactId: string,
+    amountDuffs: bigint,
     password: string,
-  ): Promise<string> => {
-    return this.walletService.getDashPayContactAddress(walletId, identifier, contactId, password)
+  ): Promise<SendResult> => {
+    return this.walletService.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password)
   }
 }

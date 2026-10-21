@@ -24,10 +24,11 @@ import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
-import {nextDashPayContactAddress} from '../../utils/dashPayKeys'
+import {dashPayContactAddresses} from '../../utils/dashPayKeys'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
+  DASHPAY_ADDRESS_WINDOW,
   IDENTITY_LOOKAHEAD,
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
@@ -303,14 +304,26 @@ export class WalletService {
     }
   }
 
-  // The next DashPay address to pay a contact on: the first our own history has not paid.
-  async getDashPayContactAddress(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-    const [xpub, core] = await Promise.all([
-      this.identities.dashPayContactKey(walletId, identifier, contactId, password),
-      this.coreReadProvider(wallet).then(provider => provider.getWalletTransactions()),
-    ])
-    return nextDashPayContactAddress(xpub, wallet.network, new Set(core.flatMap(tx => tx.vout.map(output => output.address))))
+  // Pays a DashPay contact on the next address of the key they sent us; the
+  // address never leaves the backend.
+  async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
+    const result = await this.send(walletId, password, async (wallet, seed) => {
+      const xpub = await this.identities.dashPayContactXpub(walletId, wallet.network, seed, identifier, contactId)
+      return [{address: await this.nextDashPayContactAddress(wallet, xpub), amountDuffs}]
+    })
+    log.info(`dashpay payment ${identifier} -> ${contactId}: ${amountDuffs} duffs in ${result.txid}`)
+    return result
+  }
+
+  // Only we pay into a contact's key, so its first address without history is next.
+  private async nextDashPayContactAddress(wallet: Wallet, xpub: string): Promise<string> {
+    const provider = this.providers.forWallet(wallet.walletId, wallet.network)
+    for (let from = 0; ; from += DASHPAY_ADDRESS_WINDOW.gapLimit) {
+      const batch = dashPayContactAddresses(xpub, wallet.network, from, DASHPAY_ADDRESS_WINDOW.gapLimit)
+      const used = new Set(await provider.getUsedAddresses(batch))
+      const next = batch.find(address => !used.has(address))
+      if (next != null) return next
+    }
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does
@@ -378,9 +391,21 @@ export class WalletService {
     source?: CoreSpendSource,
     changeTo?: string,
   ): Promise<SendResult> {
-    const amountDuffs = requireCoreRecipients(recipients)
+    return this.send(walletId, password, async () => recipients, source, changeTo)
+  }
 
-    const {tx, inputTotal, changeAddress} = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
+  // Recipients are resolved inside the unlock: a DashPay contact's address can
+  // take the seed to work out.
+  private async send(
+    walletId: string,
+    password: string,
+    resolveRecipients: (wallet: Wallet, seed: Uint8Array) => Promise<CoreRecipient[]>,
+    source?: CoreSpendSource,
+    changeTo?: string,
+  ): Promise<SendResult> {
+    const {tx, inputTotal, changeAddress, recipients, amountDuffs} = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
+      const recipients = await resolveRecipients(wallet, seed)
+      const amountDuffs = requireCoreRecipients(recipients)
       const network = wallet.network
       const outputs = recipients.map(recipient => ({
         ...recipient,
@@ -410,7 +435,7 @@ export class WalletService {
         seed,
         network,
       })
-      return {tx, inputTotal, changeAddress}
+      return {tx, inputTotal, changeAddress, recipients, amountDuffs}
     })
 
     const broadcast = await this.walletSyncService.broadcastTransaction(tx.hex())

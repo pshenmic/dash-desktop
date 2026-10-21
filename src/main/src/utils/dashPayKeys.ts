@@ -58,14 +58,11 @@ export function accountReference(key: HDKey): number {
   return Number(bytesToNumberBE(hmac(sha256, key.privateKey!, dashPayContactKeyBytes(key)).subarray(0, 4)) >> 4n)
 }
 
-// A contact key is ours alone to pay into, so our own history shows how far it is used.
-export function nextDashPayContactAddress(xpub: string, network: Network, paid: Set<string>): string {
+// Addresses from..from+count-1 on the key a contact sent us to pay them on.
+export function dashPayContactAddresses(xpub: string, network: Network, from: number, count: number): string[] {
   const key = HDKey.fromExtendedKey(xpub)
   const keyPair = new KeyPairController()
-  for (let index = 0; ; index++) {
-    const address = keyPair.p2pkhAddress(key.deriveChild(index).publicKey!, network)
-    if (!paid.has(address)) return address
-  }
+  return Array.from({length: count}, (_, i) => keyPair.p2pkhAddress(key.deriveChild(from + i).publicKey!, network))
 }
 
 function dashPayContactKeyBytes(key: HDKey): Uint8Array {

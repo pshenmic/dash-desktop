@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {HDKey} from '@scure/bip32'
 import {bytesToHex, hexToBytes} from '@noble/hashes/utils.js'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
-import {accountReference, dashPaySharedKey, decryptDashPayContactKey, deriveChild256, deriveDashPayContactKey, encryptDashPayContactKey, nextDashPayContactAddress} from '../../src/main/src/utils/dashPayKeys'
+import {accountReference, dashPaySharedKey, decryptDashPayContactKey, deriveChild256, deriveDashPayContactKey, encryptDashPayContactKey, dashPayContactAddresses} from '../../src/main/src/utils/dashPayKeys'
 
 const seed = hexToBytes('b16d3782e714da7c55a397d5f19104cfed7ffa8036ac514509bbb50807f8ac598eeb26f0797bd8cc221a6cbff2168d90a5e9ee025a5bd977977b9eccd97894bb')
 
@@ -70,12 +70,12 @@ describe('contact request keys', () => {
     expect(deriveDashPayContactKey(seed, 'testnet', theirs, ours).publicKey).not.toEqual(key.publicKey)
   })
 
-  it('pays a contact on the first address our history has not paid', () => {
+  it('derives the addresses we pay a contact on from the key they sent', () => {
     const key = deriveDashPayContactKey(seed, 'testnet', ours, theirs)
-    const xpub = decryptDashPayContactKey(dashPaySharedKey(encryption, derive("m/2'").publicKey!), encryptDashPayContactKey(dashPaySharedKey(encryption, derive("m/2'").publicKey!), key)).publicExtendedKey
-    const [first, second, third] = [0, 1, 2].map(i => new KeyPairController().p2pkhAddress(key.deriveChild(i).publicKey!, 'testnet'))
-    expect(nextDashPayContactAddress(xpub, 'testnet', new Set())).toBe(first)
-    expect(nextDashPayContactAddress(xpub, 'testnet', new Set([first, second, 'yX-unrelated']))).toBe(third)
+    const shared = dashPaySharedKey(encryption, derive("m/2'").publicKey!)
+    const xpub = decryptDashPayContactKey(shared, encryptDashPayContactKey(shared, key)).publicExtendedKey
+    const expected = [2, 3, 4].map(i => new KeyPairController().p2pkhAddress(key.deriveChild(i).publicKey!, 'testnet'))
+    expect(dashPayContactAddresses(xpub, 'testnet', 2, 3)).toEqual(expected)
   })
 
   it('references account 0 in 28 bits, the same way every time', () => {

@@ -8,6 +8,10 @@ export interface DashPayContactRequest {
   accountReference: number
   encryptedPublicKey: Uint8Array
   createdAt: number
+  // Ours only, on a request sent to us: encryptedPublicKey decrypted, or the
+  // finding that it never can be.
+  contactXpub: string | null
+  paymentChannelBroken: boolean
 }
 
 export type DashPayContactRelationship = 'incoming' | 'outgoing' | 'established'
@@ -22,4 +26,6 @@ export interface DashPayContact {
   // $createdAt of the latest request each way, null while that side has sent none.
   incomingCreatedAt: number | null
   outgoingCreatedAt: number | null
+  // Their request can never be decrypted, so they cannot be paid until they send a new one.
+  paymentChannelBroken: boolean
 }

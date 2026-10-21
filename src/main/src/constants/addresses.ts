@@ -51,6 +51,14 @@ export const SHIELDED_ADDRESS_WINDOW: AddressWindowPolicy = {
   maxRounds: 50,
 }
 
+// DashPay (DIP-15), one chain per contact. Only one payer ever uses it, so a
+// short gap covers it.
+export const DASHPAY_ADDRESS_WINDOW: AddressWindowPolicy = {
+  gapLimit: 10,
+  batch: 10,
+  maxRounds: 50,
+}
+
 // How often the backend re-runs address discovery for the selected wallet.
 // Shielded is absent by design: its deriver needs the seed, so it only walks
 // inside an already-unlocked operation.

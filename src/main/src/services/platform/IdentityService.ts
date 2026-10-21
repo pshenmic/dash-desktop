@@ -128,27 +128,42 @@ export class IdentityService {
     }
 
     log.info(`contact request ${identifier} -> ${recipient}: sending`)
-    const network = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
+    await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
       const {stHash} = await this.platform.request('dashPayContactRequestSend', wallet.network, {
         seed, identifier, identityIndex: identity.identityIndex, recipient,
       })
       log.info(`contact request ${identifier} -> ${recipient}: sent ${stHash}`)
-      return wallet.network
+      await this.recheckDashPayContactRequests(walletId, wallet.network, [identifier])
+      // Accepting holds the seed anyway, so the key they sent us is stored now.
+      const theirs = (await this.dashPayContactRequestDAO.getContactRequests(walletId))
+        .some(request => request.ownerId === recipient && request.toUserId === identifier)
+      if (theirs) {
+        await this.dashPayContactXpub(walletId, wallet.network, seed, identifier, recipient)
+          .catch(err => log.warn(`contact request ${recipient} -> ${identifier}: key not decrypted:`, err))
+      }
     })
-    await this.recheckDashPayContactRequests(walletId, network, [identifier])
     return this.getDashPayContacts(walletId)
   }
 
-  // Decrypting it takes our DECRYPTION key, so the seed.
-  async dashPayContactKey(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
+  // The key a contact sent us to pay them on is encrypted to our DECRYPTION key,
+  // so it is decrypted inside an unlock the caller already holds, then kept.
+  async dashPayContactXpub(walletId: string, network: Network, seed: Uint8Array, identifier: string, contactId: string): Promise<string> {
     const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
     const request = (await this.dashPayContactRequestDAO.getContactRequests(walletId))
       .findLast(request => request.ownerId === contactId && request.toUserId === identifier)
     if (identity == null || request == null) {
-      throw new Error('This identity has no contact request from that contact')
+      throw new Error('This contact has not sent this identity a contact request')
     }
-    const {xpub} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('dashPayContactKey', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, request}))
+    if (request.contactXpub != null) return request.contactXpub
+    const broken = 'Payments to this contact are unavailable — ask them to send you a new contact request'
+    if (request.paymentChannelBroken) throw new Error(broken)
+    const {xpub} = await this.platform.request('dashPayContactKey', network, {seed, identifier, identityIndex: identity.identityIndex, request})
+    if (xpub == null) {
+      await this.dashPayContactRequestDAO.setPaymentChannelBroken(walletId, request.id)
+      throw new Error(broken)
+    }
+    await this.dashPayContactRequestDAO.setContactXpub(walletId, request.id, xpub)
+    log.info(`contact request ${contactId} -> ${identifier}: key stored`)
     return xpub
   }
 

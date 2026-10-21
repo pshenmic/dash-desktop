@@ -42,6 +42,11 @@ export async function up(knex: Knex): Promise<void> {
     table.binary('encrypted_public_key').notNullable()
     // Platform's $createdAt, in milliseconds.
     table.integer('created_at').notNullable()
+    // On a request sent to us: the sender's payment key, decrypted the first
+    // time the seed was at hand. Public, it only derives addresses to pay them.
+    table.text('contact_xpub')
+    // Set when that key can never be decrypted; a new request is a new row.
+    table.boolean('payment_channel_broken').notNullable().defaultTo(false)
     table.primary(['wallet_id', 'document_id'])
   })
 }

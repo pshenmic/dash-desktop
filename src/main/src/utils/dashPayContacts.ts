@@ -2,15 +2,17 @@ import {DashPayContactRequest, DashPayContact} from '../types/DashPay'
 
 // Requests come oldest first, so a later one to the same contact replaces an earlier one.
 export function dashPayContacts(requests: DashPayContactRequest[], identifiers: string[]): DashPayContact[] {
-  const pairs = new Map<string, {identifier: string; contactId: string; incomingCreatedAt: number | null; outgoingCreatedAt: number | null}>()
+  const pairs = new Map<string, Omit<DashPayContact, 'relationship' | 'aliasesList'>>()
   const pair = (identifier: string, contactId: string) => {
     const key = `${identifier}:${contactId}`
-    if (!pairs.has(key)) pairs.set(key, {identifier, contactId, incomingCreatedAt: null, outgoingCreatedAt: null})
+    if (!pairs.has(key)) pairs.set(key, {identifier, contactId, incomingCreatedAt: null, outgoingCreatedAt: null, paymentChannelBroken: false})
     return pairs.get(key)!
   }
   for (const request of requests) {
     if (identifiers.includes(request.ownerId)) pair(request.ownerId, request.toUserId).outgoingCreatedAt = request.createdAt
-    if (identifiers.includes(request.toUserId)) pair(request.toUserId, request.ownerId).incomingCreatedAt = request.createdAt
+    if (identifiers.includes(request.toUserId)) {
+      Object.assign(pair(request.toUserId, request.ownerId), {incomingCreatedAt: request.createdAt, paymentChannelBroken: request.paymentChannelBroken})
+    }
   }
   return [...pairs.values()].map(contact => ({
     ...contact,

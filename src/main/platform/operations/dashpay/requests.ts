@@ -34,5 +34,7 @@ function dashPayContactRequest(document: DocumentWASM): DashPayContactRequest {
     accountReference,
     encryptedPublicKey: Uint8Array.from(encryptedPublicKey),
     createdAt: Number(document.createdAt),
+    contactXpub: null,
+    paymentChannelBroken: false,
   }
 }

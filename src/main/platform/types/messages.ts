@@ -380,9 +380,10 @@ export interface PlatformOperations {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
     result: {stHash: string}
   }
+  // null when the request can never be decrypted.
   dashPayContactKey: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; request: DashPayContactRequest}
-    result: {xpub: string}
+    result: {xpub: string | null}
   }
   // Oldest first, every request created at or after `since`.
   dashPayContactRequests: {

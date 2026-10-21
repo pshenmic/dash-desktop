@@ -13,6 +13,8 @@ function fromRow(row): DashPayContactRequest {
     accountReference: row.account_reference,
     encryptedPublicKey: row.encrypted_public_key,
     createdAt: row.created_at,
+    contactXpub: row.contact_xpub,
+    paymentChannelBroken: Boolean(row.payment_channel_broken),
   }
 }
 
@@ -31,6 +33,18 @@ export class DashPayContactRequestDAO {
     return rows.map(fromRow)
   }
 
+  setContactXpub = async (walletId: string, documentId: string, contactXpub: string): Promise<void> => {
+    await this.knex('dashpay_contact_requests')
+      .where({wallet_id: walletId, document_id: documentId})
+      .update({contact_xpub: contactXpub})
+  }
+
+  setPaymentChannelBroken = async (walletId: string, documentId: string): Promise<void> => {
+    await this.knex('dashpay_contact_requests')
+      .where({wallet_id: walletId, document_id: documentId})
+      .update({payment_channel_broken: true})
+  }
+
   // A request never changes once written, so one already stored is skipped.
   saveAll = async (walletId: string, requests: DashPayContactRequest[]): Promise<void> => {
     for (const rows of chunk(requests, INSERT_CHUNK_SIZE)) {
@@ -45,6 +59,8 @@ export class DashPayContactRequestDAO {
           account_reference: request.accountReference,
           encrypted_public_key: Buffer.from(request.encryptedPublicKey),
           created_at: request.createdAt,
+          contact_xpub: request.contactXpub,
+          payment_channel_broken: request.paymentChannelBroken,
         })))
         .onConflict(['wallet_id', 'document_id'])
         .ignore()
