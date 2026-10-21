@@ -380,6 +380,10 @@ export interface PlatformOperations {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
     result: {stHash: string}
   }
+  contactKey: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; request: ContactRequest}
+    result: {xpub: string}
+  }
   // Oldest first, every request created at or after `since`.
   contactRequests: {
     payload: {identifier: string; since: number}

@@ -24,6 +24,7 @@ import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
+import {nextContactAddress} from '../../utils/contactKeys'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
@@ -300,6 +301,16 @@ export class WalletService {
       platform: mergePlatformTransactions(platform),
       platformFailed: this.platformHistory.lastRefreshFailed(walletId),
     }
+  }
+
+  // The next DashPay address to pay a contact on: the first our own history has not paid.
+  async getContactAddress(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const [xpub, core] = await Promise.all([
+      this.identities.contactKey(walletId, identifier, contactId, password),
+      this.coreReadProvider(wallet).then(provider => provider.getWalletTransactions()),
+    ])
+    return nextContactAddress(xpub, wallet.network, new Set(core.flatMap(tx => tx.vout.map(output => output.address))))
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does

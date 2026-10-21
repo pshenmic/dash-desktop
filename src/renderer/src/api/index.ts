@@ -175,6 +175,11 @@ export class API {
     return this.api.getDashPayContacts(walletId) as Promise<DashPayContactDto[]>
   }
 
+  // The next L1 address to pay a contact on; sendTransaction pays it.
+  static async getContactAddress(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
+    return this.api.getContactAddress(walletId, identifier, contactId, password)
+  }
+
   static async sendContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContactDto[]> {
     return this.api.sendContactRequest(walletId, identifier, recipient, password) as Promise<DashPayContactDto[]>
   }

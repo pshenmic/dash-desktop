@@ -1,7 +1,8 @@
 import {describe, it, expect} from 'vitest'
 import {HDKey} from '@scure/bip32'
 import {bytesToHex, hexToBytes} from '@noble/hashes/utils.js'
-import {accountReference, contactSharedKey, decryptContactKey, deriveChild256, deriveContactKey, encryptContactKey} from '../../src/main/src/utils/contactKeys'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
+import {accountReference, contactSharedKey, decryptContactKey, deriveChild256, deriveContactKey, encryptContactKey, nextContactAddress} from '../../src/main/src/utils/contactKeys'
 
 const seed = hexToBytes('b16d3782e714da7c55a397d5f19104cfed7ffa8036ac514509bbb50807f8ac598eeb26f0797bd8cc221a6cbff2168d90a5e9ee025a5bd977977b9eccd97894bb')
 
@@ -67,6 +68,14 @@ describe('contact request keys', () => {
     expect(encrypted).toHaveLength(96)
     expect(decryptContactKey(shared, encrypted).deriveChild(7).publicKey).toEqual(key.deriveChild(7).publicKey)
     expect(deriveContactKey(seed, 'testnet', theirs, ours).publicKey).not.toEqual(key.publicKey)
+  })
+
+  it('pays a contact on the first address our history has not paid', () => {
+    const key = deriveContactKey(seed, 'testnet', ours, theirs)
+    const xpub = decryptContactKey(contactSharedKey(encryption, derive("m/2'").publicKey!), encryptContactKey(contactSharedKey(encryption, derive("m/2'").publicKey!), key)).publicExtendedKey
+    const [first, second, third] = [0, 1, 2].map(i => new KeyPairController().p2pkhAddress(key.deriveChild(i).publicKey!, 'testnet'))
+    expect(nextContactAddress(xpub, 'testnet', new Set())).toBe(first)
+    expect(nextContactAddress(xpub, 'testnet', new Set([first, second, 'yX-unrelated']))).toBe(third)
   })
 
   it('references account 0 in 28 bits, the same way every time', () => {

@@ -5,6 +5,7 @@ import {hmac} from '@noble/hashes/hmac.js'
 import {sha256, sha512} from '@noble/hashes/sha2.js'
 import {concatBytes} from '@noble/hashes/utils.js'
 import {HARDENED_OFFSET, HDKey} from '@scure/bip32'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {COIN_TYPE} from '../constants/addresses'
 import {Network} from '../types/Network'
 
@@ -55,6 +56,16 @@ export function decryptContactKey(sharedKey: Uint8Array, encrypted: Uint8Array):
 // DIP-15 for account 0, version 0: the top 28 bits of HMAC-SHA256(secret, key).
 export function accountReference(key: HDKey): number {
   return Number(bytesToNumberBE(hmac(sha256, key.privateKey!, contactKeyBytes(key)).subarray(0, 4)) >> 4n)
+}
+
+// A contact key is ours alone to pay into, so our own history shows how far it is used.
+export function nextContactAddress(xpub: string, network: Network, paid: Set<string>): string {
+  const key = HDKey.fromExtendedKey(xpub)
+  const keyPair = new KeyPairController()
+  for (let index = 0; ; index++) {
+    const address = keyPair.p2pkhAddress(key.deriveChild(index).publicKey!, network)
+    if (!paid.has(address)) return address
+  }
 }
 
 function contactKeyBytes(key: HDKey): Uint8Array {

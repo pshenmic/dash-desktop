@@ -117,6 +117,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'aliasStatus':
     case 'aliasResolve':
     case 'contactRequests':
+    case 'contactKey':
     case 'identityScan':
     case 'nodeStatus':
     case 'activeDapiUrls':

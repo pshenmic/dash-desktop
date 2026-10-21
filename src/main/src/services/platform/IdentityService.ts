@@ -131,6 +131,19 @@ export class IdentityService {
     return this.getContacts(walletId)
   }
 
+  // Decrypting it takes our DECRYPTION key, so the seed.
+  async contactKey(walletId: string, identifier: string, contactId: string, password: string): Promise<string> {
+    const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
+    const request = (await this.contactRequestDAO.getContactRequests(walletId))
+      .findLast(request => request.ownerId === contactId && request.toUserId === identifier)
+    if (identity == null || request == null) {
+      throw new Error('This identity has no contact request from that contact')
+    }
+    const {xpub} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('contactKey', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, request}))
+    return xpub
+  }
+
   async getAliases(walletId: string): Promise<Alias[]> {
     await requireWallet(this.walletDAO, walletId)
     return this.aliasDAO.getAliases(walletId)
