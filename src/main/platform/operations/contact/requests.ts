@@ -8,9 +8,18 @@ type Payload = PlatformOperations['contactRequests']['payload']
 type Result = PlatformOperations['contactRequests']['result']
 
 export async function contactRequests({identifier, since}: Payload, {sdk}: OperationContext): Promise<Result> {
-  const page = async (field: string) => (await sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest',
-    [[field, '==', identifier], ['$createdAt', '>', since]], [['$createdAt', 'asc']], PROVED_QUERY_LIMIT)).map(contactRequest)
-  const [sent, received] = await Promise.all([page('$ownerId'), page('toUserId')])
+  // `>=` keeps a request sharing the boundary millisecond; the caller drops what it already has.
+  const all = async (field: string): Promise<ContactRequest[]> => {
+    const requests: ContactRequest[] = []
+    for (let from = since; ;) {
+      const page = (await sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest',
+        [[field, '==', identifier], ['$createdAt', '>=', from]], [['$createdAt', 'asc']], PROVED_QUERY_LIMIT)).map(contactRequest)
+      requests.push(...page.filter(request => !requests.some(known => known.id === request.id)))
+      if (page.length < PROVED_QUERY_LIMIT) return requests
+      from = page[page.length - 1].createdAt
+    }
+  }
+  const [sent, received] = await Promise.all([all('$ownerId'), all('toUserId')])
   return {sent, received}
 }
 

@@ -3,10 +3,14 @@ import {IdentifierWASM} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
+import {contactRequestFee} from '../fee'
 import {DASHPAY_CONTRACT_ID} from '../../constants'
 import {accountReference, contactSharedKey, deriveContactKey, encryptContactKey} from '../../../src/utils/contactKeys'
 import {identityAddEncryptionKeys} from '../identity/addEncryptionKeys'
 import {applySignature, signingKey} from '../identity/signingKey'
+import {Logger} from '../../../src/utils/logger'
+
+const log = new Logger('platform')
 
 type Payload = PlatformOperations['contactRequestSend']['payload']
 type Result = PlatformOperations['contactRequestSend']['result']
@@ -25,6 +29,9 @@ export async function contactRequestSend(payload: Payload, ctx: OperationContext
     .filter(key => key.purpose === 'DECRYPTION' && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null)
     .at(-1)
   if (decryption == null) throw new OperationError('This identity has no key to receive contact requests with', 'internal')
+  const [cost, balance] = await Promise.all([contactRequestFee(ctx, recipient, identifier), sdk.identities.getIdentityBalance(identifier)])
+  log.info(`contact request ${identifier} -> ${recipient}: costs ${cost.feeCredits} of ${balance} credits`)
+  if (balance < cost.feeCredits) throw new OperationError('The identity cannot afford a contact request', 'insufficientFunds')
 
   await identityAddEncryptionKeys({seed, identifier, identityIndex}, ctx)
   const encryption = await signingKey(sdk, seed, network, identifier, identityIndex, 'ENCRYPTION')

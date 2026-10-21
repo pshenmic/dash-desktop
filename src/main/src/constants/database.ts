@@ -17,6 +17,7 @@ export const WALLET_SCOPED_TABLES = [
   'platform_transaction_parts',
   'platform_transactions',
   'aliases',
+  'contact_requests',
 ] as const
 
 // Batched statements stay under both SQLite ceilings: knex builds a multi-row

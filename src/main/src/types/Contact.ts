@@ -19,3 +19,12 @@ export interface ContactRequest {
   encryptedPublicKey: Uint8Array
   createdAt: number
 }
+
+// One of our identities and another, by the latest request each way.
+// Established once both are set.
+export interface DashPayContact {
+  identifier: string
+  contactId: string
+  sent: ContactRequest | null
+  received: ContactRequest | null
+}

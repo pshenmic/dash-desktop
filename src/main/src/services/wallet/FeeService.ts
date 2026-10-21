@@ -169,6 +169,7 @@ export class FeeService {
       case 'identityToIdentity':
       case 'identityWithdrawal':
       case 'aliasRegister':
+      case 'contactRequest':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -364,6 +365,10 @@ export class FeeService {
       // A preorder and its domain, signed in the worker one after the other.
       case 'aliasRegister':
         throw new Error('A name registration is two transitions, so it has no single transaction to preview')
+
+      // Adds the identity's encryption keys first when it lacks them.
+      case 'contactRequest':
+        throw new Error('A contact request can be two transitions, so it has no single transaction to preview')
 
       case 'shield': {
         requireAutomaticSelection(params.coreSource)

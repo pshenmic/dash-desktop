@@ -26,6 +26,7 @@ const FEE_OPERATIONS: Record<FeeOperation, TransferOperation> = {
   shieldedWithdrawal: TransferOperation.ShieldedWithdrawal,
   identityCreateFromShielded: TransferOperation.IdentityCreateFromShielded,
   aliasRegister: TransferOperation.AliasRegister,
+  contactRequest: TransferOperation.ContactRequest,
 }
 
 const SPEND_KINDS: Record<PoolSpendOperation, ShieldedSpendKind> = {

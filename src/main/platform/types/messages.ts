@@ -118,10 +118,12 @@ export type IdentityFeeOperation =
   | 'identityToIdentity'
   | 'identityWithdrawal'
 
-// recipient is the label being registered, identityId the identity paying.
+// For aliasRegister the recipient is the label being registered, for
+// contactRequest the identity asked; identityId is the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
   | 'aliasRegister'
+  | 'contactRequest'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -131,7 +133,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'contactRequest'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -378,7 +380,7 @@ export interface PlatformOperations {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
     result: {stHash: string}
   }
-  // Oldest first, created after `since`, at most one proved page per direction.
+  // Oldest first, every request created at or after `since`.
   contactRequests: {
     payload: {identifier: string; since: number}
     result: {sent: ContactRequest[]; received: ContactRequest[]}

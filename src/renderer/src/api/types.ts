@@ -46,6 +46,26 @@ export interface PlatformAddressDto {
   nonce: number
 }
 
+// getDashPayContacts, sendContactRequest — one of our identities and another, by
+// the latest contactRequest each way; established once both are set.
+export interface ContactRequestDto {
+  id: string
+  ownerId: string
+  toUserId: string
+  senderKeyIndex: number
+  recipientKeyIndex: number
+  accountReference: number
+  encryptedPublicKey: Uint8Array
+  createdAt: number
+}
+
+export interface DashPayContactDto {
+  identifier: string
+  contactId: string
+  sent: ContactRequestDto | null
+  received: ContactRequestDto | null
+}
+
 // getAliases, registerAlias — a DPNS name this wallet registered. Votes and the
 // end date are set only for a contested name; voteEndsAt is in milliseconds.
 export interface AliasDto {

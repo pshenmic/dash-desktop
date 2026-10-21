@@ -21,6 +21,7 @@ import {
 import {coreAddressToScript} from '../../src/utils/coreScript'
 import {
   CONTEST_FUND_CREDITS,
+  DASHPAY_CONTRACT_ID,
   DPNS_PARENT_DOMAIN,
   FEE_QUOTE_PUBLIC_KEY,
   FUNDING_REMAINDER_STAND_IN,
@@ -33,16 +34,19 @@ import {buildAssetLockProof} from './assetLockProof'
 import {platformVersion} from './platformVersion'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
+import {missingEncryptionKeys} from './identity/addEncryptionKeys'
 import {IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
 import {
   ASSET_LOCK_BASE_COST_CREDITS,
   CONTRACT_NONCE_BYTES,
+  DASHPAY_CONTACT_REQUEST_BYTES,
   DOCUMENT_FEE_MARGIN_PERCENT,
   DPNS_CONTESTED_DOMAIN_BYTES,
   DPNS_DOMAIN_BYTES,
   DPNS_IDENTITY_SUBTREE_BYTES,
   DPNS_PREORDER_BYTES,
   SHIELD_FUNDING_ACTIONS,
+  IDENTITY_KEY_BYTES,
   STORED_BYTE_CREDITS,
 } from '../../src/constants/fee/platform'
 import {Logger} from '../../src/utils/logger'
@@ -73,6 +77,7 @@ export async function spendFeeCurve(payload: CurvePayload, ctx: OperationContext
 export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {operation, params} = payload
   if (operation === 'aliasRegister') return aliasRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'contactRequest') return contactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
@@ -138,6 +143,36 @@ export async function aliasRegisterFee(ctx: OperationContext, label: string, ide
   }
 }
 
+// Our encryption keys go on in an identity update first when they are missing.
+export async function contactRequestFee(ctx: OperationContext, recipient: string, identityId: string): Promise<Result> {
+  const {sdk} = ctx
+  const [contract, contractNonce, keys] = await Promise.all([
+    sdk.dataContracts.getDataContractByIdentifier(DASHPAY_CONTRACT_ID),
+    sdk.identities.getIdentityContractNonce(identityId, DASHPAY_CONTRACT_ID),
+    sdk.identities.getIdentityPublicKeys(identityId),
+  ])
+
+  const request = sdk.documents.create(DASHPAY_CONTRACT_ID, 'contactRequest', {
+    toUserId: new IdentifierWASM(recipient).bytes(),
+    encryptedPublicKey: new Uint8Array(96),
+    senderKeyIndex: 0,
+    recipientKeyIndex: 0,
+    accountReference: 0,
+  }, identityId, 1n)
+  // DashPay requires them on a request; their width never varies.
+  request.createdAt = Date.now()
+  request.createdAtCoreBlockHeight = 0
+
+  const keysBytes = BigInt(missingEncryptionKeys(keys).length) * IDENTITY_KEY_BYTES
+  return {
+    feeCredits: documentsFee(contract, [
+      {document: request, overheadBytes: DASHPAY_CONTACT_REQUEST_BYTES + (contractNonce === 0n ? CONTRACT_NONCE_BYTES : 0n)},
+    ]) + keysBytes * STORED_BYTE_CREDITS,
+    metered: true,
+    fixedCredits: 0n,
+  }
+}
+
 // Shield's own minimum omits note storage, but consensus checks its claims
 // against the full pool carve, which ShieldedTransfer carries.
 export function shieldPoolFee(version: PlatformVersionWASM): bigint {
@@ -145,7 +180,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister'>,
+  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'contactRequest'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,

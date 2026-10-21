@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {DashPlatformSDK} from 'dash-platform-sdk'
-import {AddressFundsTransferTransitionWASM, PlatformAddressWASM} from 'pshenmic-dpp'
+import {AddressFundsTransferTransitionWASM, DataContractWASM, PlatformAddressWASM, Purpose} from 'pshenmic-dpp'
 import {InputAddressWASM} from 'dash-platform-sdk/types.js'
 import {createBase58check} from '@scure/base'
 import {sha256} from '@noble/hashes/sha2.js'
@@ -8,7 +8,8 @@ import {InstantLock, Input, Network as CoreNetwork, OutPoint, PrivateKey, Script
 import {transitionFee} from '../../src/main/platform/operations/fee'
 import {buildAssetLockOutputs} from '../../src/main/src/utils/assetLockTx'
 import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants/credits'
-import {FEE_QUOTE_PUBLIC_KEY} from '../../src/main/platform/constants'
+import {DASHPAY_CONTRACT_ID, FEE_QUOTE_PUBLIC_KEY} from '../../src/main/platform/constants'
+import {DASHPAY_CONTRACT_BASE64} from '../fixtures/dashpayContract'
 import {DEDUCT_FROM_FIRST} from '../../src/main/platform/operations/address/signInputs'
 import {FeeQuoteParams, TransitionFeeOperation} from '../../src/main/platform/types/messages'
 import {OperationContext} from '../../src/main/platform/operations/types'
@@ -48,6 +49,7 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   identityRegister: '',
   identityTopUpL1: IDENTITY,
   aliasRegister: 'owl352-testnet',
+  contactRequest: IDENTITY,
 }
 
 const FUNDING_TXID = '11'.repeat(32)
@@ -83,6 +85,12 @@ Object.assign(sdk.node, {getEpochsInfo: async () => [{protocolVersion: 13}]})
 const dpnsState = {contractNonce: 1n, named: true}
 Object.assign(sdk.identities, {getIdentityContractNonce: async () => dpnsState.contractNonce})
 Object.assign(sdk.documents, {query: async () => dpnsState.named ? [{}] : []})
+// DPNS ships inside the SDK; DashPay is read from the network, so it is stood in.
+const dashpay = DataContractWASM.fromBase64(DASHPAY_CONTRACT_BASE64, true, 9)
+const fetchContract = sdk.dataContracts.getDataContractByIdentifier.bind(sdk.dataContracts)
+Object.assign(sdk.dataContracts, {getDataContractByIdentifier: async (id: string) => id === DASHPAY_CONTRACT_ID ? dashpay : fetchContract(id)})
+const identityKeys = {purposes: [Purpose.AUTHENTICATION, Purpose.ENCRYPTION, Purpose.DECRYPTION]}
+Object.assign(sdk.identities, {getIdentityPublicKeys: async () => identityKeys.purposes.map(purposeNumber => ({purposeNumber}))})
 
 const ctx = {
   sdk,
@@ -260,6 +268,24 @@ describe('transitionFee', () => {
       expect(Math.abs(error), label).toBeLessThan(0.01)
     }
     Object.assign(dpnsState, {contractNonce: 1n, named: true})
+  })
+
+  // What testnet charged at protocol 14 for each identity's first contact request.
+  it('prices a contact request at most 9% over what Drive charged', async () => {
+    Object.assign(dpnsState, {contractNonce: 0n})
+    for (const credits of [102_138_659, 105_515_575]) {
+      const error = Number(await feeOf('contactRequest')) / credits - 1
+      expect(error).toBeGreaterThanOrEqual(0)
+      expect(error).toBeLessThan(0.09)
+    }
+    Object.assign(dpnsState, {contractNonce: 1n})
+  })
+
+  it('adds the encryption keys the sender still needs to a contact request', async () => {
+    const withKeys = await feeOf('contactRequest')
+    identityKeys.purposes = [Purpose.AUTHENTICATION]
+    expect(await feeOf('contactRequest') - withKeys).toBe(2n * 452n * 27_400n)
+    identityKeys.purposes = [Purpose.AUTHENTICATION, Purpose.ENCRYPTION, Purpose.DECRYPTION]
   })
 
   it('quotes a contested name its vote fund apart, so no multiplier scales it', async () => {

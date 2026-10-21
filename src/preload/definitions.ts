@@ -56,6 +56,8 @@ export const apiDefinitions = (ipcRenderer) => ({
   getAliases: (walletId: string) => ipcRenderer.invoke('getAliases', walletId),
   registerAlias: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerAlias', walletId, identifier, label, password),
   resolveAlias: (walletId: string, label: string): Promise<string | null> => ipcRenderer.invoke('resolveAlias', walletId, label),
+  getDashPayContacts: (walletId: string) => ipcRenderer.invoke('getDashPayContacts', walletId),
+  sendContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => ipcRenderer.invoke('sendContactRequest', walletId, identifier, recipient, password),
   getIdentityBalance: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityBalance', identifier),
   getIdentityNonce: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityNonce', identifier),
   getPlatformAddresses: (walletId: string) => ipcRenderer.invoke('getPlatformAddresses', walletId),

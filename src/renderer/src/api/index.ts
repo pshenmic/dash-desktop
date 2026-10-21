@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AliasDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AliasDto, DashPayContactDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -169,6 +169,14 @@ export class API {
 
   static async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<AliasDto> {
     return this.api.registerAlias(walletId, identifier, label, password) as Promise<AliasDto>
+  }
+
+  static async getDashPayContacts(walletId: string): Promise<DashPayContactDto[]> {
+    return this.api.getDashPayContacts(walletId) as Promise<DashPayContactDto[]>
+  }
+
+  static async sendContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContactDto[]> {
+    return this.api.sendContactRequest(walletId, identifier, recipient, password) as Promise<DashPayContactDto[]>
   }
 
   static async getPlatformAddresses(walletId: string): Promise<PlatformAddressDto[]> {

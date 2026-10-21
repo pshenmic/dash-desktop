@@ -28,8 +28,25 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('checked_at')
     table.primary(['wallet_id', 'identifier', 'normalized_label'])
   })
+
+  // DashPay contactRequest documents sent or received by this wallet's
+  // identities. A document between two of them is still one row.
+  await knex.schema.createTable('contact_requests', table => {
+    table.text('wallet_id').notNullable().references('wallet_id').inTable('wallet')
+    table.text('document_id').notNullable()
+    table.text('owner_id').notNullable()
+    table.text('to_user_id').notNullable()
+    table.integer('sender_key_index').notNullable()
+    table.integer('recipient_key_index').notNullable()
+    table.integer('account_reference').notNullable()
+    table.binary('encrypted_public_key').notNullable()
+    // Platform's $createdAt, in milliseconds.
+    table.integer('created_at').notNullable()
+    table.primary(['wallet_id', 'document_id'])
+  })
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('contact_requests')
   await knex.schema.dropTableIfExists('aliases')
 }

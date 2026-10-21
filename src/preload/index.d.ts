@@ -154,6 +154,8 @@ declare global {
       getAliases: (walletId: string) => Promise<unknown>
       registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
       resolveAlias: (walletId: string, label: string) => Promise<string | null>
+      getDashPayContacts: (walletId: string) => Promise<unknown>
+      sendContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>

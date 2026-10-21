@@ -17,6 +17,7 @@ export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, num
   identityCreate: 10,
   identityToIdentity: 70,
   aliasRegister: 1,
+  contactRequest: 1,
 }
 
 // FEE_VERSION3's 27,000 storage plus 400 processing credits for every byte a
@@ -34,6 +35,11 @@ export const DPNS_DOMAIN_BYTES = 944n
 export const DPNS_CONTESTED_DOMAIN_BYTES = 2_750n
 // A domain whose records.identity has none yet opens that value's index subtree.
 export const DPNS_IDENTITY_SUBTREE_BYTES = 283n
+
+// The same for a DashPay contactRequest, the larger of two testnet measurements.
+export const DASHPAY_CONTACT_REQUEST_BYTES = 2_860n
+// What adding one identity key stores, measured on testnet at protocol 14.
+export const IDENTITY_KEY_BYTES = 452n
 
 export const IDENTITY_TRANSFER_MIN_FEE_CREDITS = 200_000_000n
 

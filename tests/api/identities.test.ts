@@ -4,11 +4,18 @@ import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {AliasDAO} from '../../src/main/src/database/AliasDAO'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {AliasCheck} from '../../src/main/src/types/Alias'
+import {ContactRequest} from '../../src/main/src/types/Contact'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const IDENTIFIER = 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec'
 
 const SALT = Buffer.alloc(32, 1)
+
+const ALICE = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
+
+function contactRequest(id: string, ownerId: string, toUserId: string, createdAt: number): ContactRequest {
+  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 7, encryptedPublicKey: Buffer.alloc(96, 1), createdAt}
+}
 
 const UNCHECKED: AliasCheck = {
   status: 'missing', isContested: true, documentId: null, votesFor: null, votesLock: null, votesAbstain: null, voteEndsAt: null,
@@ -110,5 +117,35 @@ describe('listing identities', () => {
     await expect(identities.registerAlias(walletId, IDENTIFIER, 'owl', 'wrong')).rejects.toThrow('Invalid wallet password')
     expect(request).not.toHaveBeenCalledWith('aliasRegister', expect.anything(), expect.anything())
     expect(await identities.getAliases(walletId)).toEqual([])
+  })
+
+  // Only what is newer than the newest stored request is asked for, and the
+  // boundary millisecond is asked for again, so what comes back twice is kept once.
+  it('stores new contact requests from the refresh and pairs them into contacts', async () => {
+    const sent = contactRequest('sent', IDENTIFIER, ALICE, 10)
+    const received = contactRequest('received', ALICE, IDENTIFIER, 20)
+    request.mockImplementation(async (kind: string) => kind === 'contactRequests' ? {sent: [sent], received: []} : {infos: []})
+    await identities.getIdentities(walletId)
+    expect(request).toHaveBeenCalledWith('contactRequests', 'testnet', {identifier: IDENTIFIER, since: 0})
+    expect(await identities.getContacts(walletId)).toEqual([{identifier: IDENTIFIER, contactId: ALICE, sent, received: null}])
+
+    request.mockImplementation(async (kind: string) => kind === 'contactRequests' ? {sent: [sent], received: [received]} : {infos: []})
+    await identities.getIdentities(walletId)
+    expect(request).toHaveBeenLastCalledWith('contactRequests', 'testnet', {identifier: IDENTIFIER, since: 10})
+    expect(await identities.getContacts(walletId)).toEqual([{identifier: IDENTIFIER, contactId: ALICE, sent, received}])
+  })
+
+  it('sends a contact request and returns it among the contacts', async () => {
+    const sent = contactRequest('sent', IDENTIFIER, ALICE, 10)
+    request.mockImplementation(async (kind: string) => kind === 'contactRequestSend' ? {stHash: 'hash'} : {sent: [sent], received: []})
+
+    expect(await identities.sendContactRequest(walletId, IDENTIFIER, ALICE, PASSWORD)).toEqual([{identifier: IDENTIFIER, contactId: ALICE, sent, received: null}])
+    expect(request).toHaveBeenCalledWith('contactRequestSend', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, recipient: ALICE}))
+  })
+
+  it('refuses a contact request to itself or from an identity it does not hold', async () => {
+    await expect(identities.sendContactRequest(walletId, IDENTIFIER, IDENTIFIER, PASSWORD)).rejects.toThrow('itself')
+    await expect(identities.sendContactRequest(walletId, ALICE, IDENTIFIER, PASSWORD)).rejects.toThrow('Identity not found')
+    expect(request).not.toHaveBeenCalledWith('contactRequestSend', expect.anything(), expect.anything())
   })
 })

@@ -1,4 +1,4 @@
-import {IdentityPublicKeyInCreationWASM, IdentityUpdateTransitionWASM, PrivateKeyWASM, Purpose} from 'dash-platform-sdk/types.js'
+import {IdentityPublicKeyInCreationWASM, IdentityPublicKeyWASM, IdentityUpdateTransitionWASM, PrivateKeyWASM, Purpose} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
@@ -16,8 +16,7 @@ export async function identityAddEncryptionKeys(payload: Payload, ctx: Operation
 
   const identity = await sdk.identities.getIdentityByIdentifier(identifier)
   const keys = identity.getPublicKeys()
-  const missing = IDENTITY_KEY_DEFINITIONS.filter(({purpose}) =>
-    (purpose === Purpose.ENCRYPTION || purpose === Purpose.DECRYPTION) && !keys.some(key => key.purposeNumber === purpose))
+  const missing = missingEncryptionKeys(keys)
   if (missing.length === 0) return {stHash: null}
 
   const master = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'MASTER')
@@ -45,4 +44,9 @@ export async function identityAddEncryptionKeys(payload: Payload, ctx: Operation
   applySignature(st, master.privateKey, master.publicKey)
 
   return {stHash: await broadcast(sdk, st, ctx)}
+}
+
+export function missingEncryptionKeys(keys: IdentityPublicKeyWASM[]): typeof IDENTITY_KEY_DEFINITIONS[number][] {
+  return IDENTITY_KEY_DEFINITIONS.filter(({purpose}) =>
+    (purpose === Purpose.ENCRYPTION || purpose === Purpose.DECRYPTION) && !keys.some(key => key.purposeNumber === purpose))
 }
