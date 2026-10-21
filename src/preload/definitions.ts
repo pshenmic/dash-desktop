@@ -59,6 +59,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getDashPayContacts: (walletId: string) => ipcRenderer.invoke('getDashPayContacts', walletId),
   sendDashPayContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => ipcRenderer.invoke('sendDashPayContactRequest', walletId, identifier, recipient, password),
   sendDashPayPayment: (walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string) => ipcRenderer.invoke('sendDashPayPayment', walletId, identifier, contactId, amountDuffs, password),
+  getDashPayPayments: (walletId: string, identifier: string, contactId: string) => ipcRenderer.invoke('getDashPayPayments', walletId, identifier, contactId),
   getIdentityBalance: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityBalance', identifier),
   getIdentityNonce: (identifier: string): Promise<bigint> => ipcRenderer.invoke('getIdentityNonce', identifier),
   getPlatformAddresses: (walletId: string) => ipcRenderer.invoke('getPlatformAddresses', walletId),

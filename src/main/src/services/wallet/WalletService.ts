@@ -25,6 +25,8 @@ import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
+import {dashPayPayments} from '../../utils/dashPayContacts'
+import {DashPayPayment} from '../../types/DashPay'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
@@ -313,6 +315,18 @@ export class WalletService {
     })
     log.info(`dashpay payment ${identifier} -> ${contactId}: ${amountDuffs} duffs in ${result.txid}`)
     return result
+  }
+
+  // Payments between one of our identities and a contact, from our L1 history.
+  async getDashPayPayments(walletId: string, identifier: string, contactId: string): Promise<DashPayPayment[]> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const [core, receiving, external] = await Promise.all([
+      this.coreReadProvider(wallet).then(provider => provider.getWalletTransactions()),
+      this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'receiving'),
+      this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'external'),
+    ])
+    const addresses = (rows: Array<{address: string}>) => new Set(rows.map(({address}) => address))
+    return dashPayPayments(core, addresses(receiving), addresses(external))
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does

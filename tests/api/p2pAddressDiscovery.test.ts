@@ -186,6 +186,23 @@ describe('p2p address discovery', () => {
       expect(await addressDAO.getDashPayAddresses(walletId, OURS, THEIRS, 'external')).toHaveLength(DASHPAY_ADDRESS_WINDOW.gapLimit)
     })
 
+    it('lists what they paid our chain and what we paid theirs as payments between us', async () => {
+      const walletId = await walletWith({ownerId: OURS, toUserId: THEIRS}, {ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
+      await discovery.discoverCoreAddresses(walletId)
+      const ours = ((await addressDAO.getAddressesByWalletId(walletId)).dashPay ?? [])[0].address
+      await transactionDAO.applyBlock(receiveTo(walletId, 100, ours))
+      await transactionDAO.applyBlock({
+        ...receiveTo(walletId, 101, theirAddress(0)),
+        txs: [{txid: 'paid', raw: new Uint8Array([1]), inputs: [], outputs: [{vout: 0, address: theirAddress(0), satoshis: '7000', isMine: false}]}],
+      })
+
+      const payments = await wired.walletService.getDashPayPayments(walletId, OURS, THEIRS)
+      expect(payments.map(({txid, amountDuffs, direction}) => ({txid, amountDuffs, direction})).sort((a, b) => a.txid.localeCompare(b.txid))).toEqual([
+        {txid: 'paid', amountDuffs: 7000n, direction: 'sent'},
+        {txid: 'txid-100', amountDuffs: 100_000n, direction: 'received'},
+      ])
+    })
+
     it('pays each payment on a fresh address of their chain, past what history already paid', async () => {
       const walletId = await walletWith({ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
       await transactionDAO.applyBlock({

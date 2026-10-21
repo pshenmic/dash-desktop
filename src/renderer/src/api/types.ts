@@ -60,6 +60,14 @@ export interface DashPayContactDto {
   paymentChannelBroken: boolean
 }
 
+// getDashPayPayments — one payment between us and a contact, newest first; date in milliseconds.
+export interface DashPayPaymentDto {
+  txid: string
+  amountDuffs: bigint
+  direction: 'sent' | 'received'
+  date: number
+}
+
 // getAliases, registerAlias — a DPNS name this wallet registered. Votes and the
 // end date are set only for a contested name; voteEndsAt is in milliseconds.
 export interface AliasDto {

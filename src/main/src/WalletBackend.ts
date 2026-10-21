@@ -33,6 +33,7 @@ import { ResolveAliasHandler } from './api/wallet/resolveAlias'
 import { GetDashPayContactsHandler } from './api/wallet/getDashPayContacts'
 import { SendDashPayContactRequestHandler } from './api/wallet/sendDashPayContactRequest'
 import { SendDashPayPaymentHandler } from './api/wallet/sendDashPayPayment'
+import { GetDashPayPaymentsHandler } from './api/wallet/getDashPayPayments'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
 import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
@@ -194,6 +195,7 @@ export class WalletBackend {
     registerHandler('getDashPayContacts', new GetDashPayContactsHandler(this.identityService).handle)
     registerHandler('sendDashPayContactRequest', new SendDashPayContactRequestHandler(this.identityService).handle)
     registerHandler('sendDashPayPayment', new SendDashPayPaymentHandler(this.walletService).handle)
+    registerHandler('getDashPayPayments', new GetDashPayPaymentsHandler(this.walletService).handle)
     registerHandler('getIdentityBalance', new GetIdentityBalance(this.identityService).handle)
     registerHandler('getIdentityNonce', new GetIdentityNonce(this.identityService).handle)
     registerHandler('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)

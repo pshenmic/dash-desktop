@@ -42,3 +42,11 @@ export interface DashPayAddress {
   address: string
   isUsed: boolean
 }
+
+// One payment between us and a contact, from the side of our identity. date in milliseconds.
+export interface DashPayPayment {
+  txid: string
+  amountDuffs: bigint
+  direction: 'sent' | 'received'
+  date: number
+}

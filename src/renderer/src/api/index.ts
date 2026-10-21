@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AliasDto, DashPayContactDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { AliasDto, DashPayContactDto, DashPayPaymentDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -177,6 +177,10 @@ export class API {
 
   // An L1 send to a contact; its address is worked out in the backend. Quote it
   // with estimateFee('coreSend') — the fee does not depend on the address.
+  static async getDashPayPayments(walletId: string, identifier: string, contactId: string): Promise<DashPayPaymentDto[]> {
+    return this.api.getDashPayPayments(walletId, identifier, contactId) as Promise<DashPayPaymentDto[]>
+  }
+
   static async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
     return this.api.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password) as Promise<SendResult>
   }
