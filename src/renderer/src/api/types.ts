@@ -68,6 +68,12 @@ export interface DashPayPaymentDto {
   date: number
 }
 
+// searchAliases — a DPNS name and the identity that owns it.
+export interface AliasSearchResultDto {
+  identifier: string
+  name: string
+}
+
 // getAliases, registerAlias — a DPNS name this wallet registered. Votes and the
 // end date are set only for a contested name; voteEndsAt is in milliseconds.
 export interface AliasDto {

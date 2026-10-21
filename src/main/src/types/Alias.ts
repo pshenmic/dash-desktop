@@ -32,3 +32,9 @@ export interface Alias extends Omit<AliasCheck, 'status'> {
   createdAt: number
   checkedAt: number | null
 }
+
+// A DPNS name and the identity that owns it, from a prefix search.
+export interface AliasSearchResult {
+  identifier: string
+  name: string
+}

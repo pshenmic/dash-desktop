@@ -1,5 +1,5 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
-import {AliasCheck} from '../../src/types/Alias'
+import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {DashPayContactRequest} from '../../src/types/DashPay'
 import {LogLevel} from '../../src/types/Log'
@@ -369,6 +369,11 @@ export interface PlatformOperations {
   aliasResolve: {
     payload: {label: string}
     result: {identifier: string | null}
+  }
+  // Names whose label starts with prefix, in label order, at most one proved page.
+  aliasSearch: {
+    payload: {prefix: string}
+    result: {results: AliasSearchResult[]}
   }
   // Answers with the check it ran before spending anything. A domain refused
   // after its preorder landed is answered, not thrown, so its salt reaches main.

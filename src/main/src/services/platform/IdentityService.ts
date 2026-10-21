@@ -5,7 +5,7 @@ import {AliasDAO} from '../../database/AliasDAO'
 import {DashPayContactRequestDAO} from '../../database/DashPayContactRequestDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {WalletDAO} from '../../database/WalletDAO'
-import {Alias} from '../../types/Alias'
+import {Alias, AliasSearchResult} from '../../types/Alias'
 import {DashPayContact} from '../../types/DashPay'
 import {IdentityInfo} from '../../types/Identity'
 import {Network} from '../../types/Network'
@@ -184,6 +184,12 @@ export class IdentityService {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const {identifier} = await this.platform.request('aliasResolve', wallet.network, {label})
     return identifier
+  }
+
+  async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResult[]> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const {results} = await this.platform.request('aliasSearch', wallet.network, {prefix})
+    return results
   }
 
   async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<Alias> {

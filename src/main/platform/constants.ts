@@ -123,6 +123,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityInfos':
     case 'aliasStatus':
     case 'aliasResolve':
+    case 'aliasSearch':
     case 'dashPayContactRequests':
     case 'dashPayContactKey':
     case 'identityScan':

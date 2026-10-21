@@ -22,6 +22,7 @@ import {identityInfos} from './operations/identity/infos'
 import {aliasStatus} from './operations/alias/status'
 import {aliasRegister} from './operations/alias/register'
 import {aliasResolve} from './operations/alias/resolve'
+import {aliasSearch} from './operations/alias/search'
 import {dashPayContactRequestSend} from './operations/dashpay/send'
 import {dashPayContactRequests} from './operations/dashpay/requests'
 import {dashPayContactKey} from './operations/dashpay/key'
@@ -233,6 +234,7 @@ export class PlatformService {
       case 'aliasStatus': return aliasStatus(request.payload, ctx)
       case 'aliasRegister': return aliasRegister(request.payload, ctx)
       case 'aliasResolve': return aliasResolve(request.payload, ctx)
+      case 'aliasSearch': return aliasSearch(request.payload, ctx)
       case 'dashPayContactRequestSend': return dashPayContactRequestSend(request.payload, ctx)
       case 'dashPayContactRequests': return dashPayContactRequests(request.payload, ctx)
       case 'dashPayContactKey': return dashPayContactKey(request.payload, ctx)
