@@ -1,0 +1,48 @@
+import {hexToBytes} from '@noble/hashes/utils.js'
+import {IdentifierWASM} from 'dash-platform-sdk/types.js'
+import {PlatformOperations} from '../../types/messages'
+import {OperationContext, OperationError} from '../types'
+import {broadcast} from '../broadcast'
+import {DASHPAY_CONTRACT_ID} from '../../constants'
+import {accountReference, contactSharedKey, deriveContactKey, encryptContactKey} from '../../../src/utils/contactKeys'
+import {identityAddEncryptionKeys} from '../identity/addEncryptionKeys'
+import {applySignature, signingKey} from '../identity/signingKey'
+
+type Payload = PlatformOperations['contactRequestSend']['payload']
+type Result = PlatformOperations['contactRequestSend']['result']
+
+// Requests are immutable and undeletable, so every refusal is made before one is written.
+export async function contactRequestSend(payload: Payload, ctx: OperationContext): Promise<Result> {
+  const {sdk, network} = ctx
+  const {seed, identifier, identityIndex, recipient} = payload
+
+  const [recipientKeys, [earlier]] = await Promise.all([
+    sdk.identities.getIdentityPublicKeys(recipient),
+    sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest', [['$ownerId', '==', identifier], ['toUserId', '==', recipient]], undefined, 1),
+  ])
+  if (earlier != null) throw new OperationError('A contact request to this identity was already sent', 'internal')
+  const decryption = recipientKeys
+    .filter(key => key.purpose === 'DECRYPTION' && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null)
+    .at(-1)
+  if (decryption == null) throw new OperationError('This identity has no key to receive contact requests with', 'internal')
+
+  await identityAddEncryptionKeys({seed, identifier, identityIndex}, ctx)
+  const encryption = await signingKey(sdk, seed, network, identifier, identityIndex, 'ENCRYPTION')
+  const contactKey = deriveContactKey(seed, network, new IdentifierWASM(identifier).bytes(), new IdentifierWASM(recipient).bytes())
+  const encryptedPublicKey = encryptContactKey(contactSharedKey(encryption.privateKey.bytes(), hexToBytes(decryption.data)), contactKey)
+
+  const auth = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')
+  const nonce = await sdk.identities.getIdentityContractNonce(identifier, DASHPAY_CONTRACT_ID) + 1n
+  const document = sdk.documents.create(DASHPAY_CONTRACT_ID, 'contactRequest', {
+    toUserId: new IdentifierWASM(recipient).bytes(),
+    encryptedPublicKey,
+    senderKeyIndex: encryption.publicKey.keyId,
+    recipientKeyIndex: decryption.keyId,
+    accountReference: accountReference(contactKey),
+  }, identifier, nonce)
+  ctx.progress('signing', 0, 0)
+  const st = sdk.documents.createStateTransition(document, 'create', {identityContractNonce: nonce})
+  applySignature(st, auth.privateKey, auth.publicKey)
+
+  return {stHash: await broadcast(sdk, st, ctx)}
+}

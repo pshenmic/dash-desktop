@@ -1,6 +1,7 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {AliasCheck} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
+import {ContactRequest} from '../../src/types/Contact'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -372,6 +373,15 @@ export interface PlatformOperations {
   aliasRegister: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string; preorderSalt: Uint8Array | null}
     result: AliasCheck & {preorderSalt: Uint8Array | null; error: string | null}
+  }
+  contactRequestSend: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
+    result: {stHash: string}
+  }
+  // Oldest first, created after `since`, at most one proved page per direction.
+  contactRequests: {
+    payload: {identifier: string; since: number}
+    result: {sent: ContactRequest[]; received: ContactRequest[]}
   }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}

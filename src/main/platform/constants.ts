@@ -21,6 +21,9 @@ export const IDENTITY_KEY_LOOKAHEAD = 20
 export const DPNS_PARENT_DOMAIN = 'dash'
 export const DPNS_CONTESTED_INDEX = 'parentNameAndLabel'
 
+// A system contract: the same id on every network.
+export const DASHPAY_CONTRACT_ID = 'Bwr4WHCPz5rFVAD87RqTs3izo4zpzwsEdKPWUT1NS1C7'
+
 // Drive's default_vote_poll_time_duration (VOTING_VERSION_V2, protocol 13+),
 // counted from the block the first contender landed in.
 export const VOTE_POLL_DURATION_MS: Record<Network, number> = {
@@ -99,6 +102,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
     case 'identityAddEncryptionKeys':
+    case 'contactRequestSend':
     case 'aliasRegister':
       return `${request.network}:identity:${request.payload.identifier}`
 
@@ -112,6 +116,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityInfos':
     case 'aliasStatus':
     case 'aliasResolve':
+    case 'contactRequests':
     case 'identityScan':
     case 'nodeStatus':
     case 'activeDapiUrls':

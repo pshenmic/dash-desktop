@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {HDKey} from '@scure/bip32'
 import {bytesToHex, hexToBytes} from '@noble/hashes/utils.js'
-import {deriveChild256} from '../../src/main/src/utils/contactKeys'
+import {accountReference, contactSharedKey, decryptContactKey, deriveChild256, deriveContactKey, encryptContactKey} from '../../src/main/src/utils/contactKeys'
 
 const seed = hexToBytes('b16d3782e714da7c55a397d5f19104cfed7ffa8036ac514509bbb50807f8ac598eeb26f0797bd8cc221a6cbff2168d90a5e9ee025a5bd977977b9eccd97894bb')
 
@@ -44,5 +44,34 @@ describe('deriveChild256', () => {
   it('refuses a 256-bit index under a public parent', () => {
     const xpub = HDKey.fromExtendedKey(derive("m/9'").publicExtendedKey, {private: 0x04358394, public: 0x043587cf})
     expect(() => deriveChild256(xpub, 2n ** 32n, false)).toThrow('A 256-bit index needs a private parent key')
+  })
+})
+
+describe('contact request keys', () => {
+  const ours = new Uint8Array(32).fill(0xaa)
+  const theirs = new Uint8Array(32).fill(0xbb)
+  const encryption = derive("m/1'").privateKey!
+  const decryption = derive("m/2'").privateKey!
+
+  it('agrees on one shared key from either side', () => {
+    const shared = contactSharedKey(encryption, derive("m/2'").publicKey!)
+    expect(shared).toEqual(contactSharedKey(decryption, derive("m/1'").publicKey!))
+    expect(shared).toHaveLength(32)
+  })
+
+  // The recipient derives our payment addresses from what they decrypt.
+  it('hands the recipient a key that derives our payment addresses', () => {
+    const key = deriveContactKey(seed, 'testnet', ours, theirs)
+    const shared = contactSharedKey(encryption, derive("m/2'").publicKey!)
+    const encrypted = encryptContactKey(shared, key)
+    expect(encrypted).toHaveLength(96)
+    expect(decryptContactKey(shared, encrypted).deriveChild(7).publicKey).toEqual(key.deriveChild(7).publicKey)
+    expect(deriveContactKey(seed, 'testnet', theirs, ours).publicKey).not.toEqual(key.publicKey)
+  })
+
+  it('references account 0 in 28 bits, the same way every time', () => {
+    const key = deriveContactKey(seed, 'testnet', ours, theirs)
+    expect(accountReference(key)).toBe(accountReference(deriveContactKey(seed, 'testnet', ours, theirs)))
+    expect(accountReference(key)).toBeLessThan(2 ** 28)
   })
 })

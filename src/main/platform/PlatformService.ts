@@ -22,6 +22,8 @@ import {identityInfos} from './operations/identity/infos'
 import {aliasStatus} from './operations/alias/status'
 import {aliasRegister} from './operations/alias/register'
 import {aliasResolve} from './operations/alias/resolve'
+import {contactRequestSend} from './operations/contact/send'
+import {contactRequests} from './operations/contact/requests'
 import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
@@ -230,6 +232,8 @@ export class PlatformService {
       case 'aliasStatus': return aliasStatus(request.payload, ctx)
       case 'aliasRegister': return aliasRegister(request.payload, ctx)
       case 'aliasResolve': return aliasResolve(request.payload, ctx)
+      case 'contactRequestSend': return contactRequestSend(request.payload, ctx)
+      case 'contactRequests': return contactRequests(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
       case 'activeDapiUrls': return probeActiveDapiUrls(this.registry.activeDapiUrls(network), network)

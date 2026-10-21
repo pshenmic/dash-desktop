@@ -89,7 +89,7 @@ numbers in `src/constants/credits`, `src/constants/fee/platform` and
 `src/constants/addresses` (`COIN_TYPE`, `PLATFORM_ACCOUNT`, `SHIELDED_ACCOUNT`),
 all read by `platform/`, plus `src/types/IdentityKeys` in one signing-key
 operation. Separately, `platform/` reaches into a few `src/utils/` helpers —
-`addressOrder`, `coreScript`, `identityKeys`, `sdkErrors`,
+`addressOrder`, `contactKeys`, `coreScript`, `identityKeys`, `sdkErrors`,
 `shieldedNoteSelection`. That is pure shared logic, not the rule's subject, but
 do not read the rule as "nothing crosses".
 
