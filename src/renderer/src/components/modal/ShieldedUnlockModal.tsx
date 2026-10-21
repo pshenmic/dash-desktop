@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text } from '../dash-ui-kit-enxtended'
-import { useTheme } from 'dash-ui-kit/react'
+import { Input, Text } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { ModalSize } from '@renderer/enums/ModalSize'
+import Modal from '@renderer/components/ui/Modal'
+import ModalActions from '@renderer/components/ui/ModalActions'
 
 interface ShieldedUnlockModalProps {
   isOpen: boolean
@@ -17,8 +18,7 @@ export default function ShieldedUnlockModal({
   onClose,
   walletId,
   onStarted,
-}: ShieldedUnlockModalProps): React.JSX.Element | null {
-  const { theme } = useTheme()
+}: ShieldedUnlockModalProps): React.JSX.Element {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -30,8 +30,6 @@ export default function ShieldedUnlockModal({
       setLoading(false)
     }
   }, [isOpen])
-
-  if (!isOpen) return null
 
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || loading) return
@@ -54,87 +52,53 @@ export default function ShieldedUnlockModal({
     }
   }
 
-  return createPortal(
-    <div
-      onClick={(e) => e.stopPropagation()}
-      className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title={"Check my notes"}
+      description={"Enter your wallet password to derive your viewing key and scan the shielded pool for your notes. Your seed never leaves this device."}
+      size={ModalSize.Md}
+      dismissible={!loading}
     >
-      <div
-        className={"w-full max-w-115 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
-      >
-        <div className={"flex items-center justify-between"}>
-          <Text size={24} weight={"extrabold"} color={"brand"}>
-            Check my notes
-          </Text>
-          <button
-            className={"dash-text-default hover:opacity-60 cursor-pointer"}
-            onClick={onClose}
-            disabled={loading}
-          >
-            <CrossIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-          </button>
-        </div>
-
-        <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-2 block"}>
-          Enter your wallet password to derive your viewing key and scan the shielded pool for your notes. Your seed never leaves this device.
-        </Text>
-
-        <div className={"mt-4.5"}>
-          <Input
-            id={"shielded-sync-password"}
-            type={"password"}
-            placeholder={"Wallet password"}
-            value={password}
-            variant={"outlined"}
-            onChange={(e) => {
-              setError(null)
-              setPassword(e.target.value)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleConfirm()
-            }}
-            className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-            colorScheme={error ? 'error' : 'primary'}
-            disabled={loading}
-            autoFocus
-          />
-        </div>
-
-        <div
-          className={`
-            overflow-hidden transition-all duration-200
-            ${error ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-          `}
-        >
-          <Text size={12} weight={"medium"} color={"red"}>{error}</Text>
-        </div>
-
-        <div className={"mt-4.5 flex gap-2"}>
-          <Button
-            type={"button"}
-            onClick={onClose}
-            variant={"solid"}
-            colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-            size={"sm"}
-            className={"flex-1 rounded-[.9375rem]"}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type={"button"}
-            onClick={handleConfirm}
-            disabled={password.length === 0 || loading}
-            variant={"solid"}
-            colorScheme={"primary"}
-            size={"sm"}
-            className={"flex-1 rounded-[.9375rem]"}
-          >
-            {loading ? 'Syncing…' : 'Sync my balances'}
-          </Button>
-        </div>
+      <div className={"mt-4.5"}>
+        <Input
+          id={"shielded-sync-password"}
+          type={"password"}
+          placeholder={"Wallet password"}
+          value={password}
+          variant={"outlined"}
+          onChange={(e) => {
+            setError(null)
+            setPassword(e.target.value)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleConfirm()
+          }}
+          className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
+          colorScheme={error ? 'error' : 'primary'}
+          disabled={loading}
+          autoFocus
+        />
       </div>
-    </div>,
-    document.body,
+
+      <div
+        className={`
+          overflow-hidden transition-all duration-200
+          ${error ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}
+        `}
+      >
+        <Text size={12} weight={"medium"} color={"red"}>{error}</Text>
+      </div>
+
+      <ModalActions
+        secondary={{ label: 'Cancel', onClick: onClose, disabled: loading }}
+        primary={{
+          label: loading ? 'Syncing…' : 'Sync my balances',
+          onClick: handleConfirm,
+          disabled: password.length === 0 || loading,
+        }}
+      />
+    </Modal>
   )
 }

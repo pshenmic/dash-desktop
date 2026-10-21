@@ -127,7 +127,7 @@ export function ToastContainer(): React.JSX.Element | null {
   if (items.length === 0) return null
 
   return createPortal(
-    <div className={"fixed top-12 right-12 z-9999 flex flex-col gap-2"}>
+    <div className={"fixed top-12 right-12 z-9999 flex flex-col gap-2 pointer-events-auto"} onPointerDown={(e) => e.stopPropagation()}>
       {items.map((item) => (
         <ToastCard key={item.id} item={item} onDismiss={handleDismiss} />
       ))}

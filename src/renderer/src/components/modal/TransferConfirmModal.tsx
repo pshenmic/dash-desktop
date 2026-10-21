@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
+import { Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
-import { useTheme } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { PlatformRecipient, PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
+import { ModalSize } from '@renderer/enums/ModalSize'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
-import Spinner from '@renderer/components/ui/Spinner'
+import Modal from '@renderer/components/ui/Modal'
+import ModalActions from '@renderer/components/ui/ModalActions'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -53,8 +53,7 @@ export default function TransferConfirmModal({
   sourceValid = true,
   onSuccess,
   successNote,
-}: TransferConfirmModalProps): React.JSX.Element | null {
-  const { theme } = useTheme()
+}: TransferConfirmModalProps): React.JSX.Element {
   const sourceValidRef = useRef(sourceValid)
   sourceValidRef.current = sourceValid
   const { status } = useAuth()
@@ -75,8 +74,6 @@ export default function TransferConfirmModal({
       setSentRecipients(null)
     }
   }, [isOpen])
-
-  if (!isOpen) return null
 
   const sending = phase === ConfirmModalPhase.Sending
 
@@ -115,156 +112,115 @@ export default function TransferConfirmModal({
     onClose()
   }
 
-  return createPortal(
-    <div
-      className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
+  return (
+    <Modal
+      open={isOpen}
+      onClose={requestClose}
+      title={phase === ConfirmModalPhase.Done ? successTitle : title}
+      size={ModalSize.Lg}
+      dismissible={!sending}
     >
-      <div
-        className={"w-full max-w-170 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
-      >
-        <div className={"flex items-center justify-between"}>
-          <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === ConfirmModalPhase.Done ? successTitle : title}
-          </Text>
-          <button
-            className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
-            onClick={requestClose}
-            disabled={sending}
-          >
-            <CrossIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-          </button>
-        </div>
-
-        {phase !== ConfirmModalPhase.Done ? (
-          <div className={"phase-fade-in"} key={"confirm"}>
-            <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              {rows.map(row => (
-                <div key={row.label} className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{row.label}</Text>
-                  <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className="min-w-0 break-all select-all text-right">
-                    {row.value}
-                  </Text>
-                </div>
-              ))}
-              {recipients && <RecipientSummary recipients={recipients} feeOutputIndex={feeOutputIndex} feeCredits={feeCredits} />}
-            </div>
-
-            <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-              Enter your wallet password to sign and broadcast.
-            </Text>
-            <div className={"mt-2"}>
-              <Input
-                id={"transfer-confirm-password"}
-                type={"password"}
-                placeholder={"Wallet password"}
-                value={password}
-                variant={"outlined"}
-                onChange={(e) => { setError(null); setPassword(e.target.value) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-                className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={error ? 'error' : 'primary'}
-                disabled={sending}
-                autoFocus
-              />
-            </div>
-            <div
-              className={`
-                overflow-hidden transition-all duration-200
-                ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-              `}
-            >
-              <CopyableError message={error ?? ''} />
-            </div>
-
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button
-                type={"button"}
-                onClick={requestClose}
-                variant={"solid"}
-                colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem]"}
-                disabled={sending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type={"button"}
-                onClick={handleConfirm}
-                disabled={password.length === 0 || sending || !sourceValid}
-                variant={"solid"}
-                colorScheme={"lightBlue-mint"}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem] gap-2"}
-              >
-                {sending && <Spinner size={16} />}
-                {sending ? 'Sending…' : advanced ? 'Sign & Send' : 'Confirm'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className={"phase-fade-in"} key={"done"}>
-            <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
-              <div className={"success-pop"}>
-                <SuccessIcon size={56} />
-              </div>
-              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
-              </Text>
-              {sentRecipients?.feeOutputIndex !== undefined && (
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                  Total debited, including the fee deducted from a recipient.
+      {phase !== ConfirmModalPhase.Done ? (
+        <div className={"phase-fade-in"} key={"confirm"}>
+          <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+            {rows.map(row => (
+              <div key={row.label} className={"flex justify-between items-center gap-4"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{row.label}</Text>
+                <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className="min-w-0 break-all select-all text-right">
+                  {row.value}
                 </Text>
-              )}
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                Broadcast to Platform. It will confirm shortly.
-              </Text>
-              {successNote && (
-                <div className={"mt-3 flex items-start gap-2 w-full p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10 text-left"}>
-                  <ExclamationIcon size={16} className={"text-dash-orange shrink-0"} />
-                  <Text size={12} weight={"medium"} className={"leading-[130%] text-dash-orange!"}>
-                    {successNote}
-                  </Text>
-                </div>
-              )}
-            </div>
-
-            <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>
               </div>
-              {sentRecipients ? <RecipientSummary {...sentRecipients} feeCredits={result?.feeCredits ?? sentRecipients.feeCredits} /> : <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.toAddress}</Text>
-              </div>}
-              {result?.feeCredits != null && (
-                <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                    {sentRecipients?.feeOutputIndex === undefined ? 'Reserved for fee' : `Fee reserve from recipient ${sentRecipients.feeOutputIndex + 1}`}
-                  </Text>
-                  <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
-                </div>
-              )}
-              {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
-            </div>
-
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button
-                type={"button"}
-                onClick={onClose}
-                variant={"solid"}
-                colorScheme={"lightBlue-mint"}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem]"}
-              >
-                Done
-              </Button>
-            </div>
+            ))}
+            {recipients && <RecipientSummary recipients={recipients} feeOutputIndex={feeOutputIndex} feeCredits={feeCredits} />}
           </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+
+          <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
+            Enter your wallet password to sign and broadcast.
+          </Text>
+          <div className={"mt-2"}>
+            <Input
+              id={"transfer-confirm-password"}
+              type={"password"}
+              placeholder={"Wallet password"}
+              value={password}
+              variant={"outlined"}
+              onChange={(e) => { setError(null); setPassword(e.target.value) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
+              className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
+              colorScheme={error ? 'error' : 'primary'}
+              disabled={sending}
+              autoFocus
+            />
+          </div>
+          <div
+            className={`
+              overflow-hidden transition-all duration-200
+              ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
+            `}
+          >
+            <CopyableError message={error ?? ''} />
+          </div>
+
+          <ModalActions
+            secondary={{ label: 'Cancel', onClick: requestClose, disabled: sending }}
+            primary={{
+              label: sending ? 'Sending…' : advanced ? 'Sign & Send' : 'Confirm',
+              onClick: handleConfirm,
+              disabled: password.length === 0 || !sourceValid,
+              loading: sending,
+            }}
+          />
+        </div>
+      ) : (
+        <div className={"phase-fade-in"} key={"done"}>
+          <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
+            <div className={"success-pop"}>
+              <SuccessIcon size={56} />
+            </div>
+            <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
+              {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
+            </Text>
+            {sentRecipients?.feeOutputIndex !== undefined && (
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+                Total debited, including the fee deducted from a recipient.
+              </Text>
+            )}
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+              Broadcast to Platform. It will confirm shortly.
+            </Text>
+            {successNote && (
+              <div className={"mt-3 flex items-start gap-2 w-full p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10 text-left"}>
+                <ExclamationIcon size={16} className={"text-dash-orange shrink-0"} />
+                <Text size={12} weight={"medium"} className={"leading-[130%] text-dash-orange!"}>
+                  {successNote}
+                </Text>
+              </div>
+            )}
+          </div>
+
+          <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+            <div className={"flex justify-between items-center gap-4"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
+              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>
+            </div>
+            {sentRecipients ? <RecipientSummary {...sentRecipients} feeCredits={result?.feeCredits ?? sentRecipients.feeCredits} /> : <div className={"flex justify-between items-center gap-4"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
+              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.toAddress}</Text>
+            </div>}
+            {result?.feeCredits != null && (
+              <div className={"flex justify-between items-center gap-4"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                  {sentRecipients?.feeOutputIndex === undefined ? 'Reserved for fee' : `Fee reserve from recipient ${sentRecipients.feeOutputIndex + 1}`}
+                </Text>
+                <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
+              </div>
+            )}
+            {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
+          </div>
+
+          <ModalActions primary={{ label: 'Done', onClick: onClose }} />
+        </div>
+      )}
+    </Modal>
   )
 }

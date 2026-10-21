@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react"
 import { toast } from "../ui/Toast"
 import { API } from "@renderer/api"
-import { createPortal } from "react-dom"
-import { Button, CrossIcon, Input, Text } from "../dash-ui-kit-enxtended"
+import { Input } from "../dash-ui-kit-enxtended"
 import { renderBoldText } from "@renderer/utils/renderBoldText"
-import { useTheme } from "dash-ui-kit/react"
 import { useAuth } from "@renderer/contexts/AuthContext"
 import { getErrorMessage } from "@renderer/utils/error"
+import { ModalSize } from "@renderer/enums/ModalSize"
+import { ModalActionTone } from "@renderer/enums/ModalActionTone"
+import Modal from "@renderer/components/ui/Modal"
+import ModalActions from "@renderer/components/ui/ModalActions"
 
 const DELETE_CONFIRM_TEXT = 'Delete'
 
 export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDelete, setWalletToDelete, refreshWallets }) {
   const [confirmText, setConfirmText] = useState('')
   const [submitAttempted, setSubmitAttempted] = useState(false)
-  const {theme} = useTheme()
   const {lock} = useAuth()
 
   const hasInput = confirmText.trim().length > 0
@@ -55,62 +56,31 @@ export default function DeleteWallet({isDeleteOpen, setIsDeleteOpen, walletToDel
 
   return (
     <>
-      {isDeleteOpen && createPortal(
-        <div className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center"}>
-          <div className={"w-full max-w-97.5 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem]"}>
-            <div className={"flex items-center justify-between"}>
-              <Text size={24} weight={"extrabold"} color={"brand"}>
-                Delete Wallet
-              </Text>
-              <button
-                className={"dash-text-default hover:opacity-60 cursor-pointer"}
-                onClick={closeDeleteModal}
-              >
-                <CrossIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-              </button>
-            </div>
-            <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-2"}>
-            {renderBoldText(`Enter the word **${DELETE_CONFIRM_TEXT}** to confirm the action`)}
-            </Text>
-            <div className={"mt-4.5"}>
-              <Input
-                id={"delete-wallet-confirmation"}
-                type={"text"}
-                placeholder={"Enter Confirmation..."}
-                value={confirmText}
-                variant={"outlined"}
-                onChange={(e) => setConfirmText(e.target.value)}
-                className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={showInputError  ? 'error' : 'primary'}
-              />
-            </div>
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button
-                type={"button"}
-                onClick={closeDeleteModal}
-                variant={"solid"}
-                colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem]"}
-              >
-                Cancel
-              </Button>
-              <Button
-                type={"button"}
-                onClick={handleConfirmDelete}
-                disabled={!hasInput}
-                variant={"solid"}
-                colorScheme={"red-strong"}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem]"}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <Modal
+        open={isDeleteOpen}
+        onClose={closeDeleteModal}
+        title={"Delete Wallet"}
+        description={renderBoldText(`Enter the word **${DELETE_CONFIRM_TEXT}** to confirm the action`)}
+        size={ModalSize.Md}
+      >
+        <div className={"mt-4.5"}>
+          <Input
+            id={"delete-wallet-confirmation"}
+            type={"text"}
+            placeholder={"Enter Confirmation..."}
+            value={confirmText}
+            variant={"outlined"}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
+            colorScheme={showInputError  ? 'error' : 'primary'}
+          />
+        </div>
+        <ModalActions
+          tone={ModalActionTone.Danger}
+          secondary={{ label: 'Cancel', onClick: closeDeleteModal }}
+          primary={{ label: 'Delete', onClick: handleConfirmDelete, disabled: !hasInput }}
+        />
+      </Modal>
     </>
   )
 }
