@@ -49,9 +49,33 @@ export async function up(knex: Knex): Promise<void> {
     table.boolean('payment_channel_broken').notNullable().defaultTo(false)
     table.primary(['wallet_id', 'document_id'])
   })
+
+  // The DashPay account key m/9'/coin'/15'/0', public. Both identity-id levels
+  // below it are non-hardened, so every contact chain of ours derives from it
+  // without the seed.
+  await knex.schema.alterTable('wallet', table => {
+    table.text('dashpay_xpub').nullable()
+  })
+
+  // Both DIP-15 chains of a friendship: `receiving` is ours, which the contact
+  // pays; `external` is theirs, which we pay and never count as ours.
+  await knex.schema.createTable('dashpay_contact_addresses', table => {
+    table.text('wallet_id').notNullable().references('wallet_id').inTable('wallet')
+    table.text('identifier').notNullable()
+    table.text('contact_id').notNullable()
+    table.text('direction').notNullable().checkIn(['receiving', 'external'])
+    table.integer('address_index').notNullable()
+    table.text('address').notNullable()
+    table.boolean('is_used').notNullable().defaultTo(false)
+    table.primary(['wallet_id', 'identifier', 'contact_id', 'direction', 'address_index'])
+  })
 }
 
 export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTableIfExists('dashpay_contact_addresses')
+  await knex.schema.alterTable('wallet', table => {
+    table.dropColumn('dashpay_xpub')
+  })
   await knex.schema.dropTableIfExists('dashpay_contact_requests')
   await knex.schema.dropTableIfExists('aliases')
 }

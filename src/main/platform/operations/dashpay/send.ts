@@ -1,11 +1,12 @@
 import {hexToBytes} from '@noble/hashes/utils.js'
+import {HDKey} from '@scure/bip32'
 import {IdentifierWASM} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {dashPayContactRequestFee} from '../fee'
 import {DASHPAY_CONTRACT_ID} from '../../constants'
-import {accountReference, dashPaySharedKey, deriveDashPayContactKey, encryptDashPayContactKey} from '../../../src/utils/dashPayKeys'
+import {accountReference, dashPayAccountPath, dashPaySharedKey, deriveDashPayContactKey, encryptDashPayContactKey} from '../../../src/utils/dashPayKeys'
 import {identityAddEncryptionKeys} from '../identity/addEncryptionKeys'
 import {applySignature, signingKey} from '../identity/signingKey'
 import {Logger} from '../../../src/utils/logger'
@@ -35,7 +36,8 @@ export async function dashPayContactRequestSend(payload: Payload, ctx: Operation
 
   await identityAddEncryptionKeys({seed, identifier, identityIndex}, ctx)
   const encryption = await signingKey(sdk, seed, network, identifier, identityIndex, 'ENCRYPTION')
-  const contactKey = deriveDashPayContactKey(seed, network, new IdentifierWASM(identifier).bytes(), new IdentifierWASM(recipient).bytes())
+  const account = HDKey.fromMasterSeed(seed).derive(dashPayAccountPath(network))
+  const contactKey = deriveDashPayContactKey(account, new IdentifierWASM(identifier).bytes(), new IdentifierWASM(recipient).bytes())
   const encryptedPublicKey = encryptDashPayContactKey(dashPaySharedKey(encryption.privateKey.bytes(), hexToBytes(decryption.data)), contactKey)
 
   const auth = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')

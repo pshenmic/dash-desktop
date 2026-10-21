@@ -1,4 +1,6 @@
+import {HDKey} from '@scure/bip32'
 import convertToHomographSafeChars from 'dash-platform-sdk/src/utils/convertToHomographSafeChars.js'
+import {HD_VERSIONS} from '../../constants/addresses'
 import {AliasDAO} from '../../database/AliasDAO'
 import {DashPayContactRequestDAO} from '../../database/DashPayContactRequestDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
@@ -8,6 +10,7 @@ import {DashPayContact} from '../../types/DashPay'
 import {IdentityInfo} from '../../types/Identity'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
+import {dashPayAccountPath} from '../../utils/dashPayKeys'
 import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {withUnlockedWallet} from '../../utils/walletSeed'
@@ -133,6 +136,11 @@ export class IdentityService {
         seed, identifier, identityIndex: identity.identityIndex, recipient,
       })
       log.info(`contact request ${identifier} -> ${recipient}: sent ${stHash}`)
+      // Our chain for them derives from this key; a wallet older than the column has none yet.
+      if (wallet.dashPayXpub == null) {
+        const account = HDKey.fromMasterSeed(seed, HD_VERSIONS[wallet.network]).derive(dashPayAccountPath(wallet.network))
+        await this.walletDAO.setDashPayXpub(walletId, account.publicExtendedKey)
+      }
       await this.recheckDashPayContactRequests(walletId, wallet.network, [identifier])
       // Accepting holds the seed anyway, so the key they sent us is stored now.
       const theirs = (await this.dashPayContactRequestDAO.getContactRequests(walletId))

@@ -76,12 +76,12 @@ export async function harness(): Promise<Harness> {
   const prevOutService = new CorePrevOutService(walletDAO, transactionDAO)
   const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService, prevOutService)
   const coreTransactionService = new CoreTransactionService()
-  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
+  const dashPayContactRequestDAO = new DashPayContactRequestDAO(knex)
+  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayContactRequestDAO, transactionDAO, walletSyncService, providers)
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers, preferences)
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
   const aliasDAO = new AliasDAO(knex)
-  const dashPayContactRequestDAO = new DashPayContactRequestDAO(knex)
   const identityService = new IdentityService(walletDAO, identityDAO, aliasDAO, dashPayContactRequestDAO, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and

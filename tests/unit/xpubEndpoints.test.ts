@@ -325,3 +325,48 @@ describe('per-address info folded from wallet-wide results', () => {
     expect(fetches.calls).toHaveLength(0)
   })
 })
+
+// Our DashPay chains sit outside both BIP-44 branches, so the xpub endpoints
+// never see them and each read adds them by address.
+describe('DashPay addresses beside the xpub', () => {
+  const DASHPAY = 'yhsM1ZR2Z7UBy7eJELUcJtF8ybVNrntVoE'
+  const provider = (): DashscanWalletProvider => {
+    const {walletDAO, transactionDAO} = daos()
+    const addressDAO = {
+      getAddressesByWalletId: async () => ({receiving: [{address: OURS}], change: [], dashPay: [{address: DASHPAY}]}),
+    } as unknown as AddressDAO
+    return new DashscanWalletProvider('testnet', 'w1', addressDAO, walletDAO, transactionDAO)
+  }
+
+  beforeEach(() => {
+    fetches.calls.length = 0
+  })
+
+  it('adds their balance to the xpub summary', async () => {
+    responder = url => url.includes('/addresses/info')
+      ? json([{address: DASHPAY, balance: '250', txCount: 1}])
+      : json({balance: '1000'})
+
+    expect(await provider().getWalletBalance()).toBe(1250n)
+  })
+
+  it('adds their unspent outputs to the xpub set', async () => {
+    const utxo = {prevTxHash: 'cc', vOutIndex: 0, address: DASHPAY, amount: '250', scriptPubKeyHex: '76a914' + '00'.repeat(20) + '88ac', blockHeight: 5, confirmations: 3}
+    responder = url => url.includes('/addresses/utxo')
+      ? json([utxo])
+      : json({resultSet: [], pagination: {page: 1, limit: 100, total: 0}})
+
+    expect((await provider().getWalletUtxos()).map(u => [u.address, u.txId, u.satoshis])).toEqual([[DASHPAY, 'cc', 250n]])
+  })
+
+  it('reads the history of a used DashPay address with a plain GET', async () => {
+    responder = url => url.includes('/addresses/info')
+      ? json([{address: DASHPAY, txCount: 1, balance: '0'}])
+      : url.includes(`/address/${DASHPAY}/transactions`)
+        ? json({resultSet: [tx('cc', 100)], pagination: {page: 1, limit: 100, total: 1}})
+        : json({resultSet: [tx('aa', 200)], pagination: {limit: 100, nextCursor: null}})
+
+    expect((await provider().getWalletTransactions()).map(t => t.txid).sort()).toEqual(['aa', 'cc'])
+    expect(fetches.calls.find(call => call.url.includes('/transactions?page='))?.init?.method).toBeUndefined()
+  })
+})

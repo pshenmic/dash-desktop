@@ -29,3 +29,16 @@ export interface DashPayContact {
   // Their request can never be decrypted, so they cannot be paid until they send a new one.
   paymentChannelBroken: boolean
 }
+
+// `receiving` is our chain, which the contact pays; `external` is theirs, which we pay.
+export type DashPayDirection = 'receiving' | 'external'
+
+export interface DashPayAddress {
+  walletId: string
+  identifier: string
+  contactId: string
+  direction: DashPayDirection
+  index: number
+  address: string
+  isUsed: boolean
+}

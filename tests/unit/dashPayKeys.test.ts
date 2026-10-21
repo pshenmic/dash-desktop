@@ -2,7 +2,8 @@ import {describe, it, expect} from 'vitest'
 import {HDKey} from '@scure/bip32'
 import {bytesToHex, hexToBytes} from '@noble/hashes/utils.js'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
-import {accountReference, dashPaySharedKey, decryptDashPayContactKey, deriveChild256, deriveDashPayContactKey, encryptDashPayContactKey, dashPayContactAddresses} from '../../src/main/src/utils/dashPayKeys'
+import {base58} from '@scure/base'
+import {accountReference, dashPayAccountPath, dashPayAddressDeriver, dashPaySharedKey, decryptDashPayContactKey, deriveChild256, deriveDashPayContactKey, derivePath256, encryptDashPayContactKey} from '../../src/main/src/utils/dashPayKeys'
 
 const seed = hexToBytes('b16d3782e714da7c55a397d5f19104cfed7ffa8036ac514509bbb50807f8ac598eeb26f0797bd8cc221a6cbff2168d90a5e9ee025a5bd977977b9eccd97894bb')
 
@@ -42,13 +43,24 @@ describe('deriveChild256', () => {
     expect(bytesToHex(derive(path).privateKey!)).toBe(privateKey)
   })
 
-  it('refuses a 256-bit index under a public parent', () => {
-    const xpub = HDKey.fromExtendedKey(derive("m/9'").publicExtendedKey, {private: 0x04358394, public: 0x043587cf})
-    expect(() => deriveChild256(xpub, 2n ** 32n, false)).toThrow('A 256-bit index needs a private parent key')
+  // DIP-14's public derivation: a watch-only parent reaches the same child.
+  it('derives a non-hardened 256-bit child from a public parent too', () => {
+    const parent = derive("m/9'")
+    const xpub = HDKey.fromExtendedKey(parent.publicExtendedKey, {private: 0x04358394, public: 0x043587cf})
+    const index = 0x775d3854c910b7dee436869c4724bed2fe0784e198b8a39f02bbb49d8ebcfc3bn
+    expect(deriveChild256(xpub, index, false).publicKey).toEqual(deriveChild256(parent, index, false).publicKey)
+    expect(deriveChild256(xpub, index, false).chainCode).toEqual(deriveChild256(parent, index, false).chainCode)
+    expect(() => deriveChild256(xpub, index, true)).toThrow('A hardened 256-bit index needs a private parent key')
+  })
+
+  it('walks a plain BIP-44 path exactly as BIP-32 does', () => {
+    const root = HDKey.fromMasterSeed(seed)
+    expect(derivePath256(root, "m/44'/1'/0'/1/42").privateKey).toEqual(root.derive("m/44'/1'/0'/1/42").privateKey)
   })
 })
 
 describe('contact request keys', () => {
+  const account = HDKey.fromMasterSeed(seed).derive(dashPayAccountPath('testnet'))
   const ours = new Uint8Array(32).fill(0xaa)
   const theirs = new Uint8Array(32).fill(0xbb)
   const encryption = derive("m/1'").privateKey!
@@ -62,25 +74,32 @@ describe('contact request keys', () => {
 
   // The recipient derives our payment addresses from what they decrypt.
   it('hands the recipient a key that derives our payment addresses', () => {
-    const key = deriveDashPayContactKey(seed, 'testnet', ours, theirs)
+    const key = deriveDashPayContactKey(account, ours, theirs)
     const shared = dashPaySharedKey(encryption, derive("m/2'").publicKey!)
     const encrypted = encryptDashPayContactKey(shared, key)
     expect(encrypted).toHaveLength(96)
     expect(decryptDashPayContactKey(shared, encrypted).deriveChild(7).publicKey).toEqual(key.deriveChild(7).publicKey)
-    expect(deriveDashPayContactKey(seed, 'testnet', theirs, ours).publicKey).not.toEqual(key.publicKey)
+    expect(deriveDashPayContactKey(account, theirs, ours).publicKey).not.toEqual(key.publicKey)
   })
 
-  it('derives the addresses we pay a contact on from the key they sent', () => {
-    const key = deriveDashPayContactKey(seed, 'testnet', ours, theirs)
-    const shared = dashPaySharedKey(encryption, derive("m/2'").publicKey!)
-    const xpub = decryptDashPayContactKey(shared, encryptDashPayContactKey(shared, key)).publicExtendedKey
-    const expected = [2, 3, 4].map(i => new KeyPairController().p2pkhAddress(key.deriveChild(i).publicKey!, 'testnet'))
-    expect(dashPayContactAddresses(xpub, 'testnet', 2, 3)).toEqual(expected)
+  // Spending what a contact paid us signs with the key the stored path walks
+  // to, so the watch-only address and the signing key must meet.
+  it('derives each chain address from public keys at the key its path signs with', () => {
+    const root = HDKey.fromMasterSeed(seed)
+    const OURS = '7cBLvT9A6nkU5jPoLak8o97rU4WrARr3xHv7ttFh9n64'
+    const THEIRS = '3vNcXuGDZkFbE2WLNLcSWCFPTF7vyB6CRo1pUtBxpcjE'
+    const publicAccount = HDKey.fromExtendedKey(root.derive(dashPayAccountPath('testnet')).publicExtendedKey)
+    const key = deriveDashPayContactKey(publicAccount, base58.decode(OURS), base58.decode(THEIRS))
+    const deriver = dashPayAddressDeriver(key, 'testnet', OURS, THEIRS)
+    for (const index of [0, 7]) {
+      const {address, derivationPath} = deriver.derive(index)
+      expect(new KeyPairController().p2pkhAddress(derivePath256(root, derivationPath).publicKey!, 'testnet')).toBe(address)
+    }
   })
 
   it('references account 0 in 28 bits, the same way every time', () => {
-    const key = deriveDashPayContactKey(seed, 'testnet', ours, theirs)
-    expect(accountReference(key)).toBe(accountReference(deriveDashPayContactKey(seed, 'testnet', ours, theirs)))
+    const key = deriveDashPayContactKey(account, ours, theirs)
+    expect(accountReference(key)).toBe(accountReference(deriveDashPayContactKey(account, ours, theirs)))
     expect(accountReference(key)).toBeLessThan(2 ** 28)
   })
 })

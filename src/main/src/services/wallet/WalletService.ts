@@ -24,11 +24,10 @@ import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
-import {dashPayContactAddresses} from '../../utils/dashPayKeys'
+import {dashPayAccountPath} from '../../utils/dashPayKeys'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
-  DASHPAY_ADDRESS_WINDOW,
   IDENTITY_LOOKAHEAD,
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
@@ -119,6 +118,7 @@ export class WalletService {
 
     const coreAccountNode = await this.keyPair.derivePath(hdKey, coreAccountPath(coinType, accountId))
     await this.walletDAO.setCoreXpub(walletId, coreAccountNode.publicExtendedKey)
+    await this.walletDAO.setDashPayXpub(walletId, (await this.keyPair.derivePath(hdKey, dashPayAccountPath(network))).publicExtendedKey)
 
     const coreXpub = coreAccountNode.publicExtendedKey
     const addresses: Address[] = []
@@ -309,21 +309,10 @@ export class WalletService {
   async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
     const result = await this.send(walletId, password, async (wallet, seed) => {
       const xpub = await this.identities.dashPayContactXpub(walletId, wallet.network, seed, identifier, contactId)
-      return [{address: await this.nextDashPayContactAddress(wallet, xpub), amountDuffs}]
+      return [{address: await this.discovery.nextDashPayPayAddress(wallet, identifier, contactId, xpub), amountDuffs}]
     })
     log.info(`dashpay payment ${identifier} -> ${contactId}: ${amountDuffs} duffs in ${result.txid}`)
     return result
-  }
-
-  // Only we pay into a contact's key, so its first address without history is next.
-  private async nextDashPayContactAddress(wallet: Wallet, xpub: string): Promise<string> {
-    const provider = this.providers.forWallet(wallet.walletId, wallet.network)
-    for (let from = 0; ; from += DASHPAY_ADDRESS_WINDOW.gapLimit) {
-      const batch = dashPayContactAddresses(xpub, wallet.network, from, DASHPAY_ADDRESS_WINDOW.gapLimit)
-      const used = new Set(await provider.getUsedAddresses(batch))
-      const next = batch.find(address => !used.has(address))
-      if (next != null) return next
-    }
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does

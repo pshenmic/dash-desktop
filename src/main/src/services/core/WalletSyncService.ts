@@ -1,11 +1,13 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import fs from 'fs'
-import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
+import {CORE_ADDRESS_WINDOW, DASHPAY_WATCH_INDEX} from '../../constants/addresses'
 import {ChainStorageFilename} from '../../constants/app'
 import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS, PEER_PROBE_REPLY_TIMEOUT_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
+import {GroupedAddresses} from '../../types/GroupedAddresses'
+import {ownedAddresses} from '../../utils/transferInputs'
 import {LogLevel} from '../../types/Log'
 import {logChildOutput} from '../../logTransport'
 import {currentLogLevel} from '../../utils/logger'
@@ -345,8 +347,7 @@ export class WalletSyncService {
     }
 
     // Only this wallet's addresses go into the watch set.
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const watchAddresses = [...grouped.receiving, ...grouped.change].map(toWatchAddress)
+    const watchAddresses = watchAddressesOf(await this.addressDAO.getAddressesByWalletId(walletId))
 
     this.gapHeld.delete(walletId)
     this.activeWalletId = walletId
@@ -572,8 +573,7 @@ export class WalletSyncService {
     this.lockListenWalletId = walletId
     // Without addresses the pool still watches locks and broadcasts; it just
     // cannot tell whether a mempool tx pays us.
-    const grouped = walletId ? await this.addressDAO.getAddressesByWalletId(walletId) : null
-    const watchAddresses = grouped ? [...grouped.receiving, ...grouped.change].map(toWatchAddress) : undefined
+    const watchAddresses = walletId ? watchAddressesOf(await this.addressDAO.getAddressesByWalletId(walletId)) : undefined
     locks.info(
       `listen on ${network} (wallet=${walletId ?? 'none'}, ${watchAddresses?.length ?? 0} address(es), ` +
       `mode=${this.preferences.network.mode})`,
@@ -879,7 +879,7 @@ export class WalletSyncService {
       return
     }
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const ours = new Set([...grouped.receiving, ...grouped.change].map(a => a.address))
+    const ours = new Set(ownedAddresses(grouped).map(a => a.address))
     const label = network === 'mainnet' ? 'Mainnet' : 'Testnet'
     const applied: AppliedTx = {
       txid: tx.hash(),
@@ -966,6 +966,13 @@ export class WalletSyncService {
 
 function toWatchAddress(a: Address): WatchAddress {
   return {address: a.address, index: a.index, isChange: a.isChange, isUsed: a.isUsed}
+}
+
+function watchAddressesOf(grouped: GroupedAddresses): WatchAddress[] {
+  return [
+    ...[...grouped.receiving, ...grouped.change].map(toWatchAddress),
+    ...(grouped.dashPay ?? []).map(a => ({...toWatchAddress(a), index: DASHPAY_WATCH_INDEX})),
+  ]
 }
 
 function txidFromHex(txHex: string): string | undefined {
