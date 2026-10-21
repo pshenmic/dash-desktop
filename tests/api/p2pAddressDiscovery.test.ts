@@ -143,13 +143,17 @@ describe('p2p address discovery', () => {
     const THEIR_XPUB = HDKey.fromMasterSeed(new Uint8Array(32).fill(5)).publicExtendedKey
     const theirAddress = (index: number) => new KeyPairController().p2pkhAddress(HDKey.fromExtendedKey(THEIR_XPUB).deriveChild(index).publicKey!, 'testnet')
 
-    async function walletWith(...requests: Array<{ownerId: string; toUserId: string; contactXpub?: string}>): Promise<string> {
+    type Request = {ownerId: string; toUserId: string; contactXpub?: string; coreHeightCreatedAt?: number}
+    const save = (walletId: string, requests: Request[], from = 0) => dashPayContactRequestDAO.saveAll(walletId, requests.map((request, i) => ({
+      id: `request-${from + i}`, ownerId: request.ownerId, toUserId: request.toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0,
+      encryptedPublicKey: new Uint8Array(96), createdAt: from + i, coreHeightCreatedAt: request.coreHeightCreatedAt ?? 0,
+      contactXpub: request.contactXpub ?? null, paymentChannelBroken: false,
+    })))
+
+    async function walletWith(...requests: Request[]): Promise<string> {
       const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
       await identityDAO.insertIdentities([{walletId, identityIndex: 0, derivationPath: "m/9'/1'/5'/0'/0'/0'", identifier: OURS}])
-      await dashPayContactRequestDAO.saveAll(walletId, requests.map(({ownerId, toUserId, contactXpub}, i) => ({
-        id: `request-${i}`, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0,
-        encryptedPublicKey: new Uint8Array(96), createdAt: i, contactXpub: contactXpub ?? null, paymentChannelBroken: false,
-      })))
+      await save(walletId, requests)
       return walletId
     }
 
@@ -214,5 +218,42 @@ describe('p2p address discovery', () => {
       expect(await discovery.nextDashPayPayAddress(wallet, OURS, THEIRS, THEIR_XPUB)).toBe(theirAddress(1))
       expect(await discovery.nextDashPayPayAddress(wallet, OURS, THEIRS, THEIR_XPUB)).toBe(theirAddress(2))
     })
-  })
+  
+    // A contact who re-keys sends a new request; paying the old key could land
+    // on addresses they no longer watch.
+    it("rebuilds their chain from the key of their newest request", async () => {
+      const walletId = await walletWith({ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
+      await discovery.discoverCoreAddresses(walletId)
+      const newXpub = HDKey.fromMasterSeed(new Uint8Array(32).fill(6)).publicExtendedKey
+      await save(walletId, [{ownerId: THEIRS, toUserId: OURS, contactXpub: newXpub}], 1)
+
+      await discovery.discoverCoreAddresses(walletId)
+
+      const [first] = await addressDAO.getDashPayAddresses(walletId, OURS, THEIRS, 'external')
+      const newFirst = new KeyPairController().p2pkhAddress(HDKey.fromExtendedKey(newXpub).deriveChild(0).publicKey!, 'testnet')
+      expect(first.address).toBe(newFirst)
+      const wallet = (await wired.walletDAO.getWalletById(walletId))!
+      expect(await discovery.nextDashPayPayAddress(wallet, OURS, THEIRS, newXpub)).toBe(newFirst)
+    })
+
+    // Nothing can pay a chain before the request that handed it out, so a new
+    // one rescans from there even once the first full scan is done — and only once.
+    it("rescans a new chain of ours from its request's core height, never forward", async () => {
+      const walletId = await walletWith({ownerId: OURS, toUserId: THEIRS, coreHeightCreatedAt: 1_000})
+      await transactionDAO.markInitialScanComplete(walletId)
+      await transactionDAO.resetCursor(walletId, 50_000)
+
+      await discovery.discoverCoreAddresses(walletId)
+      expect(await transactionDAO.getCursor(walletId)).toBe(1_000)
+
+      await transactionDAO.resetCursor(walletId, 60_000)
+      await discovery.discoverCoreAddresses(walletId)
+      expect(await transactionDAO.getCursor(walletId)).toBe(60_000)
+
+      const behind = await walletWith({ownerId: OURS, toUserId: THEIRS, coreHeightCreatedAt: 1_000})
+      await transactionDAO.resetCursor(behind, 500)
+      await discovery.discoverCoreAddresses(behind)
+      expect(await transactionDAO.getCursor(behind)).toBe(500)
+    })
+})
 })

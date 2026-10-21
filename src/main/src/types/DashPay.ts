@@ -8,6 +8,7 @@ export interface DashPayContactRequest {
   accountReference: number
   encryptedPublicKey: Uint8Array
   createdAt: number
+  coreHeightCreatedAt: number
   // Ours only, on a request sent to us: encryptedPublicKey decrypted, or the
   // finding that it never can be.
   contactXpub: string | null

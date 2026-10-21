@@ -139,11 +139,12 @@ export class CoreDiscoveryService {
   // The next address of a contact's chain, marked used before any transaction
   // is built so it is never handed out twice, as key-wallet's pool does.
   async nextDashPayPayAddress(wallet: Wallet, identifier: string, contactId: string, contactXpub: string): Promise<string> {
+    const deriver = dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub), wallet.network, contactId, identifier)
+    await this.dropRekeyedChain(wallet.walletId, identifier, contactId, deriver)
     const unused = async () => (await this.addressDAO.getDashPayAddresses(wallet.walletId, identifier, contactId, 'external'))
       .find(address => !address.isUsed)
     let next = await unused()
     if (next == null) {
-      const deriver = dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub), wallet.network, contactId, identifier)
       await this.dashPayWindow(wallet, this.providers.forWallet(wallet.walletId, wallet.network), identifier, contactId, 'external', deriver)
       next = await unused()
     }
@@ -153,7 +154,8 @@ export class CoreDiscoveryService {
   }
 
   // Both DIP-15 chains of each friendship: ours for every request we sent, and
-  // theirs once their key is stored. Only ours is watched; theirs holds what we paid.
+  // theirs once their newest request's key is stored. Only ours is watched;
+  // theirs holds what we paid.
   private async discoverDashPayAddresses(wallet: Wallet, provider: WalletProvider): Promise<Address[]> {
     const ours = new Set((await this.identityDAO.getIdentitiesByWalletId(wallet.walletId)).map(identity => identity.identifier))
     const requests = await this.dashPayContactRequestDAO.getContactRequests(wallet.walletId)
@@ -162,20 +164,38 @@ export class CoreDiscoveryService {
     if (wallet.dashPayXpub != null) {
       const account = HDKey.fromExtendedKey(wallet.dashPayXpub, HD_VERSIONS[wallet.network])
       const sent = new Map(requests.filter(request => ours.has(request.ownerId)).map(request => [`${request.ownerId}:${request.toUserId}`, request]))
-      for (const {ownerId: identifier, toUserId: contactId} of sent.values()) {
+      for (const {ownerId: identifier, toUserId: contactId, coreHeightCreatedAt} of sent.values()) {
         const key = deriveDashPayContactKey(account, base58.decode(identifier), base58.decode(contactId))
-        const revealed = await this.dashPayWindow(wallet, provider, identifier, contactId, 'receiving',
+        const derived = await this.dashPayWindow(wallet, provider, identifier, contactId, 'receiving',
           dashPayAddressDeriver(key, wallet.network, identifier, contactId))
-        added.push(...revealed.map(derived => ({...this.coreAddressRow(wallet.walletId, false, derived), index: DASHPAY_WATCH_INDEX})))
+        const rows = derived.map(address => ({...this.coreAddressRow(wallet.walletId, false, address), index: DASHPAY_WATCH_INDEX}))
+        // A new chain may already hold payments in blocks the scan has passed,
+        // but none older than the request that handed it out.
+        if (derived.some(address => address.index === 0)) {
+          await this.walletSyncService.addWatchAddresses(wallet.walletId, rows, {fromHeight: coreHeightCreatedAt})
+        } else {
+          added.push(...rows)
+        }
       }
     }
-    const received = new Map(requests.filter(request => ours.has(request.toUserId) && request.contactXpub != null)
+    const received = new Map(requests.filter(request => ours.has(request.toUserId))
       .map(request => [`${request.toUserId}:${request.ownerId}`, request]))
     for (const {toUserId: identifier, ownerId: contactId, contactXpub} of received.values()) {
-      await this.dashPayWindow(wallet, provider, identifier, contactId, 'external',
-        dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub!), wallet.network, contactId, identifier))
+      if (contactXpub == null) continue
+      const deriver = dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub), wallet.network, contactId, identifier)
+      await this.dropRekeyedChain(wallet.walletId, identifier, contactId, deriver)
+      await this.dashPayWindow(wallet, provider, identifier, contactId, 'external', deriver)
     }
     return added
+  }
+
+  // A contact who re-keys sends a new request; their stored chain then pays a
+  // key they may no longer watch, so it is derived again from the new one.
+  private async dropRekeyedChain(walletId: string, identifier: string, contactId: string, deriver: AddressDeriver): Promise<void> {
+    const [first] = await this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'external')
+    if (first == null || first.address === deriver.derive(0).address) return
+    log.info(`dashpay external ${identifier} <-> ${contactId}: the contact re-keyed, rebuilding their chain`)
+    await this.addressDAO.deleteDashPayAddresses(walletId, identifier, contactId, 'external')
   }
 
   private async dashPayWindow(

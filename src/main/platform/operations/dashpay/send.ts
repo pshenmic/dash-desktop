@@ -5,7 +5,7 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {dashPayContactRequestFee} from '../fee'
-import {DASHPAY_CONTRACT_ID} from '../../constants'
+import {DASHPAY_CONTRACT_ID, DASHPAY_RECIPIENT_KEY_PURPOSES} from '../../constants'
 import {accountReference, dashPayAccountPath, dashPaySharedKey, deriveDashPayContactKey, encryptDashPayContactKey} from '../../../src/utils/dashPayKeys'
 import {identityAddEncryptionKeys} from '../identity/addEncryptionKeys'
 import {applySignature, signingKey} from '../identity/signingKey'
@@ -26,10 +26,10 @@ export async function dashPayContactRequestSend(payload: Payload, ctx: Operation
     sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest', [['$ownerId', '==', identifier], ['toUserId', '==', recipient]], undefined, 1),
   ])
   if (earlier != null) throw new OperationError('A contact request to this identity was already sent', 'internal')
-  const decryption = recipientKeys
-    .filter(key => key.purpose === 'DECRYPTION' && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null)
-    .at(-1)
-  if (decryption == null) throw new OperationError('This identity has no key to receive contact requests with', 'internal')
+  const recipientKey = DASHPAY_RECIPIENT_KEY_PURPOSES
+    .map(purpose => recipientKeys.find(key => key.purpose === purpose && key.keyType === 'ECDSA_SECP256K1' && key.disabledAt == null))
+    .find(key => key != null)
+  if (recipientKey == null) throw new OperationError('This identity has no key to receive contact requests with', 'internal')
   const [cost, balance] = await Promise.all([dashPayContactRequestFee(ctx, recipient, identifier), sdk.identities.getIdentityBalance(identifier)])
   log.info(`contact request ${identifier} -> ${recipient}: costs ${cost.feeCredits} of ${balance} credits`)
   if (balance < cost.feeCredits) throw new OperationError('The identity cannot afford a contact request', 'insufficientFunds')
@@ -38,7 +38,7 @@ export async function dashPayContactRequestSend(payload: Payload, ctx: Operation
   const encryption = await signingKey(sdk, seed, network, identifier, identityIndex, 'ENCRYPTION')
   const account = HDKey.fromMasterSeed(seed).derive(dashPayAccountPath(network))
   const contactKey = deriveDashPayContactKey(account, new IdentifierWASM(identifier).bytes(), new IdentifierWASM(recipient).bytes())
-  const encryptedPublicKey = encryptDashPayContactKey(dashPaySharedKey(encryption.privateKey.bytes(), hexToBytes(decryption.data)), contactKey)
+  const encryptedPublicKey = encryptDashPayContactKey(dashPaySharedKey(encryption.privateKey.bytes(), hexToBytes(recipientKey.data)), contactKey)
 
   const auth = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')
   const nonce = await sdk.identities.getIdentityContractNonce(identifier, DASHPAY_CONTRACT_ID) + 1n
@@ -46,8 +46,8 @@ export async function dashPayContactRequestSend(payload: Payload, ctx: Operation
     toUserId: new IdentifierWASM(recipient).bytes(),
     encryptedPublicKey,
     senderKeyIndex: encryption.publicKey.keyId,
-    recipientKeyIndex: decryption.keyId,
-    accountReference: accountReference(contactKey),
+    recipientKeyIndex: recipientKey.keyId,
+    accountReference: accountReference(encryption.privateKey.bytes(), contactKey),
   }, identifier, nonce)
   ctx.progress('signing', 0, 0)
   const st = sdk.documents.createStateTransition(document, 'create', {identityContractNonce: nonce})

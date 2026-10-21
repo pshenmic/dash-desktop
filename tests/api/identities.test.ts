@@ -16,7 +16,7 @@ const SALT = Buffer.alloc(32, 1)
 const ALICE = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
 
 function dashPayContactRequest(id: string, ownerId: string, toUserId: string, createdAt: number): DashPayContactRequest {
-  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 7, encryptedPublicKey: Buffer.alloc(96, 1), createdAt, contactXpub: null, paymentChannelBroken: false}
+  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 7, encryptedPublicKey: Buffer.alloc(96, 1), createdAt, coreHeightCreatedAt: 0, contactXpub: null, paymentChannelBroken: false}
 }
 
 const UNCHECKED: AliasCheck = {

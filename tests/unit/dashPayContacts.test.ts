@@ -4,7 +4,7 @@ import {dashPayContacts, dashPayPayments} from '../../src/main/src/utils/dashPay
 import {Transaction} from '../../src/main/src/types/Transaction'
 
 function request(id: string, ownerId: string, toUserId: string, createdAt = 0): DashPayContactRequest {
-  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0, encryptedPublicKey: new Uint8Array(96), createdAt, contactXpub: null, paymentChannelBroken: false}
+  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0, encryptedPublicKey: new Uint8Array(96), createdAt, coreHeightCreatedAt: 0, contactXpub: null, paymentChannelBroken: false}
 }
 
 const contact = (identifier: string, contactId: string, relationship: string, incomingCreatedAt: number | null, outgoingCreatedAt: number | null) =>

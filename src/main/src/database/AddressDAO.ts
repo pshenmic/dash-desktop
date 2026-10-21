@@ -114,6 +114,12 @@ export class AddressDAO {
     }
   }
 
+  deleteDashPayAddresses = async (walletId: string, identifier: string, contactId: string, direction: DashPayDirection): Promise<void> => {
+    await this.knex('dashpay_contact_addresses')
+      .where({wallet_id: walletId, identifier, contact_id: contactId, direction})
+      .delete()
+  }
+
   markDashPayAddressesUsed = async (walletId: string, identifier: string, contactId: string, direction: DashPayDirection, indexes: number[]): Promise<void> => {
     for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
       await this.knex('dashpay_contact_addresses')

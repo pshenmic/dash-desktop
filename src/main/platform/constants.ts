@@ -24,6 +24,13 @@ export const DPNS_CONTESTED_INDEX = 'parentNameAndLabel'
 // A system contract: the same id on every network.
 export const DASHPAY_CONTRACT_ID = 'Bwr4WHCPz5rFVAD87RqTs3izo4zpzwsEdKPWUT1NS1C7'
 
+// dash-sdk's DashPay key rules. Most mobile identities have no DECRYPTION key
+// and are written to on their ENCRYPTION key, so a request we send prefers one
+// and falls back to the other; requests already on chain name more purposes.
+export const DASHPAY_RECIPIENT_KEY_PURPOSES = ['DECRYPTION', 'ENCRYPTION']
+export const DASHPAY_RECEIVED_RECIPIENT_KEY_PURPOSES = ['DECRYPTION', 'ENCRYPTION', 'AUTHENTICATION', 'TRANSFER']
+export const DASHPAY_RECEIVED_SENDER_KEY_PURPOSES = ['ENCRYPTION', 'AUTHENTICATION']
+
 // Drive's default_vote_poll_time_duration (VOTING_VERSION_V2, protocol 13+),
 // counted from the block the first contender landed in.
 export const VOTE_POLL_DURATION_MS: Record<Network, number> = {

@@ -86,9 +86,10 @@ export function decryptDashPayContactKey(sharedKey: Uint8Array, encrypted: Uint8
   return new HDKey({chainCode: plain.subarray(4, 36), publicKey: plain.subarray(36)})
 }
 
-// DIP-15 for account 0, version 0: the top 28 bits of HMAC-SHA256(secret, key).
-export function accountReference(key: HDKey): number {
-  return Number(bytesToNumberBE(hmac(sha256, key.privateKey!, dashPayContactKeyBytes(key)).subarray(0, 4)) >> 4n)
+// DIP-15 for account 0, version 0, keyed by the sender's ENCRYPTION private key.
+// DIP-15 leaves which 28 bits ambiguous; iOS takes the digest's tail, and so do we.
+export function accountReference(senderSecretKey: Uint8Array, key: HDKey): number {
+  return Number(bytesToNumberBE(hmac(sha256, senderSecretKey, dashPayContactKeyBytes(key)).subarray(28, 32)) >> 4n)
 }
 
 function dashPayContactKeyBytes(key: HDKey): Uint8Array {

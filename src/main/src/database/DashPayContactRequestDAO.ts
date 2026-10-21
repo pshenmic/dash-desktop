@@ -13,6 +13,7 @@ function fromRow(row): DashPayContactRequest {
     accountReference: row.account_reference,
     encryptedPublicKey: row.encrypted_public_key,
     createdAt: row.created_at,
+    coreHeightCreatedAt: row.core_height_created_at,
     contactXpub: row.contact_xpub,
     paymentChannelBroken: Boolean(row.payment_channel_broken),
   }
@@ -59,6 +60,7 @@ export class DashPayContactRequestDAO {
           account_reference: request.accountReference,
           encrypted_public_key: Buffer.from(request.encryptedPublicKey),
           created_at: request.createdAt,
+          core_height_created_at: request.coreHeightCreatedAt,
           contact_xpub: request.contactXpub,
           payment_channel_broken: request.paymentChannelBroken,
         })))

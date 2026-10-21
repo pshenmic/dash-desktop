@@ -415,7 +415,7 @@ export class WalletSyncService {
   addWatchAddresses = async (
     walletId: string,
     addresses: Address[],
-    opts: {forwardOnly?: boolean} = {},
+    opts: {forwardOnly?: boolean; fromHeight?: number} = {},
   ): Promise<void> => {
     if (addresses.length === 0) return
     const wallet = await this.walletDAO.getWalletById(walletId)
@@ -426,8 +426,10 @@ export class WalletSyncService {
     // resume from there, so there is nothing behind it left to re-match.
     const answersHold = this.gapHeld.delete(walletId)
     const scannedOnce = await this.transactionDAO.getInitialScanComplete(walletId)
-    const skipRewind = answersHold || opts.forwardOnly === true || scannedOnce
-    const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
+    // fromHeight is a floor no history of these addresses can predate, so it
+    // rewinds even a wallet whose first full scan is done.
+    const skipRewind = answersHold || opts.forwardOnly === true || (scannedOnce && opts.fromHeight == null)
+    const rewindToHeight = skipRewind ? undefined : Math.max(GENESIS[network].height, opts.fromHeight ?? 0)
 
     discovery.info(
       `watching ${addresses.length} new address(es): ` +
@@ -440,7 +442,11 @@ export class WalletSyncService {
       // Through the persist queue: applied directly, a cursorAdvanced enqueued
       // before this rewind would run after it, and advanceCursor's MAX would
       // swallow the reset.
-      await this.enqueuePersist(() => this.transactionDAO.resetCursor(walletId, rewindToHeight))
+      // A floor above the cursor would skip blocks: a scan still below it reaches these addresses anyway.
+      await this.enqueuePersist(async () => {
+        const cursor = opts.fromHeight == null ? null : await this.transactionDAO.getCursor(walletId)
+        if (cursor == null || rewindToHeight < cursor) await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+      })
     }
     if (!this.child) return
     this.send({type: 'addWatchAddresses', walletId, addresses: addresses.map(toWatchAddress), rewindToHeight})

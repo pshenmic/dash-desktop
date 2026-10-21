@@ -4,6 +4,7 @@ import {OperationContext, OperationError} from '../types'
 import {dashPaySharedKey, decryptDashPayContactKey} from '../../../src/utils/dashPayKeys'
 import {signingKey} from '../identity/signingKey'
 import {Logger} from '../../../src/utils/logger'
+import {DASHPAY_RECEIVED_RECIPIENT_KEY_PURPOSES, DASHPAY_RECEIVED_SENDER_KEY_PURPOSES} from '../../constants'
 
 const log = new Logger('platform')
 
@@ -25,26 +26,27 @@ export async function dashPayContactKey(payload: Payload, ctx: OperationContext)
     sdk.identities.getIdentityPublicKeys(request.ownerId),
     sdk.identities.getIdentityPublicKeys(identifier),
   ])
-  const encryption = senderKeys.find(key => key.keyId === request.senderKeyIndex)
+  const sender = senderKeys.find(key => key.keyId === request.senderKeyIndex)
   const recipient = ourKeys.find(key => key.keyId === request.recipientKeyIndex)
   // Identities gain keys and purposes may still be accepted later, so neither is final.
-  if (encryption == null || recipient == null || encryption.purpose !== 'ENCRYPTION' || recipient.purpose !== 'DECRYPTION') {
+  if (sender == null || recipient == null
+    || !DASHPAY_RECEIVED_SENDER_KEY_PURPOSES.includes(sender.purpose) || !DASHPAY_RECEIVED_RECIPIENT_KEY_PURPOSES.includes(recipient.purpose)) {
     throw new OperationError('The keys this contact request names are not usable yet', 'internal')
   }
-  if (encryption.keyType !== 'ECDSA_SECP256K1' || recipient.keyType !== 'ECDSA_SECP256K1') return broken('a key cannot do ECDH')
+  if (sender.keyType !== 'ECDSA_SECP256K1' || recipient.keyType !== 'ECDSA_SECP256K1') return broken('a key cannot do ECDH')
   if (recipient.disabledAt != null) return broken('our key it is encrypted to is disabled')
 
-  let decryption: Awaited<ReturnType<typeof signingKey>>
+  let ours: Awaited<ReturnType<typeof signingKey>>
   try {
-    decryption = await signingKey(sdk, seed, network, identifier, identityIndex, 'DECRYPTION')
+    ours = await signingKey(sdk, seed, network, identifier, identityIndex, recipient.purpose, recipient.securityLevel)
   } catch (err) {
-    if (err instanceof OperationError) return broken('this wallet derives no DECRYPTION key of ours')
+    if (err instanceof OperationError) return broken(`this wallet derives no ${recipient.purpose} key of ours`)
     throw err
   }
-  if (decryption.publicKey.keyId !== recipient.keyId) return broken('it is encrypted to a key this wallet does not derive')
+  if (ours.publicKey.keyId !== recipient.keyId) return broken('it is encrypted to a key this wallet does not derive')
 
   try {
-    const shared = dashPaySharedKey(decryption.privateKey.bytes(), hexToBytes(encryption.data))
+    const shared = dashPaySharedKey(ours.privateKey.bytes(), hexToBytes(sender.data))
     return {xpub: decryptDashPayContactKey(shared, request.encryptedPublicKey).publicExtendedKey}
   } catch {
     return broken('its encrypted key does not decrypt')

@@ -42,6 +42,9 @@ export async function up(knex: Knex): Promise<void> {
     table.binary('encrypted_public_key').notNullable()
     // Platform's $createdAt, in milliseconds.
     table.integer('created_at').notNullable()
+    // $createdAtCoreBlockHeight: no payment on the chain a request hands out can
+    // be older, so a scan for it starts here.
+    table.integer('core_height_created_at').notNullable().defaultTo(0)
     // On a request sent to us: the sender's payment key, decrypted the first
     // time the seed was at hand. Public, it only derives addresses to pay them.
     table.text('contact_xpub')

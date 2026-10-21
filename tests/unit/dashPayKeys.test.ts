@@ -3,6 +3,9 @@ import {HDKey} from '@scure/bip32'
 import {bytesToHex, hexToBytes} from '@noble/hashes/utils.js'
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {base58} from '@scure/base'
+import {hmac} from '@noble/hashes/hmac.js'
+import {sha256} from '@noble/hashes/sha2.js'
+import {bytesToNumberBE, numberToBytesBE} from '@noble/curves/utils.js'
 import {accountReference, dashPayAccountPath, dashPayAddressDeriver, dashPaySharedKey, decryptDashPayContactKey, deriveChild256, deriveDashPayContactKey, derivePath256, encryptDashPayContactKey} from '../../src/main/src/utils/dashPayKeys'
 
 const seed = hexToBytes('b16d3782e714da7c55a397d5f19104cfed7ffa8036ac514509bbb50807f8ac598eeb26f0797bd8cc221a6cbff2168d90a5e9ee025a5bd977977b9eccd97894bb')
@@ -97,9 +100,13 @@ describe('contact request keys', () => {
     }
   })
 
-  it('references account 0 in 28 bits, the same way every time', () => {
+  // iOS dash-shared-core reads ASK28 off the digest's tail; DIP-15 leaves it open.
+  it('references account 0 as iOS does: the HMAC digest tail under the sender key', () => {
     const key = deriveDashPayContactKey(account, ours, theirs)
-    expect(accountReference(key)).toBe(accountReference(deriveDashPayContactKey(account, ours, theirs)))
-    expect(accountReference(key)).toBeLessThan(2 ** 28)
+    const secret = new Uint8Array(32).fill(0x42)
+    const compact = new Uint8Array([...numberToBytesBE(key.parentFingerprint, 4), ...key.chainCode!, ...key.publicKey!])
+    const digest = hmac(sha256, secret, compact)
+    expect(accountReference(secret, key)).toBe(Number(bytesToNumberBE(digest.subarray(28, 32)) >> 4n))
+    expect(accountReference(secret, key)).not.toBe(Number(bytesToNumberBE(digest.subarray(0, 4)) >> 4n))
   })
 })
