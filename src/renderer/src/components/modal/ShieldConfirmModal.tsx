@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
@@ -8,7 +8,7 @@ import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import Spinner from '@renderer/components/ui/Spinner'
-import CopyableError from '@renderer/components/ui/CopyableError'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
@@ -116,35 +116,16 @@ export default function ShieldConfirmModal({
               </div>
             </div>
           ) : (
-            <>
-              <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-                Enter your wallet password to prove and broadcast.
-              </Text>
-              <div className={"mt-2"}>
-                <Input
-                  id={"shield-password"}
-                  type={"password"}
-                  placeholder={"Wallet password"}
-                  value={password}
-                  variant={"outlined"}
-                  onChange={(e) => { setError(null); setPassword(e.target.value) }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-                  className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                  colorScheme={error ? 'error' : 'primary'}
-                  autoFocus
-                />
-              </div>
-            </>
+            <PasswordField
+              id={"shield-password"}
+              value={password}
+              onChange={(value) => { setError(null); setPassword(value) }}
+              onSubmit={handleConfirm}
+              error={error}
+              hint={"Used to prove and broadcast."}
+              className={"mt-4"}
+            />
           )}
-
-          <div
-            className={`
-              overflow-hidden transition-all duration-200
-              ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-            `}
-          >
-            <CopyableError message={error ?? ''} />
-          </div>
 
           <ModalActions
             secondary={{ label: 'Cancel', onClick: requestClose, disabled: shielding }}

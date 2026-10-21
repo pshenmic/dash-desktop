@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { PlatformSendResult } from '@renderer/api/types'
@@ -8,7 +8,7 @@ import { ModalSize } from '@renderer/enums/ModalSize'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
-import CopyableError from '@renderer/components/ui/CopyableError'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
@@ -103,32 +103,16 @@ export default function TransferConfirmModal({
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary {...summary} className={"mt-4"} />
 
-          <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-            Enter your wallet password to sign and broadcast.
-          </Text>
-          <div className={"mt-2"}>
-            <Input
-              id={"transfer-confirm-password"}
-              type={"password"}
-              placeholder={"Wallet password"}
-              value={password}
-              variant={"outlined"}
-              onChange={(e) => { setError(null); setPassword(e.target.value) }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-              className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-              colorScheme={error ? 'error' : 'primary'}
-              disabled={sending}
-              autoFocus
-            />
-          </div>
-          <div
-            className={`
-              overflow-hidden transition-all duration-200
-              ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-            `}
-          >
-            <CopyableError message={error ?? ''} />
-          </div>
+          <PasswordField
+            id={"transfer-confirm-password"}
+            value={password}
+            onChange={(value) => { setError(null); setPassword(value) }}
+            onSubmit={handleConfirm}
+            error={error}
+            disabled={sending}
+            hint={"Used to sign and broadcast."}
+            className={"mt-5"}
+          />
 
           <ModalActions
             secondary={{ label: 'Cancel', onClick: requestClose, disabled: sending }}

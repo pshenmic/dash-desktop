@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import TxSummary from '@renderer/components/ui/TxSummary'
@@ -171,27 +172,16 @@ export default function ShieldedSpendModal({
             className={"mt-4"}
           />
 
-          <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-            Enter your wallet password. Syncing and proving can take a little while.
-          </Text>
-          <div className={"mt-2"}>
-            <Input
-              id={"shielded-spend-password"}
-              type={"password"}
-              placeholder={"Wallet password"}
-              value={password}
-              variant={"outlined"}
-              onChange={(e) => { setPreError(null); setPassword(e.target.value) }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-              className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-              colorScheme={preError ? 'error' : 'primary'}
-              disabled={busy}
-              autoFocus
-            />
-          </div>
-          <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-            <CopyableError message={preError ?? ''} />
-          </div>
+          <PasswordField
+            id={"shielded-spend-password"}
+            value={password}
+            onChange={(value) => { setPreError(null); setPassword(value) }}
+            onSubmit={handleConfirm}
+            error={preError}
+            disabled={busy}
+            hint={"Syncing and proving can take a little while."}
+            className={"mt-5"}
+          />
 
           <ModalActions
             secondary={{ label: 'Cancel', onClick: requestClose, disabled: busy }}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
@@ -10,6 +10,7 @@ import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
 import CopyableError from '@renderer/components/ui/CopyableError'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -233,7 +234,13 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
   const costs = props.resume ? undefined : assetLockSummaryCosts(kind, props.amountDuffs, props.feeDuffs, props.feeCredits)
 
   return (
-    <Modal open={isOpen} onClose={requestClose} title={modalTitle} size={ModalSize.Lg}>
+    <Modal
+      open={isOpen}
+      onClose={requestClose}
+      title={modalTitle}
+      description={!started ? 'The funding waits for the network to lock the L1 transaction — usually a few seconds with InstantSend, or a few minutes if it falls back to a ChainLock. If the app is closed meanwhile, the funding can be resumed.' : undefined}
+      size={ModalSize.Lg}
+    >
       {!started && (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary
@@ -247,27 +254,15 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
             className={"mt-4"}
           />
 
-          <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-            Enter your wallet password. The funding waits for the network to lock the L1 transaction — usually a few seconds with InstantSend, or a few minutes if it falls back to a ChainLock. If the app is closed meanwhile, the funding can be resumed.
-          </Text>
-          <div className={"mt-2"}>
-            <Input
-              id={"asset-lock-password"}
-              type={"password"}
-              placeholder={"Wallet password"}
-              value={password}
-              variant={"outlined"}
-              onChange={(e) => { setPreError(null); setPassword(e.target.value) }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-              className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-              colorScheme={preError ? 'error' : 'primary'}
-              disabled={busy}
-              autoFocus
-            />
-          </div>
-          <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-            <CopyableError message={preError ?? ''} />
-          </div>
+          <PasswordField
+            id={"asset-lock-password"}
+            value={password}
+            onChange={(value) => { setPreError(null); setPassword(value) }}
+            onSubmit={handleConfirm}
+            error={preError}
+            disabled={busy}
+            className={"mt-5"}
+          />
 
           <ModalActions
             secondary={{ label: 'Cancel', onClick: requestClose, disabled: busy }}

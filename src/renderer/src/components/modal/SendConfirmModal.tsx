@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { CoreRecipient, SendResult, TxLockStatus } from '@renderer/api/types'
 import type { SendConfirmModalProps } from '@renderer/types/SendConfirmModal'
@@ -9,7 +9,7 @@ import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
 import { transactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
-import CopyableError from '@renderer/components/ui/CopyableError'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
@@ -150,30 +150,15 @@ export default function SendConfirmModal({
             className={"mt-5"}
           />
 
-          <div className={"mt-5"}>
-            <Input
-              id={"send-password"}
-              type={"password"}
-              placeholder={"Wallet password"}
-              aria-label="Wallet password"
-              value={password}
-              variant={"outlined"}
-              onChange={(e) => { setError(null); setPassword(e.target.value) }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-              className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-              colorScheme={error ? 'error' : 'primary'}
-              disabled={sending}
-              autoFocus
-            />
-          </div>
-          <div
-            className={`
-              overflow-hidden transition-all duration-200
-              ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-            `}
-          >
-            <CopyableError message={error ?? ''} />
-          </div>
+          <PasswordField
+            id={"send-password"}
+            value={password}
+            onChange={(value) => { setError(null); setPassword(value) }}
+            onSubmit={handleConfirm}
+            error={error}
+            disabled={sending}
+            className={"mt-5"}
+          />
 
           <ModalActions
             secondary={{ label: 'Cancel', onClick: requestClose, disabled: sending }}

@@ -18,8 +18,7 @@ export default function CopyableError({ message }: { message: string }): React.J
         size={10}
         weight={"medium"}
         color={copied ? 'blue-mint' : 'brand'}
-        opacity={copied ? 100 : 40}
-        className={`transition-opacity duration-200 ${copied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+        className={`transition-opacity duration-200 ${copied ? '' : '!opacity-0 group-hover:!opacity-40'}`}
       >
         {copied ? 'Copied to clipboard' : 'Click to copy'}
       </Text>

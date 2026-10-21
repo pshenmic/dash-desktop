@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Input, Text } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
+import PasswordField from '@renderer/components/ui/PasswordField'
 
 interface WalletUnlockModalProps {
   isOpen: boolean
@@ -60,35 +60,18 @@ export default function WalletUnlockModal({
       size={ModalSize.Md}
       dismissible={!loading}
     >
-      <div className={"mt-4.5"}>
-        <Input
-          id={"wallet-unlock-password"}
-          type={"password"}
-          placeholder={"Wallet password"}
-          value={password}
-          variant={"outlined"}
-          onChange={(e) => {
-            setError(null)
-            setPassword(e.target.value)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleConfirm()
-          }}
-          className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-          colorScheme={error ? 'error' : 'primary'}
-          disabled={loading}
-          autoFocus
-        />
-      </div>
-
-      <div
-        className={`
-          overflow-hidden transition-all duration-200
-          ${error ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-        `}
-      >
-        <Text size={12} weight={"medium"} color={"red"}>{error}</Text>
-      </div>
+      <PasswordField
+        id={"wallet-unlock-password"}
+        value={password}
+        onChange={(value) => {
+          setError(null)
+          setPassword(value)
+        }}
+        onSubmit={handleConfirm}
+        error={error}
+        disabled={loading}
+        className={"mt-4.5"}
+      />
 
       <ModalActions
         secondary={{ label: 'Cancel', onClick: onClose, disabled: loading }}
