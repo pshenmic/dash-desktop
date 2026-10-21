@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {identityKeyRequestError, matchIdentityKey} from '../../src/main/src/utils/identityKeys'
-import {IdentityKeyDescriptor, DerivedKeyHash, IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
-import {DASHPAY_KEY_BOUNDS} from '../../src/main/src/constants/credits'
+import {matchIdentityKey} from '../../src/main/src/utils/identityKeys'
+import {IdentityKeyDescriptor, DerivedKeyHash} from '../../src/main/src/types/IdentityKeys'
 function key(keyId: number, purpose: string, publicKeyHashHex: string, securityLevel = 'CRITICAL'): IdentityKeyDescriptor {
   return { keyId, purpose, securityLevel, publicKeyHashHex }
 }
@@ -48,22 +47,5 @@ describe('matchIdentityKey', () => {
   it('matches hashes case-insensitively', () => {
     const result = matchIdentityKey([key(3, 'transfer', 'AB12')], [derived(0, 'ab12')])
     expect(result).toEqual({ keyId: 3, keyIndex: 0 })
-  })
-})
-
-describe('identityKeyRequestError', () => {
-  it('accepts what iOS offers: AUTHENTICATION to TRANSFER, below MASTER, bounded or not', () => {
-    expect(identityKeyRequestError({purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null})).toBeNull()
-    expect(identityKeyRequestError({purpose: 'ENCRYPTION', securityLevel: 'MEDIUM', contractBounds: DASHPAY_KEY_BOUNDS})).toBeNull()
-    expect(identityKeyRequestError({purpose: 'TRANSFER', securityLevel: 'CRITICAL', contractBounds: null})).toBeNull()
-  })
-
-  // IPC input is not typed at runtime, so what the types forbid is checked again.
-  it('refuses a MASTER key, a masternode purpose and a TRANSFER key below CRITICAL', () => {
-    expect(identityKeyRequestError({purpose: 'AUTHENTICATION', securityLevel: 'MASTER', contractBounds: null} as unknown as IdentityKeyRequest))
-      .toBe('A MASTER key cannot be created for an identity')
-    expect(identityKeyRequestError({purpose: 'VOTING', securityLevel: 'HIGH', contractBounds: null} as unknown as IdentityKeyRequest))
-      .toBe('A VOTING key cannot be created for an identity')
-    expect(identityKeyRequestError({purpose: 'TRANSFER', securityLevel: 'HIGH', contractBounds: null})).toBe('A TRANSFER key must be CRITICAL')
   })
 })

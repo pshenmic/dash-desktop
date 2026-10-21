@@ -100,8 +100,8 @@ export interface IdentityKeyBoundsDto {
 }
 
 // A key for createIdentityKeys to derive from the mnemonic and register on the
-// identity, always ECDSA_SECP256K1. A TRANSFER key
-// must be CRITICAL; ENCRYPTION and DECRYPTION keys for DashPay are bound to its
+// identity, always ECDSA_SECP256K1. A TRANSFER key must be CRITICAL, ENCRYPTION
+// and DECRYPTION keys MEDIUM; for DashPay those two are bound to its
 // contactRequest document type.
 export interface IdentityKeyRequestDto {
   purpose: 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'

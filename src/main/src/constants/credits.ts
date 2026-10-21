@@ -1,6 +1,6 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
 import type {TransitionFeeOperation} from '../../platform/types/messages'
-import type {CreatableKeyPurpose, CreatableKeySecurityLevel, IdentityKeyBounds} from '../types/IdentityKeys'
+import type {IdentityKeyBounds} from '../types/IdentityKeys'
 
 export const CREDITS_PER_DUFF = 1_000n
 
@@ -76,8 +76,3 @@ export const IDENTITY_KEY_DEFINITIONS = [
   {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1, contractBounds: DASHPAY_KEY_BOUNDS},
   {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1, contractBounds: null},
 ] as const
-
-// What createIdentityKeys may register in an identity update, as iOS offers it;
-// a TRANSFER key is always CRITICAL.
-export const CREATABLE_KEY_PURPOSES: CreatableKeyPurpose[] = ['AUTHENTICATION', 'ENCRYPTION', 'DECRYPTION', 'TRANSFER']
-export const CREATABLE_KEY_SECURITY_LEVELS: CreatableKeySecurityLevel[] = ['CRITICAL', 'HIGH', 'MEDIUM']

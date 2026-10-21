@@ -38,12 +38,11 @@ export async function dashPayContactKey(payload: Payload, ctx: OperationContext)
 
   let ours: Awaited<ReturnType<typeof signingKey>>
   try {
-    ours = await signingKey(sdk, seed, network, identifier, identityIndex, recipient.purpose, recipient.securityLevel)
+    ours = await signingKey(sdk, seed, network, identifier, identityIndex, recipient.purpose, recipient.securityLevel, recipient.keyId)
   } catch (err) {
-    if (err instanceof OperationError) return broken(`this wallet derives no ${recipient.purpose} key of ours`)
+    if (err instanceof OperationError) return broken('it is encrypted to a key this wallet does not derive')
     throw err
   }
-  if (ours.publicKey.keyId !== recipient.keyId) return broken('it is encrypted to a key this wallet does not derive')
 
   try {
     const shared = dashPaySharedKey(ours.privateKey.bytes(), hexToBytes(sender.data))

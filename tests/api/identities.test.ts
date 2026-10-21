@@ -155,9 +155,8 @@ describe('listing identities', () => {
     expect(request).toHaveBeenCalledWith('identityCreateKeys', 'testnet', expect.objectContaining({identifier: IDENTIFIER, identityIndex: 0, keys}))
   })
 
-  it('creates nothing for a refused key, an identity outside the wallet or a wrong password', async () => {
+  it('creates nothing for no keys, an identity outside the wallet or a wrong password', async () => {
     const key: IdentityKeyRequest = {purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null}
-    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [{...key, purpose: 'TRANSFER'}], PASSWORD)).rejects.toThrow('must be CRITICAL')
     await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [], PASSWORD)).rejects.toThrow('at least one key')
     await expect(identities.createIdentityKeys(walletId, 'someone-else', [key], PASSWORD)).rejects.toThrow('Identity not found')
     await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [key], 'wrong')).rejects.toThrow('Invalid wallet password')

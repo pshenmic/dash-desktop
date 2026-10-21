@@ -23,8 +23,12 @@ export async function aliasRegister(payload: Payload, ctx: OperationContext): Pr
   if (check.status !== 'missing') {
     throw new OperationError(`${name} is ${check.status}`, 'internal')
   }
-  // A missing name with an end date is in someone else's contest.
-  if (check.voteEndsAt != null && Date.now() > check.voteEndsAt - VOTE_POLL_DURATION_MS[network] + CONTEST_JOIN_WINDOW_MS[network]) {
+  // A missing name whose vote has yet to end is in someone else's contest. One
+  // that ended with no winner reopens, so registering it starts a new contest.
+  const now = Date.now()
+  const voteEndsAt = check.voteEndsAt ?? 0
+  const joinClosesAt = voteEndsAt - VOTE_POLL_DURATION_MS[network] + CONTEST_JOIN_WINDOW_MS[network]
+  if (voteEndsAt > now && now > joinClosesAt) {
     throw new OperationError(`The contest for ${name} no longer accepts contenders`, 'internal')
   }
   const [cost, balance] = await Promise.all([aliasRegisterFee(ctx, label, identifier), sdk.identities.getIdentityBalance(identifier)])

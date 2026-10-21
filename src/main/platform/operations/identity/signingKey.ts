@@ -19,8 +19,10 @@ export async function signingKey(
   identityIndex: number,
   purpose = 'TRANSFER',
   securityLevel?: string,
+  keyId?: number,
 ): Promise<{privateKey: PrivateKeyWASM; publicKey: IdentityPublicKeyWASM}> {
-  const identityKeys = await sdk.identities.getIdentityPublicKeys(identifier)
+  const identityKeys = (await sdk.identities.getIdentityPublicKeys(identifier))
+    .filter(key => key.disabledAt == null && (keyId == null || key.keyId === keyId))
   const hdKey = sdk.keyPair.seedToHdKey(seed, network)
 
   const derived: Array<{keyIndex: number; privateKey: PrivateKeyWASM}> = []

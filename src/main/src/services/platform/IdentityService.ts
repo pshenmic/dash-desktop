@@ -12,7 +12,6 @@ import {IdentityKeyRequest} from '../../types/IdentityKeys'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
-import {identityKeyRequestError} from '../../utils/identityKeys'
 import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {withUnlockedWallet} from '../../utils/walletSeed'
@@ -238,10 +237,6 @@ export class IdentityService {
     }
     if (keys.length === 0) {
       throw new Error('Choose at least one key to create')
-    }
-    const refusal = keys.map(identityKeyRequestError).find(error => error != null)
-    if (refusal != null) {
-      throw new Error(refusal)
     }
 
     log.info(`${identifier}: creating ${keys.map(key => `${key.purpose} ${key.securityLevel}`).join(', ')}`)

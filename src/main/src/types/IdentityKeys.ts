@@ -16,7 +16,8 @@ export interface IdentityKeyBounds {
   documentType: string | null
 }
 
-// MASTER is only minted at registration; SYSTEM, VOTING and OWNER keys are a masternode's.
+// As iOS offers them. Drive refuses, before charging, any pairing but TRANSFER
+// CRITICAL, ENCRYPTION and DECRYPTION MEDIUM, and AUTHENTICATION at any level.
 export type CreatableKeyPurpose = 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
 export type CreatableKeySecurityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM'
 

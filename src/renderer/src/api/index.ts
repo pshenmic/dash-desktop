@@ -185,12 +185,12 @@ export class API {
     return this.api.getDashPayContacts(walletId) as Promise<DashPayContactDto[]>
   }
 
-  // An L1 send to a contact; its address is worked out in the backend. Quote it
-  // with estimateFee('coreSend') — the fee does not depend on the address.
   static async getDashPayPayments(walletId: string, identifier: string, contactId: string): Promise<DashPayPaymentDto[]> {
     return this.api.getDashPayPayments(walletId, identifier, contactId) as Promise<DashPayPaymentDto[]>
   }
 
+  // An L1 send to a contact; its address is worked out in the backend. Quote it
+  // with estimateFee('coreSend') — the fee does not depend on the address.
   static async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
     return this.api.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password) as Promise<SendResult>
   }
