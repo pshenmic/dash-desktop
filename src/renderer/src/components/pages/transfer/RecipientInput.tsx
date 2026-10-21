@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { Identifier } from 'dash-ui-kit/react'
 import type { RecipientInputProps } from '@renderer/types/SendRecipients'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
@@ -8,14 +8,19 @@ import { isValidDashAddress } from '@renderer/utils/address'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
 import DropdownField from '@renderer/components/ui/DropdownField'
+import Spinner from '@renderer/components/ui/Spinner'
 
 export default function RecipientInput({
   value,
   onChange,
   data,
   compact = false,
+  appearance = 'default',
   ariaLabel,
   ownOptions,
+  ownOptionsLoading = false,
+  ownOptionsError = null,
+  onRetryOwnOptions,
 }: RecipientInputProps) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -23,7 +28,7 @@ export default function RecipientInput({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { contacts, network, addContact, deleteContact } = useAddressBook()
+  const { contacts, loading: contactsLoading, network, addContact, deleteContact } = useAddressBook()
 
   const query = value.toLowerCase().trim()
   const filteredContacts = contacts.filter(
@@ -34,6 +39,7 @@ export default function RecipientInput({
 
   const trimmedValue = value.trim()
   const isValidRecipient = isValidDashAddress(trimmedValue, network)
+  const invalidRecipient = trimmedValue.length > 0 && !isValidRecipient
   const alreadySaved = contacts.some((c) => c.address === trimmedValue)
   const canSaveCurrent = isValidRecipient && !alreadySaved
 
@@ -56,7 +62,6 @@ export default function RecipientInput({
   const handleSaveContact = async (): Promise<void> => {
     const label = newLabel.trim()
     if (label.length === 0) {
-      toast.error('**Name required** Enter a name for this contact.')
       return
     }
     try {
@@ -81,7 +86,7 @@ export default function RecipientInput({
       {!compact && <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>}
-      <div className={"dash-input-block rounded-[.875rem]"} ref={containerRef}>
+      <div className={`rounded-[.875rem] ${appearance === 'subtle' ? 'dash-block-5 border border-transparent' : 'dash-input-block'} ${invalidRecipient ? 'outline outline-1 outline-dash-red' : ''}`} ref={containerRef}>
         {ownOptions ? <DropdownField
           editable
           ariaLabel={ariaLabel ?? data.label}
@@ -91,11 +96,14 @@ export default function RecipientInput({
           menuHeading="Your addresses"
           placeholder="Enter a recipient address or choose one of yours"
           triggerClassName="px-4 py-3.5"
-          inputInvalid={trimmedValue.length > 0 && !isValidRecipient}
+          inputInvalid={invalidRecipient}
           inputSuffix={<div className="flex items-center gap-3">
-            {trimmedValue.length > 0 && (isValidRecipient
-              ? <CheckIcon size={18} className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />
-              : <Text size={10} weight="medium" color="red">Invalid</Text>)}
+            {ownOptionsLoading && <span role="status" aria-label="Loading recipient options"><Spinner size={12} className="dash-text-primary" /></span>}
+            {!ownOptionsLoading && ownOptionsError && onRetryOwnOptions && <button type="button" onClick={onRetryOwnOptions} aria-label="Reload recipient options" title="Reload recipient options" className="dash-text-primary cursor-pointer hover:opacity-70">
+              <RefreshIcon size={14} color="currentColor" />
+            </button>}
+            {trimmedValue.length > 0 && isValidRecipient && <CheckIcon size={18} color="currentColor" className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />}
+            {invalidRecipient && <Text size={10} weight="medium" color="red">Invalid</Text>}
             <button type="button" aria-label={data.addressBook} title={data.addressBook} aria-expanded={open}
               onClick={() => setOpen(current => !current)}
               className="flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity">
@@ -110,19 +118,15 @@ export default function RecipientInput({
             ref={inputRef}
             type={"text"}
             aria-label={ariaLabel ?? data.label}
+            aria-invalid={invalidRecipient}
             value={value}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            className={"outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 rounded-none! p-0 min-w-0 w-full"}
+            className={`outline-none text-[.875rem] dash-text-default ${appearance === 'subtle' ? 'placeholder:opacity-30' : 'placeholder:opacity-40'} !ring-0 rounded-none! p-0 min-w-0 w-full`}
             placeholder={data.placeholder}
             colorScheme={"transparent"}
           />
-          {trimmedValue.length > 0 && (
-            isValidRecipient ? (
-              <CheckIcon size={18} className={"text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden"} />
-            ) : (
-              <Text size={10} weight={"medium"} color={"red"} className={"shrink-0"}>Invalid</Text>
-            )
-          )}
+          {trimmedValue.length > 0 && isValidRecipient && <CheckIcon size={18} color={"currentColor"} className={"text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden"} />}
+          {invalidRecipient && <Text size={10} weight={"medium"} color={"red"} className={"shrink-0"}>Invalid</Text>}
           <button
             type={"button"}
             onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
@@ -145,9 +149,12 @@ export default function RecipientInput({
         >
           <div className={"px-5"}>
             <div className={"flex items-center justify-between pb-[.75rem]"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                {data.addressBook}:
-              </Text>
+              <span className="flex items-center gap-2">
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                  {data.addressBook}:
+                </Text>
+                {contactsLoading && <span role="status" aria-label="Loading contacts"><Spinner size={12} className="dash-text-primary" /></span>}
+              </span>
               {canSaveCurrent && !adding && (
                 <button
                   onClick={() => setAdding(true)}
@@ -173,7 +180,8 @@ export default function RecipientInput({
                 />
                 <button
                   onClick={handleSaveContact}
-                  className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
+                  disabled={newLabel.trim().length === 0}
+                  className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity disabled:cursor-default disabled:opacity-40"}
                 >
                   <Text size={10} weight={"medium"} color={"blue-mint"}>Save</Text>
                 </button>
@@ -227,7 +235,7 @@ export default function RecipientInput({
                     </div>
                   </div>
                 ))
-              ) : (
+              ) : !contactsLoading && (
                 <div className={"p-4 text-center"}>
                   <Text size={14} weight={"normal"} color={"default"} opacity={50}>
                     {contacts.length === 0 ? 'No saved contacts yet' : data.noResults}

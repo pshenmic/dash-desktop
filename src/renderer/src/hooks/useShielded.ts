@@ -3,6 +3,7 @@ import { API } from '@renderer/api'
 import { Network, ShieldedNoteInfo, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
+import { toast } from '@renderer/components/ui/Toast'
 import {
   SHIELDED_NOTES_INFO_CACHE_NS,
   SHIELDED_NOTES_INFO_POLL_MS,
@@ -98,7 +99,7 @@ function isSameSyncState(a: ShieldedSyncState, b: ShieldedSyncState): boolean {
     && isSameNotes(a.notes, b.notes)
 }
 
-export function useShieldedSyncState(walletId: string | null | undefined): ShieldedSyncState {
+export function useShieldedSyncState(walletId: string | null | undefined, notifyNewErrors = false): ShieldedSyncState {
   const [state, setState] = useState<ShieldedSyncState>(INITIAL_SYNC_STATE)
 
   useEffect(() => {
@@ -110,12 +111,18 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
     let dead = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let wasRunning = false
+    let previousError: string | null | undefined
 
     const poll = async (): Promise<void> => {
       let running = false
       try {
         const next = await API.getShieldedSyncState(walletId)
         if (dead) return
+        const error = next.phase === ShieldedSyncPhase.Error ? next.error : null
+        if (notifyNewErrors && previousError !== undefined && error && error !== previousError) {
+          toast.error(`**Shielded sync failed** ${error}`)
+        }
+        previousError = error
         setState(prev => isSameSyncState(prev, next) ? prev : next)
         running = next.phase === ShieldedSyncPhase.Syncing || next.phase === ShieldedSyncPhase.Recovering
         if (wasRunning && !running) invalidateAsyncCache(SHIELDED_NOTES_INFO_CACHE_NS, walletId)
@@ -132,7 +139,7 @@ export function useShieldedSyncState(walletId: string | null | undefined): Shiel
       dead = true
       if (timer !== undefined) clearTimeout(timer)
     }
-  }, [walletId])
+  }, [walletId, notifyNewErrors])
 
   return state
 }

@@ -4,10 +4,12 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
+import { getErrorMessage } from '@renderer/utils/error'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import PasswordField from '@renderer/components/ui/PasswordField'
+import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
@@ -39,7 +41,7 @@ export default function TransferConfirmModal({
   const walletId = status?.selectedWalletId ?? null
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
-  const [error, setError] = useState<string | null>(null)
+  const [passwordInvalid, setPasswordInvalid] = useState(false)
   const [result, setResult] = useState<PlatformSendResult | null>(null)
   const [sentRecipients, setSentRecipients] = useState<RecipientSummaryProps | null>(null)
 
@@ -47,7 +49,7 @@ export default function TransferConfirmModal({
     if (isOpen) {
       setPassword('')
       setPhase(ConfirmModalPhase.Confirm)
-      setError(null)
+      setPasswordInvalid(false)
       setResult(null)
       setSentRecipients(null)
     }
@@ -58,11 +60,11 @@ export default function TransferConfirmModal({
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || sending || !sourceValidRef.current) return
     setPhase(ConfirmModalPhase.Sending)
-    setError(null)
+    setPasswordInvalid(false)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPasswordInvalid(true)
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
@@ -80,7 +82,8 @@ export default function TransferConfirmModal({
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Transfer failed')
+      console.error('Transfer failed', e)
+      toast.error(getErrorMessage(e))
       setPhase(ConfirmModalPhase.Confirm)
     }
   }
@@ -105,9 +108,9 @@ export default function TransferConfirmModal({
           <PasswordField
             id={"transfer-confirm-password"}
             value={password}
-            onChange={(value) => { setError(null); setPassword(value) }}
+            onChange={(value) => { setPasswordInvalid(false); setPassword(value) }}
             onSubmit={handleConfirm}
-            error={error}
+            error={passwordInvalid ? INVALID_WALLET_PASSWORD_MESSAGE : null}
             disabled={sending}
             className={"mt-5"}
           />

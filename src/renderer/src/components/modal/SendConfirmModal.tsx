@@ -7,11 +7,13 @@ import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
+import { getErrorMessage } from '@renderer/utils/error'
 import { transactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import PasswordField from '@renderer/components/ui/PasswordField'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
+import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import TxSummary from '@renderer/components/ui/TxSummary'
@@ -45,18 +47,20 @@ export default function SendConfirmModal({
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [lockPhase, setLockPhase] = useState<SendLockPhase>(SendLockPhase.Waiting)
-  const [error, setError] = useState<string | null>(null)
+  const [passwordInvalid, setPasswordInvalid] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
   const [sentRecipients, setSentRecipients] = useState<CoreRecipient[]>([])
+  const pollingErrorNotified = useRef(false)
 
   useEffect(() => {
     if (isOpen) {
       setPassword('')
       setPhase(ConfirmModalPhase.Confirm)
       setLockPhase(SendLockPhase.Waiting)
-      setError(null)
+      setPasswordInvalid(false)
       setResult(null)
       setSentRecipients([])
+      pollingErrorNotified.current = false
     }
   }, [isOpen])
 
@@ -67,7 +71,18 @@ export default function SendConfirmModal({
     let timer: ReturnType<typeof setTimeout> | undefined
     const startedAt = Date.now()
     const poll = async (): Promise<void> => {
-      const status: TxLockStatus | null = await API.getTxLockStatus(walletId, txid).catch(() => null)
+      let status: TxLockStatus | null = null
+      try {
+        status = await API.getTxLockStatus(walletId, txid)
+        if (cancelled) return
+        pollingErrorNotified.current = false
+      } catch (error) {
+        console.error('Failed to load transaction lock status', error)
+        if (!cancelled && !pollingErrorNotified.current) {
+          pollingErrorNotified.current = true
+          toast.error(getErrorMessage(error))
+        }
+      }
       if (cancelled) return
       let final: SendLockPhase | null = null
       if (status?.instantLocked) final = SendLockPhase.Instant
@@ -99,11 +114,11 @@ export default function SendConfirmModal({
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || sending || !sourceValidRef.current) return
     setPhase(ConfirmModalPhase.Sending)
-    setError(null)
+    setPasswordInvalid(false)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPasswordInvalid(true)
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
@@ -118,7 +133,8 @@ export default function SendConfirmModal({
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Transaction failed')
+      console.error('Transaction failed', e)
+      toast.error(getErrorMessage(e))
       setPhase(ConfirmModalPhase.Confirm)
     }
   }
@@ -146,9 +162,9 @@ export default function SendConfirmModal({
           <PasswordField
             id={"send-password"}
             value={password}
-            onChange={(value) => { setError(null); setPassword(value) }}
+            onChange={(value) => { setPasswordInvalid(false); setPassword(value) }}
             onSubmit={handleConfirm}
-            error={error}
+            error={passwordInvalid ? INVALID_WALLET_PASSWORD_MESSAGE : null}
             disabled={sending}
             className={"mt-5"}
           />
@@ -170,7 +186,7 @@ export default function SendConfirmModal({
               <SuccessIcon size={56} />
             </div>
             <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-              {result ? davToDash(result.amount) : ''} Dash sent
+              {result ? davToDash(result.amount) : ''}<span className="font-normal"> Dash</span> sent
             </Text>
             <div className={"mt-2 flex items-center justify-center gap-2"}>
               {lockFinal

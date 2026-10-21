@@ -22,8 +22,12 @@ export interface RecipientInputProps {
   onChange: (value: string) => void
   data: TransferPageType['recipient']
   compact?: boolean
+  appearance?: 'default' | 'subtle'
   ariaLabel?: string
   ownOptions?: DropdownFieldOption[]
+  ownOptionsLoading?: boolean
+  ownOptionsError?: string | null
+  onRetryOwnOptions?: () => void
 }
 
 export interface SendRecipientError {
@@ -44,6 +48,7 @@ export interface SendRecipientValidation {
 export interface SendRecipientsEditorProps {
   headerAction?: ReactNode
   beforeRecipients?: ReactNode
+  footer?: ReactNode
   recipients: SendRecipientDraft[]
   errors: SendRecipientError[]
   limit: number
@@ -52,5 +57,6 @@ export interface SendRecipientsEditorProps {
   feeRecipientId: string | null
   feeCredits: bigint | null
   budgetIsEstimate: boolean
+  amountDenominations?: readonly bigint[]
   onChange: (recipients: SendRecipientDraft[]) => void
 }

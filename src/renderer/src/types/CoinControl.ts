@@ -81,9 +81,12 @@ export interface CoinControlEmptyProps {
   text: string
 }
 
+export type CoinControlAutomaticIllustrationProps = Pick<CoinControlFunds, 'utxos' | 'platformAddresses'>
+
 export interface CoinControlAmountInputProps {
   id: string
   credits: bigint
+  maxCredits: bigint
   invalid: boolean
   onChange: (credits: bigint) => void
 }
@@ -92,6 +95,7 @@ export interface CoinControlInputDetailsProps {
   label: string
   amount: ReactNode
   address: string
+  fiat?: string
 }
 
 export interface WalletUtxosRequest {

@@ -4,20 +4,14 @@ import Modal from '../ui/Modal'
 import ModalActions from '../ui/ModalActions'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import { ModalActionTone } from '@renderer/enums/ModalActionTone'
+import type { DismissAssetLockFundingModalProps } from '@renderer/types/DismissAssetLockFundingModal'
 
 export default function DismissAssetLockFundingModal({
   isOpen,
   busy,
-  error,
   onClose,
   onConfirm,
-}: {
-  isOpen: boolean
-  busy: boolean
-  error: string | null
-  onClose: () => void
-  onConfirm: () => Promise<void>
-}): React.JSX.Element {
+}: DismissAssetLockFundingModalProps): React.JSX.Element {
   return (
     <Modal
       open={isOpen}
@@ -33,12 +27,6 @@ export default function DismissAssetLockFundingModal({
           {"This clears the pending record only. It won't cancel or refund the L1 transaction, and the funding can't be resumed afterwards."}
         </Text>
       </div>
-
-      {error && (
-        <Text size={12} weight={"medium"} color={"red"} className={"mt-3 block"}>
-          {error}
-        </Text>
-      )}
 
       <ModalActions
         tone={ModalActionTone.Danger}

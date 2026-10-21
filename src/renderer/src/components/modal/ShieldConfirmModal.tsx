@@ -4,6 +4,7 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
 import type { ShieldConfirmModalProps } from '@renderer/types/ShieldConfirmModal'
+import { getErrorMessage } from '@renderer/utils/error'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
@@ -11,6 +12,7 @@ import Spinner from '@renderer/components/ui/Spinner'
 import PasswordField from '@renderer/components/ui/PasswordField'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
+import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import TxSummary from '@renderer/components/ui/TxSummary'
@@ -74,7 +76,8 @@ export default function ShieldConfirmModal({
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Shield failed')
+      console.error('Shield failed', e)
+      toast.error(getErrorMessage(e))
       setPhase(ConfirmModalPhase.Confirm)
     }
   }

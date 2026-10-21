@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
 import HashField from '@renderer/components/ui/HashField'
-import CopyableError from '@renderer/components/ui/CopyableError'
 import PasswordField from '@renderer/components/ui/PasswordField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import TxSummary from '@renderer/components/ui/TxSummary'
+import { toast } from '@renderer/components/ui/Toast'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { useErrorToast } from '@renderer/hooks/useErrorToast'
 import { API } from '@renderer/api'
 import { PlatformRecipient, ShieldedSpendState } from '@renderer/api/types'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
+import { getErrorMessage } from '@renderer/utils/error'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import Spinner from '@renderer/components/ui/Spinner'
@@ -58,6 +60,7 @@ export default function ShieldedSpendModal({
   const [sentFee, setSentFee] = useState<bigint | null>(null)
   const [sentRecipients, setSentRecipients] = useState<PlatformRecipient[] | null>(null)
   const notified = useRef(false)
+  const pollingErrorNotified = useRef(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -70,6 +73,7 @@ export default function ShieldedSpendModal({
       setSentFee(null)
       setSentRecipients(null)
       notified.current = false
+      pollingErrorNotified.current = false
     }
   }, [isOpen])
 
@@ -82,6 +86,7 @@ export default function ShieldedSpendModal({
       try {
         const next = await API.getShieldedSpendState(walletId)
         if (dead) return
+        pollingErrorNotified.current = false
         setSpend(next)
         if (next.phase === ShieldedSpendPhase.Done && !notified.current) {
           notified.current = true
@@ -90,7 +95,12 @@ export default function ShieldedSpendModal({
         if (next.phase !== ShieldedSpendPhase.Done && next.phase !== ShieldedSpendPhase.Error) {
           timer = setTimeout(() => { void poll() }, SHIELDED_SPEND_POLL_MS)
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to refresh shielded spend state', error)
+        if (!dead && !pollingErrorNotified.current) {
+          pollingErrorNotified.current = true
+          toast.error(getErrorMessage(error))
+        }
         if (!dead) timer = setTimeout(() => { void poll() }, SHIELDED_SPEND_RETRY_MS)
       }
     }
@@ -101,6 +111,10 @@ export default function ShieldedSpendModal({
       if (timer !== undefined) clearTimeout(timer)
     }
   }, [started, walletId, onSuccess])
+
+  const isError = started && spend?.phase === ShieldedSpendPhase.Error
+  const error = isError ? spend?.error ?? 'Spend failed.' : null
+  useErrorToast(error, isOpen)
 
   const running = started && spend != null && spend.phase !== ShieldedSpendPhase.Done && spend.phase !== ShieldedSpendPhase.Error
 
@@ -127,7 +141,8 @@ export default function ShieldedSpendModal({
       setStarted(true)
       setBusy(false)
     } catch (e) {
-      setPreError(e instanceof Error ? e.message : 'Could not start.')
+      console.error('Could not start shielded spend', e)
+      toast.error(getErrorMessage(e))
       setBusy(false)
     }
   }
@@ -138,6 +153,7 @@ export default function ShieldedSpendModal({
     setPassword('')
     setPreError(null)
     notified.current = false
+    pollingErrorNotified.current = false
   }
 
   const requestClose = (): void => {
@@ -146,7 +162,6 @@ export default function ShieldedSpendModal({
   }
 
   const isDone = spend?.phase === ShieldedSpendPhase.Done
-  const isError = started && spend?.phase === ShieldedSpendPhase.Error
   const sentCredits = sentAmount ?? amountCredits
   const costs = shieldedSpendSummaryCosts(kind, amountCredits, feeCredits)
   const sentDetails = shieldedSpendSummaryCosts(kind, sentCredits, sentFee).details ?? []
@@ -227,9 +242,6 @@ export default function ShieldedSpendModal({
 
       {isError && (
         <div className={"phase-fade-in"} key={"error"}>
-          <div className={"mt-5 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-            <CopyableError message={spend?.error ?? 'Spend failed.'} />
-          </div>
           <ModalActions
             secondary={{ label: 'Close', onClick: onClose }}
             primary={{ label: 'Try again', onClick: retry }}
