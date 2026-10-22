@@ -16,8 +16,6 @@ export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
 // DAPI rejects a miss and an outage alike; this is what the miss says.
 export const IDENTITY_NOT_FOUND = /not found/i
 
-export const IDENTITY_KEY_LOOKAHEAD = 20
-
 export const DPNS_PARENT_DOMAIN = 'dash'
 export const DPNS_CONTESTED_INDEX = 'parentNameAndLabel'
 

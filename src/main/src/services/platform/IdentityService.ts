@@ -1,6 +1,7 @@
 import {HDKey} from '@scure/bip32'
 import convertToHomographSafeChars from 'dash-platform-sdk/src/utils/convertToHomographSafeChars.js'
 import {HD_VERSIONS} from '../../constants/addresses'
+import {MAX_KEYS_PER_TRANSITION} from '../../constants/credits'
 import {AliasDAO} from '../../database/AliasDAO'
 import {DashPayContactRequestDAO} from '../../database/DashPayContactRequestDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
@@ -230,6 +231,9 @@ export class IdentityService {
     const identity = await this.requireIdentity(walletId, identifier)
     if (keys.length === 0) {
       throw new Error('Choose at least one key to create')
+    }
+    if (keys.length > MAX_KEYS_PER_TRANSITION) {
+      throw new Error(`Create at most ${MAX_KEYS_PER_TRANSITION} keys at a time`)
     }
 
     log.info(`${identifier}: creating ${keys.map(key => `${key.purpose} ${key.securityLevel}`).join(', ')}`)
