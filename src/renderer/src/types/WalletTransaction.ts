@@ -73,6 +73,12 @@ export interface WalletHistoryGroup {
   transactions: WalletHistoryItem[]
 }
 
+export interface WalletHistoryWindow {
+  groups: WalletHistoryGroup[]
+  hasMore: boolean
+  remaining: number
+}
+
 export type HistoryTransactionType = `core:${Exclude<TxTypeFilter, TxTypeFilter.All>}` | `platform:${string}`
 
 export interface WalletHistoryItem extends TransactionCardItem {
@@ -126,6 +132,8 @@ export interface TransactionsListProps {
   filter: TxFilter
   onFilterChange: (filter: TxFilter) => void
   onTransactionClick: (transaction: SelectedTransaction) => void
+  visibleCount: number
+  onShowMore: () => void
   groups: TransactionGroup[]
   platform: PlatformTransaction[]
   platformFailed: boolean

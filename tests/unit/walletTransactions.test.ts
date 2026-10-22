@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WalletHistory } from '@renderer/api/types'
-import type { WalletTransactionOwnership, WalletTxDto } from '@renderer/types/WalletTransaction'
-import { mapWalletTransaction, mergeWalletTransactions, transactionCardDisplay } from '@renderer/utils/walletTransactions'
+import type { WalletHistoryItem, WalletTransactionOwnership, WalletTxDto } from '@renderer/types/WalletTransaction'
+import { mapWalletTransaction, mergeWalletTransactions, transactionCardDisplay, windowWalletHistory } from '@renderer/utils/walletTransactions'
 import { platformInternalTransferFee } from '@renderer/utils/platformTransactions'
 import { fetchTransactionOwnership } from '@renderer/hooks/useWalletTransactions'
 
@@ -38,6 +38,72 @@ function transferOwnership(): WalletTransactionOwnership {
     identities: new Set(), shielded: new Set(),
   }
 }
+
+function historyItem(id: string, date: Date | null): WalletHistoryItem {
+  return {
+    id, status: 'success', kind: 'platform', title: 'Transfer', subtitleLabel: 'to', labelValue: id,
+    amount: 1n, date, direction: 'in', type: 'platform:IDENTITY_CREDIT_TRANSFER',
+    selection: {kind: 'platform', hash: id}, searchValues: [id],
+  }
+}
+
+function historyDays(): WalletHistoryItem[] {
+  return [
+    historyItem('a1', new Date(2026, 9, 22, 12)),
+    historyItem('a2', new Date(2026, 9, 22, 11)),
+    historyItem('a3', new Date(2026, 9, 22, 10)),
+    historyItem('b1', new Date(2026, 9, 21, 12)),
+    historyItem('b2', new Date(2026, 9, 21, 11)),
+  ]
+}
+
+function windowIds(transactions: WalletHistoryItem[], visibleCount: number): string[][] {
+  return windowWalletHistory(transactions, visibleCount).groups.map(group => group.transactions.map(tx => tx.id))
+}
+
+describe('windowWalletHistory', () => {
+  it('groups only the first visibleCount transactions', () => {
+    expect(windowIds(historyDays(), 2)).toEqual([['a1', 'a2']])
+    expect(windowIds(historyDays(), 4)).toEqual([['a1', 'a2', 'a3'], ['b1']])
+  })
+
+  it('grows a day split at the boundary in place, keeping its date', () => {
+    const items = historyDays()
+    const before = windowWalletHistory(items, 2).groups
+    const after = windowWalletHistory(items, 3).groups
+    expect(after).toHaveLength(1)
+    expect(after[0].date?.getTime()).toBe(before[0].date?.getTime())
+    expect(after[0].transactions.map(tx => tx.id)).toEqual(['a1', 'a2', 'a3'])
+  })
+
+  it('reports how many transactions remain beyond the window', () => {
+    expect(windowWalletHistory(historyDays(), 2)).toMatchObject({hasMore: true, remaining: 3})
+    expect(windowWalletHistory(historyDays(), 4)).toMatchObject({hasMore: true, remaining: 1})
+  })
+
+  it.each([5, 50])('has nothing more once visibleCount %i covers the list', visibleCount => {
+    const view = windowWalletHistory(historyDays(), visibleCount)
+    expect(view).toMatchObject({hasMore: false, remaining: 0})
+    expect(view.groups.flatMap(group => group.transactions)).toHaveLength(5)
+  })
+
+  it('clamps to a refreshed list that shrank below the window', () => {
+    const view = windowWalletHistory(historyDays().slice(0, 3), 4)
+    expect(view).toMatchObject({hasMore: false, remaining: 0})
+    expect(view.groups.map(group => group.transactions.map(tx => tx.id))).toEqual([['a1', 'a2', 'a3']])
+  })
+
+  it('shows the undated group only once the window reaches it', () => {
+    const items = [...historyDays(), historyItem('undated', null)]
+    expect(windowWalletHistory(items, 5).groups.some(group => group.date === null)).toBe(false)
+    const reached = windowWalletHistory(items, 6).groups
+    expect(reached.at(-1)).toMatchObject({date: null, transactions: [expect.objectContaining({id: 'undated'})]})
+  })
+
+  it('returns no groups for an empty list', () => {
+    expect(windowWalletHistory([], 50)).toEqual({groups: [], hasMore: false, remaining: 0})
+  })
+})
 
 describe('mapWalletTransaction', () => {
   it('maps a complete incoming transaction for the detail view', () => {

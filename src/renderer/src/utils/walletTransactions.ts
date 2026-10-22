@@ -1,5 +1,5 @@
 import type { PlatformTransaction } from '@renderer/api/types'
-import type { TransactionCardAmount, TransactionCardDisplay, TransactionCardItem, WalletHistoryGroup, WalletHistoryItem, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
+import type { TransactionCardAmount, TransactionCardDisplay, TransactionCardItem, WalletHistoryGroup, WalletHistoryItem, WalletHistoryWindow, WalletTxDto, WalletTxItem, WalletTxStatus } from '@renderer/types/WalletTransaction'
 import { formatCreationDate } from './date'
 import { creditsToDash, creditsToDuffs, dashToDuffs, davToDash } from './balance'
 import { mapPlatformTransaction, platformTransactionDateValue } from './platformTransactions'
@@ -61,6 +61,14 @@ export function groupWalletHistoryByDay(transactions: WalletHistoryItem[]): Wall
     groups.set(key, group)
   }
   return Array.from(groups.values())
+}
+
+export function windowWalletHistory(transactions: WalletHistoryItem[], visibleCount: number): WalletHistoryWindow {
+  return {
+    groups: groupWalletHistoryByDay(transactions.slice(0, visibleCount)),
+    hasMore: visibleCount < transactions.length,
+    remaining: Math.max(0, transactions.length - visibleCount),
+  }
 }
 
 function mapWalletTransactionStatus(status: string, confirmations: number): WalletTxStatus {

@@ -5,6 +5,7 @@ import { CloseIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { transactionsPage } from '@renderer/constants'
 import { DEFAULT_TX_FILTER } from '@renderer/constants/transactionFilters'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
+import { CHIP_ACTION } from '@renderer/constants/surfaces'
 import TransactionCard from './TransactionCard'
 import TransactionsFilter from './TransactionsFilter'
 import PageHeader from '@renderer/components/ui/PageHeader'
@@ -14,30 +15,35 @@ import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { creditsToDash } from '@renderer/utils/balance'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import { useScrollEndSentinel } from '@renderer/hooks/useScrollEndSentinel'
 import { activeTxFilterChips, computeTxTotals, filterTransactions } from '@renderer/utils/transactionFilters'
-import { groupWalletHistoryByDay, mergeWalletTransactions } from '@renderer/utils/walletTransactions'
+import { mergeWalletTransactions, windowWalletHistory } from '@renderer/utils/walletTransactions'
 import type { TransactionsListProps } from '@renderer/types/WalletTransaction'
 
 export default function TransactionsList({
   filter,
   onFilterChange,
   onTransactionClick,
+  visibleCount,
+  onShowMore,
   groups,
   platform,
   platformFailed,
   loading,
   err,
 }: TransactionsListProps): React.JSX.Element {
-  const { filters } = transactionsPage.transactions
+  const { filters, showMore } = transactionsPage.transactions
   const { isBalanceVisible } = useBalanceVisibility()
   const appliedFilter = useDeferredValue(filter)
   const isFiltering = appliedFilter !== filter
   const transactions = useMemo(() => mergeWalletTransactions(groups.flatMap((group) => group.transactions), platform), [groups, platform])
   const filtered = useMemo(() => filterTransactions(transactions, appliedFilter), [transactions, appliedFilter])
-  const filteredGroups = useMemo(() => groupWalletHistoryByDay(filtered), [filtered])
+  const view = useMemo(() => windowWalletHistory(filtered, visibleCount), [filtered, visibleCount])
   const totals = useMemo(() => computeTxTotals(filtered), [filtered])
   const hasData = transactions.length > 0
   const showSkeleton = isFiltering || (loading && !hasData)
+  const showMoreVisible = view.hasMore && !showSkeleton
+  const sentinelRef = useScrollEndSentinel(showMoreVisible, onShowMore, visibleCount)
   const activeFilters = activeTxFilterChips(filter)
 
   return (
@@ -101,7 +107,7 @@ export default function TransactionsList({
           {err && <NoResults noResults={'Failed to load transactions'} />}
           {!showSkeleton && !loading && !err && !hasData && <NoResults noResults={'No transactions found'} />}
           {!showSkeleton && !loading && hasData && filtered.length === 0 && <NoResults noResults={filters.noMatch} />}
-          {!showSkeleton && filteredGroups.map((group) => (
+          {!showSkeleton && view.groups.map((group) => (
             <div key={group.date?.getTime() ?? 'unknown'} className={'flex flex-col gap-[.9375rem]'}>
               {group.date ? <DateBlock timestamp={group.date} format={'dateOnly'} /> : (
                 <Text size={12} weight={'medium'} color={'brand'} opacity={40}>Date unavailable</Text>
@@ -117,6 +123,16 @@ export default function TransactionsList({
               ))}
             </div>
           ))}
+          {showMoreVisible && (
+            <button
+              ref={sentinelRef}
+              type={'button'}
+              onClick={onShowMore}
+              className={`self-center ${CHIP_ACTION} font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40`}
+            >
+              {showMore} · {view.remaining}
+            </button>
+          )}
         </div>
       </div>
     </div>

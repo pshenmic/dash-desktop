@@ -3,6 +3,10 @@ import type { TransactionCardItem } from '@renderer/types/WalletTransaction'
 import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
 import { SURFACE_PANEL } from './surfaces'
 
+export const TRANSACTIONS_PAGE_SIZE = 50
+
+export const TRANSACTIONS_SENTINEL_ROOT_MARGIN = '0px 0px 600px 0px'
+
 export const TRANSACTION_DETAIL_CARD_CLASS = `flex flex-col gap-5 ${SURFACE_PANEL}`
 
 export const TRANSACTION_DETAIL_IDENTIFIER_CLASS = `min-w-0 font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
@@ -62,6 +66,7 @@ interface TransactionsPage {
       }
       noMatch: string
     }
+    showMore: string
   }
   detail: {
     backButton: string
@@ -131,7 +136,8 @@ export const transactionsPage: TransactionsPage = {
         sent: 'Decrease',
       },
       noMatch: 'No transactions match the selected filter'
-    }
+    },
+    showMore: 'Show more',
   },
   detail: {
     backButton: 'Back',
