@@ -39,6 +39,7 @@ import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { SourceKind } from '@renderer/enums/SourceKind'
+import { AUTOMATIC_SOURCE_LABELS } from '@renderer/constants/sendPages'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { useFiat } from '@renderer/hooks/useFiat'
@@ -645,7 +646,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
   )
   if (fromKind === SourceKind.Core) {
-    reviewFrom = 'Dash Core (L1)'
+    reviewFrom = AUTOMATIC_SOURCE_LABELS[SourceKind.Core]
     reviewFundingLabel = 'Amount to lock'
     reviewFeeLabel = 'Network fees'
     reviewFeeValue = (

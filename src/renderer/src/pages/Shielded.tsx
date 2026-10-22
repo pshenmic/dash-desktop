@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Identifier } from 'dash-ui-kit/react'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Text, ShieldSmallIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, ShieldSmallIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
 import PageHeader from '@renderer/components/ui/PageHeader'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ProverPill from '@renderer/components/pages/shielded/ProverPill'
@@ -168,7 +167,7 @@ export default function ShieldedPage(): React.JSX.Element {
                   <div className={"flex items-center justify-between gap-3"}>
                     <div className={"flex items-center gap-2 min-w-0"}>
                       <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-                      <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_ROW_IDENTIFIER_CLASS}>{truncateShieldedAddress(group.address)}</Identifier>
+                      <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{truncateShieldedAddress(group.address)}</HighlightedIdentifier>
                       <CopyButton text={group.address} />
                       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
                     </div>

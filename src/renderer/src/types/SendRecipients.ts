@@ -34,6 +34,7 @@ export interface RecipientInputProps {
   ariaLabel?: string
   validate?: (value: string) => boolean
   invalid?: boolean
+  valueAvatar?: boolean
   ownOptions?: DropdownFieldOption[]
   ownOptionsLoading?: boolean
   ownOptionsError?: string | null

@@ -15,10 +15,10 @@ vi.mock('react', async importOriginal => ({
   },
 }))
 vi.mock('react-dom', () => ({createPortal: (element: ReactNode) => element}))
-vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', Identifier: 'span', useTheme: () => ({theme: 'light'})}))
+vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: 'light'})}))
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
 vi.mock('@renderer/hooks/useFiat', () => ({useFiat: () => ({rateReady: false, format: () => '$0.00'})}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', HighlightedIdentifier: 'span', ShieldSmallIcon: 'svg', Text: 'span'}))
 vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({QrCodeIcon: 'svg', RefreshIcon: 'svg'}))
 vi.mock('@renderer/components/modal/AddressQrModal', () => ({default: 'dialog'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))

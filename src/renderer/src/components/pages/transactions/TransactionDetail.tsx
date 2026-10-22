@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Identifier, useTheme, TimeDelta, DashLogo } from 'dash-ui-kit/react'
 import { cva } from 'class-variance-authority'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import {
   BoxIcon,
   CalendarIconHighlighted,
@@ -254,9 +254,9 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
             {resolvedTransaction.vin.map((input, i) => (
               <div key={`input-${i}`} className={"flex items-center gap-2 justify-between"}>
                 <div className={"flex items-center gap-[.3125rem] flex-1 min-w-0"}>
-                  <Identifier highlight={"both"} className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>
+                  <HighlightedIdentifier className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>
                     {input.addr}
-                  </Identifier>
+                  </HighlightedIdentifier>
                   {ownedAddresses.has(input.addr) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                   {input.addr && (
                     <AddressActions address={input.addr} network={network} onShowQr={setQrAddress} />
@@ -289,7 +289,7 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                   {
                     output.address ? (
                       <>
-                        <Identifier highlight={"both"} linesAdjustment={false} className={`whitespace-nowrap ${TRANSACTION_DETAIL_IDENTIFIER_CLASS}`}>{output.address}</Identifier>
+                        <HighlightedIdentifier className={`whitespace-nowrap ${TRANSACTION_DETAIL_IDENTIFIER_CLASS}`}>{output.address}</HighlightedIdentifier>
                         {ownedAddresses.has(output.address) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                         <AddressActions address={output.address} network={network} onShowQr={setQrAddress} />
                       </>

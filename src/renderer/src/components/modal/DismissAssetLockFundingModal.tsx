@@ -24,7 +24,7 @@ export default function DismissAssetLockFundingModal({
       <div className={"mt-4 flex items-start gap-2 p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10"}>
         <ExclamationIcon size={16} className={"text-dash-orange shrink-0 mt-0.5"} />
         <Text size={12} weight={"medium"} className={"leading-[140%] text-dash-orange!"}>
-          {"This clears the pending record only. It won't cancel or refund the L1 transaction, and the funding can't be resumed afterwards."}
+          {"This clears the pending record only. It won't cancel or refund the Core transaction, and the funding can't be resumed afterwards."}
         </Text>
       </div>
 

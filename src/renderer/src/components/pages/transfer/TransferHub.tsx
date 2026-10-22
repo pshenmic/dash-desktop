@@ -10,7 +10,6 @@ import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import DashBigNumber from "@renderer/components/ui/DashBigNumber";
 import DenominationChips from "@renderer/components/ui/DenominationChips";
-import LayerBadge from "@renderer/components/ui/LayerBadge";
 import Checkbox from "@renderer/components/ui/Checkbox";
 import PageHeader from "@renderer/components/ui/PageHeader";
 import SegmentedControl from "@renderer/components/ui/SegmentedControl";
@@ -88,7 +87,7 @@ import { CHIP_VALUE, SURFACE_SECTION } from "@renderer/constants/surfaces";
 import { TRANSFER_WIZARD_CTA_CLASS } from "@renderer/constants/transferWizard";
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
 import { INVALID_WALLET_PASSWORD_MESSAGE, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
-import { AUTOMATIC_PLATFORM_SELECTION, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
+import { AUTOMATIC_PLATFORM_SELECTION, AUTOMATIC_SOURCE_LABELS, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
 import { SEND_INPUTS_CHANGED_MESSAGE } from "@renderer/constants/sendConfirmModal";
 import { POOL_IDENTITY_LABEL } from "@renderer/constants/sendSummary";
 import { SIMPLE_SEND_LABELS, SIMPLE_SEND_PASSWORD_ID } from "@renderer/constants/simpleSend";
@@ -106,6 +105,7 @@ import TransferRouteCards from "./TransferRouteCards";
 import CoinControlButton from "./CoinControlButton";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
+import EndpointKindIcon from "./EndpointKindIcon";
 import CoinControlModal from "./CoinControlModal";
 import TransferConfirmModal from "@renderer/components/modal/TransferConfirmModal";
 import AssetLockFundingModal from "@renderer/components/modal/AssetLockFundingModal";
@@ -755,7 +755,7 @@ function WalletTransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Two-step funding</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Locking Dash for Platform credits broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then credits the address. The process resumes automatically if interrupted.
+            Locking Dash for Platform credits broadcasts a Core transaction, waits for a ChainLock (a few minutes) and then credits the address. The process resumes automatically if interrupted.
           </Text>
         </div>
       )}
@@ -764,7 +764,7 @@ function WalletTransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>Two-step shielding</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Locking Dash broadcasts an L1 transaction, waits for a ChainLock (a few minutes) and then shields the credits straight into the recipient's shielded balance. The L1 lock amount stays publicly visible; the process resumes automatically if interrupted.
+            Locking Dash broadcasts a Core transaction, waits for a ChainLock (a few minutes) and then shields the credits straight into the recipient's shielded balance. The Core lock amount stays publicly visible; the process resumes automatically if interrupted.
           </Text>
         </div>
       )}
@@ -773,16 +773,16 @@ function WalletTransferHub(): React.JSX.Element {
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
           <Text size={14} weight={"extrabold"} color={"brand"}>New Platform identity</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Locks Dash on L1 and registers a new identity funded with the locked amount as credits. The registration waits for the network to lock the transaction — usually seconds; the process resumes automatically if interrupted.
+            Locks Dash on Core and registers a new identity funded with the locked amount as credits. The registration waits for the network to lock the transaction — usually seconds; the process resumes automatically if interrupted.
           </Text>
         </div>
       )}
 
       {operation === TransferOperation.IdentityTopUpL1 && (
         <div className={"flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-          <Text size={14} weight={"extrabold"} color={"brand"}>Top up from L1</Text>
+          <Text size={14} weight={"extrabold"} color={"brand"}>Top up from Core</Text>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Locks Dash on L1 and credits the identity with the locked amount. You can top up any identity by its identifier — not just your own. The process resumes automatically if interrupted.
+            Locks Dash on Core and credits the identity with the locked amount. You can top up any identity by its identifier — not just your own. The process resumes automatically if interrupted.
           </Text>
         </div>
       )}
@@ -898,7 +898,7 @@ function WalletTransferHub(): React.JSX.Element {
   let fromAddress: string | null = null
   switch (fromKind) {
     case SourceKind.Core:
-      fromDisplay = 'Dash Core (L1)'
+      fromDisplay = AUTOMATIC_SOURCE_LABELS[SourceKind.Core]
       break
     case SourceKind.PlatformAddress:
       if (appliedCoinControl.kind === 'platformAddress') {
@@ -1197,7 +1197,7 @@ function WalletTransferHub(): React.JSX.Element {
               onRetryFee={retryFee}
               onReview={showPreview}
             >
-              <LayerBadge layer={fromKind === SourceKind.Core ? 'L1' : 'L2'} />
+              <EndpointKindIcon kind={fromKind} />
               <div className="mt-2 flex items-end justify-between gap-2">
                 <div className="flex min-w-0 flex-col gap-0.5 text-xs font-extrabold dash-text-default">
                   <Text size={12} weight="medium" color="brand" opacity={50}>Balance:</Text>

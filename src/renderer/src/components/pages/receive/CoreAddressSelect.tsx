@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
-import { DashLogo, Identifier } from "dash-ui-kit/react";
+import { HighlightedIdentifier, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { DashLogo } from "dash-ui-kit/react";
 import { WalletAddressDto } from "@renderer/api/types";
 import DropdownChevron from "@renderer/components/ui/DropdownChevron";
 import { ADDRESS_SELECT_IDENTIFIER_CLASS, ADDRESS_SELECT_MENU, ADDRESS_SELECT_OPTION, ADDRESS_SELECT_TRIGGER } from "@renderer/constants/addressSelect";
@@ -33,7 +33,7 @@ export default function CoreAddressSelect({addresses, selected, onSelect}: CoreA
           <div className={"flex items-center gap-2.5"}>
             <DashLogo size={18} className={"shrink-0"} />
             <div className={"flex flex-col items-start"}>
-              <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{selected.address}</Identifier>
+              <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{selected.address}</HighlightedIdentifier>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{davToDashCompact(selected.balance)} Dash</Text>
               {rateReady && <Text size={10} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(formatFiat(selected.balance))}</Text>}
             </div>
@@ -55,7 +55,7 @@ export default function CoreAddressSelect({addresses, selected, onSelect}: CoreA
             >
               <DashLogo size={18} className={"shrink-0"} />
               <div className={"flex flex-col"}>
-                <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{a.address}</Identifier>
+                <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{a.address}</HighlightedIdentifier>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{davToDashCompact(a.balance)} Dash</Text>
                 {rateReady && <Text size={10} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(formatFiat(a.balance))}</Text>}
               </div>

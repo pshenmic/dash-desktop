@@ -5,7 +5,6 @@ export type DropdownTextSize = 12 | 14
 export interface DropdownFieldOption {
   value: string
   label: string
-  suffix?: string
   description?: string
   metadata?: string[]
 }
@@ -24,6 +23,7 @@ export interface DropdownFieldProps {
   inputSuffix?: ReactNode
   menuHeading?: string
   highlightValue?: boolean
+  valueAvatar?: boolean
   toggleIcon?: (open: boolean) => ReactNode
   onOpenChange?: (open: boolean) => void
   children?: ReactNode

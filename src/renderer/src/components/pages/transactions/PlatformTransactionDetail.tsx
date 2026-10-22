@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Identifier, DashLogo, TimeDelta, useTheme } from 'dash-ui-kit/react'
-import { Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { BoxIcon, CalendarIconHighlighted, DocumentIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import CopyButton from '@renderer/components/ui/CopyButton'
@@ -138,7 +138,7 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
                 return (
                 <li key={`${participant.source}-${index}`} className={'flex flex-wrap items-center gap-x-4 gap-y-2'}>
                   <div className={'flex items-center gap-[.3125rem] min-w-0 flex-1 basis-64'}>
-                    <Identifier highlight={'both'} className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{participant.source}</Identifier>
+                    <HighlightedIdentifier className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{participant.source}</HighlightedIdentifier>
                     {ownedParticipants.has(participant.source) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                     <CopyButton text={participant.source} />
                     <QrButton onClick={() => setQrAddress(participant.source)} />

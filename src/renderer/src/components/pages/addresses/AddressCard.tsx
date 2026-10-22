@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { WalletAddressDto } from '@renderer/api/types'
 import { davToDashCompact } from '@renderer/utils/balance'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -29,11 +28,6 @@ export default function AddressCard({
     <>
       <AddressRow
         address={address}
-        leading={
-          <div className={"size-[.875rem] shrink-0 rounded-full dash-block-5 flex items-center justify-center"}>
-            <ReceiveIcon size={6} color={"currentColor"} className={"dash-text-default"} />
-          </div>
-        }
         meta={
           <div className={"flex items-center gap-[.3125rem]"}>
             <Text size={10} weight={"medium"} color={"brand"} opacity={50}>

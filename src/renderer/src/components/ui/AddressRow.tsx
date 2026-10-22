@@ -1,5 +1,4 @@
-import { Identifier } from 'dash-ui-kit/react'
-import { Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
@@ -28,7 +27,7 @@ export default function AddressRow({
         {leading}
         <div className={"flex min-w-0 flex-col gap-1"}>
           <div className={"flex min-w-0 items-center gap-[.3125rem]"}>
-            <Identifier highlight={"both"} className={ADDRESS_ROW_IDENTIFIER_CLASS}>{address}</Identifier>
+            <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{address}</HighlightedIdentifier>
             <CopyButton text={address} className={"shrink-0"} />
             {onQr && <QrButton onClick={onQr} className={"shrink-0"} />}
             {explorerUrl && (

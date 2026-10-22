@@ -137,7 +137,7 @@ function lockProps(overrides: Partial<AssetLockFundingStartModalProps> = {}): As
     onClose: vi.fn(),
     walletId: 'wallet',
     toPlatformAddress: 'platform-address',
-    from: {value: 'Dash Core (L1)', kind: TxEndpointKind.Label},
+    from: {value: 'Dash Core', kind: TxEndpointKind.Label},
     kind: AssetLockFundingKind.Address,
     onSuccess: vi.fn(),
     resume: false,

@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
-import { Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { Identifier } from "dash-ui-kit/react";
+import { HighlightedIdentifier, Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import DropdownChevron from "@renderer/components/ui/DropdownChevron";
@@ -32,7 +31,7 @@ export default function ShieldedAddressSelect({addresses, balances, selected, on
           <div className={"flex items-center gap-2.5"}>
             <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
             <div className={"flex flex-col items-start"}>
-              <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{truncateShieldedAddress(selected)}</Identifier>
+              <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{truncateShieldedAddress(selected)}</HighlightedIdentifier>
               {balances && (
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   <CreditsAmount credits={balances.get(selected) ?? 0n} />
@@ -58,7 +57,7 @@ export default function ShieldedAddressSelect({addresses, balances, selected, on
             >
               <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
               <div className={"flex flex-col"}>
-                <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{truncateShieldedAddress(address)}</Identifier>
+                <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{truncateShieldedAddress(address)}</HighlightedIdentifier>
                 {balances && (
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                     <CreditsAmount credits={balances.get(address) ?? 0n} />

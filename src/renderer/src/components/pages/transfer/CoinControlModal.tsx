@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Identifier } from 'dash-ui-kit/react'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
-import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useFiat } from '@renderer/hooks/useFiat'
@@ -479,7 +478,7 @@ function InputDetails({label, amount, address, fiat, actions}: CoinControlInputD
   return (
     <div className={'min-w-0 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 text-left'}>
       <div className={`flex min-w-0 items-center gap-[.3125rem] ${label ? 'row-span-2' : ''}`}>
-        <Identifier highlight={'both'} className={ADDRESS_ROW_IDENTIFIER_CLASS}>{address}</Identifier>
+        <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{address}</HighlightedIdentifier>
         <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={address} /></span>
         {actions}
       </div>

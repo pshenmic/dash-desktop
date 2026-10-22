@@ -1,29 +1,20 @@
 import { useRef, useState } from "react";
-import { Text, ChevronIcon, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { HighlightedIdentifier, Text, ChevronIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
-import LayerBadge from "@renderer/components/ui/LayerBadge";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
-import { endpointKindOptions } from "@renderer/utils/endpointKindOptions";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
-import { Identifier } from "dash-ui-kit/react";
 import { ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES, CONTACT_IDENTIFIER_CLASS, FIELD_INVALID } from "@renderer/constants/addressField";
 import { FIELD_COMPACT, POPOVER, POPOVER_OPTION } from "@renderer/constants/surfaces";
 import PlatformAddressSelect from "./PlatformAddressSelect";
+import EndpointKindIcon from "./EndpointKindIcon";
 import DropdownField from "@renderer/components/ui/DropdownField";
 import type { DestinationPickerProps, EndpointKindEntry } from "@renderer/types/EndpointPicker";
 import Spinner from "@renderer/components/ui/Spinner";
 import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
-
-function KindIcon({kind}: {kind: string}): React.JSX.Element {
-  if (kind === SourceKind.Core || kind === DestinationKind.CoreAddress) return <LayerBadge layer={'L1'} />
-  if (kind === SourceKind.PlatformAddress) return <LayerBadge layer={'L2'} />
-  if (kind === SourceKind.Shielded) return <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
-  return <CreditsIcon size={16} />
-}
 
 interface KindDropdownProps {
   kinds: EndpointKindEntry[]
@@ -34,12 +25,12 @@ interface KindDropdownProps {
 function KindDropdown({kinds, selected, onSelect}: KindDropdownProps): React.JSX.Element {
   return (
     <DropdownField
-      options={endpointKindOptions(kinds)}
+      options={kinds.map(({kind, label}) => ({value: kind, label}))}
       value={selected}
       onChange={onSelect}
       ariaLabel="Select transfer type"
       triggerClassName={'dash-block h-[3.25rem] rounded-2xl px-3 py-3.5 [&_.truncate]:whitespace-nowrap!'}
-      renderIcon={(kind) => <KindIcon kind={kind} />}
+      renderIcon={(kind) => <EndpointKindIcon kind={kind} />}
     />
   )
 }
@@ -57,7 +48,7 @@ function IdentityName({identity}: {identity: IdentityApiDto}): React.JSX.Element
   if (identity.alias) {
     return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{identity.alias}</Text>
   }
-  return <Identifier highlight={"both"} ellipsis className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</Identifier>
+  return <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
 }
 
 function IdentitySelect({identities, loading, error, selected, onSelect, onRetry}: IdentitySelectProps): React.JSX.Element {
@@ -254,6 +245,7 @@ export function DestinationPicker({
     ownOptions ? <DropdownField
       editable
       highlightValue
+      valueAvatar={kind === DestinationKind.Identity}
       ariaLabel={recipientLabel}
       value={value}
       onChange={onValueChange}

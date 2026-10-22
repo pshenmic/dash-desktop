@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, CreditsIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { Identifier } from "dash-ui-kit/react";
+import { HighlightedIdentifier, Text, CreditsIcon } from "@renderer/components/dash-ui-kit-enxtended";
 import type { PlatformAddressSelectProps } from "@renderer/types/PlatformAddressSelect";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
@@ -34,7 +33,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect, au
       <div className={"flex items-center gap-2.5"}>
         <CreditsIcon size={18} className={"shrink-0"} />
         <div className={"flex flex-col items-start"}>
-          <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{selected.platformAddress}</Identifier>
+          <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{selected.platformAddress}</HighlightedIdentifier>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
             <CreditsAmount credits={selected.balanceCredits} />
           </Text>
@@ -92,7 +91,7 @@ export default function PlatformAddressSelect({addresses, selected, onSelect, au
             >
               <CreditsIcon size={18} className={"shrink-0"} />
               <div className={"flex flex-col"}>
-                <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{a.platformAddress}</Identifier>
+                <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{a.platformAddress}</HighlightedIdentifier>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   <CreditsAmount credits={a.balanceCredits} />
                 </Text>

@@ -1,15 +1,8 @@
 import type { Network, OperationFee } from '../api/types'
-import type { EndpointLabel } from '../types/EndpointPicker'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
-
-export const SEND_ENDPOINT_LABELS: Partial<Record<`${SourceKind | DestinationKind}`, EndpointLabel>> = {
-  [SourceKind.Core]: {name: 'Dash Core', layer: '(L1)'},
-  [DestinationKind.CoreAddress]: {name: 'Dash Core', layer: '(L1)'},
-  [SourceKind.PlatformAddress]: {name: 'Address', layer: '(L2)'},
-}
 
 const ADDRESS_PLACEHOLDER = 'Enter Address…'
 const IDENTITY_PLACEHOLDER = 'Enter identity ID…'
@@ -33,7 +26,7 @@ export const INVALID_DESTINATION_MESSAGES: Record<DestinationKind, string> = {
 
 export const UNFINISHED_FUNDING_LABELS: Record<AssetLockFundingKind, string> = {
   [AssetLockFundingKind.Address]: 'Unfinished Platform address funding',
-  [AssetLockFundingKind.Shielded]: 'Unfinished L1 shielding',
+  [AssetLockFundingKind.Shielded]: 'Unfinished Core shielding',
   [AssetLockFundingKind.Identity]: 'Unfinished identity registration',
   [AssetLockFundingKind.IdentityTopUp]: 'Unfinished identity top-up',
 }
@@ -74,7 +67,7 @@ export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
 export const AUTOMATIC_PLATFORM_SELECTION = 'Automatic Platform selection'
 
 export const AUTOMATIC_SOURCE_LABELS: Record<Exclude<SourceKind, SourceKind.Identity>, string> = {
-  [SourceKind.Core]: 'Dash Core (L1)',
+  [SourceKind.Core]: 'Dash Core',
   [SourceKind.PlatformAddress]: AUTOMATIC_PLATFORM_SELECTION,
   [SourceKind.Shielded]: 'Your shielded balance',
 }

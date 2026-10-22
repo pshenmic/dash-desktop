@@ -58,7 +58,7 @@ export function mapSendTransactionPreview({preview, operation, from, fromAddress
   const changeCredits = preview.outputs.filter(output => output.role === 'change')
     .reduce((sum, output) => sum + previewEntryCredits(output), 0n)
   const fees: SendPreviewFee[] = []
-  if (preview.feeDuffs != null) fees.push({label: assetLock ? 'L1 network fee' : 'Network fee', amount: preview.feeDuffs, unit: 'duffs'})
+  if (preview.feeDuffs != null) fees.push({label: assetLock ? 'Core network fee' : 'Network fee', amount: preview.feeDuffs, unit: 'duffs'})
   if (preview.feeCredits != null) fees.push({label: assetLock ? 'Platform network fee' : 'Network fee', amount: preview.feeCredits, unit: 'credits'})
   return {
     title: operationInfo(operation).title,
@@ -72,11 +72,11 @@ export function mapSendTransactionPreview({preview, operation, from, fromAddress
     fees,
     inputs: preview.inputs.map(sendPreviewRow),
     outputGroups: assetLock ? [
-      {title: 'L1 asset lock', rows: preview.outputs.filter(output => output.role !== 'recipient').map(sendPreviewRow)},
+      {title: 'Core asset lock', rows: preview.outputs.filter(output => output.role !== 'recipient').map(sendPreviewRow)},
       {title: 'Platform recipients', rows: recipients.map(sendPreviewRow)},
     ] : [{title: null, rows: preview.outputs.map(sendPreviewRow)}],
     unsignedHex: preview.unsignedHex,
-    unsignedLabel: assetLock ? 'Unsigned L1 asset lock' : isCoreOperation ? 'Unsigned transaction' : 'Unsigned state transition',
+    unsignedLabel: assetLock ? 'Unsigned Core asset lock' : isCoreOperation ? 'Unsigned transaction' : 'Unsigned state transition',
   }
 }
 

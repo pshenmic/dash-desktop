@@ -150,11 +150,11 @@ describe('backend preview display mapping', () => {
     expect(data.amountCredits).toBe(10000000n)
     expect(data.totalDebitCredits).toBe(10502000n)
     expect(data.fees).toEqual([
-      {label: 'L1 network fee', amount: 500n, unit: 'duffs'},
+      {label: 'Core network fee', amount: 500n, unit: 'duffs'},
       {label: 'Platform network fee', amount: 1001n, unit: 'credits'},
     ])
     expect(data.outputGroups.map(group => group.rows.map(row => row.role))).toEqual([['credit', 'change'], ['recipient']])
-    expect(data.unsignedLabel).toBe('Unsigned L1 asset lock')
+    expect(data.unsignedLabel).toBe('Unsigned Core asset lock')
   })
 
   it('uses Platform debits including feeInput and preserves already reduced recipients', () => {

@@ -289,7 +289,7 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
           />
           {state?.txid && (
             <div className={"mt-3"}>
-              <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
+              <HashField hash={state.txid} label={"Core txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
           )}
           {running && <ModalActions primary={{ label: 'Continue in background', onClick: onClose }} />}
@@ -300,7 +300,7 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
         <div className={"phase-fade-in"} key={"error"}>
           {state.txid && (
             <div className={"mt-3"}>
-              <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
+              <HashField hash={state.txid} label={"Core txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
           )}
           {state.phase === AssetLockFundingPhase.Resumable ? (
@@ -345,8 +345,8 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
                 </div>
               </div>
             )}
-            {doneTxid && <HashField hash={doneTxid} label={"L1 transaction hash"} explorerUrl={network ? transactionUrl(doneTxid, network) : null} />}
-            {state.stHash && <HashField hash={state.stHash} label={"L2 state transition hash"} explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null} />}
+            {doneTxid && <HashField hash={doneTxid} label={"Core transaction hash"} explorerUrl={network ? transactionUrl(doneTxid, network) : null} />}
+            {state.stHash && <HashField hash={state.stHash} label={"Evo state transition hash"} explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null} />}
           </div>
           <ModalActions primary={{ label: 'Done', onClick: onClose }} />
         </div>

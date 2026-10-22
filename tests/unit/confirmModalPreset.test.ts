@@ -74,7 +74,7 @@ interface ModalCase {
   view: (common: CommonProps) => ReactNode
 }
 
-const FROM = {value: 'Dash Core (L1)', kind: TxEndpointKind.Label}
+const FROM = {value: 'Dash Core', kind: TxEndpointKind.Label}
 const RECIPIENTS: CoreRecipient[] = [{address: 'recipient', amountDuffs: 90n}]
 const SOURCE: CoreSpendSource = {kind: 'outpoints', outpoints: [{txid: 'coin', vout: 0}]}
 

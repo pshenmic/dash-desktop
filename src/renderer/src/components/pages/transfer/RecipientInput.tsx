@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { SearchIcon, PlusIcon, DeleteIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { Identifier } from 'dash-ui-kit/react'
 import type { RecipientInputProps } from '@renderer/types/SendRecipients'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
@@ -22,6 +21,7 @@ export default function RecipientInput({
   ariaLabel,
   validate,
   invalid = false,
+  valueAvatar = false,
   ownOptions,
   ownOptionsLoading = false,
   ownOptionsError = null,
@@ -95,6 +95,7 @@ export default function RecipientInput({
         key={menuKey}
         editable
         highlightValue
+        valueAvatar={valueAvatar}
         ariaLabel={ariaLabel ?? data.label}
         value={value}
         onChange={onChange}
@@ -135,24 +136,17 @@ export default function RecipientInput({
                 aria-label={"Contact name"}
                 value={newLabel}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') void handleSaveContact() }}
                 placeholder={"Contact name"}
+                autoFocus
                 className={CONTACT_NAME_INPUT}
               />
-              <button
-                type={"button"}
-                onClick={handleSaveContact}
-                disabled={newLabel.trim().length === 0}
-                className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity disabled:cursor-default disabled:opacity-40"}
-              >
-                <Text size={10} weight={"medium"} color={"blue-mint"}>Save</Text>
-              </button>
-              <button
-                type={"button"}
-                onClick={resetAdding}
-                className={"dash-block-3 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
-              >
-                <Text size={10} weight={"medium"} color={"brand"}>Cancel</Text>
-              </button>
+              <Button type={"button"} onClick={handleSaveContact} disabled={newLabel.trim().length === 0} colorScheme={"primary"} size={"compact"}>
+                Save
+              </Button>
+              <Button type={"button"} onClick={resetAdding} colorScheme={"primary-light"} size={"compact"}>
+                Cancel
+              </Button>
             </div>
           )}
 
@@ -167,9 +161,9 @@ export default function RecipientInput({
                   onClick={() => handleSelectAddress(entry.address)}
                   className={"flex min-w-0 flex-1 flex-col gap-0.5 text-left cursor-pointer"}
                 >
-                  <Identifier highlight={"both"} ellipsis className={CONTACT_IDENTIFIER_CLASS}>
+                  <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>
                     {entry.address}
-                  </Identifier>
+                  </HighlightedIdentifier>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                     {entry.label}
                   </Text>
@@ -184,7 +178,7 @@ export default function RecipientInput({
                 </button>
               </div>
             ))
-          ) : !contactsLoading && (
+          ) : !contactsLoading && !adding && (
             <div className={"px-[.625rem] py-2"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 {contacts.length === 0 ? 'No saved contacts yet' : data.noResults}

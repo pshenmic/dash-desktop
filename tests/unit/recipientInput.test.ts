@@ -24,9 +24,9 @@ vi.mock('react', async importOriginal => ({
   useRef: () => ({current: null}),
   useEffect: () => {},
 }))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Input: 'input', Text: 'span', ChevronIcon: 'chevron'}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', HighlightedIdentifier: 'identifier', Input: 'input', Text: 'span', ChevronIcon: 'chevron'}))
 vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({SearchIcon: 'search', PlusIcon: 'plus', DeleteIcon: 'delete', CheckIcon: 'check', RefreshIcon: 'refresh'}))
-vi.mock('dash-ui-kit/react', () => ({Identifier: 'identifier'}))
+vi.mock('dash-ui-kit/react', () => ({Avatar: 'avatar'}))
 vi.mock('@renderer/hooks/useClickOutside', () => ({useClickOutside: () => {}}))
 vi.mock('@renderer/hooks/useAddressBook', () => ({useAddressBook: () => ({contacts: harness.contacts, network: 'testnet', addContact: harness.addContact, deleteContact: harness.deleteContact})}))
 vi.mock('@renderer/components/ui/Toast', () => ({toast: {error: vi.fn()}}))
@@ -108,7 +108,7 @@ describe('Simple recipient input', () => {
     const name = elements(tree).find(node => node.props.placeholder === 'Contact name')!
     ;(name.props.onChange as (event: {target: {value: string}}) => void)({target: {value: '  Friend  '}})
     tree = renderRecipient(address, onChange)
-    const save = elements(tree).find(node => node.type === 'button' && elements(node.props.children as ReactNode).some(child => child.props.children === 'Save'))!
+    const save = elements(tree).find(node => node.type === 'button' && node.props.children === 'Save')!
     await (save.props.onClick as () => Promise<void>)()
     expect(harness.addContact).toHaveBeenCalledWith('Friend', address)
 

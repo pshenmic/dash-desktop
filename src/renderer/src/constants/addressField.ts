@@ -31,4 +31,4 @@ export const RECIPIENT_FIELD_STYLES: Record<RecipientInputAppearance, RecipientF
 
 export const CONTACT_IDENTIFIER_CLASS = `min-w-0 font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
 
-export const CONTACT_NAME_INPUT = 'min-w-0 flex-1 rounded-[.75rem] border border-transparent dash-block-3 px-3 py-2 text-xs font-normal outline-none dash-text-default placeholder:text-current placeholder:opacity-40 focus:border-dash-brand dark:focus:border-dash-mint'
+export const CONTACT_NAME_INPUT = 'h-9 min-w-0 flex-1 rounded-[.75rem] border border-transparent dash-block-5 px-3 text-sm font-normal outline-none dash-text-default placeholder:text-current placeholder:opacity-40 focus:border-dash-brand dark:focus:border-dash-mint'

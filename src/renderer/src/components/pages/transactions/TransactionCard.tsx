@@ -1,7 +1,7 @@
 import AmountSummary from "@renderer/components/ui/AmountSummary"
 import SensitiveValue from "@renderer/components/ui/SensitiveValue"
 import TransactionCardIcons from "./TransactionCardIcons"
-import LayerBadge from "@renderer/components/ui/LayerBadge"
+import CustomBadge from "@renderer/components/ui/CustomBadge"
 import { formatCreationDate, timePart } from "@renderer/utils/date"
 import DashBigNumber from "@renderer/components/ui/DashBigNumber"
 import CreditsAmount from "@renderer/components/ui/CreditsAmount"
@@ -14,7 +14,7 @@ import { useFiat } from "@renderer/hooks/useFiat"
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
 import { transactionsPage } from "@renderer/constants"
 import { TRANSACTION_CARD_SIGNS, TRANSACTION_CARD_STATUS_VARIANTS } from '@renderer/constants/transactionsPage'
-import { TRANSACTION_KIND_LAYERS } from '@renderer/constants/transactionLayers'
+import { TRANSACTION_KIND_BADGES } from '@renderer/constants/transactionKindBadges'
 
 const transactionCardStyles = cva(
   `
@@ -58,19 +58,23 @@ export default function TransactionCard({
   const { isBalanceVisible } = useBalanceVisibility()
   const formattedAmount = formatTransactionCardAmount({ amount: display.amount, kind })
   const displayedId = id.toLowerCase()
+  const kindBadge = kind ? TRANSACTION_KIND_BADGES[kind] : undefined
 
   return (
     <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
       <TransactionCardIcons status={status} />
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
         <div className={"flex min-w-0 flex-wrap items-center gap-[.3125rem]"} title={title}>
-          {kind && (
-            <Tooltip label={TRANSACTION_KIND_LAYERS[kind].label}>
-              <span className="inline-flex shrink-0" title="">
-                <LayerBadge layer={TRANSACTION_KIND_LAYERS[kind].layer} />
-              </span>
-            </Tooltip>
-          )}
+          <Tooltip label={kindBadge?.label}>
+            <span className="inline-flex shrink-0" title="">
+              <CustomBadge
+                text={kindBadge?.text ?? ''}
+                variant={variantAmountSummary}
+                size={"s"}
+                className={`w-12 shrink-0 ${kindBadge?.className ?? ''}`}
+              />
+            </span>
+          </Tooltip>
           <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[120%]"}>
             {title}
           </Text>

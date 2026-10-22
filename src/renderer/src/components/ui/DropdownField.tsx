@@ -1,15 +1,10 @@
 import { useRef, useState } from 'react'
-import { Avatar, Identifier } from 'dash-ui-kit/react'
-import { ChevronIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Avatar } from 'dash-ui-kit/react'
+import { ChevronIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { ADDRESS_AVATAR_SIZES, ADDRESS_HIGHLIGHT_CLASSES, ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES } from '@renderer/constants/addressField'
 import { POPOVER, POPOVER_OPTION } from '@renderer/constants/surfaces'
-import type { DropdownFieldOption, DropdownFieldProps } from '@renderer/types/DropdownField'
-
-function optionLabel(option: DropdownFieldOption): React.ReactNode {
-  if (option.suffix == null) return option.label
-  return <>{option.label}<span className="font-normal opacity-50">{` ${option.suffix}`}</span></>
-}
+import type { DropdownFieldProps } from '@renderer/types/DropdownField'
 
 export default function DropdownField({
   options,
@@ -25,6 +20,7 @@ export default function DropdownField({
   inputSuffix,
   menuHeading,
   highlightValue = false,
+  valueAvatar = false,
   toggleIcon,
   onOpenChange,
   children,
@@ -62,8 +58,8 @@ export default function DropdownField({
             className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[textSize]} ${showHighlight ? 'text-transparent' : ''}`}
           />
           {showHighlight && <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex min-w-0 items-center gap-2">
-            <Avatar username={trimmedValue} className={ADDRESS_AVATAR_SIZES[textSize]} />
-            <Identifier highlight="both" ellipsis className={ADDRESS_HIGHLIGHT_CLASSES[textSize]}>{trimmedValue}</Identifier>
+            {valueAvatar && <Avatar username={trimmedValue} className={ADDRESS_AVATAR_SIZES[textSize]} />}
+            <HighlightedIdentifier ellipsis className={ADDRESS_HIGHLIGHT_CLASSES[textSize]}>{trimmedValue}</HighlightedIdentifier>
           </span>}
         </div>
         {inputSuffix != null && <span className="shrink-0 whitespace-nowrap">{inputSuffix}</span>}
@@ -85,7 +81,7 @@ export default function DropdownField({
       >
         <div className="flex min-w-0 items-center gap-2.5">
           {renderIcon?.(value)}
-          <Text size={textSize} weight="medium" color="brand" className="truncate">{selected ? optionLabel(selected) : value}</Text>
+          <Text size={textSize} weight="medium" color="brand" className="truncate">{selected?.label ?? value}</Text>
         </div>
         <ChevronIcon size={12} color="currentColor" className={`dash-text-default shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>}
@@ -108,7 +104,7 @@ export default function DropdownField({
             >
               {renderIcon?.(option.value)}
               <div className={`min-w-0 flex flex-col gap-0.5 ${option.metadata ? 'flex-1 basis-56' : ''}`}>
-                <Text size={textSize} weight="medium" color="brand" className="break-all">{optionLabel(option)}</Text>
+                <Text size={textSize} weight="medium" color="brand" className="break-all">{option.label}</Text>
                 {option.description && <Text size={12} weight="medium" color="brand" opacity={50}>{option.description}</Text>}
               </div>
               {option.metadata && <div className="ml-auto max-w-full flex flex-col gap-0.5 text-right break-all">

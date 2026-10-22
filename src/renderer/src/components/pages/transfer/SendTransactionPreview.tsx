@@ -1,5 +1,4 @@
-import { Identifier } from 'dash-ui-kit/react'
-import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
@@ -34,7 +33,7 @@ function PreviewRows({rows}: SendPreviewRowsProps): React.JSX.Element {
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="flex items-start gap-1.5 min-w-0 flex-1">
             {row.address
-              ? <Identifier highlight="both" className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{row.address}</Identifier>
+              ? <HighlightedIdentifier className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{row.address}</HighlightedIdentifier>
               : <Text size={14} weight="medium" color="brand" className="min-w-0">{row.addressLabel}</Text>}
             {row.address && <span className="shrink-0 pt-0.5"><CopyButton text={row.address} /></span>}
           </div>
@@ -75,7 +74,7 @@ export default function SendTransactionPreview({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className={`flex flex-col gap-1 ${SURFACE_ROW}`}><Text size={12} weight="medium" color="brand" opacity={50}>{SEND_PREVIEW_LABELS.from}</Text>{data.fromAddress
-              ? <Identifier highlight="both" className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{data.fromAddress}</Identifier>
+              ? <HighlightedIdentifier className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{data.fromAddress}</HighlightedIdentifier>
               : <Text size={14} weight="medium" color="brand" className="break-all">{data.from}</Text>}</div>
             <div className={`flex justify-between items-center gap-3 ${SURFACE_ROW}`}>
               <Text size={14} weight="medium" color="brand">{SEND_PREVIEW_LABELS.recipientsReceive}</Text>

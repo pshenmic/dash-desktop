@@ -14,7 +14,7 @@ export const ASSET_LOCK_LOCK_STEP_LABELS: Record<AssetLockLockStep, string> = {
   [AssetLockLockStep.ChainLocked]: 'ChainLock received',
 }
 
-const BROADCAST_STEP: AssetLockFundingPhaseLabel = { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting to L1' }
+const BROADCAST_STEP: AssetLockFundingPhaseLabel = { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting to Core' }
 const LOCK_STEP: AssetLockFundingPhaseLabel = { key: AssetLockFundingPhase.WaitingChainLock, label: ASSET_LOCK_LOCK_STEP_LABELS[AssetLockLockStep.Pending] }
 
 export const ASSET_LOCK_PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<AssetLockFundingPhaseLabel>> = {
@@ -34,7 +34,7 @@ export const ASSET_LOCK_FUNDING_TEXTS: Record<AssetLockFundingKind, AssetLockFun
     confirm: 'Sign & Send',
   },
   [AssetLockFundingKind.Shielded]: {
-    title: 'Shield from L1',
+    title: 'Shield from Core',
     resumeTitle: 'Resume shielding',
     doneTitle: 'Credits shielded',
     doneHeading: 'Credits shielded',
@@ -50,7 +50,7 @@ export const ASSET_LOCK_FUNDING_TEXTS: Record<AssetLockFundingKind, AssetLockFun
     confirm: 'Sign & Send',
   },
   [AssetLockFundingKind.IdentityTopUp]: {
-    title: 'Top up identity from L1',
+    title: 'Top up identity from Core',
     resumeTitle: 'Resume top-up',
     doneTitle: 'Identity topped up',
     doneHeading: 'Identity topped up',

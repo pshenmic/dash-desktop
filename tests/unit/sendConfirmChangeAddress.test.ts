@@ -58,7 +58,7 @@ function render(props: SendConfirmModalProps): ReactNode {
 }
 
 function modalProps(changeTo?: string): SendConfirmModalProps {
-  return {isOpen: true, onClose: vi.fn(), walletId: 'wallet', network: 'testnet', recipients: [{address: 'recipient', amountDuffs: 90n}], advanced: true, from: {value: 'Dash Core (L1)', kind: TxEndpointKind.Label}, source: {kind: 'outpoints', outpoints: [{txid: 'coin', vout: 0}]}, changeTo, onSuccess: vi.fn()}
+  return {isOpen: true, onClose: vi.fn(), walletId: 'wallet', network: 'testnet', recipients: [{address: 'recipient', amountDuffs: 90n}], advanced: true, from: {value: 'Dash Core', kind: TxEndpointKind.Label}, source: {kind: 'outpoints', outpoints: [{txid: 'coin', vout: 0}]}, changeTo, onSuccess: vi.fn()}
 }
 
 describe('Core send confirmation change address', () => {
