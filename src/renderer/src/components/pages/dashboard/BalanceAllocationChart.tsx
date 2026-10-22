@@ -6,6 +6,7 @@ import { usePlatformCredits } from '@renderer/hooks/usePlatformCredits'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
+import { DASH_UNIT } from '@renderer/constants/balance'
 import { SHIELDED_SEGMENT_LABEL } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
@@ -55,27 +56,27 @@ export default function BalanceAllocationChart(): React.JSX.Element {
               ))}
             </svg>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-[3px]" aria-hidden="true">
-              <strong className="text-[15px] font-bold tabular-nums">{centreValue}</strong>
-              <span className="text-[10px] text-(--chart-muted)">{selected ? selected.label : 'DASH total'}</span>
+              <strong className="text-base font-bold tabular-nums">{centreValue}</strong>
+              <span className="text-[10px] text-(--chart-muted)">{selected ? selected.label : `${DASH_UNIT} total`}</span>
             </div>
           </div>
-          <div className="flex flex-col gap-1" aria-label="Current balances in DASH">
+          <div className="flex flex-col gap-1" aria-label={`Current balances in ${DASH_UNIT}`}>
             {allocation.segments.map(segment => shieldedUnknown && segment.label === SHIELDED_SEGMENT_LABEL ? (
-              <div key={segment.label} className="flex items-center justify-between gap-2 py-[3px] text-[11px]">
+              <div key={segment.label} className="flex items-center justify-between gap-2 py-[3px] text-xs">
                 <span><i className="mr-1.5 inline-block size-[7px] rounded-[2px]" style={{ background: segment.color }} />{segment.label}</span>
                 <span className="flex items-baseline gap-2.5">
-                  <b className="font-semibold">—</b>
+                  <b className="font-bold">—</b>
                   {shieldedSyncing
                     ? <small className="text-[10px] text-(--chart-muted)">{dashboardPage.shielded.syncing}</small>
-                    : <button type="button" className="cursor-pointer text-[10px] font-semibold text-dash-brand hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core) dark:text-dash-mint" onClick={() => setSyncOpen(true)}>{dashboardPage.shielded.syncNotes}</button>}
+                    : <button type="button" className="cursor-pointer text-[10px] font-bold text-dash-brand hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core) dark:text-dash-mint" onClick={() => setSyncOpen(true)}>{dashboardPage.shielded.syncNotes}</button>}
                 </span>
               </div>
             ) : (
-              <button key={segment.label} type="button" className="flex items-center justify-between gap-2 rounded-sm py-[3px] text-left text-[11px] hover:bg-(--chart-grid) focus-visible:bg-(--chart-grid) focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core)" title={`${segment.label}: ${creditsToDash(segment.credits)} DASH${shieldedUnknown ? '' : ` · ${segment.share.toFixed(2)}%`}`}
+              <button key={segment.label} type="button" className="flex items-center justify-between gap-2 rounded-sm py-[3px] text-left text-xs hover:bg-(--chart-grid) focus-visible:bg-(--chart-grid) focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core)" title={`${segment.label}: ${creditsToDash(segment.credits)} ${DASH_UNIT}${shieldedUnknown ? '' : ` · ${segment.share.toFixed(2)}%`}`}
                 onPointerEnter={() => setActive(segment.label)} onPointerLeave={() => setActive(null)}
                 onFocus={() => setActive(segment.label)} onBlur={() => setActive(null)} onClick={() => setActive(segment.label)}>
                 <span><i className="mr-1.5 inline-block size-[7px] rounded-[2px]" style={{ background: segment.color }} />{segment.label}</span>
-                <span className="flex items-baseline gap-2.5 tabular-nums"><b className="font-semibold">{formatAllocationAmount(segment.credits)} <small className="text-[10px] font-normal text-(--chart-muted)">DASH</small></b>{!shieldedUnknown && <small className="min-w-10 text-right text-[10px] font-normal text-(--chart-muted)">{segment.share > 0 && segment.share < 0.1 ? '<0.1' : segment.share.toFixed(1)}%</small>}</span>
+                <span className="flex items-baseline gap-2.5 tabular-nums"><b className="font-bold">{formatAllocationAmount(segment.credits)} <small className="text-[10px] font-normal text-(--chart-muted)">{DASH_UNIT}</small></b>{!shieldedUnknown && <small className="min-w-10 text-right text-[10px] font-normal text-(--chart-muted)">{segment.share > 0 && segment.share < 0.1 ? '<0.1' : segment.share.toFixed(1)}%</small>}</span>
               </button>
             ))}
           </div>

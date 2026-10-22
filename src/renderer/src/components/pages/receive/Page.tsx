@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Tabs } from "dash-ui-kit/react";
 import { RECEIVE_REFRESH_MS, ReceivePageType } from "@renderer/constants";
 import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
+import { SURFACE_PANEL } from "@renderer/constants/surfaces";
 import PageHeader from "@renderer/components/ui/PageHeader";
+import PageTabs from "@renderer/components/ui/PageTabs";
 import ReceiveAddressCard from "./ReceiveAddressCard";
 import ShieldedReceiveCard from "./ShieldedReceiveCard";
 import PlatformReceiveCard from "./PlatformReceiveCard";
@@ -65,19 +66,13 @@ export default function Receive({pageData}: {pageData: ReceivePageType}): React.
     <div className={`relative flex flex-col pb-12`}>
         <div className={"px-12"}>
           <PageHeader title={PAGE_HEADERS.receive.title} subtitle={PAGE_HEADERS.receive.subtitle} />
-          <Tabs
-            items={tabItems}
-            value={activeTab}
-            onValueChange={setActiveTab}
-            size={"xl"}
-            triggerClassName={
-              'data-[state=active]:text-dash-primary-dark-blue ' +
-              'data-[state=inactive]:text-dash-primary-dark-blue/35 ' +
-              'dark:data-[state=active]:text-white ' +
-              'dark:data-[state=inactive]:text-white/35 ' +
-              'font-medium tracking-[-0.03em]'
-            }
-          />
+          <div className={`relative flex ${SURFACE_PANEL}`}>
+            <PageTabs
+              items={tabItems}
+              value={activeTab}
+              onValueChange={setActiveTab}
+            />
+          </div>
         </div>
     </div>
   )

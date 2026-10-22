@@ -1,3 +1,5 @@
+const SEND_BACK_LABEL = 'Back to Send'
+
 export const PAGE_HEADERS = {
   dashboard: {
     title: 'Dashboard',
@@ -7,9 +9,41 @@ export const PAGE_HEADERS = {
     title: 'Transactions',
     subtitle: 'Core and Platform activity for this wallet.',
   },
+  transactionDetail: {
+    back: 'Back to transactions',
+  },
   receive: {
     title: 'Receive',
     subtitle: 'Share an address or QR code to receive Dash.',
+  },
+  send: {
+    title: 'Send',
+    subtitle: {
+      lead: 'Move funds between your ',
+      emphasis: 'Dash Core, Platform addresses, identities and the shielded pool.',
+      tail: ' Pick where the funds come from and where they go.',
+    },
+  },
+  recipients: {
+    title: 'Recipients',
+    subtitle: {
+      emphasis: 'Choose amounts and addresses',
+      tail: ' that will receive transferred funds.',
+    },
+    back: SEND_BACK_LABEL,
+  },
+  coinControl: {
+    title: 'Coin Control',
+    subtitle: {
+      lead: 'Flexible selector of ',
+      emphasis: 'which funds this transfer may spend',
+      tail: '. Leave the option on automatic if you don’t want to select specific addresses.',
+    },
+    back: SEND_BACK_LABEL,
+  },
+  sendPreview: {
+    title: 'Transaction details',
+    back: SEND_BACK_LABEL,
   },
   addresses: {
     title: 'Addresses',

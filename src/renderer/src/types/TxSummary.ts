@@ -1,4 +1,6 @@
-import type { PreviewUnit } from '../api/types'
+import type { CoreRecipient, PlatformRecipient, PreviewUnit } from '../api/types'
+import type { DestinationKind } from '../enums/DestinationKind'
+import type { TransferOperation } from '../enums/TransferOperation'
 import type { TxEndpointKind } from '../enums/TxEndpointKind'
 
 export interface TxSummaryEndpoint {
@@ -41,6 +43,21 @@ export interface TxEndpointProps {
   endpoint: TxSummaryEndpoint
   unit: PreviewUnit
   showAmount: boolean
+}
+
+export interface SendSummaryInput {
+  operation: TransferOperation
+  from: TxSummaryEndpoint
+  destination: DestinationKind
+  toDisplay: string
+  coreRecipients: CoreRecipient[]
+  platformRecipients: PlatformRecipient[]
+  feeOutputIndex?: number
+  amountDuffs: bigint
+  amountCredits: bigint
+  feeDuffs: bigint | null
+  feeCredits: bigint | null
+  totalDebitCredits: bigint
 }
 
 export interface VisibleRecipients<T> {

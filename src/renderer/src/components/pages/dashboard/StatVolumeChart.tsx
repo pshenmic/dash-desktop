@@ -1,6 +1,8 @@
 import React, { useId, useState } from 'react'
 import type { StatVolumeChartProps } from '@renderer/types/DashboardStats'
+import { DASH_UNIT } from '@renderer/constants/balance'
 import { STAT_CHART_HEIGHT, STAT_CHART_WIDTH, STAT_FLOW_COLORS, STAT_FLOW_LABELS } from '@renderer/constants/dashboardStats'
+import { analyticsPeriodLabel } from '@renderer/utils/analyticsPeriod'
 import { buildStatChartSeries } from '@renderer/utils/dashboardStatCharts'
 import { chartDate } from '@renderer/utils/dashboardAnalytics'
 import { creditsToDash } from '@renderer/utils/balance'
@@ -12,9 +14,9 @@ export default function StatVolumeChart({ flows, direction, hidden, period }: St
   const series = buildStatChartSeries(flows, direction)
   const selected = active === null ? undefined : days[active]
   const cumulative = direction === 'received'
-  const periodLabel = period === 'all' ? 'All time' : `${period} days`
+  const periodLabel = analyticsPeriodLabel(period)
 
-  if (hidden) return <div className="grid h-[51px] place-items-center text-[11px] text-(--stat-muted)">Amounts hidden</div>
+  if (hidden) return <div className="grid h-[51px] place-items-center text-xs text-(--stat-muted)">Amounts hidden</div>
 
   return (
     <div className="flex flex-col gap-[5px]">
@@ -22,7 +24,7 @@ export default function StatVolumeChart({ flows, direction, hidden, period }: St
         <span>{periodLabel}</span>
       </div>
       <div className="relative h-8 rounded-[3px] text-(--stat-accent) focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-(--stat-accent)" tabIndex={0} role="group"
-        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same DASH scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} DASH`).join('. ')}. Hover or use left and right arrows to explore amounts.`}
+        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same ${DASH_UNIT} scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} ${DASH_UNIT}`).join('. ')}. Hover or use left and right arrows to explore amounts.`}
         onPointerLeave={() => setActive(null)} onFocus={() => setActive(days.length - 1)} onBlur={() => setActive(null)}
         onKeyDown={event => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
@@ -57,15 +59,15 @@ export default function StatVolumeChart({ flows, direction, hidden, period }: St
           ))}
         </svg>
         {selected && <div className="pointer-events-none absolute right-0 bottom-[calc(100%+6px)] z-2 min-w-[175px] max-w-60 rounded-[10px] bg-white px-[11px] py-[9px] text-[10px] text-dash-primary-dark-blue shadow-[0_4px_20px_#0003] dark:border dark:border-white/15 dark:bg-[#152d50] dark:text-white" role="status">
-          <span className="mb-[5px] block opacity-65">{chartDate(selected.date)} · {cumulative ? 'cumulative' : 'daily'} · DASH</span>
+          <span className="mb-[5px] block opacity-65">{chartDate(selected.date)} · {cumulative ? 'cumulative' : 'daily'} · {DASH_UNIT}</span>
           {series.map(item => <div key={item.source} className="mt-[3px] flex justify-between gap-3">
             <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
-            <strong className="font-semibold tabular-nums wrap-anywhere">{creditsToDash(item.readings[active!])}</strong>
+            <strong className="font-bold tabular-nums wrap-anywhere">{creditsToDash(item.readings[active!])}</strong>
           </div>)}
           <span className="mt-[9px] mb-[5px] block border-t border-current pt-[7px] opacity-65">{periodLabel} totals · {days[0] && chartDate(days[0].date)} – {days.at(-1) && chartDate(days.at(-1)!.date)}</span>
           {series.map(item => <div key={`total-${item.source}`} className="mt-[3px] flex justify-between gap-3">
             <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
-            <strong className="font-semibold tabular-nums wrap-anywhere">{creditsToDash(item.total)}</strong>
+            <strong className="font-bold tabular-nums wrap-anywhere">{creditsToDash(item.total)}</strong>
           </div>)}
         </div>}
       </div>

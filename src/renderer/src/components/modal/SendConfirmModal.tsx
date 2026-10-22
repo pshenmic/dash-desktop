@@ -11,6 +11,7 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { transactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
 import PasswordField from '@renderer/components/ui/PasswordField'
+import PendingRow from '@renderer/components/ui/PendingRow'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import { toast } from '@renderer/components/ui/Toast'
@@ -21,7 +22,8 @@ import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { coreRecipientEndpoints } from '@renderer/utils/txSummaryEndpoints'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-import { SEND_LOCK_PHASE_COPY } from '@renderer/constants/sendConfirmModal'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { SEND_BROADCASTING_LABEL, SEND_INPUTS_CHANGED_MESSAGE, SEND_LOCK_PHASE_COPY, SEND_PROGRESS_TITLE } from '@renderer/constants/sendConfirmModal'
 
 const LOCK_POLL_INTERVAL_MS = 2_000
 const FALLBACK_POLL_INTERVAL_MS = 10_000
@@ -39,6 +41,7 @@ export default function SendConfirmModal({
   source,
   changeTo,
   sourceValid = true,
+  presetPassword,
   onSuccess,
 }: SendConfirmModalProps): React.JSX.Element {
   const sourceValidRef = useRef(sourceValid)
@@ -51,16 +54,58 @@ export default function SendConfirmModal({
   const [result, setResult] = useState<SendResult | null>(null)
   const [sentRecipients, setSentRecipients] = useState<CoreRecipient[]>([])
   const pollingErrorNotified = useRef(false)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
+  const [seenOpen, setSeenOpen] = useState(false)
 
-  useEffect(() => {
+  if (isOpen !== seenOpen) {
+    setSeenOpen(isOpen)
     if (isOpen) {
       setPassword('')
-      setPhase(ConfirmModalPhase.Confirm)
+      setPhase(presetPassword ? ConfirmModalPhase.Sending : ConfirmModalPhase.Confirm)
       setLockPhase(SendLockPhase.Waiting)
       setPasswordInvalid(false)
       setResult(null)
       setSentRecipients([])
-      pollingErrorNotified.current = false
+      setAuto(Boolean(presetPassword))
+    }
+  }
+
+  const abort = (preset: boolean): void => {
+    if (preset) onClose()
+    else setPhase(ConfirmModalPhase.Confirm)
+  }
+
+  const submit = async (secret: string, preset: boolean): Promise<void> => {
+    if (!walletId || !sourceValidRef.current) {
+      if (preset) toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+      abort(preset)
+      return
+    }
+    try {
+      const submittedRecipients = recipients.map(recipient => ({ ...recipient }))
+      setSentRecipients(submittedRecipients)
+      const res = await API.sendTransaction(walletId, submittedRecipients, secret, source, changeTo)
+      setResult(res)
+      setPhase(ConfirmModalPhase.Done)
+      onSuccess()
+    } catch (e) {
+      console.error('Transaction failed', e)
+      toast.error(getErrorMessage(e))
+      abort(preset)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    pollingErrorNotified.current = false
+    if (presetPassword) {
+      autoStarted.current = true
+      void submit(presetPassword, true)
     }
   }, [isOpen])
 
@@ -106,7 +151,7 @@ export default function SendConfirmModal({
 
   const sending = phase === ConfirmModalPhase.Sending
   const lockFinal = lockPhase !== SendLockPhase.Waiting && lockPhase !== SendLockPhase.Fallback
-  let modalTitle = 'Confirm send'
+  let modalTitle = auto ? SEND_PROGRESS_TITLE : 'Confirm send'
   if (phase === ConfirmModalPhase.Done) {
     modalTitle = lockFinal ? 'Transaction confirmed' : 'Transaction sent'
   }
@@ -116,27 +161,16 @@ export default function SendConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setPasswordInvalid(false)
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setPasswordInvalid(true)
-        setPhase(ConfirmModalPhase.Confirm)
+      if (await API.verifyWalletPassword(walletId, password)) {
+        await submit(password, false)
         return
       }
-      if (!sourceValidRef.current) {
-        setPhase(ConfirmModalPhase.Confirm)
-        return
-      }
-      const submittedRecipients = recipients.map(recipient => ({ ...recipient }))
-      setSentRecipients(submittedRecipients)
-      const res = await API.sendTransaction(walletId, submittedRecipients, password, source, changeTo)
-      setResult(res)
-      setPhase(ConfirmModalPhase.Done)
-      onSuccess()
+      setPasswordInvalid(true)
     } catch (e) {
       console.error('Transaction failed', e)
       toast.error(getErrorMessage(e))
-      setPhase(ConfirmModalPhase.Confirm)
     }
+    setPhase(ConfirmModalPhase.Confirm)
   }
 
   // Prevent closing mid-broadcast — the tx is already in flight.
@@ -147,7 +181,11 @@ export default function SendConfirmModal({
 
   return (
     <Modal open={isOpen} onClose={requestClose} title={modalTitle} size={ModalSize.Lg} dismissible={!sending}>
-      {phase !== ConfirmModalPhase.Done ? (
+      {phase !== ConfirmModalPhase.Done ? auto ? (
+        <div className={"phase-fade-in"} key={"pending"}>
+          <PendingRow label={SEND_BROADCASTING_LABEL} className={"mt-5"} />
+        </div>
+      ) : (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary
             unit={"duffs"}
@@ -190,7 +228,7 @@ export default function SendConfirmModal({
             </Text>
             <div className={"mt-2 flex items-center justify-center gap-2"}>
               {lockFinal
-                ? <CheckIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
+                ? <CheckIcon size={14} color={"currentColor"} className={"shrink-0 text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />
                 : <Spinner size={14} />}
               <Text
                 size={12}
@@ -203,7 +241,7 @@ export default function SendConfirmModal({
             </div>
           </div>
 
-          <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
             <RecipientSummary recipients={sentRecipients} />
             <div className={"flex justify-between items-center gap-4"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>

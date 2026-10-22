@@ -1,5 +1,11 @@
 import { CheckIcon, ClockArrowIcon, ErrorIcon, InfoCircleIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import type { TransactionCardItem } from '@renderer/types/WalletTransaction'
+import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
+import { SURFACE_PANEL } from './surfaces'
+
+export const TRANSACTION_DETAIL_CARD_CLASS = `flex flex-col gap-5 ${SURFACE_PANEL}`
+
+export const TRANSACTION_DETAIL_IDENTIFIER_CLASS = `min-w-0 font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
 
 export const TRANSACTION_CARD_STATUS_ICONS = {
   success: CheckIcon,
@@ -78,8 +84,10 @@ interface TransactionsPage {
     qrTitle: string
     cachedDetails: string
     loadingDetails: string
+    internalTransfer: string
   }
   platformDetail: {
+    titlePrefix: string
     balanceChangeHint: string
     feeHint: string
   }
@@ -146,8 +154,10 @@ export const transactionsPage: TransactionsPage = {
     qrTitle: 'Address',
     cachedDetails: 'Showing cached details',
     loadingDetails: 'Loading details',
+    internalTransfer: 'Internal transfer',
   },
   platformDetail: {
+    titlePrefix: 'Platform:',
     balanceChangeHint: 'Net across your Platform addresses and identities',
     feeHint: 'May be paid by another participant',
   }

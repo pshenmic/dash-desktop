@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import HashField from '@renderer/components/ui/HashField'
 import PasswordField from '@renderer/components/ui/PasswordField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -14,12 +14,14 @@ import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { getErrorMessage } from '@renderer/utils/error'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
-import Spinner from '@renderer/components/ui/Spinner'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
+import PhaseProgressList from '@renderer/components/ui/PhaseProgressList'
 import { INVALID_WALLET_PASSWORD_MESSAGE, SHIELDED_SPEND_POLL_MS, SHIELDED_SPEND_RETRY_MS } from '@renderer/constants'
 import { SHIELDED_SPEND_STEPS } from '@renderer/constants/shieldedProgress'
 import { SHIELDED_SPEND_ESTIMATE_PREFIX } from '@renderer/constants/shieldedSpendModal'
+import { SEND_INPUTS_CHANGED_MESSAGE } from '@renderer/constants/sendConfirmModal'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { shieldedSpendSummaryCosts } from '@renderer/utils/txSummaryCosts'
 import { shieldedSpendEndpoints } from '@renderer/utils/txSummaryEndpoints'
 import type { ShieldedSpendModalProps } from '@renderer/types/ShieldedSpendModal'
@@ -46,6 +48,7 @@ export default function ShieldedSpendModal({
   sourceValid = true,
   onSuccess,
   successNote,
+  presetPassword,
 }: ShieldedSpendModalProps): React.JSX.Element {
   const sourceValidRef = useRef(sourceValid)
   sourceValidRef.current = sourceValid
@@ -61,19 +64,30 @@ export default function ShieldedSpendModal({
   const [sentRecipients, setSentRecipients] = useState<PlatformRecipient[] | null>(null)
   const notified = useRef(false)
   const pollingErrorNotified = useRef(false)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
 
   useEffect(() => {
-    if (isOpen) {
-      setPassword('')
-      setPreError(null)
-      setBusy(false)
-      setStarted(false)
-      setSpend(null)
-      setSentAmount(null)
-      setSentFee(null)
-      setSentRecipients(null)
-      notified.current = false
-      pollingErrorNotified.current = false
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    const preset = presetPassword && proverReady ? presetPassword : null
+    setPassword('')
+    setPreError(null)
+    setBusy(preset !== null)
+    setStarted(false)
+    setSpend(null)
+    setSentAmount(null)
+    setSentFee(null)
+    setSentRecipients(null)
+    setAuto(preset !== null)
+    notified.current = false
+    pollingErrorNotified.current = false
+    if (preset !== null) {
+      autoStarted.current = true
+      void begin(preset, true)
     }
   }, [isOpen])
 
@@ -117,37 +131,53 @@ export default function ShieldedSpendModal({
   useErrorToast(error, isOpen)
 
   const running = started && spend != null && spend.phase !== ShieldedSpendPhase.Done && spend.phase !== ShieldedSpendPhase.Error
+  const starting = auto && busy
 
-  const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || !proverReady || started || !sourceValidRef.current) return
-    setBusy(true)
-    setPreError(null)
+  const begin = async (secret: string, preset: boolean): Promise<void> => {
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
-        setBusy(false)
-        return
-      }
       if (!sourceValidRef.current) {
-        setBusy(false)
+        if (preset) {
+          toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+          onClose()
+        } else setBusy(false)
         return
       }
       setSentAmount(amountCredits)
       setSentFee(feeCredits)
       setSentRecipients(recipients?.map(recipient => ({ ...recipient })) ?? null)
-      const initial = await start(password)
+      const initial = await start(secret)
       setSpend(initial)
       setStarted(true)
       setBusy(false)
     } catch (e) {
       console.error('Could not start shielded spend', e)
       toast.error(getErrorMessage(e))
-      setBusy(false)
+      if (preset) onClose()
+      else setBusy(false)
     }
   }
 
+  const handleConfirm = async (): Promise<void> => {
+    if (!walletId || password.length === 0 || busy || !proverReady || started || !sourceValidRef.current) return
+    setBusy(true)
+    setPreError(null)
+    try {
+      if (!await API.verifyWalletPassword(walletId, password)) {
+        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+    } catch (e) {
+      console.error('Could not start shielded spend', e)
+      toast.error(getErrorMessage(e))
+      setBusy(false)
+      return
+    }
+    await begin(password, false)
+  }
+
   const retry = (): void => {
+    setAuto(false)
     setStarted(false)
     setSpend(null)
     setPassword('')
@@ -173,7 +203,7 @@ export default function ShieldedSpendModal({
 
   return (
     <Modal open={isOpen} onClose={requestClose} title={modalTitle} size={ModalSize.Lg} dismissible={!running && !busy}>
-      {!started && (
+      {!started && !starting && (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary
             unit={"credits"}
@@ -208,35 +238,27 @@ export default function ShieldedSpendModal({
         </div>
       )}
 
-      {running && spend && (
+      {(running || starting) && (
         <div className={"phase-fade-in"} key={"progress"}>
-          <div className={"mt-5 flex flex-col gap-4 p-[.875rem] rounded-[.9375rem] dash-block"}>
-            {SHIELDED_SPEND_STEPS.map((p, i) => {
-              const current = phaseIndex(spend.phase)
-              const done = i < current
-              const active = i === current
-              return (
-                <div key={p.key} className={"flex flex-col gap-1.5"}>
-                  <div className={"flex items-center gap-2"}>
-                    {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
-                    {!done && active && <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />}
-                    {!done && !active && <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
-                    <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{p.label}</Text>
-                  </div>
-                  {active && p.key === ShieldedSpendPhase.Syncing && spend.total > 0 && (
-                    <div className={"ml-6 flex flex-col gap-1"}>
-                      <div className={"h-2 w-full rounded-full dash-block overflow-hidden"}>
-                        <div className={"h-full rounded-full dash-bg-inverse transition-[width] duration-300"} style={{ width: `${Math.min(100, Math.round((spend.fetched / spend.total) * 100))}%` }} />
+          <PhaseProgressList
+            phases={SHIELDED_SPEND_STEPS.map(p => p.key === ShieldedSpendPhase.Syncing && spend?.phase === ShieldedSpendPhase.Syncing && spend.total > 0
+              ? {
+                  ...p,
+                  extra: (
+                    <div className={"flex flex-col gap-1"}>
+                      <div className={"h-1 w-full overflow-hidden rounded-full bg-dash-primary-dark-blue/10 dark:bg-dash-mint/20"}>
+                        <div className={"h-full rounded-full bg-dash-brand dark:bg-dash-mint transition-[width] duration-300"} style={{ width: `${Math.min(100, Math.round((spend.fetched / spend.total) * 100))}%` }} />
                       </div>
                       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                         {spend.fetched.toLocaleString('en-US')} / {spend.total.toLocaleString('en-US')}
                       </Text>
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                  ),
+                }
+              : p)}
+            current={spend ? phaseIndex(spend.phase) : 0}
+            className={"mt-5"}
+          />
         </div>
       )}
 
@@ -262,7 +284,7 @@ export default function ShieldedSpendModal({
               </Text>
             )}
           </div>
-          <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
             {sentRecipients && <RecipientSummary recipients={sentRecipients} />}
             {spend?.identityId && <HashField hash={spend.identityId} label={"Identity"} />}
             {sentDetails.map(line => line.amount !== null && (

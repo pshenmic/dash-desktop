@@ -11,6 +11,7 @@ export default function PasswordField({
   error = null,
   label = WALLET_PASSWORD_LABEL,
   disabled = false,
+  autoFocus = true,
   className = '',
 }: PasswordFieldProps): React.JSX.Element {
   return (
@@ -30,7 +31,7 @@ export default function PasswordField({
         colorScheme={error ? 'error' : 'primary'}
         aria-invalid={error ? true : undefined}
         disabled={disabled}
-        autoFocus
+        autoFocus={autoFocus}
       />
       <div className={`overflow-hidden transition-all duration-200 ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
         <CopyableError message={error ?? ''} />

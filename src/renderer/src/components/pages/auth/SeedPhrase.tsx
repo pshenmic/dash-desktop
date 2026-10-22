@@ -2,7 +2,7 @@ import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
 import type { UseCreateWalletState, WordCount } from '@renderer/types/auth'
 import { Switch } from "dash-ui-kit/react";
 import SeedPhraseWarning from "./SeedPhraseWarning";
-import { BaseTexts, SaveYourSeedPhraseTexts } from "@renderer/constants";
+import { AUTH_CTA_CLASS, BaseTexts, SaveYourSeedPhraseTexts } from "@renderer/constants";
 
 type SeedPhraseData = Pick<
   SaveYourSeedPhraseTexts,
@@ -58,12 +58,12 @@ export default function SeedPhrase({ seedPhrase, wordCount, setWordCount, verify
       <SeedPhraseWarning {...data.seedPhraseWarning} />
 
       <div className={"flex gap-[.75rem] items-center"}>
-        <Button variant={"solid"} colorScheme={"primary"} size={"sm"} className={"flex-1 p-4.5"} onClick={() => verifySeedPhrase()}>{data.buttonContinue}</Button>
+        <Button variant={"solid"} colorScheme={"primary"} size={"md"} className={`${AUTH_CTA_CLASS} flex-1`} onClick={() => verifySeedPhrase()}>{data.buttonContinue}</Button>
         <Button
           variant={"solid"}
           colorScheme={"lightBlue-mint"}
-          size={"sm"}
-          className={"w-[16rem] p-4.5"}
+          size={"md"}
+          className={`${AUTH_CTA_CLASS} w-[16rem]`}
           onClick={() => navigator.clipboard.writeText(seedPhrase.join(' '))}
         >
           {data.buttonCopy}

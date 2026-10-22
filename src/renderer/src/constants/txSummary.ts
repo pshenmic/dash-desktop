@@ -9,6 +9,16 @@ export const TX_SUMMARY_LABELS = {
   identityCredited: 'Identity is credited',
 }
 
+export const TX_SUMMARY_CARD_LABELS = {
+  title: 'Transaction Summary',
+  recipientsReceive: 'Recipients Receive:',
+  recipientsReceiveEstimated: 'Estimated Recipients Receive:',
+  networkFee: 'Network Fee:',
+  sendTotal: 'Send Total:',
+  review: 'Review Transaction',
+  retryFee: 'Retry fee estimate',
+}
+
 export const TX_SUMMARY_VISIBLE_RECIPIENTS = 3
 
 export const TX_SUMMARY_PENDING_VALUE = '—'

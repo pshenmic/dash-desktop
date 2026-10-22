@@ -1,21 +1,26 @@
 import type { Network, OperationFee } from '../api/types'
+import type { EndpointLabel } from '../types/EndpointPicker'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
 
-export const SEND_ENDPOINT_LABELS: Partial<Record<`${SourceKind | DestinationKind}`, string>> = {
-  [SourceKind.Core]: 'Dash Core (L1)',
-  [DestinationKind.CoreAddress]: 'Dash Core (L1)',
-  [SourceKind.PlatformAddress]: 'Address (L2)',
+export const SEND_ENDPOINT_LABELS: Partial<Record<`${SourceKind | DestinationKind}`, EndpointLabel>> = {
+  [SourceKind.Core]: {name: 'Dash Core', layer: '(L1)'},
+  [DestinationKind.CoreAddress]: {name: 'Dash Core', layer: '(L1)'},
+  [SourceKind.PlatformAddress]: {name: 'Address', layer: '(L2)'},
 }
 
+const ADDRESS_PLACEHOLDER = 'Enter Address…'
+const IDENTITY_PLACEHOLDER = 'Enter identity ID…'
+const SHIELDED_PLACEHOLDER = 'Enter shielded address…'
+
 export const DESTINATION_PLACEHOLDERS: Record<DestinationKind, Record<Network, string>> = {
-  [DestinationKind.CoreAddress]: {mainnet: 'X… (Dash address)', testnet: 'y… (Dash address)'},
-  [DestinationKind.PlatformAddress]: {mainnet: 'dash1…', testnet: 'tdash1…'},
-  [DestinationKind.Identity]: {mainnet: 'Identity identifier', testnet: 'Identity identifier'},
-  [DestinationKind.Shielded]: {mainnet: 'shielded address', testnet: 'shielded address'},
-  [DestinationKind.NewIdentity]: {mainnet: 'shielded address', testnet: 'shielded address'},
+  [DestinationKind.CoreAddress]: {mainnet: ADDRESS_PLACEHOLDER, testnet: ADDRESS_PLACEHOLDER},
+  [DestinationKind.PlatformAddress]: {mainnet: ADDRESS_PLACEHOLDER, testnet: ADDRESS_PLACEHOLDER},
+  [DestinationKind.Identity]: {mainnet: IDENTITY_PLACEHOLDER, testnet: IDENTITY_PLACEHOLDER},
+  [DestinationKind.Shielded]: {mainnet: SHIELDED_PLACEHOLDER, testnet: SHIELDED_PLACEHOLDER},
+  [DestinationKind.NewIdentity]: {mainnet: '', testnet: ''},
 }
 
 export const INVALID_DESTINATION_MESSAGES: Record<DestinationKind, string> = {
@@ -51,7 +56,6 @@ export interface TransferPageType {
     placeholder: string
     addressBook: string
     addressManagement: string
-    names: string
     noResults: string
   }
   amountSummary: {
@@ -87,10 +91,9 @@ export const sendPageData: TransferPageType = {
   },
   recipient: {
     label: 'Recipient',
-    placeholder: 'Enter address or search name',
+    placeholder: ADDRESS_PLACEHOLDER,
     addressBook: 'Address Book',
     addressManagement: 'Address Management',
-    names: 'Names',
     noResults: 'No addresses found',
   },
   amountSummary: {

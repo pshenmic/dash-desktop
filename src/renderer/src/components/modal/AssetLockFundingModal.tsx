@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
-import { AssetLockFundingKind, AssetLockFundingState } from '@renderer/api/types'
+import { AssetLockFundingState } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
-import Spinner from '@renderer/components/ui/Spinner'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
 import PasswordField from '@renderer/components/ui/PasswordField'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import TxSummary from '@renderer/components/ui/TxSummary'
+import PhaseProgressList from '@renderer/components/ui/PhaseProgressList'
 import { toast } from '@renderer/components/ui/Toast'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useErrorToast } from '@renderer/hooks/useErrorToast'
@@ -23,11 +23,12 @@ import {
   ASSET_LOCK_LOCK_STEP_LABELS,
   ASSET_LOCK_PHASE_LABELS,
 } from '@renderer/constants/assetLockFunding'
-import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
+import { SEND_INPUTS_CHANGED_MESSAGE } from '@renderer/constants/sendConfirmModal'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { assetLockSummaryCosts, resumedAssetLockAmount } from '@renderer/utils/txSummaryCosts'
+import { assetLockEndpoints } from '@renderer/utils/txSummaryEndpoints'
 import { assetLockLockStep } from '@renderer/utils/assetLockFunding'
 import type { AssetLockFundingModalProps } from '@renderer/types/AssetLockFundingModal'
-import type { TxSummaryEndpoint } from '@renderer/types/TxSummary'
 
 function phaseIndex(phase: AssetLockFundingPhase): number {
   if (phase === AssetLockFundingPhase.Building || phase === AssetLockFundingPhase.BroadcastingL1) return 0
@@ -63,19 +64,31 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
   const [lockFallback, setLockFallback] = useState(false)
   const notified = useRef(false)
   const pollingErrorNotified = useRef(false)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
   const resuming = props.resume || resumeRequested
+  const presetPassword = props.resume ? undefined : props.presetPassword
 
   useEffect(() => {
-    if (isOpen) {
-      setPassword('')
-      setPreError(null)
-      setBusy(false)
-      setStarted(false)
-      setState(null)
-      setResumeRequested(false)
-      setLockFallback(false)
-      notified.current = false
-      pollingErrorNotified.current = false
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    const preset = presetPassword || null
+    setPassword('')
+    setPreError(null)
+    setBusy(preset !== null)
+    setStarted(false)
+    setState(null)
+    setResumeRequested(false)
+    setLockFallback(false)
+    setAuto(preset !== null)
+    notified.current = false
+    pollingErrorNotified.current = false
+    if (preset !== null) {
+      autoStarted.current = true
+      void begin(preset, true, false)
     }
   }, [isOpen])
 
@@ -151,33 +164,49 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
     return () => clearTimeout(timer)
   }, [awaitingLock])
 
-  const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || started || (!resuming && !sourceValidRef.current)) return
-    setBusy(true)
-    setPreError(null)
+  const starting = auto && busy
+
+  const begin = async (secret: string, preset: boolean, resume: boolean): Promise<void> => {
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
-        setBusy(false)
+      if (!walletId || (!resume && !sourceValidRef.current)) {
+        if (preset) {
+          toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+          onClose()
+        } else setBusy(false)
         return
       }
-      if (!resuming && !sourceValidRef.current) {
-        setBusy(false)
-        return
-      }
-      const initial = resuming
-        ? await API.resumeAssetLockFunding(walletId, password)
-        : await API.startAssetLockFunding(walletId, toPlatformAddress, props.amountDuffs, password, kind, props.source)
-      if (resuming) setLockFallback(true)
+      const initial = resume || props.resume
+        ? await API.resumeAssetLockFunding(walletId, secret)
+        : await API.startAssetLockFunding(walletId, toPlatformAddress, props.amountDuffs, secret, kind, props.source)
+      if (resume) setLockFallback(true)
       setState(initial)
       setStarted(true)
       setBusy(false)
     } catch (e) {
       console.error('Could not start asset lock funding', e)
       toast.error(getErrorMessage(e))
-      setBusy(false)
+      if (preset) onClose()
+      else setBusy(false)
     }
+  }
+
+  const handleConfirm = async (): Promise<void> => {
+    if (!walletId || password.length === 0 || busy || started || (!resuming && !sourceValidRef.current)) return
+    setBusy(true)
+    setPreError(null)
+    try {
+      if (!await API.verifyWalletPassword(walletId, password)) {
+        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+    } catch (e) {
+      console.error('Could not start asset lock funding', e)
+      toast.error(getErrorMessage(e))
+      setBusy(false)
+      return
+    }
+    await begin(password, false, resuming)
   }
 
   const requestClose = (): void => {
@@ -185,6 +214,7 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
   }
 
   const requestResume = (): void => {
+    setAuto(false)
     setPassword('')
     setPreError(null)
     setResumeRequested(true)
@@ -202,11 +232,8 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
   if (busy) confirmLabel = 'Starting…'
   else if (resuming) confirmLabel = 'Resume'
 
-  const to: TxSummaryEndpoint[] = []
-  if (toPlatformAddress) to.push({ value: toPlatformAddress, kind: kind === AssetLockFundingKind.Shielded ? TxEndpointKind.Shielded : TxEndpointKind.Address })
-  else if (texts.emptyTo) to.push({ value: texts.emptyTo, kind: TxEndpointKind.Label })
-
   const costs = resuming ? undefined : assetLockSummaryCosts(kind, props.amountDuffs, props.feeDuffs, props.feeCredits)
+  const currentPhase = state ? phaseIndex(state.phase) : 0
 
   return (
     <Modal
@@ -214,14 +241,15 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
       onClose={requestClose}
       title={modalTitle}
       size={ModalSize.Lg}
+      dismissible={!busy}
     >
-      {!started && (
+      {!started && !starting && (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary
             unit={"duffs"}
             amount={resuming ? resumedAssetLockAmount(kind, props.amountDuffs) : props.amountDuffs}
             from={from}
-            to={to}
+            to={assetLockEndpoints(kind, toPlatformAddress)}
             fees={costs?.fees}
             total={costs?.total}
             details={costs?.details}
@@ -250,32 +278,21 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
         </div>
       )}
 
-      {running && state && (
+      {(running || starting) && (
         <div className={"phase-fade-in"} key={"progress"}>
-          <div className={"mt-5 flex flex-col gap-4 p-[.875rem] rounded-[.9375rem] dash-block"}>
-            {phases.map((p, i) => {
-              const current = phaseIndex(state.phase)
-              const done = i < current
-              const active = i === current
-              const label = p.key === AssetLockFundingPhase.WaitingChainLock
-                ? ASSET_LOCK_LOCK_STEP_LABELS[assetLockLockStep(state.lockKind, active, lockFallback)]
-                : p.label
-              return (
-                <div key={p.key} className={"flex items-center gap-2"}>
-                  {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
-                  {!done && active && <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />}
-                  {!done && !active && <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
-                  <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{label}</Text>
-                </div>
-              )
-            })}
-          </div>
-          {state.txid && (
+          <PhaseProgressList
+            phases={phases.map((p, i) => p.key === AssetLockFundingPhase.WaitingChainLock
+              ? { ...p, label: ASSET_LOCK_LOCK_STEP_LABELS[assetLockLockStep(state?.lockKind ?? null, i === currentPhase, lockFallback)] }
+              : p)}
+            current={currentPhase}
+            className={"mt-5"}
+          />
+          {state?.txid && (
             <div className={"mt-3"}>
               <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
           )}
-          <ModalActions primary={{ label: 'Continue in background', onClick: onClose }} />
+          {running && <ModalActions primary={{ label: 'Continue in background', onClick: onClose }} />}
         </div>
       )}
 
@@ -310,7 +327,7 @@ export default function AssetLockFundingModal(props: AssetLockFundingModalProps)
             </div>
             <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{texts.doneHeading}</Text>
           </div>
-          <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
             {state.identityIdentifier ? (
               <div className={"flex justify-between items-center gap-4"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Identity</Text>

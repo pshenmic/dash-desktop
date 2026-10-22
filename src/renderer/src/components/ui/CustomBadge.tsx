@@ -1,27 +1,14 @@
-import Badge, { BadgeProps } from "../dash-ui-kit-enxtended/badge";
+import Badge from "../dash-ui-kit-enxtended/badge";
+import { CUSTOM_BADGE_VARIANTS } from "@renderer/constants/customBadge";
+import type { CustomBadgeProps } from "@renderer/types/CustomBadge";
 
-export default function CustomBadge(
-  {variant = 'default', text, size = 'xs', className = ''}:
-  {variant?: 'default' | 'error' | 'muted', text: string, size?: BadgeProps['size'], className?: string}): React.JSX.Element
+export default function CustomBadge({variant = 'default', text, icon, size = 'xs', className = ''}: CustomBadgeProps): React.JSX.Element
 {
-  const variantBadge: Pick<BadgeProps, 'color' | 'colorLight' | 'colorDark'> = variant === 'default' ?
-  {
-    colorLight: "blue",
-    colorDark: "turquoise",
-  }
-  : variant === 'error' ?
-  {
-    color: "red",
-  }
-  :
-  {
-    colorLight: "gray",
-    colorDark: "white",
-  }
+  const { className: variantClassName = '', ...variantBadge } = CUSTOM_BADGE_VARIANTS[variant]
 
   return (
-    <Badge {...variantBadge} variant={"flat"} size={size} className={`!text-[.625rem] leading-[120%] ${className}`}>
-      {text}
+    <Badge {...variantBadge} size={size} className={`gap-1 !text-[.625rem] leading-[120%] ${variantClassName} ${className}`}>
+      {icon}{text}
     </Badge>
   )
 }

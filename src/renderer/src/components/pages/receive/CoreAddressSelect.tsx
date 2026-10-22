@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { Text } from "@renderer/components/dash-ui-kit-enxtended";
-import { ChevronIcon, DashLogo } from "dash-ui-kit/react";
+import { DashLogo, Identifier } from "dash-ui-kit/react";
 import { WalletAddressDto } from "@renderer/api/types";
+import DropdownChevron from "@renderer/components/ui/DropdownChevron";
+import { ADDRESS_SELECT_IDENTIFIER_CLASS, ADDRESS_SELECT_MENU, ADDRESS_SELECT_OPTION, ADDRESS_SELECT_TRIGGER } from "@renderer/constants/addressSelect";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import { useFiat } from "@renderer/hooks/useFiat";
+import { formatApproxFiat } from "@renderer/utils/approxFiat";
 import { davToDashCompact } from "@renderer/utils/balance";
-
-const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
 
 interface CoreAddressSelectProps {
   addresses: WalletAddressDto[]
@@ -26,41 +27,37 @@ export default function CoreAddressSelect({addresses, selected, onSelect}: CoreA
       <button
         type={"button"}
         onClick={() => addresses.length > 0 && setOpen(v => !v)}
-        className={`w-max ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
+        className={ADDRESS_SELECT_TRIGGER}
       >
         {selected ? (
           <div className={"flex items-center gap-2.5"}>
             <DashLogo size={18} className={"shrink-0"} />
             <div className={"flex flex-col items-start"}>
-              <Text size={14} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap text-left"}>{selected.address}</Text>
+              <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{selected.address}</Identifier>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{davToDashCompact(selected.balance)} Dash</Text>
-              {rateReady && <Text size={10} weight={"medium"} color={"blue-mint"}>~ {formatFiat(selected.balance)}</Text>}
+              {rateReady && <Text size={10} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(formatFiat(selected.balance))}</Text>}
             </div>
           </div>
         ) : (
           <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No receiving addresses</Text>
         )}
-        <ChevronIcon size={12} className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <DropdownChevron open={open} />
       </button>
 
       {open && (
-        <div className={"absolute left-0 top-[calc(100%+.375rem)] z-20 w-max min-w-full p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
+        <div className={ADDRESS_SELECT_MENU}>
           {addresses.map(a => (
             <button
               key={a.address}
               type={"button"}
               onClick={() => { onSelect(a.address); setOpen(false) }}
-              className={`
-                w-full flex items-center gap-2.5 p-[.625rem] rounded-[.625rem] cursor-pointer text-left
-                hover:dash-block-accent-10 transition-colors duration-150
-                ${a.address === selected?.address ? 'dash-block-accent-5' : ''}
-              `}
+              className={`${ADDRESS_SELECT_OPTION} ${a.address === selected?.address ? 'dash-block-accent-5' : ''}`}
             >
               <DashLogo size={18} className={"shrink-0"} />
               <div className={"flex flex-col"}>
-                <Text size={14} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap text-left"}>{a.address}</Text>
+                <Identifier highlight={"both"} linesAdjustment={false} className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{a.address}</Identifier>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{davToDashCompact(a.balance)} Dash</Text>
-                {rateReady && <Text size={10} weight={"medium"} color={"blue-mint"}>~ {formatFiat(a.balance)}</Text>}
+                {rateReady && <Text size={10} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(formatFiat(a.balance))}</Text>}
               </div>
             </button>
           ))}

@@ -49,7 +49,7 @@ export function sendPreviewRow(entry: PreviewEntry): SendPreviewRow {
   }
 }
 
-export function mapSendTransactionPreview({preview, operation, from}: SendPreviewMappingParams): SendTransactionPreviewData {
+export function mapSendTransactionPreview({preview, operation, from, fromAddress = null}: SendPreviewMappingParams): SendTransactionPreviewData {
   const isCoreOperation = coinControlSourceKind(operation) === SourceKind.Core
   const assetLock = preview.outputs.some(output => output.role === 'credit')
   const recipients = preview.outputs.filter(output => output.role === 'recipient')
@@ -63,6 +63,7 @@ export function mapSendTransactionPreview({preview, operation, from}: SendPrevie
   return {
     title: operationInfo(operation).title,
     from,
+    fromAddress,
     isCoreOperation,
     amountCredits,
     totalDebitCredits: inputCredits - changeCredits,

@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, InfoCircleIcon, KeyIcon, SettingsIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { DashLogo } from 'dash-ui-kit/react'
+import { Button, InfoCircleIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import AssetLockFundingModal from '@renderer/components/modal/AssetLockFundingModal'
 import ShieldedSpendModal from '@renderer/components/modal/ShieldedSpendModal'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import TransferConfirmModal from '@renderer/components/modal/TransferConfirmModal'
 import AmountField from '@renderer/components/pages/transfer/AmountField'
 import AmountSlider from '@renderer/components/pages/transfer/AmountSlider'
+import CoinControlButton from '@renderer/components/pages/transfer/CoinControlButton'
 import CoinControlModal from '@renderer/components/pages/transfer/CoinControlModal'
 import { SourcePicker } from '@renderer/components/pages/transfer/EndpointPicker'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
+import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import DenominationChips from '@renderer/components/ui/DenominationChips'
 import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
 import PageHeader from '@renderer/components/ui/PageHeader'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
@@ -24,6 +28,7 @@ import {
   NEW_IDENTITY_LABEL,
 } from '@renderer/constants'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
+import { SURFACE_PANEL, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
@@ -48,7 +53,8 @@ import { useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShie
 import { refreshBalance, useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { amountErrorFor } from '@renderer/utils/amountValidation'
-import { creditsToDuffs, davToDash, dashToDuffs, duffsToCredits, formatCredits } from '@renderer/utils/balance'
+import { formatApproxFiat } from '@renderer/utils/approxFiat'
+import { creditsToDuffs, davToDash, dashToDuffs, duffsToCredits } from '@renderer/utils/balance'
 import {
   automaticCoinControl,
   buildCoinControlInventory,
@@ -414,7 +420,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 rounded-3xl dash-card-base p-8 text-center"}>
+        <div className={`mx-12 text-center ${SURFACE_PANEL}`}>
           <Text size={16} weight={"bold"} color={"brand"}>Select a wallet to register an identity.</Text>
         </div>
       </div>
@@ -426,7 +432,7 @@ export default function IdentityRegistration(): React.JSX.Element {
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
         <div className={"mx-12 flex justify-center"}>
-          <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
+          <Button type={"button"} size={"compact"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
         </div>
       </div>
     )
@@ -436,7 +442,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+        <div className={`mx-12 flex flex-col gap-5 ${SURFACE_PANEL}`}>
           <div className={"flex items-center gap-3"}>
             <span className={"flex size-10 items-center justify-center rounded-full bg-dash-orange/12 text-dash-orange"}>
               <InfoCircleIcon size={18} color={"currentColor"} />
@@ -462,7 +468,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+        <div className={`mx-12 flex flex-col gap-5 ${SURFACE_PANEL}`}>
           <div className={"flex items-center gap-3"}>
             <span className={"flex size-10 items-center justify-center rounded-full dash-block-accent-12 dash-text-primary"}>
               <KeyIcon size={18} color={"currentColor"} />
@@ -475,7 +481,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             </div>
           </div>
           {unfinishedFunding.amountDuffs != null && (
-            <div className={"flex items-center justify-between rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
+            <div className={`flex items-center justify-between ${SURFACE_SECTION}`}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount locked</Text>
               <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(unfinishedFunding.amountDuffs)} Dash</Text>
             </div>
@@ -548,6 +554,17 @@ export default function IdentityRegistration(): React.JSX.Element {
   const amountStep = (
     <>
       <SourcePicker
+        compact
+        trailingControl={fromKind === SourceKind.Shielded ? (
+          <DenominationChips
+            denominations={POOL_IDENTITY_DENOMINATIONS}
+            selected={amountCredits}
+            onSelect={denomination => setAmount(davToDash(creditsToDuffs(denomination)))}
+            className={"min-h-13 content-center"}
+          />
+        ) : (
+          <CoinControlButton summary={coinControlSummary} onClick={() => setCoinControlOpen(true)} />
+        )}
         kind={fromKind}
         onKindChange={(kind) => {
           setFromKind(kind)
@@ -570,49 +587,20 @@ export default function IdentityRegistration(): React.JSX.Element {
         onIdentityChange={() => {}}
         onRetryIdentities={() => {}}
       />
-      {fromKind !== SourceKind.Shielded && (
-        <button
-          type={"button"}
-          onClick={() => setCoinControlOpen(true)}
-          className={"w-full flex items-center justify-between gap-3 px-4 py-3 rounded-[.875rem] dash-block hover:dash-block-accent-10 transition-colors cursor-pointer"}
-        >
-          <span className={"flex items-center gap-2"}>
-            <SettingsIcon size={14} className={"dash-text-default"} />
-            <Text size={12} weight={"extrabold"} color={"brand"}>Coin control</Text>
-          </span>
-          <Text size={12} weight={"medium"} color={"blue-mint"} className={"text-right"}>{coinControlSummary}</Text>
-        </button>
-      )}
-      {fromKind === SourceKind.Shielded && (
-        <div className={"flex flex-wrap gap-2"}>
-          {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
-            <button
-              key={denomination.toString()}
-              type={"button"}
-              onClick={() => setAmount(davToDash(creditsToDuffs(denomination)))}
-              className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${amountCredits === denomination ? 'dash-bg-inverse' : 'dash-block-3'}`}
-            >
-              <Text size={12} weight={"extrabold"} color={amountCredits === denomination ? "blue-mint" : "brand"}>
-                {davToDash(creditsToDuffs(denomination))} Dash
-              </Text>
-            </button>
-          ))}
-        </div>
-      )}
       <AmountField
         value={amount}
         onChange={handleAmountChange}
         onMax={() => {
           if (maxDuffs !== null) setAmount(davToDash(maxDuffs))
         }}
-        unit={<Text size={14} weight={"extrabold"} color={"brand"}>Dash</Text>}
+        unit={<DashLogo size={20} />}
         disabled={fromKind === SourceKind.Shielded}
         caption={amountCaption && <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{amountCaption}</Text>}
       />
       {fromKind !== SourceKind.Shielded && maxDuffs !== null && (
         <AmountSlider percent={sliderPercent} onPercentChange={handlePercentChange} disabled={maxDuffs === 0n} />
       )}
-      <div className={"flex flex-col gap-2 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
+      <div className={`flex flex-col gap-2 ${SURFACE_SECTION}`}>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{sourceBalanceLabel}</Text>
           {sourceBalanceValue}
@@ -624,7 +612,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         {amountFiat && (
           <div className={"flex items-center justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Funding value</Text>
-            <Text size={12} weight={"medium"} color={"blue-mint"}>~ {amountFiat}</Text>
+            <Text size={12} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(amountFiat)}</Text>
           </div>
         )}
       </div>
@@ -669,7 +657,9 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
   if (fromKind !== SourceKind.Core && feeCredits !== null) {
     reviewFeeValue = (
-      <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
+      <Text size={12} weight={"medium"} color={"brand"}>
+        <CreditsAmount credits={feeCredits} exact showFiat={false} align={"end"} />
+      </Text>
     )
   }
   const fromEndpoint = sourceEndpoint(fromKind, appliedCoinControl, coinControlSummary)
@@ -679,7 +669,7 @@ export default function IdentityRegistration(): React.JSX.Element {
 
   const reviewStep = (
     <>
-      <div className={"flex flex-col gap-3 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
+      <div className={`flex flex-col gap-3 ${SURFACE_SECTION}`}>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
           <Text size={12} weight={"medium"} color={"brand"}>{reviewFrom}</Text>
@@ -695,13 +685,17 @@ export default function IdentityRegistration(): React.JSX.Element {
           {fromKind === SourceKind.Core ? (
             <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs)} Dash</Text>
           ) : (
-            <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits)} credits</Text>
+            <Text size={14} weight={"medium"} color={"brand"}>
+              <CreditsAmount credits={amountCredits} exact showFiat={false} align={"end"} />
+            </Text>
           )}
         </div>
         {fromKind === SourceKind.Core && (
           <div className={"flex items-center justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Identity is credited</Text>
-            <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits - (feeCredits ?? 0n))} credits</Text>
+            <Text size={14} weight={"medium"} color={"brand"}>
+              <CreditsAmount credits={amountCredits - (feeCredits ?? 0n)} exact showFiat={false} align={"end"} />
+            </Text>
           </div>
         )}
         <div className={"flex items-center justify-between gap-4"}>
@@ -714,7 +708,9 @@ export default function IdentityRegistration(): React.JSX.Element {
           {fromKind === SourceKind.Core ? (
             <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(totalDuffs)} Dash</Text>
           ) : (
-            <Text size={16} weight={"extrabold"} color={"brand"}>{formatCredits(amountCredits + (feeCredits ?? 0n))} credits</Text>
+            <Text size={16} weight={"extrabold"} color={"brand"}>
+              <CreditsAmount credits={amountCredits + (feeCredits ?? 0n)} exact showFiat={false} align={"end"} />
+            </Text>
           )}
         </div>
       </div>
@@ -731,16 +727,18 @@ export default function IdentityRegistration(): React.JSX.Element {
     <div className={"relative flex flex-col h-full pb-4"}>
       <div className={coinControlOpen ? 'hidden' : 'contents'}>
       {pageHeader}
-      <TransferWizard
-        key={walletId}
-        steps={[
-          { label: 'Funding', content: amountStep, canAdvance: amountReady && !coreSyncBlocked },
-          { label: 'Review', content: reviewStep },
-        ]}
-        onSubmit={openNewRegistration}
-        submitLabel={submitLabel}
-        submitDisabled={!amountReady || coreSyncBlocked || (fromKind === SourceKind.Shielded && !prover.ready)}
-      />
+      <div className={"flex flex-1 min-h-0 flex-col px-12 pb-8"}>
+        <TransferWizard
+          key={walletId}
+          steps={[
+            { label: 'Funding', content: amountStep, canAdvance: amountReady && !coreSyncBlocked },
+            { label: 'Confirm', content: reviewStep },
+          ]}
+          onSubmit={openNewRegistration}
+          submitLabel={submitLabel}
+          submitDisabled={!amountReady || coreSyncBlocked || (fromKind === SourceKind.Shielded && !prover.ready)}
+        />
+      </div>
       </div>
       <CoinControlModal
         isOpen={coinControlOpen}

@@ -2,8 +2,11 @@ import { ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtende
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
+import { DASH_UNIT } from '@renderer/constants/balance'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_LABELS, TX_SUMMARY_PENDING_VALUE, TX_SUMMARY_ROW_CLASS, TX_SUMMARY_VISIBLE_RECIPIENTS } from '@renderer/constants/txSummary'
 import { useFiat } from '@renderer/hooks/useFiat'
+import { formatApproxFiat } from '@renderer/utils/approxFiat'
 import { davToDash } from '@renderer/utils/balance'
 import { moreRecipientsLabel, splitVisibleRecipients, txAmountToDuffs } from '@renderer/utils/txSummary'
 import type { TxAmountProps, TxEndpointProps, TxLineProps, TxSummaryProps } from '@renderer/types/TxSummary'
@@ -16,7 +19,7 @@ function TxAmount({ amount, unit, hero = false }: TxAmountProps): React.JSX.Elem
   return (
     <span className={"whitespace-nowrap"}>
       <DashBigNumber>{davToDash(amount)}</DashBigNumber>
-      <span className={unitClassName}>{' Dash'}</span>
+      <span className={unitClassName}>{` ${DASH_UNIT}`}</span>
     </span>
   )
 }
@@ -76,7 +79,7 @@ export default function TxSummary({
   const fiat = rateReady && total != null ? format(txAmountToDuffs(total, unit)) : null
 
   return (
-    <div className={`flex flex-col gap-3 rounded-2xl p-4 dash-block-3 ${className}`}>
+    <div className={`flex flex-col gap-3 ${SURFACE_SECTION} ${className}`}>
       {amount !== undefined && (
         <div className={TX_SUMMARY_ROW_CLASS}>
           <Text size={14} weight={"medium"} color={"brand"} opacity={50}>{amountLabel}</Text>
@@ -114,7 +117,7 @@ export default function TxSummary({
               <Text size={16} weight={"extrabold"} color={"brand"} className={"text-right"}>
                 {total === null ? TX_SUMMARY_PENDING_VALUE : <TxAmount amount={total} unit={unit} />}
               </Text>
-              {fiat && <Text size={12} weight={"medium"} color={"brand"} opacity={50}>≈ {fiat}</Text>}
+              {fiat && <Text size={12} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(fiat)}</Text>}
             </div>
           </div>
         </>

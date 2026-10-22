@@ -18,6 +18,7 @@ export interface SendPreviewRequest {
   operation: TransferOperation
   params: PreviewParams
   from: string
+  fromAddress: string | null
 }
 
 export interface SendPreviewKeyParams {
@@ -54,6 +55,7 @@ export interface SendPreviewAmountProps {
 export interface SendTransactionPreviewData {
   title: string
   from: string
+  fromAddress: string | null
   isCoreOperation: boolean
   amountCredits: bigint
   totalDebitCredits: bigint
@@ -83,6 +85,7 @@ export interface SendPreviewMappingParams {
   preview: TransactionPreview
   operation: TransferOperation
   from: string
+  fromAddress?: string | null
 }
 
 export interface SendTransactionPreviewProps {

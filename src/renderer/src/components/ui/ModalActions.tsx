@@ -29,7 +29,7 @@ export default function ModalActions({ primary, secondary, tone = ModalActionTon
         size={"sm"}
         className={"flex-1 rounded-[.9375rem] gap-2"}
       >
-        {primary.loading && <Spinner size={16} />}
+        {primary.loading && <Spinner size={16} className={"text-current"} />}
         {primary.label}
       </Button>
     </div>

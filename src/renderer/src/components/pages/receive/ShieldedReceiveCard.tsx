@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'react-qr-code'
 import { useTheme } from 'dash-ui-kit/react'
-import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import CustomBadge from '@renderer/components/ui/CustomBadge'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
@@ -11,6 +13,7 @@ import { defaultReceiveShieldedAddress, receiveShieldedAddresses } from '@render
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
 import { addressFormCopy, INVALID_WALLET_PASSWORD_MESSAGE, receiveCardCopy } from '@renderer/constants'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
@@ -68,6 +71,11 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     }
   }
 
+  const handlePasswordChange = (value: string): void => {
+    setError(null)
+    setPassword(value)
+  }
+
   if (checking) {
     return <ListSkeleton rows={1} rowClassName="h-[2.5rem] rounded-[.875rem]" />
   }
@@ -89,7 +97,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     const receiveAddresses = receiveShieldedAddresses(addresses, balances)
     if (receiveAddresses.length === 0) {
       return (
-        <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
+        <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
           <div className={"flex items-center gap-2"}>
             <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
             <Text size={14} weight={"extrabold"} color={"brand"}>New shielded address</Text>
@@ -97,32 +105,23 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
             {receiveCardCopy.allShieldedFunded}
           </Text>
-          <Input
+          <PasswordField
             id={"shielded-new-address-password"}
-            type={"password"}
-            placeholder={"Wallet password"}
             value={password}
-            variant={"outlined"}
-            onChange={(e) => {
-              setError(null)
-              setPassword(e.target.value)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAddAddress()
-            }}
-            className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-            colorScheme={error ? 'error' : 'primary'}
+            onChange={handlePasswordChange}
+            onSubmit={handleAddAddress}
+            error={error}
             disabled={revealing}
+            autoFocus={false}
           />
-          {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
           <Button
             type={"button"}
             onClick={handleAddAddress}
             disabled={password.length === 0 || revealing}
             variant={"solid"}
             colorScheme={"primary"}
-            size={"sm"}
-            className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+            size={"compact"}
+            className={"self-start"}
           >
             {revealing ? receiveCardCopy.generating : 'Generate address'}
           </Button>
@@ -139,7 +138,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
       <>
         <div className={"flex w-min flex-col gap-4"}>
         <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
-        <div className={"flex w-full items-center gap-8 rounded-4xl dash-block p-6"}>
+        <div className={`flex w-full items-center gap-8 ${SURFACE_SECTION}`}>
           <QRCode
             value={selected}
             size={225}
@@ -151,13 +150,14 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
           <div className={"flex flex-1 flex-col"}>
             <div className={"flex flex-col gap-[.5rem]"}>
               <div className={"flex items-center gap-2"}>
-                <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   Shielded Address
                 </Text>
-                <div className={"flex items-center gap-1 px-2 py-0.5 rounded-[.5rem] dash-block-5"}>
-                  <ShieldSmallIcon size={12} className={"text-dash-brand dark:text-dash-mint"} />
-                  <Text size={10} weight={"medium"} color={"blue-mint"}>{receiveCardCopy.privateChip}</Text>
-                </div>
+                <CustomBadge
+                  variant={"accent"}
+                  text={receiveCardCopy.privateChip}
+                  icon={<ShieldSmallIcon size={12} className={"text-dash-brand dark:text-dash-mint"} />}
+                />
               </div>
               <div className={"flex items-center gap-[.625rem]"}>
                 <ShieldedAddressSelect
@@ -202,7 +202,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   }
 
   return (
-    <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
+    <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
       <div className={"flex items-center gap-2"}>
         <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
         <Text size={14} weight={"extrabold"} color={"brand"}>Shielded address</Text>
@@ -210,32 +210,23 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
         {receiveCardCopy.shieldedUnlockPrompt}
       </Text>
-      <Input
+      <PasswordField
         id={"shielded-receive-password"}
-        type={"password"}
-        placeholder={"Wallet password"}
         value={password}
-        variant={"outlined"}
-        onChange={(e) => {
-          setError(null)
-          setPassword(e.target.value)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleReveal()
-        }}
-        className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-        colorScheme={error ? 'error' : 'primary'}
+        onChange={handlePasswordChange}
+        onSubmit={handleReveal}
+        error={error}
         disabled={revealing}
+        autoFocus={false}
       />
-      {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
       <Button
         type={"button"}
         onClick={handleReveal}
         disabled={!walletId || password.length === 0 || revealing}
         variant={"solid"}
         colorScheme={"primary"}
-        size={"sm"}
-        className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+        size={"compact"}
+        className={"self-start"}
       >
         {revealing ? addressFormCopy.loading : receiveCardCopy.showAddress}
       </Button>

@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
-import { Text, ArrowIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { CoinControlListIcon, TransferChevronDownIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
 import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
+import PasswordField from "@renderer/components/ui/PasswordField";
+import RetryButton from "@renderer/components/ui/RetryButton";
+import TxSummary from "@renderer/components/ui/TxSummary";
 import ShieldedNotesAlert from "@renderer/components/ui/ShieldedNotesAlert";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
+import DashBigNumber from "@renderer/components/ui/DashBigNumber";
+import DenominationChips from "@renderer/components/ui/DenominationChips";
 import LayerBadge from "@renderer/components/ui/LayerBadge";
 import Checkbox from "@renderer/components/ui/Checkbox";
+import PageHeader from "@renderer/components/ui/PageHeader";
+import SegmentedControl from "@renderer/components/ui/SegmentedControl";
 import ProverPill from "@renderer/components/pages/shielded/ProverPill";
 import Spinner from "@renderer/components/ui/Spinner";
 import { toast } from "@renderer/components/ui/Toast";
@@ -33,6 +39,7 @@ import { isValidPlatformAddress } from "@renderer/utils/platformAddress";
 import { isLikelyShieldedAddress } from "@renderer/utils/shieldedAddress";
 import { amountErrorFor } from "@renderer/utils/amountValidation";
 import { getErrorMessage } from "@renderer/utils/error";
+import { formatApproxFiat } from "@renderer/utils/approxFiat";
 import { isUnfinishedAssetLockFunding } from "@renderer/utils/identityRegistration";
 import { getAdvancedSendRoute, getOrCreateSendDraft, resetCurrentSendRoute, saveSendDraft, setSendAdvanced } from "@renderer/utils/sendDraft";
 import { capRecipientAmounts, capSendAmount, orderPlatformRecipients, recipientAllocationBudget, recipientTotalDuffs, validateSendRecipients, withOutputFee } from "@renderer/utils/sendRecipients";
@@ -56,7 +63,6 @@ import {
   isLikelyIdentityId,
   isPoolIdentityDenomination,
   locksPlatformFeeOnTop,
-  takesPlatformFeeFromLock,
   POOL_IDENTITY_DENOMINATIONS,
 } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
@@ -66,6 +72,8 @@ import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
 import { ShieldedSpendPhase } from "@renderer/enums/ShieldedSpendPhase";
 import { AssetLockFundingPhase } from "@renderer/enums/AssetLockFundingPhase";
 import { AssetLockFundingKind } from "@renderer/enums/AssetLockFundingKind";
+import { SegmentedControlAppearance } from "@renderer/enums/SegmentedControlAppearance";
+import { SendMode } from "@renderer/enums/SendMode";
 import { API } from "@renderer/api";
 import { AssetLockFundingState, ShieldedSpendState } from "@renderer/api/types";
 import type { AdvancedSendRoute, SendDraft } from "@renderer/types/SendDraft";
@@ -73,19 +81,20 @@ import type { CoinControlSelection } from "@renderer/types/CoinControl";
 import type { SendPreviewRequest } from "@renderer/types/SendTransactionPreview";
 import { sendPreviewParams, sendPreviewRequestKey } from "@renderer/utils/sendTransactionPreview";
 import { COIN_CONTROL_INVALID_MESSAGE } from "@renderer/constants/coinControl";
-import {
-  TRANSFER_CARD_PATH,
-  TRANSFER_FROM_BORDER_PATH,
-  TRANSFER_PROTRUSION_BORDER_PATH,
-  TRANSFER_PROTRUSION_PATH,
-  TRANSFER_TO_BORDER_PATH,
-  TRANSFER_TO_MASK_STYLE,
-} from '@renderer/constants/transferCards';
+import { DASH_UNIT } from "@renderer/constants/balance";
+import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
+import { SEND_MODE_LABEL, SEND_MODE_OPTIONS } from "@renderer/constants/sendMode";
+import { CHIP_VALUE, SURFACE_SECTION } from "@renderer/constants/surfaces";
+import { TRANSFER_WIZARD_CTA_CLASS } from "@renderer/constants/transferWizard";
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
-import { sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
+import { INVALID_WALLET_PASSWORD_MESSAGE, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
 import { AUTOMATIC_PLATFORM_SELECTION, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
-import { TX_SUMMARY_LABELS } from "@renderer/constants/txSummary";
-import { destinationEndpoint, recipientEndpoints, sourceEndpoint } from "@renderer/utils/txSummaryEndpoints";
+import { SEND_INPUTS_CHANGED_MESSAGE } from "@renderer/constants/sendConfirmModal";
+import { POOL_IDENTITY_LABEL } from "@renderer/constants/sendSummary";
+import { SIMPLE_SEND_LABELS, SIMPLE_SEND_PASSWORD_ID } from "@renderer/constants/simpleSend";
+import { sourceEndpoint } from "@renderer/utils/txSummaryEndpoints";
+import { sendSummary } from "@renderer/utils/sendSummary";
+import { simpleSendSubmit } from "@renderer/utils/simpleSend";
 import AmountField from "./AmountField";
 import AmountSlider from "./AmountSlider";
 import SendRecipientsEditor from "./SendRecipientsEditor";
@@ -93,6 +102,8 @@ import ChangeAddressField from "./ChangeAddressField";
 import TransactionSummary from "./TransactionSummary";
 import SendTransactionPreview from "./SendTransactionPreview";
 import TransferWizard from "./TransferWizard";
+import TransferRouteCards from "./TransferRouteCards";
+import CoinControlButton from "./CoinControlButton";
 import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
 import CoinControlModal from "./CoinControlModal";
@@ -136,6 +147,11 @@ function WalletTransferHub(): React.JSX.Element {
   const [coinControlOpen, setCoinControlOpen] = useState(false)
   const [recipientDraft, setRecipientDraft] = useState<AdvancedSendRoute | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
+  const verifyingRef = useRef(false)
+  const signingSourceValidRef = useRef(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [review, setReview] = useState<SendPreviewRequest | null>(null)
   const previewSequence = useRef(0)
@@ -148,6 +164,10 @@ function WalletTransferHub(): React.JSX.Element {
   const [resumeOpen, setResumeOpen] = useState(false)
   const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
   const [dismissBusy, setDismissBusy] = useState(false)
+
+  useEffect(() => {
+    if (passwordError && !verifying) document.getElementById(SIMPLE_SEND_PASSWORD_ID)?.focus()
+  }, [passwordError, verifying])
 
   useEffect(() => {
     if (!walletId) return
@@ -500,10 +520,11 @@ function WalletTransferHub(): React.JSX.Element {
   const canSubmit = routeReady && amountReady && recipientsReady && feeSourceValid && quoteReady && changeAddressValid
   const canCustomizeChange = advanced && isCoreOperation && allocationReady && coinControlValid
     && coreMaxDuffs !== null && coreMaxDuffs > 0n && amountDuffs < coreMaxDuffs
-  const customChangeControl = canCustomizeChange ? <Checkbox
+  const customChangeControl = advanced && isCoreOperation ? <Checkbox
     appearance="subtle"
-    className="flex-row-reverse!"
-    checked={advancedRoute.customChangeEnabled ?? false}
+    className="flex-row-reverse! has-disabled:cursor-default has-disabled:opacity-50"
+    disabled={!canCustomizeChange}
+    checked={canCustomizeChange && (advancedRoute.customChangeEnabled ?? false)}
     onChange={customChangeEnabled => updateAdvancedRoute({customChangeEnabled})}
     label={<Text size={14} weight="medium" color="brand" opacity={50}>Custom Change Address</Text>}
   /> : null
@@ -552,7 +573,7 @@ function WalletTransferHub(): React.JSX.Element {
   const recipientAmount = usesRecipientEditor ? activeRecipients[0]?.amount ?? '' : amount
   const amountError = amountErrorFor({
     isCoreOperation,
-    amount: advancedMulti ? davToDash(amountDuffs) : recipientAmount,
+    amount: advancedMulti ? (amountDuffs > 0n ? davToDash(amountDuffs) : '') : recipientAmount,
     coreMaxDuffs,
     operation,
     amountDuffs,
@@ -572,7 +593,18 @@ function WalletTransferHub(): React.JSX.Element {
 
   const coinControlSummary = coinControlSelectionSummary(appliedCoinControl, selectedTotals)
 
+  const clearPassword = (): void => {
+    setPassword('')
+    setPasswordError(null)
+  }
+
+  const closeConfirm = (): void => {
+    setConfirmOpen(false)
+    clearPassword()
+  }
+
   const resetForm = (): void => {
+    clearPassword()
     setRecipientDraft(null)
     setPreviewOpen(false)
     setReview(null)
@@ -616,133 +648,90 @@ function WalletTransferHub(): React.JSX.Element {
     setAcked(false)
   }
   const changeSendMode = (mode: boolean): void => {
+    clearPassword()
     updateDraft(current => setSendAdvanced(current, mode))
     setWizardKey(key => key + 1)
   }
   let recipientControl: React.ReactNode
   if (usesRecipientEditor) {
     recipientControl = (
-      <button type="button" onClick={() => setRecipientDraft(savedAdvancedRoute)} className="w-full min-h-13 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl dash-block hover:bg-dash-brand/10 dark:hover:bg-dash-mint/10 transition-colors cursor-pointer">
-        <span className="flex items-center gap-3">
-          <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
-            <CoinControlListIcon className="dash-text-default" />
-          </span>
-          <Text size={14} weight="medium" color="brand">Recipients</Text>
-        </span>
-        <Text size={14} weight="medium" color="blue-mint">
+      <CoinControlButton
+        label={PAGE_HEADERS.recipients.title}
+        summary={<>
           <span className="opacity-[.48]">(</span>
           <strong className="font-bold">{activeRecipients.length}</strong>
           <span className="opacity-[.48]">/{recipientLimit})</span>
-        </Text>
-      </button>
+        </>}
+        onClick={() => setRecipientDraft(savedAdvancedRoute)}
+      />
     )
   } else if (coreRecipientInput) {
     recipientControl = <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={ownRecipients} ownOptionsLoading={ownRecipientsLoading} ownOptionsError={ownRecipientsError} onRetryOwnOptions={retryOwnRecipients} />
   }
   const routeStep = (
     <>
-      <div className="flex flex-col">
-        <div className="relative z-10 px-4 pt-5 pb-6.5">
-          <svg aria-hidden="true" className="absolute inset-0 size-full overflow-visible text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none">
-            <path fill="currentColor" d={TRANSFER_CARD_PATH} />
-          </svg>
-          <svg aria-hidden="true" className="absolute inset-x-0 top-full h-8 w-full text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 32" preserveAspectRatio="none">
-            <path fill="currentColor" d={TRANSFER_PROTRUSION_PATH} />
-          </svg>
-          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[calc(100%_+_2rem)] text-dash-primary-dark-blue dark:text-white opacity-[.08] [mask-image:linear-gradient(to_bottom,transparent,black_calc(100%_-_.5625rem))] [mask-clip:no-clip] [mask-repeat:repeat-x] pointer-events-none">
-            <svg className="absolute inset-x-0 top-0 h-[calc(100%_-_2rem)] w-full overflow-visible" viewBox="0 0 670 128" preserveAspectRatio="none" fill="none">
-              <path stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" d={TRANSFER_FROM_BORDER_PATH} />
-            </svg>
-            <svg className="absolute inset-x-0 bottom-0 h-8 w-full overflow-visible" viewBox="0 0 670 32" preserveAspectRatio="none" fill="none">
-              <path stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" d={TRANSFER_PROTRUSION_BORDER_PATH} />
-            </svg>
-          </div>
-          <span aria-hidden="true" className="absolute left-1/2 top-full flex size-6 -translate-x-1/2 -translate-y-[4px] flex-col items-center justify-center gap-[4px] dash-text-default pointer-events-none">
-            <TransferChevronDownIcon className="shrink-0 opacity-75" />
-            <TransferChevronDownIcon className="shrink-0" />
-          </span>
-          <div className="relative">
-            <SourcePicker
-              compact
-              trailingControl={operation != null && fromKind !== SourceKind.Identity ? (
-                <button
-                  type="button"
-                  onClick={() => setCoinControlOpen(true)}
-                  className="w-full min-h-13 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl dash-block hover:dash-block-accent-10 transition-colors cursor-pointer"
-                >
-                  <span className="flex items-center gap-3">
-                    <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
-                      <CoinControlListIcon className="dash-text-default" />
-                    </span>
-                    <Text size={14} weight="medium" color="brand">Coin Control</Text>
-                  </span>
-                  <Text size={12} weight="medium" color="blue-mint" className="text-right">{coinControlSummary}</Text>
-                </button>
-              ) : undefined}
-              kind={fromKind}
-              onKindChange={k => {
-                setFromKind(k)
-                setAcked(false)
-                if (k === SourceKind.Identity && identities.length === 0) reloadIdentities()
-              }}
-              platformAddresses={fundedAddresses}
-              selectedPlatformAddress={undefined}
-              onPlatformAddressChange={() => {}}
-              platformAutomaticLabel={AUTOMATIC_PLATFORM_SELECTION}
-              platformAddressesLoading={platformAddressesLoading}
-              platformAddressesError={platformAddressesError}
-              onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
-              showPlatformAddress={false}
-              identities={identities}
-              identitiesLoading={identitiesLoading}
-              identitiesError={identitiesError}
-              selectedIdentity={selectedIdentity}
-              onIdentityChange={setFromIdentity}
-              onRetryIdentities={reloadIdentities}
-            />
-            {coinControlSelectionError && <Text size={12} weight="medium" color="red" className="mt-2 block">{coinControlSelectionError}</Text>}
-          </div>
-        </div>
-        <div className="relative px-4 pt-6.5 pb-5">
-          <svg aria-hidden="true" className="absolute inset-0 size-full text-dash-primary-dark-blue/5 dark:text-white/5 pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none" style={TRANSFER_TO_MASK_STYLE}>
-            <path fill="currentColor" d={TRANSFER_CARD_PATH} />
-          </svg>
-          <svg aria-hidden="true" className="absolute inset-0 size-full text-dash-primary-dark-blue dark:text-white opacity-[.08] [mask-image:linear-gradient(to_bottom,transparent,black)] pointer-events-none" viewBox="0 0 670 128" preserveAspectRatio="none" fill="none">
-            <path stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" d={TRANSFER_TO_BORDER_PATH} />
-          </svg>
-          <div className="relative flex flex-col gap-2">
-            <DestinationPicker
-              compact
-              trailingControl={recipientControl}
-              kind={toKind}
-              kinds={destinationKinds}
-              onKindChange={changeDestinationKind}
-              value={coreRecipientInput ? trimmedTo : toValue}
-              onValueChange={setToValue}
-              placeholder={destinationPlaceholder}
-              error={usesRecipientEditor ? null : destinationError}
-              showValueInput={!advanced && !coreRecipientInput && operation != null}
-              ownOptions={!advanced ? ownRecipients : undefined}
-              ownOptionsLoading={!advanced && ownRecipientsLoading}
-              ownOptionsError={!advanced ? ownRecipientsError : null}
-              onRetryOwnOptions={retryOwnRecipients}
-            />
-            {coreRecipientInput && <>
-              {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
-            </>}
-            {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
-              {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
-                <Text size={12} weight="medium" color="brand" opacity={50}>
-                  {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.'
-                    : toKind === DestinationKind.Shielded && shieldedSync.phase !== ShieldedSyncPhase.Done
-                      ? 'Sync shielded notes to find unused addresses. You can enter a recipient address manually.'
-                      : 'No unused addresses of this type in your wallet. Enter a recipient address manually.'}
-                </Text>
-              )}
-            </>}
-          </div>
-        </div>
-      </div>
+      <TransferRouteCards
+        from={<>
+          <SourcePicker
+            compact
+            trailingControl={operation != null && fromKind !== SourceKind.Identity
+              ? <CoinControlButton summary={coinControlSummary} onClick={() => setCoinControlOpen(true)} />
+              : undefined}
+            kind={fromKind}
+            onKindChange={k => {
+              setFromKind(k)
+              setAcked(false)
+              if (k === SourceKind.Identity && identities.length === 0) reloadIdentities()
+            }}
+            platformAddresses={fundedAddresses}
+            selectedPlatformAddress={undefined}
+            onPlatformAddressChange={() => {}}
+            platformAutomaticLabel={AUTOMATIC_PLATFORM_SELECTION}
+            platformAddressesLoading={platformAddressesLoading}
+            platformAddressesError={platformAddressesError}
+            onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
+            showPlatformAddress={false}
+            identities={identities}
+            identitiesLoading={identitiesLoading}
+            identitiesError={identitiesError}
+            selectedIdentity={selectedIdentity}
+            onIdentityChange={setFromIdentity}
+            onRetryIdentities={reloadIdentities}
+          />
+          {coinControlSelectionError && <Text size={12} weight="medium" color="red" className="mt-2 block px-1">{coinControlSelectionError}</Text>}
+        </>}
+        to={<div className="flex flex-col gap-2">
+          <DestinationPicker
+            compact
+            trailingControl={recipientControl}
+            kind={toKind}
+            kinds={destinationKinds}
+            onKindChange={changeDestinationKind}
+            value={coreRecipientInput ? trimmedTo : toValue}
+            onValueChange={setToValue}
+            placeholder={destinationPlaceholder}
+            error={usesRecipientEditor ? null : destinationError}
+            showValueInput={!advanced && !coreRecipientInput && operation != null}
+            ownOptions={!advanced ? ownRecipients : undefined}
+            ownOptionsLoading={!advanced && ownRecipientsLoading}
+            ownOptionsError={!advanced ? ownRecipientsError : null}
+            onRetryOwnOptions={retryOwnRecipients}
+          />
+          {coreRecipientInput && <>
+            {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
+          </>}
+          {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
+            {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
+              <Text size={12} weight="medium" color="brand" opacity={50}>
+                {toKind === DestinationKind.Identity ? 'No identities in this wallet. Enter an identity ID manually.'
+                  : toKind === DestinationKind.Shielded && shieldedSync.phase !== ShieldedSyncPhase.Done
+                    ? 'Sync shielded notes to find unused addresses. You can enter a recipient address manually.'
+                    : 'No unused addresses of this type in your wallet. Enter a recipient address manually.'}
+              </Text>
+            )}
+          </>}
+        </div>}
+      />
 
       {fromKind === SourceKind.Shielded && (
         <ShieldedNotesAlert walletId={walletId} onSync={() => setNotesUnlockOpen(true)} syncing={notesSyncing} />
@@ -814,6 +803,7 @@ function WalletTransferHub(): React.JSX.Element {
             The receiving Core address and the amount will be publicly visible on-chain once withdrawn. This breaks the privacy of the withdrawn funds.
           </Text>
           <Checkbox
+            appearance={"subtle"}
             checked={acked}
             onChange={setAcked}
             label={<Text size={12} weight={"medium"} color={"brand"}>I understand the destination and amount will be public.</Text>}
@@ -838,12 +828,12 @@ function WalletTransferHub(): React.JSX.Element {
     sourceBalanceDisplay = <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Available: <CreditsAmount credits={availableCredits} /></Text>
   }
 
-  let totalSourceBalanceDisplay = sourceBalanceDisplay
-  if (isCoreOperation) {
-    totalSourceBalanceDisplay = <span>{davToDashCompact(balanceDuffs)}<span className="font-normal"> Dash</span></span>
-  } else if (availableCredits != null) {
-    totalSourceBalanceDisplay = <CreditsAmount credits={availableCredits} compact showFiat={false} />
-  }
+  let totalSourceBalanceDuffs: bigint | null = null
+  if (isCoreOperation) totalSourceBalanceDuffs = balanceDuffs
+  else if (availableCredits != null) totalSourceBalanceDuffs = creditsToDuffs(availableCredits)
+  const totalSourceBalanceDisplay = totalSourceBalanceDuffs == null ? sourceBalanceDisplay : (
+    <span><DashBigNumber>{davToDashCompact(totalSourceBalanceDuffs, 2)}</DashBigNumber><span className="font-normal"> {DASH_UNIT}</span></span>
+  )
 
   let feeDisplay = <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
   if (isCoreOperation) {
@@ -851,11 +841,11 @@ function WalletTransferHub(): React.JSX.Element {
   } else if (feeErr === null && feeCredits !== null) {
     feeDisplay = <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
   } else if (feeErr === null && feeLoading) {
-    feeDisplay = <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
+    feeDisplay = <Spinner size={14} />
   }
 
   const withdrawalNotice = (operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal) && (
-    <div className="mb-4 flex flex-col gap-1.5 rounded-2xl dash-block-3 p-3.5">
+    <div className={`${SURFACE_SECTION} mb-4 flex flex-col gap-[.375rem]`}>
       <Text size={14} weight="extrabold" color="brand">Cross-chain withdrawal</Text>
       <Text size={12} weight="medium" color="brand" opacity={50} className="leading-[130%]">
         The Dash payout arrives asynchronously after the withdrawal is processed.
@@ -866,20 +856,12 @@ function WalletTransferHub(): React.JSX.Element {
     <div>
       {withdrawalNotice}
       {operation === TransferOperation.IdentityCreateFromShielded && (
-        <div className={"mb-3 flex flex-wrap gap-2"}>
-          {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
-            <button
-              key={denomination.toString()}
-              type={"button"}
-              onClick={() => setAmount(davToDash(creditsToDuffs(denomination)))}
-              className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${amountCredits === denomination ? 'dash-bg-inverse' : 'dash-block-3'}`}
-            >
-              <Text size={12} weight={"extrabold"} color={amountCredits === denomination ? "blue-mint" : "brand"}>
-                {davToDash(creditsToDuffs(denomination))}<span className="font-normal"> Dash</span>
-              </Text>
-            </button>
-          ))}
-        </div>
+        <DenominationChips
+          denominations={POOL_IDENTITY_DENOMINATIONS}
+          selected={amountCredits}
+          onSelect={denomination => setAmount(davToDash(creditsToDuffs(denomination)))}
+          className={"mb-3"}
+        />
       )}
       <AmountField
         value={amount}
@@ -900,10 +882,10 @@ function WalletTransferHub(): React.JSX.Element {
           <Text size={12} weight={"medium"} color={"red"}>{amountError}</Text>
         </div>
       )}
-      {feeErr && <button type={'button'} onClick={retryFee} className={'dash-text-primary text-sm cursor-pointer'}>Retry fee estimate</button>}
+      {feeErr && <RetryButton onRetry={retryFee} label={SIMPLE_SEND_LABELS.retryFee} className={"mt-2 ml-1"} />}
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
         {sourceBalanceDisplay}
-        {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>≈ {amountFiat}</Text>}
+        {amountFiat && <Text size={12} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(amountFiat)}</Text>}
       </div>
       <div className={"mt-2 px-1 flex items-center justify-between gap-3"}>
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{isCoreOperation ? 'Network fee' : 'Reserved for fee'}</Text>
@@ -913,6 +895,7 @@ function WalletTransferHub(): React.JSX.Element {
   )
 
   let fromDisplay = 'Your shielded balance'
+  let fromAddress: string | null = null
   switch (fromKind) {
     case SourceKind.Core:
       fromDisplay = 'Dash Core (L1)'
@@ -920,6 +903,7 @@ function WalletTransferHub(): React.JSX.Element {
     case SourceKind.PlatformAddress:
       if (appliedCoinControl.kind === 'platformAddress') {
         fromDisplay = appliedCoinControl.address
+        fromAddress = appliedCoinControl.address
       } else if (appliedCoinControl.kind === 'platformInputs') {
         if (appliedCoinControl.inputs.length === 1) {
           fromDisplay = '1 Platform input'
@@ -932,6 +916,7 @@ function WalletTransferHub(): React.JSX.Element {
       break
     case SourceKind.Identity:
       fromDisplay = selectedIdentity?.identifier ?? ''
+      fromAddress = selectedIdentity?.identifier ?? null
       break
   }
 
@@ -950,10 +935,27 @@ function WalletTransferHub(): React.JSX.Element {
   const previewKey = sendPreviewRequestKey({walletId, network, operation, params: previewParams})
   const reviewCurrent = review?.key === previewKey && preview.data != null && !preview.loading && !preview.error
   const signingSourceValid = canSubmit && (!previewOpen || reviewCurrent)
+  signingSourceValidRef.current = signingSourceValid
   const confirmationPreview = previewOpen ? preview.data : null
   const confirmationFeeDuffs = confirmationPreview?.feeDuffs ?? feeDuffs
   const confirmationFeeCredits = confirmationPreview?.feeCredits ?? feeCredits
   const confirmationDebitCredits = confirmationPreview?.totalDebitCredits ?? totalDebitCredits
+  const summary = operation == null ? null : sendSummary({
+    operation,
+    from: fromEndpoint,
+    destination: toKind,
+    toDisplay,
+    coreRecipients: recipientsDuffs,
+    platformRecipients: displayRecipientsCredits,
+    feeOutputIndex: displayFeeOutputIndex,
+    amountDuffs,
+    amountCredits,
+    feeDuffs: confirmationFeeDuffs,
+    feeCredits: confirmationFeeCredits,
+    totalDebitCredits: confirmationDebitCredits,
+  })
+  const simpleSubmit = simpleSendSubmit({operation, sourceValid: signingSourceValid, password, verifying, prover})
+  const presetPassword = advanced || previewOpen ? undefined : password
 
   const closePreview = (): void => {
     setPreviewOpen(false)
@@ -970,6 +972,7 @@ function WalletTransferHub(): React.JSX.Element {
       operation,
       params: previewParams,
       from: fromDisplay,
+      fromAddress,
     })
   }
 
@@ -977,76 +980,47 @@ function WalletTransferHub(): React.JSX.Element {
     if (signingSourceValid) setConfirmOpen(true)
   }
 
-  const reviewTransaction = (): void => {
-    if (advanced) showPreview()
-    else signTransaction()
+  const submitSimpleSend = async (): Promise<void> => {
+    if (!walletId || !simpleSubmit.ready || verifyingRef.current) return
+    verifyingRef.current = true
+    setVerifying(true)
+    setPasswordError(null)
+    try {
+      if (!await API.verifyWalletPassword(walletId, password)) {
+        setPasswordError(INVALID_WALLET_PASSWORD_MESSAGE)
+        return
+      }
+      if (!signingSourceValidRef.current) {
+        toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+        return
+      }
+      setConfirmOpen(true)
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      verifyingRef.current = false
+      setVerifying(false)
+    }
   }
 
   const confirmStep = (
     <div className={"flex flex-col gap-3"}>
-      <div className={"dash-block rounded-[.875rem] p-4 flex flex-col gap-3"}>
-        <div className={"flex flex-col gap-1"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
-          <div className={"flex items-center gap-1.5"}>
-            {fromKind === SourceKind.Shielded && <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />}
-            <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all"}>{fromDisplay}</Text>
-          </div>
-        </div>
-        <div className={"flex flex-col gap-1"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
-          <div className={"flex items-center gap-1.5"}>
-            {toKind === DestinationKind.Shielded && <ShieldSmallIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />}
-            <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all"}>{toDisplay}</Text>
-          </div>
-        </div>
-      </div>
-      <div className={"dash-block rounded-[.875rem] p-4 flex flex-col gap-2.5"}>
-        <div className={"flex justify-between items-baseline gap-3"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount</Text>
-          <Text size={14} weight={"medium"} color={"brand"}>
-            {isCoreOperation ? `${davToDash(amountDuffs)} Dash` : <CreditsAmount credits={amountCredits} align={"end"} />}
-          </Text>
-        </div>
-        {isCoreOperation ? (
-          <>
-            <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Network fee</Text>
-              <Text size={14} weight={"medium"} color={"brand"}>{davToDash(totalFeeDuffs)} Dash</Text>
-            </div>
-            <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
-            <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs + totalFeeDuffs)}<span className="font-normal"> Dash</span></Text>
-            </div>
-            {operation !== null && takesPlatformFeeFromLock(operation) && feeCredits !== null && (
-              <div className={"flex justify-between items-baseline gap-3"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Identity is credited</Text>
-                <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={duffsToCredits(amountDuffs) - feeCredits} align={"end"} /></Text>
-              </div>
-            )}
-          </>
-        ) : feeCredits !== null && (
-          <>
-            <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Reserved for fee</Text>
-              <Text size={14} weight={"medium"} color={"brand"}><CreditsAmount credits={feeCredits} align={"end"} /></Text>
-            </div>
-            <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
-            <div className={"flex justify-between items-baseline gap-3"}>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Total</Text>
-              <Text size={16} weight={"extrabold"} color={"brand"}><CreditsAmount credits={amountCredits + feeCredits} align={"end"} /></Text>
-            </div>
-          </>
-        )}
-        {amountFiat && (
-          <div className={"flex justify-between items-baseline gap-3"}>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>≈ Fiat</Text>
-            <Text size={12} weight={"medium"} color={"blue-mint"}>{amountFiat}</Text>
-          </div>
-        )}
-      </div>
+      {summary && <TxSummary {...summary} />}
+      <button type="button" onClick={showPreview} disabled={!canSubmit} className="w-full rounded-xl px-4 py-3 dash-block text-sm font-medium dash-text-default opacity-70 cursor-pointer hover:opacity-100 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-white/40 disabled:opacity-50 disabled:cursor-default">{PAGE_HEADERS.sendPreview.title}</button>
+      <PasswordField
+        id={SIMPLE_SEND_PASSWORD_ID}
+        value={password}
+        onChange={value => {
+          setPasswordError(null)
+          setPassword(value)
+        }}
+        onSubmit={() => { void submitSimpleSend() }}
+        error={passwordError}
+      />
       {coreSourceGated && <P2pSyncAlert />}
-      <button type="button" onClick={showPreview} disabled={!canSubmit} className="w-full rounded-xl px-4 py-3 dash-block text-sm font-medium dash-text-default opacity-70 cursor-pointer hover:opacity-100 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-white/40 disabled:opacity-40 disabled:cursor-default">Transaction details</button>
+      {simpleSubmit.proverError && (
+        <Text size={12} weight={"medium"} color={"red"} className={"px-1 break-words"}>{simpleSubmit.proverError}</Text>
+      )}
     </div>
   )
 
@@ -1107,7 +1081,7 @@ function WalletTransferHub(): React.JSX.Element {
     || operation === TransferOperation.IdentityToAddress || operation === TransferOperation.IdentityToIdentity || operation === TransferOperation.IdentityCreate
 
   return (
-    <div className={"relative -mt-4 flex flex-col h-[calc(100dvh-8rem)] pb-4"} inert={confirmOpen || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
+    <div className={"relative flex flex-col h-[calc(100dvh-8rem)] pb-4"} inert={confirmOpen || verifying || notesUnlockOpen || resumeOpen || dismissConfirmOpen}>
       {previewOpen && review && <SendTransactionPreview
         data={preview.data}
         loading={preview.loading}
@@ -1119,109 +1093,92 @@ function WalletTransferHub(): React.JSX.Element {
         onSign={signTransaction}
       />}
       {recipientDraft != null && !coinControlOpen && !previewOpen && (
-        <section className="px-6 lg:px-12!" aria-label="Recipients">
-          <div className="flex items-center gap-4">
-            <button type="button" aria-label="Back to Send" onClick={() => setRecipientDraft(null)} className="size-8 rounded-lg dash-block flex items-center justify-center cursor-pointer hover:opacity-70">
-              <ArrowIcon size={16} color="currentColor" className="dash-text-default" />
-            </button>
-            <Text size={24} weight="medium" color="brand">Recipients</Text>
-          </div>
-          <Text size={12} weight="medium" color="brand" opacity={50} className="mt-2 block">Choose amounts and addresses that will receive transferred funds.</Text>
-          <div className="mt-7">
-            <SendRecipientsEditor
-              recipients={activeRecipients}
-              errors={editorRecipientErrors}
-              limit={recipientLimit}
-              destination={toKind}
-              budgetDuffs={allocationBudgetDuffs}
-              feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
-              feeCredits={feeCredits}
-              budgetIsEstimate={!allocationReady}
-              amountDenominations={operation === TransferOperation.IdentityCreateFromShielded ? POOL_IDENTITY_DENOMINATIONS : undefined}
-              headerAction={customChangeControl}
-              beforeRecipients={withdrawalNotice || customChangeField ? <>{withdrawalNotice}{customChangeField}</> : undefined}
-              onChange={recipients => updateAdvancedRoute({recipients})}
-              footer={<div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => updateAdvancedRoute({
-                  recipients: [{id: activeRecipients[0]?.id ?? 'first', address: '', amount: ''}],
-                  feeRecipientId: subtractFee ? activeRecipients[0]?.id ?? 'first' : null,
-                  customChangeEnabled: false,
-                  changeAddress: undefined,
-                })} className="min-h-14.5 rounded-2xl dash-block-accent-15 text-base dash-text-primary cursor-pointer hover:dash-block-accent-25">Reset</button>
-                <button type="button" onClick={applyRecipients} className="min-h-14.5 rounded-2xl bg-dash-brand dark:bg-dash-mint text-white dark:text-dash-primary-dark-blue text-base cursor-pointer hover:opacity-90">Apply</button>
-              </div>}
-            />
-          </div>
+        <section className="px-12" aria-label={PAGE_HEADERS.recipients.title}>
+          <PageHeader
+            title={PAGE_HEADERS.recipients.title}
+            subtitle={PAGE_HEADERS.recipients.subtitle}
+            onBack={() => setRecipientDraft(null)}
+            backLabel={PAGE_HEADERS.recipients.back}
+          />
+          <SendRecipientsEditor
+            recipients={activeRecipients}
+            errors={editorRecipientErrors}
+            limit={recipientLimit}
+            destination={toKind}
+            budgetDuffs={allocationBudgetDuffs}
+            feeRecipientId={subtractFee ? advancedRoute.feeRecipientId : null}
+            feeCredits={feeCredits}
+            budgetIsEstimate={!allocationReady}
+            amountDenominations={operation === TransferOperation.IdentityCreateFromShielded ? POOL_IDENTITY_DENOMINATIONS : undefined}
+            headerAction={customChangeControl}
+            beforeRecipients={withdrawalNotice || customChangeField ? <>{withdrawalNotice}{customChangeField}</> : undefined}
+            onChange={recipients => updateAdvancedRoute({recipients})}
+            footer={<div className="flex gap-3">
+              <Button type="button" variant="solid" colorScheme="lightBlue-mint" size="md" className={TRANSFER_WIZARD_CTA_CLASS} onClick={() => updateAdvancedRoute({
+                recipients: [{id: activeRecipients[0]?.id ?? 'first', address: '', amount: ''}],
+                feeRecipientId: subtractFee ? activeRecipients[0]?.id ?? 'first' : null,
+                customChangeEnabled: false,
+                changeAddress: undefined,
+              })}>Reset</Button>
+              <Button type="button" variant="solid" colorScheme="primary" size="md" className={TRANSFER_WIZARD_CTA_CLASS} onClick={applyRecipients}>Apply</Button>
+            </div>}
+          />
         </section>
       )}
-      <div className={previewOpen || coinControlOpen || recipientDraft != null ? 'hidden' : `flex flex-1 min-h-0 flex-col overflow-y-auto px-6 lg:px-12! pt-2 ${advanced ? '' : 'pb-8'}`}>
-        <div className="flex items-start justify-between gap-4">
-          <div className={"flex flex-col gap-3"}>
-            <Text size={32} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Send</Text>
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%] max-w-152.5"}>
-              Move funds between your Dash Core, Platform addresses, identities and the shielded pool. Pick where the funds come from and where they go.
-            </Text>
-          </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex gap-1 p-1 rounded-full" aria-label="Send mode">
-              {[false, true].map(mode => (
-                <button
-                  key={String(mode)}
-                  type="button"
-                  aria-pressed={advanced === mode}
-                  onClick={() => changeSendMode(mode)}
-                  className={`px-4 py-2 rounded-full text-xs cursor-pointer ${advanced === mode ? 'dash-block-5 dash-text-default' : 'dash-text-default opacity-50'}`}
-                >
-                  {mode ? 'Advanced' : 'Simple'}
-                </button>
-              ))}
-            </div>
-            {shieldedInvolved && <ProverPill status={prover} />}
-          </div>
-        </div>
+      <div className={previewOpen || coinControlOpen || recipientDraft != null ? 'hidden' : `flex flex-1 min-h-0 flex-col overflow-y-auto px-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${advanced ? '' : 'pb-8'}`}>
+        <PageHeader
+          title={PAGE_HEADERS.send.title}
+          subtitle={PAGE_HEADERS.send.subtitle}
+          actions={<SegmentedControl
+            appearance={SegmentedControlAppearance.Pill}
+            ariaLabel={SEND_MODE_LABEL}
+            options={SEND_MODE_OPTIONS}
+            value={advanced ? SendMode.Advanced : SendMode.Simple}
+            onChange={mode => changeSendMode(mode === SendMode.Advanced)}
+          />}
+          actionsFooter={shieldedInvolved && <ProverPill status={prover} />}
+        />
 
         {resumableFunding && (
-          <div className={"mt-4 flex items-center justify-between gap-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={`${SURFACE_SECTION} mb-7 flex items-center justify-between gap-4`}>
             <div className={"flex flex-col gap-1 min-w-0"}>
               <Text size={14} weight={"extrabold"} color={"brand"}>
                 {UNFINISHED_FUNDING_LABELS[resumableFunding.kind]}
               </Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>
-                {resumableFunding.amountDuffs ?? ''} duffs → {resumableFunding.kind === AssetLockFundingKind.Identity ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
+                {resumableFunding.amountDuffs != null && `${davToDash(resumableFunding.amountDuffs)} ${DASH_UNIT} `}→ {resumableFunding.kind === AssetLockFundingKind.Identity ? 'new identity' : (resumableFunding.toPlatformAddress ?? '')}
               </Text>
             </div>
             <div className={"shrink-0 flex items-center gap-2"}>
               {resumableFunding.phase === AssetLockFundingPhase.Resumable && (
-                <button
+                <Button
                   type={"button"}
-                  onClick={() => {
-                    setDismissConfirmOpen(true)
-                  }}
+                  variant={"outline"}
+                  colorScheme={"red"}
+                  size={"compact"}
+                  onClick={() => setDismissConfirmOpen(true)}
                   disabled={dismissBusy}
-                  className={"px-3 py-2 rounded-[.75rem] border border-red-300 dark:border-red-700 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-default"}
+                  className={"gap-1.5"}
                 >
-                  <span className={"flex items-center gap-1.5"}>
-                    {dismissBusy && <Spinner size={12} className={"text-red-700 dark:text-red-400"} />}
-                    <Text size={12} weight={"extrabold"} color={"red"}>{dismissBusy ? 'Dismissing…' : 'Dismiss'}</Text>
-                  </span>
-                </button>
+                  {dismissBusy && <Spinner size={12} className={"text-red-700 dark:text-red-400"} />}
+                  {dismissBusy ? 'Dismissing…' : 'Dismiss'}
+                </Button>
               )}
-              <button
+              <Button
                 type={"button"}
+                colorScheme={"primary"}
+                size={"compact"}
                 onClick={() => setResumeOpen(true)}
                 disabled={dismissBusy}
-                className={"px-4 py-2 rounded-[.75rem] dash-bg-inverse cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-default"}
               >
-                <Text size={12} weight={"extrabold"} color={"blue-mint"}>
-                  {resumableFunding.phase === AssetLockFundingPhase.Resumable ? 'Resume' : 'View progress'}
-                </Text>
-              </button>
+                {resumableFunding.phase === AssetLockFundingPhase.Resumable ? 'Resume' : 'View progress'}
+              </Button>
             </div>
           </div>
         )}
 
         {advanced ? (
-          <div className="mt-10 flex min-w-0 flex-col gap-10 pb-6">
+          <div className="mt-4 flex min-w-0 flex-col gap-10 pb-6">
             <div className="flex flex-col gap-5 min-w-0">
               <div className="flex flex-col gap-4">{routeStep}</div>
             </div>
@@ -1238,7 +1195,7 @@ function WalletTransferHub(): React.JSX.Element {
               onRouteChange={updateAdvancedRoute}
               onCoinControl={() => setCoinControlOpen(true)}
               onRetryFee={retryFee}
-              onReview={reviewTransaction}
+              onReview={showPreview}
             >
               <LayerBadge layer={fromKind === SourceKind.Core ? 'L1' : 'L2'} />
               <div className="mt-2 flex items-end justify-between gap-2">
@@ -1246,23 +1203,23 @@ function WalletTransferHub(): React.JSX.Element {
                   <Text size={12} weight="medium" color="brand" opacity={50}>Balance:</Text>
                   {totalSourceBalanceDisplay}
                 </div>
-                {rateReady && (isCoreOperation || availableCredits != null) && <span className="shrink-0 rounded-md dash-block-accent-10 px-2 py-1 text-[.625rem] dash-text-primary">~ {formatFiat(isCoreOperation ? balanceDuffs : creditsToDuffs(availableCredits!))}</span>}
+                {rateReady && totalSourceBalanceDuffs != null && <span className={`shrink-0 ${CHIP_VALUE} dash-text-primary`}>{formatApproxFiat(formatFiat(totalSourceBalanceDuffs))}</span>}
               </div>
             </TransactionSummary>
           </div>
         ) : <>
-          <div className="mt-7 flex flex-1 flex-col min-h-0">
+          <div className="flex flex-1 flex-col min-h-0">
             <TransferWizard
-              sendPresentation
               key={wizardKey}
               steps={[
                 { label: 'From & To', content: routeStep, canAdvance: routeReady },
                 { label: 'Amount', content: amountStep, canAdvance: canSubmit },
                 { label: 'Confirm', content: confirmStep },
               ]}
-              onSubmit={reviewTransaction}
-              submitLabel="Send"
-              submitDisabled={!canSubmit}
+              onSubmit={() => { void submitSimpleSend() }}
+              submitLabel={simpleSubmit.label}
+              submitDisabled={!simpleSubmit.ready}
+              onStepChange={clearPassword}
             />
           </div>
         </>}
@@ -1298,7 +1255,7 @@ function WalletTransferHub(): React.JSX.Element {
       {operation === TransferOperation.CoreSend && (
         <SendConfirmModal
           isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
+          onClose={closeConfirm}
           walletId={walletId}
           network={network}
           recipients={recipientsDuffs}
@@ -1308,6 +1265,7 @@ function WalletTransferHub(): React.JSX.Element {
           source={coreSpendSource}
           changeTo={changeTo}
           sourceValid={signingSourceValid}
+          presetPassword={presetPassword}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1321,7 +1279,7 @@ function WalletTransferHub(): React.JSX.Element {
         <ShieldConfirmModal
           advanced={advanced}
           isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
+          onClose={closeConfirm}
           walletId={walletId}
           source={platformSource}
           from={fromEndpoint}
@@ -1331,6 +1289,7 @@ function WalletTransferHub(): React.JSX.Element {
           feeCredits={confirmationFeeCredits}
           totalCredits={confirmationFeeCredits === null ? null : confirmationDebitCredits}
           proverReady={prover.ready}
+          presetPassword={presetPassword}
           onSuccess={resetForm}
         />
       )}
@@ -1339,18 +1298,19 @@ function WalletTransferHub(): React.JSX.Element {
         <ShieldedSpendModal
           advanced={advanced}
           isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
+          onClose={closeConfirm}
           walletId={walletId}
           title={info.title}
           kind={info.spendKind}
           from={fromEndpoint}
-          toValue={operation === TransferOperation.IdentityCreateFromShielded ? 'New Platform identity with 6 keys' : trimmedTo}
+          toValue={operation === TransferOperation.IdentityCreateFromShielded ? POOL_IDENTITY_LABEL : trimmedTo}
           recipients={operation === TransferOperation.ShieldedTransfer ? recipientsCredits : undefined}
           amountCredits={amountCredits}
           feeCredits={confirmationFeeCredits}
           proverReady={prover.ready}
           start={startShieldedSpend}
           sourceValid={signingSourceValid}
+          presetPassword={presetPassword}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.ShieldedWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />
@@ -1360,7 +1320,7 @@ function WalletTransferHub(): React.JSX.Element {
         <AssetLockFundingModal
           advanced={advanced}
           isOpen={confirmOpen}
-          onClose={() => { setConfirmOpen(false); setFundingRefresh(n => n + 1) }}
+          onClose={() => { closeConfirm(); setFundingRefresh(n => n + 1) }}
           walletId={walletId}
           toPlatformAddress={operation === TransferOperation.IdentityRegister ? '' : trimmedTo}
           amountDuffs={amountDuffs}
@@ -1371,6 +1331,7 @@ function WalletTransferHub(): React.JSX.Element {
           kind={OPERATION_FUNDING_KINDS[operation] ?? AssetLockFundingKind.Address}
           source={coreSpendSource}
           sourceValid={signingSourceValid}
+          presetPassword={presetPassword}
           onSuccess={() => {
             resetForm()
             if (walletId) {
@@ -1403,28 +1364,20 @@ function WalletTransferHub(): React.JSX.Element {
         onConfirm={dismissFunding}
       />
 
-      {isPlatformModalOperation && (
+      {isPlatformModalOperation && summary != null && (
         <TransferConfirmModal
           advanced={advanced}
           isOpen={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
+          onClose={closeConfirm}
           title={info?.title ?? 'Confirm transfer'}
           successTitle={operation === TransferOperation.IdentityCreate ? 'Identity created' : 'Credits sent'}
           recipients={operation === TransferOperation.AddressFundsTransfer ? displayRecipientsCredits : undefined}
           feeOutputIndex={displayFeeOutputIndex}
           feeCredits={confirmationFeeCredits}
-          summary={{
-            unit: 'credits',
-            amount: amountCredits,
-            from: fromEndpoint,
-            to: operation === TransferOperation.AddressFundsTransfer
-              ? recipientEndpoints(displayRecipientsCredits, displayFeeOutputIndex)
-              : [destinationEndpoint(toKind, toDisplay)],
-            fees: [{label: TX_SUMMARY_LABELS.reservedFee, amount: confirmationFeeCredits, unit: 'credits'}],
-            total: confirmationFeeCredits === null ? null : confirmationDebitCredits,
-          }}
+          summary={summary}
           run={runPlatformOperation}
           sourceValid={signingSourceValid}
+          presetPassword={presetPassword}
           onSuccess={resetForm}
           successNote={operation === TransferOperation.AddressWithdrawal || operation === TransferOperation.IdentityWithdrawal ? WITHDRAWAL_SUCCESS_NOTE : undefined}
         />

@@ -1,42 +1,31 @@
-import { Avatar, Identifier } from "dash-ui-kit/react";
+import { Avatar } from "dash-ui-kit/react";
 import { Identity } from "./Page";
-import { Text, ExternalLinkIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import AmountSummary from "@renderer/components/ui/AmountSummary";
-import CopyButton from "@renderer/components/ui/CopyButton";
+import { Text } from "@renderer/components/dash-ui-kit-enxtended";
+import AddressRow from "@renderer/components/ui/AddressRow";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { useAuth } from "@renderer/contexts/AuthContext";
-import { identityUrl, openExternal } from "@renderer/utils/explorer";
+import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility";
+import { identityUrl } from "@renderer/utils/explorer";
+import { creditsToDuffs } from "@renderer/utils/balance";
 
 export default function IdentityCard({identity}: {identity: Identity}): React.JSX.Element {
   const { status } = useAuth()
+  const { isBalanceVisible } = useBalanceVisibility()
   const network = status?.network ?? null
 
   return (
-    <div className={"flex items-center w-full dash-block rounded-[.875rem] px-[.9375rem] py-[.625rem]"}>
-      <div className={"flex items-center justify-center size-8.5 rounded-full dash-subtle shrink-0"}>
-        <Avatar sizes={"14"} username={identity.walletAddress}/>
-      </div>
-      <div className={"flex flex-col ml-[.5rem]"}>
-        <div className={"flex items-center gap-[.3125rem]"}>
-          <Identifier highlight={"default"} className={"font-mono text-[.75rem]!"}>
-            {identity.walletAddress}
-          </Identifier>
-          <CopyButton text={identity.walletAddress} />
-          {network && (
-            <button
-              onClick={() => openExternal(identityUrl(identity.walletAddress, network))}
-              title={"Open in explorer"}
-              className={"cursor-pointer hover:opacity-60"}
-            >
-              <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-70"} />
-            </button>
-          )}
+    <AddressRow
+      address={identity.walletAddress}
+      leading={
+        <div className={"flex items-center justify-center size-8.5 rounded-full dash-subtle shrink-0"}>
+          <Avatar sizes={"14"} username={identity.walletAddress}/>
         </div>
-        {identity.name && <Text size={10} weight={"medium"} color={"default"} opacity={50}>Username: <span className={"font-bold"}>{identity.name}</span></Text>}
-      </div>
-      <AmountSummary total={<CreditsAmount credits={identity.balance.total} compact unit={identity.balance.currency} align={"end"} amountClassName={"gap-[.125rem]!"} unitClassName={"font-medium"} />}
-        currency={""}
-      />
-    </div>
+      }
+      meta={identity.name && <Text size={10} weight={"medium"} color={"brand"} opacity={50}>Username: <span className={"font-bold"}>{identity.name}</span></Text>}
+      amount={<CreditsAmount credits={identity.balance.total} compact unit={identity.balance.currency} showFiat={false} align={"end"} amountClassName={"font-bold"} />}
+      fiatDuffs={creditsToDuffs(identity.balance.total)}
+      explorerUrl={network ? identityUrl(identity.walletAddress, network) : undefined}
+      hidden={!isBalanceVisible}
+    />
   )
 }

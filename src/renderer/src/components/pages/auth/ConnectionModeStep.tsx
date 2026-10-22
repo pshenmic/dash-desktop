@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, CheckIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import Checkbox from '@renderer/components/ui/Checkbox'
+import { SettingsRow, SwitchControl } from '@renderer/components/pages/connectionSettings/SettingsControls'
 import Spinner from '@renderer/components/ui/Spinner'
 import { authTexts, WALLET_CREATE_SLOW_NOTICE_MS } from '@renderer/constants'
 import {
@@ -49,8 +49,8 @@ export default function ConnectionModeStep({
               disabled={loading}
               onClick={() => onModeChange(connectionMode)}
               className={`
-                relative flex cursor-pointer flex-col items-start rounded-[1.25rem] border p-5 text-left transition-colors
-                disabled:cursor-wait disabled:opacity-60
+                relative flex cursor-pointer flex-col items-start rounded-[.9375rem] border p-5 text-left transition-colors
+                disabled:cursor-wait disabled:opacity-50
                 ${selected
                   ? 'border-dash-brand bg-dash-brand/6 dark:border-dash-mint dark:bg-dash-mint/6'
                   : 'border-dash-primary-dark-blue/20 dash-block hover:border-dash-brand/50 dark:border-white/20 dark:hover:border-dash-mint/50'}
@@ -76,7 +76,7 @@ export default function ConnectionModeStep({
                   {selected && <CheckIcon size={14} color="currentColor" className="[&_circle]:hidden" />}
                 </span>
               </div>
-              <Text size={14} weight="medium" color="brand" opacity={60} className="mt-4 leading-[150%]">
+              <Text size={14} weight="medium" color="brand" opacity={50} className="mt-4 leading-[150%]">
                 {details.description}
               </Text>
             </button>
@@ -85,17 +85,13 @@ export default function ConnectionModeStep({
       </div>
 
       {mode === 'rpc' && (
-        <div className="rounded-[1.25rem] dash-block px-5 py-4">
-          <Checkbox
+        <SettingsRow label={texts.backgroundSyncTitle}>
+          <SwitchControl
             checked={backgroundSyncEnabled}
+            label={texts.backgroundSyncTitle}
             onChange={onBackgroundSyncChange}
-            label={(
-              <Text size={14} weight="bold" color="brand">
-                {texts.backgroundSyncTitle}
-              </Text>
-            )}
           />
-        </div>
+        </SettingsRow>
       )}
 
       <Button

@@ -14,5 +14,6 @@ export interface ShieldConfirmModalProps {
   totalCredits: bigint | null
   proverReady: boolean
   sourceValid?: boolean
+  presetPassword?: string
   onSuccess: () => void
 }

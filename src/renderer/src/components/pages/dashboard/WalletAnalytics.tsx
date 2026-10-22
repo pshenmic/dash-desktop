@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
-import { ANALYTICS_PERIODS, DEFAULT_ANALYTICS_PERIOD } from '@renderer/constants/dashboardAnalytics'
+import SegmentedControl from '@renderer/components/ui/SegmentedControl'
+import { DEFAULT_ANALYTICS_PERIOD } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import type { AnalyticsPeriod, DashboardAnalyticsProps } from '@renderer/types/DashboardAnalytics'
+import { analyticsPeriodFromKey, analyticsPeriodKey, analyticsPeriodOptions } from '@renderer/utils/analyticsPeriod'
 import { activityDayKey, buildDashboardAnalytics, chartDate } from '@renderer/utils/dashboardAnalytics'
 import CoreBalanceChart from './CoreBalanceChart'
 import EvoTypesChart from './EvoTypesChart'
@@ -30,9 +32,12 @@ export default function WalletAnalytics({ core, platform, platformFailed, hidden
               </span>
             </Tooltip>
           )}
-          <div className="flex gap-0.5 rounded-[10px] border border-(--chart-grid) p-[3px]" role="group" aria-label="Analytics period">
-            {ANALYTICS_PERIODS.map(value => <button key={value} type="button" className="cursor-pointer rounded-[7px] px-2.5 py-[5px] text-[11px] font-semibold text-(--chart-muted) hover:bg-(--chart-grid) hover:text-(--chart-text) aria-pressed:bg-(--chart-core)/13 aria-pressed:text-(--chart-core) focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core)" aria-pressed={period === value} onClick={() => setPeriod(value)}>{value === 'all' ? 'All time' : `${value} days`}</button>)}
-          </div>
+          <SegmentedControl
+            options={analyticsPeriodOptions()}
+            value={analyticsPeriodKey(period)}
+            onChange={key => setPeriod(analyticsPeriodFromKey(key))}
+            ariaLabel="Analytics period"
+          />
         </div>
       </header>
       <div className="flex min-w-0 flex-col gap-3">

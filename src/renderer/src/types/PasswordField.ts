@@ -6,5 +6,6 @@ export interface PasswordFieldProps {
   error?: string | null
   label?: string
   disabled?: boolean
+  autoFocus?: boolean
   className?: string
 }

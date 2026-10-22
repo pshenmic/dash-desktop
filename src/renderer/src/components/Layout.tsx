@@ -104,7 +104,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
         </div>
       </header>
 
-      <main className={`flex-1 mt-12 ${showSyncUI && status?.walletSync.phase !== 'synced' ? 'pb-28' : ''}`}>
+      <main className={`flex-1 mt-8 ${showSyncUI && status?.walletSync.phase !== 'synced' ? 'pb-28' : ''}`}>
         <P2pReadyNotice />
         <DataRefreshNotice />
         {children}

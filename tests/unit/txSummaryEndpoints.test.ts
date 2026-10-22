@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  assetLockEndpoints,
   coreRecipientEndpoints,
   destinationEndpoint,
   recipientEndpoints,
@@ -7,6 +8,8 @@ import {
   sourceEndpoint,
 } from '../../src/renderer/src/utils/txSummaryEndpoints'
 import { AUTOMATIC_SOURCE_LABELS } from '../../src/renderer/src/constants/sendPages'
+import { NEW_IDENTITY_LABEL } from '../../src/renderer/src/constants/identityRegistration'
+import { AssetLockFundingKind } from '../../src/renderer/src/enums/AssetLockFundingKind'
 import { DestinationKind } from '../../src/renderer/src/enums/DestinationKind'
 import { ShieldedSpendKind } from '../../src/renderer/src/enums/ShieldedSpendKind'
 import { SourceKind } from '../../src/renderer/src/enums/SourceKind'
@@ -116,6 +119,30 @@ describe('shieldedSpendEndpoints', () => {
   it('shows an unshield or withdrawal destination as an address', () => {
     for (const kind of [ShieldedSpendKind.Unshield, ShieldedSpendKind.Withdrawal]) {
       expect(shieldedSpendEndpoints(kind, 'dest')).toEqual([{ value: 'dest', kind: TxEndpointKind.Address }])
+    }
+  })
+})
+
+describe('assetLockEndpoints', () => {
+  it('marks the destination of an L1 shielding as shielded', () => {
+    expect(assetLockEndpoints(AssetLockFundingKind.Shielded, 'shielded1'))
+      .toEqual([{ value: 'shielded1', kind: TxEndpointKind.Shielded }])
+  })
+
+  it('shows every other funded destination as an address', () => {
+    for (const kind of [AssetLockFundingKind.Address, AssetLockFundingKind.Identity, AssetLockFundingKind.IdentityTopUp]) {
+      expect(assetLockEndpoints(kind, 'dest')).toEqual([{ value: 'dest', kind: TxEndpointKind.Address }])
+    }
+  })
+
+  it('labels the identity a registration creates when no destination is given', () => {
+    expect(assetLockEndpoints(AssetLockFundingKind.Identity, ''))
+      .toEqual([{ value: NEW_IDENTITY_LABEL, kind: TxEndpointKind.Label }])
+  })
+
+  it('shows no destination when the kind has no label for an empty one', () => {
+    for (const kind of [AssetLockFundingKind.Address, AssetLockFundingKind.Shielded, AssetLockFundingKind.IdentityTopUp]) {
+      expect(assetLockEndpoints(kind, '')).toEqual([])
     }
   })
 })

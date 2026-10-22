@@ -13,7 +13,7 @@ const colorConfig = {
     active: 'bg-[var(--color-dash-brand)]',
     activeDark: 'bg-dash-mint',
     inactive: 'bg-[rgba(76,126,255,0.16)]',
-    inactiveDark: 'bg-dash-mint/12 ',
+    inactiveDark: 'bg-dash-mint/12',
   },
   blue: {
     active: 'bg-[var(--color-dash-brand)]',
@@ -49,7 +49,7 @@ export function ProgressStepBar({
       {Array.from({ length: totalSteps }, (_, index) => (
         <div
           key={index}
-          className={`h-1.5 rounded-2xl flex-1 transition-colors ${
+          className={`h-1.25 rounded-full flex-1 transition-colors ${
             index < currentStep
               ? theme === 'dark'
                 ? colors.activeDark

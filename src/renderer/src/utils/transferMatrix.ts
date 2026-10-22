@@ -79,6 +79,10 @@ export function operationInfo(operation: TransferOperation): OperationInfo {
   return OPERATION_INFO[operation]
 }
 
+export function requiresShieldedProver(operation: TransferOperation): boolean {
+  return operation === TransferOperation.Shield || OPERATION_INFO[operation].spendKind != null
+}
+
 // The protocol only lets identities exit the shielded pool at fixed
 // denominations (uniform amounts keep pool spends unlinkable).
 export const POOL_IDENTITY_DENOMINATIONS: readonly bigint[] = [

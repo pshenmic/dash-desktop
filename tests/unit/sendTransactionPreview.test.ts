@@ -169,6 +169,13 @@ describe('backend preview display mapping', () => {
     expect(data.inputs[0].role).toBe('feeInput')
   })
 
+  it('carries the source address separately from the From label', () => {
+    const withAddress = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: 'tdash1source', fromAddress: 'tdash1source', preview: preview()})
+    const labelOnly = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: '2 Platform inputs', preview: preview()})
+    expect(withAddress).toMatchObject({from: 'tdash1source', fromAddress: 'tdash1source'})
+    expect(labelOnly).toMatchObject({from: '2 Platform inputs', fromAddress: null})
+  })
+
   it('keeps exact credit amounts and unnamed shielded change without inventing unsigned bytes', () => {
     const data = mapSendTransactionPreview({operation: TransferOperation.ShieldedTransfer, from: 'Shielded', preview: preview({
       inputs: [entry('input', 100005n, 'credits', 'shielded-source', 'note 7')],

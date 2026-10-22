@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { DASH_UNIT } from '@renderer/constants/balance'
 import { CHART_HEIGHT, CHART_WIDTH } from '@renderer/constants/dashboardAnalytics'
 import type { DailyChartProps } from '@renderer/types/DashboardAnalytics'
 import { balanceChartScale, balanceLinePath, chartDate, chartRatio } from '@renderer/utils/dashboardAnalytics'
@@ -20,8 +21,8 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
   return (
     <div className="mt-2">
       <div id={tooltipId} className="mb-4 flex items-center justify-between gap-2 text-[10px] text-(--chart-muted)" role="status" aria-live="polite">
-        <span>{selected ? chartDate(selected.date, true) : 'DASH'}</span>
-        {selected ? <strong className="font-semibold text-(--chart-text) tabular-nums"><span className="sr-only">{selectedIndex === days.length - 1 ? 'Current balance: ' : 'Closing balance: '}</span>{davToDash(selected.balance)} DASH</strong> : <span>Daily balance</span>}
+        <span>{selected ? chartDate(selected.date, true) : DASH_UNIT}</span>
+        {selected ? <strong className="font-bold text-(--chart-text) tabular-nums"><span className="sr-only">{selectedIndex === days.length - 1 ? 'Current balance: ' : 'Closing balance: '}</span>{davToDash(selected.balance)} {DASH_UNIT}</strong> : <span>Daily balance</span>}
       </div>
       <div className="grid grid-cols-[max-content_minmax(0,1fr)] pr-[18px]">
         <div className="flex h-40 min-w-8 flex-col items-end justify-between pr-2.5 text-[10px] text-(--chart-muted) tabular-nums" aria-hidden="true">
@@ -31,7 +32,7 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
           className="relative h-40 rounded-[3px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core)"
           tabIndex={0}
           role="group"
-          aria-label="Daily Core balance in DASH"
+          aria-label={`Daily Core balance in ${DASH_UNIT}`}
           aria-describedby={`${hintId} ${selected ? tooltipId : ''}`}
           onPointerMove={event => {
             const bounds = event.currentTarget.getBoundingClientRect()
@@ -76,7 +77,7 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
           {tickIndexes.map(index => <span key={index} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(index + 0.5) / days.length * 100}%` }}>{chartDate(days[index].date, showYear)}</span>)}
         </div>
       </div>
-      <p id={hintId} className="sr-only">Daily closing balance in local time; today shows the current balance. Linear Y axis from {davToDash(scale.min)} to {davToDash(scale.max)} DASH. Hover or use ← → to explore.</p>
+      <p id={hintId} className="sr-only">Daily closing balance in local time; today shows the current balance. Linear Y axis from {davToDash(scale.min)} to {davToDash(scale.max)} {DASH_UNIT}. Hover or use ← → to explore.</p>
     </div>
   )
 }

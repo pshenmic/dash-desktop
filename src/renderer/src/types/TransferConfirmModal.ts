@@ -13,6 +13,7 @@ export interface TransferConfirmModalProps {
   feeCredits?: bigint | null
   run: (password: string) => Promise<PlatformSendResult>
   sourceValid?: boolean
+  presetPassword?: string
   onSuccess: () => void
   successNote?: string
 }

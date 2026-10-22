@@ -7,7 +7,7 @@ import { getPasswordValidationError } from '@renderer/utils/passwordValidation';
 import { toast } from '@renderer/components/ui/Toast';
 import Spinner from '@renderer/components/ui/Spinner';
 import { useDelayedVisible } from '@renderer/hooks/useDelayedVisible';
-import { WALLET_CREATE_SLOW_NOTICE_MS } from '@renderer/constants';
+import { AUTH_CTA_CLASS, WALLET_CREATE_SLOW_NOTICE_MS } from '@renderer/constants';
 
 type CreateWalletData = Pick<
   CreateWalletTexts,
@@ -82,7 +82,7 @@ export default function CreateWallet({ password, setPassword, generateSeedPhrase
       <div className={"grid grid-cols-2 gap-3.75"}>
         <div className={"flex flex-col gap-[.625rem]"}>
           <label htmlFor={"password-input"}>
-            <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+            <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
               {data.labelPassword}
             </Text>
           </label>
@@ -103,7 +103,7 @@ export default function CreateWallet({ password, setPassword, generateSeedPhrase
         </div>
         <div className={"flex flex-col gap-[.625rem]"}>
           <label htmlFor={"confirm-password-input"}>
-            <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+            <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
               {data.labelConfirmPassword}
             </Text>
           </label>
@@ -127,7 +127,7 @@ export default function CreateWallet({ password, setPassword, generateSeedPhrase
         type={"submit"}
         colorScheme={"primary"}
         size={"md"}
-        className={"rounded-[.9375rem] p-4.5"}
+        className={AUTH_CTA_CLASS}
         disabled={tooShortOrEmpty || loading}
       >
         {loading ? <Spinner size={20} className={"mx-auto"} /> : data.buttonNext}

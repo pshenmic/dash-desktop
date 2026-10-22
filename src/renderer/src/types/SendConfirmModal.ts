@@ -13,5 +13,6 @@ export interface SendConfirmModalProps {
   source?: CoreSpendSource
   changeTo?: string
   sourceValid?: boolean
+  presetPassword?: string
   onSuccess: () => void
 }

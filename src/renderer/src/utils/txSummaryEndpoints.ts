@@ -1,5 +1,7 @@
 import type { CoreRecipient, PlatformRecipient } from '../api/types'
+import { ASSET_LOCK_FUNDING_TEXTS } from '../constants/assetLockFunding'
 import { AUTOMATIC_SOURCE_LABELS } from '../constants/sendPages'
+import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { DestinationKind } from '../enums/DestinationKind'
 import { ShieldedSpendKind } from '../enums/ShieldedSpendKind'
 import { SourceKind } from '../enums/SourceKind'
@@ -54,4 +56,12 @@ export function shieldedSpendEndpoints(kind: ShieldedSpendKind, toValue: string,
     }))
   }
   return [{ value: toValue, kind: kind === ShieldedSpendKind.IdentityCreate ? TxEndpointKind.Label : TxEndpointKind.Address }]
+}
+
+export function assetLockEndpoints(kind: AssetLockFundingKind, toPlatformAddress: string): TxSummaryEndpoint[] {
+  if (toPlatformAddress) {
+    return [{ value: toPlatformAddress, kind: kind === AssetLockFundingKind.Shielded ? TxEndpointKind.Shielded : TxEndpointKind.Address }]
+  }
+  const emptyTo = ASSET_LOCK_FUNDING_TEXTS[kind].emptyTo
+  return emptyTo ? [{ value: emptyTo, kind: TxEndpointKind.Label }] : []
 }

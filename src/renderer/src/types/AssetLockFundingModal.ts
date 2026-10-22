@@ -40,6 +40,7 @@ export interface AssetLockFundingStartModalProps extends AssetLockFundingModalBa
   feeCredits: bigint | null
   from: TxSummaryEndpoint
   source?: CoreSpendSource
+  presetPassword?: string
 }
 
 export type AssetLockFundingModalProps = AssetLockFundingResumeModalProps | AssetLockFundingStartModalProps

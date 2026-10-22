@@ -3,8 +3,11 @@ import { CreditsIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxt
 import CreditsAmount from "../ui/CreditsAmount";
 import DashBigNumber from "../ui/DashBigNumber";
 import SensitiveValue from "../ui/SensitiveValue";
-import { davToDash } from "@renderer/utils/balance";
+import { creditsToDuffs, davToDash } from "@renderer/utils/balance";
+import { formatApproxFiat } from "@renderer/utils/approxFiat";
+import { useFiat } from "@renderer/hooks/useFiat";
 import { SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from "@renderer/constants";
+import { DASH_UNIT, UNKNOWN_BALANCE_LABEL } from "@renderer/constants/balance";
 import { cva } from "class-variance-authority";
 
 const logoStyles = cva(
@@ -29,6 +32,10 @@ const logoStyles = cva(
 
 export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: bigint, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
   const { theme } = useTheme()
+  const { format: formatFiat, rateReady, currency } = useFiat()
+  const amountKnown = variant === 'dash' || credits != null
+  const creditsFiat = credits != null && rateReady ? formatFiat(creditsToDuffs(credits)) : undefined
+  const rowFiat = variant === 'dash' ? fiat : creditsFiat
 
   return (
     <div
@@ -56,25 +63,25 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
         <Text size={16} weight="extrabold" color="brand" className={"leading-[120%]"}>
           {variant === 'shielded' && credits == null ? (
             <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
-              <span className={"text-dash-orange"}>— Credits</span>
+              <span className={"text-dash-orange"}>{UNKNOWN_BALANCE_LABEL}</span>
             </Tooltip>
           ) : (
             <SensitiveValue hidden={!isVisible} size={"sidebar"} tone={"accent"}>
               {(variant === 'credits' || variant === 'shielded') && credits != null ? (
-                <CreditsAmount credits={credits} compact unit={"Credits"} amountClassName={"gap-[.125rem]!"} />
+                <CreditsAmount credits={credits} compact unit={"Credits"} showFiat={false} unitClassName={""} />
               ) : (
                 <>
-                  <DashBigNumber className={"gap-[.125rem]!"}>{davToDash(balance ?? 0n)}</DashBigNumber>
-                  {variant === 'dash' ? ' Dash' : ' Credits'}
+                  <DashBigNumber>{davToDash(balance ?? 0n)}</DashBigNumber>
+                  {variant === 'dash' ? ` ${DASH_UNIT}` : ' Credits'}
                 </>
               )}
             </SensitiveValue>
           )}
         </Text>
-        {variant === 'dash' && (fiat !== undefined || !isVisible) &&
+        {amountKnown && (rowFiat !== undefined || !isVisible) &&
           <Text size={10} weight="medium" color="blue-mint" className={"leading-[120%]"}>
             <SensitiveValue hidden={!isVisible} size={"subtext"} tone={"accent"} label={"Fiat balance hidden"}>
-              ~ {fiat}
+              {formatApproxFiat(rowFiat ?? '', currency)}
             </SensitiveValue>
           </Text>
         }

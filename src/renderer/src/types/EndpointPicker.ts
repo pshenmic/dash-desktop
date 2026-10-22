@@ -2,9 +2,19 @@ import type { ReactNode } from 'react'
 import type { DestinationKind } from '../enums/DestinationKind'
 import type { DropdownFieldOption } from './DropdownField'
 
+export interface EndpointLabel {
+  name: string
+  layer: string
+}
+
+export interface EndpointKindEntry {
+  kind: string
+  label: string
+}
+
 export interface DestinationPickerProps {
   kind: DestinationKind
-  kinds: Array<{kind: string; label: string}>
+  kinds: EndpointKindEntry[]
   onKindChange: (kind: DestinationKind) => void
   value: string
   onValueChange: (value: string) => void

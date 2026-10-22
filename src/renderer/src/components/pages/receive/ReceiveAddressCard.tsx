@@ -1,9 +1,12 @@
 import React, { useState } from "react"
 import QRCode from "react-qr-code"
-import { Text, Input } from "@renderer/components/dash-ui-kit-enxtended"
+import { Text } from "@renderer/components/dash-ui-kit-enxtended"
 import { ReceivePageType } from "@renderer/constants"
+import { RECEIVE_AMOUNT_INPUT, RECEIVE_EMPTY_TEXTS } from "@renderer/constants/receiveCard"
+import { SURFACE_SECTION } from "@renderer/constants/surfaces"
 import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
+import NoResults from "@renderer/components/ui/NoResults"
 import CoreAddressSelect from "./CoreAddressSelect"
 import { useTheme } from "dash-ui-kit/react"
 import { defaultReceiveCoreAddress, receiveCoreAddresses } from "@renderer/utils/receiveDefaults"
@@ -26,7 +29,7 @@ export default function ReceiveAddressCard({
   const receiveAddresses = receiveCoreAddresses(addresses)
   const selected = defaultReceiveCoreAddress(receiveAddresses, selectedAddress ?? defaultAddress)
   if (!selected) {
-    return <Text size={12} weight={"medium"} color={"brand"} opacity={50}>No unused Core addresses available.</Text>
+    return <NoResults noResults={RECEIVE_EMPTY_TEXTS.noCoreAddresses} />
   }
 
   const address = selected.address
@@ -35,7 +38,7 @@ export default function ReceiveAddressCard({
   const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
-      <div className={"flex w-min items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
+      <div className={`flex w-min max-w-190 items-center gap-8 ${SURFACE_SECTION}`}>
         <QRCode
           value={qrValue}
           size={225}
@@ -46,7 +49,7 @@ export default function ReceiveAddressCard({
 
         <div className={"flex flex-col w-full"}>
           <div className={"flex flex-col gap-[.5rem]"}>
-            <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
               {data.addressText}
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
@@ -60,10 +63,10 @@ export default function ReceiveAddressCard({
           </div>
 
           <label htmlFor={"amount-input"} className={"flex flex-col gap-[.5rem] mt-[.75rem]"}>
-            <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
               {data.amount}
             </Text>
-            <Input
+            <input
               placeholder={data.placeholder}
               value={amount}
               onChange={(e) => {
@@ -73,10 +76,7 @@ export default function ReceiveAddressCard({
                 setAmount(val)
               }}
               id={"amount-input"}
-              variant={"outlined"}
-              className={'h-full !rounded-[.75rem] !bg-transparent !px-6.25'}
-              colorScheme={'primary'}
-              size={'md'}
+              className={RECEIVE_AMOUNT_INPUT}
             />
           </label>
         </div>

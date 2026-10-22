@@ -1,12 +1,16 @@
 import { useId, useState, type ReactNode } from 'react'
-import { ChevronIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, ChevronIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DropdownField from '@renderer/components/ui/DropdownField'
+import RetryButton from '@renderer/components/ui/RetryButton'
 import Spinner from '@renderer/components/ui/Spinner'
+import { CHIP_ACTION } from '@renderer/constants/surfaces'
+import { TX_SUMMARY_CARD_LABELS } from '@renderer/constants/txSummary'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import type { TransactionSummaryProps } from '@renderer/types/TransactionSummary'
 import { davToDash, duffsToCredits } from '@renderer/utils/balance'
+import { truncateShieldedAddress } from '@renderer/utils/shieldedAddress'
 
 export default function TransactionSummary({
   children, operation, isCoreOperation, amountDuffs, maxAmountDuffs, fee, route,
@@ -26,10 +30,10 @@ export default function TransactionSummary({
     {value: '', label: 'Select recipient'},
     ...route.recipients.map((recipient, index) => ({
       value: recipient.id,
-      label: `Recipient ${index + 1} · ${recipient.address.slice(0, 16) || 'No address'}`,
+      label: `Recipient ${index + 1} · ${truncateShieldedAddress(recipient.address.trim()) || 'No address'}`,
     })),
   ]
-  const receiveLabel = subtractFee ? 'Estimated recipients receive' : 'Recipients receive'
+  const receiveLabel = subtractFee ? TX_SUMMARY_CARD_LABELS.recipientsReceiveEstimated : TX_SUMMARY_CARD_LABELS.recipientsReceive
   const setSubtractFee = (checked: boolean): void => {
     let feeRecipientId = route.feeRecipientId
     if (checked) feeRecipientId ??= route.recipients[0]?.id ?? null
@@ -46,7 +50,7 @@ export default function TransactionSummary({
   } else if (fee.ready) {
     const feeAmount = isCoreOperation
       ? <>{davToDash(fee.totalDuffs)}<span className="font-normal"> Dash</span></>
-      : <CreditsAmount credits={fee.credits ?? 0n} compact showFiat={false} />
+      : <CreditsAmount credits={fee.credits ?? 0n} compact showFiat={false} exact />
     feeDisplay = <Text size={12} weight="extrabold" color="brand">{feeAmount}</Text>
   }
 
@@ -65,11 +69,11 @@ export default function TransactionSummary({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.75fr)]!">
-        <section className={`min-w-0 rounded-2xl dash-block px-4 py-3 ${feeOptionsOpen ? 'self-start' : ''}`} aria-label="Source balance">{children}</section>
-        <aside className="min-w-0 rounded-2xl dash-block px-4 py-3 flex flex-wrap items-center justify-between gap-3" aria-label="Transaction summary">
+        <section className={`min-w-0 rounded-[.875rem] dash-block px-4 py-3 ${feeOptionsOpen ? 'self-start' : ''}`} aria-label="Source balance">{children}</section>
+        <aside className="min-w-0 rounded-[.875rem] dash-block px-4 py-3 flex flex-wrap items-center justify-between gap-3" aria-label="Transaction summary">
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <Text size={14} weight="medium" color="brand">Transaction Summary</Text>
+              <Text size={14} weight="medium" color="brand">{TX_SUMMARY_CARD_LABELS.title}</Text>
               {supportsOutputFee && <button
                 type="button"
                 aria-expanded={feeOptionsOpen}
@@ -83,17 +87,17 @@ export default function TransactionSummary({
             </div>
             <div className="mt-2 grid grid-cols-2 gap-3">
               <div className="flex min-w-0 flex-col gap-1">
-                <Text size={10} weight="medium" color="brand" opacity={50}>{receiveLabel}</Text>
+                <Text size={12} weight="medium" color="brand" opacity={50}>{receiveLabel}</Text>
                 <Text size={12} weight="extrabold" color="brand">{receiveDisplay}</Text>
               </div>
               <div className="flex min-w-0 flex-col gap-1">
-                <Text size={10} weight="medium" color="brand" opacity={50}>Network Fee</Text>
+                <Text size={12} weight="medium" color="brand" opacity={50}>{TX_SUMMARY_CARD_LABELS.networkFee}</Text>
                 {feeDisplay}
               </div>
             </div>
           </div>
-          <span className="flex min-w-0 flex-col gap-1 rounded-2xl dash-block-accent-10 px-4 py-2 text-xs dash-text-primary">
-            <span>Send Total:</span><span className="font-bold">{debitDisplay}</span>
+          <span className="flex min-w-0 flex-col gap-1 rounded-[.625rem] dash-block-accent-5 px-4 py-2 text-xs dash-text-primary">
+            <span>{TX_SUMMARY_CARD_LABELS.sendTotal}</span><span className="text-sm font-bold">{debitDisplay}</span>
           </span>
           {feeOptionsOpen && <div id={feeOptionsId} className="flex w-full min-w-0 basis-full flex-col gap-3 border-t border-dash-primary-dark-blue/12 dark:border-white/12 pt-4">
             {supportsOutputFee && (
@@ -118,7 +122,7 @@ export default function TransactionSummary({
                   {!hasManualPlatformInputs && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Text size={12} weight="medium" color="brand" opacity={50}>Select inputs to deduct the fee from an output.</Text>
-                      <button type="button" onClick={onCoinControl} className="rounded-[.625rem] dash-block-accent-5 px-2 py-1 text-xs font-medium dash-text-primary cursor-pointer hover:bg-dash-brand/10 dark:hover:bg-dash-mint/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40">
+                      <button type="button" onClick={onCoinControl} className={`${CHIP_ACTION} font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40`}>
                         Open Coin Control
                       </button>
                     </div>
@@ -136,12 +140,10 @@ export default function TransactionSummary({
           </div>}
         </aside>
       </div>
-      {amountError && <Text size={12} weight="medium" color="red">{amountError}</Text>}
-      {subtractFee && !feeRecipientSelected && <Text size={12} weight="medium" color="red">Choose the recipient paying the fee.</Text>}
-      {fee.error && (
-        <button type="button" onClick={onRetryFee} className="text-sm dash-text-primary cursor-pointer">Retry fee estimate</button>
-      )}
-      <button type="button" onClick={onReview} disabled={!canSubmit} className="min-h-14.5 w-full rounded-2xl dash-block-accent-15 text-base dash-text-primary cursor-pointer hover:dash-block-accent-25 disabled:opacity-40 disabled:cursor-default">Review Transaction</button>
+      {amountError && <Text size={12} weight="medium" color="red" className="px-1">{amountError}</Text>}
+      {subtractFee && !feeRecipientSelected && <Text size={12} weight="medium" color="red" className="px-1">Choose the recipient paying the fee.</Text>}
+      {fee.error && <RetryButton onRetry={onRetryFee} label={TX_SUMMARY_CARD_LABELS.retryFee} />}
+      <Button type="button" onClick={onReview} disabled={!canSubmit} colorScheme="lightBlue-mint" size="md" className="w-full h-[3.625rem]! rounded-[.9375rem] text-base">{TX_SUMMARY_CARD_LABELS.review}</Button>
     </div>
   )
 }

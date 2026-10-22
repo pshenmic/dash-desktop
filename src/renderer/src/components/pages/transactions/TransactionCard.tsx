@@ -1,7 +1,7 @@
 import AmountSummary from "@renderer/components/ui/AmountSummary"
 import SensitiveValue from "@renderer/components/ui/SensitiveValue"
 import TransactionCardIcons from "./TransactionCardIcons"
-import CustomBadge from "@renderer/components/ui/CustomBadge"
+import LayerBadge from "@renderer/components/ui/LayerBadge"
 import { formatCreationDate, timePart } from "@renderer/utils/date"
 import DashBigNumber from "@renderer/components/ui/DashBigNumber"
 import CreditsAmount from "@renderer/components/ui/CreditsAmount"
@@ -14,6 +14,7 @@ import { useFiat } from "@renderer/hooks/useFiat"
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
 import { transactionsPage } from "@renderer/constants"
 import { TRANSACTION_CARD_SIGNS, TRANSACTION_CARD_STATUS_VARIANTS } from '@renderer/constants/transactionsPage'
+import { TRANSACTION_KIND_LAYERS } from '@renderer/constants/transactionLayers'
 
 const transactionCardStyles = cva(
   `
@@ -63,16 +64,13 @@ export default function TransactionCard({
       <TransactionCardIcons status={status} />
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
         <div className={"flex min-w-0 flex-wrap items-center gap-[.3125rem]"} title={title}>
-          <Tooltip label={kind === 'platform' ? 'L2 Dash Evo Chain' : kind === 'core' ? 'L1 Dash Core Chain' : undefined}>
-            <span className="inline-flex shrink-0" title="">
-              <CustomBadge
-                text={kind === 'platform' ? 'evo' : kind ?? ''}
-                variant={variantAmountSummary}
-                size={"s"}
-                className={`w-12 shrink-0 ${kind === 'platform' ? 'bg-violet-500/15! text-violet-700! dark:bg-violet-400/20! dark:text-violet-300!' : ''}`}
-              />
-            </span>
-          </Tooltip>
+          {kind && (
+            <Tooltip label={TRANSACTION_KIND_LAYERS[kind].label}>
+              <span className="inline-flex shrink-0" title="">
+                <LayerBadge layer={TRANSACTION_KIND_LAYERS[kind].layer} />
+              </span>
+            </Tooltip>
+          )}
           <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[120%]"}>
             {title}
           </Text>

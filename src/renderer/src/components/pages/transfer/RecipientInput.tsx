@@ -1,12 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
-import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { SearchIcon, PlusIcon, DeleteIcon, CheckIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { useState } from 'react'
+import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { SearchIcon, PlusIcon, DeleteIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { Identifier } from 'dash-ui-kit/react'
 import type { RecipientInputProps } from '@renderer/types/SendRecipients'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'
+import { matchingContacts } from '@renderer/utils/matchingContacts'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
+import { CONTACT_IDENTIFIER_CLASS, CONTACT_NAME_INPUT, FIELD_INVALID, RECIPIENT_FIELD_STYLES } from '@renderer/constants/addressField'
+import { CHIP_ACTION, POPOVER_OPTION } from '@renderer/constants/surfaces'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import Spinner from '@renderer/components/ui/Spinner'
 
@@ -17,46 +20,39 @@ export default function RecipientInput({
   compact = false,
   appearance = 'default',
   ariaLabel,
+  validate,
+  invalid = false,
   ownOptions,
   ownOptionsLoading = false,
   ownOptionsError = null,
   onRetryOwnOptions,
 }: RecipientInputProps) {
-  const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [menuKey, setMenuKey] = useState(0)
 
   const { contacts, loading: contactsLoading, network, addContact, deleteContact } = useAddressBook()
-
-  const query = value.toLowerCase().trim()
-  const filteredContacts = contacts.filter(
-    (c) =>
-      c.address.toLowerCase().includes(query) ||
-      c.label.toLowerCase().includes(query),
-  )
+  const style = RECIPIENT_FIELD_STYLES[appearance]
+  const isValid = validate ?? ((address: string) => isValidDashAddress(address, network))
 
   const trimmedValue = value.trim()
-  const isValidRecipient = isValidDashAddress(trimmedValue, network)
-  const invalidRecipient = trimmedValue.length > 0 && !isValidRecipient
+  const filteredContacts = matchingContacts(contacts, value, isValid)
+
+  const isValidRecipient = isValid(trimmedValue)
+  const invalidRecipient = invalid || (trimmedValue.length > 0 && !isValidRecipient)
   const alreadySaved = contacts.some((c) => c.address === trimmedValue)
   const canSaveCurrent = isValidRecipient && !alreadySaved
+  const hasOwnOptions = ownOptions != null && ownOptions.length > 0
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent): void => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-        setAdding(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  const resetAdding = (): void => {
+    setAdding(false)
+    setNewLabel('')
+  }
 
   const handleSelectAddress = (address: string): void => {
     onChange(address)
-    setOpen(false)
+    resetAdding()
+    setMenuKey(key => key + 1)
   }
 
   const handleSaveContact = async (): Promise<void> => {
@@ -66,8 +62,7 @@ export default function RecipientInput({
     }
     try {
       await addContact(label, trimmedValue)
-      setAdding(false)
-      setNewLabel('')
+      resetAdding()
     } catch (err) {
       toast.error(`**Could not save contact** ${getErrorMessage(err)}`)
     }
@@ -81,171 +76,123 @@ export default function RecipientInput({
     }
   }
 
+  let ownOptionsStatus: React.JSX.Element | undefined
+  if (ownOptionsLoading || (ownOptionsError && onRetryOwnOptions)) {
+    ownOptionsStatus = <span className="flex items-center gap-2">
+      {ownOptionsLoading && <span role="status" aria-label="Loading recipient options"><Spinner size={12} className="dash-text-primary" /></span>}
+      {!ownOptionsLoading && ownOptionsError && onRetryOwnOptions && <button type="button" onClick={onRetryOwnOptions} aria-label="Reload recipient options" title="Reload recipient options" className="dash-text-primary cursor-pointer hover:opacity-70">
+        <RefreshIcon size={14} color="currentColor" />
+      </button>}
+    </span>
+  }
+
   return (
     <div className={"flex flex-col gap-2"}>
       {!compact && <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%]"}>
         {data.label}
       </Text>}
-      <div className={`rounded-[.875rem] ${appearance === 'subtle' ? 'dash-block-5 border border-transparent' : 'dash-input-block'} ${invalidRecipient ? 'outline outline-1 outline-dash-red' : ''}`} ref={containerRef}>
-        {ownOptions ? <DropdownField
-          editable
-          ariaLabel={ariaLabel ?? data.label}
-          value={value}
-          onChange={onChange}
-          options={ownOptions}
-          menuHeading="Your addresses"
-          placeholder="Enter a recipient address or choose one of yours"
-          triggerClassName="px-4 py-3.5"
-          inputInvalid={invalidRecipient}
-          inputSuffix={<div className="flex items-center gap-3">
-            {ownOptionsLoading && <span role="status" aria-label="Loading recipient options"><Spinner size={12} className="dash-text-primary" /></span>}
-            {!ownOptionsLoading && ownOptionsError && onRetryOwnOptions && <button type="button" onClick={onRetryOwnOptions} aria-label="Reload recipient options" title="Reload recipient options" className="dash-text-primary cursor-pointer hover:opacity-70">
-              <RefreshIcon size={14} color="currentColor" />
-            </button>}
-            {trimmedValue.length > 0 && isValidRecipient && <CheckIcon size={18} color="currentColor" className="text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden" />}
-            {invalidRecipient && <Text size={10} weight="medium" color="red">Invalid</Text>}
-            <button type="button" aria-label={data.addressBook} title={data.addressBook} aria-expanded={open}
-              onClick={() => setOpen(current => !current)}
-              className="flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity">
-              <SearchIcon size={18} className={`dash-text-default ${open ? 'opacity-100' : 'opacity-40'}`} />
-            </button>
-          </div>}
-        /> : <div
-          className={`flex items-center justify-between gap-1 [&>*:first-child]:flex-1 ${compact ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}
-          onClick={() => inputRef.current?.focus()}
-        >
-          <Input
-            ref={inputRef}
-            type={"text"}
-            aria-label={ariaLabel ?? data.label}
-            aria-invalid={invalidRecipient}
-            value={value}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            className={`outline-none text-[.875rem] dash-text-default ${appearance === 'subtle' ? 'placeholder:opacity-30' : 'placeholder:opacity-40'} !ring-0 rounded-none! p-0 min-w-0 w-full`}
-            placeholder={data.placeholder}
-            colorScheme={"transparent"}
-          />
-          {trimmedValue.length > 0 && isValidRecipient && <CheckIcon size={18} color={"currentColor"} className={"text-dash-brand dark:text-dash-mint shrink-0 [&_circle]:hidden"} />}
-          {invalidRecipient && <Text size={10} weight={"medium"} color={"red"} className={"shrink-0"}>Invalid</Text>}
-          <button
-            type={"button"}
-            onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
-            title={data.addressBook}
-            className={"shrink-0 flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity"}
-          >
-            <SearchIcon size={18} className={`dash-text-default shrink-0 transition-opacity ${open ? 'opacity-100' : 'opacity-40'}`} />
-          </button>
-        </div>}
+      <DropdownField
+        key={menuKey}
+        editable
+        highlightValue
+        ariaLabel={ariaLabel ?? data.label}
+        value={value}
+        onChange={onChange}
+        options={ownOptions ?? []}
+        menuHeading={hasOwnOptions ? 'Your addresses' : undefined}
+        placeholder={data.placeholder}
+        textSize={style.textSize}
+        triggerClassName={`${style.field} ${invalidRecipient ? FIELD_INVALID : ''}`}
+        inputInvalid={invalidRecipient}
+        inputSuffix={ownOptionsStatus}
+        toggleIcon={open => <SearchIcon size={style.searchIconSize} className={`dash-text-default transition-opacity ${open ? 'opacity-100' : 'opacity-40'}`} />}
+        onOpenChange={open => { if (!open) resetAdding() }}
+      >
+        <div className={`flex flex-col ${hasOwnOptions ? 'mb-1.5 border-b border-dash-primary-dark-blue/8 pb-1.5 dark:border-white/8' : ''}`}>
+          <div className={"flex items-center justify-between gap-2 px-[.625rem] pt-1.5 pb-2"}>
+            <span className="flex items-center gap-2">
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                {data.addressBook}
+              </Text>
+              {contactsLoading && <span role="status" aria-label="Loading contacts"><Spinner size={12} className="dash-text-primary" /></span>}
+            </span>
+            {canSaveCurrent && !adding && (
+              <button
+                type={"button"}
+                onClick={() => setAdding(true)}
+                className={`flex items-center gap-1 ${CHIP_ACTION}`}
+              >
+                <PlusIcon size={10} color={"currentColor"} />
+                <span>Save current</span>
+              </button>
+            )}
+          </div>
 
-        <div
-          className={`
-            transition-all duration-300 ease-in-out
-            ${open
-              ? 'max-h-145 opacity-100'
-              : 'max-h-0 opacity-0'
-            }
-          `}
-          style={{ overflow: 'hidden' }}
-        >
-          <div className={"px-5"}>
-            <div className={"flex items-center justify-between pb-[.75rem]"}>
-              <span className="flex items-center gap-2">
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                  {data.addressBook}:
-                </Text>
-                {contactsLoading && <span role="status" aria-label="Loading contacts"><Spinner size={12} className="dash-text-primary" /></span>}
-              </span>
-              {canSaveCurrent && !adding && (
+          {adding && (
+            <div className={"flex items-center gap-2 px-[.625rem] pb-2"}>
+              <input
+                type={"text"}
+                aria-label={"Contact name"}
+                value={newLabel}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLabel(e.target.value)}
+                placeholder={"Contact name"}
+                className={CONTACT_NAME_INPUT}
+              />
+              <button
+                type={"button"}
+                onClick={handleSaveContact}
+                disabled={newLabel.trim().length === 0}
+                className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity disabled:cursor-default disabled:opacity-40"}
+              >
+                <Text size={10} weight={"medium"} color={"blue-mint"}>Save</Text>
+              </button>
+              <button
+                type={"button"}
+                onClick={resetAdding}
+                className={"dash-block-3 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
+              >
+                <Text size={10} weight={"medium"} color={"brand"}>Cancel</Text>
+              </button>
+            </div>
+          )}
+
+          {filteredContacts.length > 0 ? (
+            filteredContacts.map((entry) => (
+              <div
+                key={entry.id}
+                className={`flex items-center gap-2 ${POPOVER_OPTION}`}
+              >
                 <button
-                  onClick={() => setAdding(true)}
-                  className={"text-xs dash-block-3 px-[.75rem] py-[.5rem] rounded-[.75rem] flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"}
+                  type={"button"}
+                  onClick={() => handleSelectAddress(entry.address)}
+                  className={"flex min-w-0 flex-1 flex-col gap-0.5 text-left cursor-pointer"}
                 >
-                  <PlusIcon size={10} color={"currentColor"} className={"dash-text-default"} />
-                  <Text size={10} weight={"medium"} color={"brand"} className={"leading-[120%]"}>
-                    Save current
+                  <Identifier highlight={"both"} ellipsis className={CONTACT_IDENTIFIER_CLASS}>
+                    {entry.address}
+                  </Identifier>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                    {entry.label}
                   </Text>
                 </button>
-              )}
-            </div>
-
-            {adding && (
-              <div className={"flex items-center gap-2 pb-[.75rem]"}>
-                <Input
-                  type={"text"}
-                  value={newLabel}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLabel(e.target.value)}
-                  placeholder={"Contact name"}
-                  colorScheme={"transparent"}
-                  className={"flex-1 outline-none text-[.875rem] dash-text-default placeholder:opacity-40 !ring-0 dash-block-3 rounded-[.75rem] px-3 py-2"}
-                />
                 <button
-                  onClick={handleSaveContact}
-                  disabled={newLabel.trim().length === 0}
-                  className={"dash-block-accent-15 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity disabled:cursor-default disabled:opacity-40"}
+                  type={"button"}
+                  onClick={() => void handleDeleteContact(entry.id)}
+                  className={"shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5 cursor-pointer"}
+                  title={"Remove contact"}
                 >
-                  <Text size={10} weight={"medium"} color={"blue-mint"}>Save</Text>
-                </button>
-                <button
-                  onClick={() => { setAdding(false); setNewLabel('') }}
-                  className={"dash-block-3 rounded-[.75rem] px-3 py-2 cursor-pointer hover:opacity-80 transition-opacity"}
-                >
-                  <Text size={10} weight={"medium"} color={"brand"}>Cancel</Text>
+                  <DeleteIcon size={12} color={"currentColor"} className={"dash-text-default opacity-50"} />
                 </button>
               </div>
-            )}
-
-            <div className={"max-h-29.25 overflow-y-auto scrollbar-hide flex flex-col gap-[.5rem] pb-[.75rem]"}>
-              {filteredContacts.length > 0 ? (
-                filteredContacts.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className={"w-full p-[.9375rem] dash-block-3 rounded-[.9375rem] flex flex-col gap-[.75rem]"}
-                  >
-                    <div className={"flex items-start justify-between gap-2"}>
-                      <button
-                        onClick={() => handleSelectAddress(entry.address)}
-                        className={"flex-1 min-w-0 text-left cursor-pointer"}
-                      >
-                        <Identifier
-                          highlight={"both"}
-                          className={"font-mono text-left"}
-                        >
-                          {entry.address}
-                        </Identifier>
-                      </button>
-                      <button
-                        onClick={() => void handleDeleteContact(entry.id)}
-                        className={"shrink-0 flex items-center justify-center size-6 rounded-md hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5 cursor-pointer"}
-                        title={"Remove contact"}
-                      >
-                        <DeleteIcon size={12} color={"currentColor"} className={"dash-text-default opacity-50"} />
-                      </button>
-                    </div>
-                    <div className={"flex items-center gap-2"}>
-                      <div className={"px-2 py-1 dash-block-3 rounded-[.3125rem] flex"}>
-                        <Text size={12} weight="medium" color="default" opacity={50}>
-                          {data.names}:
-                        </Text>
-                      </div>
-                      <div className={"px-2 py-1 dash-block-3 rounded-[.3125rem] flex"}>
-                        <Text size={12} weight={"medium"} color={"default"}>
-                          {entry.label}
-                        </Text>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : !contactsLoading && (
-                <div className={"p-4 text-center"}>
-                  <Text size={14} weight={"normal"} color={"default"} opacity={50}>
-                    {contacts.length === 0 ? 'No saved contacts yet' : data.noResults}
-                  </Text>
-                </div>
-              )}
+            ))
+          ) : !contactsLoading && (
+            <div className={"px-[.625rem] py-2"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                {contacts.length === 0 ? 'No saved contacts yet' : data.noResults}
+              </Text>
             </div>
-          </div>
+          )}
         </div>
-      </div>
+      </DropdownField>
     </div>
   )
 }

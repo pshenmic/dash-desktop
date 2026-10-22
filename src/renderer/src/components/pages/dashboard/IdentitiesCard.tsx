@@ -4,6 +4,7 @@ import { Button, Text, ArrowIcon, KeyIcon } from '@renderer/components/dash-ui-k
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { dashboardPage } from '@renderer/constants'
+import { SURFACE_PANEL } from '@renderer/constants/surfaces'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
@@ -36,7 +37,7 @@ export default function IdentitiesCard(): React.JSX.Element {
   )
 
   return (
-    <div className={"relative overflow-hidden flex flex-col gap-3 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)]"}>
+    <div className={`relative overflow-hidden flex flex-col gap-3 ${SURFACE_PANEL} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)]`}>
       <div className={"absolute -top-14 -right-8 size-36 rounded-full bg-dash-brand/8 dark:bg-dash-mint/6 blur-3xl pointer-events-none"} />
       <div className={"relative flex items-center justify-between"}>
         <div className={"flex items-center gap-2.5"}>
@@ -78,8 +79,8 @@ export default function IdentitiesCard(): React.JSX.Element {
             <Button
               type={"button"}
               colorScheme={"lightBlue-mint"}
-              size={"sm"}
-              className={"min-h-0! shrink-0 rounded-[.75rem] py-2!"}
+              size={"compact"}
+              className={"shrink-0"}
               onClick={() => navigate('/identities/register')}
             >
               Register identity

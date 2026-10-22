@@ -9,6 +9,7 @@ import { platformTransactionUrl } from '@renderer/utils/explorer'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import PasswordField from '@renderer/components/ui/PasswordField'
+import PendingRow from '@renderer/components/ui/PendingRow'
 import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -18,6 +19,8 @@ import type { RecipientSummaryProps } from '@renderer/types/RecipientSummary'
 import type { TransferConfirmModalProps } from '@renderer/types/TransferConfirmModal'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { SEND_BROADCASTING_LABEL, SEND_INPUTS_CHANGED_MESSAGE } from '@renderer/constants/sendConfirmModal'
 
 export default function TransferConfirmModal({
   isOpen,
@@ -31,6 +34,7 @@ export default function TransferConfirmModal({
   feeCredits,
   run,
   sourceValid = true,
+  presetPassword,
   onSuccess,
   successNote,
 }: TransferConfirmModalProps): React.JSX.Element {
@@ -44,14 +48,59 @@ export default function TransferConfirmModal({
   const [passwordInvalid, setPasswordInvalid] = useState(false)
   const [result, setResult] = useState<PlatformSendResult | null>(null)
   const [sentRecipients, setSentRecipients] = useState<RecipientSummaryProps | null>(null)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
+  const [seenOpen, setSeenOpen] = useState(false)
 
-  useEffect(() => {
+  if (isOpen !== seenOpen) {
+    setSeenOpen(isOpen)
     if (isOpen) {
       setPassword('')
-      setPhase(ConfirmModalPhase.Confirm)
+      setPhase(presetPassword ? ConfirmModalPhase.Sending : ConfirmModalPhase.Confirm)
       setPasswordInvalid(false)
       setResult(null)
       setSentRecipients(null)
+      setAuto(Boolean(presetPassword))
+    }
+  }
+
+  const abort = (preset: boolean): void => {
+    if (preset) onClose()
+    else setPhase(ConfirmModalPhase.Confirm)
+  }
+
+  const submit = async (secret: string, preset: boolean): Promise<void> => {
+    if (!sourceValidRef.current) {
+      if (preset) toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+      abort(preset)
+      return
+    }
+    try {
+      setSentRecipients(recipients ? {
+        recipients: recipients.map(recipient => ({ ...recipient })),
+        feeOutputIndex,
+        feeCredits,
+      } : null)
+      const res = await run(secret)
+      setResult(res)
+      setPhase(ConfirmModalPhase.Done)
+      onSuccess()
+    } catch (e) {
+      console.error('Transfer failed', e)
+      toast.error(getErrorMessage(e))
+      abort(preset)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    if (presetPassword) {
+      autoStarted.current = true
+      void submit(presetPassword, true)
     }
   }, [isOpen])
 
@@ -62,30 +111,16 @@ export default function TransferConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setPasswordInvalid(false)
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setPasswordInvalid(true)
-        setPhase(ConfirmModalPhase.Confirm)
+      if (await API.verifyWalletPassword(walletId, password)) {
+        await submit(password, false)
         return
       }
-      if (!sourceValidRef.current) {
-        setPhase(ConfirmModalPhase.Confirm)
-        return
-      }
-      setSentRecipients(recipients ? {
-        recipients: recipients.map(recipient => ({ ...recipient })),
-        feeOutputIndex,
-        feeCredits,
-      } : null)
-      const res = await run(password)
-      setResult(res)
-      setPhase(ConfirmModalPhase.Done)
-      onSuccess()
+      setPasswordInvalid(true)
     } catch (e) {
       console.error('Transfer failed', e)
       toast.error(getErrorMessage(e))
-      setPhase(ConfirmModalPhase.Confirm)
     }
+    setPhase(ConfirmModalPhase.Confirm)
   }
 
   const requestClose = (): void => {
@@ -101,7 +136,11 @@ export default function TransferConfirmModal({
       size={ModalSize.Lg}
       dismissible={!sending}
     >
-      {phase !== ConfirmModalPhase.Done ? (
+      {phase !== ConfirmModalPhase.Done ? auto ? (
+        <div className={"phase-fade-in"} key={"pending"}>
+          <PendingRow label={SEND_BROADCASTING_LABEL} className={"mt-4"} />
+        </div>
+      ) : (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary {...summary} className={"mt-4"} />
 
@@ -141,7 +180,7 @@ export default function TransferConfirmModal({
             )}
           </div>
 
-          <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
             <div className={"flex justify-between items-center gap-4"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
               <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>

@@ -19,4 +19,5 @@ export interface ShieldedSpendModalProps {
   sourceValid?: boolean
   onSuccess: () => void
   successNote?: string
+  presetPassword?: string
 }

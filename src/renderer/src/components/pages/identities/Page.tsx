@@ -1,12 +1,15 @@
-import { Tabs } from "dash-ui-kit/react";
-import { useIdentities } from "@renderer/hooks/useIdentities";
+import { refreshIdentities, useIdentities } from "@renderer/hooks/useIdentities";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import IdentityCard from "./IdentityCard";
 import NoResults from "@renderer/components/ui/NoResults";
+import RetryButton from "@renderer/components/ui/RetryButton";
+import { NoResultsTone } from "@renderer/enums/NoResultsTone";
 import ListSkeleton from "@renderer/components/ui/Skeleton";
 import PageHeader from "@renderer/components/ui/PageHeader";
+import PageTabs from "@renderer/components/ui/PageTabs";
 import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
-import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { SURFACE_PANEL } from "@renderer/constants/surfaces";
+import { Button } from "@renderer/components/dash-ui-kit-enxtended";
 import { useNavigate } from "react-router-dom";
 
 export interface Identity {
@@ -22,7 +25,8 @@ export interface Identity {
 export default function Identities(): React.JSX.Element {
   const navigate = useNavigate()
   const { status } = useAuth()
-  const { identities, loading, err } = useIdentities(status?.selectedWalletId ?? undefined)
+  const walletId = status?.selectedWalletId ?? undefined
+  const { identities, loading, err } = useIdentities(walletId)
 
   const mappedIdentities: Identity[] = identities.map((item) => ({
     walletAddress: item.identifier,
@@ -43,13 +47,17 @@ export default function Identities(): React.JSX.Element {
           <div className={"flex flex-col gap-[.625rem] w-full"}>
             {loading && <ListSkeleton rows={5} />}
             {!loading && err && (
-              <NoResults noResults={"Failed to load identities"} />
+              <NoResults
+                tone={NoResultsTone.Error}
+                noResults={"Failed to load identities"}
+                action={walletId !== undefined && <RetryButton onRetry={() => refreshIdentities(walletId)} />}
+              />
             )}
             {!loading && !err && mappedIdentities.length === 0 && (
-              <div className={"flex flex-col items-center justify-center gap-4 py-12 text-center"}>
-                <Text size={16} weight={"bold"} color={"brand"} className={"leading-[120%]"}>No identities yet</Text>
-                <Button type={"button"} size={"sm"} onClick={() => navigate('/identities/register')}>Register identity</Button>
-              </div>
+              <NoResults
+                title={"No identities yet"}
+                action={<Button type={"button"} size={"compact"} colorScheme={"primary"} onClick={() => navigate('/identities/register')}>Register identity</Button>}
+              />
             )}
             {!loading && !err && mappedIdentities.map((identity) => (
               <IdentityCard key={identity.walletAddress} identity={identity} />
@@ -66,20 +74,12 @@ export default function Identities(): React.JSX.Element {
         <PageHeader
           title={PAGE_HEADERS.identities.title}
           subtitle={PAGE_HEADERS.identities.subtitle}
-          actions={<Button type={"button"} size={"sm"} onClick={() => navigate('/identities/register')}>Register identity</Button>}
+          actions={<Button type={"button"} size={"compact"} colorScheme={"primary"} onClick={() => navigate('/identities/register')}>Register identity</Button>}
         />
-        <div className={"relative shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-[.9375rem]"}>
-          <Tabs
+        <div className={`relative ${SURFACE_PANEL}`}>
+          <PageTabs
             items={assetsList}
             value={'your-identities'}
-            size={"xl"}
-            triggerClassName={
-              'data-[state=active]:text-dash-primary-dark-blue ' +
-              'data-[state=inactive]:text-dash-primary-dark-blue/35 ' +
-              'dark:data-[state=active]:text-white ' +
-              'dark:data-[state=inactive]:text-white/35 ' +
-              'font-medium tracking-[-0.03em]'
-            }
           />
         </div>
       </div>

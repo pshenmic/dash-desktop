@@ -8,8 +8,8 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { ModalSize } from '@renderer/enums/ModalSize'
-import Spinner from '@renderer/components/ui/Spinner'
 import PasswordField from '@renderer/components/ui/PasswordField'
+import PendingRow from '@renderer/components/ui/PendingRow'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import { toast } from '@renderer/components/ui/Toast'
@@ -18,8 +18,9 @@ import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
-import { SHIELDED_PROVING_LABEL } from '@renderer/constants/shieldedProgress'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { SEND_INPUTS_CHANGED_MESSAGE, SHIELD_PROGRESS_TITLE, SHIELD_PROVING_PENDING_LABEL } from '@renderer/constants/sendConfirmModal'
 
 export default function ShieldConfirmModal({
   isOpen,
@@ -34,6 +35,7 @@ export default function ShieldConfirmModal({
   totalCredits,
   proverReady,
   sourceValid = true,
+  presetPassword,
   onSuccess,
 }: ShieldConfirmModalProps): React.JSX.Element {
   const sourceValidRef = useRef(sourceValid)
@@ -44,13 +46,54 @@ export default function ShieldConfirmModal({
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ShieldResult | null>(null)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
+  const [seenOpen, setSeenOpen] = useState(false)
+  const autoPassword = proverReady ? presetPassword : undefined
 
-  useEffect(() => {
+  if (isOpen !== seenOpen) {
+    setSeenOpen(isOpen)
     if (isOpen) {
       setPassword('')
-      setPhase(ConfirmModalPhase.Confirm)
+      setPhase(autoPassword ? ConfirmModalPhase.Sending : ConfirmModalPhase.Confirm)
       setError(null)
       setResult(null)
+      setAuto(Boolean(autoPassword))
+    }
+  }
+
+  const abort = (preset: boolean): void => {
+    if (preset) onClose()
+    else setPhase(ConfirmModalPhase.Confirm)
+  }
+
+  const submit = async (secret: string, preset: boolean): Promise<void> => {
+    if (!walletId || !sourceValidRef.current) {
+      if (preset) toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+      abort(preset)
+      return
+    }
+    try {
+      const res = await API.shieldToPool(walletId, source, toAddress, amountCredits, secret)
+      setResult(res)
+      setPhase(ConfirmModalPhase.Done)
+      onSuccess()
+    } catch (e) {
+      console.error('Shield failed', e)
+      toast.error(getErrorMessage(e))
+      abort(preset)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    if (autoPassword) {
+      autoStarted.current = true
+      void submit(autoPassword, true)
     }
   }, [isOpen])
 
@@ -61,25 +104,16 @@ export default function ShieldConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setError(null)
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setError(INVALID_WALLET_PASSWORD_MESSAGE)
-        setPhase(ConfirmModalPhase.Confirm)
+      if (await API.verifyWalletPassword(walletId, password)) {
+        await submit(password, false)
         return
       }
-      if (!sourceValidRef.current) {
-        setPhase(ConfirmModalPhase.Confirm)
-        return
-      }
-      const res = await API.shieldToPool(walletId, source, toAddress, amountCredits, password)
-      setResult(res)
-      setPhase(ConfirmModalPhase.Done)
-      onSuccess()
+      setError(INVALID_WALLET_PASSWORD_MESSAGE)
     } catch (e) {
       console.error('Shield failed', e)
       toast.error(getErrorMessage(e))
-      setPhase(ConfirmModalPhase.Confirm)
     }
+    setPhase(ConfirmModalPhase.Confirm)
   }
 
   const requestClose = (): void => {
@@ -91,15 +125,22 @@ export default function ShieldConfirmModal({
   if (shielding) confirmLabel = 'Shielding…'
   else if (!proverReady) confirmLabel = 'Preparing…'
 
+  let modalTitle = auto ? SHIELD_PROGRESS_TITLE : 'Confirm shield'
+  if (phase === ConfirmModalPhase.Done) modalTitle = 'Funds shielded'
+
   return (
     <Modal
       open={isOpen}
       onClose={requestClose}
-      title={phase === ConfirmModalPhase.Done ? 'Funds shielded' : 'Confirm shield'}
+      title={modalTitle}
       size={ModalSize.Lg}
       dismissible={!shielding}
     >
-      {phase !== ConfirmModalPhase.Done ? (
+      {phase !== ConfirmModalPhase.Done ? auto ? (
+        <div className={"phase-fade-in"} key={"pending"}>
+          <PendingRow label={SHIELD_PROVING_PENDING_LABEL} className={"mt-4"} />
+        </div>
+      ) : (
         <div className={"phase-fade-in"} key={"confirm"}>
           <TxSummary
             unit={"credits"}
@@ -112,10 +153,7 @@ export default function ShieldConfirmModal({
           />
 
           {shielding ? (
-            <div className={"mt-4 flex items-center gap-3 p-[.875rem] rounded-[.9375rem] dash-block"}>
-              <Spinner size={18} className={"text-dash-brand dark:text-dash-mint"} />
-              <Text size={14} weight={"medium"} color={"brand"}>{SHIELDED_PROVING_LABEL}…</Text>
-            </div>
+            <PendingRow label={SHIELD_PROVING_PENDING_LABEL} className={"mt-4"} />
           ) : (
             <PasswordField
               id={"shield-password"}
@@ -148,7 +186,7 @@ export default function ShieldConfirmModal({
             </Text>
           </div>
 
-          <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
             <div className={"flex justify-between items-center gap-4"}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Fee-paying address</Text>
               <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>

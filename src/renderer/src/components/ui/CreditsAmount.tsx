@@ -1,6 +1,8 @@
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
+import { DASH_UNIT } from '@renderer/constants/balance'
 import { useFiat } from '@renderer/hooks/useFiat'
 import type { CreditsAmountProps } from '@renderer/types/Amount'
+import { formatApproxFiat } from '@renderer/utils/approxFiat'
 import { creditsToDash, creditsToDuffs, davToDash, formatCompactCredits, formatCredits } from '@renderer/utils/balance'
 
 export default function CreditsAmount({
@@ -37,7 +39,7 @@ export default function CreditsAmount({
       <span className={`relative inline-grid align-baseline ${justifyItems}`}>
         <span className={`${face} group-hover/credits:opacity-0 group-hover/credits:-translate-y-0.5`}>
           {prefix}<DashBigNumber className={amountClassName}>{exact ? creditsToDash(credits) : davToDash(duffs)}</DashBigNumber>
-          <span className={unitClassName}>{' Dash'}</span>
+          <span className={unitClassName}>{` ${DASH_UNIT}`}</span>
         </span>
         <span
           aria-hidden
@@ -51,7 +53,7 @@ export default function CreditsAmount({
         <span
           className={`whitespace-nowrap text-[.625rem] font-medium leading-[120%] text-dash-brand dark:text-dash-mint`}
         >
-          ~ {fiat}
+          {formatApproxFiat(fiat)}
         </span>
       )}
     </span>

@@ -1,9 +1,10 @@
 import { InfoTooltip, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { SURFACE_ROW } from '@renderer/constants/surfaces'
 import type { TransactionDetailTokenProps } from '@renderer/types/TransactionDetailToken'
 
 export default function TransactionDetailToken({ icon, label, hint, value, subValue }: TransactionDetailTokenProps): React.JSX.Element {
   return (
-    <div className={'flex flex-1 items-center justify-between gap-3 min-h-17 min-w-0 p-3 rounded-xl dash-block'}>
+    <div className={`flex flex-1 items-center justify-between gap-3 min-h-17 min-w-0 ${SURFACE_ROW}`}>
       <div className={'flex items-center gap-[.625rem]'}>
         <span className={'flex size-[1.875rem] shrink-0 items-center justify-center rounded-full bg-dash-brand/12 dark:bg-dash-mint/12'}>
           {icon}
