@@ -13,3 +13,5 @@ export const POPOVER_OPTION = 'rounded-[.625rem] p-[.625rem] cursor-pointer tran
 export const CHIP_VALUE = 'rounded-md dash-block-accent-5 px-2 py-1 text-xs'
 
 export const CHIP_ACTION = 'rounded-lg dash-block-accent-10 px-2 py-1 text-xs dash-text-primary cursor-pointer enabled:hover:dash-block-accent-15'
+
+export const ICON_CHIP = 'flex size-[1.875rem] shrink-0 items-center justify-center rounded-full bg-dash-brand/12 dark:bg-dash-mint/12 dash-text-primary'

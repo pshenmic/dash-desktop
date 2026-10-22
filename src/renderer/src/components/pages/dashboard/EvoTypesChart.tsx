@@ -1,18 +1,34 @@
+import { CreditsIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ANALYTICS_METER, ANALYTICS_PLACEHOLDER } from '@renderer/constants/dashboardAnalytics'
+import { dashboardPage } from '@renderer/constants/dashboardPage'
 import type { DashboardAnalytics } from '@renderer/types/DashboardAnalytics'
 import ChartCard from './ChartCard'
-import { summarizeEvoTypes } from '@renderer/utils/dashboardAnalytics'
+import { formatShare, summarizeEvoTypes } from '@renderer/utils/dashboardAnalytics'
 
 export default function EvoTypesChart({ types, evoCount }: Pick<DashboardAnalytics, 'types' | 'evoCount'>): React.JSX.Element {
   const groups = summarizeEvoTypes(types)
   const maximum = groups.reduce((max, item) => Math.max(max, item.count), 0)
+  const labels = dashboardPage.analytics.evoTypes
   return (
-    <ChartCard title="Evo transaction types" description="Transaction count and share by type · all statuses">
-      {types.length === 0 ? <div className="flex h-[227px] items-center justify-center text-center text-xs text-(--chart-muted)">No Evo transactions in this period</div> : (
-        <div className="mt-2 h-[215px] space-y-2.5 overflow-y-auto pr-[5px] pb-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--chart-core)" tabIndex={0} role="region" aria-label="Evo transaction counts by type">
+    <ChartCard title={labels.title} icon={CreditsIcon} description={labels.description}>
+      {types.length === 0 ? (
+        <div className={`${ANALYTICS_PLACEHOLDER} flex-1 py-8`}>
+          <Text size={12} weight="medium" color="brand" opacity={50}>{labels.empty}</Text>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3" role="region" aria-label={labels.region}>
           {groups.map(item => (
-            <div key={item.type}>
-              <div className="mb-[5px] flex justify-between gap-2 text-[11px]"><span className="wrap-anywhere">{item.label}</span><span className="whitespace-nowrap tabular-nums"><b>{item.count.toLocaleString('en-US')}</b><small className="inline-block w-[34px] text-right text-[10px] text-(--chart-muted)">{Math.round(item.count / evoCount * 100)}%</small></span></div>
-              <div className="h-[5px] overflow-hidden rounded-[3px] bg-(--chart-evo)/10" aria-hidden="true"><div className="h-full rounded-[inherit] bg-(--chart-evo)" style={{ width: `${item.count / maximum * 100}%` }} /></div>
+            <div key={item.type} className="flex flex-col gap-1.5">
+              <div className="flex justify-between gap-2">
+                <Text size={12} weight="medium" color="brand" className="leading-[120%] wrap-anywhere">{item.label}</Text>
+                <span className="flex shrink-0 items-baseline gap-2">
+                  <Text size={12} weight="bold" color="brand" className="tabular-nums">{item.count.toLocaleString('en-US')}</Text>
+                  <Text size={12} weight="medium" color="brand" opacity={50} className="w-10 text-right tabular-nums">{`${formatShare(item.count / evoCount * 100)}%`}</Text>
+                </span>
+              </div>
+              <div className={ANALYTICS_METER.evo.track} aria-hidden="true">
+                <div className={ANALYTICS_METER.evo.fill} style={{ width: `${item.count / maximum * 100}%` }} />
+              </div>
             </div>
           ))}
         </div>
