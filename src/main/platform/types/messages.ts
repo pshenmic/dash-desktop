@@ -1,5 +1,8 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
+import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
+import {DashPayContactRequest} from '../../src/types/DashPay'
+import {IdentityKey, IdentityKeyRequest} from '../../src/types/IdentityKeys'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -116,8 +119,13 @@ export type IdentityFeeOperation =
   | 'identityToIdentity'
   | 'identityWithdrawal'
 
+// For aliasRegister the recipient is the label being registered, for
+// dashPayContactRequest the identity asked; identityId is the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
+  | 'aliasRegister'
+  | 'dashPayContactRequest'
+  | 'identityCreateKeys'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -127,7 +135,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -157,6 +165,8 @@ export interface FeeParams {
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
+  // identityCreateKeys only: the keys being created.
+  keys?: IdentityKeyRequest[] | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
   shieldedSource?: ShieldedSpendSource | null
@@ -191,6 +201,8 @@ export interface FeeQuoteParams extends FeeParams {
 export interface FeeQuote {
   feeCredits: bigint
   metered: boolean
+  // Charged as is on top, never scaled by a fee multiplier: a contest's vote fund.
+  fixedCredits: bigint
 }
 
 export type AssetLockProofParams =
@@ -330,6 +342,10 @@ export interface PlatformOperations {
     }
     result: {stHash: string}
   }
+  identityCreateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; keys: IdentityKeyRequest[]}
+    result: {stHash: string}
+  }
   identityExists: {
     payload: {identifier: string}
     result: {exists: boolean}
@@ -347,7 +363,36 @@ export interface PlatformOperations {
     // identity fetch.
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
-    result: {infos: Array<{identifier: string; balance: bigint; alias: string | null}>}
+    result: {infos: Array<{identifier: string; balance: bigint; aliasesList: string[]; keys: IdentityKey[]}>}
+  }
+  aliasStatus: {
+    payload: {identifier: string; label: string}
+    result: AliasCheck
+  }
+  // Names whose label starts with prefix, in label order, at most one proved page.
+  aliasSearch: {
+    payload: {prefix: string}
+    result: {results: AliasSearchResult[]}
+  }
+  // Answers with the check it ran before spending anything. A domain refused
+  // after its preorder landed is answered, not thrown, so its salt reaches main.
+  aliasRegister: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string; preorderSalt: Uint8Array | null}
+    result: AliasCheck & {preorderSalt: Uint8Array | null; error: string | null}
+  }
+  dashPayContactRequestSend: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
+    result: {stHash: string}
+  }
+  // null when the request can never be decrypted.
+  dashPayContactKey: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; request: DashPayContactRequest}
+    result: {xpub: string | null}
+  }
+  // Oldest first, every request created at or after `since`.
+  dashPayContactRequests: {
+    payload: {identifier: string; since: number}
+    result: {sent: DashPayContactRequest[]; received: DashPayContactRequest[]}
   }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}

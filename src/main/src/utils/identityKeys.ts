@@ -29,16 +29,18 @@ export function identityPath(network: 'mainnet' | 'testnet', identityIndex: numb
 export function matchIdentityKey(
   identityKeys: IdentityKeyDescriptor[],
   derivedHashes: DerivedKeyHash[],
+  purpose: string,
+  securityLevel?: string,
 ): { keyId: number; keyIndex: number } | null {
   const keyIndexByHash = new Map(
     derivedHashes.map(derived => [derived.publicKeyHashHex.toLowerCase(), derived.keyIndex]),
   )
 
-  const transferKeys = identityKeys
-    .filter(key => key.purpose.toUpperCase() === 'TRANSFER')
+  const wantedKeys = identityKeys
+    .filter(key => key.purpose.toUpperCase() === purpose && (securityLevel == null || key.securityLevel.toUpperCase() === securityLevel))
     .sort((a, b) => a.keyId - b.keyId)
 
-  for (const key of transferKeys) {
+  for (const key of wantedKeys) {
     const keyIndex = keyIndexByHash.get(key.publicKeyHashHex.toLowerCase())
     if (keyIndex != null) {
       return { keyId: key.keyId, keyIndex }

@@ -18,6 +18,34 @@ export const IDENTITY_NOT_FOUND = /not found/i
 
 export const IDENTITY_KEY_LOOKAHEAD = 20
 
+export const DPNS_PARENT_DOMAIN = 'dash'
+export const DPNS_CONTESTED_INDEX = 'parentNameAndLabel'
+
+// dash-sdk's DashPay key rules: requests already on chain may name these purposes.
+export const DASHPAY_RECEIVED_RECIPIENT_KEY_PURPOSES = ['DECRYPTION', 'ENCRYPTION', 'AUTHENTICATION', 'TRANSFER']
+export const DASHPAY_RECEIVED_SENDER_KEY_PURPOSES = ['ENCRYPTION', 'AUTHENTICATION']
+
+// Drive's default_vote_poll_time_duration (VOTING_VERSION_V2, protocol 13+),
+// counted from the block the first contender landed in.
+export const VOTE_POLL_DURATION_MS: Record<Network, number> = {
+  mainnet: 1_209_600_000,
+  testnet: 5_400_000,
+}
+
+// Drive's allow_other_contenders_time: how long after a contest opens others may join it.
+export const CONTEST_JOIN_WINDOW_MS: Record<Network, number> = {
+  mainnet: 604_800_000,
+  testnet: 2_700_000,
+}
+
+// Drive's contested_document_vote_resolution_fund_required_amount: 0.1 DASH
+// from FEE_VERSION3 (protocol 14), 0.2 DASH before it.
+export const CONTEST_FUND_CREDITS = 10_000_000_000n
+
+// The SDK throws this for a name no contest was ever opened on, and a network
+// failure would otherwise read as the same "no contest".
+export const VOTE_STATE_NOT_FOUND = /vote state not found/i
+
 // Stands in for a key a quote will not derive. The secp256k1 generator, so the
 // bytes are certainly a valid point; which point it is moves no fee.
 export const FEE_QUOTE_PUBLIC_KEY = Uint8Array.from(
@@ -39,13 +67,6 @@ export const PROVED_QUERY_LIMIT = 100
 // priced at can be this stale for a while after one.
 export const PLATFORM_VERSION_TTL_MS = 10 * 60_000
 export const PLATFORM_VERSION_RETRY_MS = 30_000
-
-export const KEY_SPECS: Array<{purpose: 'AUTHENTICATION' | 'TRANSFER'; securityLevel: 'MASTER' | 'HIGH' | 'CRITICAL'}> = [
-  {purpose: 'AUTHENTICATION', securityLevel: 'MASTER'},
-  {purpose: 'AUTHENTICATION', securityLevel: 'HIGH'},
-  {purpose: 'AUTHENTICATION', securityLevel: 'CRITICAL'},
-  {purpose: 'TRANSFER', securityLevel: 'CRITICAL'},
-]
 
 // Prover-lane work saturates the single thread this process has, so serialising
 // it costs nothing and guarantees a spend sees what the sync before it
@@ -81,6 +102,9 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityCreditsToAddresses':
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
+    case 'identityCreateKeys':
+    case 'dashPayContactRequestSend':
+    case 'aliasRegister':
       return `${request.network}:identity:${request.payload.identifier}`
 
     case 'transitionFee':
@@ -91,6 +115,10 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityBalance':
     case 'identityNonce':
     case 'identityInfos':
+    case 'aliasStatus':
+    case 'aliasSearch':
+    case 'dashPayContactRequests':
+    case 'dashPayContactKey':
     case 'identityScan':
     case 'nodeStatus':
     case 'activeDapiUrls':

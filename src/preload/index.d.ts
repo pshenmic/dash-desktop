@@ -14,6 +14,9 @@ type CoreSpendSource =
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
 
+// Mirrors IdentityKeyRequest in src/main/src/types/IdentityKeys.
+type IdentityKeyRequest = { purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }
+
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
 type ShieldedSpendSource =
@@ -151,6 +154,14 @@ declare global {
       getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
       getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
+      getAliases: (walletId: string) => Promise<unknown>
+      registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
+      createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => Promise<string>
+      searchAliases: (walletId: string, prefix: string) => Promise<unknown>
+      getDashPayContacts: (walletId: string) => Promise<unknown>
+      sendDashPayContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => Promise<unknown>
+      sendDashPayPayment: (walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string) => Promise<unknown>
+      getDashPayPayments: (walletId: string, identifier: string, contactId: string) => Promise<unknown>
       getIdentityBalance: (identifier: string) => Promise<bigint>
       getIdentityNonce: (identifier: string) => Promise<bigint>
       getPlatformAddresses: (walletId: string) => Promise<unknown>
