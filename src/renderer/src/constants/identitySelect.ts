@@ -7,7 +7,7 @@ export const IDENTITY_SELECT_SEARCH_MIN = 6
 
 export const IDENTITY_SELECT_NAVIGATION_KEYS: string[] = Object.values(ListNavigationKey)
 
-export const IDENTITY_SELECT_HEADER_BASE = 'relative h-10 flex items-center gap-2.5 rounded-[.875rem] dash-block dash-black-border pl-1.5 pr-3'
+export const IDENTITY_SELECT_HEADER_BASE = 'relative h-12 flex items-center gap-3 rounded-[.9375rem] dash-block dash-black-border pl-2.5 pr-3.5'
 
 export const IDENTITY_SELECT_HEADER_WIDTH = 'w-[17.5rem]'
 
@@ -15,7 +15,7 @@ export const IDENTITY_SELECT_HEADER_IDENTIFIER_WIDTH = 'w-max min-w-[17.5rem]'
 
 export const IDENTITY_SELECT_COMPACT_IDENTIFIER_CLASS = `${CONTACT_IDENTIFIER_CLASS} text-xs!`
 
-export const IDENTITY_SELECT_HEADER_SKELETON = `h-10 ${IDENTITY_SELECT_HEADER_WIDTH} rounded-[.875rem] animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8`
+export const IDENTITY_SELECT_HEADER_SKELETON = `h-12 ${IDENTITY_SELECT_HEADER_WIDTH} rounded-[.9375rem] animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8`
 
 export const IDENTITY_SELECT_STYLES: Record<IdentitySelectAppearance, IdentitySelectStyles> = {
   [IdentitySelectAppearance.Field]: {

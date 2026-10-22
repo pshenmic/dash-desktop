@@ -310,8 +310,8 @@ export default function IdentitySelect({
 
   const headerContent = (identity: IdentityApiDto): React.JSX.Element => (
     <>
-      <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Xs} />
-      <span className={'flex min-w-0 flex-1 flex-col gap-0.5 text-left'}>
+      <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Sm} />
+      <span className={'flex min-w-0 flex-1 flex-col gap-1 text-left'}>
         <IdentityHeadline identity={identity} />
         <IdentityMeta identity={identity} meta={renderTriggerMeta?.(identity)} warnEmpty />
       </span>
