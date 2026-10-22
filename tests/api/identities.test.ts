@@ -7,6 +7,7 @@ import {AliasCheck} from '../../src/main/src/types/Alias'
 import {DashPayContactRequest} from '../../src/main/src/types/DashPay'
 import {DashPayContactRequestDAO} from '../../src/main/src/database/DashPayContactRequestDAO'
 import {IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
+import {MAX_KEYS_PER_TRANSITION} from '../../src/main/src/constants/credits'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
@@ -143,9 +144,10 @@ describe('listing identities', () => {
     expect(await identities.getAliases(walletId)).toEqual([])
   })
 
-  it('creates nothing for no keys, an identity outside the wallet or a wrong password', async () => {
+  it('creates nothing for no keys, too many keys, an identity outside the wallet or a wrong password', async () => {
     const key: IdentityKeyRequest = {purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null}
     await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [], PASSWORD)).rejects.toThrow('at least one key')
+    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, Array(MAX_KEYS_PER_TRANSITION + 1).fill(key), PASSWORD)).rejects.toThrow('at most')
     await expect(identities.createIdentityKeys(walletId, 'someone-else', [key], PASSWORD)).rejects.toThrow('Identity not found')
     await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [key], 'wrong')).rejects.toThrow('Invalid wallet password')
     expect(request).not.toHaveBeenCalledWith('identityCreateKeys', expect.anything(), expect.anything())

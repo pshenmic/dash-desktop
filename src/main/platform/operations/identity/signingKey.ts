@@ -5,7 +5,6 @@ import {Network} from '../../../src/types/Network'
 import {matchIdentityKey} from '../../../src/utils/identityKeys'
 import {OperationError} from '../types'
 import {DerivedKeyHash} from '../../../src/types/IdentityKeys'
-import {IDENTITY_KEY_LOOKAHEAD} from '../../constants'
 
 
 // Needs both the derived private keys and the live key list from the chain, so
@@ -27,7 +26,8 @@ export async function signingKey(
 
   const derived: Array<{keyIndex: number; privateKey: PrivateKeyWASM}> = []
   const hashes: DerivedKeyHash[] = []
-  for (let keyIndex = 0; keyIndex < IDENTITY_KEY_LOOKAHEAD; keyIndex++) {
+  // Every key this wallet registers is derived at its own key id.
+  for (const {keyId: keyIndex} of identityKeys) {
     const child = sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, keyIndex, network)
     if (!child.privateKey) continue
     const privateKey = PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network)

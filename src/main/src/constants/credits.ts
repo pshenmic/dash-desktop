@@ -32,6 +32,9 @@ export const MIN_INPUT_CREDITS = 100_000n
 export const MIN_IDENTITY_FUNDING_CREDITS = 200_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
+// max_public_keys_in_creation: caps the keys one transition adds, not an
+// identity's total.
+export const MAX_KEYS_PER_TRANSITION = 6
 // What fits the 20 KiB max_state_transition_size, not the protocol's own
 // max_shielded_transition_actions of 16: the Halo2 proof grows ~2,681 bytes per
 // action, so a seventh action puts the transition over the wire limit.

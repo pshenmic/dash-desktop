@@ -3,7 +3,6 @@ import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {identityCreateKeysFee} from '../fee'
-import {IDENTITY_KEY_LOOKAHEAD} from '../../constants'
 import {contractBoundsWASM} from './contractBounds'
 import {applySignature, signingKey} from './signingKey'
 
@@ -18,11 +17,8 @@ export async function identityCreateKeys(payload: Payload, ctx: OperationContext
   if (BigInt(identity.balance) < identityCreateKeysFee(keys, identity.getPublicKeys()).feeCredits) {
     throw new OperationError('The identity cannot afford to create these keys', 'insufficientFunds')
   }
+  // The key id doubles as the derivation index; signingKey relies on it.
   const firstKeyId = Math.max(...identity.getPublicKeys().map(key => key.keyId)) + 1
-  // The key id doubles as the derivation index, and signingKey scans only this far.
-  if (firstKeyId + keys.length > IDENTITY_KEY_LOOKAHEAD) {
-    throw new OperationError('This identity has no key slots left that this wallet can sign with', 'internal')
-  }
 
   const master = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'MASTER')
   const hdKey = sdk.keyPair.seedToHdKey(seed, network)
