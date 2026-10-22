@@ -1,63 +1,53 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { API } from '@renderer/api'
-import { Contact, Network } from '@renderer/api/types'
+import type { Contact, Network } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { toast } from '@renderer/components/ui/Toast'
-import { getErrorMessage } from '@renderer/utils/error'
+import { ADDRESS_BOOK_CACHE_NS, ADDRESS_BOOK_COPY, ADDRESS_BOOK_EMPTY } from '@renderer/constants/addressBook'
+import type { UseAddressBook } from '@renderer/types/AddressBook'
+import { addressBookKey } from '@renderer/utils/addressBook'
+import { invalidateAsyncCache, setAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
-export interface UseAddressBook {
-  contacts: Contact[]
-  loading: boolean
-  network: Network | undefined
-  reload: () => void
-  addContact: (label: string, address: string) => Promise<void>
-  deleteContact: (id: number) => Promise<void>
+async function reloadAddressBook(network: Network): Promise<void> {
+  setAsyncCache(ADDRESS_BOOK_CACHE_NS, network, await API.getContacts(network))
 }
 
 export function useAddressBook(): UseAddressBook {
   const { status } = useAuth()
-  const network = (status?.network ?? undefined) as Network | undefined
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [loading, setLoading] = useState(true)
+  const network = status?.network ?? undefined
+  const { data, loading, err } = useAsyncWithCache<Contact[]>(
+    ADDRESS_BOOK_CACHE_NS,
+    network,
+    () => API.getContacts(network!),
+    ADDRESS_BOOK_EMPTY,
+    { errorMessage: ADDRESS_BOOK_COPY.loadFailed },
+  )
 
-  const reload = useCallback(() => {
-    if (!network) {
-      setContacts([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    API.getContacts(network)
-      .then((list) => setContacts(list ?? []))
-      .catch((error) => {
-        console.error('getContacts failed', error)
-        toast.error(`**Could not load contacts** ${getErrorMessage(error)}`)
-      })
-      .finally(() => setLoading(false))
+  const retry = useCallback(() => {
+    if (network != null) invalidateAsyncCache(ADDRESS_BOOK_CACHE_NS, network)
   }, [network])
 
-  useEffect(() => {
-    reload()
-  }, [reload])
+  const addContact = useCallback(async (label: string, address: string) => {
+    if (network == null) throw new Error(ADDRESS_BOOK_COPY.noNetwork)
+    await API.addContact(label, addressBookKey(address), network)
+    await reloadAddressBook(network)
+  }, [network])
 
-  const addContact = useCallback(
-    async (label: string, address: string) => {
-      if (!network) {
-        throw new Error('No active network')
-      }
-      await API.addContact(label, address, network)
-      reload()
-    },
-    [network, reload],
-  )
+  const updateContact = useCallback(async (contact: Contact, label: string, address: string) => {
+    const key = addressBookKey(address)
+    if (key === addressBookKey(contact.address)) {
+      await API.deleteContact(contact.id)
+      await API.addContact(label, key, contact.network)
+    } else {
+      await API.addContact(label, key, contact.network)
+      await API.deleteContact(contact.id)
+    }
+    await reloadAddressBook(contact.network)
+  }, [])
 
-  const deleteContact = useCallback(
-    async (id: number) => {
-      await API.deleteContact(id)
-      reload()
-    },
-    [reload],
-  )
+  const deleteContact = useCallback(async (id: number) => {
+    await API.deleteContact(id)
+    if (network != null) await reloadAddressBook(network)
+  }, [network])
 
-  return { contacts, loading, network, reload, addContact, deleteContact }
+  return { contacts: data, loading, err, network, retry, addContact, updateContact, deleteContact }
 }

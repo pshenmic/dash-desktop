@@ -245,4 +245,32 @@ describe('send drafts', () => {
     clearSendDraft('wallet-a')
     expect(getOrCreateSendDraft('wallet-a', null, null).advancedRoutes).toEqual({})
   })
+
+  it('fills a linked recipient and switches to a source that can reach it', () => {
+    saveSendDraft('wallet-a', {...createSendDraft(SourceKind.Identity, DestinationKind.CoreAddress), toValue: 'old', acked: true})
+    expect(getOrCreateSendDraft('wallet-a', null, DestinationKind.Shielded, ' tdash1recipient ')).toMatchObject({
+      fromKind: SourceKind.Core,
+      toKind: DestinationKind.Shielded,
+      toValue: 'tdash1recipient',
+      acked: false,
+    })
+  })
+
+  it('keeps a compatible source and fills the first advanced recipient from a link', () => {
+    const advanced = setSendAdvanced(createSendDraft(SourceKind.PlatformAddress, DestinationKind.Identity), true)
+    saveSendDraft('wallet-a', {
+      ...advanced,
+      advancedRoutes: {[TransferOperation.IdentityTopUp]: {
+        recipients: [{id: 'first', address: '', amount: '1'}, {id: 'second', address: 'kept', amount: '2'}],
+        subtractFee: false,
+        feeRecipientId: null,
+      }},
+    })
+    const linked = getOrCreateSendDraft('wallet-a', null, DestinationKind.Identity, 'identity-id')
+    expect(linked.fromKind).toBe(SourceKind.PlatformAddress)
+    expect(getAdvancedSendRoute(linked, TransferOperation.IdentityTopUp).recipients).toEqual([
+      {id: 'first', address: 'identity-id', amount: '1'},
+      {id: 'second', address: 'kept', amount: '2'},
+    ])
+  })
 })

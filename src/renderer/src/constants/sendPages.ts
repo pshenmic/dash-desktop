@@ -8,6 +8,14 @@ const ADDRESS_PLACEHOLDER = 'Enter Address…'
 const IDENTITY_PLACEHOLDER = 'Enter identity ID…'
 const SHIELDED_PLACEHOLDER = 'Enter shielded address…'
 
+export const SEND_ROUTE = '/send'
+
+export const SEND_PARAMS = {
+  from: 'from',
+  to: 'to',
+  recipient: 'recipient',
+} as const
+
 export const DESTINATION_PLACEHOLDERS: Record<DestinationKind, Record<Network, string>> = {
   [DestinationKind.CoreAddress]: {mainnet: ADDRESS_PLACEHOLDER, testnet: ADDRESS_PLACEHOLDER},
   [DestinationKind.PlatformAddress]: {mainnet: ADDRESS_PLACEHOLDER, testnet: ADDRESS_PLACEHOLDER},
@@ -85,7 +93,7 @@ export const sendPageData: TransferPageType = {
   recipient: {
     label: 'Recipient',
     placeholder: ADDRESS_PLACEHOLDER,
-    addressBook: 'Address Book',
+    addressBook: 'Address book',
     addressManagement: 'Address Management',
     noResults: 'No addresses found',
   },

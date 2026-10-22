@@ -12,6 +12,8 @@ import { useShieldedNotesInfo, useShieldedStatus, useShieldedSyncState } from '@
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
+import { WalletAddressTab } from '@renderer/enums/AddressBook'
+import { walletAddressesHref } from '@renderer/utils/addressBookView'
 import DashboardHeading from './DashboardHeading'
 
 export default function ShieldedCard(): React.JSX.Element {
@@ -38,7 +40,7 @@ export default function ShieldedCard(): React.JSX.Element {
 
   return (
     <div
-      onClick={() => navigate('/addresses?tab=shielded')}
+      onClick={() => navigate(walletAddressesHref(WalletAddressTab.Shielded))}
       className={"relative overflow-hidden flex flex-col gap-3 p-[.9375rem] rounded-3xl dash-card-base shadow-[0_0_32px_0_rgba(12,28,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_0_rgba(12,28,51,0.14)] cursor-pointer"}
     >
       <div className={"absolute -top-14 -right-8 size-36 rounded-full bg-dash-brand/8 dark:bg-dash-mint/6 blur-3xl pointer-events-none"} />
@@ -53,7 +55,7 @@ export default function ShieldedCard(): React.JSX.Element {
         <button
           onClick={(e) => {
             e.stopPropagation()
-            navigate('/addresses?tab=shielded')
+            navigate(walletAddressesHref(WalletAddressTab.Shielded))
           }}
           className={"group flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200"}
         >

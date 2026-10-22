@@ -1,8 +1,15 @@
-import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, ExternalLinkIcon, PlusIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import CustomBadge from '@renderer/components/ui/CustomBadge'
 import QrButton from '@renderer/components/ui/QrButton'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
-import { ADDRESS_ROW_EXPLORER_LABEL, ADDRESS_ROW_FIAT_CLASS, ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
+import {
+  ADDRESS_ROW_EXPLORER_LABEL,
+  ADDRESS_ROW_FIAT_CLASS,
+  ADDRESS_ROW_ICON_BUTTON_CLASS,
+  ADDRESS_ROW_IDENTIFIER_CLASS,
+} from '@renderer/constants/addressRow'
+import { WALLET_ADDRESSES_COPY } from '@renderer/constants/addressBook'
 import { SURFACE_ROW } from '@renderer/constants/surfaces'
 import { useFiat } from '@renderer/hooks/useFiat'
 import type { AddressRowProps } from '@renderer/types/AddressRow'
@@ -17,6 +24,8 @@ export default function AddressRow({
   meta,
   explorerUrl,
   onQr,
+  savedName,
+  onSave,
   hidden = false,
 }: AddressRowProps): React.JSX.Element {
   const { format: formatFiat, rateReady } = useFiat()
@@ -36,13 +45,33 @@ export default function AddressRow({
                 onClick={() => openExternal(explorerUrl)}
                 title={ADDRESS_ROW_EXPLORER_LABEL}
                 aria-label={ADDRESS_ROW_EXPLORER_LABEL}
-                className={"size-5 shrink-0 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer"}
+                className={ADDRESS_ROW_ICON_BUTTON_CLASS}
               >
                 <ExternalLinkIcon size={10} color={"currentColor"} className={"dash-text-default opacity-50"} />
               </button>
             )}
+            {onSave && savedName == null && (
+              <button
+                type={"button"}
+                onClick={onSave}
+                title={WALLET_ADDRESSES_COPY.save}
+                aria-label={WALLET_ADDRESSES_COPY.save}
+                className={ADDRESS_ROW_ICON_BUTTON_CLASS}
+              >
+                <PlusIcon size={10} color={"currentColor"} className={"dash-text-default opacity-50"} />
+              </button>
+            )}
           </div>
-          {meta}
+          {(meta != null || savedName != null) && (
+            <div className={"flex min-w-0 flex-wrap items-center gap-[.3125rem]"}>
+              {meta}
+              {savedName != null && (
+                <span title={WALLET_ADDRESSES_COPY.saved} className={"inline-flex"}>
+                  <CustomBadge variant={"accent"} text={savedName} />
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className={"flex shrink-0 items-center gap-2"}>

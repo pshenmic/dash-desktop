@@ -1,5 +1,8 @@
 import { DashLogo } from "dash-ui-kit/react"
 import Balance from "./Balance";
+import { AddressUsage, WalletAddressTab } from "@renderer/enums/AddressBook";
+import { walletAddressesHref } from "@renderer/utils/addressBookView";
+import { IDENTITIES_ROUTE } from "@renderer/constants/navigation";
 import { EyeClosedIcon, EyeOpenIcon, LockIcon } from "../dash-ui-kit-enxtended";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useFiat } from "@renderer/hooks/useFiat";
@@ -73,10 +76,10 @@ export default function SidebarHeader(): React.JSX.Element {
         </div>
       </div>
       <div className={"flex flex-col dash-block rounded-[.875rem] dash-black-border divide-y divide-dash-primary-dark-blue/8 dark:divide-white/12"}>
-        <Balance variant="dash" balance={balance.dash.amount} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
-        <Balance variant="credits" credits={totalPlatformAddressCredits(platformAddresses)} isVisible={isBalanceVisible}/>
-        <Balance variant="identities" credits={totalIdentityCredits(identities)} isVisible={isBalanceVisible}/>
-        <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
+        <Balance variant="dash" to={walletAddressesHref(WalletAddressTab.Receiving, AddressUsage.Balance)} balance={balance.dash.amount} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
+        <Balance variant="credits" to={walletAddressesHref(WalletAddressTab.Platform, AddressUsage.Balance)} credits={totalPlatformAddressCredits(platformAddresses)} isVisible={isBalanceVisible}/>
+        <Balance variant="identities" to={IDENTITIES_ROUTE} credits={totalIdentityCredits(identities)} isVisible={isBalanceVisible}/>
+        <Balance variant="shielded" to={walletAddressesHref(WalletAddressTab.Shielded, AddressUsage.Balance)} credits={shieldedCredits} isVisible={isBalanceVisible}/>
       </div>
     </div>
   )

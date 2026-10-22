@@ -16,7 +16,7 @@ import RecipientInput from './RecipientInput'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 
 export default function SendRecipientsEditor({
-  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, amountDenominations, headerAction, beforeRecipients, footer, onChange,
+  recipients, errors, limit, destination, budgetDuffs, feeRecipientId, feeCredits, budgetIsEstimate, amountDenominations, headerAction, beforeRecipients, footer, ownOptions, ownHeading, ownedAddresses, onChange,
 }: SendRecipientsEditorProps): React.JSX.Element {
   const {status} = useAuth()
   const network = status?.network ?? null
@@ -98,7 +98,7 @@ export default function SendRecipientsEditor({
                 <input aria-label={inputLabel} value="New identity" readOnly className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[12]} opacity-50`} />
               </div>
             )
-            : <RecipientInput compact appearance="subtle" ariaLabel={inputLabel} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} validate={address => isValidDestinationAddress(destination, address, network)} invalid={!!addressError} valueAvatar={destination === DestinationKind.Identity} data={recipientData} />
+            : <RecipientInput compact appearance="subtle" ariaLabel={inputLabel} value={recipient.address} onChange={value => update(recipient.id, 'address', value)} validate={address => isValidDestinationAddress(destination, address, network)} invalid={!!addressError} valueAvatar={destination === DestinationKind.Identity} ownOptions={ownOptions} ownHeading={ownHeading} ownedAddresses={ownedAddresses} data={recipientData} />
 
           return (
             <section key={recipient.id} className="flex min-w-0 shrink-0 flex-col gap-3 rounded-[.875rem] dash-block px-3.5 py-3">

@@ -11,6 +11,8 @@ export interface NavGroup {
   items: NavItem[]
 }
 
+export const IDENTITIES_ROUTE = '/identities'
+
 export const navGroups: NavGroup[] = [
   {
     id: 'main',
@@ -42,13 +44,13 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         id: 'addresses',
-        label: 'Addresses',
-        to: '/addresses'
+        label: 'Address book',
+        to: '/address-book'
       },
       {
         id: 'identities',
         label: 'Identities',
-        to: '/identities'
+        to: IDENTITIES_ROUTE
       },
       {
         id: 'dashpay',

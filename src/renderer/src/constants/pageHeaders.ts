@@ -49,9 +49,14 @@ export const PAGE_HEADERS = {
     title: 'Transaction details',
     back: SEND_BACK_LABEL,
   },
-  addresses: {
-    title: 'Addresses',
+  addressBook: {
+    title: 'Address book',
+    subtitle: 'Addresses and identities you send to.',
+  },
+  walletAddresses: {
+    title: 'Wallet addresses',
     subtitle: 'Your Core, Platform and shielded addresses.',
+    back: 'Back to address book',
   },
   identities: {
     title: 'Identities',

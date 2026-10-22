@@ -9,6 +9,8 @@ import { useFiat } from "@renderer/hooks/useFiat";
 import { SHIELDED_BALANCE_UNKNOWN_TOOLTIP } from "@renderer/constants";
 import { DASH_UNIT, UNKNOWN_BALANCE_LABEL } from "@renderer/constants/balance";
 import { cva } from "class-variance-authority";
+import { Link } from "react-router-dom";
+import type { SidebarBalanceProps } from "@renderer/types/SidebarBalance";
 
 const logoStyles = cva(
   `
@@ -31,7 +33,7 @@ const logoStyles = cva(
   }
 )
 
-export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'identities' | 'shielded', balance?: bigint, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
+export default function Balance({variant, to, balance, credits, isVisible, fiat}: SidebarBalanceProps): React.JSX.Element {
   const { theme } = useTheme()
   const { format: formatFiat, rateReady, currency } = useFiat()
   const amountKnown = variant === 'dash' || credits != null
@@ -39,11 +41,20 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
   const rowFiat = variant === 'dash' ? fiat : creditsFiat
 
   return (
-    <div
+    <Link
+      to={to}
       className={`
         flex
         items-center
         gap-[.9375rem]
+        first:rounded-t-[.875rem]
+        last:rounded-b-[.875rem]
+        transition-colors
+        hover:dash-block-accent-5
+        focus-visible:outline-none
+        focus-visible:ring-2
+        focus-visible:ring-dash-brand/40
+        dark:focus-visible:ring-dash-mint/40
         px-[.9375rem]
         py-[.625rem]
       `}
@@ -89,6 +100,6 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
           </Text>
         }
       </div>
-    </div>
+    </Link>
   )
 }

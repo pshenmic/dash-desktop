@@ -28,7 +28,7 @@ vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', 
 vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({SearchIcon: 'search', PlusIcon: 'plus', DeleteIcon: 'delete', CheckIcon: 'check', RefreshIcon: 'refresh'}))
 vi.mock('dash-ui-kit/react', () => ({Avatar: 'avatar'}))
 vi.mock('@renderer/hooks/useClickOutside', () => ({useClickOutside: () => {}}))
-vi.mock('@renderer/hooks/useAddressBook', () => ({useAddressBook: () => ({contacts: harness.contacts, network: 'testnet', addContact: harness.addContact, deleteContact: harness.deleteContact})}))
+vi.mock('@renderer/hooks/useAddressBook', () => ({useAddressBook: () => ({contacts: harness.contacts, loading: false, err: null, retry: vi.fn(), network: 'testnet', addContact: harness.addContact, deleteContact: harness.deleteContact})}))
 vi.mock('@renderer/components/ui/Toast', () => ({toast: {error: vi.fn()}}))
 
 import RecipientInput from '../../src/renderer/src/components/pages/transfer/RecipientInput'
@@ -105,7 +105,7 @@ describe('Simple recipient input', () => {
     const saveCurrent = elements(tree).find(node => elements(node.props.children as ReactNode).some(child => child.props.children === 'Save current') && node.type === 'button')!
     ;(saveCurrent.props.onClick as () => void)()
     tree = renderRecipient(address, onChange)
-    const name = elements(tree).find(node => node.props.placeholder === 'Contact name')!
+    const name = elements(tree).find(node => node.props.placeholder === 'Name')!
     ;(name.props.onChange as (event: {target: {value: string}}) => void)({target: {value: '  Friend  '}})
     tree = renderRecipient(address, onChange)
     const save = elements(tree).find(node => node.type === 'button' && node.props.children === 'Save')!
@@ -117,7 +117,7 @@ describe('Simple recipient input', () => {
     const select = elements(tree).find(node => node.type === 'button' && elements(node.props.children as ReactNode).some(child => child.props.children === address))!
     ;(select.props.onClick as () => void)()
     expect(onChange).toHaveBeenLastCalledWith(address)
-    const remove = elements(tree).find(node => node.props.title === 'Remove contact')!
+    const remove = elements(tree).find(node => node.props.title === 'Remove from address book')!
     ;(remove.props.onClick as () => void)()
     expect(harness.deleteContact).toHaveBeenCalledWith(7)
   })

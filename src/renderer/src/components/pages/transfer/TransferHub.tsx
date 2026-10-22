@@ -25,6 +25,9 @@ import { usePlatformAddresses, refreshPlatformAddresses } from "@renderer/hooks/
 import { useAdresses } from "@renderer/hooks/useAdresses";
 import { useSavedShieldedAddresses } from "@renderer/hooks/useSavedShieldedAddresses";
 import { ownRecipientOptions } from "@renderer/utils/ownRecipients";
+import { walletAddressSet } from "@renderer/utils/addressBook";
+import { isValidDestinationAddress } from "@renderer/utils/destinationAddress";
+import { withParams } from "@renderer/utils/searchParams";
 import { useIdentities, prefetchIdentities, refreshIdentities } from "@renderer/hooks/useIdentities";
 import { useShieldedStatus, useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { useOperationFee } from "@renderer/hooks/useOperationFee";
@@ -86,8 +89,9 @@ import { SEND_MODE_LABEL, SEND_MODE_OPTIONS } from "@renderer/constants/sendMode
 import { CHIP_VALUE, SURFACE_SECTION } from "@renderer/constants/surfaces";
 import { TRANSFER_WIZARD_CTA_CLASS } from "@renderer/constants/transferWizard";
 import { coreSendChangeTo } from "@renderer/utils/changeAddress";
-import { INVALID_WALLET_PASSWORD_MESSAGE, sendPageData, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
-import { AUTOMATIC_PLATFORM_SELECTION, AUTOMATIC_SOURCE_LABELS, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
+import { INVALID_WALLET_PASSWORD_MESSAGE, WITHDRAWAL_SUCCESS_NOTE } from "@renderer/constants";
+import { AUTOMATIC_PLATFORM_SELECTION, AUTOMATIC_SOURCE_LABELS, DESTINATION_PLACEHOLDERS, INVALID_DESTINATION_MESSAGES, OPERATION_FUNDING_KINDS, SEND_PARAMS, UNFINISHED_FUNDING_LABELS } from "@renderer/constants/sendPages";
+import { RECIPIENT_BOOK_COPY } from "@renderer/constants/addressBook";
 import { SEND_INPUTS_CHANGED_MESSAGE } from "@renderer/constants/sendConfirmModal";
 import { POOL_IDENTITY_LABEL } from "@renderer/constants/sendSummary";
 import { SIMPLE_SEND_LABELS, SIMPLE_SEND_PASSWORD_ID } from "@renderer/constants/simpleSend";
@@ -103,7 +107,6 @@ import SendTransactionPreview from "./SendTransactionPreview";
 import TransferWizard from "./TransferWizard";
 import TransferRouteCards from "./TransferRouteCards";
 import CoinControlButton from "./CoinControlButton";
-import RecipientInput from "./RecipientInput";
 import { SourcePicker, DestinationPicker } from "./EndpointPicker";
 import EndpointKindIcon from "./EndpointKindIcon";
 import CoinControlModal from "./CoinControlModal";
@@ -126,9 +129,13 @@ function WalletTransferHub(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
-  const [searchParams] = useSearchParams()
-  const [draft, setDraftState] = useState<SendDraft>(() =>
-    getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [draft, setDraftState] = useState<SendDraft>(() => getOrCreateSendDraft(
+    walletId,
+    searchParams.get(SEND_PARAMS.from),
+    searchParams.get(SEND_PARAMS.to),
+    searchParams.get(SEND_PARAMS.recipient),
+  ))
   const draftRef = useRef(draft)
   const { fromKind, toKind, fromIdentity, toValue, amount, acked, coinControl, advanced } = draft
   const updateDraft = (update: (current: SendDraft) => SendDraft): void => {
@@ -170,6 +177,12 @@ function WalletTransferHub(): React.JSX.Element {
   }, [passwordError, verifying])
 
   useEffect(() => {
+    if (searchParams.has(SEND_PARAMS.recipient)) {
+      setSearchParams(prev => withParams(prev, { [SEND_PARAMS.recipient]: null }), { replace: true })
+    }
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
     if (!walletId) return
     let dead = false
     API.getAssetLockFundingState(walletId)
@@ -205,17 +218,20 @@ function WalletTransferHub(): React.JSX.Element {
   const { platformAddresses, loading: platformAddressesLoading, err: platformAddressesError } = usePlatformAddresses(walletId ?? undefined)
   const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId ?? undefined)
   const shieldedSync = useShieldedSyncState(walletId, true)
-  const savedShielded = useSavedShieldedAddresses(!advanced && toKind === DestinationKind.Shielded, shieldedSync.phase)
-  const ownRecipients = useMemo(() => ownRecipientOptions(toKind, {
+  const savedShielded = useSavedShieldedAddresses(toKind === DestinationKind.Shielded, shieldedSync.phase)
+  const recipientInventory = useMemo(() => ({
     receiving, change, platformAddresses, identities, shieldedAddresses: savedShielded.addresses,
     shieldedNotes: shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.notes : null,
-  }), [toKind, receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedSync.phase, shieldedSync.notes])
+  }), [receiving, change, platformAddresses, identities, savedShielded.addresses, shieldedSync.phase, shieldedSync.notes])
+  const ownRecipients = useMemo(() => ownRecipientOptions(toKind, recipientInventory), [toKind, recipientInventory])
+  const ownedAddresses = useMemo(() => walletAddressSet(recipientInventory), [recipientInventory])
+  const ownRecipientsHeading = toKind === DestinationKind.Identity ? RECIPIENT_BOOK_COPY.ownIdentities : RECIPIENT_BOOK_COPY.ownAddresses
   const prover = useShieldedStatus()
   useErrorToast(utxosError)
   useErrorToast(coreAddressesError)
   useErrorToast(platformAddressesError)
   useErrorToast(identitiesError)
-  useErrorToast(savedShielded.errorMessage, !advanced && toKind === DestinationKind.Shielded)
+  useErrorToast(savedShielded.errorMessage, toKind === DestinationKind.Shielded)
 
   const operation = resolveOperation(fromKind, toKind)
   const recipientLimit = operation == null ? 1 : SEND_RECIPIENT_LIMITS[operation] ?? 1
@@ -620,7 +636,6 @@ function WalletTransferHub(): React.JSX.Element {
     }
   }
 
-  const coreRecipientInput = !advanced && toKind === DestinationKind.CoreAddress && operation != null
   const ownRecipientsLoading = {
     [DestinationKind.CoreAddress]: coreAddressesLoading,
     [DestinationKind.PlatformAddress]: platformAddressesLoading,
@@ -665,8 +680,6 @@ function WalletTransferHub(): React.JSX.Element {
         onClick={() => setRecipientDraft(savedAdvancedRoute)}
       />
     )
-  } else if (coreRecipientInput) {
-    recipientControl = <RecipientInput compact value={toValue} onChange={setToValue} data={sendPageData.recipient} ownOptions={ownRecipients} ownOptionsLoading={ownRecipientsLoading} ownOptionsError={ownRecipientsError} onRetryOwnOptions={retryOwnRecipients} />
   }
   const routeStep = (
     <>
@@ -707,19 +720,18 @@ function WalletTransferHub(): React.JSX.Element {
             kind={toKind}
             kinds={destinationKinds}
             onKindChange={changeDestinationKind}
-            value={coreRecipientInput ? trimmedTo : toValue}
+            value={toValue}
             onValueChange={setToValue}
             placeholder={destinationPlaceholder}
             error={usesRecipientEditor ? null : destinationError}
-            showValueInput={!advanced && !coreRecipientInput && operation != null}
+            showValueInput={!advanced && operation != null}
+            validate={address => isValidDestinationAddress(toKind, address, network)}
             ownOptions={!advanced ? ownRecipients : undefined}
             ownOptionsLoading={!advanced && ownRecipientsLoading}
             ownOptionsError={!advanced ? ownRecipientsError : null}
             onRetryOwnOptions={retryOwnRecipients}
+            ownedAddresses={ownedAddresses}
           />
-          {coreRecipientInput && <>
-            {destinationError && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{destinationError}</Text>}
-          </>}
           {!advanced && operation != null && toKind !== DestinationKind.NewIdentity && <>
             {ownRecipients.length === 0 && !ownRecipientsLoading && !ownRecipientsError && (
               <Text size={12} weight="medium" color="brand" opacity={50}>
@@ -1110,6 +1122,9 @@ function WalletTransferHub(): React.JSX.Element {
             feeCredits={feeCredits}
             budgetIsEstimate={!allocationReady}
             amountDenominations={operation === TransferOperation.IdentityCreateFromShielded ? POOL_IDENTITY_DENOMINATIONS : undefined}
+            ownOptions={ownRecipients}
+            ownHeading={ownRecipientsHeading}
+            ownedAddresses={ownedAddresses}
             headerAction={customChangeControl}
             beforeRecipients={withdrawalNotice || customChangeField ? <>{withdrawalNotice}{customChangeField}</> : undefined}
             onChange={recipients => updateAdvancedRoute({recipients})}

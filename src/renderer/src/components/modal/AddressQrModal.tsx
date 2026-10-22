@@ -9,12 +9,14 @@ type AddressQrModalProps = {
   address: string
   onClose: () => void
   title?: string
+  uri?: boolean
 }
 
 export default function AddressQrModal({
   address,
   onClose,
   title = 'Receive address',
+  uri = true,
 }: AddressQrModalProps): React.JSX.Element {
   const { theme } = useTheme()
 
@@ -24,7 +26,7 @@ export default function AddressQrModal({
     <Modal open onClose={onClose} title={title} size={ModalSize.Sm}>
       <div className={"mt-5 flex items-center justify-center rounded-2xl dash-block p-5"}>
         <QRCode
-          value={`dash:${address}`}
+          value={uri ? `dash:${address}` : address}
           size={208}
           fgColor={qrCodeColor}
           bgColor={"transparent"}

@@ -6,12 +6,14 @@ import PasswordField from '@renderer/components/ui/PasswordField'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
+import NoResults from '@renderer/components/ui/NoResults'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { creditsToDuffs } from '@renderer/utils/balance'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
-import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { CHIP_ACTION, SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { WALLET_ADDRESSES_COPY } from '@renderer/constants/addressBook'
 import {
   addressesPage,
   addressFormCopy,
@@ -19,8 +21,18 @@ import {
   SHIELDED_BALANCE_UNKNOWN_TOOLTIP,
 } from '@renderer/constants'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import type { ShieldedAddressTabProps } from '@renderer/types/AddressBook'
+import { addressBookKey, matchesAddressUsage, matchesWalletAddressQuery } from '@renderer/utils/addressBook'
 
-export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
+export default function ShieldedAddressTab({
+  walletId,
+  toolbar,
+  query,
+  usage,
+  savedNames,
+  onSave,
+  onClearFilters,
+}: ShieldedAddressTabProps): React.JSX.Element {
   const [addresses, setAddresses] = useState<string[] | null>(null)
   const [checking, setChecking] = useState(true)
   const [password, setPassword] = useState('')
@@ -34,6 +46,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
   const synced = sync.phase === ShieldedSyncPhase.Done
   const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
   const balances = useMemo(() => shieldedBalancesByAddress(sync.notes), [sync.notes])
+  const usedAddresses = useMemo(() => new Set(sync.notes.map(note => note.address)), [sync.notes])
 
   useEffect(() => {
     setAddresses(null)
@@ -136,16 +149,29 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     )
   }
 
+  const visibleAddresses = addresses.filter(address =>
+    matchesAddressUsage(usage, synced ? balances.get(address) ?? 0n : null, usedAddresses.has(address))
+    && matchesWalletAddressQuery(address, savedNames.get(addressBookKey(address)), query))
+
   return (
     <>
     <div className={"flex flex-col gap-[.625rem]"}>
       <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
-      {addresses.map((address) => {
+      {addresses.length > 0 && toolbar}
+      {addresses.length > 0 && visibleAddresses.length === 0 && (
+        <NoResults
+          noResults={WALLET_ADDRESSES_COPY.noMatch}
+          action={<button type={"button"} onClick={onClearFilters} className={CHIP_ACTION}>{WALLET_ADDRESSES_COPY.clearFilters}</button>}
+        />
+      )}
+      {visibleAddresses.map((address) => {
         const credits = balances.get(address) ?? 0n
         return (
           <AddressRow
             key={address}
             address={address}
+            savedName={savedNames.get(addressBookKey(address))}
+            onSave={() => onSave(address)}
             leading={<ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />}
             amount={synced ? (
               <CreditsAmount credits={credits} compact unit={"Credits"} showFiat={false} align={"end"} amountClassName={"font-bold"} />

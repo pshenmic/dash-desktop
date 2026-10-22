@@ -4,15 +4,14 @@ import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
-import { ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES, FIELD_INVALID } from "@renderer/constants/addressField";
-import { FIELD_COMPACT } from "@renderer/constants/surfaces";
+import { RECIPIENT_BOOK_COPY } from "@renderer/constants/addressBook";
+import { sendPageData } from "@renderer/constants/sendPages";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 import EndpointKindIcon from "./EndpointKindIcon";
 import DropdownField from "@renderer/components/ui/DropdownField";
 import IdentitySelect from "@renderer/components/ui/IdentitySelect";
 import type { DestinationPickerProps, EndpointKindEntry } from "@renderer/types/EndpointPicker";
-import Spinner from "@renderer/components/ui/Spinner";
-import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import RecipientInput from "./RecipientInput";
 
 interface KindDropdownProps {
   kinds: EndpointKindEntry[]
@@ -127,48 +126,32 @@ export function DestinationPicker({
   placeholder,
   error,
   showValueInput,
+  validate,
   ownOptions,
   ownOptionsLoading = false,
   ownOptionsError = null,
   onRetryOwnOptions,
+  ownedAddresses,
   trailingControl,
 }: DestinationPickerProps): React.JSX.Element {
-  const recipientLabel = kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'
-  let recipientOptionsStatus: React.JSX.Element | undefined
-  if (ownOptionsLoading || (ownOptionsError && onRetryOwnOptions)) {
-    recipientOptionsStatus = <span className="flex items-center gap-2">
-      {ownOptionsLoading && <span role="status" aria-label="Loading recipient options"><Spinner size={12} className="dash-text-primary" /></span>}
-      {!ownOptionsLoading && ownOptionsError && onRetryOwnOptions && <button type="button" onClick={onRetryOwnOptions} aria-label="Reload recipient options" title="Reload recipient options" className="dash-text-primary cursor-pointer hover:opacity-70">
-        <RefreshIcon size={14} color="currentColor" />
-      </button>}
-    </span>
-  }
-  const fieldClassName = `${FIELD_COMPACT} ${error ? FIELD_INVALID : ''}`
+  const identity = kind === DestinationKind.Identity
   const valueControl = showValueInput && kind !== DestinationKind.NewIdentity && (
-    ownOptions ? <DropdownField
-      editable
-      highlightValue
-      valueAvatar={kind === DestinationKind.Identity}
-      ariaLabel={recipientLabel}
+    <RecipientInput
+      compact
+      ariaLabel={identity ? 'Recipient identity ID' : 'Recipient address'}
       value={value}
       onChange={onValueChange}
-      options={ownOptions}
-      menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
-      placeholder={placeholder}
-      inputInvalid={!!error}
-      inputSuffix={recipientOptionsStatus}
-      triggerClassName={fieldClassName}
-    /> : <div className={`flex items-center ${fieldClassName}`}>
-      <input
-        type={"text"}
-        aria-label={recipientLabel}
-        aria-invalid={!!error}
-        value={value}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.value)}
-        className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[14]}`}
-        placeholder={placeholder}
-      />
-    </div>
+      data={{...sendPageData.recipient, placeholder}}
+      validate={validate}
+      invalid={error != null}
+      valueAvatar={identity}
+      ownOptions={ownOptions}
+      ownHeading={identity ? RECIPIENT_BOOK_COPY.ownIdentities : RECIPIENT_BOOK_COPY.ownAddresses}
+      ownOptionsLoading={ownOptionsLoading}
+      ownOptionsError={ownOptionsError}
+      onRetryOwnOptions={onRetryOwnOptions}
+      ownedAddresses={ownedAddresses}
+    />
   )
 
   return (

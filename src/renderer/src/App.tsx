@@ -16,7 +16,8 @@ import DashPayRegisterUsernamePage from "./pages/DashPayRegisterUsername"
 import DashPayAddContactPage from "./pages/DashPayAddContact"
 import DashPayAddKeysPage from "./pages/DashPayAddKeys"
 import MasternodesPage from "./pages/Masternodes"
-import AddressesPage from "./pages/Addresses"
+import AddressBookPage from "./pages/AddressBook"
+import WalletAddressesPage from "./pages/WalletAddresses"
 import SettingsPage from "./pages/Settings"
 import LogsPage from "./pages/Logs"
 import ConnectionSettingsPage from "./pages/ConnectionSettings"
@@ -26,6 +27,7 @@ import { ConnectionModeProvider } from "./contexts/ConnectionModeContext"
 import { LOCK_FADE_MS } from "./constants"
 import { DASHPAY_ROUTES } from "./constants/dashPay"
 import { MASTERNODES_ROUTE } from "./constants/masternodes"
+import { ADDRESS_BOOK_ROUTES } from "./constants/addressBook"
 
 function App(): React.JSX.Element {
   const { isAuthenticated, isLockingOut } = useAuth()
@@ -68,7 +70,9 @@ function App(): React.JSX.Element {
             <Route path={"/send-private"} element={<Navigate to={"/send?from=shielded&to=shielded"} replace />} />
             <Route path={"/unshield"} element={<Navigate to={"/send?from=shielded&to=platformAddress"} replace />} />
             <Route path={"/withdraw-l1"} element={<Navigate to={"/send?from=shielded&to=coreAddress"} replace />} />
-            <Route path={"/addresses"} element={<AddressesPage />} />
+            <Route path={ADDRESS_BOOK_ROUTES.root} element={<AddressBookPage />} />
+            <Route path={ADDRESS_BOOK_ROUTES.wallet} element={<WalletAddressesPage />} />
+            <Route path={"/addresses"} element={<Navigate to={ADDRESS_BOOK_ROUTES.wallet} replace />} />
             <Route path={"/identities"} element={<IdentitiesPage />} />
             <Route path={"/identities/register"} element={<IdentityRegistrationPage />} />
             <Route path={DASHPAY_ROUTES.root} element={<DashPayPage />} />

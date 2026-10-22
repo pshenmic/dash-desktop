@@ -20,10 +20,12 @@ export interface DestinationPickerProps {
   placeholder: string
   error: string | null
   showValueInput: boolean
+  validate: (address: string) => boolean
   ownOptions?: DropdownFieldOption[]
   ownOptionsLoading?: boolean
   ownOptionsError?: string | null
   onRetryOwnOptions?: () => void
+  ownedAddresses?: ReadonlySet<string>
   compact?: boolean
   trailingControl?: ReactNode
 }
