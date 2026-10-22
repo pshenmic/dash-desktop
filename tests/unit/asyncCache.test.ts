@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const reactMock = vi.hoisted(() => ({
-  cleanups: [] as Array<() => void>
+  cleanups: [] as Array<() => void>,
+  setState: vi.fn()
 }))
 
 vi.mock('react', async (importOriginal) => {
@@ -13,7 +14,7 @@ vi.mock('react', async (importOriginal) => {
       if (cleanup) reactMock.cleanups.push(cleanup)
     },
     useRef: <T>(initial: T) => ({ current: initial }),
-    useState: <T>(initial: T) => [initial, vi.fn()],
+    useState: <T>(initial: T) => [initial, reactMock.setState],
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot()
   }
 })
@@ -23,6 +24,7 @@ import {
   invalidateAsyncCache,
   prefetchAsyncCache,
   refreshActiveAsyncCaches,
+  setAsyncCache,
   useAsyncRefreshFailures,
   useAsyncWithCache
 } from '@renderer/hooks/useAsyncWithCache'
@@ -251,5 +253,23 @@ describe('background refresh failures', () => {
     for (const cleanup of reactMock.cleanups.splice(0).reverse()) cleanup()
 
     expect(useAsyncRefreshFailures().failedCount).toBe(0)
+  })
+})
+
+describe('setAsyncCache', () => {
+  it('hands the written value to subscribers and serves it as fresh without fetching', async () => {
+    let fetches = 0
+    const fetcher = async (): Promise<number> => ++fetches
+    useAsyncWithCache('written', 'wallet', fetcher, 0, { staleTimeMs: 60_000 })
+    await flushPromises()
+    reactMock.setState.mockClear()
+
+    setAsyncCache('written', 'wallet', 42)
+
+    expect(reactMock.setState).toHaveBeenCalledWith(42)
+    await prefetchAsyncCache('written', 'wallet', fetcher)
+    useAsyncWithCache('written', 'wallet', fetcher, 0, { staleTimeMs: 60_000 })
+    await flushPromises()
+    expect(fetches).toBe(1)
   })
 })

@@ -5,6 +5,7 @@ import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useFiat } from '@renderer/hooks/useFiat'
 import Checkbox from '@renderer/components/ui/Checkbox'
+import CheckRow from '@renderer/components/ui/CheckRow'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
@@ -26,7 +27,6 @@ import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode } from '@renderer/enums/CoinControlMode'
 import type {
   CoinControlInputDetailsProps,
-  CoinControlCheckRowProps,
   CoinControlEmptyProps,
   CoinControlModalProps,
   CoinControlSelection,
@@ -487,21 +487,6 @@ function InputDetails({label, amount, address, fiat, actions}: CoinControlInputD
         {fiat && <span className={COIN_CONTROL_FIAT_CLASS}>{formatApproxFiat(fiat)}</span>}
       </div>
       {label && <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'col-start-2 whitespace-nowrap text-right tabular-nums leading-[120%]'}>{label}</Text>}
-    </div>
-  )
-}
-
-function CheckRow({label, checked, onChange, children, below, title, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
-  let surface = 'dash-block hover:dash-block-accent-5'
-  if (checked) surface = 'dash-block-accent-5'
-  else if (disabled) surface = 'dash-block opacity-40'
-  return (
-    <div title={title} className={`relative min-w-0 rounded-[.875rem] transition-colors ${surface}`}>
-      <div className={'relative flex min-h-12 items-center px-[.9375rem] py-[.625rem]'}>
-        <Checkbox appearance="subtle" className={`absolute inset-0 px-[.9375rem] ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
-        <div className={'relative pointer-events-none min-w-0 flex-1 ml-8'}>{children}</div>
-      </div>
-      {below && <div className={'px-[.9375rem] pt-1.5 pb-3.5'}>{below}</div>}
     </div>
   )
 }

@@ -1665,3 +1665,49 @@ export const RefreshIcon: React.FC<IconProps> = ({
     />
   </svg>
 )
+
+export const ContactsIcon: React.FC<IconProps> = ({
+  color = 'var(--color-text)',
+  size = 16,
+  className = '',
+  onClick
+}) => (
+  <svg
+    className={className}
+    onClick={onClick}
+    color={color}
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <circle cx="6" cy="5.25" r="2.75" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M1.25 14.5C1.25 11.88 3.38 10.25 6 10.25C8.62 10.25 10.75 11.88 10.75 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M10.25 2.585A2.5 2.5 0 1 1 10.25 6.915" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M11.75 9.6C13.53 9.98 14.75 11.43 14.75 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+export const ServerIcon: React.FC<IconProps> = ({
+  color = 'var(--color-text)',
+  size = 16,
+  className = '',
+  onClick
+}) => (
+  <svg
+    className={className}
+    onClick={onClick}
+    color={color}
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <rect x="1.25" y="1.75" width="13.5" height="5.5" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="1.25" y="8.75" width="13.5" height="5.5" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="4.5" cy="4.5" r="1" fill="currentColor" />
+    <circle cx="4.5" cy="11.5" r="1" fill="currentColor" />
+  </svg>
+)

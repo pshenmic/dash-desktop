@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { BadgeProps } from '@renderer/components/dash-ui-kit-enxtended/badge'
 
-export type CustomBadgeVariant = 'default' | 'error' | 'muted' | 'accent'
+export type CustomBadgeVariant = 'default' | 'error' | 'muted' | 'accent' | 'warning'
 
 export type CustomBadgeColors = Pick<BadgeProps, 'variant' | 'color' | 'colorLight' | 'colorDark' | 'className'>
 

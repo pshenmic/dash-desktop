@@ -1,17 +1,15 @@
-import { useRef, useState } from "react";
-import { HighlightedIdentifier, Text, ChevronIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text } from "@renderer/components/dash-ui-kit-enxtended";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
-import { useClickOutside } from "@renderer/hooks/useClickOutside";
-import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
-import { ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES, CONTACT_IDENTIFIER_CLASS, FIELD_INVALID } from "@renderer/constants/addressField";
-import { FIELD_COMPACT, POPOVER, POPOVER_OPTION } from "@renderer/constants/surfaces";
+import { ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES, FIELD_INVALID } from "@renderer/constants/addressField";
+import { FIELD_COMPACT } from "@renderer/constants/surfaces";
 import PlatformAddressSelect from "./PlatformAddressSelect";
 import EndpointKindIcon from "./EndpointKindIcon";
 import DropdownField from "@renderer/components/ui/DropdownField";
+import IdentitySelect from "@renderer/components/ui/IdentitySelect";
 import type { DestinationPickerProps, EndpointKindEntry } from "@renderer/types/EndpointPicker";
 import Spinner from "@renderer/components/ui/Spinner";
 import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
@@ -32,101 +30,6 @@ function KindDropdown({kinds, selected, onSelect}: KindDropdownProps): React.JSX
       triggerClassName={'dash-block h-[3.25rem] rounded-2xl px-3 py-3.5 [&_.truncate]:whitespace-nowrap!'}
       renderIcon={(kind) => <EndpointKindIcon kind={kind} />}
     />
-  )
-}
-
-interface IdentitySelectProps {
-  identities: IdentityApiDto[]
-  loading: boolean
-  error: string | null
-  selected: IdentityApiDto | undefined
-  onSelect: (identifier: string) => void
-  onRetry: () => void
-}
-
-function IdentityName({identity}: {identity: IdentityApiDto}): React.JSX.Element {
-  if (identity.alias) {
-    return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{identity.alias}</Text>
-  }
-  return <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
-}
-
-function IdentitySelect({identities, loading, error, selected, onSelect, onRetry}: IdentitySelectProps): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false))
-
-  let content: React.JSX.Element
-  if (selected) {
-    content = (
-      <div className={"flex flex-col items-start min-w-0"}>
-        <IdentityName identity={selected} />
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-          <CreditsAmount credits={BigInt(String(selected.balance.amount))} showFiat={false} />
-        </Text>
-      </div>
-    )
-  } else if (loading || error) {
-    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Identities</Text>
-  } else {
-    content = <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No identities in this wallet</Text>
-  }
-
-  let action: React.JSX.Element | null = null
-  if (loading) {
-    action = <span role="status" aria-label="Loading identities"><Spinner size={14} className="dash-text-primary" /></span>
-  } else if (error || identities.length === 0) {
-    action = <RefreshIcon size={14} color="currentColor" className="dash-text-primary" />
-  } else if (identities.length > 0) {
-    action = (
-      <ChevronIcon
-        size={12}
-        color="currentColor"
-        className={`shrink-0 dash-text-default transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-      />
-    )
-  }
-
-  const handleClick = (): void => {
-    if (error || identities.length === 0) {
-      if (!loading) onRetry()
-      return
-    }
-    setOpen(value => !value)
-  }
-
-  return (
-    <div className={"relative"} ref={ref}>
-      <button
-        type={"button"}
-        aria-label={error || identities.length === 0 ? 'Reload identities' : 'Select identity'}
-        aria-busy={loading}
-        disabled={loading}
-        onClick={handleClick}
-        className={"w-full h-[3.25rem] dash-block rounded-2xl px-4 flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity"}
-      >
-        {content}
-        {action}
-      </button>
-
-      {open && !loading && !error && (
-        <div className={`absolute left-0 right-0 top-[calc(100%+.375rem)] z-30 max-h-60 overflow-y-auto scrollbar-custom ${POPOVER}`}>
-          {identities.map(identity => (
-            <button
-              key={identity.identifier}
-              type={"button"}
-              onClick={() => { onSelect(identity.identifier); setOpen(false) }}
-              className={`w-full flex flex-col gap-0.5 text-left ${POPOVER_OPTION} ${identity.identifier === selected?.identifier ? 'dash-block-accent-5' : ''}`}
-            >
-              <IdentityName identity={identity} />
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                <CreditsAmount credits={BigInt(String(identity.balance.amount))} />
-              </Text>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }
 

@@ -1,5 +1,9 @@
 const SEND_BACK_LABEL = 'Back to Send'
 
+export const DASHPAY_BACK_LABEL = 'Back to DashPay'
+
+const CONTACTS_BACK_LABEL = 'Back to contacts'
+
 export const PAGE_HEADERS = {
   dashboard: {
     title: 'Dashboard',
@@ -57,6 +61,38 @@ export const PAGE_HEADERS = {
     title: 'Identity registration',
     subtitle: 'Fund a new identity from Core, Platform or Shielded.',
     back: 'Back to identities',
+  },
+  dashpay: {
+    title: 'DashPay',
+    subtitle: 'Usernames, contacts and payments for one identity.',
+  },
+  dashpayContact: {
+    back: CONTACTS_BACK_LABEL,
+  },
+  registerUsername: {
+    title: 'Register username',
+    subtitle: 'Claim a .dash name for this identity.',
+    back: DASHPAY_BACK_LABEL,
+  },
+  addContact: {
+    title: 'Add contact',
+    subtitle: 'Find someone by username or identity ID.',
+    back: CONTACTS_BACK_LABEL,
+  },
+  addIdentityKeys: {
+    title: 'Add identity keys',
+    subtitle: 'Choose the keys to add to this identity.',
+    back: 'Back to keys',
+  },
+  masternodes: {
+    title: 'Masternodes',
+    subtitle: 'Your nodes and their votes on contested usernames.',
+  },
+  nameContest: {
+    back: 'Back to name contests',
+  },
+  masternodeDetail: {
+    back: 'Back to nodes',
   },
   shielded: {
     title: 'Shielded',

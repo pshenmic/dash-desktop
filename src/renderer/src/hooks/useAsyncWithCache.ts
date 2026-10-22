@@ -208,6 +208,13 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   notify(cacheKey)
 }
 
+export function setAsyncCache<T>(namespace: string, key: string, value: T): void {
+  const cacheKey = `${namespace}:${key}`
+  cache.set(cacheKey, value)
+  cachedAt.set(cacheKey, Date.now())
+  notify(cacheKey)
+}
+
 export function invalidateAllAsyncCaches(): void {
   cacheGeneration++
   cache.clear()

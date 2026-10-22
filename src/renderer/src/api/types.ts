@@ -6,6 +6,7 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { TransferOperation } from '../enums/TransferOperation'
+import { AliasStatus, DashPayContactRelationship, DashPayPaymentDirection } from '../enums/DashPay'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -51,7 +52,7 @@ export interface PlatformAddressDto {
 export interface DashPayContactDto {
   identifier: string
   contactId: string
-  relationship: 'incoming' | 'outgoing' | 'established'
+  relationship: DashPayContactRelationship
   // The contact's DPNS names, oldest first.
   aliasesList: string[]
   incomingCreatedAt: number | null
@@ -64,7 +65,7 @@ export interface DashPayContactDto {
 export interface DashPayPaymentDto {
   txid: string
   amountDuffs: bigint
-  direction: 'sent' | 'received'
+  direction: DashPayPaymentDirection
   date: number
 }
 
@@ -82,7 +83,7 @@ export interface AliasDto {
   label: string
   normalizedLabel: string
   isContested: boolean
-  status: 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
+  status: AliasStatus
   documentId: string | null
   preorderSalt: Uint8Array | null
   votesFor: number | null
