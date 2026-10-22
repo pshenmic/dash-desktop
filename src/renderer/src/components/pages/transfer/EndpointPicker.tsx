@@ -62,7 +62,7 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
       <div className={"flex flex-col items-start min-w-0"}>
         <IdentityName identity={selected} />
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-          <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
+          <CreditsAmount credits={BigInt(String(selected.balance.amount))} showFiat={false} />
         </Text>
       </div>
     )
@@ -103,7 +103,7 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
         aria-busy={loading}
         disabled={loading}
         onClick={handleClick}
-        className={"w-full min-h-13 dash-block rounded-2xl px-4 py-2 flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity"}
+        className={"w-full h-[3.25rem] dash-block rounded-2xl px-4 flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity"}
       >
         {content}
         {action}
