@@ -5,10 +5,9 @@ import {
   DashPayContactRelationship,
   DashPayReadiness,
   DashPayTab,
-  IdentityKeyPurpose,
-  IdentityKeySecurityLevel,
   SearchResultState,
 } from '@renderer/enums/DashPay'
+import { IdentityKeyPurpose, IdentityKeySecurityLevel } from '@renderer/enums/IdentityKeys'
 import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import type { CustomBadgeProps } from '@renderer/types/CustomBadge'
@@ -37,8 +36,6 @@ export const DASHPAY_REQUIRED_KEYS: IdentityKeyRequestDto[] = [
   DASHPAY_SIGNING_KEY,
 ]
 
-export const IDENTITY_KEY_SLOT_LIMIT = 20
-
 export const DASHPAY_PARAMS = {
   identity: 'identity',
   tab: 'tab',
@@ -46,10 +43,7 @@ export const DASHPAY_PARAMS = {
   contact: 'contact',
   label: 'label',
   query: 'q',
-  preset: 'preset',
 } as const
-
-export const DASHPAY_KEYS_PRESET = 'dashpay'
 
 export const DASHPAY_CONTACTS_PAGE_SIZE = 50
 
@@ -75,7 +69,6 @@ export const DASHPAY_TAB_LABELS: Record<DashPayTab, string> = {
   [DashPayTab.Overview]: 'Overview',
   [DashPayTab.Contacts]: 'Contacts',
   [DashPayTab.Usernames]: 'Usernames',
-  [DashPayTab.Keys]: 'Keys',
 }
 
 export const CONTACT_SEGMENT_LABELS: Record<ContactSegment, string> = {
@@ -117,14 +110,12 @@ export const CONTACT_SORT_OPTIONS: SegmentOption<ContactSort>[] = [
 export const DASHPAY_READINESS_BADGES: Record<DashPayReadiness, Pick<CustomBadgeProps, 'variant' | 'text'>> = {
   [DashPayReadiness.Ready]: { variant: 'default', text: 'Ready' },
   [DashPayReadiness.NeedsKeys]: { variant: 'warning', text: 'Needs keys' },
-  [DashPayReadiness.NoKeySlots]: { variant: 'error', text: 'No key slots' },
   [DashPayReadiness.NoUsername]: { variant: 'muted', text: 'No username' },
 }
 
 export const READINESS_TONE_CLASS: Record<DashPayReadiness, string> = {
   [DashPayReadiness.Ready]: 'dash-text-primary',
   [DashPayReadiness.NeedsKeys]: 'text-dash-orange',
-  [DashPayReadiness.NoKeySlots]: 'text-dash-red',
   [DashPayReadiness.NoUsername]: '',
 }
 
@@ -154,7 +145,6 @@ export const DASHPAY_ROUTES = {
   root: '/dashpay',
   registerUsername: '/dashpay/usernames/new',
   addContact: '/dashpay/contacts/new',
-  addKeys: '/dashpay/keys/new',
 } as const
 
 export const DASHPAY_TOP_UP_HREF = `/send?from=${SourceKind.Core}&to=${DestinationKind.Identity}`

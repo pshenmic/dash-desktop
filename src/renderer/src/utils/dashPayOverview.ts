@@ -3,7 +3,6 @@ import {
   AliasPresentation,
   ContactSort,
   DashPayContactRelationship,
-  DashPayReadiness,
   OverviewAction,
   OverviewBand,
   SetupStepState,
@@ -35,7 +34,7 @@ export function orbitIdentifiers(contacts: DashPayContactDto[], identifier: stri
 export function overviewActions(identity: IdentityApiDto | null, readiness: DashPayReadinessInfo | null): OverviewAction[] {
   if (identity == null || readiness == null) return [OverviewAction.CreateIdentity]
   const actions: OverviewAction[] = []
-  if (readiness.missingKeys.length > 0 && readiness.readiness !== DashPayReadiness.NoKeySlots) actions.push(OverviewAction.EnableDashPay)
+  if (readiness.missingKeys.length > 0) actions.push(OverviewAction.EnableDashPay)
   if (identity.aliasesList.length === 0) actions.push(OverviewAction.RegisterUsername)
   actions.push(OverviewAction.FindPeople)
   return actions.slice(0, 2)

@@ -44,7 +44,6 @@ export default function FindStep({
   onSelectIdentity,
   selectRef,
   onEnable,
-  onSwitchIdentity,
   query,
   onQueryChange,
   search,
@@ -136,7 +135,7 @@ export default function FindStep({
           ariaLabel={ADD_CONTACT_COPY.fromIdentity}
         />
       </div>
-      <ReadinessAlert identity={identity} readiness={readiness} onEnable={onEnable} onSwitchIdentity={onSwitchIdentity} />
+      <ReadinessAlert identity={identity} readiness={readiness} onEnable={onEnable} />
       <SearchField
         autoFocus
         value={query}

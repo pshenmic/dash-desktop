@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ContactDetail from '@renderer/components/pages/dashpay/contacts/ContactDetail'
 import ContactsTab from '@renderer/components/pages/dashpay/contacts/ContactsTab'
-import KeysTab from '@renderer/components/pages/dashpay/keys/KeysTab'
 import OverviewTab from '@renderer/components/pages/dashpay/overview/OverviewTab'
 import UsernamesTab from '@renderer/components/pages/dashpay/usernames/UsernamesTab'
 import NoResults from '@renderer/components/ui/NoResults'
@@ -182,7 +181,6 @@ export default function DashPayPage({ walletId }: DashPayPageProps): React.JSX.E
           visibleCount={visibleCount}
           onShowMore={() => setVisibleCount(count => count + DASHPAY_CONTACTS_PAGE_SIZE)}
           onOpenContact={openContact}
-          onSwitchIdentity={switchIdentity}
         />
       ),
     },
@@ -193,12 +191,6 @@ export default function DashPayPage({ walletId }: DashPayPageProps): React.JSX.E
       content: identity != null && readiness != null && body(
         <UsernamesTab walletId={walletId} identity={identity} readiness={readiness} now={now} />
       ),
-    },
-    {
-      value: DashPayTab.Keys,
-      label: DASHPAY_TAB_LABELS[DashPayTab.Keys],
-      disabled: tabsDisabled,
-      content: identity != null && body(<KeysTab walletId={walletId} identity={identity} onSwitchIdentity={switchIdentity} />),
     },
   ]
 

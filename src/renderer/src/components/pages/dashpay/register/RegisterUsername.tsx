@@ -17,7 +17,7 @@ import StatusPill from '@renderer/components/ui/StatusPill'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { API } from '@renderer/api'
 import type { AliasDto } from '@renderer/api/types'
-import { DASHPAY_CACHE_NAMESPACES, DASHPAY_PARAMS, DASHPAY_READINESS_BADGES, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
+import { DASHPAY_CACHE_NAMESPACES, DASHPAY_PARAMS, DASHPAY_READINESS_BADGES } from '@renderer/constants/dashPay'
 import {
   REGISTER_SIGN_COPY,
   REGISTER_USERNAME_COPY,
@@ -49,7 +49,7 @@ import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { RegisterUsernameProps } from '@renderer/types/DashPayScreens'
 import type { RegisterFeeSummaryProps } from '@renderer/types/DashPayUsernames'
 import type { SignedActionDoneView, SignedActionFailureView } from '@renderer/types/SignedActionModal'
-import { dashPayHref } from '@renderer/utils/dashPayIdentity'
+import { identityAddKeysHref } from '@renderer/utils/identities'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
 import { feeShortfall } from '@renderer/utils/dashPayShortfall'
 import {
@@ -189,7 +189,7 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
   })
   const shortfall = feeShortfall(fee.err != null, balance, feeCredits)
   const shortfallView = shortfall && <ShortfallNotice shortfall={shortfall} identity={identity} onRetry={fee.retry} />
-  const keysHref = dashPayHref(DASHPAY_ROUTES.addKeys, identity.identifier)
+  const keysHref = identityAddKeysHref(identity.identifier)
   const keysState: DashPayNavigationState = { returnTo: location.pathname + location.search }
   const invalid = check.label !== '' && (check.issue != null || USERNAME_AVAILABILITY_BLOCKING.includes(availability))
 

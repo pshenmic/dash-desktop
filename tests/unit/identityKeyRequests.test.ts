@@ -4,12 +4,13 @@ import {
   keyLabel,
   keyRequestLabel,
   keysMatchingVariant,
+  nextIdentityKeyId,
   projectedKeyIds,
   validateKeySelection,
   variantOfRequest,
   variantRequest,
 } from '../../src/renderer/src/utils/identityKeyRequests'
-import { IdentityKeyPurpose, IdentityKeySecurityLevel, IdentityKeyVariant } from '../../src/renderer/src/enums/DashPay'
+import { IdentityKeyPurpose, IdentityKeySecurityLevel, IdentityKeyVariant } from '../../src/renderer/src/enums/IdentityKeys'
 import { DASHPAY_KEY_BOUNDS } from '../../src/renderer/src/constants/dashPay'
 import { IDENTITY_KEY_PURPOSE_LABELS, IDENTITY_KEY_VARIANTS } from '../../src/renderer/src/constants/identityKeys'
 import type { IdentityKeyDto } from '../../src/renderer/src/api/types'
@@ -82,22 +83,24 @@ describe('identity key variants', () => {
 })
 
 describe('validateKeySelection', () => {
-  it('counts slots from the highest key id and projects what is left', () => {
-    expect(validateKeySelection(DEFAULT_KEYS, [IdentityKeyVariant.Enc, IdentityKeyVariant.Dec])).toEqual({
-      used: 6,
-      slotsLeft: 14,
-      leftAfter: 12,
-      overLimit: false,
-      empty: false,
-    })
+  const variants = Object.values(IdentityKeyVariant)
+
+  it('allows up to six keys in one transaction', () => {
+    expect(validateKeySelection(variants.slice(0, 2))).toEqual({ count: 2, atLimit: false, overLimit: false, empty: false })
+    expect(validateKeySelection(variants.slice(0, 6))).toEqual({ count: 6, atLimit: true, overLimit: false, empty: false })
   })
 
-  it('flags a selection larger than the free slots and an empty one', () => {
-    const nearLimit = [...DEFAULT_KEYS, key(17, 'AUTHENTICATION', 'MEDIUM')]
-    const selection = [IdentityKeyVariant.Enc, IdentityKeyVariant.Dec, IdentityKeyVariant.Transfer]
-    expect(validateKeySelection(nearLimit, selection)).toMatchObject({ used: 18, slotsLeft: 2, leftAfter: 0, overLimit: true })
-    expect(validateKeySelection(nearLimit, selection.slice(0, 2)).overLimit).toBe(false)
-    expect(validateKeySelection(DEFAULT_KEYS, []).empty).toBe(true)
+  it('flags a selection over the limit and an empty one', () => {
+    expect(validateKeySelection(variants.slice(0, 7))).toMatchObject({ count: 7, overLimit: true })
+    expect(validateKeySelection([])).toMatchObject({ count: 0, empty: true, atLimit: false })
+  })
+})
+
+describe('nextIdentityKeyId', () => {
+  it('continues after the highest key id, with no cap', () => {
+    expect(nextIdentityKeyId([])).toBe(0)
+    expect(nextIdentityKeyId(DEFAULT_KEYS)).toBe(6)
+    expect(nextIdentityKeyId([key(0, 'AUTHENTICATION', 'MASTER'), key(41, 'AUTHENTICATION', 'MEDIUM')])).toBe(42)
   })
 })
 

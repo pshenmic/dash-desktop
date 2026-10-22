@@ -1,10 +1,10 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
-import { ADD_KEYS_COPY, KEYS_FACT_DIVIDER_CLASS, KEYS_FACT_ROW_CLASS, KEYS_SIGNED_COPY } from '@renderer/constants/dashPayKeys'
+import { ADD_KEYS_COPY, KEYS_FACT_DIVIDER_CLASS, KEYS_FACT_ROW_CLASS, KEYS_SIGNED_COPY } from '@renderer/constants/identityKeys'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_PENDING_VALUE } from '@renderer/constants/txSummary'
-import type { AddKeysConfirmStepProps } from '@renderer/types/DashPayKeys'
-import { projectedKeyLabel } from '@renderer/utils/dashPayKeySetup'
+import type { AddKeysConfirmStepProps } from '@renderer/types/IdentityKeys'
+import { projectedKeyLabel } from '@renderer/utils/identityKeySetup'
 import { identityLabel } from '@renderer/utils/identifierFormat'
 import { keyRequestLabel, projectedKeyIds } from '@renderer/utils/identityKeyRequests'
 

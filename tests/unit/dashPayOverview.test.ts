@@ -23,7 +23,7 @@ function key(keyId: number, purpose: string, securityLevel: string): IdentityKey
 
 const DASHPAY_KEYS = [key(0, 'AUTHENTICATION', 'MASTER'), key(1, 'AUTHENTICATION', 'HIGH'), key(2, 'ENCRYPTION', 'MEDIUM'), key(3, 'DECRYPTION', 'MEDIUM')]
 const SIGNING_ONLY = [key(0, 'AUTHENTICATION', 'MASTER'), key(1, 'AUTHENTICATION', 'HIGH')]
-const FULL_SLOTS = Array.from({ length: 20 }, (_, index) => key(index, 'TRANSFER', 'CRITICAL'))
+const MANY_KEYS = Array.from({ length: 30 }, (_, index) => key(index, 'TRANSFER', 'CRITICAL'))
 
 function identity(identifier: string, aliasesList: string[], keys: IdentityKeyDto[], amount = 1n): IdentityApiDto {
   return {
@@ -108,9 +108,9 @@ describe('overviewActions', () => {
     expect(overviewActions(keyed, dashPayReadiness(keyed))).toEqual([OverviewAction.RegisterUsername, OverviewAction.FindPeople])
   })
 
-  it('never offers Enable DashPay without free key slots', () => {
-    const full = identity('Full', ['bob.dash'], FULL_SLOTS)
-    expect(overviewActions(full, dashPayReadiness(full))).toEqual([OverviewAction.FindPeople])
+  it('offers Enable DashPay however many keys the identity has', () => {
+    const many = identity('Many', ['bob.dash'], MANY_KEYS)
+    expect(overviewActions(many, dashPayReadiness(many))).toEqual([OverviewAction.EnableDashPay, OverviewAction.FindPeople])
   })
 })
 

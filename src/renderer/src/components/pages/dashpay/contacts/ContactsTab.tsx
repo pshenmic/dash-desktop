@@ -51,7 +51,6 @@ export default function ContactsTab({
   visibleCount,
   onShowMore,
   onOpenContact,
-  onSwitchIdentity,
 }: ContactsTabProps): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
@@ -143,7 +142,7 @@ export default function ContactsTab({
 
   return (
     <div className={'flex flex-col gap-4'}>
-      <ReadinessAlert identity={identity} readiness={readiness} onEnable={() => setEnableOpen(true)} onSwitchIdentity={onSwitchIdentity} />
+      <ReadinessAlert identity={identity} readiness={readiness} onEnable={() => setEnableOpen(true)} />
       {mine.length === 0 ? (
         <NoResults
           title={CONTACTS_TAB_COPY.emptyTitle}

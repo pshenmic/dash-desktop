@@ -33,7 +33,6 @@ export interface ContactsTabProps {
   visibleCount: number
   onShowMore: () => void
   onOpenContact: (contactId: string) => void
-  onSwitchIdentity: () => void
 }
 
 export interface ContactDetailProps {
@@ -71,19 +70,11 @@ export type AddContactProps = DashPayWizardProps
 
 export type RegisterUsernameProps = DashPayWizardProps
 
-export type AddKeysProps = DashPayWizardProps
-
 export interface UsernamesTabProps {
   walletId: string
   identity: IdentityApiDto
   readiness: DashPayReadinessInfo
   now: number
-}
-
-export interface KeysTabProps {
-  walletId: string
-  identity: IdentityApiDto
-  onSwitchIdentity?: () => void
 }
 
 export interface EnableDashPayModalProps {

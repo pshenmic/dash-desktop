@@ -1,14 +1,13 @@
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CheckRow from '@renderer/components/ui/CheckRow'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
-import { ADD_KEYS_COPY, KEY_VARIANT_GROUPS, KEY_VARIANT_ROW_CLASS } from '@renderer/constants/dashPayKeys'
+import { ADD_KEYS_COPY, KEY_VARIANT_GROUPS, KEY_VARIANT_ROW_CLASS } from '@renderer/constants/identityKeys'
 import { LIST_GROUP_LABEL_CLASS } from '@renderer/constants/listToolbar'
-import type { KeyVariantListProps } from '@renderer/types/DashPayKeys'
-import { keysOnIdentityLabel, keyVariantTitle } from '@renderer/utils/dashPayKeySetup'
+import type { KeyVariantListProps } from '@renderer/types/IdentityKeys'
+import { keysOnIdentityLabel, keyVariantTitle } from '@renderer/utils/identityKeySetup'
 import { keyRequestLabel, keysMatchingVariant, variantRequest } from '@renderer/utils/identityKeyRequests'
 
 export default function KeyVariantList({ existing, selected, recommended, check, onToggle }: KeyVariantListProps): React.JSX.Element {
-  const atLimit = selected.length >= check.slotsLeft
   return (
     <div className={"flex flex-col gap-2"}>
       {KEY_VARIANT_GROUPS.map(group => (
@@ -22,7 +21,7 @@ export default function KeyVariantList({ existing, selected, recommended, check,
                 key={definition.variant}
                 label={keyRequestLabel(variantRequest(definition.variant))}
                 checked={checked}
-                disabled={!checked && atLimit}
+                disabled={!checked && check.atLimit}
                 onChange={value => onToggle(definition.variant, value)}
               >
                 <div className={KEY_VARIANT_ROW_CLASS}>

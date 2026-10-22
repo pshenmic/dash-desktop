@@ -1,6 +1,6 @@
 import { refreshIdentities, useIdentities } from "@renderer/hooks/useIdentities";
 import { useAuth } from "@renderer/contexts/AuthContext";
-import IdentityCard from "./IdentityCard";
+import IdentityRow from "./IdentityRow";
 import NoResults from "@renderer/components/ui/NoResults";
 import RetryButton from "@renderer/components/ui/RetryButton";
 import { NoResultsTone } from "@renderer/enums/NoResultsTone";
@@ -9,34 +9,16 @@ import PageHeader from "@renderer/components/ui/PageHeader";
 import PageTabs from "@renderer/components/ui/PageTabs";
 import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
 import { SURFACE_PANEL } from "@renderer/constants/surfaces";
+import { IDENTITIES_ROUTES } from "@renderer/constants/identities";
 import { Button } from "@renderer/components/dash-ui-kit-enxtended";
 import { useNavigate } from "react-router-dom";
-
-export interface Identity {
-  walletAddress: string
-  name: string
-  balance: {
-    total: bigint
-    currency: string
-  }
-  assetLockTxid: string | null
-}
+import { identityHref } from "@renderer/utils/identities";
 
 export default function Identities(): React.JSX.Element {
   const navigate = useNavigate()
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? undefined
   const { identities, loading, err } = useIdentities(walletId)
-
-  const mappedIdentities: Identity[] = identities.map((item) => ({
-    walletAddress: item.identifier,
-    name: item.alias ?? '',
-    balance: {
-      total: item.balance.amount,
-      currency: 'Credits',
-    },
-    assetLockTxid: item.assetLockTxid ?? null,
-  }))
 
   const assetsList = [
     {
@@ -53,15 +35,19 @@ export default function Identities(): React.JSX.Element {
                 action={walletId !== undefined && <RetryButton onRetry={() => refreshIdentities(walletId)} />}
               />
             )}
-            {!loading && !err && mappedIdentities.length === 0 && (
+            {!loading && !err && identities.length === 0 && (
               <NoResults
                 title={"No identities yet"}
-                action={<Button type={"button"} size={"compact"} colorScheme={"primary"} onClick={() => navigate('/identities/register')}>Register identity</Button>}
+                action={<Button type={"button"} size={"compact"} colorScheme={"primary"} onClick={() => navigate(IDENTITIES_ROUTES.register)}>Register identity</Button>}
               />
             )}
-            {!loading && !err && mappedIdentities.map((identity) => (
-              <IdentityCard key={identity.walletAddress} identity={identity} />
-            ))}
+            {!loading && !err && identities.length > 0 && (
+              <ul className={"contents"}>
+                {identities.map((identity) => (
+                  <IdentityRow key={identity.identifier} identity={identity} onOpen={identifier => navigate(identityHref(identifier))} />
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )
@@ -74,7 +60,7 @@ export default function Identities(): React.JSX.Element {
         <PageHeader
           title={PAGE_HEADERS.identities.title}
           subtitle={PAGE_HEADERS.identities.subtitle}
-          actions={<Button type={"button"} size={"compact"} colorScheme={"primary"} onClick={() => navigate('/identities/register')}>Register identity</Button>}
+          actions={<Button type={"button"} size={"compact"} colorScheme={"primary"} onClick={() => navigate(IDENTITIES_ROUTES.register)}>Register identity</Button>}
         />
         <div className={`relative ${SURFACE_PANEL}`}>
           <PageTabs

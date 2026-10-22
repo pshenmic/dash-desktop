@@ -16,8 +16,9 @@ describe('withParams', () => {
 
 describe('enumParam', () => {
   it('accepts a known value and falls back otherwise', () => {
-    expect(enumParam(DashPayTab, 'keys', DashPayTab.Overview)).toBe(DashPayTab.Keys)
-    expect(enumParam(DashPayTab, 'Keys', DashPayTab.Overview)).toBe(DashPayTab.Overview)
+    expect(enumParam(DashPayTab, 'usernames', DashPayTab.Overview)).toBe(DashPayTab.Usernames)
+    expect(enumParam(DashPayTab, 'Usernames', DashPayTab.Overview)).toBe(DashPayTab.Overview)
+    expect(enumParam(DashPayTab, 'keys', DashPayTab.Overview)).toBe(DashPayTab.Overview)
     expect(enumParam(DashPayTab, null, DashPayTab.Overview)).toBe(DashPayTab.Overview)
     expect(enumParam(ContactSegment, 'requests', ContactSegment.All)).toBe(ContactSegment.Requests)
   })

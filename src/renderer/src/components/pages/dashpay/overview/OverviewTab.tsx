@@ -23,6 +23,7 @@ import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { OverviewTabProps } from '@renderer/types/DashPayScreens'
 import { contactsForIdentity, countContactSegments } from '@renderer/utils/dashPayContactList'
 import { orbitIdentifiers, overviewActions, overviewBand, usernameSummary } from '@renderer/utils/dashPayOverview'
+import { identityHref } from '@renderer/utils/identities'
 import { withParams } from '@renderer/utils/searchParams'
 import { mergeIdentityUsernames } from '@renderer/utils/usernames'
 import ContactsSummary from './ContactsSummary'
@@ -127,8 +128,10 @@ export default function OverviewTab({
           <ContactsSummary
             counts={countContactSegments(own, '')}
             usernames={usernames}
+            keys={identity?.keys.length ?? 0}
             loading={contactsLoading}
             onOpenSection={onOpenSection}
+            onOpenKeys={() => { if (identity != null) navigate(identityHref(identity.identifier)) }}
           />
         ) : (
           <SetupChecklist

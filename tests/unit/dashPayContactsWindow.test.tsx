@@ -74,8 +74,6 @@ const readiness: DashPayReadinessInfo = {
   canSend: true,
   canRegister: true,
   missingKeys: [],
-  slotsUsed: 6,
-  slotsLeft: 14,
 }
 
 function render(props: Partial<ContactsTabProps> = {}): string {
@@ -98,7 +96,6 @@ function render(props: Partial<ContactsTabProps> = {}): string {
           visibleCount={DASHPAY_CONTACTS_PAGE_SIZE}
           onShowMore={() => {}}
           onOpenContact={() => {}}
-          onSwitchIdentity={() => {}}
           {...props}
         />
       </MemoryRouter>

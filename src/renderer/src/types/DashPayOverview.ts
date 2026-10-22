@@ -71,8 +71,10 @@ export interface SetupStepActionProps {
 export interface ContactsSummaryProps {
   counts: ContactSegmentCounts
   usernames: UsernameSummary
+  keys: number
   loading: boolean
   onOpenSection: (tab: DashPayTab, segment?: ContactSegment) => void
+  onOpenKeys: () => void
 }
 
 export interface ContactsSummaryRowProps {

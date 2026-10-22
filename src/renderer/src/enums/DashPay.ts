@@ -18,24 +18,10 @@ export enum DashPayPaymentDirection {
   Received = 'received',
 }
 
-export enum IdentityKeyPurpose {
-  Authentication = 'AUTHENTICATION',
-  Encryption = 'ENCRYPTION',
-  Decryption = 'DECRYPTION',
-  Transfer = 'TRANSFER',
-}
-
-export enum IdentityKeySecurityLevel {
-  Critical = 'CRITICAL',
-  High = 'HIGH',
-  Medium = 'MEDIUM',
-}
-
 export enum DashPayTab {
   Overview = 'overview',
   Contacts = 'contacts',
   Usernames = 'usernames',
-  Keys = 'keys',
 }
 
 export enum ContactSegment {
@@ -54,7 +40,6 @@ export enum ContactSort {
 export enum DashPayReadiness {
   Ready = 'ready',
   NeedsKeys = 'needs-keys',
-  NoKeySlots = 'no-key-slots',
   NoUsername = 'no-username',
 }
 
@@ -118,17 +103,6 @@ export enum SearchResultState {
   None = 'none',
 }
 
-export enum IdentityKeyVariant {
-  AuthCritical = 'auth-critical',
-  AuthHigh = 'auth-high',
-  AuthMedium = 'auth-medium',
-  EncDashPay = 'enc-dashpay',
-  DecDashPay = 'dec-dashpay',
-  Enc = 'enc',
-  Dec = 'dec',
-  Transfer = 'transfer',
-}
-
 export enum OverviewBand {
   Requests = 'requests',
   Recent = 'recent',
@@ -142,7 +116,6 @@ export enum OverviewAction {
 }
 
 export enum ShortfallKind {
-  Slots = 'slots',
   FeeError = 'fee-error',
   Balance = 'balance',
 }

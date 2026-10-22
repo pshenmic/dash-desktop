@@ -1,5 +1,5 @@
 import type { IdentityKeyDto, IdentityKeyRequestDto } from '@renderer/api/types'
-import { DASHPAY_REQUIRED_KEYS, DASHPAY_SETUP_COPY, DASHPAY_SIGNING_KEY, IDENTITY_KEY_SLOT_LIMIT } from '@renderer/constants/dashPay'
+import { DASHPAY_REQUIRED_KEYS, DASHPAY_SETUP_COPY, DASHPAY_SIGNING_KEY } from '@renderer/constants/dashPay'
 import { IDENTITY_KEY_TYPE_ECDSA } from '@renderer/constants/identityKeys'
 import { DashPayReadiness, DashPaySetupStep, SetupStepState } from '@renderer/enums/DashPay'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
@@ -13,36 +13,23 @@ function keySatisfies(key: IdentityKeyDto, request: IdentityKeyRequestDto): bool
     && key.securityLevel.toUpperCase() === request.securityLevel
 }
 
-export function keySlotsUsed(keys: IdentityKeyDto[]): number {
-  return keys.reduce((used, key) => Math.max(used, key.keyId + 1), 0)
-}
-
 export function dashPayMissingKeys(keys: IdentityKeyDto[]): IdentityKeyRequestDto[] {
   return DASHPAY_REQUIRED_KEYS.filter(required => !keys.some(key => keySatisfies(key, required)))
 }
 
-function readinessOf(missing: number, slotsLeft: number, hasUsername: boolean): DashPayReadiness {
-  if (missing > 0) return slotsLeft < missing ? DashPayReadiness.NoKeySlots : DashPayReadiness.NeedsKeys
+function readinessOf(missing: number, hasUsername: boolean): DashPayReadiness {
+  if (missing > 0) return DashPayReadiness.NeedsKeys
   return hasUsername ? DashPayReadiness.Ready : DashPayReadiness.NoUsername
 }
 
 export function dashPayReadiness(identity: Pick<IdentityApiDto, 'aliasesList' | 'keys'>): DashPayReadinessInfo {
   const missingKeys = dashPayMissingKeys(identity.keys)
-  const slotsUsed = keySlotsUsed(identity.keys)
-  const slotsLeft = Math.max(0, IDENTITY_KEY_SLOT_LIMIT - slotsUsed)
   return {
-    readiness: readinessOf(missingKeys.length, slotsLeft, identity.aliasesList.length > 0),
+    readiness: readinessOf(missingKeys.length, identity.aliasesList.length > 0),
     canSend: missingKeys.length === 0,
     canRegister: identity.keys.some(key => keySatisfies(key, DASHPAY_SIGNING_KEY)),
     missingKeys,
-    slotsUsed,
-    slotsLeft,
   }
-}
-
-function keysStepState(readiness: DashPayReadinessInfo): SetupStepState {
-  if (readiness.missingKeys.length === 0) return SetupStepState.Done
-  return readiness.readiness === DashPayReadiness.NoKeySlots ? SetupStepState.Warning : SetupStepState.Todo
 }
 
 export function setupSteps(identity: IdentityApiDto | null, readiness: DashPayReadinessInfo | null): SetupStepModel[] {
@@ -67,7 +54,7 @@ export function setupSteps(identity: IdentityApiDto | null, readiness: DashPayRe
     },
     {
       step: DashPaySetupStep.Keys,
-      state: keysStepState(readiness),
+      state: readiness.missingKeys.length === 0 ? SetupStepState.Done : SetupStepState.Todo,
       caption: readiness.missingKeys.length === 0 ? DASHPAY_SETUP_COPY.keysDone : DASHPAY_SETUP_COPY.keysTodo,
     },
   ]

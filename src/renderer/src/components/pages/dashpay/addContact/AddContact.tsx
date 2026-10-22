@@ -158,7 +158,6 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
       onSelectIdentity={select}
       selectRef={selectRef}
       onEnable={() => setEnableOpen(true)}
-      onSwitchIdentity={() => selectRef.current?.open()}
       query={query}
       onQueryChange={setQuery}
       search={search}

@@ -82,7 +82,11 @@ export const PAGE_HEADERS = {
   addIdentityKeys: {
     title: 'Add identity keys',
     subtitle: 'Choose the keys to add to this identity.',
-    back: 'Back to keys',
+    back: 'Back to identity',
+  },
+  identity: {
+    subtitle: 'Balance, usernames and keys of this identity.',
+    back: 'Back to identities',
   },
   masternodes: {
     title: 'Masternodes',

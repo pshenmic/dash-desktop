@@ -12,7 +12,7 @@ import {
   SETUP_STEP_ICONS,
   SETUP_STEP_TITLES,
 } from '@renderer/constants/dashPayOverview'
-import { DashPayReadiness, DashPaySetupStep, OverviewAction, SetupStepState } from '@renderer/enums/DashPay'
+import { DashPaySetupStep, OverviewAction, SetupStepState } from '@renderer/enums/DashPay'
 import { StatusPillTone } from '@renderer/enums/StatusPillTone'
 import type { SetupStepModel } from '@renderer/types/DashPay'
 import type { SetupChecklistProps, SetupStepActionProps } from '@renderer/types/DashPayOverview'
@@ -67,9 +67,6 @@ export default function SetupChecklist({
           onClick={() => onAction(OverviewAction.RegisterUsername)}
         />
       )
-    }
-    if (readiness.readiness === DashPayReadiness.NoKeySlots) {
-      return <StatusPill tone={StatusPillTone.Danger}>{OVERVIEW_COPY.noSlots}</StatusPill>
     }
     return <ChipButton label={OVERVIEW_COPY.enable} onClick={() => onAction(OverviewAction.EnableDashPay)} />
   }

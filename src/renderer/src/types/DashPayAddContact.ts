@@ -45,7 +45,6 @@ export interface FindStepProps {
   onSelectIdentity: (identifier: string) => void
   selectRef: Ref<IdentitySelectHandle>
   onEnable: () => void
-  onSwitchIdentity: () => void
   query: string
   onQueryChange: (query: string) => void
   search: AddContactSearchPanel

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { IdentityKeyRequestDto, OperationFeeParams } from '../../src/renderer/src/api/types'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
-import { IdentityKeyPurpose, IdentityKeySecurityLevel } from '../../src/renderer/src/enums/DashPay'
+import { IdentityKeyPurpose, IdentityKeySecurityLevel } from '../../src/renderer/src/enums/IdentityKeys'
 import { DASHPAY_KEY_BOUNDS } from '../../src/renderer/src/constants/dashPay'
 import { operationFeeRequest } from '../../src/renderer/src/utils/operationFee'
 

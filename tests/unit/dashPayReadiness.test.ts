@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { dashPayMissingKeys, dashPayReadiness, keySlotsUsed, setupSteps } from '../../src/renderer/src/utils/dashPayReadiness'
-import { DashPayReadiness, DashPaySetupStep, IdentityKeyPurpose, IdentityKeySecurityLevel, SetupStepState } from '../../src/renderer/src/enums/DashPay'
+import { dashPayMissingKeys, dashPayReadiness, setupSteps } from '../../src/renderer/src/utils/dashPayReadiness'
+import { DashPayReadiness, DashPaySetupStep, SetupStepState } from '../../src/renderer/src/enums/DashPay'
+import { IdentityKeyPurpose, IdentityKeySecurityLevel } from '../../src/renderer/src/enums/IdentityKeys'
 import { DASHPAY_KEY_BOUNDS, DASHPAY_SETUP_COPY } from '../../src/renderer/src/constants/dashPay'
 import type { IdentityKeyDto } from '../../src/renderer/src/api/types'
 import type { IdentityApiDto } from '../../src/renderer/src/hooks/useIdentities'
@@ -42,14 +43,6 @@ const ENC = { purpose: IdentityKeyPurpose.Encryption, securityLevel: IdentityKey
 const DEC = { purpose: IdentityKeyPurpose.Decryption, securityLevel: IdentityKeySecurityLevel.Medium, contractBounds: DASHPAY_KEY_BOUNDS }
 const AUTH_HIGH = { purpose: IdentityKeyPurpose.Authentication, securityLevel: IdentityKeySecurityLevel.High, contractBounds: null }
 
-describe('keySlotsUsed', () => {
-  it('counts slots as the highest key id plus one', () => {
-    expect(keySlotsUsed([])).toBe(0)
-    expect(keySlotsUsed(DEFAULT_KEYS)).toBe(6)
-    expect(keySlotsUsed([key(0, 'AUTHENTICATION', 'MASTER'), key(7, 'AUTHENTICATION', 'MEDIUM')])).toBe(8)
-  })
-})
-
 describe('dashPayMissingKeys', () => {
   it('needs nothing for the default key set', () => {
     expect(dashPayMissingKeys(DEFAULT_KEYS)).toEqual([])
@@ -84,8 +77,6 @@ describe('dashPayReadiness', () => {
       canSend: true,
       canRegister: true,
       missingKeys: [],
-      slotsUsed: 6,
-      slotsLeft: 14,
     })
   })
 
@@ -96,8 +87,6 @@ describe('dashPayReadiness', () => {
       canSend: true,
       canRegister: true,
       missingKeys: [],
-      slotsUsed: 6,
-      slotsLeft: 14,
     })
   })
 
@@ -107,8 +96,6 @@ describe('dashPayReadiness', () => {
       canSend: false,
       canRegister: true,
       missingKeys: [ENC, DEC],
-      slotsUsed: 4,
-      slotsLeft: 16,
     })
   })
 
@@ -131,13 +118,9 @@ describe('dashPayReadiness', () => {
     expect(info.canSend).toBe(true)
   })
 
-  it('reports No key slots when the missing keys do not fit in 20 − (maxKeyId + 1)', () => {
-    const full = [...LEGACY_KEYS, ...Array.from({ length: 16 }, (_, index) => key(index + 4, 'AUTHENTICATION', 'MEDIUM'))]
-    expect(dashPayReadiness(identity(full))).toMatchObject({ readiness: DashPayReadiness.NoKeySlots, slotsUsed: 20, slotsLeft: 0 })
-    const oneLeft = [...LEGACY_KEYS, key(18, 'AUTHENTICATION', 'MEDIUM')]
-    expect(dashPayReadiness(identity(oneLeft))).toMatchObject({ readiness: DashPayReadiness.NoKeySlots, slotsLeft: 1 })
-    const twoLeft = [...LEGACY_KEYS, key(17, 'AUTHENTICATION', 'MEDIUM')]
-    expect(dashPayReadiness(identity(twoLeft))).toMatchObject({ readiness: DashPayReadiness.NeedsKeys, slotsLeft: 2 })
+  it('still needs keys however many keys the identity already has', () => {
+    const many = [...LEGACY_KEYS, ...Array.from({ length: 30 }, (_, index) => key(index + 4, 'AUTHENTICATION', 'MEDIUM'))]
+    expect(dashPayReadiness(identity(many))).toMatchObject({ readiness: DashPayReadiness.NeedsKeys, missingKeys: [ENC, DEC] })
   })
 })
 
@@ -159,16 +142,15 @@ describe('setupSteps', () => {
     ])
   })
 
-  it('warns about zero credits and about missing key slots', () => {
-    const full = [...LEGACY_KEYS, ...Array.from({ length: 16 }, (_, index) => key(index + 4, 'AUTHENTICATION', 'MEDIUM'))]
-    const broke = identity(full, [], 0n)
+  it('warns about zero credits and leaves missing keys to do', () => {
+    const broke = identity(LEGACY_KEYS, [], 0n)
     const [identityStep, usernameStep, keysStep] = setupSteps(broke, dashPayReadiness(broke))
     expect(identityStep.state).toBe(SetupStepState.Warning)
     expect(usernameStep).toEqual({ step: DashPaySetupStep.Username, state: SetupStepState.Todo, caption: DASHPAY_SETUP_COPY.usernameTodo })
-    expect(keysStep).toEqual({ step: DashPaySetupStep.Keys, state: SetupStepState.Warning, caption: DASHPAY_SETUP_COPY.keysTodo })
+    expect(keysStep).toEqual({ step: DashPaySetupStep.Keys, state: SetupStepState.Todo, caption: DASHPAY_SETUP_COPY.keysTodo })
   })
 
-  it('leaves the keys step to-do when slots are available', () => {
+  it('leaves the keys step to-do while DashPay keys are missing', () => {
     const legacy = identity(LEGACY_KEYS)
     expect(setupSteps(legacy, dashPayReadiness(legacy))[2].state).toBe(SetupStepState.Todo)
   })

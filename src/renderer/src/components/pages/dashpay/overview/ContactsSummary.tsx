@@ -28,7 +28,7 @@ function SummaryRow({ label, value, loading, attention = false, onClick }: Conta
   )
 }
 
-export default function ContactsSummary({ counts, usernames, loading, onOpenSection }: ContactsSummaryProps): React.JSX.Element {
+export default function ContactsSummary({ counts, usernames, keys, loading, onOpenSection, onOpenKeys }: ContactsSummaryProps): React.JSX.Element {
   const requests = counts[ContactSegment.Requests]
   return (
     <section className={CONTACTS_SUMMARY_CLASS} aria-label={OVERVIEW_COPY.contacts}>
@@ -62,6 +62,16 @@ export default function ContactsSummary({ counts, usernames, loading, onOpenSect
             {OVERVIEW_COPY.usernames}
             <span className={'font-bold tabular-nums'}>{` ${usernames.total}`}</span>
             {usernames.inVote > 0 && <span className={'opacity-50'}>{` · ${usernames.inVote} ${OVERVIEW_COPY.inVote}`}</span>}
+          </Text>
+        </span>
+        <ArrowIcon size={9} color={'currentColor'} className={'shrink-0 rotate-180 dash-text-primary'} />
+      </button>
+      <button type={'button'} onClick={onOpenKeys} className={CONTACTS_SUMMARY_ROW_CLASS}>
+        <span className={'flex min-w-0 items-center gap-2'}>
+          <span className={'size-1.5 shrink-0'} />
+          <Text reset size={12} weight={'medium'} color={'brand'} className={'truncate'}>
+            {OVERVIEW_COPY.keys}
+            <span className={'font-bold tabular-nums'}>{` ${keys}`}</span>
           </Text>
         </span>
         <ArrowIcon size={9} color={'currentColor'} className={'shrink-0 rotate-180 dash-text-primary'} />

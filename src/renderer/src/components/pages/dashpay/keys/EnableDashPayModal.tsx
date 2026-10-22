@@ -5,7 +5,8 @@ import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import ShortfallNotice from '@renderer/components/pages/dashpay/ShortfallNotice'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { DASHPAY_ROUTES } from '@renderer/constants/dashPay'
-import { ENABLE_DASHPAY_COPY, KEYS_SIGNED_COPY } from '@renderer/constants/dashPayKeys'
+import { ENABLE_DASHPAY_COPY } from '@renderer/constants/dashPayKeys'
+import { KEYS_SIGNED_COPY } from '@renderer/constants/identityKeys'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
@@ -13,12 +14,12 @@ import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
-import type { KeysAddedResult } from '@renderer/types/DashPayKeys'
+import type { KeysAddedResult } from '@renderer/types/IdentityKeys'
 import type { EnableDashPayModalProps } from '@renderer/types/DashPayScreens'
 import { dashPayHref } from '@renderer/utils/dashPayIdentity'
 import { dashPayEnabledHeadline, enableDashPayDescription } from '@renderer/utils/dashPayKeySetup'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
-import { keysShortfall } from '@renderer/utils/dashPayShortfall'
+import { feeShortfall } from '@renderer/utils/dashPayShortfall'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { identityLabel } from '@renderer/utils/identifierFormat'
 import { keyRequestLabel } from '@renderer/utils/identityKeyRequests'
@@ -42,7 +43,7 @@ export default function EnableDashPayModal({ open, onClose, identity }: EnableDa
     destinationValid: keys.length > 0,
   })
   const feeCredits = fee.loading || fee.err != null ? null : fee.feeCredits
-  const shortfall = keysShortfall({ requested: keys.length, slotsLeft: readiness.slotsLeft, feeCredits, feeError: fee.err, balance })
+  const shortfall = feeShortfall(fee.err != null, balance, feeCredits)
 
   const run = async (password: string): Promise<KeysAddedResult> => {
     const stHash = await API.createIdentityKeys(walletId!, identity.identifier, keys, password)

@@ -1,15 +1,15 @@
 import type { IdentityKeyBoundsDto, IdentityKeyDto, IdentityKeyRequestDto } from '@renderer/api/types'
-import { DASHPAY_CONTRACT_ID, DASHPAY_KEY_BOUNDS, IDENTITY_KEY_SLOT_LIMIT } from '@renderer/constants/dashPay'
+import { DASHPAY_CONTRACT_ID, DASHPAY_KEY_BOUNDS } from '@renderer/constants/dashPay'
 import {
   DASHPAY_BOUNDS_LABEL,
   IDENTITY_KEY_LABEL_SEPARATOR,
   IDENTITY_KEY_LEVEL_LABELS,
   IDENTITY_KEY_PURPOSE_LABELS,
   IDENTITY_KEY_VARIANTS,
+  IDENTITY_KEYS_PER_TRANSITION,
 } from '@renderer/constants/identityKeys'
-import type { IdentityKeyVariant } from '@renderer/enums/DashPay'
+import type { IdentityKeyVariant } from '@renderer/enums/IdentityKeys'
 import type { KeyBoundsLabel, KeySelectionCheck } from '@renderer/types/IdentityKeys'
-import { keySlotsUsed } from './dashPayReadiness'
 
 function isDashPayBounds(bounds: IdentityKeyBoundsDto | null): boolean {
   return bounds?.contractId === DASHPAY_CONTRACT_ID
@@ -43,16 +43,17 @@ export function keysMatchingVariant(existing: IdentityKeyDto[], variant: Identit
     && isDashPayBounds(key.contractBounds) === definition.dashPayBound).length
 }
 
-export function validateKeySelection(existing: IdentityKeyDto[], selected: IdentityKeyVariant[]): KeySelectionCheck {
-  const used = keySlotsUsed(existing)
-  const slotsLeft = Math.max(0, IDENTITY_KEY_SLOT_LIMIT - used)
+export function validateKeySelection(selected: IdentityKeyVariant[]): KeySelectionCheck {
   return {
-    used,
-    slotsLeft,
-    leftAfter: Math.max(0, slotsLeft - selected.length),
-    overLimit: selected.length > slotsLeft,
+    count: selected.length,
+    atLimit: selected.length >= IDENTITY_KEYS_PER_TRANSITION,
+    overLimit: selected.length > IDENTITY_KEYS_PER_TRANSITION,
     empty: selected.length === 0,
   }
+}
+
+export function nextIdentityKeyId(keys: IdentityKeyDto[]): number {
+  return keys.reduce((next, key) => Math.max(next, key.keyId + 1), 0)
 }
 
 export function keyBoundsLabel(bounds: IdentityKeyBoundsDto | null): KeyBoundsLabel | null {
@@ -74,6 +75,6 @@ export function keyRequestLabel(request: IdentityKeyRequestDto): string {
 }
 
 export function projectedKeyIds(existing: IdentityKeyDto[], count: number): number[] {
-  const first = keySlotsUsed(existing)
+  const first = nextIdentityKeyId(existing)
   return Array.from({ length: count }, (_, offset) => first + offset)
 }

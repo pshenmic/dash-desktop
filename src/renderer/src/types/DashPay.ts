@@ -8,8 +8,6 @@ export interface DashPayReadinessInfo {
   canSend: boolean
   canRegister: boolean
   missingKeys: IdentityKeyRequestDto[]
-  slotsUsed: number
-  slotsLeft: number
 }
 
 export interface ActiveIdentityInput {
@@ -57,7 +55,6 @@ export interface RegistrationReturnDestination {
 }
 
 export type Shortfall =
-  | { kind: ShortfallKind.Slots; slotsLeft: number }
   | { kind: ShortfallKind.FeeError }
   | { kind: ShortfallKind.Balance; missingCredits: bigint }
 
