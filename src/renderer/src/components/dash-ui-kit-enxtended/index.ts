@@ -41,6 +41,7 @@ export {
   ChainSmallIcon,
   SettingsIcon,
   ShieldSmallIcon,
+  IdenticonIcon,
   QuestionMessageIcon,
   CheckmarkIcon,
   FingerprintIcon,

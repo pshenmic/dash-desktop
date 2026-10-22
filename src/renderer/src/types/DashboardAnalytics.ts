@@ -4,7 +4,7 @@ import type { PlatformTransaction } from '../api/types'
 import type { WalletTxItem } from './WalletTransaction'
 
 export type AnalyticsPeriod = 7 | 30 | 90 | 'all'
-export type AnalyticsSeries = 'core' | 'evo' | 'shielded'
+export type AnalyticsSeries = 'core' | 'evo' | 'identities' | 'shielded'
 export type AnalyticsCoreTransaction = Pick<WalletTxItem, 'id' | 'date' | 'status' | 'direction' | 'amount'>
 
 export interface ActivityDay {

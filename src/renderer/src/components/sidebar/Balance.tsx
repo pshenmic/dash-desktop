@@ -1,5 +1,5 @@
 import { DashLogo, useTheme } from "dash-ui-kit/react";
-import { CreditsIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxtended";
+import { CreditsIcon, IdenticonIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxtended";
 import CreditsAmount from "../ui/CreditsAmount";
 import DashBigNumber from "../ui/DashBigNumber";
 import SensitiveValue from "../ui/SensitiveValue";
@@ -24,13 +24,14 @@ const logoStyles = cva(
       variant: {
         dash: 'bg-dash-brand dark:bg-[var(--color-dash-blue-20)]',
         credits: 'bg-dash-primary-dark-blue/5 dark:bg-[var(--color-dash-blue-20)]',
+        identities: 'bg-dash-primary-dark-blue/5 dark:bg-[var(--color-dash-blue-20)]',
         shielded: 'bg-dash-primary-dark-blue/5 dark:bg-[var(--color-dash-blue-20)]'
       }
     }
   }
 )
 
-export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'shielded', balance?: bigint, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
+export default function Balance({variant, balance, credits, isVisible, fiat}: {variant: 'dash' | 'credits' | 'identities' | 'shielded', balance?: bigint, credits?: bigint, isVisible: boolean, fiat?: string}): React.JSX.Element {
   const { theme } = useTheme()
   const { format: formatFiat, rateReady, currency } = useFiat()
   const amountKnown = variant === 'dash' || credits != null
@@ -54,12 +55,14 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
           <DashLogo width={20} height={20} containerSize={39} color={theme === 'light' ? 'white' : 'var(--color-dash-brand)'}/>
         : variant === 'shielded' ?
           <ShieldSmallIcon size={15} color={"#4C7EFF"}/>
+        : variant === 'identities' ?
+          <IdenticonIcon size={15}/>
         :
           <CreditsIcon size={15}/>
         }
       </div>
       <div className={"flex flex-col gap-[.125rem]"}>
-        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : 'Platform Balance:'}</Text>
+        <Text size={12} weight="medium" color="brand" className={"leading-[120%]"} opacity={50}>{variant === 'dash' ? 'Core Balance:' : variant === 'shielded' ? 'Shielded:' : variant === 'identities' ? 'Identities:' : 'Platform addresses:'}</Text>
         <Text size={16} weight="extrabold" color="brand" className={"leading-[120%]"}>
           {variant === 'shielded' && credits == null ? (
             <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
@@ -67,7 +70,7 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: {v
             </Tooltip>
           ) : (
             <SensitiveValue hidden={!isVisible} size={"sidebar"} tone={"accent"}>
-              {(variant === 'credits' || variant === 'shielded') && credits != null ? (
+              {variant !== 'dash' && credits != null ? (
                 <CreditsAmount credits={credits} compact unit={"Credits"} showFiat={false} unitClassName={""} />
               ) : (
                 <>

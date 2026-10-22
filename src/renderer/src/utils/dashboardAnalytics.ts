@@ -143,8 +143,8 @@ export function summarizeEvoTypes(types: EvoTypeCount[]): EvoTypeCount[] {
   return top
 }
 
-export function buildBalanceAllocation(coreDuffs: bigint, platformCredits: bigint, shieldedCredits: bigint): BalanceAllocation {
-  const amounts = [duffsToCredits(coreDuffs), platformCredits, shieldedCredits]
+export function buildBalanceAllocation(coreDuffs: bigint, platformCredits: bigint, identityCredits: bigint, shieldedCredits: bigint): BalanceAllocation {
+  const amounts = [duffsToCredits(coreDuffs), platformCredits, identityCredits, shieldedCredits]
   const total = amounts.reduce((sum, value) => sum + value, 0n)
   let accumulated = 0n
   const segments = BALANCE_SEGMENTS.map((segment, index) => {

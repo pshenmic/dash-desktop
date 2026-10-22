@@ -8,6 +8,7 @@ import { SURFACE_PANEL } from '@renderer/constants/surfaces'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import { totalIdentityCredits } from '@renderer/utils/platformBalances'
 import DashboardHeading from './DashboardHeading'
 
 function shortIdentifier(identifier: string): string {
@@ -23,10 +24,7 @@ export default function IdentitiesCard(): React.JSX.Element {
   const { isBalanceVisible } = useBalanceVisibility()
   const labels = dashboardPage.identities
 
-  const totalCredits = useMemo(
-    () => identities.reduce((sum, i) => sum + i.balance.amount, 0n),
-    [identities]
-  )
+  const totalCredits = useMemo(() => totalIdentityCredits(identities), [identities])
   const topIdentity = useMemo(
     () =>
       identities.reduce<(typeof identities)[number] | null>(

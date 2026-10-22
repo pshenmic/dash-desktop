@@ -889,6 +889,30 @@ export const SettingsIcon: React.FC<IconProps> = ({
   </svg>
 )
 
+export const IdenticonIcon: React.FC<IconProps> = ({
+  color = '#4C7EFF',
+  size = 15,
+  className = '',
+  onClick
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='0 0 5 5'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+    className={className}
+    onClick={onClick}
+    color={color}
+    shapeRendering='crispEdges'
+  >
+    <path
+      d='M0 1h1v2H0zM0 4h1v1H0zM1 0h1v2H1zM1 4h1v1H1zM2 3h1v1H2zM3 0h1v2H3zM3 4h1v1H3zM4 1h1v2H4zM4 4h1v1H4z'
+      fill='currentColor'
+    />
+  </svg>
+)
+
 export const ShieldSmallIcon: React.FC<IconProps> = ({
   color = '#0C1C33',
   size = 15,

@@ -7,10 +7,12 @@ export const CHART_WIDTH = 1000
 export const CHART_HEIGHT = 200
 export const EVO_TYPE_LIMIT = 5
 export const SHIELDED_SEGMENT_LABEL = 'Shielded'
+export const IDENTITIES_SEGMENT_LABEL = 'Identities'
 export const ALLOCATION_AMOUNT_FLOOR = '<0.001'
 export const BALANCE_SEGMENTS: Pick<BalanceSegment, 'label' | 'series'>[] = [
   { label: 'Core', series: 'core' },
-  { label: 'Platform', series: 'evo' },
+  { label: 'Platform addresses', series: 'evo' },
+  { label: IDENTITIES_SEGMENT_LABEL, series: 'identities' },
   { label: SHIELDED_SEGMENT_LABEL, series: 'shielded' },
 ]
 
@@ -20,6 +22,7 @@ export const ANALYTICS_PLOT_HEIGHT = 'h-40'
 export const ANALYTICS_SERIES = {
   core: { fill: 'bg-dash-brand dark:bg-dash-mint', stroke: 'stroke-dash-brand dark:stroke-dash-mint', area: 'fill-dash-brand/10 dark:fill-dash-mint/10' },
   evo: { fill: 'bg-violet-700 dark:bg-violet-300', stroke: 'stroke-violet-700 dark:stroke-violet-300' },
+  identities: { fill: 'bg-pink-600 dark:bg-pink-500' },
   shielded: { fill: 'bg-violet-400 dark:bg-violet-500' },
 }
 

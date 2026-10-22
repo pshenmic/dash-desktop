@@ -3,17 +3,18 @@ import { Text, WalletIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
-import { usePlatformCredits } from '@renderer/hooks/usePlatformCredits'
+import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { DASH_UNIT } from '@renderer/constants/balance'
-import { ALLOCATION_AMOUNT_FLOOR, ANALYTICS_FOCUS, ANALYTICS_PLACEHOLDER, ANALYTICS_PULSE, ANALYTICS_SERIES, SHIELDED_SEGMENT_LABEL } from '@renderer/constants/dashboardAnalytics'
+import { ALLOCATION_AMOUNT_FLOOR, ANALYTICS_FOCUS, ANALYTICS_PLACEHOLDER, ANALYTICS_PULSE, ANALYTICS_SERIES, IDENTITIES_SEGMENT_LABEL, SHIELDED_SEGMENT_LABEL } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { buildBalanceAllocation, formatAllocationAmount, formatShare } from '@renderer/utils/dashboardAnalytics'
 import { creditsToDash } from '@renderer/utils/balance'
+import { totalIdentityCredits, totalPlatformAddressCredits } from '@renderer/utils/platformBalances'
 import ChartCard from './ChartCard'
 import SplitBar from './SplitBar'
 
@@ -21,20 +22,22 @@ export default function BalanceAllocationChart(): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? undefined
   const { balance, loading, err } = useWalletBalance(walletId)
-  const { loading: platformLoading, err: platformError } = usePlatformAddresses(walletId)
-  const platformCredits = usePlatformCredits(walletId)
+  const { platformAddresses, loading: platformLoading, err: platformError } = usePlatformAddresses(walletId)
+  const { identities, loading: identitiesLoading, err: identitiesError } = useIdentities(walletId)
   const shieldedSync = useShieldedSyncState(walletId)
   const { isBalanceVisible } = useBalanceVisibility()
   const [active, setActive] = useState<string | null>(null)
   const [syncOpen, setSyncOpen] = useState(false)
   const [syncStarting, setSyncStarting] = useState(false)
   const shieldedCredits = shieldedSync.phase === ShieldedSyncPhase.Done ? shieldedSync.balance : null
-  const allocation = buildBalanceAllocation(balance.dash.amount, platformCredits, shieldedCredits ?? 0n)
+  const allocation = buildBalanceAllocation(balance.dash.amount, totalPlatformAddressCredits(platformAddresses), totalIdentityCredits(identities), shieldedCredits ?? 0n)
   const selected = allocation.segments.find(segment => segment.label === active)
   const shieldedUnknown = shieldedCredits === null
+  const identitiesUnknown = identitiesError !== null && identities.length === 0
+  const partial = shieldedUnknown || identitiesUnknown
   const shieldedSyncing = syncStarting || shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering
   const labels = dashboardPage.analytics.balances
-  const pending = loading || platformLoading
+  const pending = loading || platformLoading || identitiesLoading
   const message = !isBalanceVisible ? dashboardPage.analytics.amountsHidden : !pending && (err || platformError) ? labels.unavailable : null
 
   useEffect(() => {
@@ -46,8 +49,8 @@ export default function BalanceAllocationChart(): React.JSX.Element {
     return <>{value === ALLOCATION_AMOUNT_FLOOR ? value : <DashBigNumber>{value}</DashBigNumber>}<span className="font-medium"> {DASH_UNIT}</span></>
   }
   const headline = selected
-    ? shieldedUnknown ? amount(selected.credits) : `${formatShare(selected.share)}%`
-    : shieldedUnknown ? '—' : amount(allocation.total)
+    ? partial ? amount(selected.credits) : `${formatShare(selected.share)}%`
+    : partial ? '—' : amount(allocation.total)
 
   return (
     <ChartCard title={labels.title} icon={WalletIcon} description={labels.description}>
@@ -76,18 +79,20 @@ export default function BalanceAllocationChart(): React.JSX.Element {
                   <Text size={12} weight="medium" color="brand" className="truncate">{segment.label}</Text>
                 </span>
               )
-              return shieldedUnknown && segment.label === SHIELDED_SEGMENT_LABEL ? (
+              const isShielded = segment.label === SHIELDED_SEGMENT_LABEL
+              const unknown = isShielded ? shieldedUnknown : segment.label === IDENTITIES_SEGMENT_LABEL && identitiesUnknown
+              return unknown ? (
                 <div key={segment.label} className="-mx-2 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 px-2 py-1.5">
                   {swatch}
                   <span className="flex items-baseline gap-2.5">
                     <Text size={12} weight="bold" color="brand">—</Text>
-                    {shieldedSyncing
+                    {isShielded && (shieldedSyncing
                       ? <Text size={12} weight="medium" color="brand" opacity={50}>{dashboardPage.shielded.syncing}</Text>
                       : (
                         <button type="button" className={`cursor-pointer rounded-sm hover:opacity-80 ${ANALYTICS_FOCUS}`} onClick={() => setSyncOpen(true)}>
                           <Text size={12} weight="bold" color="blue-mint">{dashboardPage.shielded.syncNotes}</Text>
                         </button>
-                      )}
+                      ))}
                   </span>
                 </div>
               ) : (
@@ -95,7 +100,7 @@ export default function BalanceAllocationChart(): React.JSX.Element {
                   key={segment.label}
                   type="button"
                   className={`-mx-2 grid grid-cols-[minmax(0,1fr)_auto_2.5rem] items-baseline gap-3 rounded-[.625rem] px-2 py-1.5 text-left hover:bg-dash-primary-dark-blue/6 dark:hover:bg-white/5 ${ANALYTICS_FOCUS} ${active === segment.label ? 'dash-block-5' : ''}`}
-                  title={`${segment.label}: ${creditsToDash(segment.credits)} ${DASH_UNIT}${shieldedUnknown ? '' : ` · ${segment.share.toFixed(2)}%`}`}
+                  title={`${segment.label}: ${creditsToDash(segment.credits)} ${DASH_UNIT}${partial ? '' : ` · ${segment.share.toFixed(2)}%`}`}
                   onPointerEnter={() => setActive(segment.label)}
                   onPointerLeave={() => setActive(null)}
                   onFocus={() => setActive(segment.label)}
@@ -104,7 +109,7 @@ export default function BalanceAllocationChart(): React.JSX.Element {
                 >
                   {swatch}
                   <Text size={12} weight="bold" color="brand" className="tabular-nums">{amount(segment.credits)}</Text>
-                  <Text size={12} weight="medium" color="brand" opacity={50} className="text-right tabular-nums">{shieldedUnknown ? '' : `${formatShare(segment.share)}%`}</Text>
+                  <Text size={12} weight="medium" color="brand" opacity={50} className="text-right tabular-nums">{partial ? '' : `${formatShare(segment.share)}%`}</Text>
                 </button>
               )
             })}
