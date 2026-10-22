@@ -13,16 +13,6 @@ export default function PreviewBadge({ controls }: PreviewBadgeProps): React.JSX
   const popoverId = useId()
   useClickOutside(rootRef, () => setOpen(false))
 
-  const badge = <CustomBadge variant={'muted'} text={PREVIEW_BADGE_COPY.label} />
-
-  if (controls == null) {
-    return (
-      <Tooltip label={PREVIEW_BADGE_COPY.tooltip}>
-        <span className={'inline-flex shrink-0'}>{badge}</span>
-      </Tooltip>
-    )
-  }
-
   const closeOnEscape = (event: React.KeyboardEvent): void => {
     if (event.key !== 'Escape' || !open) return
     event.stopPropagation()
@@ -41,7 +31,7 @@ export default function PreviewBadge({ controls }: PreviewBadgeProps): React.JSX
           onClick={() => setOpen(value => !value)}
           className={PREVIEW_BADGE_BUTTON_CLASS}
         >
-          {badge}
+          <CustomBadge variant={'muted'} text={PREVIEW_BADGE_COPY.label} />
         </button>
       </Tooltip>
       {open && <div id={popoverId} className={PREVIEW_BADGE_POPOVER_CLASS}>{controls}</div>}

@@ -93,7 +93,7 @@ export default function SetupChecklist({
               </span>
               <span className={'flex min-w-0 flex-1 flex-col gap-0.5'}>
                 <Text reset size={12} weight={'bold'} color={'brand'}>{SETUP_STEP_TITLES[step.step]}</Text>
-                <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'truncate'}>{step.caption}</Text>
+                <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'wrap-anywhere'}>{step.caption}</Text>
               </span>
               {trailing(step)}
             </li>

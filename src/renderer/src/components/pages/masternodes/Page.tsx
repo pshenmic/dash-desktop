@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AddIcon, Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import PageHeader from '@renderer/components/ui/PageHeader'
@@ -15,11 +15,11 @@ import {
   MASTERNODES_TAB_LABELS,
 } from '@renderer/constants/masternodes'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
-import { SCROLL_CONTAINER_ID } from '@renderer/constants/scrollIndicator'
 import { SURFACE_PANEL } from '@renderer/constants/surfaces'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { ContestSegment, ContestSort, MasternodePreviewPreset, MasternodesTab, NodeSegment } from '@renderer/enums/Masternodes'
 import { SegmentedControlAppearance } from '@renderer/enums/SegmentedControlAppearance'
+import { useDetailScrollRestore } from '@renderer/hooks/useDetailScrollRestore'
 import { useMasternodePreviewPreset } from '@renderer/hooks/useMasternodePreviewPreset'
 import { useMasternodes } from '@renderer/hooks/useMasternodes'
 import { useMasternodeVotes } from '@renderer/hooks/useMasternodeVotes'
@@ -53,7 +53,6 @@ export default function MasternodesPage({ walletId }: MasternodesPageProps): Rea
   const [yourNamesOnly, setYourNamesOnly] = useState(false)
   const [contestVisibleCount, setContestVisibleCount] = useState(CONTESTS_PAGE_SIZE)
   const [addNodeOpen, setAddNodeOpen] = useState(false)
-  const listScrollTop = useRef<number | null>(null)
 
   const tab = enumParam(MasternodesTab, searchParams.get(MASTERNODE_PARAMS.tab), MasternodesTab.Contests)
   const rawSegment = searchParams.get(MASTERNODE_PARAMS.segment)
@@ -62,25 +61,14 @@ export default function MasternodesPage({ walletId }: MasternodesPageProps): Rea
   const contest = searchParams.get(MASTERNODE_PARAMS.contest)
   const node = contest === null ? searchParams.get(MASTERNODE_PARAMS.node) : null
   const detailKey = contest ?? node
-
-  useLayoutEffect(() => {
-    const container = document.getElementById(SCROLL_CONTAINER_ID)
-    if (container === null) return
-    if (detailKey !== null) {
-      container.scrollTop = 0
-      return
-    }
-    if (listScrollTop.current === null) return
-    container.scrollTop = listScrollTop.current
-    listScrollTop.current = null
-  }, [detailKey])
+  const saveListScroll = useDetailScrollRestore(detailKey)
 
   const replaceParams = (patch: Record<string, string | null>): void => {
     setSearchParams(withParams(searchParams, patch), { replace: true })
   }
 
   const openDetail = (param: string, value: string): void => {
-    if (detailKey === null) listScrollTop.current = document.getElementById(SCROLL_CONTAINER_ID)?.scrollTop ?? null
+    if (detailKey === null) saveListScroll()
     const state: MasternodesNavigationState = { fromList: true }
     setSearchParams(withParams(searchParams, { [param]: value }), { state })
   }
@@ -126,7 +114,6 @@ export default function MasternodesPage({ walletId }: MasternodesPageProps): Rea
     content = (
       <ContestDetail
         walletId={walletId}
-        network={network}
         now={now}
         normalizedLabel={contest}
         onBack={closeDetail}

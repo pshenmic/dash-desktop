@@ -216,7 +216,8 @@ describe('contest detail helpers', () => {
   })
 
   it('captions a contender with its identifier and a differing requested label', () => {
-    expect(contenderCaption(contender(ALICE_ID, 0, 'Alice Morgan'), 'alice')).toBe('4b9Nk…k7pQ1')
+    expect(contenderCaption(contender(ALICE_ID, 0, 'Alice Morgan'), 'alice')).toBe(ALICE_ID)
+    expect(contenderCaption(contender(ALICE_ID, 0, 'Alice Morgan', 'Alice'), 'alice')).toBe(`${ALICE_ID} · Requested as Alice.dash`)
     expect(contenderCaption(contender(ALICE_ID, 0, null, 'Alice'), 'alice')).toBe('Requested as Alice.dash')
     expect(contenderCaption(contender(ALICE_ID, 0, null), 'alice')).toBe('')
   })
@@ -236,7 +237,7 @@ describe('contest detail helpers', () => {
 describe('vote modal helpers', () => {
   it('describes the choice and the selected nodes', () => {
     const open = contest()
-    expect(voteChoiceSummary(FOR_ALICE, open)).toBe('Alice Morgan · 4b9Nk…k7pQ1')
+    expect(voteChoiceSummary(FOR_ALICE, open)).toBe(`Alice Morgan · ${ALICE_ID}`)
     expect(voteChoiceSummary({ kind: VoteChoiceKind.TowardsIdentity, identifier: 'B' }, open)).toBe('B')
     expect(voteChoiceSummary(LOCK, open)).toBe('Lock — nobody gets this name')
     expect(voteChoiceSummary(ABSTAIN, open)).toBe('Abstain')

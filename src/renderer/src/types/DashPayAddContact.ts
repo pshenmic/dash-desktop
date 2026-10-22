@@ -3,7 +3,7 @@ import type { DashPayContactDto } from '@renderer/api/types'
 import type { SearchResultState } from '@renderer/enums/DashPay'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
 import type { CustomBadgeProps } from './CustomBadge'
-import type { DashPayReadinessInfo } from './DashPay'
+import type { DashPayReadinessInfo, Shortfall } from './DashPay'
 import type { IdentitySelectHandle } from './IdentitySelect'
 
 export interface AddContactResultRow {
@@ -69,15 +69,14 @@ export interface ConfirmStepProps {
   identity: IdentityApiDto
   target: AddContactResultRow
   fee: AddContactFee
-  shortfall: bigint | null
-}
-
-export interface AddContactShortfallProps {
-  identity: IdentityApiDto
-  fee: AddContactFee
-  shortfall: bigint | null
+  shortfall: Shortfall | null
 }
 
 export interface AddContactCreditsProps {
   credits: bigint | null
+}
+
+export interface AddContactPartyProps {
+  identifier: string
+  name: string | null
 }

@@ -1,6 +1,4 @@
 import { ContactSegment } from '@renderer/enums/DashPay'
-import { DestinationKind } from '@renderer/enums/DestinationKind'
-import { SourceKind } from '@renderer/enums/SourceKind'
 import { CHIP_ACTION } from './surfaces'
 
 export const CONTACT_SEGMENT_ORDER: ContactSegment[] = [
@@ -57,7 +55,6 @@ export const CONTACT_MENU_COPY = {
   accept: 'Accept',
   copyId: 'Copy identity ID',
   copyName: 'Copy username',
-  copied: 'Copied to clipboard',
 } as const
 
 export const CONTACT_DETAIL_COPY = {
@@ -66,6 +63,7 @@ export const CONTACT_DETAIL_COPY = {
   wantsToAdd: 'Wants to add',
   requestSentFrom: 'Request sent from',
   actAs: 'Act as',
+  actAsThis: 'Act as this identity',
   accept: 'Accept',
   pay: 'Pay',
   theyAdded: 'They added you',
@@ -89,14 +87,6 @@ export const CONTACT_PAYMENTS_COPY = {
   menuTitle: 'Payment',
   copyTxid: 'Copy transaction ID',
   openInExplorer: 'Open in explorer',
-} as const
-
-export const FEE_SHORTFALL_COPY = {
-  feeFailed: 'Couldn’t get the fee',
-  retry: 'Retry',
-  needs: 'needs',
-  more: 'Dash more.',
-  topUp: 'Top up',
 } as const
 
 export const ACCEPT_REQUEST_COPY = {
@@ -128,8 +118,6 @@ export const PAY_CONTACT_COPY = {
   contactsSuffix: '’s contacts',
   transactionId: 'Transaction ID',
 } as const
-
-export const DASHPAY_TOP_UP_HREF = `/send?from=${SourceKind.Core}&to=${DestinationKind.Identity}`
 
 export const DASH_AMOUNT_INPUT_PATTERN = /^(?:\d+(?:\.\d{0,8})?|\.\d{0,8})$/
 

@@ -31,7 +31,7 @@ export default function RegisterConfirmStep({ check, identity, network, feeLabel
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{REGISTER_CONFIRM_COPY.for}</Text>
         <span className={"flex min-w-0 items-center gap-2"}>
           <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Xs} />
-          <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate"}>{identityLabel(identity)}</Text>
+          <Text reset size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all text-right"}>{identityLabel(identity)}</Text>
         </span>
       </div>
       <div className={"flex items-center justify-between gap-4"}>

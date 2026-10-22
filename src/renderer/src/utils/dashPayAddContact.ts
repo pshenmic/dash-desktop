@@ -1,11 +1,10 @@
 import type { AliasSearchResultDto } from '@renderer/api/types'
 import { ALIAS_SEARCH_RESULT_CAP } from '@renderer/constants/dashPay'
-import { ADD_CONTACT_COPY, SELECTABLE_SEARCH_RESULT_STATES } from '@renderer/constants/dashPayAddContact'
+import { SELECTABLE_SEARCH_RESULT_STATES } from '@renderer/constants/dashPayAddContact'
 import type { SearchResultState } from '@renderer/enums/DashPay'
 import type { AddContactResultRow, AddContactRowContext } from '@renderer/types/DashPayAddContact'
 import { searchResultState } from './dashPayContactList'
 import { normalizeDpnsLabel, stripDpnsInput } from './dpnsLabel'
-import { shortIdentifier } from './identifierFormat'
 
 export function aliasSearchPrefix(query: string): string {
   return normalizeDpnsLabel(stripDpnsInput(query))
@@ -47,11 +46,6 @@ export function isAliasSearchCapped(results: AliasSearchResultDto[]): boolean {
   return results.length >= ALIAS_SEARCH_RESULT_CAP
 }
 
-export function creditShortfall(balance: bigint, fee: bigint | null): bigint | null {
-  if (fee == null || balance >= fee) return null
-  return fee - balance
-}
-
 export function resultRowLabel(row: Pick<AddContactResultRow, 'identifier' | 'name'>): string {
-  return row.name ?? `${ADD_CONTACT_COPY.identityPrefix} ${shortIdentifier(row.identifier)}`
+  return row.name ?? row.identifier
 }

@@ -36,9 +36,10 @@ import { ModalSize } from '@renderer/enums/ModalSize'
 import { SegmentedControlAppearance } from '@renderer/enums/SegmentedControlAppearance'
 import { setAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { useMasternodes } from '@renderer/hooks/useMasternodes'
+import { countLabel } from '@renderer/utils/countLabel'
 import { getErrorMessage } from '@renderer/utils/error'
-import { shortIdentifier } from '@renderer/utils/identifierFormat'
-import { addedVotingPower, countLabel, isNodeAlreadyAdded, nodeWeightLabel } from '@renderer/utils/masternodeNodes'
+import { addedVotingPower, isNodeAlreadyAdded, nodeWeightLabel } from '@renderer/utils/masternodeNodes'
+import { toggledSet } from '@renderer/utils/masternodes'
 import { classifyVotingKeyInput, isProTxHash, votingKeyMessage } from '@renderer/utils/votingKey'
 import type { AddNodeCandidateProps } from '@renderer/types/MasternodeNodes'
 import type { MasternodeDto } from '@renderer/types/Masternodes'
@@ -118,22 +119,13 @@ export default function AddNodeModal({
     setLookupError(null)
   }
 
-  const toggle = (hash: string, checked: boolean): void => {
-    setSelected(current => {
-      const next = new Set(current)
-      if (checked) next.add(hash)
-      else next.delete(hash)
-      return next
-    })
-  }
-
   const find = async (): Promise<void> => {
     if (walletId === undefined || !inputValid) return
     setLookupError(null)
     setPhase(AddNodePhase.Finding)
     try {
       const found = withKey
-        ? await MasternodePreviewAPI.findMasternodesByVotingKey(walletId, votingKey.trim())
+        ? await MasternodePreviewAPI.findMasternodesByVotingKey(walletId, votingKey.trim(), expectedProTxHash)
         : await MasternodePreviewAPI.findMasternode(walletId, proTxHash.trim()).then(node => (node === null ? [] : [node]))
       if (found.length === 0) {
         setLookupError(withKey ? ADD_NODE_COPY.noKeyMatch : ADD_NODE_COPY.noHashMatch)
@@ -299,8 +291,8 @@ export default function AddNodeModal({
       <>
         <Text reset as={'p'} size={14} weight={'medium'} color={'brand'} className={'mt-5'}>{heading}</Text>
         {expectedMissing && (
-          <Text reset as={'p'} size={12} weight={'medium'} color={'brand'} className={'mt-1 text-dash-orange!'}>
-            {`${ADD_NODE_COPY.expectedMismatch} ${shortIdentifier(expectedProTxHash)}.`}
+          <Text reset as={'p'} size={12} weight={'medium'} color={'brand'} className={'mt-1 wrap-anywhere text-dash-orange!'}>
+            {`${ADD_NODE_COPY.expectedMismatch} ${expectedProTxHash}.`}
           </Text>
         )}
         <FadingScrollArea className={`mt-3 ${ADD_NODE_CANDIDATES_CLASS}`}>
@@ -313,7 +305,7 @@ export default function AddNodeModal({
                 alreadyAdded={alreadyAdded}
                 meta={alreadyAdded ? ADD_NODE_COPY.alreadyAdded : nodeWeightLabel({ type: node.type, access })}
                 checked={!alreadyAdded && selected.has(node.proTxHash)}
-                onChange={checked => toggle(node.proTxHash, checked)}
+                onChange={checked => setSelected(current => toggledSet(current, node.proTxHash, checked))}
               />
             )
           })}

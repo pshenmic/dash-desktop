@@ -47,9 +47,9 @@ describe('contactsForIdentity', () => {
 })
 
 describe('contact presentation', () => {
-  it('uses the oldest name, or a short identifier when there is none', () => {
+  it('uses the oldest name, or the full identifier when there is none', () => {
     expect(contactDisplayName(alice)).toBe('alice.dash')
-    expect(contactDisplayName(contact('4hTq9UuWXYZkPz2mK', Incoming))).toBe('4hTq9…Pz2mK')
+    expect(contactDisplayName(contact('4hTq9UuWXYZkPz2mK', Incoming))).toBe('4hTq9UuWXYZkPz2mK')
   })
 
   it('dates activity by the later request either way', () => {

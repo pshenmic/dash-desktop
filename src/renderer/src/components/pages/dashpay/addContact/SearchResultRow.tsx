@@ -1,6 +1,7 @@
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
+import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'
 import {
   ADD_CONTACT_CHIP_CLASS,
   ADD_CONTACT_COPY,
@@ -19,7 +20,6 @@ import { SearchResultState } from '@renderer/enums/DashPay'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
 import type { SearchResultRowProps } from '@renderer/types/DashPayAddContact'
 import { isSelectableResult, resultRowLabel } from '@renderer/utils/dashPayAddContact'
-import { shortIdentifier } from '@renderer/utils/identifierFormat'
 
 export default function SearchResultRow({
   row,
@@ -61,12 +61,18 @@ export default function SearchResultRow({
       </span>
       <span className={"pointer-events-none flex min-w-0 flex-col gap-0.5"}>
         <span className={"flex min-w-0 items-center gap-1.5"}>
-          <Text reset size={14} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[130%]"}>{label}</Text>
+          {row.name != null ? (
+            <Text reset size={14} weight={"medium"} color={"brand"} className={"min-w-0 truncate leading-[130%]"}>{row.name}</Text>
+          ) : (
+            <HighlightedIdentifier className={CONTACT_IDENTIFIER_CLASS}>{row.identifier}</HighlightedIdentifier>
+          )}
           {row.extraNames > 0 && <CustomBadge variant={"muted"} text={`+${row.extraNames}`} className={"shrink-0"} />}
         </span>
-        <Text reset size={10} weight={"medium"} color={"brand"} opacity={50} className={"truncate leading-[130%]"}>
-          {row.name == null ? ADD_CONTACT_COPY.noUsername : shortIdentifier(row.identifier)}
-        </Text>
+        {row.name != null ? (
+          <Text reset size={10} weight={"medium"} color={"brand"} opacity={50} className={"break-all leading-[130%]"}>{row.identifier}</Text>
+        ) : (
+          <Text reset size={10} weight={"medium"} color={"brand"} opacity={50} className={"truncate leading-[130%]"}>{ADD_CONTACT_COPY.noUsername}</Text>
+        )}
       </span>
       <span className={"relative z-10 flex items-center gap-2"}>
         {badge && <CustomBadge variant={badge.variant} text={badge.text} className={"shrink-0"} />}

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   addContactRows,
   aliasSearchPrefix,
-  creditShortfall,
   identifierResultRow,
   isAliasSearchCapped,
   isSelectableResult,
@@ -117,16 +116,8 @@ describe('isAliasSearchCapped', () => {
 })
 
 describe('resultRowLabel', () => {
-  it('uses the name, or the shortened identifier for a pasted ID', () => {
+  it('uses the name, or the full identifier for a pasted ID', () => {
     expect(resultRowLabel({ identifier: 'AliceId', name: 'alice.dash' })).toBe('alice.dash')
-    expect(resultRowLabel({ identifier: '7Hh2aRfK1sdPxq9W2mN4bT6cY8eJ3kL5pQ7rS9uV1wX', name: null })).toBe('Identity 7Hh2a…uV1wX')
-  })
-})
-
-describe('creditShortfall', () => {
-  it('returns the missing credits only when the balance cannot cover the fee', () => {
-    expect(creditShortfall(100n, 250n)).toBe(150n)
-    expect(creditShortfall(250n, 250n)).toBeNull()
-    expect(creditShortfall(0n, null)).toBeNull()
+    expect(resultRowLabel({ identifier: '7Hh2aRfK1sdPxq9W2mN4bT6cY8eJ3kL5pQ7rS9uV1wX', name: null })).toBe('7Hh2aRfK1sdPxq9W2mN4bT6cY8eJ3kL5pQ7rS9uV1wX')
   })
 })

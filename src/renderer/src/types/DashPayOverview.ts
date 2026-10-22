@@ -31,11 +31,6 @@ export interface UsernameSummary {
   inVote: number
 }
 
-export interface CountForms {
-  one: string
-  other: string
-}
-
 export interface OverviewHeroProps {
   identity: IdentityApiDto | null
   ready: boolean

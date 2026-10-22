@@ -98,13 +98,13 @@ export default function NodeDetail({ walletId, proTxHash, onBack, onOpenContest 
             <div className={NODE_DETAIL_ROW_CLASS}>
               <span className={ICON_CHIP}><DocumentIcon size={14} color={'currentColor'} /></span>
               <Text size={14} weight={'medium'} color={'brand'} className={'shrink-0'}>{NODE_DETAIL_COPY.proTxHash}</Text>
-              <HighlightedIdentifier ellipsis className={'min-w-0 font-medium!'}>{node.proTxHash}</HighlightedIdentifier>
+              <HighlightedIdentifier className={'min-w-0 font-medium!'}>{node.proTxHash}</HighlightedIdentifier>
               <CopyButton text={node.proTxHash} className={'shrink-0'} />
             </div>
             <div className={NODE_DETAIL_ROW_CLASS}>
               <span className={ICON_CHIP}><WalletIcon size={14} color={'currentColor'} /></span>
               <Text size={14} weight={'medium'} color={'brand'} className={'shrink-0'}>{NODE_DETAIL_COPY.payoutAddress}</Text>
-              <HighlightedIdentifier ellipsis className={'min-w-0 font-medium!'}>{node.payoutAddress}</HighlightedIdentifier>
+              <HighlightedIdentifier className={'min-w-0 font-medium!'}>{node.payoutAddress}</HighlightedIdentifier>
               <CopyButton text={node.payoutAddress} className={'shrink-0'} />
             </div>
           </div>

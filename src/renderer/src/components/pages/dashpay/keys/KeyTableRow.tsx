@@ -18,7 +18,7 @@ export default function KeyTableRow({ identityKey }: KeyTableRowProps): React.JS
   if (bounds?.isDashPay) {
     boundsCell = <CustomBadge variant={"accent"} text={bounds.text} className={"max-w-full"} />
   } else if (bounds != null) {
-    boundsCell = <Text size={12} weight={"medium"} color={"brand"} className={"font-mono truncate"}>{bounds.text}</Text>
+    boundsCell = <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 font-mono break-all"}>{bounds.text}</Text>
   }
 
   return (

@@ -3,48 +3,21 @@ import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import {
   REGISTER_ALLOWED_AVAILABILITY,
   REGISTER_SIGN_COPY,
-  USERNAME_CAPTION_EXTRA,
   USERNAME_TITLE_ELLIPSIS,
   USERNAME_TITLE_HEAD,
   USERNAME_TITLE_TAIL,
   USERNAME_TYPE_COPY,
 } from '@renderer/constants/dashPayUsernames'
-import { ALIAS_PRESENTATION, USERNAME_CAPTION_COPY, USERNAME_ORDER, VOTE_POLL_DURATION_LABEL } from '@renderer/constants/dpns'
+import { ALIAS_PRESENTATION, USERNAME_ORDER, VOTE_POLL_DURATION_LABEL } from '@renderer/constants/dpns'
 import { MASTERNODE_PARAMS, MASTERNODES_ROUTE } from '@renderer/constants/masternodes'
 import { AliasPresentation } from '@renderer/enums/DashPay'
 import { MasternodesTab } from '@renderer/enums/Masternodes'
 import type { RegisterGateInput } from '@renderer/types/DashPayUsernames'
 import type { UsernameRowModel } from '@renderer/types/Dpns'
-import { formatCreationDate } from './date'
+import { dashPayHref } from './dashPayIdentity'
+import { creditShortfall } from './dashPayShortfall'
 import { withParams } from './searchParams'
-import { formatTimeLeft } from './timeLeft'
-import { aliasPresentation, usernameCaption } from './usernames'
-
-export function voteTallies(alias: Pick<AliasDto, 'votesFor' | 'votesLock' | 'votesAbstain'>): string {
-  const { separator, forYou, lock, abstain } = USERNAME_CAPTION_COPY
-  return [
-    `${alias.votesFor ?? 0} ${forYou}`,
-    `${alias.votesLock ?? 0} ${lock}`,
-    `${alias.votesAbstain ?? 0} ${abstain}`,
-  ].join(separator)
-}
-
-export function voteTiming(voteEndsAt: number | null, now: number): string {
-  if (voteEndsAt == null) return USERNAME_CAPTION_EXTRA.voteOpen
-  if (voteEndsAt <= now) return USERNAME_CAPTION_EXTRA.voteEnded
-  return `${USERNAME_CAPTION_EXTRA.endsIn} ${formatTimeLeft(voteEndsAt, now)}`
-}
-
-export function usernameRowCaption(row: UsernameRowModel, now: number): string | null {
-  const alias = row.alias
-  if (row.presentation === AliasPresentation.Registered) {
-    return alias == null ? null : `${USERNAME_CAPTION_EXTRA.added} ${formatCreationDate(new Date(alias.createdAt))}`
-  }
-  if (row.presentation === AliasPresentation.Voting && alias != null) {
-    return `${voteTiming(alias.voteEndsAt, now)}${USERNAME_CAPTION_COPY.separator}${voteTallies(alias)}`
-  }
-  return usernameCaption(row, now)
-}
+import { aliasPresentation, voteTiming } from './usernames'
 
 export function usernameTitle(fullName: string): string {
   if (fullName.length <= USERNAME_TITLE_HEAD + USERNAME_TITLE_TAIL + USERNAME_TITLE_ELLIPSIS.length) return fullName
@@ -64,10 +37,7 @@ export function contestHref(normalizedLabel: string): string {
 }
 
 export function registerUsernameHref(identifier: string, label: string | null): string {
-  return `${DASHPAY_ROUTES.registerUsername}?${withParams('', {
-    [DASHPAY_PARAMS.identity]: identifier,
-    [DASHPAY_PARAMS.label]: label,
-  })}`
+  return dashPayHref(DASHPAY_ROUTES.registerUsername, identifier, { [DASHPAY_PARAMS.label]: label })
 }
 
 export function usernameTypeLabel(contested: boolean, network: Network | null): string {
@@ -79,17 +49,13 @@ export function balanceAfterFee(balance: bigint, fee: bigint | null): bigint | n
   return fee == null ? null : balance - fee
 }
 
-export function feeShortfall(balance: bigint, fee: bigint | null): bigint | null {
-  return fee != null && fee > balance ? fee - balance : null
-}
-
 export function registerCanAdvance(input: RegisterGateInput): boolean {
   return input.issue == null
     && input.canRegister
     && (input.resumable || REGISTER_ALLOWED_AVAILABILITY.includes(input.availability))
     && input.feeReady
     && input.feeCredits != null
-    && feeShortfall(input.balance, input.feeCredits) == null
+    && creditShortfall(input.balance, input.feeCredits) == null
 }
 
 export function registerDoneNote(
@@ -101,6 +67,6 @@ export function registerDoneNote(
   if (presentation === AliasPresentation.Registered) return REGISTER_SIGN_COPY.noteRegistered
   if (presentation === AliasPresentation.Pending) return REGISTER_SIGN_COPY.notePending
   if (presentation !== AliasPresentation.Voting) return ALIAS_PRESENTATION[presentation].caption
-  const duration = network != null ? VOTE_POLL_DURATION_LABEL[network] : formatTimeLeft(alias.voteEndsAt ?? now, now)
-  return `${REGISTER_SIGN_COPY.noteContestLead} ${duration}.`
+  if (network != null) return `${REGISTER_SIGN_COPY.noteContestLead} ${REGISTER_SIGN_COPY.noteContestEnds} ${VOTE_POLL_DURATION_LABEL[network]}.`
+  return `${REGISTER_SIGN_COPY.noteContestLead} ${voteTiming(alias.voteEndsAt, now)}.`
 }

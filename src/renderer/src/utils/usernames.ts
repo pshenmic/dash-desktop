@@ -79,21 +79,27 @@ export function joinClosesAt(alias: Pick<AliasDto, 'voteEndsAt'>, network: Netwo
   return alias.voteEndsAt - VOTE_POLL_DURATION_MS[network] + CONTEST_JOIN_WINDOW_MS[network]
 }
 
-export function usernameCaption(row: UsernameRowModel, now: number): string {
+export function voteTiming(voteEndsAt: number | null, now: number): string {
+  if (voteEndsAt == null) return ALIAS_PRESENTATION[AliasPresentation.Voting].caption
+  if (voteEndsAt <= now) return USERNAME_CAPTION_COPY.voteEnded
+  return `${USERNAME_CAPTION_COPY.endsIn} ${formatTimeLeft(voteEndsAt, now)}`
+}
+
+export function usernameCaption(row: UsernameRowModel, now: number): string | null {
   const { caption } = ALIAS_PRESENTATION[row.presentation]
-  const { separator, checked, forYou, lock, abstain } = USERNAME_CAPTION_COPY
+  const { separator, added, checked, forYou, lock, abstain } = USERNAME_CAPTION_COPY
   const alias = row.alias
   switch (row.presentation) {
     case AliasPresentation.Registered:
-      return alias == null ? caption : `${caption} ${formatCreationDate(new Date(alias.createdAt))}`
+      return alias == null ? null : `${added} ${formatCreationDate(new Date(alias.createdAt))}`
     case AliasPresentation.Pending:
       return alias?.checkedAt == null ? caption : `${caption}${separator}${checked} ${formatAgo(alias.checkedAt, now)}`
     case AliasPresentation.Voting:
-      return [
-        `${caption} ${formatTimeLeft(alias?.voteEndsAt ?? now, now)}`,
-        `${alias?.votesFor ?? 0} ${forYou}`,
-        `${alias?.votesLock ?? 0} ${lock}`,
-        `${alias?.votesAbstain ?? 0} ${abstain}`,
+      return alias == null ? caption : [
+        voteTiming(alias.voteEndsAt, now),
+        `${alias.votesFor ?? 0} ${forYou}`,
+        `${alias.votesLock ?? 0} ${lock}`,
+        `${alias.votesAbstain ?? 0} ${abstain}`,
       ].join(separator)
     default:
       return caption

@@ -5,7 +5,9 @@ import {
   countNodeSegments,
   filterNodes,
   nodeVoteEligibility,
+  nodeVoteOn,
   sortNodes,
+  toggledSet,
   voteChoiceEquals,
   votesLeft,
   votingPower,
@@ -111,6 +113,16 @@ describe('votesLeft', () => {
   })
 })
 
+describe('nodeVoteOn', () => {
+  it('finds the vote of a node on one contest only', () => {
+    const atlas = node('Atlas').proTxHash
+    const onAlice = vote(atlas, LOCK, 1)
+    const votes = [vote(atlas, FOR_A, 2, 'b0b'), onAlice, vote(node('Orbit').proTxHash, FOR_B, 1)]
+    expect(nodeVoteOn(votes, atlas, 'a11ce')).toBe(onAlice)
+    expect(nodeVoteOn(votes, atlas, 'missing')).toBeNull()
+  })
+})
+
 describe('nodeVoteEligibility', () => {
   const orbit = node('Orbit')
 
@@ -132,6 +144,17 @@ describe('nodeVoteEligibility', () => {
   it('lets a node change its vote to another contender or vote before a choice is made', () => {
     expect(nodeVoteEligibility(orbit, vote(orbit.proTxHash, FOR_A, 4), FOR_B, contest, NOW)).toBe(NodeVoteEligibility.Eligible)
     expect(nodeVoteEligibility(orbit, vote(orbit.proTxHash, FOR_A, 1), null, contest, NOW)).toBe(NodeVoteEligibility.Eligible)
+  })
+})
+
+describe('toggledSet', () => {
+  it('adds or removes one value without touching the original', () => {
+    const original: ReadonlySet<string> = new Set(['orbit'])
+    expect([...toggledSet(original, 'lumen', true)]).toEqual(['orbit', 'lumen'])
+    expect([...toggledSet(original, 'orbit', false)]).toEqual([])
+    expect([...toggledSet(original, 'orbit', true)]).toEqual(['orbit'])
+    expect([...toggledSet(original, 'vega', false)]).toEqual(['orbit'])
+    expect([...original]).toEqual(['orbit'])
   })
 })
 

@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@renderer/components/dash-ui-kit-enxtended'
 import { CheckCirclePartialIcon, ContactsIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import EnableDashPayModal from '@renderer/components/pages/dashpay/keys/EnableDashPayModal'
-import { DASHPAY_PARAMS, DASHPAY_ROUTES, OVERVIEW_PREVIEW_LIMIT } from '@renderer/constants/dashPay'
+import { DASHPAY_PARAMS, DASHPAY_ROUTES, DASHPAY_TOP_UP_HREF, OVERVIEW_PREVIEW_LIMIT } from '@renderer/constants/dashPay'
 import {
   DASHPAY_REGISTER_IDENTITY_HREF,
   OVERVIEW_ACTION_LABELS,
@@ -13,12 +13,12 @@ import {
   OVERVIEW_ORBIT_COUNT,
   OVERVIEW_ROW_CLASS,
   OVERVIEW_SKELETON_CLASS,
-  OVERVIEW_TOP_UP_HREF,
 } from '@renderer/constants/dashPayOverview'
 import { DashPayReadiness, DashPayTab, ContactSegment, OverviewAction, OverviewBand } from '@renderer/enums/DashPay'
 import { useDashPayAliases } from '@renderer/hooks/useDashPayAliases'
 import { useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
 import { useDebugMode } from '@renderer/hooks/useDebugMode'
+import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { OverviewTabProps } from '@renderer/types/DashPayScreens'
 import { contactsForIdentity, countContactSegments } from '@renderer/utils/dashPayContactList'
@@ -48,7 +48,7 @@ export default function OverviewTab({
   const { contacts, loading: contactsLoading } = useDashPayContacts(walletId)
   const { aliases } = useDashPayAliases(walletId)
   const [enabling, setEnabling] = useState(false)
-  const walletIdentifiers = useMemo(() => new Set(identities.map(entry => entry.identifier)), [identities])
+  const walletIdentifiers = useWalletIdentifiers(identities)
 
   if (loading) {
     return (
@@ -136,7 +136,7 @@ export default function OverviewTab({
             readiness={readiness}
             canSwitch={identities.length > 1}
             onAction={runAction}
-            onTopUp={() => navigate(OVERVIEW_TOP_UP_HREF)}
+            onTopUp={() => navigate(DASHPAY_TOP_UP_HREF)}
             onSwitchIdentity={onSwitchIdentity}
           />
         )}

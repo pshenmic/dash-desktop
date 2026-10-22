@@ -9,11 +9,9 @@ import NoResults from '@renderer/components/ui/NoResults'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
-import { toast } from '@renderer/components/ui/Toast'
 import { DASHPAY_LOAD_ERRORS } from '@renderer/constants/dashPay'
 import {
   CONTACT_DETAIL_COPY,
-  CONTACT_MENU_COPY,
   CONTACT_PAYMENT_SKELETON_CLASS,
   CONTACT_PAYMENTS_COPY,
   CONTACT_PAYMENTS_SKELETON_ROWS,
@@ -25,19 +23,15 @@ import { refreshDashPayPayments, useDashPayPayments } from '@renderer/hooks/useD
 import { useScrollEndSentinel } from '@renderer/hooks/useScrollEndSentinel'
 import type { ContextMenuItem } from '@renderer/types/ContextMenu'
 import type { ContactPaymentsProps } from '@renderer/types/DashPayContacts'
+import { copyWithToast } from '@renderer/utils/clipboard'
 import { dashPayPaymentCard } from '@renderer/utils/dashPayPayments'
 import { openExternal, transactionUrl } from '@renderer/utils/explorer'
 import { windowDayGroups } from '@renderer/utils/listWindow'
-
-function copyText(text: string): void {
-  void navigator.clipboard.writeText(text).then(() => toast.success(CONTACT_MENU_COPY.copied))
-}
 
 export default function ContactPayments({
   walletId,
   identity,
   contact,
-  contactName,
   visibleCount,
   onShowMore,
   onPay,
@@ -52,7 +46,7 @@ export default function ContactPayments({
     const items: ContextMenuItem[] = [{
       id: 'copy-txid',
       label: CONTACT_PAYMENTS_COPY.copyTxid,
-      onSelect: () => copyText(txid),
+      onSelect: () => copyWithToast(txid),
     }]
     if (network != null) {
       items.push({ id: 'explorer', label: CONTACT_PAYMENTS_COPY.openInExplorer, onSelect: () => openExternal(transactionUrl(txid, network)) })
@@ -87,7 +81,7 @@ export default function ContactPayments({
             {group.items.map(payment => (
               <ContextMenu key={payment.txid} title={CONTACT_PAYMENTS_COPY.menuTitle} items={menuItems(payment.txid)}>
                 <div>
-                  <TransactionCard {...dashPayPaymentCard(payment, contactName)} />
+                  <TransactionCard {...dashPayPaymentCard(payment)} fullIdentifiers />
                 </div>
               </ContextMenu>
             ))}

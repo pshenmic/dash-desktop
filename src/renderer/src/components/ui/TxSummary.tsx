@@ -36,7 +36,7 @@ function TxEndpoint({ endpoint, unit, showAmount }: TxEndpointProps): React.JSX.
           size={endpoint.kind === TxEndpointKind.Label ? 14 : 12}
           weight={"medium"}
           color={"brand"}
-          className={endpoint.kind === TxEndpointKind.Label ? 'text-right' : 'font-mono break-all select-all text-right'}
+          className={endpoint.kind === TxEndpointKind.Label ? 'min-w-0 text-right wrap-anywhere' : 'font-mono break-all select-all text-right'}
         >
           {endpoint.value}
         </Text>

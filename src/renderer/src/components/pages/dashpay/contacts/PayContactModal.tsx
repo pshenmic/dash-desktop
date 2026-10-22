@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { API } from '@renderer/api'
 import type { SendResult } from '@renderer/api/types'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import AmountField from '@renderer/components/pages/transfer/AmountField'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import Spinner from '@renderer/components/ui/Spinner'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { DASH_UNIT } from '@renderer/constants/balance'
-import { CONTACT_COPY_SEPARATOR, FEE_SHORTFALL_COPY, PAY_CONTACT_COPY } from '@renderer/constants/dashPayContacts'
+import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'
+import { FEE_SHORTFALL_COPY } from '@renderer/constants/dashPay'
+import { PAY_CONTACT_COPY } from '@renderer/constants/dashPayContacts'
 import { CHIP_ACTION, SURFACE_ROW, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_LABELS, TX_SUMMARY_PENDING_VALUE } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -28,7 +30,7 @@ import { contactDisplayName, contactLastActivity } from '@renderer/utils/dashPay
 import { isDashAmountInput, payDoneNote } from '@renderer/utils/dashPayContactView'
 import { formatCreationDate } from '@renderer/utils/date'
 import { transactionUrl } from '@renderer/utils/explorer'
-import { identityLabel, shortIdentifier } from '@renderer/utils/identifierFormat'
+import { identityLabel } from '@renderer/utils/identifierFormat'
 
 function ContactFact({ label, children }: ContactFactProps): React.JSX.Element {
   return (
@@ -94,7 +96,7 @@ export default function PayContactModal({ open, onClose, contact, identity }: Pa
   else if (fee.err != null) {
     feeValue = (
       <>
-        <span className={'text-dash-red'}>{FEE_SHORTFALL_COPY.feeFailed}</span>
+        <span className={'text-dash-red'}>{FEE_SHORTFALL_COPY.feeError}</span>
         <button type={'button'} onClick={fee.retry} className={CHIP_ACTION}>{FEE_SHORTFALL_COPY.retry}</button>
       </>
     )
@@ -105,9 +107,16 @@ export default function PayContactModal({ open, onClose, contact, identity }: Pa
       <div className={`flex items-center gap-3 ${SURFACE_ROW}`}>
         <IdentityAvatar identifier={contact.contactId} size={IdentityAvatarSize.Sm} />
         <div className={'flex min-w-0 flex-col gap-0.5'}>
-          <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{contactName}</Text>
+          {contact.aliasesList[0] != null ? (
+            <>
+              <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{contactName}</Text>
+              <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 break-all'}>{contact.contactId}</Text>
+            </>
+          ) : (
+            <HighlightedIdentifier className={CONTACT_IDENTIFIER_CLASS}>{contact.contactId}</HighlightedIdentifier>
+          )}
           <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 truncate'}>
-            {`${shortIdentifier(contact.contactId)}${CONTACT_COPY_SEPARATOR}${PAY_CONTACT_COPY.contactSince} ${formatCreationDate(new Date(contactLastActivity(contact)))}`}
+            {`${PAY_CONTACT_COPY.contactSince} ${formatCreationDate(new Date(contactLastActivity(contact)))}`}
           </Text>
         </div>
       </div>
@@ -145,7 +154,7 @@ export default function PayContactModal({ open, onClose, contact, identity }: Pa
       contextLine={
         <>
           <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Xs} />
-          <span className={'min-w-0 truncate'}>{PAY_CONTACT_COPY.payingAs} <strong>{identityName}</strong></span>
+          <span className={'min-w-0 wrap-anywhere'}>{PAY_CONTACT_COPY.payingAs} <strong>{identityName}</strong></span>
         </>
       }
       summary={

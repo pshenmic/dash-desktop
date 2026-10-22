@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   addedVotingPower,
-  countLabel,
   formatBlockHeight,
   isNodeAlreadyAdded,
   nodeSegmentOptions,
@@ -9,7 +8,6 @@ import {
   nodeWeightLabel,
   votingPowerBreakdown,
 } from '../../src/renderer/src/utils/masternodeNodes'
-import { COUNT_NOUNS } from '../../src/renderer/src/constants/masternodeNodes'
 import {
   AddNodeSource,
   MasternodeAccess,
@@ -40,14 +38,6 @@ function node(label: string, overrides: Partial<MasternodeDto> = {}): Masternode
 function vote(proTxHash: string, normalizedLabel: string, castAt: number): MasternodeVoteDto {
   return { proTxHash, normalizedLabel, choice: { kind: VoteChoiceKind.Lock, identifier: null }, votesUsed: 1, castAt }
 }
-
-describe('countLabel', () => {
-  it('uses the singular only for one', () => {
-    expect(countLabel(1, COUNT_NOUNS.node)).toBe('1 node')
-    expect(countLabel(0, COUNT_NOUNS.node)).toBe('0 nodes')
-    expect(countLabel(24, COUNT_NOUNS.node)).toBe('24 nodes')
-  })
-})
 
 describe('nodeSegmentOptions', () => {
   it('labels every segment with its count in enum order', () => {

@@ -2,8 +2,9 @@ import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { API } from '@renderer/api'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
+import ShortfallNotice from '@renderer/components/pages/dashpay/ShortfallNotice'
 import TxSummary from '@renderer/components/ui/TxSummary'
-import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
+import { DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import { ENABLE_DASHPAY_COPY, KEYS_SIGNED_COPY } from '@renderer/constants/dashPayKeys'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -14,13 +15,13 @@ import { useOperationFee } from '@renderer/hooks/useOperationFee'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { KeysAddedResult } from '@renderer/types/DashPayKeys'
 import type { EnableDashPayModalProps } from '@renderer/types/DashPayScreens'
-import { dashPayEnabledHeadline, enableDashPayDescription, keysShortfall } from '@renderer/utils/dashPayKeySetup'
+import { dashPayHref } from '@renderer/utils/dashPayIdentity'
+import { dashPayEnabledHeadline, enableDashPayDescription } from '@renderer/utils/dashPayKeySetup'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
+import { keysShortfall } from '@renderer/utils/dashPayShortfall'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { identityLabel } from '@renderer/utils/identifierFormat'
 import { keyRequestLabel } from '@renderer/utils/identityKeyRequests'
-import { withParams } from '@renderer/utils/searchParams'
-import KeysShortfall from './KeysShortfall'
 
 export default function EnableDashPayModal({ open, onClose, identity }: EnableDashPayModalProps): React.JSX.Element {
   const { status } = useAuth()
@@ -51,7 +52,7 @@ export default function EnableDashPayModal({ open, onClose, identity }: EnableDa
 
   const openAddContact = (): void => {
     const state: DashPayNavigationState = { returnTo: location.pathname + location.search }
-    navigate(`${DASHPAY_ROUTES.addContact}?${withParams('', { [DASHPAY_PARAMS.identity]: identity.identifier })}`, { state })
+    navigate(dashPayHref(DASHPAY_ROUTES.addContact, identity.identifier), { state })
   }
 
   return (
@@ -74,7 +75,7 @@ export default function EnableDashPayModal({ open, onClose, identity }: EnableDa
           ]}
         />
       }
-      shortfall={shortfall && <KeysShortfall shortfall={shortfall} identity={identity} onRetryFee={fee.retry} />}
+      shortfall={shortfall && <ShortfallNotice shortfall={shortfall} identity={identity} onRetry={fee.retry} />}
       confirmLabel={ENABLE_DASHPAY_COPY.confirm}
       confirmDisabled={feeCredits == null || keys.length === 0}
       pendingLabel={KEYS_SIGNED_COPY.pending}

@@ -7,6 +7,7 @@ import { NODE_ROW_COPY } from '@renderer/constants/masternodeNodes'
 import { MASTERNODE_ACCESS_LABELS, MASTERNODE_STATUS_PILLS, MASTERNODE_TABLE_GRID, MASTERNODE_TYPE_BADGES } from '@renderer/constants/masternodes'
 import { SECTION_TABLE_ROW } from '@renderer/constants/sectionTable'
 import { MasternodeAccess } from '@renderer/enums/Masternodes'
+import { copyWithToast } from '@renderer/utils/clipboard'
 import { formatCreationDate } from '@renderer/utils/date'
 import { nodeWeightLabel } from '@renderer/utils/masternodeNodes'
 import type { NodeTableRowProps } from '@renderer/types/MasternodeNodes'
@@ -30,8 +31,8 @@ export default function NodeTableRow({ node, onOpen, onRemove }: NodeTableRowPro
         {
           id: 'copy',
           label: NODE_ROW_COPY.copy,
-          icon: <CopyIcon2 color={'currentColor'} />,
-          onSelect: () => { void navigator.clipboard.writeText(node.proTxHash) },
+          icon: <CopyIcon2 size={10} color={'currentColor'} />,
+          onSelect: () => copyWithToast(node.proTxHash),
         },
         {
           id: 'remove',
@@ -48,7 +49,7 @@ export default function NodeTableRow({ node, onOpen, onRemove }: NodeTableRowPro
             <Text size={14} weight={'medium'} color={'brand'} className={'truncate'}>{node.label}</Text>
             <CustomBadge {...MASTERNODE_TYPE_BADGES[node.type]} className={'shrink-0'} />
           </div>
-          <HighlightedIdentifier ellipsis className={'text-[.625rem]! opacity-70'}>{node.proTxHash}</HighlightedIdentifier>
+          <HighlightedIdentifier className={'text-[.625rem]! opacity-70'}>{node.proTxHash}</HighlightedIdentifier>
         </div>
         <div className={'flex min-w-0'}>
           <StatusPill tone={status.tone}>{status.label}</StatusPill>

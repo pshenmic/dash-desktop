@@ -7,6 +7,7 @@ import {
   usernameAvailability,
   usernameCaption,
   usernameOrder,
+  voteTiming,
 } from '../../src/renderer/src/utils/usernames'
 import { normalizeDpnsLabel } from '../../src/renderer/src/utils/dpnsLabel'
 import { AliasPresentation, AliasStatus, UsernameAvailability } from '../../src/renderer/src/enums/DashPay'
@@ -166,10 +167,10 @@ describe('joinClosesAt', () => {
 describe('usernameCaption', () => {
   const row = (entry: AliasDto) => mergeIdentityUsernames([], [entry], ME)[0]
 
-  it('dates a registered row and leaves a synthesized one undated', () => {
+  it('dates a registered row by when it was added and gives a synthesized one no caption', () => {
     expect(usernameCaption(row(alias('alice', AliasStatus.Registered, { createdAt: new Date(2026, 9, 3, 12).getTime() })), NOW))
-      .toBe('Registered 3 Oct 2026')
-    expect(usernameCaption(mergeIdentityUsernames(['alice.dash'], [], ME)[0], NOW)).toBe('Registered')
+      .toBe('Added 3 Oct 2026')
+    expect(usernameCaption(mergeIdentityUsernames(['alice.dash'], [], ME)[0], NOW)).toBeNull()
   })
 
   it('shows when a pending name was last checked', () => {
@@ -187,9 +188,24 @@ describe('usernameCaption', () => {
     expect(usernameCaption(row(voting), NOW)).toBe('Ends in 3d 14h · 12 for you · 3 lock · 1 abstain')
   })
 
+  it('says the vote ended or is in progress instead of a countdown, counting missing tallies as zero', () => {
+    expect(usernameCaption(row(alias('alice', AliasStatus.Voting, { voteEndsAt: NOW - 3_600_000 })), NOW))
+      .toBe('Voting ended · 0 for you · 0 lock · 0 abstain')
+    expect(usernameCaption(row(alias('alice', AliasStatus.Voting, { votesLock: 2 })), NOW))
+      .toBe('Vote in progress · 0 for you · 2 lock · 0 abstain')
+  })
+
   it('uses the static caption for terminal states', () => {
     expect(usernameCaption(row(alias('vault', AliasStatus.Locked)), NOW)).toBe(ALIAS_PRESENTATION[AliasPresentation.Locked].caption)
     expect(usernameCaption(row(alias('river', AliasStatus.Missing, { preorderSalt: SALT })), NOW))
       .toBe(ALIAS_PRESENTATION[AliasPresentation.Resumable].caption)
+  })
+})
+
+describe('voteTiming', () => {
+  it('counts down an open vote and never prints a negative or missing end', () => {
+    expect(voteTiming(NOW + 2 * 3_600_000, NOW)).toBe('Ends in 2h 00m')
+    expect(voteTiming(NOW, NOW)).toBe('Voting ended')
+    expect(voteTiming(null, NOW)).toBe('Vote in progress')
   })
 })

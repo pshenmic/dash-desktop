@@ -38,10 +38,10 @@ export const SUMMARY_COPY = {
 export const NO_WALLET_IDENTIFIERS: ReadonlySet<string> = new Set()
 
 export const COUNT_NOUNS = {
-  vote: { one: 'vote', many: 'votes' },
-  node: { one: 'node', many: 'nodes' },
-  evonode: { one: 'evonode', many: 'evonodes' },
-  masternode: { one: 'masternode', many: 'masternodes' },
+  vote: { one: 'vote', other: 'votes' },
+  node: { one: 'node', other: 'nodes' },
+  evonode: { one: 'evonode', other: 'evonodes' },
+  masternode: { one: 'masternode', other: 'masternodes' },
 } as const
 
 export const NODE_WEIGHT_PREFIX = '×'

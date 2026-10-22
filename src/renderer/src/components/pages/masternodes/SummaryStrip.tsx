@@ -11,8 +11,9 @@ import {
   NO_WALLET_IDENTIFIERS,
 } from '@renderer/constants/masternodeNodes'
 import { ContestSegment, NodeSegment } from '@renderer/enums/Masternodes'
+import { countLabel } from '@renderer/utils/countLabel'
 import { countNodeSegments, votingPower } from '@renderer/utils/masternodes'
-import { countLabel, votingPowerBreakdown } from '@renderer/utils/masternodeNodes'
+import { votingPowerBreakdown } from '@renderer/utils/masternodeNodes'
 import { countContestSegments } from '@renderer/utils/nameContests'
 import type { SummaryCellProps, SummaryLinkProps, SummaryStripProps } from '@renderer/types/MasternodeNodes'
 

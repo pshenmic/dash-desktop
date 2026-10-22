@@ -9,7 +9,9 @@ import {
   countContestSegments,
   filterContests,
   isEndingSoon,
+  rankContenders,
   sortContests,
+  towardsContender,
   voteChoiceLabel,
 } from '../../src/renderer/src/utils/nameContests'
 import {
@@ -123,6 +125,20 @@ describe('contenderShares', () => {
   })
 })
 
+describe('rankContenders', () => {
+  it('orders by votes, the earliest request first on a tie, without touching the input', () => {
+    const input = [contender('late', 5, null, 20), contender('top', 9), contender('early', 5, null, 10)]
+    expect(rankContenders(input).map(entry => entry.identifier)).toEqual(['top', 'early', 'late'])
+    expect(input.map(entry => entry.identifier)).toEqual(['late', 'top', 'early'])
+  })
+})
+
+describe('towardsContender', () => {
+  it('builds a vote for the contender identity', () => {
+    expect(towardsContender(contender('A', 10))).toEqual(FOR_A)
+  })
+})
+
 describe('isEndingSoon', () => {
   it('uses an absolute threshold per network', () => {
     const tenMinutes = contest('a', { endsAt: NOW + 10 * MINUTE })
@@ -212,7 +228,8 @@ describe('contestVoteSummary', () => {
 
   it('labels a choice with the contender name or the choice kind', () => {
     expect(voteChoiceLabel(FOR_A, alice)).toBe('Alice Morgan')
-    expect(voteChoiceLabel({ kind: VoteChoiceKind.TowardsIdentity, identifier: '4b9NkQwzP3Jbk7pQ1' }, alice)).toBe('4b9Nk…k7pQ1')
+    expect(voteChoiceLabel({ kind: VoteChoiceKind.TowardsIdentity, identifier: '4b9NkQwzP3Jbk7pQ1' }, alice)).toBe('4b9NkQwzP3Jbk7pQ1')
+    expect(voteChoiceLabel(FOR_B, alice)).toBe('B')
     expect(voteChoiceLabel(LOCK, alice)).toBe('Lock')
   })
 })

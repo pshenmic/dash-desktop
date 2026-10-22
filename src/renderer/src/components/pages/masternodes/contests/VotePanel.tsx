@@ -30,6 +30,7 @@ import {
   voteChangeWarnings,
   voteNodeRows,
 } from '@renderer/utils/contestVoting'
+import { toggledSet } from '@renderer/utils/masternodes'
 import { contestVoteSummary } from '@renderer/utils/nameContests'
 
 export default function VotePanel({
@@ -67,13 +68,6 @@ export default function VotePanel({
     )
   }
 
-  const toggle = (proTxHash: string, checked: boolean): void => {
-    const next = new Set(selected)
-    if (checked) next.add(proTxHash)
-    else next.delete(proTxHash)
-    onSelectedChange(next)
-  }
-
   const renderRow = (row: VoteNodeRow): React.JSX.Element => {
     const disabled = row.eligibility !== NodeVoteEligibility.Eligible
     const badge = MASTERNODE_TYPE_BADGES[row.node.type]
@@ -83,7 +77,7 @@ export default function VotePanel({
         label={row.node.label}
         checked={!disabled && selected.has(row.node.proTxHash)}
         disabled={disabled}
-        onChange={checked => toggle(row.node.proTxHash, checked)}
+        onChange={checked => onSelectedChange(toggledSet(selected, row.node.proTxHash, checked))}
       >
         <span className={'flex min-w-0 items-center gap-2'}>
           <Text size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{row.node.label}</Text>
@@ -136,7 +130,7 @@ export default function VotePanel({
           <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{VOTE_PANEL_COPY.votingPower}</Text>
           <Text size={14} weight={'bold'} color={'brand'} className={'tabular-nums'}>{rowsVotingPower(chosen)}</Text>
         </div>
-        <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 truncate'}>
+        <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 wrap-anywhere'}>
           {`${VOTE_PANEL_COPY.currently}: ${currentVoteLine(contestVoteSummary(contest, votes), contest)}`}
         </Text>
         {warnings.map(warning => (

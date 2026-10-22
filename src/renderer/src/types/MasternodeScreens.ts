@@ -51,7 +51,6 @@ export interface ContestsTabProps {
 
 export interface ContestDetailProps {
   walletId: string
-  network: Network
   now: number
   normalizedLabel: string
   onBack: () => void

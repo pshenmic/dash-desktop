@@ -1,5 +1,4 @@
 import type { Network } from '@renderer/api/types'
-import { IDENTIFIER_EDGE_CHARS } from '@renderer/constants/identifier'
 import { CONTEST_JOIN_WINDOW_MS, VOTE_POLL_DURATION_MS } from '@renderer/constants/dpns'
 import { ADDRESS_RULES, ENDING_SOON_MS, MASTERNODE_VOTE_WEIGHT, NODE_ELIGIBILITY_LABELS } from '@renderer/constants/masternodes'
 import { PREVIEW_BACKEND_ERRORS, PREVIEW_FNV, PREVIEW_LCG } from '@renderer/constants/masternodePreview'
@@ -74,8 +73,8 @@ import type {
   PreviewWalletState,
 } from '@renderer/types/Preview'
 import { normalizeDpnsLabel, stripDpnsInput } from './dpnsLabel'
-import { applyVoteResults, canVote, nodeVoteEligibility } from './masternodes'
-import { applyChoiceToContest, isEndingSoon } from './nameContests'
+import { applyVoteResults, canVote, nodeVoteEligibility, nodeVoteOn } from './masternodes'
+import { applyChoiceToContest, isEndingSoon, rankContenders } from './nameContests'
 import { classifyVotingKeyInput, isProTxHash } from './votingKey'
 
 export function hashSeed(text: string): number {
@@ -290,16 +289,30 @@ function generatedContest(label: string, phase: PreviewContestPhase, random: Pre
   const timing = phaseTiming(phase, random, now, network)
   const count = randomInt(random, { min: PREVIEW_CONTEST_MIX.minContenders, max: PREVIEW_CONTEST_MIX.maxContenders })
   const contenders = fixtureContenders(random, label, count, timing, now)
+  const votesLock = randomInt(random, PREVIEW_LOCK_VOTES)
+  const votesAbstain = randomInt(random, PREVIEW_ABSTAIN_VOTES)
+  const noWinner = phase === PreviewContestPhase.NoWinner
   return settleContest({
     normalizedLabel: normalizeDpnsLabel(label),
     label,
     status: PREVIEW_CONTEST_PHASE_STATUS[phase],
-    contenders,
-    votesLock: randomInt(random, PREVIEW_LOCK_VOTES),
-    votesAbstain: randomInt(random, PREVIEW_ABSTAIN_VOTES),
+    contenders: noWinner ? [] : contenders,
+    votesLock: noWinner ? 0 : votesLock,
+    votesAbstain,
     ...timing,
     winnerId: null,
   }, topContender(contenders))
+}
+
+function settledContest(contest: NameContestDto): NameContestDto {
+  const [top] = rankContenders(contest.contenders)
+  if (top == null) return { ...contest, status: ContestStatus.NoWinner }
+  if (contest.votesLock > top.votes) return { ...contest, status: ContestStatus.Locked }
+  return { ...contest, status: ContestStatus.Awarded, winnerId: top.identifier }
+}
+
+export function settleExpiredContests(contests: NameContestDto[], now: number): NameContestDto[] {
+  return contests.map(contest => (contest.status === ContestStatus.Open && contest.endsAt <= now ? settledContest(contest) : contest))
 }
 
 function generatedPhases(named: NameContestDto[], now: number, network: Network): PreviewContestPhase[] {
@@ -406,11 +419,13 @@ function keyCandidates(state: PreviewWalletState): MasternodeDto[] {
   return PREVIEW_FIND_BY_KEY_NODES.map(spec => previewNode(spec, spec.label, random, state.network, state.seededAt))
 }
 
-export function findPreviewNodesByVotingKey(state: PreviewWalletState, votingKey: string): MasternodeDto[] {
+export function findPreviewNodesByVotingKey(state: PreviewWalletState, votingKey: string, expectedProTxHash?: string): MasternodeDto[] {
   const value = votingKey.trim()
   if (classifyVotingKeyInput(value, state.network) !== VotingKeyInputKind.Valid) return []
   if (value.endsWith(PREVIEW_NO_MATCH_WIF_SUFFIX)) return []
-  return keyCandidates(state)
+  const candidates = keyCandidates(state)
+  const expected = state.nodes.find(node => node.proTxHash === expectedProTxHash)
+  return expected == null ? candidates : [expected, ...candidates.filter(node => node.proTxHash !== expected.proTxHash)]
 }
 
 export function findPreviewNode(state: PreviewWalletState, proTxHash: string): MasternodeDto | null {
@@ -418,8 +433,8 @@ export function findPreviewNode(state: PreviewWalletState, proTxHash: string): M
   const known = state.nodes.find(node => node.proTxHash === hash) ?? keyCandidates(state).find(node => node.proTxHash === hash)
   if (known != null) return known
   if (!isProTxHash(hash) || hash.endsWith(PREVIEW_NO_MATCH_PROTX_SUFFIX)) return null
-  const label = `${PREVIEW_WATCHED_NODE.label}${PREVIEW_NODE_COPY_SEPARATOR}${hash.slice(0, IDENTIFIER_EDGE_CHARS)}`
-  return { ...previewNode(PREVIEW_WATCHED_NODE, label, seededRandom(hashSeed(hash)), state.network, state.seededAt), proTxHash: hash }
+  const node = previewNode(PREVIEW_WATCHED_NODE, PREVIEW_WATCHED_NODE.label, seededRandom(hashSeed(hash)), state.network, state.seededAt)
+  return { ...node, proTxHash: hash }
 }
 
 export function addPreviewNodes(state: PreviewWalletState, proTxHashes: string[], withVotingKey: boolean, now: number): PreviewWalletState {
@@ -450,10 +465,6 @@ export function removePreviewNode(state: PreviewWalletState, proTxHash: string):
   }
 }
 
-function previousVote(votes: MasternodeVoteDto[], proTxHash: string, normalizedLabel: string): MasternodeVoteDto | null {
-  return votes.find(vote => vote.proTxHash === proTxHash && vote.normalizedLabel === normalizedLabel) ?? null
-}
-
 function previewVoteResult(
   state: PreviewWalletState,
   contest: NameContestDto,
@@ -464,7 +475,7 @@ function previewVoteResult(
   const node = state.nodes.find(candidate => candidate.proTxHash === proTxHash)
   const eligibility = node == null
     ? NodeVoteEligibility.NotListed
-    : nodeVoteEligibility(node, previousVote(state.votes, proTxHash, contest.normalizedLabel), choice, contest, now)
+    : nodeVoteEligibility(node, nodeVoteOn(state.votes, proTxHash, contest.normalizedLabel), choice, contest, now)
   if (eligibility !== NodeVoteEligibility.Eligible) return { proTxHash, ok: false, error: NODE_ELIGIBILITY_LABELS[eligibility] }
   if (state.failNextVote.includes(proTxHash)) return { proTxHash, ok: false, error: PREVIEW_BACKEND_ERRORS.voteRejected }
   return { proTxHash, ok: true, error: null }
@@ -486,7 +497,7 @@ export function castPreviewVotes(
     .filter(node => succeeded.has(node.proTxHash))
     .reduce((current, node) => applyChoiceToContest(
       current,
-      previousVote(state.votes, node.proTxHash, normalizedLabel)?.choice ?? null,
+      nodeVoteOn(state.votes, node.proTxHash, normalizedLabel)?.choice ?? null,
       choice,
       MASTERNODE_VOTE_WEIGHT[node.type],
     ), contest)

@@ -13,13 +13,13 @@ export function paymentTotals(payments: DashPayPaymentDto[]): PaymentTotals {
   return totals
 }
 
-export function dashPayPaymentCard(payment: DashPayPaymentDto, contactName: string): TransactionCardItem {
+export function dashPayPaymentCard(payment: DashPayPaymentDto): TransactionCardItem {
   const sent = payment.direction === DashPayPaymentDirection.Sent
   return {
     id: payment.txid,
     status: 'success',
     kind: 'core',
-    title: `${sent ? DASHPAY_PAYMENT_COPY.sentTo : DASHPAY_PAYMENT_COPY.receivedFrom} ${contactName}`,
+    title: sent ? DASHPAY_PAYMENT_COPY.sent : DASHPAY_PAYMENT_COPY.received,
     subtitleLabel: DASHPAY_PAYMENT_COPY.transactionId,
     labelValue: payment.txid,
     amount: payment.amountDuffs,

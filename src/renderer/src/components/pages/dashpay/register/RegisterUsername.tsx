@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
+import ShortfallNotice from '@renderer/components/pages/dashpay/ShortfallNotice'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
 import Alert from '@renderer/components/ui/Alert'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -18,7 +19,6 @@ import { API } from '@renderer/api'
 import type { AliasDto } from '@renderer/api/types'
 import { DASHPAY_CACHE_NAMESPACES, DASHPAY_PARAMS, DASHPAY_READINESS_BADGES, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import {
-  IDENTITY_TOP_UP_HREF,
   REGISTER_SIGN_COPY,
   REGISTER_USERNAME_COPY,
   REGISTER_USERNAME_STEPS,
@@ -28,7 +28,7 @@ import {
 } from '@renderer/constants/dashPayUsernames'
 import { ALIAS_PRESENTATION } from '@renderer/constants/dpns'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
-import { CHIP_ACTION, SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_PENDING_VALUE } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { AlertTone } from '@renderer/enums/AlertTone'
@@ -44,50 +44,27 @@ import { refreshDashPayAliases, useDashPayAliases } from '@renderer/hooks/useDas
 import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
+import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { RegisterUsernameProps } from '@renderer/types/DashPayScreens'
-import type { RegisterFeeSummaryProps, RegisterShortfallProps } from '@renderer/types/DashPayUsernames'
+import type { RegisterFeeSummaryProps } from '@renderer/types/DashPayUsernames'
 import type { SignedActionDoneView, SignedActionFailureView } from '@renderer/types/SignedActionModal'
-import { creditsToDash } from '@renderer/utils/balance'
+import { dashPayHref } from '@renderer/utils/dashPayIdentity'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
+import { feeShortfall } from '@renderer/utils/dashPayShortfall'
 import {
   balanceAfterFee,
   contestHref,
-  feeShortfall,
   registerCanAdvance,
   registerDoneNote,
 } from '@renderer/utils/dashPayUsernames'
 import { exactAliasMatch, fullDpnsName, validateDpnsLabel } from '@renderer/utils/dpnsLabel'
-import { identityLabel, shortIdentifier } from '@renderer/utils/identifierFormat'
-import { returnHref, withParams } from '@renderer/utils/searchParams'
+import { identityLabel } from '@renderer/utils/identifierFormat'
+import { returnHref } from '@renderer/utils/searchParams'
 import { aliasPresentation, findResumableAlias, usernameAvailability } from '@renderer/utils/usernames'
 import RegisterConfirmStep from './RegisterConfirmStep'
 import UsernameCheck from './UsernameCheck'
 import UsernameField from './UsernameField'
-
-function RegisterShortfall({ identity, feeCredits, error, onRetry }: RegisterShortfallProps): React.JSX.Element | null {
-  const navigate = useNavigate()
-  const short = feeShortfall(identity.balance.amount, feeCredits)
-  if (error) {
-    return (
-      <div className={"flex items-center gap-2 px-1"}>
-        <Text size={12} weight={"medium"} color={"red"}>{REGISTER_USERNAME_COPY.feeError}</Text>
-        <button type={"button"} className={CHIP_ACTION} onClick={onRetry}>{REGISTER_USERNAME_COPY.retry}</button>
-      </div>
-    )
-  }
-  if (short == null) return null
-  return (
-    <div className={"flex items-center gap-2 px-1"}>
-      <Text size={12} weight={"medium"} color={"red"} className={"min-w-0"}>
-        {`${identityLabel(identity)} ${REGISTER_USERNAME_COPY.needs} ${creditsToDash(short)} ${REGISTER_USERNAME_COPY.more}`}
-      </Text>
-      <button type={"button"} className={`${CHIP_ACTION} shrink-0`} onClick={() => navigate(IDENTITY_TOP_UP_HREF)}>
-        {REGISTER_USERNAME_COPY.topUp}
-      </button>
-    </div>
-  )
-}
 
 function RegisterFeeSummary({ feeLabel, feeCredits, balance }: RegisterFeeSummaryProps): React.JSX.Element {
   const { isBalanceVisible } = useBalanceVisibility()
@@ -141,7 +118,7 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
   const resumable = identifier != null && check.issue == null && findResumableAlias(aliases, identifier, check.normalized) != null
   const searchPrefix = identifier != null && check.issue == null && !resumable ? check.normalized : ''
   const search = useAliasSearch(walletId, searchPrefix)
-  const walletIdentifiers = useMemo(() => new Set(identities.map(item => item.identifier)), [identities])
+  const walletIdentifiers = useWalletIdentifiers(identities)
   const availability = usernameAvailability({
     normalized: searchPrefix,
     identifier: identifier ?? '',
@@ -210,11 +187,9 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
     feeReady,
     balance,
   })
-  const hasShortfall = fee.err != null || feeShortfall(balance, feeCredits) != null
-  const shortfall = hasShortfall
-    ? <RegisterShortfall identity={identity} feeCredits={feeCredits} error={fee.err != null} onRetry={fee.retry} />
-    : undefined
-  const keysHref = `${DASHPAY_ROUTES.addKeys}?${withParams('', { [DASHPAY_PARAMS.identity]: identity.identifier })}`
+  const shortfall = feeShortfall(fee.err != null, balance, feeCredits)
+  const shortfallView = shortfall && <ShortfallNotice shortfall={shortfall} identity={identity} onRetry={fee.retry} />
+  const keysHref = dashPayHref(DASHPAY_ROUTES.addKeys, identity.identifier)
   const keysState: DashPayNavigationState = { returnTo: location.pathname + location.search }
   const invalid = check.label !== '' && (check.issue != null || USERNAME_AVAILABILITY_BLOCKING.includes(availability))
 
@@ -279,7 +254,7 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
           network={network}
           availability={availability}
           resumable={resumable}
-          ownerName={owner == null ? null : shortIdentifier(owner.identifier)}
+          ownerName={owner?.identifier ?? null}
           onRetry={search.retry}
         />
       </div>
@@ -299,7 +274,7 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
       {check.label !== '' && check.issue == null && (
         <>
           <RegisterFeeSummary feeLabel={feeLabel} feeCredits={feeCredits} balance={balance} />
-          {shortfall}
+          {shortfallView}
         </>
       )}
     </>
@@ -341,7 +316,7 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
             ]}
           />
         }
-        shortfall={shortfall}
+        shortfall={shortfallView}
         confirmLabel={REGISTER_SIGN_COPY.confirm}
         confirmDisabled={!feeReady}
         pendingLabel={`${REGISTER_SIGN_COPY.pending} ${fullDpnsName(check.label)}…`}

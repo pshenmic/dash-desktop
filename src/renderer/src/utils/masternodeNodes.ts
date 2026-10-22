@@ -3,10 +3,7 @@ import { MASTERNODE_VOTE_WEIGHT, NODE_SEGMENT_LABELS } from '@renderer/constants
 import { AddNodeSource, MasternodeAccess, MasternodeStatus, MasternodeType, NodeSegment } from '@renderer/enums/Masternodes'
 import type { MasternodeDto, MasternodeVoteDto, NodeSegmentCounts, VotingPowerSummary } from '@renderer/types/Masternodes'
 import type { SegmentOption } from '@renderer/types/SegmentedControl'
-
-export function countLabel(count: number, noun: { one: string; many: string }): string {
-  return `${count} ${count === 1 ? noun.one : noun.many}`
-}
+import { countLabel } from './countLabel'
 
 export function nodeSegmentOptions(counts: NodeSegmentCounts): SegmentOption<NodeSegment>[] {
   return Object.values(NodeSegment).map(value => ({

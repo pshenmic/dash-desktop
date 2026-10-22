@@ -29,7 +29,7 @@ import type {
 import { formatApproxFiat } from '@renderer/utils/approxFiat'
 import { creditsToDuffs } from '@renderer/utils/balance'
 import { identityUrl, openExternal } from '@renderer/utils/explorer'
-import { identityLabel } from '@renderer/utils/identifierFormat'
+import { identityName } from '@renderer/utils/identifierFormat'
 
 function HeroArt({ identity, orbit }: OverviewHeroArtProps): React.JSX.Element {
   return (
@@ -62,6 +62,7 @@ function IdentityContent({ identity }: IdentityHeroContentProps): React.JSX.Elem
   const network = status?.network ?? null
   const { isBalanceVisible } = useBalanceVisibility()
   const { format: formatFiat, rateReady, currency } = useFiat()
+  const name = identityName(identity)
   const extraNames = Math.max(0, identity.aliasesList.length - 1)
   const balance = identity.balance.amount
 
@@ -69,29 +70,29 @@ function IdentityContent({ identity }: IdentityHeroContentProps): React.JSX.Elem
     <>
       <div className={'flex min-w-0 items-center gap-3'}>
         <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Lg} />
-        <div className={'flex min-w-0 flex-col gap-1'}>
+        {name != null && (
           <div className={'flex min-w-0 items-center gap-2'}>
             <Text reset size={24} weight={'extrabold'} color={'brand'} className={'min-w-0 truncate leading-[120%] tracking-[-0.02em]'}>
-              {identityLabel(identity)}
+              {name}
             </Text>
             {extraNames > 0 && <CustomBadge variant={'muted'} text={`+${extraNames}`} className={'shrink-0'} />}
           </div>
-          <div className={'flex min-w-0 items-center gap-[.3125rem]'}>
-            <HighlightedIdentifier ellipsis className={ADDRESS_ROW_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
-            <CopyButton text={identity.identifier} className={'shrink-0'} />
-            {network != null && (
-              <button
-                type={'button'}
-                onClick={() => openExternal(identityUrl(identity.identifier, network))}
-                title={ADDRESS_ROW_EXPLORER_LABEL}
-                aria-label={ADDRESS_ROW_EXPLORER_LABEL}
-                className={OVERVIEW_EXPLORER_BUTTON_CLASS}
-              >
-                <ExternalLinkIcon size={10} color={'currentColor'} className={'dash-text-default opacity-50'} />
-              </button>
-            )}
-          </div>
-        </div>
+        )}
+      </div>
+      <div className={'flex min-w-0 items-center gap-[.3125rem]'}>
+        <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
+        <CopyButton text={identity.identifier} className={'shrink-0'} />
+        {network != null && (
+          <button
+            type={'button'}
+            onClick={() => openExternal(identityUrl(identity.identifier, network))}
+            title={ADDRESS_ROW_EXPLORER_LABEL}
+            aria-label={ADDRESS_ROW_EXPLORER_LABEL}
+            className={OVERVIEW_EXPLORER_BUTTON_CLASS}
+          >
+            <ExternalLinkIcon size={10} color={'currentColor'} className={'dash-text-default opacity-50'} />
+          </button>
+        )}
       </div>
       <div className={'flex flex-col gap-1'}>
         <Text reset size={12} weight={'medium'} color={'brand'} opacity={50}>{OVERVIEW_COPY.identityBalance}</Text>

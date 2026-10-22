@@ -37,7 +37,7 @@ export const DPNS_LABEL_MESSAGES: Record<DpnsLabelIssue, string> = {
 export const ALIAS_PRESENTATION: Record<AliasPresentation, AliasPresentationSpec> = {
   [AliasPresentation.Registered]: { label: 'Registered', tone: StatusPillTone.Success, caption: 'Registered' },
   [AliasPresentation.Pending]: { label: 'Registering', tone: StatusPillTone.Warning, caption: 'Waiting for the network' },
-  [AliasPresentation.Voting]: { label: 'In vote', tone: StatusPillTone.Accent, caption: 'Ends in' },
+  [AliasPresentation.Voting]: { label: 'In vote', tone: StatusPillTone.Accent, caption: 'Vote in progress' },
   [AliasPresentation.Locked]: { label: 'Locked', tone: StatusPillTone.Danger, caption: 'Blocked by masternode vote' },
   [AliasPresentation.Taken]: { label: 'Taken', tone: StatusPillTone.Inactive, caption: 'Given to another identity by vote' },
   [AliasPresentation.Resumable]: { label: 'Incomplete', tone: StatusPillTone.Warning, caption: 'Preorder paid · registration didn’t finish' },
@@ -65,7 +65,10 @@ export const USERNAME_ORDER: AliasPresentation[] = [
 
 export const USERNAME_CAPTION_COPY = {
   separator: ' · ',
+  added: 'Added',
   checked: 'checked',
+  endsIn: 'Ends in',
+  voteEnded: 'Voting ended',
   forYou: 'for you',
   lock: 'lock',
   abstain: 'abstain',

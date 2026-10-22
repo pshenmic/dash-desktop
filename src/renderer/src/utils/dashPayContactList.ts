@@ -12,14 +12,13 @@ import { NAME_COLLATOR } from '@renderer/constants/listToolbar'
 import { ContactSegment, ContactSort, DashPayContactRelationship, SearchResultState } from '@renderer/enums/DashPay'
 import type { ContactGroup, ContactRowModel, ContactSegmentCounts } from '@renderer/types/DashPay'
 import { matchesIdentityQuery } from './dpnsLabel'
-import { shortIdentifier } from './identifierFormat'
 
 export function contactsForIdentity(contacts: DashPayContactDto[], identifier: string): DashPayContactDto[] {
   return contacts.filter(contact => contact.identifier === identifier)
 }
 
 export function contactDisplayName(contact: DashPayContactDto): string {
-  return contact.aliasesList[0] ?? shortIdentifier(contact.contactId)
+  return contact.aliasesList[0] ?? contact.contactId
 }
 
 export function contactLastActivity(contact: DashPayContactDto): number {

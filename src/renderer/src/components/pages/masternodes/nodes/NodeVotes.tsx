@@ -23,7 +23,7 @@ function NodeVoteRow({ vote, contest, onOpen }: NodeVoteRowProps): React.JSX.Ele
         {`${contest?.label ?? vote.normalizedLabel}${DPNS_NAME_SUFFIX}`}
       </Text>
       <div className={'flex min-w-0'}>
-        <CustomBadge text={choice} className={'max-w-full truncate'} />
+        <CustomBadge text={choice} className={'max-w-full wrap-anywhere'} />
       </div>
       <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'truncate'}>
         {`${vote.votesUsed} ${NODE_VOTES_COPY.of} ${VOTES_PER_NODE_PER_POLL} ${NODE_VOTES_COPY.votesUsed}`}

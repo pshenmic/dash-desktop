@@ -95,6 +95,7 @@ export default function ContactDetail({
   }
 
   const name = contactDisplayName(contact)
+  const username = contact.aliasesList[0] ?? null
   const otherNames = contactOtherNames(contact.aliasesList, CONTACT_OTHER_NAMES_LIMIT)
   const payable = isPayable(contact)
   const incoming = contact.relationship === DashPayContactRelationship.Incoming
@@ -125,11 +126,11 @@ export default function ContactDetail({
         backLabel={PAGE_HEADERS.dashpayContact.back}
         titleAddon={<CustomBadge {...RELATIONSHIP_BADGES[contact.relationship]} className={'shrink-0 whitespace-nowrap'} />}
         subtitle={
-          <span className={'inline-flex flex-wrap items-center gap-2'}>
+          <span className={'inline-flex flex-wrap items-center gap-2 wrap-anywhere'}>
             {contactDetailSubtitle(contact, identityName, now)}
             {isWalletIdentity && (
               <button type={'button'} onClick={() => onActAs(contact.contactId)} className={`${CHIP_ACTION} max-w-60 truncate`}>
-                {`${CONTACT_DETAIL_COPY.actAs} ${name}`}
+                {username == null ? CONTACT_DETAIL_COPY.actAsThis : `${CONTACT_DETAIL_COPY.actAs} ${username}`}
               </button>
             )}
           </span>
@@ -156,7 +157,7 @@ export default function ContactDetail({
           <div className={'flex min-w-0 items-center gap-3'}>
             <IdentityAvatar identifier={contact.contactId} size={IdentityAvatarSize.Md} />
             <div className={'flex min-w-0 flex-1 flex-col gap-1'}>
-              <Text reset size={16} weight={'bold'} color={'brand'} className={'min-w-0 truncate'}>{name}</Text>
+              {username != null && <Text reset size={16} weight={'bold'} color={'brand'} className={'min-w-0 truncate'}>{username}</Text>}
               {otherNames != null && (
                 <Text reset size={12} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 truncate'}>{otherNames}</Text>
               )}
@@ -216,7 +217,6 @@ export default function ContactDetail({
           walletId={walletId}
           identity={identity}
           contact={contact}
-          contactName={name}
           visibleCount={paymentsVisibleCount}
           onShowMore={onShowMorePayments}
           onPay={payable ? openPay : null}

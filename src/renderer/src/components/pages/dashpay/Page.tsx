@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ContactDetail from '@renderer/components/pages/dashpay/contacts/ContactDetail'
 import ContactsTab from '@renderer/components/pages/dashpay/contacts/ContactsTab'
@@ -24,6 +24,7 @@ import { ActiveIdentitySource, ContactSegment, ContactSort, DashPayTab } from '@
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { useActiveIdentity } from '@renderer/hooks/useActiveIdentity'
 import { useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
+import { useDetailScrollRestore } from '@renderer/hooks/useDetailScrollRestore'
 import { useNow } from '@renderer/hooks/useNow'
 import type { DashPayPageProps } from '@renderer/types/DashPayScreens'
 import type { IdentitySelectHandle } from '@renderer/types/IdentitySelect'
@@ -38,7 +39,6 @@ export default function DashPayPage({ walletId }: DashPayPageProps): React.JSX.E
   const now = useNow()
   const switcherRef = useRef<IdentitySelectHandle>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const listScrollTop = useRef<number | null>(null)
   const lastExplicit = useRef<string | null>(null)
   const warned = useRef(false)
   const [query, setQuery] = useState('')
@@ -51,19 +51,7 @@ export default function DashPayPage({ walletId }: DashPayPageProps): React.JSX.E
   const tab = identity == null || readiness == null ? DashPayTab.Overview : requestedTab
   const segment = enumParam(ContactSegment, searchParams.get(DASHPAY_PARAMS.segment), ContactSegment.All)
   const contactId = searchParams.get(DASHPAY_PARAMS.contact)
-  const showDetail = contactId != null && identity != null
-
-  useLayoutEffect(() => {
-    const container = document.getElementById(SCROLL_CONTAINER_ID)
-    if (container === null) return
-    if (showDetail) {
-      container.scrollTop = 0
-      return
-    }
-    if (listScrollTop.current === null) return
-    container.scrollTop = listScrollTop.current
-    listScrollTop.current = null
-  }, [showDetail])
+  const saveListScroll = useDetailScrollRestore(contactId != null && identity != null ? contactId : null)
 
   useEffect(() => {
     if (loading || err != null || identity == null) return
@@ -76,10 +64,6 @@ export default function DashPayPage({ walletId }: DashPayPageProps): React.JSX.E
     warned.current = true
     toast.warning(`${OVERVIEW_COPY.identityUnavailable} ${identityLabel(identity)} ${OVERVIEW_COPY.instead}`)
   }, [loading, err, identity, identities, source])
-
-  const saveListScroll = (): void => {
-    listScrollTop.current = document.getElementById(SCROLL_CONTAINER_ID)?.scrollTop ?? null
-  }
 
   const chooseIdentity = (identifier: string): void => {
     select(identifier)

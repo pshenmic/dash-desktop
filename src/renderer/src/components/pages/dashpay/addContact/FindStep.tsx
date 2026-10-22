@@ -85,7 +85,7 @@ export default function FindStep({
   } else {
     panel = (
       <div className={"flex flex-col gap-2"}>
-        <Text reset size={10} weight={"medium"} color={"brand"} opacity={50} className={`${ADD_CONTACT_PANEL_NOTE_CLASS} truncate`}>
+        <Text reset size={10} weight={"medium"} color={"brand"} opacity={50} className={`${ADD_CONTACT_PANEL_NOTE_CLASS} wrap-anywhere`}>
           {`${ADD_CONTACT_COPY.resultsFor} "${query.trim()}" · ${search.rows.length}`}
         </Text>
         <FadingScrollArea className={`${ADD_CONTACT_LIST_CLASS} ${listHeight}`}>

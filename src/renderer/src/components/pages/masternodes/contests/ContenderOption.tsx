@@ -42,7 +42,7 @@ export default function ContenderOption({
       {icon}
       <span className={'flex min-w-0 flex-1 flex-col gap-1'}>
         <span className={'flex min-w-0 items-center gap-2'}>
-          <Text size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{title}</Text>
+          <Text size={14} weight={'medium'} color={'brand'} className={'min-w-0 wrap-anywhere'}>{title}</Text>
           {badge}
         </span>
         {caption}

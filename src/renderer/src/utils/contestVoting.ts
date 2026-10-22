@@ -1,4 +1,6 @@
+import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import { NAME_COLLATOR } from '@renderer/constants/listToolbar'
+import { COUNT_NOUNS } from '@renderer/constants/masternodeNodes'
 import { CONTEST_SEGMENT_LABELS, ENDED_CONTEST_SORT_OPTIONS, MASTERNODE_VOTE_WEIGHT, VOTE_CHOICE_LABELS } from '@renderer/constants/masternodes'
 import {
   CONTEST_DETAIL_COPY,
@@ -11,6 +13,7 @@ import {
   VOTE_MODAL_NODE_PREVIEW,
   VOTE_PANEL_COPY,
 } from '@renderer/constants/nameContests'
+import { DashPayTab } from '@renderer/enums/DashPay'
 import { ContestSegment, ContestSort, ContestStatus, NodeVoteEligibility, VoteChoiceKind } from '@renderer/enums/Masternodes'
 import type {
   ContenderShare,
@@ -26,16 +29,11 @@ import type {
 } from '@renderer/types/Masternodes'
 import type { VoteChangeWarning, VoteNodeRow, VoteOutcome } from '@renderer/types/NameContests'
 import type { SegmentOption } from '@renderer/types/SegmentedControl'
-import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
-import { DashPayTab } from '@renderer/enums/DashPay'
-import { shortIdentifier } from './identifierFormat'
-import { withParams } from './searchParams'
-import { canVote, nodeVoteEligibility, votesLeft } from './masternodes'
+import { countLabel } from './countLabel'
+import { dashPayHref } from './dashPayIdentity'
+import { fullDpnsName } from './dpnsLabel'
+import { canVote, nodeVoteEligibility, nodeVoteOn, votesLeft } from './masternodes'
 import { contenderName, voteChoiceLabel } from './nameContests'
-
-function nodeVoteOn(votes: MasternodeVoteDto[], proTxHash: string, normalizedLabel: string): MasternodeVoteDto | null {
-  return votes.find(vote => vote.proTxHash === proTxHash && vote.normalizedLabel === normalizedLabel) ?? null
-}
 
 function isEligible(row: VoteNodeRow): boolean {
   return row.eligibility === NodeVoteEligibility.Eligible
@@ -122,7 +120,7 @@ export function formatShare(share: number): string {
 }
 
 export function formatVoteCount(votes: number): string {
-  return `${votes} ${votes === 1 ? CONTEST_ROW_COPY.vote : CONTEST_ROW_COPY.votes}`
+  return countLabel(votes, COUNT_NOUNS.vote)
 }
 
 export function leaderLabel(leader: ContestLeader): string {
@@ -141,7 +139,7 @@ export function contestVoteBadge(summary: ContestVoteSummary, contest: NameConte
 export function currentVoteLine(summary: ContestVoteSummary, contest: NameContestDto): string {
   if (summary.nodes === 0) return VOTE_PANEL_COPY.notVoted
   const choice = summary.mixed || summary.choice == null ? CONTEST_ROW_COPY.mixed : voteChoiceLabel(summary.choice, contest)
-  return `${choice} ${VOTE_PANEL_COPY.on} ${summary.nodes} ${summary.nodes === 1 ? VOTE_PANEL_COPY.node : VOTE_PANEL_COPY.nodes}`
+  return `${choice} ${VOTE_PANEL_COPY.on} ${countLabel(summary.nodes, COUNT_NOUNS.node)}`
 }
 
 export function contestOutcomeTitle(contest: NameContestDto): string {
@@ -156,24 +154,19 @@ export function voteChoiceSummary(choice: VoteChoiceDto, contest: NameContestDto
   if (choice.kind === VoteChoiceKind.Abstain) return VOTE_MODAL_COPY.abstain
   const identifier = choice.identifier ?? ''
   const name = voteChoiceLabel(choice, contest)
-  const short = shortIdentifier(identifier)
-  return name === short ? name : `${name}${CONTEST_LIST_SEPARATOR}${short}`
+  return name === identifier ? name : `${name}${CONTEST_LIST_SEPARATOR}${identifier}`
 }
 
 export function contenderCaption(contender: ContestContenderDto, contestLabel: string): string {
   const parts = [
-    contender.displayName == null ? null : shortIdentifier(contender.identifier),
-    contender.requestedLabel === contestLabel ? null : `${CONTEST_DETAIL_COPY.requestedAs} ${contender.requestedLabel}.dash`,
+    contender.displayName == null ? null : contender.identifier,
+    contender.requestedLabel === contestLabel ? null : `${CONTEST_DETAIL_COPY.requestedAs} ${fullDpnsName(contender.requestedLabel)}`,
   ]
   return parts.filter(part => part != null).join(CONTEST_LIST_SEPARATOR)
 }
 
 export function dashPayUsernamesHref(identifier: string): string {
-  return `${DASHPAY_ROUTES.root}?${withParams('', { [DASHPAY_PARAMS.identity]: identifier, [DASHPAY_PARAMS.tab]: DashPayTab.Usernames })}`
-}
-
-export function towardsContender(contender: ContestContenderDto): VoteChoiceDto {
-  return { kind: VoteChoiceKind.TowardsIdentity, identifier: contender.identifier }
+  return dashPayHref(DASHPAY_ROUTES.root, identifier, { [DASHPAY_PARAMS.tab]: DashPayTab.Usernames })
 }
 
 export function selectedNodesLine(nodes: MasternodeDto[]): string {
@@ -183,7 +176,7 @@ export function selectedNodesLine(nodes: MasternodeDto[]): string {
 }
 
 export function castVotesLabel(count: number): string {
-  return `${VOTE_MODAL_COPY.cast} ${count} ${count === 1 ? VOTE_MODAL_COPY.vote : VOTE_MODAL_COPY.votes}`
+  return `${VOTE_MODAL_COPY.cast} ${countLabel(count, COUNT_NOUNS.vote)}`
 }
 
 export function voteOutcomes(nodes: MasternodeDto[], results: MasternodeVoteResultDto[]): VoteOutcome[] {
@@ -195,7 +188,7 @@ export function voteOutcomes(nodes: MasternodeDto[], results: MasternodeVoteResu
 
 export function votesRecordedHeadline(outcomes: VoteOutcome[]): string {
   const ok = outcomes.filter(outcome => outcome.ok).length
-  return `${ok} ${VOTE_MODAL_COPY.of} ${outcomes.length} ${outcomes.length === 1 ? VOTE_MODAL_COPY.vote : VOTE_MODAL_COPY.votes} ${VOTE_MODAL_COPY.recorded}`
+  return `${ok} ${VOTE_MODAL_COPY.of} ${countLabel(outcomes.length, COUNT_NOUNS.vote)} ${VOTE_MODAL_COPY.recorded}`
 }
 
 export function retryFailedLabel(failed: number): string {

@@ -112,12 +112,18 @@ describe('key labels', () => {
     expect(keyRequestLabel(variantRequest(IdentityKeyVariant.AuthHigh))).toBe('Authentication · High')
   })
 
-  it('labels DashPay bounds, other contracts by short id, and no bounds as null', () => {
+  it('names a request bound to another contract by its full id', () => {
+    const contractBounds = { contractId: 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec', documentType: 'domain' }
+    expect(keyRequestLabel({ ...variantRequest(IdentityKeyVariant.AuthHigh), contractBounds }))
+      .toBe('Authentication · High · GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec')
+  })
+
+  it('labels DashPay bounds, other contracts by full id, and no bounds as null', () => {
     expect(keyBoundsLabel(DASHPAY_KEY_BOUNDS)).toEqual({ text: 'DashPay · contactRequest', isDashPay: true })
     expect(keyBoundsLabel({ contractId: 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec', documentType: 'domain' }))
-      .toEqual({ text: 'GWRSA…S31Ec · domain', isDashPay: false })
+      .toEqual({ text: 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec · domain', isDashPay: false })
     expect(keyBoundsLabel({ contractId: 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec', documentType: null }))
-      .toEqual({ text: 'GWRSA…S31Ec', isDashPay: false })
+      .toEqual({ text: 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec', isDashPay: false })
     expect(keyBoundsLabel(null)).toBeNull()
   })
 })

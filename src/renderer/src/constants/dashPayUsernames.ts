@@ -1,19 +1,14 @@
 import { DashPayTab, UsernameAvailability } from '@renderer/enums/DashPay'
-import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { DASHPAY_PARAMS, DASHPAY_ROUTES } from './dashPay'
-import { SURFACE_ROW } from './surfaces'
+import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
 
 export const USERNAMES_TAB_HREF = `${DASHPAY_ROUTES.root}?${DASHPAY_PARAMS.tab}=${DashPayTab.Usernames}`
-
-export const IDENTITY_TOP_UP_HREF = `/send?to=${DestinationKind.Identity}`
 
 export const USERNAME_TITLE_HEAD = 18
 
 export const USERNAME_TITLE_TAIL = 10
 
 export const USERNAME_TITLE_ELLIPSIS = '…'
-
-export const USERNAME_ROW_CLASS = `relative grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 min-h-13 ${SURFACE_ROW} transition-colors hover:dash-block-accent-5`
 
 export const USERNAME_MONOGRAM_MUTED_CLASS = 'flex size-[1.875rem] shrink-0 items-center justify-center rounded-full dash-block-5 opacity-50'
 
@@ -24,6 +19,8 @@ export const USERNAME_SKELETON_ROW_CLASS = 'h-13 rounded-[.875rem]'
 export const USERNAME_FIELD_CLASS = 'flex items-center gap-2 dash-block rounded-2xl px-5 py-3.5 border border-transparent focus-within:border-dash-brand dark:focus-within:border-dash-mint'
 
 export const USERNAME_INPUT_CLASS = 'bg-transparent outline-none flex-1 min-w-0 text-2xl font-medium text-dash-primary-dark-blue dark:text-white placeholder:text-dash-primary-dark-blue/25 dark:placeholder:text-white/25'
+
+export const USERNAME_DOCUMENT_ID_CLASS = `min-w-0 text-right text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
 
 export const USERNAME_DIVIDER_CLASS = 'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'
 
@@ -40,13 +37,6 @@ export const USERNAME_LIST_COPY = {
   open: 'Open',
   emptyTitle: 'No username yet',
   emptyDescription: 'A .dash name makes this identity easy to find.',
-} as const
-
-export const USERNAME_CAPTION_EXTRA = {
-  added: 'Added',
-  endsIn: 'Ends in',
-  voteOpen: 'Vote in progress',
-  voteEnded: 'Voting ended',
 } as const
 
 export const USERNAME_TYPE_COPY = {
@@ -89,11 +79,6 @@ export const REGISTER_USERNAME_COPY = {
   feeContested: 'Fee incl. voting deposit',
   identityBalance: 'Identity balance',
   balanceAfter: 'Balance after',
-  feeError: 'Couldn’t get the fee',
-  retry: 'Retry',
-  topUp: 'Top up',
-  needs: 'needs',
-  more: 'Dash more.',
   noKeyTitle: 'Needs an Authentication · High key',
   noKeyDescription: 'Add one to this identity before registering a name.',
   addKeys: 'Add keys',
@@ -138,7 +123,8 @@ export const REGISTER_SIGN_COPY = {
   retry: 'Try again',
   noteRegistered: 'Your name is registered.',
   notePending: 'Registering — usually under a minute.',
-  noteContestLead: 'Your request entered a name contest. Voting ends in',
+  noteContestLead: 'Your request entered a name contest.',
+  noteContestEnds: 'Voting ends in',
   identity: 'Identity',
   status: 'Status',
   documentId: 'Document ID',

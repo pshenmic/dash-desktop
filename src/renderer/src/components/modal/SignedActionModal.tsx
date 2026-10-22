@@ -216,9 +216,9 @@ export default function SignedActionModal<R>({
               <SuccessIcon size={56} />
             </div>
           )}
-          <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{view.headline}</Text>
+          <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3 max-w-full wrap-anywhere"}>{view.headline}</Text>
           {view.note && (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1 max-w-full wrap-anywhere"}>
               {view.note}
             </Text>
           )}

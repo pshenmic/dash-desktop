@@ -77,6 +77,17 @@ export function voteChoiceEquals(a: VoteChoiceDto, b: VoteChoiceDto): boolean {
   return a.kind === b.kind && (a.kind !== VoteChoiceKind.TowardsIdentity || a.identifier === b.identifier)
 }
 
+export function nodeVoteOn(votes: MasternodeVoteDto[], proTxHash: string, normalizedLabel: string): MasternodeVoteDto | null {
+  return votes.find(vote => vote.proTxHash === proTxHash && vote.normalizedLabel === normalizedLabel) ?? null
+}
+
+export function toggledSet(set: ReadonlySet<string>, value: string, included: boolean): Set<string> {
+  const next = new Set(set)
+  if (included) next.add(value)
+  else next.delete(value)
+  return next
+}
+
 export function votesLeft(vote: Pick<MasternodeVoteDto, 'votesUsed'> | null): number {
   return Math.max(0, VOTES_PER_NODE_PER_POLL - (vote?.votesUsed ?? 0))
 }

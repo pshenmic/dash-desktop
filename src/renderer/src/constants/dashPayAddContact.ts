@@ -1,6 +1,4 @@
-import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { DashPayTab, SearchResultState } from '@renderer/enums/DashPay'
-import { SourceKind } from '@renderer/enums/SourceKind'
 import type { SearchResultBadge } from '@renderer/types/DashPayAddContact'
 import { ALIAS_SEARCH_RESULT_CAP, DASHPAY_PARAMS, DASHPAY_ROUTES } from './dashPay'
 import { CHIP_ACTION, SURFACE_ROW } from './surfaces'
@@ -17,7 +15,6 @@ export const ADD_CONTACT_COPY = {
   resultsLabel: 'Search results',
   noMatch: 'No usernames start with',
   capped: `Showing first ${ALIAS_SEARCH_RESULT_CAP} — refine your search`,
-  identityPrefix: 'Identity',
   noUsername: 'No username',
   open: 'Open',
   accept: 'Accept',
@@ -28,11 +25,6 @@ export const ADD_CONTACT_COPY = {
   identityBalance: 'Identity balance',
   balanceAfter: 'Balance after',
   note: 'Contact requests are public; payment details stay encrypted.',
-  feeError: 'Couldn’t get the fee',
-  retry: 'Retry',
-  needs: 'needs',
-  dashMore: 'Dash more.',
-  topUp: 'Top up',
   modalTitle: 'Send contact request',
   pending: 'Sending request…',
   doneHeadline: 'Request sent to',
@@ -42,8 +34,6 @@ export const ADD_CONTACT_COPY = {
 } as const
 
 export const ADD_CONTACT_FALLBACK_RETURN = `${DASHPAY_ROUTES.root}?${DASHPAY_PARAMS.tab}=${DashPayTab.Contacts}`
-
-export const ADD_CONTACT_TOP_UP_HREF = `/send?from=${SourceKind.Core}&to=${DestinationKind.Identity}`
 
 export const SELECTABLE_SEARCH_RESULT_STATES: ReadonlySet<SearchResultState> = new Set([
   SearchResultState.None,

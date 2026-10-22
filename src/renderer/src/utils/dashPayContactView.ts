@@ -14,7 +14,6 @@ import type { ContactRowModel, ContactSegmentCounts } from '@renderer/types/Dash
 import type { SegmentOption } from '@renderer/types/SegmentedControl'
 import { contactLastActivity } from './dashPayContactList'
 import { formatCreationDate } from './date'
-import { shortIdentifier } from './identifierFormat'
 import { formatAgo } from './timeLeft'
 
 function requestTime(contact: DashPayContactDto, own: boolean): number {
@@ -32,7 +31,7 @@ export function contactRowMeta(contact: DashPayContactDto, now: number): string 
 }
 
 export function contactRowCaption(model: ContactRowModel, now: number): string {
-  const lead = model.name == null ? CONTACT_ROW_COPY.noUsername : shortIdentifier(model.contact.contactId)
+  const lead = model.name == null ? CONTACT_ROW_COPY.noUsername : model.contact.contactId
   return `${lead}${CONTACT_COPY_SEPARATOR}${contactRowMeta(model.contact, now)}`
 }
 
@@ -51,8 +50,9 @@ export function contactGroupLabel(label: string, total: number): string {
   return `${label}${CONTACT_COPY_SEPARATOR}${total}`
 }
 
-export function contactsNoMatchLabel(query: string, identityName: string): string {
-  return `${CONTACTS_TAB_COPY.noMatchLead} "${query}" ${CONTACTS_TAB_COPY.noMatchFor} ${identityName}`
+export function contactsNoMatchLabel(query: string, identityName: string | null): string {
+  const lead = `${CONTACTS_TAB_COPY.noMatchLead} "${query}"`
+  return identityName == null ? lead : `${lead} ${CONTACTS_TAB_COPY.noMatchFor} ${identityName}`
 }
 
 export function showInAllLabel(count: number): string {
@@ -84,11 +84,6 @@ export function brokenChannelDescription(contactName: string): string {
 
 export function isDashAmountInput(value: string): boolean {
   return value === '' || DASH_AMOUNT_INPUT_PATTERN.test(value)
-}
-
-export function creditShortfall(balance: bigint, fee: bigint | null): bigint | null {
-  if (fee == null || balance >= fee) return null
-  return fee - balance
 }
 
 export function payDoneNote(contactName: string, identityName: string): string {

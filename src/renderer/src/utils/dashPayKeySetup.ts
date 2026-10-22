@@ -1,15 +1,13 @@
 import type { IdentityKeyDto } from '@renderer/api/types'
 import { IDENTITY_KEY_SLOT_LIMIT } from '@renderer/constants/dashPay'
-import { ENABLE_DASHPAY_COPY, KEY_COUNT_COPY, KEY_SHORTFALL_COPY, KEY_VARIANT_ORDER } from '@renderer/constants/dashPayKeys'
+import { ENABLE_DASHPAY_COPY, KEY_COUNT_COPY, KEY_VARIANT_ORDER } from '@renderer/constants/dashPayKeys'
 import {
   IDENTITY_KEY_LABEL_SEPARATOR,
   IDENTITY_KEY_LEVEL_LABELS,
   IDENTITY_KEY_PURPOSE_LABELS,
 } from '@renderer/constants/identityKeys'
-import { IdentityKeyVariant, KeysShortfallKind } from '@renderer/enums/DashPay'
-import type { KeysShortfall, KeysShortfallInput } from '@renderer/types/DashPayKeys'
+import { IdentityKeyVariant } from '@renderer/enums/DashPay'
 import type { IdentityKeyVariantDefinition } from '@renderer/types/IdentityKeys'
-import { creditsToDash } from './balance'
 import { dashPayMissingKeys } from './dashPayReadiness'
 import { keyLabel, variantOfRequest } from './identityKeyRequests'
 
@@ -28,13 +26,6 @@ export function toggleKeyVariant(selected: IdentityKeyVariant[], variant: Identi
 export function presetKeyVariants(keys: IdentityKeyDto[]): IdentityKeyVariant[] {
   const variants = dashPayMissingKeys(keys).map(variantOfRequest)
   return KEY_VARIANT_ORDER.filter(variant => variants.includes(variant))
-}
-
-export function keysShortfall({ requested, slotsLeft, feeCredits, feeError, balance }: KeysShortfallInput): KeysShortfall | null {
-  if (requested > slotsLeft) return { kind: KeysShortfallKind.Slots, slotsLeft }
-  if (feeError != null) return { kind: KeysShortfallKind.FeeError }
-  if (feeCredits != null && balance < feeCredits) return { kind: KeysShortfallKind.Balance, missingCredits: feeCredits - balance }
-  return null
 }
 
 export function keyVariantTitle(definition: IdentityKeyVariantDefinition): string {
@@ -73,14 +64,4 @@ export function enableDashPayDescription(name: string): string {
 
 export function dashPayEnabledHeadline(name: string): string {
   return `${ENABLE_DASHPAY_COPY.doneLead} ${name}`
-}
-
-export function creditsShortfallLabel(name: string, missingCredits: bigint): string {
-  return `${name} ${KEY_SHORTFALL_COPY.needs} ${creditsToDash(missingCredits)} ${KEY_SHORTFALL_COPY.more}`
-}
-
-export function keysShortfallMessage(shortfall: KeysShortfall, name: string): string {
-  if (shortfall.kind === KeysShortfallKind.Slots) return keySlotsLeftLabel(shortfall.slotsLeft)
-  if (shortfall.kind === KeysShortfallKind.FeeError) return KEY_SHORTFALL_COPY.feeError
-  return creditsShortfallLabel(name, shortfall.missingCredits)
 }

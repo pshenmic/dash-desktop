@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterIdentities, incomingCountByIdentity, resolveActiveIdentity } from '../../src/renderer/src/utils/dashPayIdentity'
+import { dashPayHref, filterIdentities, incomingCountByIdentity, resolveActiveIdentity } from '../../src/renderer/src/utils/dashPayIdentity'
 import { ActiveIdentitySource, DashPayContactRelationship } from '../../src/renderer/src/enums/DashPay'
 import type { DashPayContactDto, IdentityKeyDto } from '../../src/renderer/src/api/types'
 import type { IdentityApiDto } from '../../src/renderer/src/hooks/useIdentities'
@@ -95,5 +95,17 @@ describe('incomingCountByIdentity', () => {
       contact('b', DashPayContactRelationship.Outgoing),
       contact('c', DashPayContactRelationship.Incoming),
     ])).toEqual({ a: 2, c: 1 })
+  })
+})
+
+describe('dashPayHref', () => {
+  it('puts the acting identity first, then the extra params', () => {
+    expect(dashPayHref('/dashpay/contacts/new', 'Ident1')).toBe('/dashpay/contacts/new?identity=Ident1')
+    expect(dashPayHref('/dashpay', 'Ident1', { tab: 'contacts', contact: 'Peer2' })).toBe('/dashpay?identity=Ident1&tab=contacts&contact=Peer2')
+  })
+
+  it('leaves out a null identity or param', () => {
+    expect(dashPayHref('/dashpay', null, { tab: 'keys' })).toBe('/dashpay?tab=keys')
+    expect(dashPayHref('/dashpay/usernames/new', 'Ident1', { label: null })).toBe('/dashpay/usernames/new?identity=Ident1')
   })
 })

@@ -34,11 +34,11 @@ function AvailabilityLine({ check, availability, ownerName, onRetry }: Omit<User
     case UsernameAvailability.Owned:
       return <Text size={12} weight={"medium"} color={"red"}>{`${USERNAME_CHECK_COPY.owned} ${name}`}</Text>
     case UsernameAvailability.OwnedByWallet:
-      return <Text size={12} weight={"medium"} color={"red"}>{`${ownerName ?? ''} ${USERNAME_CHECK_COPY.ownedByWallet}`.trim()}</Text>
+      return <Text size={12} weight={"medium"} color={"red"} className={"wrap-anywhere"}>{`${ownerName ?? ''} ${USERNAME_CHECK_COPY.ownedByWallet}`.trim()}</Text>
     case UsernameAvailability.Error:
       return (
         <span className={"flex items-center gap-2"}>
-          <Text size={12} weight={"medium"} className={"text-dash-orange"}>{USERNAME_CHECK_COPY.error}</Text>
+          <Text size={12} weight={"medium"} className={"text-dash-orange!"}>{USERNAME_CHECK_COPY.error}</Text>
           <RetryButton onRetry={onRetry} />
         </span>
       )

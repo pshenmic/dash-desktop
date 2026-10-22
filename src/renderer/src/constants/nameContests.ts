@@ -28,8 +28,6 @@ export const CONTEST_SEGMENT_EMPTY: Record<ContestSegment, string> = {
 
 export const CONTEST_ROW_COPY = {
   yourName: 'Your name',
-  vote: 'vote',
-  votes: 'votes',
   tie: 'Tie',
   none: '—',
   notVoted: 'Not voted',
@@ -55,7 +53,6 @@ export const SHARE_BAR_TRACK_CLASS = PROGRESS_TRACK
 export const SHARE_BAR_FILL_CLASS = PROGRESS_FILL
 
 export const CONTEST_DETAIL_COPY = {
-  back: 'Back to name contests',
   backShort: 'Back',
   endsIn: 'Ends in',
   contenders: 'Contenders',
@@ -89,8 +86,6 @@ export const VOTE_PANEL_COPY = {
   currently: 'Currently',
   notVoted: 'Not voted',
   on: 'on',
-  node: 'node',
-  nodes: 'nodes',
   left: 'left',
   review: 'Review vote',
   noVotingTitle: 'No voting nodes',
@@ -114,8 +109,6 @@ export const VOTE_MODAL_COPY = {
   selected: 'selected',
   abstain: 'Abstain',
   cast: 'Cast',
-  vote: 'vote',
-  votes: 'votes',
   pending: 'Casting votes…',
   of: 'of',
   recorded: 'recorded',

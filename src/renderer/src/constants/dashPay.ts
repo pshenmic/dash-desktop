@@ -9,6 +9,8 @@ import {
   IdentityKeySecurityLevel,
   SearchResultState,
 } from '@renderer/enums/DashPay'
+import { DestinationKind } from '@renderer/enums/DestinationKind'
+import { SourceKind } from '@renderer/enums/SourceKind'
 import type { CustomBadgeProps } from '@renderer/types/CustomBadge'
 import type { AliasSearchPage } from '@renderer/types/Dpns'
 import type { SegmentOption } from '@renderer/types/SegmentedControl'
@@ -143,8 +145,8 @@ export const DASHPAY_SETUP_COPY = {
 } as const
 
 export const DASHPAY_PAYMENT_COPY = {
-  sentTo: 'Sent to',
-  receivedFrom: 'Received from',
+  sent: 'Sent',
+  received: 'Received',
   transactionId: 'Transaction ID',
 } as const
 
@@ -153,6 +155,16 @@ export const DASHPAY_ROUTES = {
   registerUsername: '/dashpay/usernames/new',
   addContact: '/dashpay/contacts/new',
   addKeys: '/dashpay/keys/new',
+} as const
+
+export const DASHPAY_TOP_UP_HREF = `/send?from=${SourceKind.Core}&to=${DestinationKind.Identity}`
+
+export const FEE_SHORTFALL_COPY = {
+  feeError: 'Couldn’t get the fee',
+  retry: 'Retry',
+  needs: 'needs',
+  more: 'Dash more.',
+  topUp: 'Top up',
 } as const
 
 export const DASHPAY_CACHE_NAMESPACES = {

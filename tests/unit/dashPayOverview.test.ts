@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   completedSetupSteps,
-  countLabel,
   orbitIdentifiers,
   overviewActions,
   overviewBand,
@@ -130,14 +129,5 @@ describe('usernameSummary', () => {
     const rows = [row('a', AliasPresentation.Registered), row('b', AliasPresentation.Voting), row('c', AliasPresentation.Pending)]
     expect(usernameSummary(rows)).toEqual({ total: 3, inVote: 1 })
     expect(usernameSummary([])).toEqual({ total: 0, inVote: 0 })
-  })
-})
-
-describe('countLabel', () => {
-  it('picks the singular only for one', () => {
-    const forms = { one: 'request', other: 'requests' }
-    expect(countLabel(1, forms)).toBe('1 request')
-    expect(countLabel(0, forms)).toBe('0 requests')
-    expect(countLabel(12, forms)).toBe('12 requests')
   })
 })

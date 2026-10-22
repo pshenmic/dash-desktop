@@ -2,22 +2,18 @@ import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import StatusPill from '@renderer/components/ui/StatusPill'
-import {
-  USERNAME_LINK_CLASS,
-  USERNAME_LIST_COPY,
-  USERNAME_MONOGRAM_MUTED_CLASS,
-  USERNAME_ROW_CLASS,
-} from '@renderer/constants/dashPayUsernames'
+import { DASHPAY_CONTACT_ROW_CLASS } from '@renderer/constants/dashPay'
+import { USERNAME_LINK_CLASS, USERNAME_LIST_COPY, USERNAME_MONOGRAM_MUTED_CLASS } from '@renderer/constants/dashPayUsernames'
 import { ALIAS_PRESENTATION, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
 import { CHIP_ACTION, ICON_CHIP } from '@renderer/constants/surfaces'
 import { AliasPresentation } from '@renderer/enums/DashPay'
 import type { UsernameRowProps } from '@renderer/types/DashPayUsernames'
-import { usernameRowCaption } from '@renderer/utils/dashPayUsernames'
+import { usernameCaption } from '@renderer/utils/usernames'
 
 export default function UsernameRow({ row, now, onOpen, onRegister, onViewContest }: UsernameRowProps): React.JSX.Element {
   const spec = ALIAS_PRESENTATION[row.presentation]
-  const caption = usernameRowCaption(row, now)
+  const caption = usernameCaption(row, now)
   const registered = row.presentation === AliasPresentation.Registered
 
   let action: React.JSX.Element | null = null
@@ -38,7 +34,7 @@ export default function UsernameRow({ row, now, onOpen, onRegister, onViewContes
   }
 
   return (
-    <li className={USERNAME_ROW_CLASS}>
+    <li className={DASHPAY_CONTACT_ROW_CLASS}>
       <button
         type={"button"}
         className={ROW_OPEN_OVERLAY_CLASS}

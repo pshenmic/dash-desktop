@@ -1,6 +1,6 @@
 import type { DashPayContactDto, IdentityKeyRequestDto } from '@renderer/api/types'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
-import type { ActiveIdentitySource, ContactSegment, DashPayReadiness, DashPaySetupStep, SetupStepState } from '@renderer/enums/DashPay'
+import type { ActiveIdentitySource, ContactSegment, DashPayReadiness, DashPaySetupStep, SetupStepState, ShortfallKind } from '@renderer/enums/DashPay'
 import type { ListGroup } from './ListWindow'
 
 export interface DashPayReadinessInfo {
@@ -54,4 +54,15 @@ export interface SetupStepModel {
 export interface RegistrationReturnDestination {
   path: string
   backLabel: string
+}
+
+export type Shortfall =
+  | { kind: ShortfallKind.Slots; slotsLeft: number }
+  | { kind: ShortfallKind.FeeError }
+  | { kind: ShortfallKind.Balance; missingCredits: bigint }
+
+export interface ShortfallNoticeProps {
+  shortfall: Shortfall
+  identity: IdentityApiDto
+  onRetry: () => void
 }

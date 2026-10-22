@@ -1,6 +1,4 @@
 import type { IdentityKeyVariant } from '@renderer/enums/DashPay'
-import { DestinationKind } from '@renderer/enums/DestinationKind'
-import { SourceKind } from '@renderer/enums/SourceKind'
 import type { KeyVariantGroup } from '@renderer/types/DashPayKeys'
 import { IDENTITY_KEY_VARIANTS } from './identityKeys'
 
@@ -52,16 +50,6 @@ export const KEY_VARIANT_ROW_CLASS = 'grid grid-cols-[minmax(0,12rem)_minmax(0,1
 export const KEYS_FACT_ROW_CLASS = 'flex items-center justify-between gap-4'
 
 export const KEYS_FACT_DIVIDER_CLASS = 'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'
-
-export const KEY_SHORTFALL_COPY = {
-  feeError: 'Couldn’t get the fee',
-  retry: 'Retry',
-  needs: 'needs',
-  more: 'Dash more.',
-  topUp: 'Top up',
-} as const
-
-export const KEYS_TOP_UP_HREF = `/send?${new URLSearchParams({ from: SourceKind.Core, to: DestinationKind.Identity })}`
 
 export const KEYS_SIGNED_COPY = {
   identityBalance: 'Identity balance',

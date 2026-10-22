@@ -47,18 +47,9 @@ export interface ContactPaymentsProps {
   walletId: string
   identity: IdentityApiDto
   contact: DashPayContactDto
-  contactName: string
   visibleCount: number
   onShowMore: () => void
   onPay: (() => void) | null
-}
-
-export interface FeeShortfallProps {
-  feeError: boolean
-  onRetry: () => void
-  identityName: string
-  missingCredits: bigint | null
-  onTopUp: () => void
 }
 
 export interface ContactFactProps {

@@ -11,7 +11,7 @@ import {
   NodeVoteEligibility,
   VoteChoiceKind,
 } from '../../src/renderer/src/enums/Masternodes'
-import type { MasternodeDto, NameContestDto, VoteChoiceDto } from '../../src/renderer/src/types/Masternodes'
+import type { ContestContenderDto, MasternodeDto, NameContestDto, VoteChoiceDto } from '../../src/renderer/src/types/Masternodes'
 import type { PreviewIdentity, PreviewWalletState } from '../../src/renderer/src/types/Preview'
 import {
   addPreviewNodes,
@@ -22,6 +22,7 @@ import {
   previewStem,
   removePreviewNode,
   seededRandom,
+  settleExpiredContests,
 } from '../../src/renderer/src/utils/masternodePreview'
 import { countNodeSegments, votesLeft, votingPower } from '../../src/renderer/src/utils/masternodes'
 import { contestVoteSummary, countContestSegments, isEndingSoon } from '../../src/renderer/src/utils/nameContests'
@@ -145,6 +146,12 @@ describe('buildPreviewWallet', () => {
     }
   })
 
+  it('leaves every no-winner contest without contenders or lock votes', () => {
+    const noWinner = wallet().contests.filter(candidate => candidate.status === ContestStatus.NoWinner)
+    expect(noWinner).toHaveLength(6)
+    expect(noWinner.every(entry => entry.contenders.length === 0 && entry.votesLock === 0 && entry.winnerId === null)).toBe(true)
+  })
+
   it('places the wallet identities in the named contests', () => {
     const state = wallet()
     const pay = contest(state, 'owl11-pay')
@@ -217,6 +224,90 @@ describe('findPreviewNodesByVotingKey', () => {
     expect(findPreviewNodesByVotingKey(state, `c${'N'.repeat(49)}1`)).toEqual([])
     expect(findPreviewNodesByVotingKey(state, `7${'N'.repeat(50)}`)).toEqual([])
     expect(findPreviewNodesByVotingKey(state, 'not a key')).toEqual([])
+    expect(findPreviewNodesByVotingKey(state, `c${'N'.repeat(49)}1`, node(state, 'Sentinel').proTxHash)).toEqual([])
+  })
+
+  it('also matches the expected wallet node, first and once, so it can be upgraded', () => {
+    const state = wallet()
+    const sentinel = node(state, 'Sentinel')
+    const found = findPreviewNodesByVotingKey(state, TESTNET_WIF, sentinel.proTxHash)
+    expect(found.map(entry => entry.label)).toEqual(['Sentinel', 'Meridian', 'Polaris', 'Rigel'])
+    expect(found[0]).toBe(sentinel)
+    expect(findPreviewNodesByVotingKey(state, TESTNET_WIF, 'ab'.repeat(32))).toEqual(findPreviewNodesByVotingKey(state, TESTNET_WIF))
+
+    const upgraded = addPreviewNodes(state, [sentinel.proTxHash], true, NOW)
+    expect(node(upgraded, 'Sentinel').access).toBe(MasternodeAccess.VotingKey)
+    expect(upgraded.nodes).toHaveLength(24)
+
+    const [meridian] = findPreviewNodesByVotingKey(state, TESTNET_WIF)
+    const watched = addPreviewNodes(state, [meridian.proTxHash], false, NOW)
+    expect(findPreviewNodesByVotingKey(watched, TESTNET_WIF, meridian.proTxHash).map(entry => entry.label)).toEqual(['Meridian', 'Polaris', 'Rigel'])
+  })
+})
+
+describe('settleExpiredContests', () => {
+  const ENDED = NOW - 1
+  const open = (overrides: Partial<NameContestDto>): NameContestDto => ({
+    normalizedLabel: 'a11ce',
+    label: 'alice',
+    status: ContestStatus.Open,
+    contenders: [],
+    votesLock: 0,
+    votesAbstain: 0,
+    startedAt: ENDED - 5_400_000,
+    joinClosesAt: ENDED - 2_700_000,
+    endsAt: ENDED,
+    winnerId: null,
+    ...overrides,
+  })
+  const contender = (identifier: string, votes: number, requestedAt = 0): ContestContenderDto => (
+    { identifier, displayName: null, requestedLabel: 'alice', votes, requestedAt }
+  )
+
+  it('awards an expired contest to its top contender and keeps the tallies', () => {
+    const expired = open({ contenders: [contender('A', 3), contender('B', 7)], votesLock: 2, votesAbstain: 4 })
+    const [settled] = settleExpiredContests([expired], NOW)
+    expect(settled).toEqual({ ...expired, status: ContestStatus.Awarded, winnerId: 'B' })
+  })
+
+  it('locks only when lock votes strictly exceed the top contender', () => {
+    const [locked, tied] = settleExpiredContests([
+      open({ contenders: [contender('A', 5)], votesLock: 6 }),
+      open({ contenders: [contender('A', 5)], votesLock: 5 }),
+    ], NOW)
+    expect(locked).toMatchObject({ status: ContestStatus.Locked, winnerId: null })
+    expect(tied).toMatchObject({ status: ContestStatus.Awarded, winnerId: 'A' })
+  })
+
+  it('breaks a contender tie for the earliest request and ends without contenders on no winner', () => {
+    const [tie, empty, silent] = settleExpiredContests([
+      open({ contenders: [contender('late', 4, 20), contender('early', 4, 10)] }),
+      open({ votesLock: 3 }),
+      open({ contenders: [contender('A', 0)] }),
+    ], NOW)
+    expect(tie).toMatchObject({ status: ContestStatus.Awarded, winnerId: 'early' })
+    expect(empty).toMatchObject({ status: ContestStatus.NoWinner, winnerId: null })
+    expect(silent).toMatchObject({ status: ContestStatus.Awarded, winnerId: 'A' })
+  })
+
+  it('leaves running and already settled contests untouched', () => {
+    const running = open({ contenders: [contender('A', 1)], endsAt: NOW + 1 })
+    const awarded = open({ status: ContestStatus.Awarded, contenders: [contender('A', 1)], winnerId: 'A' })
+    const settled = settleExpiredContests([running, awarded], NOW)
+    expect(settled[0]).toBe(running)
+    expect(settled[1]).toBe(awarded)
+  })
+
+  it('moves the expired preview contests from Open to Ended', () => {
+    const state = wallet()
+    const pay = contest(state, 'owl11-pay')
+    const stillOpen = state.contests.filter(entry => entry.status === ContestStatus.Open && entry.endsAt > pay.endsAt)
+    const later = settleExpiredContests(state.contests, pay.endsAt)
+    const counts = countContestSegments(later, { query: '', yourNamesOnly: false }, { ...contestContext(state), now: pay.endsAt })
+    expect(later.find(entry => entry.label === 'owl11-pay')?.status).not.toBe(ContestStatus.Open)
+    expect(stillOpen.length).toBeGreaterThan(0)
+    expect(counts.segments[ContestSegment.Open]).toBe(stillOpen.length)
+    expect(counts.segments[ContestSegment.Ended]).toBe(state.contests.length - stillOpen.length)
   })
 })
 
@@ -228,7 +319,7 @@ describe('findPreviewNode', () => {
     expect(findPreviewNode(state, sentinel.proTxHash.toUpperCase())).toEqual(sentinel)
     expect(findPreviewNode(state, meridian.proTxHash)).toEqual(meridian)
     const watched = findPreviewNode(state, 'ab'.repeat(32))
-    expect(watched).toMatchObject({ proTxHash: 'ab'.repeat(32), label: 'Node ababa', access: MasternodeAccess.WatchOnly })
+    expect(watched).toMatchObject({ proTxHash: 'ab'.repeat(32), label: 'Node', access: MasternodeAccess.WatchOnly })
     expect(findPreviewNode(state, `${'ab'.repeat(31)}a0`)).toBeNull()
     expect(findPreviewNode(state, 'xyz')).toBeNull()
   })

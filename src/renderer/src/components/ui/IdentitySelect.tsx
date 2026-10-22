@@ -12,11 +12,14 @@ import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
 import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'
 import {
+  IDENTITY_SELECT_COMPACT_IDENTIFIER_CLASS,
   IDENTITY_SELECT_COPY,
   IDENTITY_SELECT_DIVIDER_CLASS,
   IDENTITY_SELECT_FRAME_CLASS,
   IDENTITY_SELECT_HEADER_BASE,
+  IDENTITY_SELECT_HEADER_IDENTIFIER_WIDTH,
   IDENTITY_SELECT_HEADER_SKELETON,
+  IDENTITY_SELECT_HEADER_WIDTH,
   IDENTITY_SELECT_META_CLASS,
   IDENTITY_SELECT_NAVIGATION_KEYS,
   IDENTITY_SELECT_SEARCH_MIN,
@@ -33,23 +36,23 @@ import type {
   IdentitySelectProps,
 } from '@renderer/types/IdentitySelect'
 import { filterIdentities } from '@renderer/utils/dashPayIdentity'
-import { identityLabel } from '@renderer/utils/identifierFormat'
+import { identityLabel, identityName } from '@renderer/utils/identifierFormat'
 import { nextListIndex } from '@renderer/utils/listNavigation'
 
 function IdentityName({identity}: IdentityNameProps): React.JSX.Element {
   if (identity.alias) {
     return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{identity.alias}</Text>
   }
-  return <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
+  return <HighlightedIdentifier className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
 }
 
 function IdentityHeadline({identity}: IdentityNameProps): React.JSX.Element {
-  const name = identity.alias ?? identity.aliasesList[0] ?? null
+  const name = identityName(identity)
   const extraNames = name == null ? 0 : Math.max(0, identity.aliasesList.length - 1)
   return (
     <span className={'flex min-w-0 items-center gap-1.5'}>
       {name == null
-        ? <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
+        ? <HighlightedIdentifier className={IDENTITY_SELECT_COMPACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
         : <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate leading-[130%]'}>{name}</Text>}
       {extraNames > 0 && <CustomBadge variant={'muted'} text={`+${extraNames}`} className={'shrink-0'} />}
     </span>
@@ -184,7 +187,7 @@ export function IdentitySelectPopover({
               </span>
             )}
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-              <CreditsAmount credits={BigInt(String(identity.balance.amount))} />
+              <CreditsAmount credits={identity.balance.amount} />
               {meta != null && <> · {meta}</>}
             </Text>
           </>
@@ -315,8 +318,12 @@ export default function IdentitySelect({
     </>
   )
 
+  const headerWidth = (identity: IdentityApiDto | undefined): string =>
+    identity != null && identityName(identity) == null ? IDENTITY_SELECT_HEADER_IDENTIFIER_WIDTH : IDENTITY_SELECT_HEADER_WIDTH
+
   if (isStatic) {
-    return <div className={IDENTITY_SELECT_HEADER_BASE}>{headerContent(selected ?? identities[0])}</div>
+    const shown = selected ?? identities[0]
+    return <div className={`${IDENTITY_SELECT_HEADER_BASE} ${headerWidth(shown)}`}>{headerContent(shown)}</div>
   }
 
   let content: React.JSX.Element
@@ -325,7 +332,7 @@ export default function IdentitySelect({
       <div className={"flex flex-col items-start min-w-0"}>
         <IdentityName identity={selected} />
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-          <CreditsAmount credits={BigInt(String(selected.balance.amount))} showFiat={false} />
+          <CreditsAmount credits={selected.balance.amount} showFiat={false} />
         </Text>
       </div>
     )
@@ -391,7 +398,7 @@ export default function IdentitySelect({
         disabled={loading}
         onClick={handleClick}
         onKeyDown={handleTriggerKey}
-        className={styles.trigger}
+        className={header ? `${styles.trigger} ${headerWidth(selected)}` : styles.trigger}
       >
         {content}
         {action}

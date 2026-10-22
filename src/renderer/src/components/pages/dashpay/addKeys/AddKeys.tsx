@@ -3,8 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import IdentityReadinessBadge from '@renderer/components/pages/dashpay/IdentityReadinessBadge'
-import KeysShortfall from '@renderer/components/pages/dashpay/keys/KeysShortfall'
 import SlotMeter from '@renderer/components/pages/dashpay/keys/SlotMeter'
+import ShortfallNotice from '@renderer/components/pages/dashpay/ShortfallNotice'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import IdentitySelect from '@renderer/components/ui/IdentitySelect'
@@ -30,12 +30,14 @@ import { useOperationFee } from '@renderer/hooks/useOperationFee'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { AddKeysWizardProps, KeysAddedResult } from '@renderer/types/DashPayKeys'
 import type { AddKeysProps } from '@renderer/types/DashPayScreens'
-import { keysAddedLabel, keySlotsLeftLabel, keysShortfall, presetKeyVariants, toggleKeyVariant } from '@renderer/utils/dashPayKeySetup'
+import { dashPayHref } from '@renderer/utils/dashPayIdentity'
+import { keysAddedLabel, keySlotsLeftLabel, presetKeyVariants, toggleKeyVariant } from '@renderer/utils/dashPayKeySetup'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
+import { keysShortfall } from '@renderer/utils/dashPayShortfall'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { identityLabel } from '@renderer/utils/identifierFormat'
 import { keyRequestLabel, validateKeySelection, variantRequest } from '@renderer/utils/identityKeyRequests'
-import { returnHref, withParams } from '@renderer/utils/searchParams'
+import { returnHref } from '@renderer/utils/searchParams'
 import AddKeysConfirmStep from './AddKeysConfirmStep'
 import KeyVariantList from './KeyVariantList'
 
@@ -79,7 +81,7 @@ function AddKeysWizard({
     return { stHash, count: requests.length }
   }
 
-  const shortfallView = shortfall && <KeysShortfall shortfall={shortfall} identity={identity} onRetryFee={fee.retry} />
+  const shortfallView = shortfall && <ShortfallNotice shortfall={shortfall} identity={identity} onRetry={fee.retry} />
 
   const keysStep = (
     <>
@@ -190,15 +192,15 @@ export default function AddKeys({ walletId }: AddKeysProps): React.JSX.Element {
   const [searchParams] = useSearchParams()
   const { identities, identity, loading, err, retry, select } = useActiveIdentity()
   const actingIdentifier = identity?.identifier ?? null
-  const keysTabHref = `${DASHPAY_ROUTES.root}?${withParams('', { [DASHPAY_PARAMS.tab]: DashPayTab.Keys })}`
-  const navigationState = location.state as DashPayNavigationState | null
+  const keysTabHref = dashPayHref(DASHPAY_ROUTES.root, null, { [DASHPAY_PARAMS.tab]: DashPayTab.Keys })
+  const [returnTo] = useState(() => (location.state as DashPayNavigationState | null)?.returnTo ?? null)
 
   const pageHeader = (
     <div className={"px-12"}>
       <PageHeader
         title={PAGE_HEADERS.addIdentityKeys.title}
         subtitle={PAGE_HEADERS.addIdentityKeys.subtitle}
-        onBack={() => navigate(returnHref(navigationState?.returnTo, keysTabHref, actingIdentifier))}
+        onBack={() => navigate(returnHref(returnTo, keysTabHref, actingIdentifier))}
         backLabel={PAGE_HEADERS.addIdentityKeys.back}
       />
     </div>

@@ -1,9 +1,9 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import StatusPill from '@renderer/components/ui/StatusPill'
-import { USERNAME_DETAIL_COPY } from '@renderer/constants/dashPayUsernames'
+import { USERNAME_DETAIL_COPY, USERNAME_DOCUMENT_ID_CLASS } from '@renderer/constants/dashPayUsernames'
 import { ALIAS_PRESENTATION } from '@renderer/constants/dpns'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { AliasPresentation } from '@renderer/enums/DashPay'
@@ -11,16 +11,16 @@ import { ModalSize } from '@renderer/enums/ModalSize'
 import type { ModalAction } from '@renderer/types/Modal'
 import type { UsernameDetailLine, UsernameDetailModalProps } from '@renderer/types/DashPayUsernames'
 import { formatTimestamp } from '@renderer/utils/date'
-import { usernameRowCaption, usernameTitle, usernameTypeLabel } from '@renderer/utils/dashPayUsernames'
-import { identityLabel, shortIdentifier } from '@renderer/utils/identifierFormat'
+import { usernameTitle, usernameTypeLabel } from '@renderer/utils/dashPayUsernames'
+import { identityLabel } from '@renderer/utils/identifierFormat'
 import { formatAgo, formatTimeLeft } from '@renderer/utils/timeLeft'
-import { joinClosesAt } from '@renderer/utils/usernames'
+import { joinClosesAt, usernameCaption } from '@renderer/utils/usernames'
 
 function DetailLine({ label, value }: UsernameDetailLine): React.JSX.Element {
   return (
-    <div className={"flex items-center justify-between gap-4"}>
+    <div className={"flex items-start justify-between gap-4"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{label}</Text>
-      <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 truncate text-right"}>{value}</Text>
+      <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all text-right"}>{value}</Text>
     </div>
   )
 }
@@ -81,7 +81,7 @@ export default function UsernameDetailModal({
       open={open}
       onClose={onClose}
       title={title}
-      description={usernameRowCaption(row, now) ?? spec.caption}
+      description={usernameCaption(row, now) ?? spec.caption}
       size={ModalSize.Md}
     >
       <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
@@ -97,11 +97,11 @@ export default function UsernameDetailModal({
         </div>
         {lines.map(line => <DetailLine key={line.label} label={line.label} value={line.value} />)}
         {alias?.documentId != null && (
-          <div className={"flex items-center justify-between gap-4"}>
+          <div className={"flex items-start justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{USERNAME_DETAIL_COPY.documentId}</Text>
-            <span className={"flex min-w-0 items-center gap-2"}>
-              <Text size={12} weight={"medium"} color={"brand"} className={"font-mono"}>{shortIdentifier(alias.documentId)}</Text>
-              <CopyButton text={alias.documentId} />
+            <span className={"flex min-w-0 items-start gap-2"}>
+              <HighlightedIdentifier className={USERNAME_DOCUMENT_ID_CLASS}>{alias.documentId}</HighlightedIdentifier>
+              <CopyButton text={alias.documentId} className={"shrink-0"} />
             </span>
           </div>
         )}

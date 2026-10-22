@@ -6,7 +6,7 @@ import NoResults from '@renderer/components/ui/NoResults'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
-import { DASHPAY_LOAD_ERRORS, DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
+import { DASHPAY_LOAD_ERRORS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import {
   CONTACT_LIST_CLASS,
   CONTACT_LIST_SKELETON_ROWS,
@@ -21,14 +21,15 @@ import { ContactAction, ContactSegment } from '@renderer/enums/DashPay'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { refreshDashPayContacts, useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
 import { useScrollEndSentinel } from '@renderer/hooks/useScrollEndSentinel'
+import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { ContactModalState } from '@renderer/types/DashPayContacts'
 import type { ContactsTabProps } from '@renderer/types/DashPayScreens'
 import { contactRowModel, contactsForIdentity, countContactSegments, filterContacts, groupContactRows } from '@renderer/utils/dashPayContactList'
 import { contactGroupLabel, contactsNoMatchLabel, showInAllLabel } from '@renderer/utils/dashPayContactView'
-import { identityLabel } from '@renderer/utils/identifierFormat'
+import { dashPayHref } from '@renderer/utils/dashPayIdentity'
+import { identityName } from '@renderer/utils/identifierFormat'
 import { windowGroups } from '@renderer/utils/listWindow'
-import { withParams } from '@renderer/utils/searchParams'
 import EnableDashPayModal from '../keys/EnableDashPayModal'
 import ReadinessAlert from '../keys/ReadinessAlert'
 import ContactActionModals from './ContactActionModals'
@@ -59,10 +60,9 @@ export default function ContactsTab({
   const [enableOpen, setEnableOpen] = useState(false)
   const deferredQuery = useDeferredValue(query)
   const searching = deferredQuery !== query
-  const identityName = identityLabel(identity)
 
   const mine = useMemo(() => contactsForIdentity(contacts, identity.identifier), [contacts, identity.identifier])
-  const walletIdentifiers = useMemo(() => new Set(identities.map(entry => entry.identifier)), [identities])
+  const walletIdentifiers = useWalletIdentifiers(identities)
   const counts = useMemo(() => countContactSegments(mine, deferredQuery), [mine, deferredQuery])
   const groups = useMemo(() => groupContactRows(filterContacts(mine, deferredQuery), segment, sort), [mine, deferredQuery, segment, sort])
   const view = useMemo(() => windowGroups(groups, visibleCount), [groups, visibleCount])
@@ -71,7 +71,7 @@ export default function ContactsTab({
 
   const openAddContact = (): void => {
     const navigationState: DashPayNavigationState = { returnTo: location.pathname + location.search }
-    navigate(`${DASHPAY_ROUTES.addContact}?${withParams('', { [DASHPAY_PARAMS.identity]: identity.identifier })}`, { state: navigationState })
+    navigate(dashPayHref(DASHPAY_ROUTES.addContact, identity.identifier), { state: navigationState })
   }
   const openModal = (action: ContactAction) => (contact: DashPayContactDto): void => setModal({ action, contact, open: true })
 
@@ -96,7 +96,7 @@ export default function ContactsTab({
   } else if (segmentCount === 0 && deferredQuery.trim() !== '') {
     body = (
       <NoResults
-        noResults={contactsNoMatchLabel(deferredQuery.trim(), identityName)}
+        noResults={contactsNoMatchLabel(deferredQuery.trim(), identityName(identity))}
         action={
           <div className={'flex items-center gap-2'}>
             <button type={'button'} onClick={() => onQueryChange('')} className={CHIP_ACTION}>{CONTACTS_TAB_COPY.clearSearch}</button>

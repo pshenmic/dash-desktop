@@ -28,6 +28,7 @@ import { refreshMasternodeVotes, useMasternodeVotes } from '@renderer/hooks/useM
 import { refreshMasternodes, useMasternodes } from '@renderer/hooks/useMasternodes'
 import { refreshNameContests, useNameContests } from '@renderer/hooks/useNameContests'
 import { useScrollEndSentinel } from '@renderer/hooks/useScrollEndSentinel'
+import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { ContestContext } from '@renderer/types/Masternodes'
 import type { ContestsTabProps } from '@renderer/types/MasternodeScreens'
 import { contestSegmentFor, contestSegmentOptions, contestSortFor } from '@renderer/utils/contestVoting'
@@ -61,7 +62,7 @@ export default function ContestsTab({
   const hasNodes = nodes.length > 0
   const activeSegment = contestSegmentFor(segment, hasNodes)
   const activeSort = contestSortFor(activeSegment, sort)
-  const walletIdentifiers = useMemo(() => new Set(identities.map(identity => identity.identifier)), [identities])
+  const walletIdentifiers = useWalletIdentifiers(identities)
   const context = useMemo<ContestContext>(
     () => ({ nodes, votes, walletIdentifiers, now, network }),
     [nodes, votes, walletIdentifiers, now, network],

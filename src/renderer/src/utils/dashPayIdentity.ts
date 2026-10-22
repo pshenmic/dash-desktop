@@ -1,9 +1,11 @@
 import type { DashPayContactDto } from '@renderer/api/types'
+import { DASHPAY_PARAMS } from '@renderer/constants/dashPay'
 import { ActiveIdentitySource, DashPayContactRelationship, DashPayReadiness } from '@renderer/enums/DashPay'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
 import type { ActiveIdentityInput, ActiveIdentityResolution } from '@renderer/types/DashPay'
 import { dashPayMissingKeys, dashPayReadiness } from './dashPayReadiness'
 import { matchesIdentityQuery } from './dpnsLabel'
+import { withParams } from './searchParams'
 
 export function resolveActiveIdentity({ identities, requested, stored }: ActiveIdentityInput): ActiveIdentityResolution {
   const ordered = [...identities].sort((a, b) => a.identityIndex - b.identityIndex)
@@ -30,4 +32,8 @@ export function incomingCountByIdentity(contacts: DashPayContactDto[]): Record<s
     counts[contact.identifier] = (counts[contact.identifier] ?? 0) + 1
   }
   return counts
+}
+
+export function dashPayHref(path: string, identifier: string | null, params: Record<string, string | null> = {}): string {
+  return `${path}?${withParams('', { [DASHPAY_PARAMS.identity]: identifier, ...params })}`
 }

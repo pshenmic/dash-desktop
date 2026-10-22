@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { IdentityKeyDto, IdentityKeyRequestDto } from '@renderer/api/types'
-import type { IdentityKeyVariant, KeysShortfallKind } from '@renderer/enums/DashPay'
+import type { IdentityKeyVariant } from '@renderer/enums/DashPay'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
 import type { DashPayReadinessInfo } from './DashPay'
 import type { IdentityKeyVariantDefinition, KeySelectionCheck } from './IdentityKeys'
@@ -28,17 +28,6 @@ export interface KeysShortfallInput {
   feeCredits: bigint | null
   feeError: string | null
   balance: bigint
-}
-
-export type KeysShortfall =
-  | { kind: KeysShortfallKind.Slots; slotsLeft: number }
-  | { kind: KeysShortfallKind.FeeError }
-  | { kind: KeysShortfallKind.Balance; missingCredits: bigint }
-
-export interface KeysShortfallProps {
-  shortfall: KeysShortfall
-  identity: IdentityApiDto
-  onRetryFee: () => void
 }
 
 export interface KeyVariantGroup {

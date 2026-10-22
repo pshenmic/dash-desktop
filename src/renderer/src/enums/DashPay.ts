@@ -141,7 +141,7 @@ export enum OverviewAction {
   FindPeople = 'find-people',
 }
 
-export enum KeysShortfallKind {
+export enum ShortfallKind {
   Slots = 'slots',
   FeeError = 'fee-error',
   Balance = 'balance',

@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/dash-ui-kit-enxtended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import AcceptRequestModal from '@renderer/components/pages/dashpay/contacts/AcceptRequestModal'
 import EnableDashPayModal from '@renderer/components/pages/dashpay/keys/EnableDashPayModal'
+import ShortfallNotice from '@renderer/components/pages/dashpay/ShortfallNotice'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
 import NoResults from '@renderer/components/ui/NoResults'
 import PageHeader from '@renderer/components/ui/PageHeader'
@@ -26,7 +27,9 @@ import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { useActiveIdentity } from '@renderer/hooks/useActiveIdentity'
 import { useAliasSearch } from '@renderer/hooks/useAliasSearch'
 import { setDashPayContactsCache, useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
+import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
+import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { AddContactProps } from '@renderer/types/DashPayScreens'
 import type { AddContactFee, AddContactResultRow, AddContactSearchPanel } from '@renderer/types/DashPayAddContact'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
@@ -34,15 +37,16 @@ import type { IdentitySelectHandle } from '@renderer/types/IdentitySelect'
 import {
   addContactRows,
   aliasSearchPrefix,
-  creditShortfall,
   identifierResultRow,
   isAliasSearchCapped,
   isSelectableResult,
   resultRowLabel,
 } from '@renderer/utils/dashPayAddContact'
+import { dashPayHref } from '@renderer/utils/dashPayIdentity'
+import { feeShortfall } from '@renderer/utils/dashPayShortfall'
 import { identityLabel, isIdentifierLike } from '@renderer/utils/identifierFormat'
-import { returnHref, withParams } from '@renderer/utils/searchParams'
-import ConfirmStep, { ContactRequestShortfall } from './ConfirmStep'
+import { returnHref } from '@renderer/utils/searchParams'
+import ConfirmStep from './ConfirmStep'
 import FindStep from './FindStep'
 
 export default function AddContact({ walletId }: AddContactProps): React.JSX.Element {
@@ -58,11 +62,12 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
   const [requestOpen, setRequestOpen] = useState(false)
   const [enableOpen, setEnableOpen] = useState(false)
   const [acceptId, setAcceptId] = useState<string | null>(null)
+  const [returnTo] = useState(() => (location.state as DashPayNavigationState | null)?.returnTo ?? null)
 
   const identifierQuery = isIdentifierLike(query)
   const aliasSearch = useAliasSearch(walletId, identifierQuery ? '' : aliasSearchPrefix(query))
   const actingIdentifier = identity?.identifier ?? null
-  const walletIdentifiers = useMemo(() => new Set(identities.map(entry => entry.identifier)), [identities])
+  const walletIdentifiers = useWalletIdentifiers(identities)
   const rows = useMemo(() => {
     const context = { actingIdentifier: actingIdentifier ?? '', contacts, walletIdentifiers }
     return identifierQuery ? [identifierResultRow(query, context)] : addContactRows(aliasSearch.results, context)
@@ -81,8 +86,8 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
     retry: quote.retry,
   }
   const balance = identity?.balance.amount ?? 0n
-  const shortfall = creditShortfall(balance, fee.credits)
-  const blocked = fee.err != null || shortfall != null
+  const shortfall = feeShortfall(fee.err != null, balance, fee.credits)
+  const blocked = shortfall != null
   const canSend = readiness?.canSend === true
 
   const search: AddContactSearchPanel = {
@@ -93,10 +98,7 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
     retry: aliasSearch.retry,
   }
 
-  const navigationState = location.state as DashPayNavigationState | null
-  const backHref = returnHref(navigationState?.returnTo, ADD_CONTACT_FALLBACK_RETURN, actingIdentifier)
-  const dashPayHref = (patch: Record<string, string | null>): string =>
-    `${DASHPAY_ROUTES.root}?${withParams('', { [DASHPAY_PARAMS.identity]: actingIdentifier, ...patch })}`
+  const backHref = returnHref(returnTo, ADD_CONTACT_FALLBACK_RETURN, actingIdentifier)
 
   const acceptContact = acceptId == null || actingIdentifier == null
     ? null
@@ -162,7 +164,7 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
       search={search}
       selectedId={selected?.identifier ?? null}
       onSelectRow={setSelectedId}
-      onOpenContact={contactId => navigate(dashPayHref({ [DASHPAY_PARAMS.tab]: DashPayTab.Contacts, [DASHPAY_PARAMS.contact]: contactId }))}
+      onOpenContact={contactId => navigate(dashPayHref(DASHPAY_ROUTES.root, actingIdentifier, { [DASHPAY_PARAMS.tab]: DashPayTab.Contacts, [DASHPAY_PARAMS.contact]: contactId }))}
       onAccept={setAcceptId}
     />
   )
@@ -203,13 +205,14 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
               ]}
             />
           }
-          shortfall={blocked ? <ContactRequestShortfall identity={identity} fee={fee} shortfall={shortfall} /> : undefined}
+          shortfall={shortfall && <ShortfallNotice shortfall={shortfall} identity={identity} onRetry={fee.retry} />}
           confirmLabel={ADD_CONTACT_COPY.submit}
           confirmDisabled={fee.credits == null}
           pendingLabel={ADD_CONTACT_COPY.pending}
           run={async password => {
             const list = await API.sendDashPayContactRequest(walletId, identity.identifier, target.identifier, password)
             setDashPayContactsCache(walletId, list)
+            void refreshIdentities(walletId)
             return target
           }}
           renderDone={sent => {
@@ -219,7 +222,7 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
               note: `${ADD_CONTACT_COPY.doneNoteLead} ${name} ${ADD_CONTACT_COPY.doneNoteTail}`,
             }
           }}
-          onDone={() => navigate(dashPayHref({ [DASHPAY_PARAMS.tab]: DashPayTab.Contacts, [DASHPAY_PARAMS.segment]: ContactSegment.Sent }))}
+          onDone={() => navigate(dashPayHref(DASHPAY_ROUTES.root, actingIdentifier, { [DASHPAY_PARAMS.tab]: DashPayTab.Contacts, [DASHPAY_PARAMS.segment]: ContactSegment.Sent }))}
         />
       )}
       <EnableDashPayModal open={enableOpen} onClose={() => setEnableOpen(false)} identity={identity} />

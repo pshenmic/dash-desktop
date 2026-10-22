@@ -56,13 +56,6 @@ export interface RegisterConfirmStepProps {
   feeCredits: bigint | null
 }
 
-export interface RegisterShortfallProps {
-  identity: IdentityApiDto
-  feeCredits: bigint | null
-  error: boolean
-  onRetry: () => void
-}
-
 export interface RegisterGateInput {
   issue: DpnsLabelIssue | null
   canRegister: boolean

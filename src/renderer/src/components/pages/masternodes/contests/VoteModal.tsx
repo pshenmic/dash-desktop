@@ -20,11 +20,12 @@ import {
   voteOutcomes,
   votesRecordedHeadline,
 } from '@renderer/utils/contestVoting'
+import { fullDpnsName } from '@renderer/utils/dpnsLabel'
 
 export default function VoteModal({ open, onClose, walletId, contest, choice, rows, onRetryWith }: VoteModalProps): React.JSX.Element {
   const nodes = rows.map(row => row.node)
   const facts = [
-    { label: VOTE_MODAL_COPY.name, value: `${contest.label}.dash` },
+    { label: VOTE_MODAL_COPY.name, value: fullDpnsName(contest.label) },
     { label: VOTE_MODAL_COPY.choice, value: voteChoiceSummary(choice, contest) },
     { label: VOTE_MODAL_COPY.nodes, value: selectedNodesLine(nodes) },
     { label: VOTE_MODAL_COPY.votingPower, value: String(rowsVotingPower(rows)) },
@@ -57,7 +58,7 @@ export default function VoteModal({ open, onClose, walletId, contest, choice, ro
                 ? <CheckIcon size={14} color={'currentColor'} className={'shrink-0 text-dash-green'} />
                 : <ErrorIcon size={14} color={'currentColor'} className={'shrink-0 text-dash-red'} />}
               <div className={'flex min-w-0 flex-col gap-0.5'}>
-                <Text size={14} weight={'medium'} color={'brand'} className={'truncate'}>{outcome.label}</Text>
+                <Text size={14} weight={'medium'} color={'brand'} className={'wrap-anywhere'}>{outcome.label}</Text>
                 {outcome.error && <Text size={10} weight={'medium'} color={'brand'} opacity={50}>{outcome.error}</Text>}
               </div>
             </div>
@@ -84,7 +85,7 @@ export default function VoteModal({ open, onClose, walletId, contest, choice, ro
           {facts.map(fact => (
             <div key={fact.label} className={'flex items-center justify-between gap-4'}>
               <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0'}>{fact.label}</Text>
-              <Text size={12} weight={'medium'} color={'brand'} className={'min-w-0 truncate text-right'}>{fact.value}</Text>
+              <Text size={12} weight={'medium'} color={'brand'} className={'min-w-0 wrap-anywhere text-right'}>{fact.value}</Text>
             </div>
           ))}
           {warnings.map(warning => (

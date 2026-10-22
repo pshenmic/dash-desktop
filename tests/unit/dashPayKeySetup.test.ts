@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  creditsShortfallLabel,
   dashPayEnabledHeadline,
   enableDashPayDescription,
   keySlotPercent,
@@ -9,15 +8,13 @@ import {
   keySlotsUsedLabel,
   keysAddedLabel,
   keysOnIdentityLabel,
-  keysShortfall,
-  keysShortfallMessage,
   keyVariantTitle,
   presetKeyVariants,
   projectedKeyLabel,
   sortedIdentityKeys,
   toggleKeyVariant,
 } from '../../src/renderer/src/utils/dashPayKeySetup'
-import { IdentityKeyVariant, KeysShortfallKind } from '../../src/renderer/src/enums/DashPay'
+import { IdentityKeyVariant } from '../../src/renderer/src/enums/DashPay'
 import { DASHPAY_KEY_BOUNDS } from '../../src/renderer/src/constants/dashPay'
 import { KEY_VARIANT_GROUPS } from '../../src/renderer/src/constants/dashPayKeys'
 import { IDENTITY_KEY_VARIANTS } from '../../src/renderer/src/constants/identityKeys'
@@ -109,36 +106,6 @@ describe('key variant selection', () => {
   it('titles a variant by purpose and level only', () => {
     expect(keyVariantTitle(IDENTITY_KEY_VARIANTS[IdentityKeyVariant.EncDashPay])).toBe('Encryption · Medium')
     expect(keyVariantTitle(IDENTITY_KEY_VARIANTS[IdentityKeyVariant.Transfer])).toBe('Transfer · Critical')
-  })
-})
-
-describe('keys shortfall', () => {
-  const base = { requested: 2, slotsLeft: 16, feeCredits: 1_000n, feeError: null, balance: 5_000n }
-
-  it('is null when the identity can pay and has room', () => {
-    expect(keysShortfall(base)).toBeNull()
-    expect(keysShortfall({ ...base, feeCredits: null })).toBeNull()
-    expect(keysShortfall({ ...base, balance: 1_000n })).toBeNull()
-  })
-
-  it('reports missing slots before anything else', () => {
-    expect(keysShortfall({ ...base, requested: 3, slotsLeft: 2, feeError: 'Failed' })).toEqual({ kind: KeysShortfallKind.Slots, slotsLeft: 2 })
-  })
-
-  it('reports a fee error before the balance', () => {
-    expect(keysShortfall({ ...base, feeError: 'Failed', balance: 0n })).toEqual({ kind: KeysShortfallKind.FeeError })
-  })
-
-  it('reports how many credits are missing', () => {
-    expect(keysShortfall({ ...base, balance: 400n })).toEqual({ kind: KeysShortfallKind.Balance, missingCredits: 600n })
-  })
-
-  it('words each shortfall', () => {
-    expect(keysShortfallMessage({ kind: KeysShortfallKind.Slots, slotsLeft: 1 }, 'alice.dash')).toBe('Only 1 key slot left.')
-    expect(keysShortfallMessage({ kind: KeysShortfallKind.FeeError }, 'alice.dash')).toBe('Couldn’t get the fee')
-    expect(keysShortfallMessage({ kind: KeysShortfallKind.Balance, missingCredits: 50_000_000_000n }, 'alice.dash'))
-      .toBe('alice.dash needs 0.5 Dash more.')
-    expect(creditsShortfallLabel('bob.dash', 100_000_000_000n)).toBe('bob.dash needs 1 Dash more.')
   })
 })
 

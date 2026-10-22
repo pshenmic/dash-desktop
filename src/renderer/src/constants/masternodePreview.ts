@@ -24,7 +24,6 @@ export const PREVIEW_LATENCY_MS = {
 } as const
 
 export const PREVIEW_BACKEND_ERRORS = {
-  invalidPassword: 'Invalid wallet password',
   voteRejected: 'Vote not accepted by the network — try again',
   contestNotFound: 'This contest isn’t available',
 } as const

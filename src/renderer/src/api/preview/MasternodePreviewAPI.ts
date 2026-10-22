@@ -1,4 +1,5 @@
 import { API } from '@renderer/api'
+import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { PREVIEW_BACKEND_ERRORS, PREVIEW_LATENCY_MS } from '@renderer/constants/masternodePreview'
 import type {
   MasternodeDto,
@@ -13,11 +14,12 @@ import {
   findPreviewNode,
   findPreviewNodesByVotingKey,
   removePreviewNode,
+  settleExpiredContests,
 } from '@renderer/utils/masternodePreview'
 import { previewLatency, readPreviewWallet, updatePreviewWallet } from './previewStore'
 
 async function requirePassword(walletId: string, password: string): Promise<void> {
-  if (!(await API.verifyWalletPassword(walletId, password))) throw new Error(PREVIEW_BACKEND_ERRORS.invalidPassword)
+  if (!(await API.verifyWalletPassword(walletId, password))) throw new Error(INVALID_WALLET_PASSWORD_MESSAGE)
 }
 
 export class MasternodePreviewAPI {
@@ -27,10 +29,10 @@ export class MasternodePreviewAPI {
     return state.nodes
   }
 
-  static async findMasternodesByVotingKey(walletId: string, votingKey: string): Promise<MasternodeDto[]> {
+  static async findMasternodesByVotingKey(walletId: string, votingKey: string, expectedProTxHash?: string): Promise<MasternodeDto[]> {
     const state = await readPreviewWallet(walletId)
     await previewLatency(PREVIEW_LATENCY_MS.read)
-    return findPreviewNodesByVotingKey(state, votingKey)
+    return findPreviewNodesByVotingKey(state, votingKey, expectedProTxHash)
   }
 
   static async findMasternode(walletId: string, proTxHash: string): Promise<MasternodeDto | null> {
@@ -62,9 +64,11 @@ export class MasternodePreviewAPI {
   }
 
   static async getNameContests(walletId: string): Promise<NameContestDto[]> {
-    const state = await readPreviewWallet(walletId)
     await previewLatency(PREVIEW_LATENCY_MS.read)
-    return state.contests
+    return updatePreviewWallet(walletId, (state) => {
+      const next = { ...state, contests: settleExpiredContests(state.contests, Date.now()) }
+      return { state: next, result: next.contests }
+    })
   }
 
   static async getMasternodeVotes(walletId: string): Promise<MasternodeVoteDto[]> {

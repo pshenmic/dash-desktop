@@ -3,16 +3,12 @@ import { IdenticonIcon, KeyIcon, SignIcon, type IconProps } from '@renderer/comp
 import { DashPaySetupStep, OverviewAction, OverviewBand, SetupStepState } from '../enums/DashPay'
 import { MasternodesTab } from '../enums/Masternodes'
 import { RegistrationReturnTarget } from '../enums/RegistrationReturnTarget'
-import { DestinationKind } from '../enums/DestinationKind'
-import { SourceKind } from '../enums/SourceKind'
-import type { CountForms } from '../types/DashPayOverview'
+import type { CountForms } from '../types/CountForms'
 import { MASTERNODE_PARAMS, MASTERNODES_ROUTE } from './masternodes'
 import { REGISTRATION_RETURN_PARAM } from './registrationReturn'
 import { CHIP_ACTION, ICON_CHIP, SURFACE_SECTION } from './surfaces'
 
 export const DASHPAY_REGISTER_IDENTITY_HREF = `/identities/register?${REGISTRATION_RETURN_PARAM}=${RegistrationReturnTarget.DashPay}`
-
-export const OVERVIEW_TOP_UP_HREF = `/send?from=${SourceKind.Core}&to=${DestinationKind.Identity}`
 
 export const OVERVIEW_CONTESTS_HREF = `${MASTERNODES_ROUTE}?${MASTERNODE_PARAMS.tab}=${MasternodesTab.Contests}`
 
@@ -22,7 +18,7 @@ export const OVERVIEW_ROW_CLASS = 'grid grid-cols-1 lg:grid-cols-[minmax(0,1.45f
 
 export const OVERVIEW_BAND_CLASS = 'mt-4 flex flex-col gap-2'
 
-export const OVERVIEW_ENTRY_GRID_CLASS = 'mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4'
+export const OVERVIEW_ENTRY_GRID_CLASS = 'mt-4 grid grid-cols-1 gap-4 lg:grid-cols-none lg:grid-flow-col lg:auto-cols-fr'
 
 export const OVERVIEW_SKELETON_CLASS = 'h-56 rounded-[.9375rem] animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8'
 
@@ -82,7 +78,7 @@ export const CONTACTS_SUMMARY_VALUE_SKELETON = 'h-4 w-6 rounded animate-pulse bg
 
 export const ATTENTION_DOT_CLASS = 'size-1.5 shrink-0 rounded-full bg-dash-orange'
 
-export const ENTRY_CARD_CLASS = `group relative flex items-center gap-3 text-left cursor-pointer ${SURFACE_SECTION} transition-colors hover:dash-block-accent-5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:dash-block-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40`
+export const ENTRY_CARD_CLASS = `group relative flex items-center gap-3 text-left cursor-pointer ${SURFACE_SECTION} transition-colors enabled:hover:dash-block-accent-5 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40`
 
 export const SECTION_HEADER_CLASS = 'flex items-center justify-between gap-3 px-1'
 

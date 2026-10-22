@@ -55,7 +55,6 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
       colorScheme={"primary"}
       disabled={!readiness.canRegister}
       onClick={() => openRegister(null)}
-      className={"normal-case!"}
     >
       {USERNAME_LIST_COPY.register}
     </Button>

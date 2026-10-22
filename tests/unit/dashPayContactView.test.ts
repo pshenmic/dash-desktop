@@ -11,13 +11,11 @@ import {
   contactRowMeta,
   contactSegmentOptions,
   contactsNoMatchLabel,
-  creditShortfall,
   extraNamesLabel,
   isDashAmountInput,
   payDoneNote,
   showInAllLabel,
 } from '@renderer/utils/dashPayContactView'
-import { shortIdentifier } from '@renderer/utils/identifierFormat'
 
 const NOW = Date.UTC(2026, 9, 22, 12, 0, 0)
 const HOUR = 3_600_000
@@ -46,10 +44,10 @@ describe('contact row copy', () => {
       .toBe('Request sent · 5d ago')
   })
 
-  it('leads with the short identifier, or No username when unnamed', () => {
+  it('leads with the full identifier, or No username when unnamed', () => {
     const named = contactRowModel(contact(), new Set())
     const unnamed = contactRowModel(contact({ aliasesList: [] }), new Set())
-    expect(contactRowCaption(named, NOW)).toBe(`${shortIdentifier(CONTACT_ID)} · Since 12 Oct 2026`)
+    expect(contactRowCaption(named, NOW)).toBe(`${CONTACT_ID} · Since 12 Oct 2026`)
     expect(contactRowCaption(unnamed, NOW)).toBe('No username · Since 12 Oct 2026')
   })
 
@@ -74,9 +72,10 @@ describe('contact list labels', () => {
     expect(options.map(option => option.value)).toEqual([ContactSegment.All, ContactSegment.Contacts, ContactSegment.Requests, ContactSegment.Sent])
   })
 
-  it('names the identity in the no-match state', () => {
+  it('names the identity in the no-match state only when it has a name', () => {
     expect(contactGroupLabel('Requests', 12)).toBe('Requests · 12')
-    expect(contactsNoMatchLabel('alice', '7cBLv…Fh9n')).toBe('No contacts match "alice" for 7cBLv…Fh9n')
+    expect(contactsNoMatchLabel('alice', 'owl352.dash')).toBe('No contacts match "alice" for owl352.dash')
+    expect(contactsNoMatchLabel('alice', null)).toBe('No contacts match "alice"')
     expect(showInAllLabel(3)).toBe('Show 3 in All')
   })
 })
@@ -93,7 +92,7 @@ describe('contact detail copy', () => {
   })
 })
 
-describe('amount and fee checks', () => {
+describe('amount checks', () => {
   it('accepts up to eight decimals', () => {
     expect(isDashAmountInput('')).toBe(true)
     expect(isDashAmountInput('0.12345678')).toBe(true)
@@ -101,11 +100,5 @@ describe('amount and fee checks', () => {
     expect(isDashAmountInput('0.123456789')).toBe(false)
     expect(isDashAmountInput('1.2.3')).toBe(false)
     expect(isDashAmountInput('abc')).toBe(false)
-  })
-
-  it('reports a shortfall only when the fee exceeds the balance', () => {
-    expect(creditShortfall(100n, null)).toBeNull()
-    expect(creditShortfall(100n, 100n)).toBeNull()
-    expect(creditShortfall(100n, 250n)).toBe(150n)
   })
 })

@@ -2,7 +2,6 @@ import { ArrowIcon, HighlightedIdentifier, Text, Tooltip } from '@renderer/compo
 import { ContextMenu } from '@renderer/components/ui/ContextMenu'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
-import { toast } from '@renderer/components/ui/Toast'
 import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'
 import { DASHPAY_CONTACT_ROW_CLASS } from '@renderer/constants/dashPay'
 import {
@@ -18,12 +17,9 @@ import { DashPayContactRelationship } from '@renderer/enums/DashPay'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
 import type { ContextMenuItem } from '@renderer/types/ContextMenu'
 import type { ContactRowProps } from '@renderer/types/DashPayContacts'
+import { copyWithToast } from '@renderer/utils/clipboard'
 import { contactDisplayName } from '@renderer/utils/dashPayContactList'
 import { contactRowCaption, extraNamesLabel } from '@renderer/utils/dashPayContactView'
-
-function copyText(text: string): void {
-  void navigator.clipboard.writeText(text).then(() => toast.success(CONTACT_MENU_COPY.copied))
-}
 
 export default function ContactRow({ model, now, canSend, onOpen, onAccept, onPay }: ContactRowProps): React.JSX.Element {
   const { contact, name, extraNames, isWalletIdentity, payable } = model
@@ -34,8 +30,8 @@ export default function ContactRow({ model, now, canSend, onOpen, onAccept, onPa
   const items: ContextMenuItem[] = [{ id: 'open', label: CONTACT_MENU_COPY.open, onSelect: () => onOpen(contact.contactId) }]
   if (payable) items.push({ id: 'pay', label: CONTACT_MENU_COPY.pay, onSelect: () => onPay(contact) })
   if (canAccept && canSend) items.push({ id: 'accept', label: CONTACT_MENU_COPY.accept, onSelect: () => onAccept(contact) })
-  items.push({ id: 'copy-id', label: CONTACT_MENU_COPY.copyId, onSelect: () => copyText(contact.contactId) })
-  if (name != null) items.push({ id: 'copy-name', label: CONTACT_MENU_COPY.copyName, onSelect: () => copyText(name) })
+  items.push({ id: 'copy-id', label: CONTACT_MENU_COPY.copyId, onSelect: () => copyWithToast(contact.contactId) })
+  if (name != null) items.push({ id: 'copy-name', label: CONTACT_MENU_COPY.copyName, onSelect: () => copyWithToast(name) })
 
   let action: React.JSX.Element
   if (contact.paymentChannelBroken && contact.relationship !== DashPayContactRelationship.Outgoing) {
@@ -84,12 +80,12 @@ export default function ContactRow({ model, now, canSend, onOpen, onAccept, onPa
             {name != null ? (
               <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{name}</Text>
             ) : (
-              <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>{contact.contactId}</HighlightedIdentifier>
+              <HighlightedIdentifier className={CONTACT_IDENTIFIER_CLASS}>{contact.contactId}</HighlightedIdentifier>
             )}
             {extraNames > 0 && <CustomBadge variant={'muted'} text={extraNamesLabel(extraNames)} className={'shrink-0'} />}
             {isWalletIdentity && <CustomBadge variant={'accent'} text={CONTACT_ROW_COPY.yourIdentity} className={'shrink-0 whitespace-nowrap'} />}
           </div>
-          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 truncate'}>
+          <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 wrap-anywhere'}>
             {contactRowCaption(model, now)}
           </Text>
         </div>

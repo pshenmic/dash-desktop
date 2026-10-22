@@ -10,7 +10,6 @@ import {
 import type { IdentityKeyVariant } from '@renderer/enums/DashPay'
 import type { KeyBoundsLabel, KeySelectionCheck } from '@renderer/types/IdentityKeys'
 import { keySlotsUsed } from './dashPayReadiness'
-import { shortIdentifier } from './identifierFormat'
 
 function isDashPayBounds(bounds: IdentityKeyBoundsDto | null): boolean {
   return bounds?.contractId === DASHPAY_CONTRACT_ID
@@ -59,7 +58,7 @@ export function validateKeySelection(existing: IdentityKeyDto[], selected: Ident
 export function keyBoundsLabel(bounds: IdentityKeyBoundsDto | null): KeyBoundsLabel | null {
   if (bounds == null) return null
   const isDashPay = isDashPayBounds(bounds)
-  const owner = isDashPay ? DASHPAY_BOUNDS_LABEL : shortIdentifier(bounds.contractId)
+  const owner = isDashPay ? DASHPAY_BOUNDS_LABEL : bounds.contractId
   return {
     text: bounds.documentType == null ? owner : `${owner}${IDENTITY_KEY_LABEL_SEPARATOR}${bounds.documentType}`,
     isDashPay,
@@ -69,7 +68,7 @@ export function keyBoundsLabel(bounds: IdentityKeyBoundsDto | null): KeyBoundsLa
 export function keyRequestLabel(request: IdentityKeyRequestDto): string {
   const parts = [keyLabel(request.purpose, IDENTITY_KEY_PURPOSE_LABELS), keyLabel(request.securityLevel, IDENTITY_KEY_LEVEL_LABELS)]
   if (request.contractBounds != null) {
-    parts.push(isDashPayBounds(request.contractBounds) ? DASHPAY_BOUNDS_LABEL : shortIdentifier(request.contractBounds.contractId))
+    parts.push(isDashPayBounds(request.contractBounds) ? DASHPAY_BOUNDS_LABEL : request.contractBounds.contractId)
   }
   return parts.join(IDENTITY_KEY_LABEL_SEPARATOR)
 }

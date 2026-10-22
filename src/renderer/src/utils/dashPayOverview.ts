@@ -10,7 +10,7 @@ import {
 } from '@renderer/enums/DashPay'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
 import type { DashPayReadinessInfo, SetupStepModel } from '@renderer/types/DashPay'
-import type { CountForms, OverviewBandModel, UsernameSummary } from '@renderer/types/DashPayOverview'
+import type { OverviewBandModel, UsernameSummary } from '@renderer/types/DashPayOverview'
 import type { UsernameRowModel } from '@renderer/types/Dpns'
 import { contactsForIdentity, sortContacts } from './dashPayContactList'
 
@@ -47,8 +47,4 @@ export function completedSetupSteps(steps: SetupStepModel[]): number {
 
 export function usernameSummary(rows: UsernameRowModel[]): UsernameSummary {
   return { total: rows.length, inVote: rows.filter(row => row.presentation === AliasPresentation.Voting).length }
-}
-
-export function countLabel(count: number, forms: CountForms): string {
-  return `${count} ${count === 1 ? forms.one : forms.other}`
 }

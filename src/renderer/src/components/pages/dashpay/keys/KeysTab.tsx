@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AddIcon, Button, Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
-import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
+import { DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import { KEYS_TAB_COPY, KEYS_TABLE_HEADERS, KEYS_TABLE_INNER_CLASS } from '@renderer/constants/dashPayKeys'
 import { IDENTITY_KEY_TABLE_GRID } from '@renderer/constants/identityKeys'
 import { SECTION_TABLE_HEADER, SECTION_TABLE_WRAPPER } from '@renderer/constants/sectionTable'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { KeysTabProps } from '@renderer/types/DashPayScreens'
+import { dashPayHref } from '@renderer/utils/dashPayIdentity'
 import { sortedIdentityKeys } from '@renderer/utils/dashPayKeySetup'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
-import { withParams } from '@renderer/utils/searchParams'
 import EnableDashPayModal from './EnableDashPayModal'
 import KeyTableRow from './KeyTableRow'
 import ReadinessAlert from './ReadinessAlert'
@@ -25,11 +25,11 @@ export default function KeysTab({ identity, onSwitchIdentity }: KeysTabProps): R
 
   const openAddKeys = (): void => {
     const state: DashPayNavigationState = { returnTo: location.pathname + location.search }
-    navigate(`${DASHPAY_ROUTES.addKeys}?${withParams('', { [DASHPAY_PARAMS.identity]: identity.identifier })}`, { state })
+    navigate(dashPayHref(DASHPAY_ROUTES.addKeys, identity.identifier), { state })
   }
 
   const addKeysButton = (
-    <Button type={"button"} size={"compact"} colorScheme={"lightBlue-mint"} className={"gap-2 normal-case!"} disabled={noSlots} onClick={openAddKeys}>
+    <Button type={"button"} size={"compact"} colorScheme={"lightBlue-mint"} className={"gap-2"} disabled={noSlots} onClick={openAddKeys}>
       <AddIcon size={12} color={"currentColor"} />
       {KEYS_TAB_COPY.addKeys}
     </Button>

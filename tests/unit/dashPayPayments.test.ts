@@ -15,11 +15,11 @@ describe('paymentTotals', () => {
 
 describe('dashPayPaymentCard', () => {
   it('maps a sent payment onto an outgoing core card', () => {
-    expect(dashPayPaymentCard(sent, 'alice.dash')).toEqual({
+    expect(dashPayPaymentCard(sent)).toEqual({
       id: sent.txid,
       status: 'success',
       kind: 'core',
-      title: 'Sent to alice.dash',
+      title: 'Sent',
       subtitleLabel: 'Transaction ID',
       labelValue: sent.txid,
       amount: 25_000_000n,
@@ -29,6 +29,6 @@ describe('dashPayPaymentCard', () => {
   })
 
   it('maps a received payment onto an incoming card', () => {
-    expect(dashPayPaymentCard(received, 'alice.dash')).toMatchObject({ title: 'Received from alice.dash', direction: 'in', amount: 50_000_000n })
+    expect(dashPayPaymentCard(received)).toMatchObject({ title: 'Received', direction: 'in', amount: 50_000_000n })
   })
 })

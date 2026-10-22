@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, CircleProcessIcon, InfoCircleIcon, LockIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
@@ -23,6 +23,7 @@ import {
   VOTE_PANEL_CLASS,
   VOTE_NODE_LIST_CLASS,
 } from '@renderer/constants/nameContests'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import { CHIP_ACTION, ICON_CHIP, SURFACE_PANEL, SURFACE_ROW } from '@renderer/constants/surfaces'
 import { AlertTone } from '@renderer/enums/AlertTone'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
@@ -32,6 +33,7 @@ import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useMasternodeVotes } from '@renderer/hooks/useMasternodeVotes'
 import { useMasternodes } from '@renderer/hooks/useMasternodes'
 import { refreshNameContests, useNameContests } from '@renderer/hooks/useNameContests'
+import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { VoteChoiceDto, VoteShare } from '@renderer/types/Masternodes'
 import type { ContestDetailProps } from '@renderer/types/MasternodeScreens'
 import type { ContenderOptionControls, ContestOutcomeProps } from '@renderer/types/NameContests'
@@ -43,12 +45,12 @@ import {
   filterContenderShares,
   formatVoteCount,
   selectedVoteRows,
-  towardsContender,
   voteNodeRows,
 } from '@renderer/utils/contestVoting'
 import { writeStoredIdentity } from '@renderer/utils/dashPayIdentityStorage'
+import { fullDpnsName } from '@renderer/utils/dpnsLabel'
 import { nextListIndex } from '@renderer/utils/listNavigation'
-import { contenderName, contenderShares, contestTiming, voteChoiceLabel } from '@renderer/utils/nameContests'
+import { contenderName, contenderShares, contestTiming, towardsContender, voteChoiceLabel } from '@renderer/utils/nameContests'
 import { formatTimeLeft } from '@renderer/utils/timeLeft'
 import { voteChoiceEquals } from '@renderer/utils/masternodes'
 import ContenderOption from './ContenderOption'
@@ -66,7 +68,7 @@ export default function ContestDetail({ walletId, now, normalizedLabel, onBack, 
   const [reviewing, setReviewing] = useState(false)
   const [query, setQuery] = useState('')
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
-  const walletIdentifiers = useMemo(() => new Set(identities.map(identity => identity.identifier)), [identities])
+  const walletIdentifiers = useWalletIdentifiers(identities)
   const contest = contests.find(candidate => candidate.normalizedLabel === normalizedLabel)
 
   if (contest == null) {
@@ -138,8 +140,8 @@ export default function ContestDetail({ walletId, now, normalizedLabel, onBack, 
     <div className={'flex flex-col'}>
       <PageHeader
         onBack={onBack}
-        backLabel={CONTEST_DETAIL_COPY.back}
-        title={`${contest.label}.dash`}
+        backLabel={PAGE_HEADERS.nameContest.back}
+        title={fullDpnsName(contest.label)}
         titleAddon={<StatusPill tone={status.tone}>{status.label}</StatusPill>}
         subtitle={contestTiming(contest, now)}
         actions={closed ? undefined : (
@@ -181,7 +183,7 @@ export default function ContestDetail({ walletId, now, normalizedLabel, onBack, 
                       </>
                     )}
                     caption={caption === '' ? undefined : (
-                      <Text size={10} weight={'medium'} color={'brand'} opacity={50} className={'truncate'}>{caption}</Text>
+                      <Text size={10} weight={'medium'} color={'brand'} opacity={50} className={'wrap-anywhere'}>{caption}</Text>
                     )}
                     votes={contender.votes}
                     share={share.share}
@@ -252,9 +254,9 @@ function ContestOutcome({ contest, nodes, votes }: ContestOutcomeProps): React.J
           <Text size={10} weight={'medium'} color={'brand'} opacity={40} className={LIST_GROUP_LABEL_CLASS}>{CONTEST_DETAIL_COPY.yourVotes}</Text>
           <div className={VOTE_NODE_LIST_CLASS}>
             {ours.map(vote => (
-              <div key={vote.proTxHash} className={`flex items-center justify-between gap-3 ${SURFACE_ROW}`}>
-                <Text size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{labels.get(vote.proTxHash) ?? vote.proTxHash}</Text>
-                <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0'}>{voteChoiceLabel(vote.choice, contest)}</Text>
+              <div key={vote.proTxHash} className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-1 ${SURFACE_ROW}`}>
+                <Text size={14} weight={'medium'} color={'brand'} className={'min-w-0 wrap-anywhere'}>{labels.get(vote.proTxHash) ?? vote.proTxHash}</Text>
+                <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'ml-auto min-w-0 wrap-anywhere text-right'}>{voteChoiceLabel(vote.choice, contest)}</Text>
               </div>
             ))}
           </div>

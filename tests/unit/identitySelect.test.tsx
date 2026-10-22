@@ -90,6 +90,13 @@ describe('IdentitySelect field appearance', () => {
     expect(markup).not.toContain('type="search"')
   })
 
+  it('shows the full identifier of an identity without a username', () => {
+    const identities = wallet(2)
+    const markup = select({ identities, selected: identities[1] })
+    expect(markup).toContain(identities[1].identifier.slice(5, -5))
+    expect(markup).not.toContain('text-ellipsis')
+  })
+
   it('offers a reload instead of a list while identities fail to load', () => {
     const markup = select({ error: 'Failed to load identities', identities: [], selected: undefined })
     expect(markup).toContain('aria-label="Reload identities"')
@@ -120,6 +127,17 @@ describe('IdentitySelect header appearance', () => {
     expect(markup).toContain('min-w-0 truncate')
     expect(markup).toContain('+20')
     expect(markup).not.toContain('name19.dash')
+  })
+
+  it('keeps a fixed width for a name and widens to fit a full identifier', () => {
+    const identities = wallet(2)
+    const named = select({ appearance: IdentitySelectAppearance.Header, identities, selected: identities[0] })
+    expect(named).toContain('w-[17.5rem]')
+    expect(named).not.toContain('w-max')
+    const bare = select({ appearance: IdentitySelectAppearance.Header, identities, selected: identities[1] })
+    expect(bare).toContain('w-max min-w-[17.5rem]')
+    expect(bare).toContain(identities[1].identifier.slice(5, -5))
+    expect(bare).not.toContain('text-ellipsis')
   })
 
   it('names the acting identity and flags requests elsewhere', () => {

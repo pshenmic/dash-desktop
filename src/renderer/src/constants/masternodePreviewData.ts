@@ -66,8 +66,6 @@ export const PREVIEW_NODE_PORTS: Record<Network, number> = {
   testnet: 19999,
 }
 
-export const PREVIEW_CONTEST_COUNT = 120
-
 export const PREVIEW_CONTEST_MIX: PreviewContestMix = {
   open: 38,
   endingSoon: 5,

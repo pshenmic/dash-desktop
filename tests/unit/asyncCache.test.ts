@@ -272,4 +272,19 @@ describe('setAsyncCache', () => {
     await flushPromises()
     expect(fetches).toBe(1)
   })
+
+  it('keeps the written value when a fetch started before the write resolves after it', async () => {
+    let resolveFetch: (value: number) => void = () => {}
+    const pending = new Promise<number>((resolve) => { resolveFetch = resolve })
+    useAsyncWithCache('raced', 'wallet', () => pending, 0)
+
+    setAsyncCache('raced', 'wallet', 42)
+    reactMock.setState.mockClear()
+    resolveFetch(7)
+    await flushPromises()
+    await flushPromises()
+
+    expect(reactMock.setState).not.toHaveBeenCalledWith(7)
+    expect(reactMock.setState).toHaveBeenCalledWith(42)
+  })
 })

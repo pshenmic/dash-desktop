@@ -16,7 +16,6 @@ import type {
 } from '@renderer/types/Masternodes'
 import { formatCreationDate, formatTimestamp } from './date'
 import { normalizeDpnsLabel, stripDpnsInput } from './dpnsLabel'
-import { shortIdentifier } from './identifierFormat'
 import { canVote, voteChoiceEquals } from './masternodes'
 
 function voteShare(votes: number, total: number): number {
@@ -28,13 +27,13 @@ export function contestTotalVotes(contest: NameContestDto): number {
 }
 
 export function contenderName(contender: ContestContenderDto): string {
-  return contender.displayName ?? shortIdentifier(contender.identifier)
+  return contender.displayName ?? contender.identifier
 }
 
 export function voteChoiceLabel(choice: VoteChoiceDto, contest: NameContestDto): string {
   if (choice.kind !== VoteChoiceKind.TowardsIdentity) return VOTE_CHOICE_LABELS[choice.kind]
   const contender = contest.contenders.find(entry => entry.identifier === choice.identifier)
-  return contender == null ? shortIdentifier(choice.identifier ?? '') : contenderName(contender)
+  return contender == null ? choice.identifier ?? '' : contenderName(contender)
 }
 
 export function isEndingSoon(contest: NameContestDto, now: number, network: Network): boolean {
@@ -118,8 +117,12 @@ export function sortContests(contests: NameContestDto[], sort: ContestSort): Nam
   return [...contests].sort((a, b) => compareContests(a, b, sort) || a.normalizedLabel.localeCompare(b.normalizedLabel))
 }
 
-function towards(contender: ContestContenderDto): VoteChoiceDto {
+export function towardsContender(contender: ContestContenderDto): VoteChoiceDto {
   return { kind: VoteChoiceKind.TowardsIdentity, identifier: contender.identifier }
+}
+
+export function rankContenders(contenders: ContestContenderDto[]): ContestContenderDto[] {
+  return [...contenders].sort((a, b) => b.votes - a.votes || a.requestedAt - b.requestedAt)
 }
 
 export function contestLeader(contest: NameContestDto): ContestLeader {
@@ -133,7 +136,7 @@ export function contestLeader(contest: NameContestDto): ContestLeader {
   }
   const nobody: ContestLeader = { choice: null, contender: null, votes: 0, share: 0, tie: false }
   const leading = (contender: ContestContenderDto): ContestLeader => ({
-    choice: towards(contender),
+    choice: towardsContender(contender),
     contender,
     votes: contender.votes,
     share: voteShare(contender.votes, total),
@@ -158,13 +161,11 @@ export function contenderShares(contest: NameContestDto): ContestShares {
   const total = contestTotalVotes(contest)
   const leader = contestLeader(contest).contender
   return {
-    contenders: [...contest.contenders]
-      .sort((a, b) => b.votes - a.votes || a.requestedAt - b.requestedAt)
-      .map(contender => ({
-        contender,
-        share: voteShare(contender.votes, total),
-        leading: leader?.identifier === contender.identifier,
-      })),
+    contenders: rankContenders(contest.contenders).map(contender => ({
+      contender,
+      share: voteShare(contender.votes, total),
+      leading: leader?.identifier === contender.identifier,
+    })),
     lock: { votes: contest.votesLock, share: voteShare(contest.votesLock, total) },
     abstain: { votes: contest.votesAbstain, share: voteShare(contest.votesAbstain, total) },
     total,
