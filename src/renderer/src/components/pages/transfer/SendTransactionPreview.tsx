@@ -29,25 +29,25 @@ function PreviewAmount({amount, unit}: SendPreviewAmountProps): React.JSX.Elemen
 function PreviewRows({rows}: SendPreviewRowsProps): React.JSX.Element {
   return <div className="flex flex-col gap-3">
     {rows.map((row, index) => (
-      <div key={index} className={`flex flex-col gap-2 ${SURFACE_ROW}`}>
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="flex items-start gap-1.5 min-w-0 flex-1">
+      <div key={index} className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 ${SURFACE_ROW}`}>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex min-w-0 items-center gap-1.5">
             {row.address
               ? <HighlightedIdentifier className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{row.address}</HighlightedIdentifier>
               : <Text size={14} weight="medium" color="brand" className="min-w-0">{row.addressLabel}</Text>}
-            {row.address && <span className="shrink-0 pt-0.5"><CopyButton text={row.address} /></span>}
+            {row.address && <CopyButton text={row.address} className="shrink-0" />}
           </div>
-          <Text size={14} weight="extrabold" color="brand" className="shrink-0">
-            <PreviewAmount amount={row.amount} unit={row.unit} />
-          </Text>
-        </div>
-        {(row.reference || SEND_PREVIEW_ROLE_LABELS[row.role]) && <div className="flex flex-wrap items-center gap-2">
-          {SEND_PREVIEW_ROLE_LABELS[row.role] && <CustomBadge text={SEND_PREVIEW_ROLE_LABELS[row.role]!} variant="muted" size="xs" />}
-          {row.reference && <div className="flex items-start gap-1.5 min-w-0">
-            <Text size={12} weight="medium" color="brand" opacity={50} className="font-mono break-all">{row.reference}</Text>
-            <span className="shrink-0"><CopyButton text={row.reference} /></span>
+          {(row.reference || SEND_PREVIEW_ROLE_LABELS[row.role]) && <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {SEND_PREVIEW_ROLE_LABELS[row.role] && <CustomBadge text={SEND_PREVIEW_ROLE_LABELS[row.role]!} variant="muted" size="xs" />}
+            {row.reference && <>
+              <Text size={12} weight="medium" color="brand" opacity={50} className="min-w-0 font-mono break-all">{row.reference}</Text>
+              <CopyButton text={row.reference} className="shrink-0" />
+            </>}
           </div>}
-        </div>}
+        </div>
+        <Text size={14} weight="extrabold" color="brand" className="shrink-0">
+          <PreviewAmount amount={row.amount} unit={row.unit} />
+        </Text>
       </div>
     ))}
   </div>
