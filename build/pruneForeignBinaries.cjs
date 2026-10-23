@@ -17,7 +17,8 @@ module.exports = async function pruneForeignBinaries(context) {
     darwin: ['apple-darwin'],
     mas: ['apple-darwin'],
     win32: ['pc-windows-msvc'],
-    linux: ['unknown-linux-gnu', 'unknown-linux-musl'],
+    // Electron is built against glibc only, so a musl build can never load.
+    linux: ['unknown-linux-gnu'],
   }[context.electronPlatformName]
 
   // ia32 and armv7l have no build at all and fall back to the wasm.

@@ -8,9 +8,10 @@ import type { SendConfirmModalProps } from '@renderer/types/SendConfirmModal'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import { SendLockPhase } from '@renderer/enums/SendLockPhase'
 import { davToDash } from '@renderer/utils/balance'
+import { getErrorMessage } from '@renderer/utils/error'
 import { transactionUrl } from '@renderer/utils/explorer'
 import Spinner from '@renderer/components/ui/Spinner'
-import CopyableError from '@renderer/components/ui/CopyableError'
+import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
@@ -49,18 +50,20 @@ export default function SendConfirmModal({
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<ConfirmModalPhase>(ConfirmModalPhase.Confirm)
   const [lockPhase, setLockPhase] = useState<SendLockPhase>(SendLockPhase.Waiting)
-  const [error, setError] = useState<string | null>(null)
+  const [passwordInvalid, setPasswordInvalid] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
   const [sentRecipients, setSentRecipients] = useState<CoreRecipient[]>([])
+  const pollingErrorNotified = useRef(false)
 
   useEffect(() => {
     if (isOpen) {
       setPassword('')
       setPhase(ConfirmModalPhase.Confirm)
       setLockPhase(SendLockPhase.Waiting)
-      setError(null)
+      setPasswordInvalid(false)
       setResult(null)
       setSentRecipients([])
+      pollingErrorNotified.current = false
     }
   }, [isOpen])
 
@@ -71,7 +74,18 @@ export default function SendConfirmModal({
     let timer: ReturnType<typeof setTimeout> | undefined
     const startedAt = Date.now()
     const poll = async (): Promise<void> => {
-      const status: TxLockStatus | null = await API.getTxLockStatus(walletId, txid).catch(() => null)
+      let status: TxLockStatus | null = null
+      try {
+        status = await API.getTxLockStatus(walletId, txid)
+        if (cancelled) return
+        pollingErrorNotified.current = false
+      } catch (error) {
+        console.error('Failed to load transaction lock status', error)
+        if (!cancelled && !pollingErrorNotified.current) {
+          pollingErrorNotified.current = true
+          toast.error(getErrorMessage(error))
+        }
+      }
       if (cancelled) return
       let final: SendLockPhase | null = null
       if (status?.instantLocked) final = SendLockPhase.Instant
@@ -105,11 +119,11 @@ export default function SendConfirmModal({
   const handleConfirm = async (): Promise<void> => {
     if (!walletId || password.length === 0 || sending || !sourceValidRef.current) return
     setPhase(ConfirmModalPhase.Sending)
-    setError(null)
+    setPasswordInvalid(false)
     try {
       const ok = await API.verifyWalletPassword(walletId, password)
       if (!ok) {
-        setError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setPasswordInvalid(true)
         setPhase(ConfirmModalPhase.Confirm)
         return
       }
@@ -124,7 +138,8 @@ export default function SendConfirmModal({
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Transaction failed')
+      console.error('Transaction failed', e)
+      toast.error(getErrorMessage(e))
       setPhase(ConfirmModalPhase.Confirm)
     }
   }
@@ -181,7 +196,7 @@ export default function SendConfirmModal({
                   </div>
                   <div className="grid grid-cols-[8rem_minmax(0,1fr)] items-baseline gap-4">
                     <Text size={14} weight="medium" color="brand" opacity={50}>Total</Text>
-                    <Text size={14} weight="extrabold" color="brand" className="text-right">{davToDash(amountDuffs + feeDuffs)} Dash</Text>
+                    <Text size={14} weight="extrabold" color="brand" className="text-right">{davToDash(amountDuffs + feeDuffs)}<span className="font-normal"> Dash</span></Text>
                   </div>
                 </div>
               )}
@@ -195,23 +210,15 @@ export default function SendConfirmModal({
                 aria-label="Wallet password"
                 value={password}
                 variant={"outlined"}
-                onChange={(e) => { setError(null); setPassword(e.target.value) }}
+                onChange={(e) => { setPasswordInvalid(false); setPassword(e.target.value) }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
                 className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={error ? 'error' : 'primary'}
+                colorScheme={passwordInvalid ? 'error' : 'primary'}
                 disabled={sending}
                 autoFocus
               />
             </div>
-            <div
-              className={`
-                overflow-hidden transition-all duration-200
-                ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-              `}
-            >
-              <CopyableError message={error ?? ''} />
-            </div>
-
+            {passwordInvalid && <Text size={12} weight="medium" color="red" className="mt-2 block">{INVALID_WALLET_PASSWORD_MESSAGE}</Text>}
             <div className={"mt-4.5 flex gap-2"}>
               <Button
                 type={"button"}
@@ -245,7 +252,7 @@ export default function SendConfirmModal({
                 <SuccessIcon size={56} />
               </div>
               <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? davToDash(result.amount) : ''} Dash sent
+                {result ? davToDash(result.amount) : ''}<span className="font-normal"> Dash</span> sent
               </Text>
               <div className={"mt-2 flex items-center justify-center gap-2"}>
                 {lockFinal

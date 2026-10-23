@@ -12,7 +12,7 @@ export default function CreditsAmount({
   showFiat = true,
   align = 'start',
   amountClassName,
-  unitClassName,
+  unitClassName = 'font-normal',
   className,
 }: CreditsAmountProps): React.JSX.Element {
   const { format: formatFiat, rateReady } = useFiat()

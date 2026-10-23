@@ -3,8 +3,6 @@ import {AssetLockProofParams} from '../../platform/types/messages'
 import {CoreSpendSource} from './CoinSelection'
 import {AssetLockFundingStatus} from '../enums/AssetLockFundingStatus'
 import {Network} from './Network'
-import {Transaction} from './Transaction'
-import {TxLockStatus} from './TxLockStatus'
 
 export type AssetLockFundingKind = 'address' | 'shielded' | 'identity' | 'identityTopUp'
 
@@ -53,8 +51,6 @@ export interface AssetLockFunder {
   waitForInstantLock(txid: string, timeoutMs: number): Promise<string | null>
   waitForChainLock(network: Network, minHeight: number, timeoutMs: number): Promise<number | null>
   chainlockedHeight(network: Network): number
-  getTxLockStatus(walletId: string, txid: string): Promise<TxLockStatus>
-  getTransaction(walletId: string, txid: string): Promise<Transaction>
   // Which of these have on-chain history. Provider-backed, so it answers in
   // both connection modes.
   getUsedAddresses(walletId: string, addresses: string[]): Promise<string[]>

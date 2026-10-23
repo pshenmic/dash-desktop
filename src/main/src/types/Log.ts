@@ -18,3 +18,8 @@ export interface LoggerOptions {
   // rides along at the head of the line and is stripped again on arrival.
   levelPrefix?: boolean
 }
+
+// Electron types app.getGPUInfo('complete') as unknown.
+export interface GPUInfo {
+  gpuDevice?: {active: boolean; deviceString?: string; driverVersion?: string}[]
+}

@@ -42,6 +42,17 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+# Microsoft Store package, built with `yarn build:appx` (Windows only). The
+# identity values must match Partner Center > Product identity exactly; the
+# Store signs the package, so no certificate is configured here.
+appx:
+  artifactName: ${name}-${version}-${os}-${arch}.${ext}
+  identityName: pshenmic.DashDesktopWallet
+  publisher: CN=F3D9682F-67CF-45D7-8991-A7AD551E393A
+  publisherDisplayName: pshenmic
+  applicationId: DashDesktop
+  displayName: Dash Desktop Wallet
+  backgroundColor: '#4C7EFF'
 mac:
   entitlements: buildResources/entitlements.mac.plist
   entitlementsInherit: buildResources/entitlements.mac.plist
@@ -56,16 +67,19 @@ mac:
 dmg:
   artifactName: ${name}-${version}-${os}-${arch}.${ext}
 linux:
+  # No arch here: a target's own arch overrides --x64/--arm64, and the native
+  # modules are compiled from source, so each arch is built on its own runner.
   target:
-    - target: AppImage
-      arch:
-        - x64
-    - target: deb
-      arch:
-        - x64
+    - AppImage
+    - deb
   maintainer: pshenmic.dev
   category: Office;Finance;
   syncDesktopName: true
+  # Matches the snap's launcher name; productName would also rename the macOS
+  # app, the Windows installer and the deb's install folder.
+  desktop:
+    entry:
+      Name: Dash Desktop Wallet
 # The default toolset embeds a runtime that dlopens libfuse.so.2, which Ubuntu
 # 24.04 no longer ships; 1.x embeds the static type2 runtime instead.
 toolsets:

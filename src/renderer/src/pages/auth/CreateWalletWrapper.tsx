@@ -1,13 +1,10 @@
 import { Text, WalletIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { ChevronIcon, DashLogo, useTheme } from "dash-ui-kit/react";
+import { ChevronIcon, DashLogo } from "dash-ui-kit/react";
 import { authTexts } from "@renderer/constants";
 import { useCreateWallet } from "@renderer/hooks/useCreateWallet";
 import { ProgressStepBar } from "@renderer/components/dash-ui-kit-enxtended/progressStepBar";
 import { useRipple } from "@renderer/hooks/useRipple";
-import waveAuth from '@renderer/assets/images/pageAuthorization/waveAuth.png';
-import authBgFlower from '@renderer/assets/images/pageAuthorization/auth-bg-flower.png';
-import bgLight from '@renderer/assets/images/pageAuthorization/Frame 717779 (1).png';
-import bgDark from '@renderer/assets/images/pageAuthorization/Frame 717781 (1).png';
+import AuthBackground from '@renderer/components/pages/auth/AuthBackground'
 import CreateWallet from "../../components/pages/auth/CreateWallet";
 import SeedPhrase from "../../components/pages/auth/SeedPhrase";
 import VerifySeedPhrase from "../../components/pages/auth/VerifySeedPhrase";
@@ -35,8 +32,6 @@ export default function CreateWalletWrapper(): React.JSX.Element {
     importSeedPhrase,
     connectionMode: connectionModeTexts,
   } = authTexts
-  const { theme } = useTheme()
-  const backgroundImage = theme === 'dark' ? bgDark : bgLight
 
   const {
     step,
@@ -118,25 +113,16 @@ export default function CreateWalletWrapper(): React.JSX.Element {
   const description = descriptions[step] ?? ''
   const progress = path === null ? null : CREATE_WALLET_PROGRESS[path]
 
-  const wave = step === 'welcome' ? authBgFlower : waveAuth
-
   if (step === 'success') return <Success data={path === 'create' ? success : successImport} walletId={createdWalletId} />
 
   return (
     <div className={"relative flex min-h-screen items-end"}>
-      <img
-        src={backgroundImage}
-        alt={"background gradient"}
-        className={"dash-bg-image-auth"}
-      />
-      <img
-        src={wave}
-        alt={"wave"}
-        className={"dash-bg-image-auth"}
-      />
+      <AuthBackground variant={step === 'welcome' ? 'welcome' : 'create'} />
 
       {showBackButton &&
         <button
+          type="button"
+          aria-label="Back"
           onMouseEnter={hoverAnimation.onMouseEnter}
           onMouseMove={hoverAnimation.onMouseMove}
           onMouseLeave={hoverAnimation.onMouseLeave}
@@ -152,7 +138,8 @@ export default function CreateWalletWrapper(): React.JSX.Element {
             justify-center
             rounded-[.9375rem]
             cursor-pointer
-            bg-white/12
+            bg-dash-brand/80
+            dark:bg-white/12
             backdrop-blur-[.5rem]
           `}
           onClick={handleBack}
@@ -168,7 +155,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
 
       <NetworkBadge network={network} onChange={setNetwork} />
 
-      <div className={"relative flex flex-col w-full h-full items-center justify-end p-12 pt-[25vh] "}>
+      <div className={"relative flex flex-col w-full h-full items-center justify-end p-12 pt-[max(9rem,25vh)]"}>
         <div className={"flex flex-col w-full mb-8"}>
           <DashLogo  containerSize={50}/>
           <Text as={"h1"} className={"mt-6 leading-[78%] tracking-[-0.03em]"} color={"brand"} size={64} weight={"extrabold"}>{title}</Text>

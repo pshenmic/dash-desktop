@@ -25,7 +25,7 @@ vi.mock('react', async importOriginal => ({
   useEffect: () => {},
 }))
 vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Input: 'input', Text: 'span', ChevronIcon: 'chevron'}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({SearchIcon: 'search', PlusIcon: 'plus', DeleteIcon: 'delete', CheckIcon: 'check'}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({SearchIcon: 'search', PlusIcon: 'plus', DeleteIcon: 'delete', CheckIcon: 'check', RefreshIcon: 'refresh'}))
 vi.mock('dash-ui-kit/react', () => ({Identifier: 'identifier'}))
 vi.mock('@renderer/hooks/useClickOutside', () => ({useClickOutside: () => {}}))
 vi.mock('@renderer/hooks/useAddressBook', () => ({useAddressBook: () => ({contacts: harness.contacts, network: 'testnet', addContact: harness.addContact, deleteContact: harness.deleteContact})}))

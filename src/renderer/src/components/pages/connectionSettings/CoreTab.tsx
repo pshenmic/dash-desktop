@@ -18,8 +18,7 @@ import {
   ADD_PEER_PLACEHOLDER,
   BANNED_PEER_STATUS_LABEL,
   CONNECTION_SETTINGS_TOOLTIPS,
-  CORE_CONNECTION_MODE_LABELS,
-  CORE_CONNECTION_MODE_OPTIONS,
+  CORE_CONNECTION_SWITCH_POSITIONS,
   DYNAMIC_PEER_ADDED_MESSAGE,
   DYNAMIC_PEER_ALREADY_ADDED_MESSAGE,
   DYNAMIC_PEER_MODE_ENABLED_MESSAGE,
@@ -57,132 +56,9 @@ import type {
   PeerRowAction,
   PeerTableRow,
   PeerTableTab,
-  WalletConnectionMode,
   WalletSyncAction,
 } from '@renderer/types/connection'
-
-function SectionTitle({
-  label,
-  tooltip,
-  className = '',
-}: {
-  label: string
-  tooltip: string
-  className?: string
-}): React.JSX.Element {
-  return (
-    <div className={`mb-3 flex items-center gap-2 ${className}`}>
-      <Text as="h2" size={14} weight="medium" color="brand" opacity={50}>
-        {label}
-      </Text>
-      <InfoTooltip content={tooltip} />
-    </div>
-  )
-}
-
-function SwitchControl({
-  checked,
-  disabled = false,
-  label,
-  onChange,
-}: {
-  checked: boolean
-  disabled?: boolean
-  label: string
-  onChange: () => void
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-label={label}
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={onChange}
-      className={`
-        flex h-7 w-14 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors
-        disabled:cursor-wait disabled:opacity-60
-        ${checked
-          ? 'justify-end bg-dash-brand/30 dark:bg-dash-mint/25'
-          : 'justify-start bg-dash-primary-dark-blue/15 dark:bg-white/15'}
-      `}
-    >
-      <span
-        className={`
-          size-6 rounded-full shadow-sm transition-colors
-          ${checked ? 'bg-dash-brand dark:bg-dash-mint' : 'bg-white'}
-        `}
-      />
-    </button>
-  )
-}
-
-function SettingsRow({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <div className="flex min-h-[3.75rem] items-center justify-between gap-5 rounded-[1.25rem] dash-block px-4 py-3 sm:px-5">
-      <Text size={14} weight="medium" color="brand" className="min-w-0">
-        {label}
-      </Text>
-      {children}
-    </div>
-  )
-}
-
-function WalletConnectionSelector({
-  desired,
-  ready,
-  setDesired,
-}: {
-  desired: WalletConnectionMode
-  ready: boolean
-  setDesired: (next: WalletConnectionMode) => void
-}): React.JSX.Element {
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Wallet connection mode"
-      className="relative grid h-10 w-[3.25rem] shrink-0 grid-cols-2"
-    >
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-6 rounded-full bg-dash-primary-dark-blue/15 dark:bg-white/15"
-      >
-        <span
-          className={`
-            block size-6 rounded-full bg-dash-brand shadow-sm transition-transform dark:bg-dash-mint
-            ${desired === 'rpc' ? 'translate-x-7' : 'translate-x-0'}
-          `}
-        />
-      </div>
-      {CORE_CONNECTION_MODE_OPTIONS.map((mode) => (
-        <button
-          key={mode}
-          type="button"
-          role="radio"
-          aria-label={`Use ${CORE_CONNECTION_MODE_LABELS[mode]} mode`}
-          aria-checked={desired === mode}
-          disabled={!ready}
-          onClick={() => desired !== mode && setDesired(mode)}
-          className={`
-            relative z-10 flex cursor-pointer items-start justify-center text-[9px] font-medium leading-none
-            disabled:cursor-wait disabled:opacity-60
-            ${desired === mode
-              ? 'text-dash-brand dark:text-dash-mint'
-              : 'text-dash-primary-dark-blue/45 dark:text-white/45'}
-          `}
-        >
-          {CORE_CONNECTION_MODE_LABELS[mode]}
-        </button>
-      ))}
-    </div>
-  )
-}
+import {SectionTitle, SettingsRow, SwitchControl} from './SettingsControls'
 
 function AddPeerForm({
   pendingLabel,
@@ -573,7 +449,13 @@ export default function CoreTab(): React.JSX.Element {
       <SectionTitle label="General" tooltip={CONNECTION_SETTINGS_TOOLTIPS.general} />
       <div className="max-w-[24rem]">
         <SettingsRow label="Wallet Connection">
-          <WalletConnectionSelector desired={desired} ready={ready} setDesired={setDesired} />
+          <SwitchControl
+            checked={desired === 'rpc'}
+            disabled={!ready}
+            label="Wallet connection mode"
+            positions={CORE_CONNECTION_SWITCH_POSITIONS}
+            onChange={checked => setDesired(checked ? 'rpc' : 'p2p')}
+          />
         </SettingsRow>
       </div>
 
@@ -598,7 +480,7 @@ export default function CoreTab(): React.JSX.Element {
       </div>
 
       <SectionTitle label="RPC Connection" tooltip={CONNECTION_SETTINGS_TOOLTIPS.rpc} className="mt-6" />
-      <div className="max-w-[24rem]">
+      <fieldset disabled className="max-w-[24rem]">
         <DropdownField
           options={RPC_CONNECTION_OPTIONS}
           value={rpcConnection}
@@ -606,7 +488,7 @@ export default function CoreTab(): React.JSX.Element {
           ariaLabel="RPC connection"
           triggerClassName="h-[3.75rem] rounded-[1.25rem] border border-dash-primary-dark-blue/25 px-5 dark:border-white/25"
         />
-      </div>
+      </fieldset>
 
       <div className="mt-7">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">

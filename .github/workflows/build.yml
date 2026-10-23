@@ -28,6 +28,12 @@ jobs:
             artifacts: |
               dist/*.AppImage
               dist/*.deb
+          - name: linux-arm64
+            os: ubuntu-22.04-arm
+            script: build:linux
+            artifacts: |
+              dist/*.AppImage
+              dist/*.deb
           - name: mac
             os: macos-latest
             script: build:mac
