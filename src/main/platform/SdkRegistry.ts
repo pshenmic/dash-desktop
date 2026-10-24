@@ -3,15 +3,18 @@ import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 
 import {NETWORKS} from './constants'
+import {P2PQuorumKeyProvider} from './P2PQuorumKeyProvider'
 import {Dapi} from './types/messages'
 import {SdkSource} from './types/sdk'
 
-// One SDK per network, replaced on a DAPI change and otherwise never mutated.
+// One SDK per network, replaced on a DAPI change.
 // `setNetwork` is deliberately never called: it rebuilds the gRPC pool and
 // replaces every controller, leaving anything in flight holding swapped-out
 // objects. A replaced SDK keeps serving whatever already holds it.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
+  private readonly pinnedDapiUrls = new Map<Network, string[]>()
+  private readonly quorumKeyProviders = new Map(NETWORKS.map(network => [network, new P2PQuorumKeyProvider(network)]))
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
   private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
@@ -21,13 +24,25 @@ export class SdkRegistry implements SdkSource {
     this.sdks.clear()
   }
 
+  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    this.quorumKeyProviders.get(network)?.setKeys(keys)
+  }
+
+  setPinnedDapiUrls(network: Network, dapiUrls: string[]): void {
+    this.pinnedDapiUrls.set(network, dapiUrls)
+    this.sdks.delete(network)
+  }
+
   get(network: Network): DashPlatformSDK {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
     const own = this.dapi[network]
-    const sdk = this.dapi.mode === 'static' && own.length > 0
-      ? new DashPlatformSDK({network, grpc: {dapiUrl: [...own]}})
-      : new DashPlatformSDK({network})
+    const dapiUrls = this.dapi.mode === 'static' && own.length > 0 ? own : this.pinnedDapiUrls.get(network)
+    const sdk = new DashPlatformSDK({
+      network,
+      grpc: {dapiUrl: [...dapiUrls ?? []]},
+      quorumKeyProvider: this.quorumKeyProviders.get(network),
+    })
     // init assigns the builder before its first await; the warmed builder's
     // own init is memoised.
     if (this.builder != null) void sdk.shielded.init(this.builder)
