@@ -14,7 +14,7 @@ const input = cva(
       colorScheme: {
         default: 'focus:ring-blue-500/20',
         brand: 'focus:ring-dash-brand/20',
-        error: 'focus:ring-red-500/20',
+        error: 'focus:ring-red-500',
         success: 'focus:ring-green-500/20',
         'light-gray': 'focus:ring-[#6B7280]/20',
         primary: 'focus:ring-dash-primary-dark-blue dark:focus:ring-white bg-transparent',

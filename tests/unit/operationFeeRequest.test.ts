@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { OperationFeeParams } from '../../src/renderer/src/api/types'
+import type { IdentityKeyRequestDto, OperationFeeParams } from '../../src/renderer/src/api/types'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
+import { IdentityKeyPurpose, IdentityKeySecurityLevel } from '../../src/renderer/src/enums/IdentityKeys'
+import { DASHPAY_KEY_BOUNDS } from '../../src/renderer/src/constants/dashPay'
 import { operationFeeRequest } from '../../src/renderer/src/utils/operationFee'
+
+const ENC_BOUND: IdentityKeyRequestDto = { purpose: IdentityKeyPurpose.Encryption, securityLevel: IdentityKeySecurityLevel.Medium, contractBounds: DASHPAY_KEY_BOUNDS }
+const ENC_UNBOUND: IdentityKeyRequestDto = { ...ENC_BOUND, contractBounds: null }
+const DEC_BOUND: IdentityKeyRequestDto = { ...ENC_BOUND, purpose: IdentityKeyPurpose.Decryption }
 
 function params(overrides: Partial<OperationFeeParams> = {}): OperationFeeParams {
   return {
@@ -64,5 +70,17 @@ describe('operation fee requests', () => {
     const first = operationFeeRequest('wallet', TransferOperation.IdentityWithdrawal, params({destinationValid: true, recipient: 'first'}))!
     const second = operationFeeRequest('wallet', TransferOperation.IdentityWithdrawal, params({destinationValid: true, recipient: 'second'}))!
     expect(first.key).not.toBe(second.key)
+  })
+
+  it('re-quotes identity key creation whenever the key selection changes', () => {
+    const createKeys = (keys: IdentityKeyRequestDto[] | null | undefined) =>
+      operationFeeRequest('wallet', TransferOperation.IdentityCreateKeys, params({destinationValid: true, recipient: '', identityId: 'IdentityA', keys}))!
+    const selections = [createKeys([ENC_BOUND]), createKeys([ENC_UNBOUND]), createKeys([ENC_BOUND, DEC_BOUND]), createKeys([DEC_BOUND, ENC_BOUND]), createKeys([])]
+    expect(new Set(selections.map(request => request.maxKey)).size).toBe(selections.length)
+    expect(new Set(selections.map(request => request.key)).size).toBe(selections.length)
+    expect(createKeys([ENC_BOUND, DEC_BOUND]).key).toBe(createKeys([{...ENC_BOUND}, {...DEC_BOUND}]).key)
+    expect(createKeys(null).key).toBe(createKeys([]).key)
+    expect(createKeys(undefined).key).toBe(createKeys([]).key)
+    expect(createKeys([ENC_BOUND]).feeParams.keys).toEqual([ENC_BOUND])
   })
 })

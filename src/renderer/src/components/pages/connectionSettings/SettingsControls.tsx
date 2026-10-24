@@ -1,9 +1,10 @@
 import {InfoTooltip, Text} from '@renderer/components/dash-ui-kit-enxtended'
+import {SURFACE_ROW} from '@renderer/constants/surfaces'
 import type {
   ConnectionSectionTitleProps,
-  ConnectionSettingsRowProps,
   ConnectionSwitchProps,
 } from '@renderer/types/connection'
+import type {SettingsRowLayoutProps} from '@renderer/types/SettingsControls'
 
 export function SectionTitle({label, tooltip, className = ''}: ConnectionSectionTitleProps): React.JSX.Element {
   return (
@@ -23,15 +24,16 @@ export function SwitchControl({
   positions,
   onChange,
 }: ConnectionSwitchProps): React.JSX.Element {
+  const thumbActive = positions ? checked !== null : checked === true
   return (
     <div
       role={positions ? 'radiogroup' : undefined}
       aria-label={positions ? label : undefined}
-      className={`relative grid w-[3.25rem] shrink-0 ${positions ? 'h-10 grid-cols-2' : 'h-6'} ${disabled ? 'opacity-60' : ''}`}
+      className={`relative grid w-[3.25rem] shrink-0 ${positions ? 'h-10 grid-cols-2' : 'h-6'} ${disabled ? 'opacity-50' : ''}`}
     >
       <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-6 rounded-full bg-dash-primary-dark-blue/15 dark:bg-white/15">
         <span
-          className={`block size-6 rounded-full bg-dash-brand shadow-sm transition-transform dark:bg-dash-mint ${checked ? 'translate-x-7' : 'translate-x-0'}`}
+          className={`block size-6 rounded-full shadow-sm transition ${thumbActive ? 'bg-dash-brand dark:bg-dash-mint' : 'bg-white dark:bg-white/70'} ${checked ? 'translate-x-7' : 'translate-x-0'}`}
         />
       </div>
       {positions ? positions.map((position, index) => {
@@ -71,12 +73,19 @@ export function SwitchControl({
   )
 }
 
-export function SettingsRow({label, children}: ConnectionSettingsRowProps): React.JSX.Element {
+export function SettingsRow({label, description, children}: SettingsRowLayoutProps): React.JSX.Element {
   return (
-    <div className="flex min-h-[3.75rem] items-center justify-between gap-5 rounded-[1.25rem] dash-block px-4 py-3 sm:px-5">
-      <Text size={14} weight="medium" color="brand" className="min-w-0">
-        {label}
-      </Text>
+    <div className={`${SURFACE_ROW} flex min-h-[3.75rem] items-center justify-between gap-5`}>
+      <div className="flex min-w-0 flex-col gap-1">
+        <Text size={14} weight="medium" color="brand">
+          {label}
+        </Text>
+        {description && (
+          <Text size={12} weight="normal" color="brand" opacity={50}>
+            {description}
+          </Text>
+        )}
+      </div>
       {children}
     </div>
   )

@@ -20,11 +20,6 @@ export const CURRENCY_OPTIONS = [
   { value: 'rub', label: 'RUB' },
 ]
 
-export const ADVANCED_MODE_OPTIONS = [
-  { value: 'off', label: 'Off' },
-  { value: 'on', label: 'On' },
-]
-
 export const LOG_LEVEL_OPTIONS: { value: LogLevel; label: string }[] = [
   { value: 'error', label: 'Error' },
   { value: 'warn', label: 'Warn' },

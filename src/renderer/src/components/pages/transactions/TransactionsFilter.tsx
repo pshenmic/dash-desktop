@@ -5,6 +5,7 @@ import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { changeTxFilterSource, isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'
 import type { FilterSectionProps, TransactionsFilterProps } from '@renderer/types/WalletTransaction'
 import { TX_BALANCE_CHANGE_OPTIONS, TX_FILTER_LABELS, TX_SOURCE_OPTIONS } from '@renderer/constants/transactionFilters'
+import { POPOVER, POPOVER_OPTION } from '@renderer/constants/surfaces'
 
 function FilterSection<T extends string>({ label, options, selected, onSelect }: FilterSectionProps<T>): React.JSX.Element {
   return (
@@ -18,11 +19,7 @@ function FilterSection<T extends string>({ label, options, selected, onSelect }:
           type={"button"}
           aria-pressed={option.value === selected}
           onClick={() => onSelect(option.value)}
-          className={`
-            w-full flex items-center p-[.625rem] rounded-[.625rem] cursor-pointer text-left
-            hover:dash-block-accent-10 transition-colors duration-150
-            ${option.value === selected ? 'dash-block-accent-5' : ''}
-          `}
+          className={`w-full flex items-center text-left ${POPOVER_OPTION} ${option.value === selected ? 'dash-block-accent-5' : ''}`}
         >
           <Text size={12} weight={"medium"} color={"brand"}>{option.label}</Text>
         </button>
@@ -53,7 +50,7 @@ export default function TransactionsFilter(props: TransactionsFilterProps): Reac
       </button>
 
       {open && (
-        <div className={"absolute right-0 top-[calc(100%+.375rem)] z-30 w-64 max-h-[65vh] overflow-y-auto flex flex-col gap-2 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)]"}>
+        <div className={`absolute right-0 top-[calc(100%+.375rem)] z-30 w-64 max-h-[65vh] overflow-y-auto flex flex-col gap-2 ${POPOVER}`}>
           <Input
             type={"search"}
             size={"sm"}

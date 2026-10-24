@@ -9,6 +9,8 @@ import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
 import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
+import { AliasDAO } from './database/AliasDAO'
+import { DashPayContactRequestDAO } from './database/DashPayContactRequestDAO'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/wallet/WalletService'
@@ -25,6 +27,14 @@ import { GetStatusHandler } from './api/getStatus'
 import { GetAllWalletsHandler } from './api/wallet/getAllWallets'
 import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
+import { GetAliasesHandler } from './api/wallet/getAliases'
+import { RegisterAliasHandler } from './api/wallet/registerAlias'
+import { CreateIdentityKeysHandler } from './api/wallet/createIdentityKeys'
+import { SearchAliasesHandler } from './api/wallet/searchAliases'
+import { GetDashPayContactsHandler } from './api/wallet/getDashPayContacts'
+import { SendDashPayContactRequestHandler } from './api/wallet/sendDashPayContactRequest'
+import { SendDashPayPaymentHandler } from './api/wallet/sendDashPayPayment'
+import { GetDashPayPaymentsHandler } from './api/wallet/getDashPayPayments'
 import {GetIdentityBalance} from "./api/wallet/getIdentityBalance";
 import {GetIdentityNonce} from "./api/wallet/getIdentityNonce";
 import {GetPlatformAddressesHandler} from "./api/wallet/getPlatformAddresses";
@@ -180,6 +190,14 @@ export class WalletBackend {
     registerHandler('getBalance', new GetBalance(this.walletService).handle)
     registerHandler("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
     registerHandler('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
+    registerHandler('getAliases', new GetAliasesHandler(this.identityService).handle)
+    registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
+    registerHandler('createIdentityKeys', new CreateIdentityKeysHandler(this.identityService).handle)
+    registerHandler('searchAliases', new SearchAliasesHandler(this.identityService).handle)
+    registerHandler('getDashPayContacts', new GetDashPayContactsHandler(this.identityService).handle)
+    registerHandler('sendDashPayContactRequest', new SendDashPayContactRequestHandler(this.identityService).handle)
+    registerHandler('sendDashPayPayment', new SendDashPayPaymentHandler(this.walletService).handle)
+    registerHandler('getDashPayPayments', new GetDashPayPaymentsHandler(this.walletService).handle)
     registerHandler('getIdentityBalance', new GetIdentityBalance(this.identityService).handle)
     registerHandler('getIdentityNonce', new GetIdentityNonce(this.identityService).handle)
     registerHandler('getPlatformAddresses', new GetPlatformAddressesHandler(this.platformAddressService).handle)
@@ -297,10 +315,11 @@ export class WalletBackend {
     const prevOuts = new CorePrevOutService(walletDAO, transactionDAO)
     const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService, prevOuts)
     const coreTransactionService = new CoreTransactionService()
-    this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, this.walletSyncService, providers)
+    const dashPayContactRequestDAO = new DashPayContactRequestDAO(knex)
+    this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayContactRequestDAO, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
-    this.identityService = new IdentityService(walletDAO, identityDAO, this.platformWorkerService)
+    this.identityService = new IdentityService(walletDAO, identityDAO, new AliasDAO(knex), dashPayContactRequestDAO, this.platformWorkerService)
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
     const platformTransactionDAO = new PlatformTransactionDAO(knex)

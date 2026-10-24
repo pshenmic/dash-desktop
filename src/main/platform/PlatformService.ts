@@ -19,9 +19,16 @@ import {identityCreditTransfer} from './operations/identity/creditTransfer'
 import {identityCreditsToAddresses} from './operations/identity/creditsToAddresses'
 import {identityExists} from './operations/identity/exists'
 import {identityInfos} from './operations/identity/infos'
+import {aliasStatus} from './operations/alias/status'
+import {aliasRegister} from './operations/alias/register'
+import {aliasSearch} from './operations/alias/search'
+import {dashPayContactRequestSend} from './operations/dashpay/send'
+import {dashPayContactRequests} from './operations/dashpay/requests'
+import {dashPayContactKey} from './operations/dashpay/key'
 import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
+import {identityCreateKeys} from './operations/identity/createKeys'
 import {checkNullifiers} from './operations/shielded/reads/checkNullifiers'
 import {encryptedNotes} from './operations/shielded/reads/encryptedNotes'
 import {notesCount} from './operations/shielded/reads/notesCount'
@@ -218,10 +225,17 @@ export class PlatformService {
       case 'identityCreditsToAddresses': return identityCreditsToAddresses(request.payload, ctx)
       case 'identityCreditTransfer': return identityCreditTransfer(request.payload, ctx)
       case 'identityWithdrawal': return identityWithdrawal(request.payload, ctx)
+      case 'identityCreateKeys': return identityCreateKeys(request.payload, ctx)
       case 'identityExists': return identityExists(request.payload, ctx)
       case 'identityBalance': return identityBalance(request.payload, ctx)
       case 'identityNonce': return identityNonce(request.payload, ctx)
       case 'identityInfos': return identityInfos(request.payload, ctx)
+      case 'aliasStatus': return aliasStatus(request.payload, ctx)
+      case 'aliasRegister': return aliasRegister(request.payload, ctx)
+      case 'aliasSearch': return aliasSearch(request.payload, ctx)
+      case 'dashPayContactRequestSend': return dashPayContactRequestSend(request.payload, ctx)
+      case 'dashPayContactRequests': return dashPayContactRequests(request.payload, ctx)
+      case 'dashPayContactKey': return dashPayContactKey(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
       case 'activeDapiUrls': return probeActiveDapiUrls(this.registry.activeDapiUrls(network), network)

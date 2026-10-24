@@ -6,6 +6,7 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { TransferOperation } from '../enums/TransferOperation'
+import { AliasStatus, DashPayContactRelationship, DashPayPaymentDirection } from '../enums/DashPay'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -44,6 +45,79 @@ export interface PlatformAddressDto {
   platformAddress: string
   balanceCredits: bigint
   nonce: number
+}
+
+// getDashPayContacts, sendDashPayContactRequest — one of our identities and another, by
+// the latest contactRequest each way. Timestamps are milliseconds.
+export interface DashPayContactDto {
+  identifier: string
+  contactId: string
+  relationship: DashPayContactRelationship
+  // The contact's DPNS names, oldest first.
+  aliasesList: string[]
+  incomingCreatedAt: number | null
+  outgoingCreatedAt: number | null
+  // Their request can never be decrypted: hide Pay, they have to send a new one.
+  paymentChannelBroken: boolean
+}
+
+// getDashPayPayments — one payment between us and a contact, newest first; date in milliseconds.
+export interface DashPayPaymentDto {
+  txid: string
+  amountDuffs: bigint
+  direction: DashPayPaymentDirection
+  date: number
+}
+
+// searchAliases — a DPNS name and the identity that owns it.
+export interface AliasSearchResultDto {
+  identifier: string
+  name: string
+}
+
+// getAliases, registerAlias — a DPNS name this wallet registered. Votes and the
+// end date are set only for a contested name; voteEndsAt is in milliseconds.
+export interface AliasDto {
+  walletId: string
+  identifier: string
+  label: string
+  normalizedLabel: string
+  isContested: boolean
+  status: AliasStatus
+  documentId: string | null
+  preorderSalt: Uint8Array | null
+  votesFor: number | null
+  votesLock: number | null
+  votesAbstain: number | null
+  voteEndsAt: number | null
+  createdAt: number
+  checkedAt: number | null
+}
+
+// Limits a key to one contract, or to one document type of it.
+export interface IdentityKeyBoundsDto {
+  contractId: string
+  documentType: string | null
+}
+
+// A key for createIdentityKeys to derive from the mnemonic and register on the
+// identity, always ECDSA_SECP256K1. A TRANSFER key must be CRITICAL, ENCRYPTION
+// and DECRYPTION keys MEDIUM; for DashPay those two are bound to its
+// contactRequest document type.
+export interface IdentityKeyRequestDto {
+  purpose: 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
+  securityLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM'
+  contractBounds: IdentityKeyBoundsDto | null
+}
+
+// getIdentities — one key on an identity, purpose and levels by name.
+export interface IdentityKeyDto {
+  keyId: number
+  purpose: string
+  securityLevel: string
+  keyType: string
+  disabled: boolean
+  contractBounds: IdentityKeyBoundsDto | null
 }
 
 // estimateFee — the one fee endpoint. What gets priced for each operation is
@@ -131,6 +205,8 @@ export interface FeeParams {
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
+  // identityCreateKeys only: the keys being created.
+  keys?: IdentityKeyRequestDto[] | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null
 }

@@ -1,0 +1,35 @@
+import { Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { TOOLBAR_SEARCH_CLASS } from '@renderer/constants/listToolbar'
+import type { SearchFieldProps } from '@renderer/types/SearchField'
+
+export default function SearchField({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+  autoFocus = false,
+  className = '',
+  inputClassName = TOOLBAR_SEARCH_CLASS,
+  onKeyDown,
+  ref,
+}: SearchFieldProps): React.JSX.Element {
+  return (
+    <div className={className}>
+      <Input
+        ref={ref}
+        type={'search'}
+        size={'sm'}
+        variant={'filled'}
+        colorScheme={'light'}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        autoFocus={autoFocus}
+        className={inputClassName}
+        prefix={<SearchIcon size={14} color={'currentColor'} className={'dash-text-default'} />}
+      />
+    </div>
+  )
+}

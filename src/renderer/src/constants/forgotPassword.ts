@@ -1,4 +1,5 @@
 import { ForgotPasswordStep } from '../enums/ForgotPasswordStep'
+import type { StepProgress } from '../types/StepProgress'
 
 export interface ForgotPasswordTexts {
   title: string
@@ -15,19 +16,27 @@ export interface ForgotPasswordTexts {
   }
 }
 
+export const FORGOT_PASSWORD_PROGRESS: StepProgress<Record<Exclude<ForgotPasswordStep, ForgotPasswordStep.Success>, number>> = {
+  totalSteps: 2,
+  stepNumbers: {
+    [ForgotPasswordStep.Seed]: 1,
+    [ForgotPasswordStep.Password]: 2,
+  },
+}
+
 export const forgotPasswordTexts: ForgotPasswordTexts = {
   title: 'Reset Password',
   description: {
     [ForgotPasswordStep.Seed]: 'Enter the recovery phrase of the selected wallet to prove ownership.',
-    [ForgotPasswordStep.Password]: 'The recovery phrase matches. Choose a new password for your wallet.',
-    [ForgotPasswordStep.Success]: 'Your password has been updated. Log in with your new password.',
+    [ForgotPasswordStep.Password]: 'Choose a new password.',
+    [ForgotPasswordStep.Success]: 'Password updated.',
   },
   form: {
     walletLabel: 'Wallet',
     newPasswordLabel: 'New Password',
-    newPasswordPlaceholder: 'Type New Password',
+    newPasswordPlaceholder: 'Type new password',
     confirmPasswordLabel: 'Confirm Password',
-    confirmPasswordPlaceholder: 'Repeat New Password',
+    confirmPasswordPlaceholder: 'Repeat new password',
     continueButton: 'Continue',
     resetButton: 'Reset Password',
     backToLogin: 'Back to Login',

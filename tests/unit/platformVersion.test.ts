@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {LATEST_PLATFORM_VERSION} from 'dash-platform-sdk/src/constants.js'
 import {OperationContext} from '../../src/main/platform/operations/types'
 import {PLATFORM_VERSION_RETRY_MS} from '../../src/main/platform/constants'
 
@@ -23,18 +24,18 @@ describe('platformVersion', () => {
   })
 
   it('falls back to the newest known version when the network runs a newer one', async () => {
-    expect(await platformVersion(context(async () => [{protocolVersion: 99}]))).toBe(13)
+    expect(await platformVersion(context(async () => [{protocolVersion: 99}]))).toBe(LATEST_PLATFORM_VERSION)
   })
 
   it('falls back to the newest known version when the network reports none', async () => {
-    expect(await platformVersion(context(async () => [{} as {protocolVersion: number}]))).toBe(13)
+    expect(await platformVersion(context(async () => [{} as {protocolVersion: number}]))).toBe(LATEST_PLATFORM_VERSION)
   })
 
   // Offline, every keystroke's quote would otherwise wait on a timeout first.
   it('keeps a failed lookup for the retry window, then asks again', async () => {
     const lookup = vi.fn(async (): Promise<Array<{protocolVersion: number}>> => { throw new Error('offline') })
     const now = vi.spyOn(Date, 'now').mockReturnValue(0)
-    expect(await platformVersion(context(lookup))).toBe(13)
+    expect(await platformVersion(context(lookup))).toBe(LATEST_PLATFORM_VERSION)
     await platformVersion(context(lookup))
     expect(lookup).toHaveBeenCalledTimes(1)
 

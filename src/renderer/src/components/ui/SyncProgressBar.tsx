@@ -5,6 +5,7 @@ import { WalletSyncPhase, WalletSyncStatus } from '@renderer/api/types'
 import { SyncProgressPhaseInfo } from '@renderer/types/connection'
 import {
   SYNC_PROGRESS_COMPLETE_HOLD_MS,
+  SYNC_ERROR_LABEL,
   SYNC_PROGRESS_FADE_MS,
   WALLET_SYNC_PHASE_LABELS,
 } from '@renderer/constants/connection'
@@ -183,7 +184,7 @@ export default function SyncProgressBar(): React.JSX.Element {
 
       {sync?.lastError && (
         <Text as="div" size={10} weight="medium" color="red" className="mt-2">
-          {sync.lastError}
+          {SYNC_ERROR_LABEL}
         </Text>
       )}
     </div>

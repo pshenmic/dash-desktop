@@ -13,6 +13,7 @@ import {dedupeTransactions} from '../utils/dedupeTransactions'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {ConnectionStatus} from '../types/ConnectionStatus'
 import {Logger} from '../utils/logger'
+import {ownedAddresses} from '../utils/transferInputs'
 
 const log = new Logger('prevout')
 
@@ -42,8 +43,8 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async getWalletBalance(): Promise<bigint> {
-    const {receiving, change} = await this.addressDAO.getAddressesByWalletId(this.walletId)
-    return this.transactionDAO.getBalanceForAddresses(this.walletId, [...receiving, ...change].map(a => a.address))
+    const grouped = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    return this.transactionDAO.getBalanceForAddresses(this.walletId, ownedAddresses(grouped).map(a => a.address))
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {
@@ -65,8 +66,7 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async getWalletUtxos(): Promise<UTXO[]> {
-    const {receiving, change} = await this.addressDAO.getAddressesByWalletId(this.walletId)
-    const addresses = [...receiving, ...change].map(a => a.address)
+    const addresses = ownedAddresses(await this.addressDAO.getAddressesByWalletId(this.walletId)).map(a => a.address)
     const utxos = await this.transactionDAO.getUtxosByAddresses(this.walletId, addresses)
     const {tipHeight} = this.walletSyncService.getStatus()
     return utxos.map(u => ({

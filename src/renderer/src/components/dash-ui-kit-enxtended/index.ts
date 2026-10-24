@@ -3,6 +3,7 @@ export { Button, type ButtonProps } from './button'
 export { Input, type InputProps } from './input'
 export { Select, type SelectProps } from './select'
 export { Heading, type HeadingProps } from './heading'
+export { HighlightedIdentifier } from './identifier'
 export { Tooltip, TooltipBubble, type TooltipProps } from './tooltip'
 export { InfoTooltip, type InfoTooltipProps } from './infoTooltip'
 export {
@@ -40,6 +41,7 @@ export {
   ChainSmallIcon,
   SettingsIcon,
   ShieldSmallIcon,
+  IdenticonIcon,
   QuestionMessageIcon,
   CheckmarkIcon,
   FingerprintIcon,

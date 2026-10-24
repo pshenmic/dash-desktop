@@ -43,7 +43,7 @@ export function useWalletTransactions(walletId: string | undefined, refreshInter
     walletId,
     () => API.getTransactions(walletId!),
     EMPTY_WALLET_HISTORY,
-    { errorMessage: 'Failed to load transactions', refreshIntervalMs }
+    { errorMessage: 'Failed to load transactions', refreshIntervalMs, staleTimeMs: refreshIntervalMs }
   )
   const emptyOwnership = useMemo<WalletTransactionOwnership>(() => ({
     walletId: null, core: new Set(), platform: new Set(), identities: new Set(), shielded: new Set(),
@@ -53,7 +53,7 @@ export function useWalletTransactions(walletId: string | undefined, refreshInter
     walletId,
     () => fetchTransactionOwnership(walletId!),
     emptyOwnership,
-    { refreshIntervalMs }
+    { refreshIntervalMs, staleTimeMs: refreshIntervalMs }
   )
   const ownership = loadedOwnership.walletId === walletId ? loadedOwnership : emptyOwnership
   const groups = useMemo(() => groupTransactionsByDay(history.core.map(transaction =>

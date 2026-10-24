@@ -40,6 +40,50 @@ export const ConnectionIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({
   </svg>
 )
 
+export const CoinControlListIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({
+  width = 13,
+  height = 13,
+  className = '',
+  ...props
+}) => (
+  <svg
+    {...props}
+    width={width}
+    height={height}
+    viewBox="0 0 13 13"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path d="M9.56996 0.75H0.75" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round" />
+    <path d="M12.1441 6.03809H0.980469" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round" />
+    <path d="M6.11724 11.3262H0.75" stroke="currentColor" strokeOpacity="0.48" strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round" />
+  </svg>
+)
+
+export const TransferChevronDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({
+  width = 10,
+  height = 6,
+  className = '',
+  ...props
+}) => (
+  <svg
+    {...props}
+    width={width}
+    height={height}
+    viewBox="0 0 10 6"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path
+      d="M5.6566 5.1297C5.26608 5.52022 4.63291 5.52022 4.24239 5.1297L0.184715 1.07204C-0.0943881 0.792934 -0.0498969 0.328599 0.277126 0.107574C0.526412 -0.0609118 0.860169 -0.0289322 1.07293 0.183825L4.94949 4.06039L8.82605 0.183825C9.03881 -0.0289321 9.37257 -0.0609115 9.62185 0.107574C9.94888 0.3286 9.99337 0.792934 9.71426 1.07204L5.6566 5.1297Z"
+      fill="currentColor"
+      fillOpacity="0.24"
+    />
+  </svg>
+)
+
 export const ArrowIcon: React.FC<IconProps> = ({
   color = 'white',
   size = 14,
@@ -845,6 +889,30 @@ export const SettingsIcon: React.FC<IconProps> = ({
   </svg>
 )
 
+export const IdenticonIcon: React.FC<IconProps> = ({
+  color = '#4C7EFF',
+  size = 15,
+  className = '',
+  onClick
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox='0 0 5 5'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+    className={className}
+    onClick={onClick}
+    color={color}
+    shapeRendering='crispEdges'
+  >
+    <path
+      d='M0 1h1v2H0zM0 4h1v1H0zM1 0h1v2H1zM1 4h1v1H1zM2 3h1v1H2zM3 0h1v2H3zM3 4h1v1H3zM4 1h1v2H4zM4 4h1v1H4z'
+      fill='currentColor'
+    />
+  </svg>
+)
+
 export const ShieldSmallIcon: React.FC<IconProps> = ({
   color = '#0C1C33',
   size = 15,
@@ -1595,5 +1663,51 @@ export const RefreshIcon: React.FC<IconProps> = ({
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+  </svg>
+)
+
+export const ContactsIcon: React.FC<IconProps> = ({
+  color = 'var(--color-text)',
+  size = 16,
+  className = '',
+  onClick
+}) => (
+  <svg
+    className={className}
+    onClick={onClick}
+    color={color}
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <circle cx="6" cy="5.25" r="2.75" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M1.25 14.5C1.25 11.88 3.38 10.25 6 10.25C8.62 10.25 10.75 11.88 10.75 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M10.25 2.585A2.5 2.5 0 1 1 10.25 6.915" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M11.75 9.6C13.53 9.98 14.75 11.43 14.75 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+export const ServerIcon: React.FC<IconProps> = ({
+  color = 'var(--color-text)',
+  size = 16,
+  className = '',
+  onClick
+}) => (
+  <svg
+    className={className}
+    onClick={onClick}
+    color={color}
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <rect x="1.25" y="1.75" width="13.5" height="5.5" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="1.25" y="8.75" width="13.5" height="5.5" rx="1.75" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="4.5" cy="4.5" r="1" fill="currentColor" />
+    <circle cx="4.5" cy="11.5" r="1" fill="currentColor" />
   </svg>
 )
