@@ -18,7 +18,7 @@ reads or writes it — and can be dropped whenever.
 
 ## Address windows (`utils/addressWindow.ts`)
 
-All three key classes run the same gap walk. `runAddressWindow` knows nothing
+All four key classes run the same gap walk. `runAddressWindow` knows nothing
 about a key class and takes three collaborators:
 
 - `AddressDeriver` — index → address + path (`coreAddressDeriver`,
@@ -27,6 +27,20 @@ about a key class and takes three collaborators:
   (returns `null` when it cannot, and the walk then widens round by round
   through `probe`)
 - `AddressWindowStore` — what has been materialised, and how to reveal more
+
+DashPay (DIP-15) is the fourth, with two chains per friendship in
+`dashpay_contact_addresses`, both at DIP-15's gap of 10:
+
+- **`receiving`** is ours, `m/9'/coinType'/15'/0'/<us>/<them>/index`, one per
+  request we sent. It derives from `wallet.dashpay_xpub` (both identity-id levels
+  are non-hardened, so no seed), reaches every owned-address reader as
+  `GroupedAddresses.dashPay` (`ownedAddresses()`), and enters the p2p watch set at
+  `DASHPAY_WATCH_INDEX` so the child's BIP-44 gap tracking ignores it. rpc mode
+  reads it by address: Dashscan's xpub endpoints only walk branches 0/1. Signing
+  walks its `0x…` levels through `derivePath256`.
+- **`external`** is theirs, from the key their request carried. It is never
+  owned or watched; its used flags only pick the next address to pay them on,
+  which `nextDashPayPayAddress` marks used before the transaction is built.
 
 `planWindow` is the pure half and takes `known` (materialised) separately from
 `usage` (just observed, and allowed to reach past it). Everything keys on the

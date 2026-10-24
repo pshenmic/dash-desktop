@@ -9,7 +9,14 @@ interface Calls {
   names: string[]
 }
 
-function context(known: string[] = KNOWN): {ctx: OperationContext; calls: Calls} {
+function domain(label: string, owner: string, createdAt: bigint) {
+  return {ownerId: {base58: () => owner}, createdAt, properties: {label, parentDomainName: 'dash'}}
+}
+
+function context(
+  known: string[] = KNOWN,
+  names = (identifier: string) => [domain('alice', identifier, 1n)],
+): {ctx: OperationContext; calls: Calls} {
   const calls: Calls = {identities: [], names: []}
 
   const ctx = {
@@ -18,13 +25,13 @@ function context(known: string[] = KNOWN): {ctx: OperationContext; calls: Calls}
         getIdentityByIdentifier: vi.fn(async (identifier: string) => {
           calls.identities.push(identifier)
           if (!known.includes(identifier)) throw new Error('not found')
-          return {id: {base58: () => identifier}, balance: 1_000n}
+          return {id: {base58: () => identifier}, balance: 1_000n, getPublicKeys: () => []}
         }),
       },
       names: {
         searchByIdentity: vi.fn(async (identifier: string) => {
           calls.names.push(identifier)
-          return [{properties: {label: 'alice', parentDomainName: 'dash'}}]
+          return names(identifier)
         }),
       },
     } as never,
@@ -43,8 +50,20 @@ describe('identityInfos', () => {
 
     const {infos} = await identityInfos({identifiers: KNOWN, skipDPNS: false}, ctx)
 
-    expect(infos.map(i => i.alias)).toEqual(['alice.dash', 'alice.dash'])
+    expect(infos.map(i => i.aliasesList)).toEqual([['alice.dash'], ['alice.dash']])
     expect(calls.names).toEqual(KNOWN)
+  })
+
+  it('lists the names the identity still owns, oldest first', async () => {
+    const {ctx} = context(['id-one'], () => [
+      domain('bebra', 'id-one', 2n),
+      domain('given-away', 'someone-else', 0n),
+      domain('owl352-testnet', 'id-one', 1n),
+    ])
+
+    const {infos} = await identityInfos({identifiers: ['id-one'], skipDPNS: false}, ctx)
+
+    expect(infos[0]!.aliasesList).toEqual(['owl352-testnet.dash', 'bebra.dash'])
   })
 
   // The balance path pays for this search on every identity and never reads it.
@@ -55,7 +74,7 @@ describe('identityInfos', () => {
 
     expect(calls.names).toEqual([])
     expect(calls.identities).toEqual(KNOWN)
-    expect(infos.map(i => i.alias)).toEqual([null, null])
+    expect(infos.map(i => i.aliasesList)).toEqual([[], []])
   })
 
   it('still reports balances when skipping DPNS', async () => {
@@ -82,7 +101,7 @@ describe('identityInfos', () => {
             peak = Math.max(peak, inFlight)
             await new Promise(resolve => setTimeout(resolve, 5))
             inFlight--
-            return {id: {base58: () => identifier}, balance: 1n}
+            return {id: {base58: () => identifier}, balance: 1n, getPublicKeys: () => []}
           }),
         },
         names: {searchByIdentity: vi.fn(async () => [])},

@@ -3,7 +3,11 @@ import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
-import {CORE_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
+import {CORE_ADDRESS_WINDOW, DASHPAY_ADDRESS_WINDOW} from '../../src/main/src/constants/addresses'
+import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {DashPayContactRequestDAO} from '../../src/main/src/database/DashPayContactRequestDAO'
+import {HDKey} from '@scure/bip32'
+import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import type {AppliedBlock} from '../../src/main/p2p/types/walletSync'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
@@ -26,13 +30,18 @@ describe('p2p address discovery', () => {
   let createWalletHandler: CreateWalletHandler
   let transactionDAO: TransactionDAO
   let addressDAO: AddressDAO
+  let identityDAO: IdentityDAO
+  let dashPayContactRequestDAO: DashPayContactRequestDAO
+  let wired: Awaited<ReturnType<typeof harness>>
 
   beforeEach(async () => {
-    const wired = await harness()
+    wired = await harness()
     discovery = wired.coreDiscoveryService
     createWalletHandler = wired.createWalletHandler
     transactionDAO = wired.transactionDAO
     addressDAO = wired.addressDAO
+    identityDAO = wired.identityDAO
+    dashPayContactRequestDAO = wired.dashPayContactRequestDAO
   })
 
   it('reports an address as used once a block paying it is applied', async () => {
@@ -127,4 +136,124 @@ describe('p2p address discovery', () => {
     expect(after.receiving).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
     expect(after.change).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
   })
+
+  describe('DashPay chains', () => {
+    const OURS = '7cBLvT9A6nkU5jPoLak8o97rU4WrARr3xHv7ttFh9n64'
+    const THEIRS = '3vNcXuGDZkFbE2WLNLcSWCFPTF7vyB6CRo1pUtBxpcjE'
+    const THEIR_XPUB = HDKey.fromMasterSeed(new Uint8Array(32).fill(5)).publicExtendedKey
+    const theirAddress = (index: number) => new KeyPairController().p2pkhAddress(HDKey.fromExtendedKey(THEIR_XPUB).deriveChild(index).publicKey!, 'testnet')
+
+    type Request = {ownerId: string; toUserId: string; contactXpub?: string; coreHeightCreatedAt?: number}
+    const save = (walletId: string, requests: Request[], from = 0) => dashPayContactRequestDAO.saveAll(walletId, requests.map((request, i) => ({
+      id: `request-${from + i}`, ownerId: request.ownerId, toUserId: request.toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0,
+      encryptedPublicKey: new Uint8Array(96), createdAt: from + i, coreHeightCreatedAt: request.coreHeightCreatedAt ?? 0,
+      contactXpub: request.contactXpub ?? null, paymentChannelBroken: false,
+    })))
+
+    async function walletWith(...requests: Request[]): Promise<string> {
+      const walletId = await createWalletHandler.handle(null as never, VALID_SEEDPHRASE, 'testnet', PASSWORD)
+      await identityDAO.insertIdentities([{walletId, identityIndex: 0, derivationPath: "m/9'/1'/5'/0'/0'/0'", identifier: OURS}])
+      await save(walletId, requests)
+      return walletId
+    }
+
+    it('watches our chain for a contact we sent a request to, apart from both BIP-44 chains', async () => {
+      const walletId = await walletWith({ownerId: OURS, toUserId: THEIRS})
+      await discovery.discoverCoreAddresses(walletId)
+
+      const {receiving, change, dashPay = []} = await addressDAO.getAddressesByWalletId(walletId)
+      expect(dashPay).toHaveLength(DASHPAY_ADDRESS_WINDOW.gapLimit)
+      expect(dashPay[0].derivationPath).toMatch(/^m\/9'\/1'\/15'\/0'\/0x[0-9a-f]{64}\/0x[0-9a-f]{64}\/0$/)
+      expect(receiving).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
+      expect(change).toHaveLength(CORE_ADDRESS_WINDOW.gapLimit)
+    })
+
+    it('extends our chain past a payment at its edge', async () => {
+      const walletId = await walletWith({ownerId: OURS, toUserId: THEIRS})
+      await discovery.discoverCoreAddresses(walletId)
+      const {dashPay = []} = await addressDAO.getAddressesByWalletId(walletId)
+      await transactionDAO.applyBlock(receiveTo(walletId, 100, dashPay[DASHPAY_ADDRESS_WINDOW.gapLimit - 1].address))
+
+      await discovery.discoverCoreAddresses(walletId)
+
+      const after = (await addressDAO.getAddressesByWalletId(walletId)).dashPay ?? []
+      expect(after.length).toBeGreaterThanOrEqual(2 * DASHPAY_ADDRESS_WINDOW.gapLimit)
+      expect(after[DASHPAY_ADDRESS_WINDOW.gapLimit - 1].isUsed).toBe(true)
+    })
+
+    // Their chain holds their money: tracked for what we paid, never counted as ours.
+    it('keeps their chain once their key is stored, outside the addresses we own', async () => {
+      const walletId = await walletWith({ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
+      await discovery.discoverCoreAddresses(walletId)
+
+      expect((await addressDAO.getAddressesByWalletId(walletId)).dashPay).toEqual([])
+      expect(await addressDAO.getDashPayAddresses(walletId, OURS, THEIRS, 'external')).toHaveLength(DASHPAY_ADDRESS_WINDOW.gapLimit)
+    })
+
+    it('lists what they paid our chain and what we paid theirs as payments between us', async () => {
+      const walletId = await walletWith({ownerId: OURS, toUserId: THEIRS}, {ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
+      await discovery.discoverCoreAddresses(walletId)
+      const ours = ((await addressDAO.getAddressesByWalletId(walletId)).dashPay ?? [])[0].address
+      await transactionDAO.applyBlock(receiveTo(walletId, 100, ours))
+      await transactionDAO.applyBlock({
+        ...receiveTo(walletId, 101, theirAddress(0)),
+        txs: [{txid: 'paid', raw: new Uint8Array([1]), inputs: [], outputs: [{vout: 0, address: theirAddress(0), satoshis: '7000', isMine: false}]}],
+      })
+
+      const payments = await wired.walletService.getDashPayPayments(walletId, OURS, THEIRS)
+      expect(payments.map(({txid, amountDuffs, direction}) => ({txid, amountDuffs, direction})).sort((a, b) => a.txid.localeCompare(b.txid))).toEqual([
+        {txid: 'paid', amountDuffs: 7000n, direction: 'sent'},
+        {txid: 'txid-100', amountDuffs: 100_000n, direction: 'received'},
+      ])
+    })
+
+    it('pays each payment on a fresh address of their chain, past what history already paid', async () => {
+      const walletId = await walletWith({ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
+      await transactionDAO.applyBlock({
+        ...receiveTo(walletId, 100, theirAddress(0)),
+        txs: [{txid: 'paid', raw: new Uint8Array([1]), inputs: [], outputs: [{vout: 0, address: theirAddress(0), satoshis: '1000', isMine: false}]}],
+      })
+      const wallet = (await wired.walletDAO.getWalletById(walletId))!
+
+      expect(await discovery.nextDashPayPayAddress(wallet, OURS, THEIRS, THEIR_XPUB)).toBe(theirAddress(1))
+      expect(await discovery.nextDashPayPayAddress(wallet, OURS, THEIRS, THEIR_XPUB)).toBe(theirAddress(2))
+    })
+  
+    // A contact who re-keys sends a new request; paying the old key could land
+    // on addresses they no longer watch.
+    it("rebuilds their chain from the key of their newest request", async () => {
+      const walletId = await walletWith({ownerId: THEIRS, toUserId: OURS, contactXpub: THEIR_XPUB})
+      await discovery.discoverCoreAddresses(walletId)
+      const newXpub = HDKey.fromMasterSeed(new Uint8Array(32).fill(6)).publicExtendedKey
+      await save(walletId, [{ownerId: THEIRS, toUserId: OURS, contactXpub: newXpub}], 1)
+
+      await discovery.discoverCoreAddresses(walletId)
+
+      const [first] = await addressDAO.getDashPayAddresses(walletId, OURS, THEIRS, 'external')
+      const newFirst = new KeyPairController().p2pkhAddress(HDKey.fromExtendedKey(newXpub).deriveChild(0).publicKey!, 'testnet')
+      expect(first.address).toBe(newFirst)
+      const wallet = (await wired.walletDAO.getWalletById(walletId))!
+      expect(await discovery.nextDashPayPayAddress(wallet, OURS, THEIRS, newXpub)).toBe(newFirst)
+    })
+
+    // Nothing can pay a chain before the request that handed it out, so a new
+    // one rescans from there even once the first full scan is done — and only once.
+    it("rescans a new chain of ours from its request's core height, never forward", async () => {
+      const walletId = await walletWith({ownerId: OURS, toUserId: THEIRS, coreHeightCreatedAt: 1_000})
+      await transactionDAO.markInitialScanComplete(walletId)
+      await transactionDAO.resetCursor(walletId, 50_000)
+
+      await discovery.discoverCoreAddresses(walletId)
+      expect(await transactionDAO.getCursor(walletId)).toBe(1_000)
+
+      await transactionDAO.resetCursor(walletId, 60_000)
+      await discovery.discoverCoreAddresses(walletId)
+      expect(await transactionDAO.getCursor(walletId)).toBe(60_000)
+
+      const behind = await walletWith({ownerId: OURS, toUserId: THEIRS, coreHeightCreatedAt: 1_000})
+      await transactionDAO.resetCursor(behind, 500)
+      await discovery.discoverCoreAddresses(behind)
+      expect(await transactionDAO.getCursor(behind)).toBe(500)
+    })
+})
 })

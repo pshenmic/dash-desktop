@@ -9,6 +9,8 @@ import {ShieldedService} from '../../src/main/src/services/platform/ShieldedServ
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {AliasDAO} from '../../src/main/src/database/AliasDAO'
+import {DashPayContactRequestDAO} from '../../src/main/src/database/DashPayContactRequestDAO'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
@@ -41,6 +43,8 @@ export interface Harness {
   coreLockService: CoreLockService
   walletCredentialsService: WalletCredentialsService
   identityService: IdentityService
+  aliasDAO: AliasDAO
+  dashPayContactRequestDAO: DashPayContactRequestDAO
   applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -72,11 +76,13 @@ export async function harness(): Promise<Harness> {
   const prevOutService = new CorePrevOutService(walletDAO, transactionDAO)
   const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService, prevOutService)
   const coreTransactionService = new CoreTransactionService()
-  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
+  const dashPayContactRequestDAO = new DashPayContactRequestDAO(knex)
+  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayContactRequestDAO, transactionDAO, walletSyncService, providers)
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers, preferences)
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
-  const identityService = new IdentityService(walletDAO, identityDAO, platform)
+  const aliasDAO = new AliasDAO(knex)
+  const identityService = new IdentityService(walletDAO, identityDAO, aliasDAO, dashPayContactRequestDAO, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.
@@ -103,6 +109,8 @@ export async function harness(): Promise<Harness> {
     coreLockService,
     walletCredentialsService,
     identityService,
+    aliasDAO,
+    dashPayContactRequestDAO,
     applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,

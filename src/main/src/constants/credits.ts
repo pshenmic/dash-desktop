@@ -1,5 +1,6 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
 import type {TransitionFeeOperation} from '../../platform/types/messages'
+import type {IdentityKeyBounds} from '../types/IdentityKeys'
 
 export const CREDITS_PER_DUFF = 1_000n
 
@@ -16,6 +17,9 @@ export const TRANSITION_FEE_OPERATIONS = [
   'addressWithdrawal',
   'identityCreate',
   'identityTopUp',
+  'aliasRegister',
+  'dashPayContactRequest',
+  'identityCreateKeys',
 ] as const satisfies readonly TransitionFeeOperation[]
 
 export const MIN_FEE_MULTIPLIER = 1
@@ -28,6 +32,9 @@ export const MIN_INPUT_CREDITS = 100_000n
 export const MIN_IDENTITY_FUNDING_CREDITS = 200_000n
 export const MAX_ADDRESS_INPUTS = 16
 export const MAX_RECIPIENTS = 128
+// max_public_keys_in_creation: caps the keys one transition adds, not an
+// identity's total.
+export const MAX_KEYS_PER_TRANSITION = 6
 // What fits the 20 KiB max_state_transition_size, not the protocol's own
 // max_shielded_transition_actions of 16: the Halo2 proof grows ~2,681 bytes per
 // action, so a seventh action puts the transition over the wire limit.
@@ -54,14 +61,21 @@ export const STALE_INSTANT_LOCK_PROOF = "instant lock proof signature is invalid
 export const SHIELDED_NOTES_CHECK_INTERVAL_MS = 30_000
 export const SHIELDED_NOTES_FETCH_BATCH = 8192
 
+// A system contract: the same id on every network.
+export const DASHPAY_CONTRACT_ID = 'Bwr4WHCPz5rFVAD87RqTs3izo4zpzwsEdKPWUT1NS1C7'
+
+// As iOS registers them: contactRequest is the one DashPay document type that
+// declares encryption- and decryption-bounded keys.
+export const DASHPAY_KEY_BOUNDS: IdentityKeyBounds = {contractId: DASHPAY_CONTRACT_ID, documentType: 'contactRequest'}
+
 // Protocol limits IdentityCreateTransition to 6 public keys. AUTH MEDIUM is
 // dropped (added later via IdentityUpdateTransition if needed); MASTER /
 // CRITICAL / HIGH plus ENCRYPTION / DECRYPTION / TRANSFER cover the common path.
 export const IDENTITY_KEY_DEFINITIONS = [
-  {id: 0, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.MASTER, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 1, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 2, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.HIGH, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 3, purpose: Purpose.ENCRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1},
-  {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1},
+  {id: 0, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.MASTER, keyType: KeyType.ECDSA_SECP256K1, contractBounds: null},
+  {id: 1, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1, contractBounds: null},
+  {id: 2, purpose: Purpose.AUTHENTICATION, securityLevel: SecurityLevel.HIGH, keyType: KeyType.ECDSA_SECP256K1, contractBounds: null},
+  {id: 3, purpose: Purpose.ENCRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1, contractBounds: DASHPAY_KEY_BOUNDS},
+  {id: 4, purpose: Purpose.DECRYPTION, securityLevel: SecurityLevel.MEDIUM, keyType: KeyType.ECDSA_SECP256K1, contractBounds: DASHPAY_KEY_BOUNDS},
+  {id: 5, purpose: Purpose.TRANSFER, securityLevel: SecurityLevel.CRITICAL, keyType: KeyType.ECDSA_SECP256K1, contractBounds: null},
 ] as const

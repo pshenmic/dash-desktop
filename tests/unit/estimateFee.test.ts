@@ -60,7 +60,7 @@ function service(
 } {
   const request = vi.fn(async (kind: string) => (kind === 'addressInfos'
     ? {infos: candidates.map(c => ({address: c.platformAddress, balance: c.balanceCredits, nonce: c.nonce}))}
-    : {feeCredits: BASE_FEE, metered: true}))
+    : {feeCredits: BASE_FEE, metered: true, fixedCredits: 0n}))
   const estimateSpendFee = vi.fn(async () => ({feeCredits: 7n, feeDuffs: null, maxDuffs: null, maxPerTx: 90n, noteLimit: 6}))
   const walletDAO = {
     getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet', platformXpub: 'xpub-test'}),
@@ -423,6 +423,15 @@ describe('estimateFee', () => {
 
     expect(transfer.feeCredits).toBe(BASE_FEE * shippedMultiplier('addressFundsTransfer'))
     expect(withdrawal.feeCredits).toBe(BASE_FEE * 3n)
+  })
+
+  it('adds a quote\'s fixed credits after the multiplier, so a vote fund is never scaled', async () => {
+    const preferences = Preferences.default()
+    preferences.general.platformFeeMultiplier.aliasRegister = 3
+    const {service: svc, request} = service([], [], preferences)
+    request.mockResolvedValueOnce({feeCredits: BASE_FEE, metered: true, fixedCredits: 10_000_000_000n})
+    const quote = await svc.estimateFee(WALLET, 'aliasRegister', params({recipient: 'owl'}))
+    expect(quote.feeCredits).toBe(BASE_FEE * 3n + 10_000_000_000n)
   })
 
   // The dpp minimum for a credit transfer sits far below the estimate consensus

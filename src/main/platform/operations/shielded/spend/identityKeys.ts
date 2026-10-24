@@ -3,6 +3,7 @@ import {IdentityPublicKeyInCreation} from 'dash-platform-sdk/types.js'
 import {PrivateKeyWASM} from 'pshenmic-dpp'
 import {Network} from '../../../../src/types/Network'
 import {IDENTITY_KEY_DEFINITIONS} from '../../../../src/constants/credits'
+import {sdkContractBounds} from '../../identity/contractBounds'
 // createStateTransition destructures plain {id, purpose, ...} objects and
 // builds the WASM keys itself — passing IdentityPublicKeyInCreationWASM here
 // breaks (its field is keyId).
@@ -20,13 +21,14 @@ export function identityKeys(
     }
     return PrivateKeyWASM.fromBytes(derived.privateKey, network)
   })
-  const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}, i) => ({
+  const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType, contractBounds}, i) => ({
     id,
     purpose,
     securityLevel,
     keyType,
     readOnly: false,
     data: Uint8Array.from(privateKeys[i].getPublicKey().bytes()),
+    contractBounds: sdkContractBounds(contractBounds),
   }))
   return {publicKeys, privateKeys}
 }

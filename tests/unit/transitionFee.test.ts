@@ -1,14 +1,16 @@
 import {describe, it, expect} from 'vitest'
 import {DashPlatformSDK} from 'dash-platform-sdk'
-import {AddressFundsTransferTransitionWASM, PlatformAddressWASM} from 'pshenmic-dpp'
+import {AddressFundsTransferTransitionWASM, DataContractWASM, PlatformAddressWASM} from 'pshenmic-dpp'
 import {InputAddressWASM} from 'dash-platform-sdk/types.js'
 import {createBase58check} from '@scure/base'
 import {sha256} from '@noble/hashes/sha2.js'
 import {InstantLock, Input, Network as CoreNetwork, OutPoint, PrivateKey, Script, Transaction as SDKTransaction, TransactionType} from 'dash-core-sdk'
 import {transitionFee} from '../../src/main/platform/operations/fee'
 import {buildAssetLockOutputs} from '../../src/main/src/utils/assetLockTx'
-import {IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants/credits'
+import {DASHPAY_CONTRACT_ID, DASHPAY_KEY_BOUNDS, IDENTITY_KEY_DEFINITIONS} from '../../src/main/src/constants/credits'
+import {IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
 import {FEE_QUOTE_PUBLIC_KEY} from '../../src/main/platform/constants'
+import {DASHPAY_CONTRACT_BASE64} from '../fixtures/dashpayContract'
 import {DEDUCT_FROM_FIRST} from '../../src/main/platform/operations/address/signInputs'
 import {FeeQuoteParams, TransitionFeeOperation} from '../../src/main/platform/types/messages'
 import {OperationContext} from '../../src/main/platform/operations/types'
@@ -47,9 +49,14 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   assetLockShield: '',
   identityRegister: '',
   identityTopUpL1: IDENTITY,
+  aliasRegister: 'owl352-testnet',
+  dashPayContactRequest: IDENTITY,
+  identityCreateKeys: '',
 }
 
 const FUNDING_TXID = '11'.repeat(32)
+
+const KEY: IdentityKeyRequest = {purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null}
 
 // A real signed asset lock, so the instant proof below carries the bytes one
 // would on chain rather than a hand-written stand-in.
@@ -77,6 +84,20 @@ function assetLockTransaction(inputCount: number): SDKTransaction {
 // suite stays offline.
 const sdk = new DashPlatformSDK({network: 'testnet'})
 Object.assign(sdk.node, {getEpochsInfo: async () => [{protocolVersion: 13}]})
+// A registration's two state reads: has the identity written to DPNS, and does
+// it already own a name.
+const dpnsState = {contractNonce: 1n, named: true}
+Object.assign(sdk.identities, {getIdentityContractNonce: async () => dpnsState.contractNonce})
+Object.assign(sdk.documents, {query: async () => dpnsState.named ? [{}] : []})
+// The identity a key quote adds to, by the contracts its existing keys are bound to.
+const identityKeys: {bound: string[]} = {bound: []}
+Object.assign(sdk.identities, {
+  getIdentityPublicKeys: async () => identityKeys.bound.map(contractId => ({contractBounds: {identifier: {base58: () => contractId}}})),
+})
+// DPNS ships inside the SDK; DashPay is read from the network, so it is stood in.
+const dashpay = DataContractWASM.fromBase64(DASHPAY_CONTRACT_BASE64, true, 9)
+const fetchContract = sdk.dataContracts.getDataContractByIdentifier.bind(sdk.dataContracts)
+Object.assign(sdk.dataContracts, {getDataContractByIdentifier: async (id: string) => id === DASHPAY_CONTRACT_ID ? dashpay : fetchContract(id)})
 
 const ctx = {
   sdk,
@@ -119,7 +140,7 @@ describe('transitionFee', () => {
 
   it('prices every operation main can send it', async () => {
     for (const operation of ALL) {
-      expect(await feeOf(operation, {recipient: RECIPIENT[operation]}), operation).toBeGreaterThan(0n)
+      expect(await feeOf(operation, {recipient: RECIPIENT[operation], keys: [KEY]}), operation).toBeGreaterThan(0n)
     }
   })
 
@@ -236,5 +257,53 @@ describe('transitionFee', () => {
     }).calculateMinRequiredFee()
 
     expect(await feeOf('identityRegister', {recipient: ''})).toBe(overInstantProof)
+  })
+
+  // What testnet charged at protocol 14, preorder plus domain, for each state a
+  // registration can meet. The quote carries a 5% margin on top.
+  it('prices a name registration within 1% of what Drive charged', async () => {
+    const charged: Array<[string, number, boolean, number]> = [
+      ['owl352-e2e-3302', 1, true, 57_514_297],
+      ['owl352-e2e-long-6356-0123456789abcdefghjkmnpqrstuvwxyz012345678', 1, true, 63_280_568],
+      ['owl352-e2e-6546', 0, false, 74_443_585],
+      ['owl-check-kfjp', 1, true, 107_152_959],
+    ]
+    for (const [label, contractNonce, named, credits] of charged) {
+      Object.assign(dpnsState, {contractNonce: BigInt(contractNonce), named})
+      const quote = await transitionFee({operation: 'aliasRegister', params: params({recipient: label})}, ctx)
+      const error = Number(quote.feeCredits * 100n / 105n) / credits - 1
+      expect(Math.abs(error), label).toBeLessThan(0.01)
+    }
+    Object.assign(dpnsState, {contractNonce: 1n, named: true})
+  })
+
+  // What testnet charged at protocol 14 for each identity's first contact request.
+  it('prices a contact request at most 9% over what Drive charged', async () => {
+    Object.assign(dpnsState, {contractNonce: 0n})
+    for (const credits of [102_138_659, 105_515_575]) {
+      const error = Number(await feeOf('dashPayContactRequest')) / credits - 1
+      expect(error).toBeGreaterThanOrEqual(0)
+      expect(error).toBeLessThan(0.09)
+    }
+    Object.assign(dpnsState, {contractNonce: 1n})
+  })
+
+  // Measured on testnet: 34,165,380 then 25,884,540 credits for the two keys
+  // apart, 58,356,740 for both in one update.
+  it('prices a bound key by whether the identity already has one bound to its contract', async () => {
+    const bounded: IdentityKeyRequest = {...KEY, contractBounds: DASHPAY_KEY_BOUNDS}
+    const quote = (bytes: bigint): bigint => bytes * 27_400n * 105n / 100n
+    expect(await feeOf('identityCreateKeys', {keys: [KEY, KEY]})).toBe(quote(2n * 452n))
+    expect(await feeOf('identityCreateKeys', {keys: [bounded, bounded]})).toBe(quote(2n * (452n + 493n) + 302n))
+    identityKeys.bound = [DASHPAY_KEY_BOUNDS.contractId]
+    expect(await feeOf('identityCreateKeys', {keys: [bounded]})).toBe(quote(452n + 493n))
+    identityKeys.bound = []
+  })
+
+  it('quotes a contested name its vote fund apart, so no multiplier scales it', async () => {
+    const plain = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl352-e2e-3302'})}, ctx)
+    const contested = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl-check-kfjp'})}, ctx)
+    expect(plain.fixedCredits).toBe(0n)
+    expect(contested.fixedCredits).toBe(10_000_000_000n)
   })
 })

@@ -21,6 +21,7 @@ import {
   TransferInput,
 } from '../../types/CoreTransaction'
 import {buildAssetLockOutputs} from '../../utils/assetLockTx'
+import {derivePath256} from '../../utils/dashPayKeys'
 
 
 export class CoreTransactionService {
@@ -67,7 +68,7 @@ export class CoreTransactionService {
 
     const privateKeys: PrivateKey[] = []
     for (const input of inputs) {
-      const derived = await this.keyPair.derivePath(hdKey, input.derivationPath)
+      const derived = derivePath256(hdKey, input.derivationPath)
       if (!derived.privateKey) {
         throw new Error(`Failed to derive private key for ${input.address}`)
       }

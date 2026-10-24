@@ -24,6 +24,9 @@ import {encryptMnemonic} from "../../utils";
 import {withUnlockedWallet} from "../../utils/walletSeed";
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
+import {dashPayAccountPath} from '../../utils/dashPayKeys'
+import {dashPayPayments} from '../../utils/dashPayContacts'
+import {DashPayPayment} from '../../types/DashPay'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
@@ -117,6 +120,7 @@ export class WalletService {
 
     const coreAccountNode = await this.keyPair.derivePath(hdKey, coreAccountPath(coinType, accountId))
     await this.walletDAO.setCoreXpub(walletId, coreAccountNode.publicExtendedKey)
+    await this.walletDAO.setDashPayXpub(walletId, (await this.keyPair.derivePath(hdKey, dashPayAccountPath(network))).publicExtendedKey)
 
     const coreXpub = coreAccountNode.publicExtendedKey
     const addresses: Address[] = []
@@ -302,6 +306,29 @@ export class WalletService {
     }
   }
 
+  // Pays a DashPay contact on the next address of the key they sent us; the
+  // address never leaves the backend.
+  async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
+    const result = await this.send(walletId, password, async (wallet, seed) => {
+      const xpub = await this.identities.dashPayContactXpub(walletId, wallet.network, seed, identifier, contactId)
+      return [{address: await this.discovery.nextDashPayPayAddress(wallet, identifier, contactId, xpub), amountDuffs}]
+    })
+    log.info(`dashpay payment ${identifier} -> ${contactId}: ${amountDuffs} duffs in ${result.txid}`)
+    return result
+  }
+
+  // Payments between one of our identities and a contact, from our L1 history.
+  async getDashPayPayments(walletId: string, identifier: string, contactId: string): Promise<DashPayPayment[]> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const [core, receiving, external] = await Promise.all([
+      this.coreReadProvider(wallet).then(provider => provider.getWalletTransactions()),
+      this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'receiving'),
+      this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'external'),
+    ])
+    const addresses = (rows: Array<{address: string}>) => new Set(rows.map(({address}) => address))
+    return dashPayPayments(core, addresses(receiving), addresses(external))
+  }
+
   // Guarded like a send rather than like a read: a picker fed a partial set does
   // not under-display, it narrows what the user can pick to coins they cannot
   // tell are only some of theirs.
@@ -367,9 +394,21 @@ export class WalletService {
     source?: CoreSpendSource,
     changeTo?: string,
   ): Promise<SendResult> {
-    const amountDuffs = requireCoreRecipients(recipients)
+    return this.send(walletId, password, async () => recipients, source, changeTo)
+  }
 
-    const {tx, inputTotal, changeAddress} = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
+  // Recipients are resolved inside the unlock: a DashPay contact's address can
+  // take the seed to work out.
+  private async send(
+    walletId: string,
+    password: string,
+    resolveRecipients: (wallet: Wallet, seed: Uint8Array) => Promise<CoreRecipient[]>,
+    source?: CoreSpendSource,
+    changeTo?: string,
+  ): Promise<SendResult> {
+    const {tx, inputTotal, changeAddress, recipients, amountDuffs} = await withUnlockedWallet(this.walletDAO, walletId, password, async ({wallet, seed}) => {
+      const recipients = await resolveRecipients(wallet, seed)
+      const amountDuffs = requireCoreRecipients(recipients)
       const network = wallet.network
       const outputs = recipients.map(recipient => ({
         ...recipient,
@@ -399,7 +438,7 @@ export class WalletService {
         seed,
         network,
       })
-      return {tx, inputTotal, changeAddress}
+      return {tx, inputTotal, changeAddress, recipients, amountDuffs}
     })
 
     const broadcast = await this.walletSyncService.broadcastTransaction(tx.hex())
