@@ -16,11 +16,17 @@ export function evonodeDapiUrls(diff: MnListDiff): string[] | null {
   return [...new Set(urls)]
 }
 
+// The platform worker builds the same key from a proof; the type is part of it
+// because two types can share a hash.
+export function quorumKey({llmqType, quorumHash}: {llmqType: number; quorumHash: string}): string {
+  return `${llmqType}:${quorumHash}`
+}
+
 // The quorum set after applying `diff` to `previous`, or null unless `header`
 // proves the diff's coinbase and that coinbase's merkleRootQuorums covers the set.
 export function committedQuorums(diff: MnListDiff, header: Uint8Array, previous: FinalCommitment[]): FinalCommitment[] | null {
-  const deleted = new Set(diff.deletedQuorums.map(quorum => `${quorum.llmqType}:${quorum.quorumHash}`))
-  const quorums = [...previous.filter(quorum => !deleted.has(`${quorum.llmqType}:${quorum.quorumHash}`)), ...diff.newQuorums]
+  const deleted = new Set(diff.deletedQuorums.map(quorumKey))
+  const quorums = [...previous.filter(quorum => !deleted.has(quorumKey(quorum))), ...diff.newQuorums]
   const root = merkleRoot(quorums.map(commitmentHash).sort(Buffer.compare))
   const committed = (diff.cbTx.extraPayload as {merkleRootQuorums?: string} | undefined)?.merkleRootQuorums
   return root != null && wireToDisplayHex(root) === committed && coinbaseInBlock(diff, header) ? quorums : null

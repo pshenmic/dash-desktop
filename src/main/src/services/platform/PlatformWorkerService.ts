@@ -11,6 +11,7 @@ import {LogLevel} from '../../types/Log'
 import {Preferences} from '../../preferences'
 import {setCoreDapi, setCoreDapiUrls} from '../../utils/coreSDK'
 import {EvonodeDAO} from '../../database/EvonodeDAO'
+import {DapiPinGate} from '../../utils/dapiPinGate'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -54,8 +55,7 @@ export class PlatformWorkerService {
   private transitionBroadcast: (() => void) | null = null
   private readonly preferences: Preferences
   private readonly evonodeDAO: EvonodeDAO
-  private readonly pinnedNetworks = new Set<Network>()
-  private readonly pinWaiters = new Map<Network, Set<() => void>>()
+  private readonly pinGate = new DapiPinGate()
   private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
 
   constructor(preferences: Preferences, evonodeDAO: EvonodeDAO) {
@@ -148,25 +148,13 @@ export class PlatformWorkerService {
     this.child?.postMessage({type: 'setDapi', dapi: this.preferences.network.dapi})
   }
 
-  // Holds a request until the worker can build an SDK for the network: none can
-  // before its first evonode list has been probed.
+  // Static urls are used as given, unprobed.
   private untilPinned(network: Network): Promise<void> | null {
     const {dapi} = this.preferences.network
-    if (this.pinnedNetworks.has(network) || (dapi.mode === 'static' && dapi[network].length > 0)) return null
+    if (dapi.mode === 'static' && dapi[network].length > 0) return null
+    // The pin comes from the worker, so it must be running to send one.
     this.ensureChild()
-    return new Promise((resolve, reject) => {
-      const waiters = this.pinWaiters.get(network) ?? new Set<() => void>()
-      this.pinWaiters.set(network, waiters)
-      const wake = (): void => {
-        clearTimeout(timer)
-        resolve()
-      }
-      const timer = setTimeout(() => {
-        waiters.delete(wake)
-        reject(new Error(`no reachable evonode for ${network} after ${DAPI_URLS_WAIT_MS / 1000}s`))
-      }, DAPI_URLS_WAIT_MS)
-      waiters.add(wake)
-    })
+    return this.pinGate.wait(network, DAPI_URLS_WAIT_MS)
   }
 
   // Saved before it is forwarded, so a worker forked later starts from it too.
@@ -208,7 +196,7 @@ export class PlatformWorkerService {
       log.info(`utility process exited code=${code}`)
       if (tail) log.error(`last output before exit:\n${tail}`)
       this.child = null
-      this.pinnedNetworks.clear()
+      this.pinGate.reset()
       // Every pending request must be settled here or its caller hangs forever.
       const detail = tail ? `\n--- platform output (tail) ---\n${tail}` : ''
       for (const [requestId, record] of [...this.pending]) {
@@ -266,9 +254,7 @@ export class PlatformWorkerService {
       this.progressHandlers.get(event.requestId)?.onNotesSpent?.(event.indexes)
     } else if (event.type === 'pinnedDapiUrls') {
       setCoreDapiUrls(event.network, event.dapiUrls)
-      this.pinnedNetworks.add(event.network)
-      for (const wake of this.pinWaiters.get(event.network) ?? []) wake()
-      this.pinWaiters.delete(event.network)
+      this.pinGate.pin(event.network)
     } else if (event.type === 'error') {
       log.error('utility process error:', event.message)
     }

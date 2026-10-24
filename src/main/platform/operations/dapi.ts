@@ -4,19 +4,14 @@ import {Network} from '../../src/types/Network'
 import {DAPI_POOL_READY, DAPI_PROBE_BATCH, DAPI_STATUS_TIMEOUT_MS} from '../constants'
 import {DapiUrlStatus} from '../types/messages'
 import {Logger} from '../../src/utils/logger'
+import {shuffled} from '../../src/utils/shuffle'
 
 const log = new Logger('platform')
 
 export async function reachableDapiUrls(candidates: string[], network: Network): Promise<string[]> {
-  const shuffled = [...candidates]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const swap = shuffled[i]!
-    shuffled[i] = shuffled[j]!
-    shuffled[j] = swap
-  }
-  for (let start = 0; start < shuffled.length; start += DAPI_PROBE_BATCH) {
-    const batch = shuffled.slice(start, start + DAPI_PROBE_BATCH)
+  const order = shuffled(candidates)
+  for (let start = 0; start < order.length; start += DAPI_PROBE_BATCH) {
+    const batch = order.slice(start, start + DAPI_PROBE_BATCH)
     const reachable = await new Promise<string[]>(resolve => {
       const found: string[] = []
       let pending = batch.length

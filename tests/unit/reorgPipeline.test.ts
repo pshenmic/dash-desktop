@@ -25,7 +25,7 @@ vi.mock('../../src/main/p2p/net/PoolService', async () => {
       network: string
       readyPeers = new Set()
       filterCapablePeers = new Set()
-      messages = {}
+      messages = {GetMnListDiff: (args: unknown) => args}
       constructor(network: string) {
         super()
         this.network = network

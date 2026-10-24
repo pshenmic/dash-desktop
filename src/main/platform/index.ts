@@ -1,4 +1,5 @@
 import {Logger, configureLogger} from '../src/utils/logger'
+import {EvonodePins} from './EvonodePins'
 import {PlatformService} from './PlatformService'
 import {SdkRegistry} from './SdkRegistry'
 import {PlatformCommand, PlatformEvent} from './types/messages'
@@ -40,8 +41,12 @@ declare const process: NodeJS.Process & {
 }
 
 const emit = (event: PlatformEvent): void => process.parentPort.postMessage(event)
-const registry = new SdkRegistry(emit)
+const registry = new SdkRegistry()
 const service = new PlatformService(registry, emit)
+const pins = new EvonodePins((network, dapiUrls) => {
+  registry.setPinnedDapiUrls(network, dapiUrls)
+  emit({type: 'pinnedDapiUrls', network, dapiUrls})
+})
 
 process.parentPort.on('message', ({data}) => {
   if (data.type === 'setLogLevel') {
@@ -53,7 +58,7 @@ process.parentPort.on('message', ({data}) => {
     return
   }
   if (data.type === 'setEvonodeDapiUrls') {
-    registry.setEvonodeDapiUrls(data.network, data.dapiUrls)
+    pins.probe(data.network, data.dapiUrls)
     return
   }
   if (data.type === 'setQuorumKeys') {
