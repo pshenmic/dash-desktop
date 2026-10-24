@@ -3,6 +3,7 @@ import { SunIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { toDropdownOptions } from '@renderer/utils/wallets'
+import { walletDisplayNameById } from '@renderer/utils/walletName'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import DropdownSelect from './ui/DropdownSelect'
 import ConnectionButton from './ui/ConnectionButton'
@@ -59,6 +60,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
     () => toDropdownOptions(wallets),
     [wallets]
   )
+  const pendingWalletName = walletDisplayNameById(wallets, pendingWalletId)
 
   const { desired, showSyncUI } = useConnectionModeContext()
 
@@ -102,7 +104,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
         </div>
       </header>
 
-      <main className={`flex-1 mt-12 ${showSyncUI && status?.walletSync.phase !== 'synced' ? 'pb-28' : ''}`}>
+      <main className={`flex-1 mt-8 ${showSyncUI && status?.walletSync.phase !== 'synced' ? 'pb-28' : ''}`}>
         <P2pReadyNotice />
         <DataRefreshNotice />
         {children}
@@ -116,6 +118,7 @@ export default function Layout({ children }: LayoutProps): React.JSX.Element {
         isOpen={pendingWalletId !== null}
         onClose={() => setPendingWalletId(null)}
         walletId={pendingWalletId}
+        walletName={pendingWalletName}
         onUnlock={handleUnlock}
       />
     </div>

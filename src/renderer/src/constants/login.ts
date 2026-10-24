@@ -1,3 +1,5 @@
+import { WALLET_PASSWORD_PLACEHOLDER } from './password'
+
 export interface LoginTexts {
   title: string
   description: string
@@ -27,7 +29,7 @@ export const loginTexts: LoginTexts = {
     walletLabel: 'Wallet',
     walletPlaceholder: 'Select your wallet',
     passwordLabel: 'Password',
-    passwordPlaceholder: 'Type Your Password',
+    passwordPlaceholder: WALLET_PASSWORD_PLACEHOLDER,
     submitButton: 'Unlock',
   },
   links: {

@@ -4,7 +4,9 @@ import { EyeClosedIcon, EyeOpenIcon, LockIcon } from "../dash-ui-kit-enxtended";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance } from "@renderer/hooks/useWalletBalance";
-import { usePlatformCredits } from "@renderer/hooks/usePlatformCredits";
+import { usePlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
+import { useIdentities } from "@renderer/hooks/useIdentities";
+import { totalIdentityCredits, totalPlatformAddressCredits } from "@renderer/utils/platformBalances";
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility";
 import { useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
@@ -12,7 +14,8 @@ import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
 export default function SidebarHeader(): React.JSX.Element {
   const { status, lock } = useAuth()
   const { balance } = useWalletBalance(status?.selectedWalletId ?? undefined)
-  const platformCredits = usePlatformCredits(status?.selectedWalletId ?? undefined)
+  const { platformAddresses } = usePlatformAddresses(status?.selectedWalletId ?? undefined)
+  const { identities } = useIdentities(status?.selectedWalletId ?? undefined)
   const { isBalanceVisible, toggleBalanceVisibility } = useBalanceVisibility()
   const { format: formatFiat, rateReady } = useFiat()
   const shieldedSync = useShieldedSyncState(status?.selectedWalletId ?? null)
@@ -71,7 +74,8 @@ export default function SidebarHeader(): React.JSX.Element {
       </div>
       <div className={"flex flex-col dash-block rounded-[.875rem] dash-black-border divide-y divide-dash-primary-dark-blue/8 dark:divide-white/12"}>
         <Balance variant="dash" balance={balance.dash.amount} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
-        <Balance variant="credits" credits={platformCredits} isVisible={isBalanceVisible}/>
+        <Balance variant="credits" credits={totalPlatformAddressCredits(platformAddresses)} isVisible={isBalanceVisible}/>
+        <Balance variant="identities" credits={totalIdentityCredits(identities)} isVisible={isBalanceVisible}/>
         <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
       </div>
     </div>

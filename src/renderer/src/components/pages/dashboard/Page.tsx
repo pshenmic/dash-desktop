@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { ReceiveIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import NoResults from '@renderer/components/ui/NoResults'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import PartialDataNotice from '@renderer/components/ui/PartialDataNotice'
 import { dashboardPage, RECENT_TX_LIMIT } from '@renderer/constants'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import type { DashboardContentProps } from '@renderer/types/WalletTransaction'
 import { mergeWalletTransactions } from '@renderer/utils/walletTransactions'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
@@ -68,44 +70,40 @@ export default function DashboardContent({ groups, platform, platformFailed, loa
   const hasActivity = recentTransactions.length > 0
 
   return (
-    <div className={"px-12 pb-8 flex flex-col gap-4 phase-fade-in"}>
-      <PartialDataNotice />
-      <HeroBalance />
+    <div className={"px-12 pb-8 phase-fade-in"}>
+      <PageHeader title={PAGE_HEADERS.dashboard.title} subtitle={PAGE_HEADERS.dashboard.subtitle} />
+      <div className={"flex flex-col gap-4"}>
+        <PartialDataNotice platformFailed={platformFailed} />
+        <HeroBalance />
 
-      {platformFailed && (
-        <div role="status">
-          <Text size={12} color="brand" opacity={50}>
-            Platform history could not be refreshed. Transactions may be missing or out of date.
-          </Text>
-        </div>
-      )}
-      {loading && <DashboardSkeleton />}
-      {!loading && err && <NoResults noResults={dashboardPage.recent.error} />}
-      {!loading && !err && !hasActivity && (
-        platformFailed
-          ? <NoResults noResults="No transactions available. Platform history could not be loaded." />
-          : <EmptyState />
-      )}
-      {!loading && !err && hasActivity && (
-        <div className={"flex flex-col gap-4 min-w-0"}>
-          <RecentTransactions
-            transactions={recentTransactions}
-            onTransactionClick={onTransactionClick}
-          />
-        </div>
-      )}
+        {loading && <DashboardSkeleton />}
+        {!loading && err && <NoResults noResults={dashboardPage.recent.error} />}
+        {!loading && !err && !hasActivity && (
+          platformFailed
+            ? <NoResults noResults={dashboardPage.recent.empty} />
+            : <EmptyState />
+        )}
+        {!loading && !err && hasActivity && (
+          <div className={"flex flex-col gap-4 min-w-0"}>
+            <RecentTransactions
+              transactions={recentTransactions}
+              onTransactionClick={onTransactionClick}
+            />
+          </div>
+        )}
 
-      <section className="flex min-w-0 flex-col gap-2" aria-label={dashboardPage.sections.services}>
-        <header className="flex flex-wrap items-center justify-between gap-3 px-1"><DashboardHeading as="h2">{dashboardPage.sections.services}</DashboardHeading></header>
-        <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
-          <ShieldedCard />
-          <IdentitiesCard />
-        </div>
-      </section>
+        <section className="flex min-w-0 flex-col gap-2" aria-label={dashboardPage.sections.services}>
+          <header className="flex flex-wrap items-center justify-between gap-3 px-1"><DashboardHeading as="h2">{dashboardPage.sections.services}</DashboardHeading></header>
+          <div className={"grid grid-cols-1 lg:grid-cols-2 gap-4"}>
+            <ShieldedCard />
+            <IdentitiesCard />
+          </div>
+        </section>
 
-      {!loading && !err && hasActivity && (
-        <WalletAnalytics core={transactions} platform={platform} platformFailed={platformFailed} hidden={hideAmounts} />
-      )}
+        {!loading && !err && hasActivity && (
+          <WalletAnalytics core={transactions} platform={platform} platformFailed={platformFailed} hidden={hideAmounts} />
+        )}
+      </div>
     </div>
   )
 }

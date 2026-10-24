@@ -58,9 +58,9 @@ interface OperationInfo {
 const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.CoreSend]: {title: 'Send Dash', submitLabel: 'Send', minCredits: null, spendKind: null},
   [TransferOperation.AssetLockFunding]: {title: 'Fund Platform address', submitLabel: 'Fund', minCredits: null, spendKind: null},
-  [TransferOperation.AssetLockShield]: {title: 'Shield from L1', submitLabel: 'Shield', minCredits: null, spendKind: null},
+  [TransferOperation.AssetLockShield]: {title: 'Shield from Core', submitLabel: 'Shield', minCredits: null, spendKind: null},
   [TransferOperation.IdentityRegister]: {title: 'Register identity', submitLabel: 'Register', minCredits: null, spendKind: null},
-  [TransferOperation.IdentityTopUpL1]: {title: 'Top up identity from L1', submitLabel: 'Top up', minCredits: null, spendKind: null},
+  [TransferOperation.IdentityTopUpL1]: {title: 'Top up identity from Core', submitLabel: 'Top up', minCredits: null, spendKind: null},
   [TransferOperation.AddressFundsTransfer]: {title: 'Transfer credits', submitLabel: 'Send', minCredits: 500_000n, spendKind: null},
   [TransferOperation.IdentityTopUp]: {title: 'Top up identity', submitLabel: 'Top up', minCredits: 100_000n, spendKind: null},
   [TransferOperation.IdentityCreate]: {title: 'Create identity', submitLabel: 'Create', minCredits: 500_000n, spendKind: null},
@@ -71,12 +71,16 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.IdentityWithdrawal]: {title: 'Withdraw from identity', submitLabel: 'Withdraw', minCredits: 100_000n, spendKind: null},
   [TransferOperation.ShieldedTransfer]: {title: 'Shielded send', submitLabel: 'Send', minCredits: 500_000n, spendKind: ShieldedSpendKind.Transfer},
   [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', minCredits: 500_000n, spendKind: ShieldedSpendKind.Unshield},
-  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to L1', submitLabel: 'Withdraw', minCredits: 500_000n, spendKind: ShieldedSpendKind.Withdrawal},
+  [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to Core', submitLabel: 'Withdraw', minCredits: 500_000n, spendKind: ShieldedSpendKind.Withdrawal},
   [TransferOperation.IdentityCreateFromShielded]: {title: 'Create identity from pool', submitLabel: 'Create', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {
   return OPERATION_INFO[operation]
+}
+
+export function requiresShieldedProver(operation: TransferOperation): boolean {
+  return operation === TransferOperation.Shield || OPERATION_INFO[operation].spendKind != null
 }
 
 // The protocol only lets identities exit the shielded pool at fixed
@@ -107,14 +111,14 @@ export function isLikelyIdentityId(value: string): boolean {
 }
 
 export const SOURCE_KINDS: Array<{kind: SourceKind; label: string}> = [
-  {kind: SourceKind.Core, label: 'Dash Core (L1)'},
+  {kind: SourceKind.Core, label: 'Dash Core'},
   {kind: SourceKind.PlatformAddress, label: 'Platform address'},
   {kind: SourceKind.Identity, label: 'Identity'},
   {kind: SourceKind.Shielded, label: 'Shielded balance'},
 ]
 
 export const DESTINATION_KINDS: Array<{kind: DestinationKind; label: string}> = [
-  {kind: DestinationKind.CoreAddress, label: 'Dash address (L1)'},
+  {kind: DestinationKind.CoreAddress, label: 'Dash Core'},
   {kind: DestinationKind.PlatformAddress, label: 'Platform address'},
   {kind: DestinationKind.Identity, label: 'Identity'},
   {kind: DestinationKind.NewIdentity, label: 'New identity'},

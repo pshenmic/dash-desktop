@@ -1,106 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
-import { useTheme } from 'dash-ui-kit/react'
+import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
 import { API } from '@renderer/api'
-import { AssetLockFundingKind, AssetLockFundingState, CoreSpendSource } from '@renderer/api/types'
+import { AssetLockFundingState } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
-import { LockKind } from '@renderer/enums/LockKind'
-import Spinner from '@renderer/components/ui/Spinner'
+import { ModalSize } from '@renderer/enums/ModalSize'
+import Modal from '@renderer/components/ui/Modal'
+import ModalActions from '@renderer/components/ui/ModalActions'
 import HashField from '@renderer/components/ui/HashField'
-import CopyableError from '@renderer/components/ui/CopyableError'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import TxSummary from '@renderer/components/ui/TxSummary'
+import PhaseProgressList from '@renderer/components/ui/PhaseProgressList'
+import { toast } from '@renderer/components/ui/Toast'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { useErrorToast } from '@renderer/hooks/useErrorToast'
+import { getErrorMessage } from '@renderer/utils/error'
 import { transactionUrl, platformTransactionUrl } from '@renderer/utils/explorer'
 import { ASSET_LOCK_FUNDING_POLL_MS, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-import { davToDash } from '@renderer/utils/balance'
-
-interface AssetLockFundingModalProps {
-  isOpen: boolean
-  advanced?: boolean
-  onClose: () => void
-  walletId: string | null
-  toPlatformAddress: string
-  amountDuffs: string
-  resume: boolean
-  kind: AssetLockFundingKind
-  source?: CoreSpendSource
-  sourceValid?: boolean
-  onSuccess: () => void
-}
-
-const PHASE_LABELS: Record<AssetLockFundingKind, ReadonlyArray<{key: AssetLockFundingPhase; label: string}>> = {
-  address: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Crediting the Platform address' },
-  ],
-  shielded: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Proving and shielding the credits' },
-  ],
-  identity: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Registering the identity on Platform' },
-  ],
-  identityTopUp: [
-    { key: AssetLockFundingPhase.BroadcastingL1, label: 'Broadcasting the L1 asset lock transaction' },
-    { key: AssetLockFundingPhase.WaitingChainLock, label: 'Waiting for a network lock' },
-    { key: AssetLockFundingPhase.BroadcastingST, label: 'Topping up the identity on Platform' },
-  ],
-}
-
-function lockStepLabel(state: AssetLockFundingState, active: boolean): string {
-  if (state.lockKind === LockKind.Instant) return 'InstantSend lock received'
-  if (state.lockKind === LockKind.Chain) return 'ChainLock received'
-  if (active) return 'Waiting for an InstantSend lock (usually seconds; ChainLock fallback takes minutes)'
-  return 'Network lock (InstantSend or ChainLock)'
-}
-
-const TEXTS: Record<AssetLockFundingKind, {title: string; resumeTitle: string; doneTitle: string; doneHeading: string; doneNote: string; toLabel: string; emptyTo: string; confirm: string}> = {
-  address: {
-    title: 'Fund Platform address',
-    resumeTitle: 'Resume funding',
-    doneTitle: 'Address funded',
-    doneHeading: 'Platform address funded',
-    doneNote: 'The locked Dash is now available as credits.',
-    toLabel: 'To (Platform)',
-    emptyTo: '',
-    confirm: 'Sign & Send',
-  },
-  shielded: {
-    title: 'Shield from L1',
-    resumeTitle: 'Resume shielding',
-    doneTitle: 'Credits shielded',
-    doneHeading: 'Credits shielded',
-    doneNote: "The locked Dash is now a note in the recipient's shielded balance.",
-    toLabel: 'To (Shielded)',
-    emptyTo: '',
-    confirm: 'Sign & Send',
-  },
-  identity: {
-    title: 'Register identity',
-    resumeTitle: 'Resume registration',
-    doneTitle: 'Identity registered',
-    doneHeading: 'Identity registered',
-    doneNote: "The locked Dash is now this identity's credit balance.",
-    toLabel: 'Creates',
-    emptyTo: 'New Platform identity with 6 keys',
-    confirm: 'Sign & Send',
-  },
-  identityTopUp: {
-    title: 'Top up identity from L1',
-    resumeTitle: 'Resume top-up',
-    doneTitle: 'Identity topped up',
-    doneHeading: 'Identity topped up',
-    doneNote: "The locked Dash is now credits on the identity's balance.",
-    toLabel: 'Identity',
-    emptyTo: '',
-    confirm: 'Sign & Send',
-  },
-}
+import {
+  ASSET_LOCK_FUNDING_TEXTS,
+  ASSET_LOCK_INSTANT_LOCK_FALLBACK_MS,
+  ASSET_LOCK_LOCK_STEP_LABELS,
+  ASSET_LOCK_PHASE_LABELS,
+} from '@renderer/constants/assetLockFunding'
+import { SEND_INPUTS_CHANGED_MESSAGE } from '@renderer/constants/sendConfirmModal'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { assetLockSummaryCosts, resumedAssetLockAmount } from '@renderer/utils/txSummaryCosts'
+import { assetLockEndpoints } from '@renderer/utils/txSummaryEndpoints'
+import { assetLockLockStep } from '@renderer/utils/assetLockFunding'
+import type { AssetLockFundingModalProps } from '@renderer/types/AssetLockFundingModal'
 
 function phaseIndex(phase: AssetLockFundingPhase): number {
   if (phase === AssetLockFundingPhase.Building || phase === AssetLockFundingPhase.BroadcastingL1) return 0
@@ -110,20 +38,19 @@ function phaseIndex(phase: AssetLockFundingPhase): number {
   return 0
 }
 
-export default function AssetLockFundingModal({
-  isOpen,
-  advanced = true,
-  onClose,
-  walletId,
-  toPlatformAddress,
-  amountDuffs,
-  resume,
-  kind,
-  source,
-  sourceValid = true,
-  onSuccess,
-}: AssetLockFundingModalProps): React.JSX.Element | null {
-  const { theme } = useTheme()
+export default function AssetLockFundingModal(props: AssetLockFundingModalProps): React.JSX.Element {
+  const {
+    isOpen,
+    advanced = true,
+    onClose,
+    walletId,
+    toPlatformAddress,
+    from,
+    resume,
+    kind,
+    sourceValid = true,
+    onSuccess,
+  } = props
   const sourceValidRef = useRef(sourceValid)
   sourceValidRef.current = sourceValid
   const { status } = useAuth()
@@ -133,16 +60,35 @@ export default function AssetLockFundingModal({
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(false)
   const [state, setState] = useState<AssetLockFundingState | null>(null)
+  const [resumeRequested, setResumeRequested] = useState(false)
+  const [lockFallback, setLockFallback] = useState(false)
   const notified = useRef(false)
+  const pollingErrorNotified = useRef(false)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
+  const resuming = props.resume || resumeRequested
+  const presetPassword = props.resume ? undefined : props.presetPassword
 
   useEffect(() => {
-    if (isOpen) {
-      setPassword('')
-      setPreError(null)
-      setBusy(false)
-      setStarted(false)
-      setState(null)
-      notified.current = false
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    const preset = presetPassword || null
+    setPassword('')
+    setPreError(null)
+    setBusy(preset !== null)
+    setStarted(false)
+    setState(null)
+    setResumeRequested(false)
+    setLockFallback(false)
+    setAuto(preset !== null)
+    notified.current = false
+    pollingErrorNotified.current = false
+    if (preset !== null) {
+      autoStarted.current = true
+      void begin(preset, true, false)
     }
   }, [isOpen])
 
@@ -161,7 +107,11 @@ export default function AssetLockFundingModal({
         setState(current)
         setStarted(true)
       })
-      .catch(() => {})
+      .catch(error => {
+        if (dead) return
+        console.error('Failed to load asset lock funding state', error)
+        toast.error(getErrorMessage(error))
+      })
 
     return () => { dead = true }
   }, [isOpen, resume, walletId, kind])
@@ -175,6 +125,7 @@ export default function AssetLockFundingModal({
       try {
         const next = await API.getAssetLockFundingState(walletId)
         if (dead) return
+        pollingErrorNotified.current = false
         setState(next)
         if (next.phase === AssetLockFundingPhase.Done && !notified.current) {
           notified.current = true
@@ -183,7 +134,12 @@ export default function AssetLockFundingModal({
         if (next.phase !== AssetLockFundingPhase.Done && next.phase !== AssetLockFundingPhase.Error && next.phase !== AssetLockFundingPhase.Resumable) {
           timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to refresh asset lock funding state', error)
+        if (!dead && !pollingErrorNotified.current) {
+          pollingErrorNotified.current = true
+          toast.error(getErrorMessage(error))
+        }
         if (!dead) timer = setTimeout(() => { void poll() }, ASSET_LOCK_FUNDING_POLL_MS)
       }
     }
@@ -195,214 +151,206 @@ export default function AssetLockFundingModal({
     }
   }, [started, walletId, onSuccess])
 
-  if (!isOpen) return null
+  const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
+  const error = isError ? state?.error ?? 'Funding failed.' : null
+  useErrorToast(error, isOpen)
 
   const running = started && state != null && state.phase !== AssetLockFundingPhase.Done && state.phase !== AssetLockFundingPhase.Error && state.phase !== AssetLockFundingPhase.Resumable
+  const awaitingLock = running && state?.phase === AssetLockFundingPhase.WaitingChainLock && state.lockKind == null
 
-  const handleConfirm = async (): Promise<void> => {
-    if (!walletId || password.length === 0 || busy || started || !sourceValidRef.current) return
-    setBusy(true)
-    setPreError(null)
+  useEffect(() => {
+    if (!awaitingLock) return
+    const timer = setTimeout(() => setLockFallback(true), ASSET_LOCK_INSTANT_LOCK_FALLBACK_MS)
+    return () => clearTimeout(timer)
+  }, [awaitingLock])
+
+  const starting = auto && busy
+
+  const begin = async (secret: string, preset: boolean, resume: boolean): Promise<void> => {
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
-        setBusy(false)
+      if (!walletId || (!resume && !sourceValidRef.current)) {
+        if (preset) {
+          toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+          onClose()
+        } else setBusy(false)
         return
       }
-      if (!sourceValidRef.current) {
-        setBusy(false)
-        return
-      }
-      const initial = resume
-        ? await API.resumeAssetLockFunding(walletId, password)
-        : await API.startAssetLockFunding(walletId, toPlatformAddress, BigInt(amountDuffs), password, kind, source)
+      const initial = resume || props.resume
+        ? await API.resumeAssetLockFunding(walletId, secret)
+        : await API.startAssetLockFunding(walletId, toPlatformAddress, props.amountDuffs, secret, kind, props.source)
+      if (resume) setLockFallback(true)
       setState(initial)
       setStarted(true)
       setBusy(false)
     } catch (e) {
-      setPreError(e instanceof Error ? e.message : 'Could not start the funding.')
-      setBusy(false)
+      console.error('Could not start asset lock funding', e)
+      toast.error(getErrorMessage(e))
+      if (preset) onClose()
+      else setBusy(false)
     }
+  }
+
+  const handleConfirm = async (): Promise<void> => {
+    if (!walletId || password.length === 0 || busy || started || (!resuming && !sourceValidRef.current)) return
+    setBusy(true)
+    setPreError(null)
+    try {
+      if (!await API.verifyWalletPassword(walletId, password)) {
+        setPreError(INVALID_WALLET_PASSWORD_MESSAGE)
+        setBusy(false)
+        return
+      }
+    } catch (e) {
+      console.error('Could not start asset lock funding', e)
+      toast.error(getErrorMessage(e))
+      setBusy(false)
+      return
+    }
+    await begin(password, false, resuming)
   }
 
   const requestClose = (): void => {
     onClose()
   }
 
+  const requestResume = (): void => {
+    setAuto(false)
+    setPassword('')
+    setPreError(null)
+    setResumeRequested(true)
+    setStarted(false)
+  }
+
   const isDone = started && state?.phase === AssetLockFundingPhase.Done
   const doneTxid = state?.txid ?? null
-  const isError = started && (state?.phase === AssetLockFundingPhase.Error || state?.phase === AssetLockFundingPhase.Resumable)
-  const texts = TEXTS[kind]
-  const phases = PHASE_LABELS[kind]
+  const texts = ASSET_LOCK_FUNDING_TEXTS[kind]
+  const phases = ASSET_LOCK_PHASE_LABELS[kind]
   let modalTitle = texts.title
   if (isDone) modalTitle = texts.doneTitle
-  else if (resume) modalTitle = texts.resumeTitle
+  else if (resuming) modalTitle = texts.resumeTitle
   let confirmLabel = advanced ? texts.confirm : 'Confirm'
   if (busy) confirmLabel = 'Starting…'
-  else if (resume) confirmLabel = 'Resume'
+  else if (resuming) confirmLabel = 'Resume'
 
-  return createPortal(
-    <div
-      className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
+  const costs = resuming ? undefined : assetLockSummaryCosts(kind, props.amountDuffs, props.feeDuffs, props.feeCredits)
+  const currentPhase = state ? phaseIndex(state.phase) : 0
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={requestClose}
+      title={modalTitle}
+      size={ModalSize.Lg}
+      dismissible={!busy}
     >
-      <div
-        className={"w-full max-w-170 rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
-      >
-        <div className={"flex items-center justify-between"}>
-          <Text size={24} weight={"extrabold"} color={"brand"}>
-            {modalTitle}
-          </Text>
-          <button
-            className={"dash-text-default hover:opacity-60 cursor-pointer"}
-            onClick={requestClose}
-          >
-            <CrossIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-          </button>
+      {!started && !starting && (
+        <div className={"phase-fade-in"} key={"confirm"}>
+          <TxSummary
+            unit={"duffs"}
+            amount={resuming ? resumedAssetLockAmount(kind, props.amountDuffs) : props.amountDuffs}
+            from={from}
+            to={assetLockEndpoints(kind, toPlatformAddress)}
+            fees={costs?.fees}
+            total={costs?.total}
+            details={costs?.details}
+            className={"mt-4"}
+          />
+
+          <PasswordField
+            id={"asset-lock-password"}
+            value={password}
+            onChange={(value) => { setPreError(null); setPassword(value) }}
+            onSubmit={handleConfirm}
+            error={preError}
+            disabled={busy}
+            className={"mt-5"}
+          />
+
+          <ModalActions
+            secondary={{ label: 'Cancel', onClick: requestClose, disabled: busy }}
+            primary={{
+              label: confirmLabel,
+              onClick: handleConfirm,
+              disabled: password.length === 0 || (!resuming && !sourceValid),
+              loading: busy,
+            }}
+          />
         </div>
+      )}
 
-        {!started && (
-          <div className={"phase-fade-in"} key={"confirm"}>
-            <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              {amountDuffs.length > 0 && (
-                <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount to lock</Text>
-                  <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(BigInt(amountDuffs))} Dash</Text>
-                </div>
-              )}
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{texts.toLabel}</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{toPlatformAddress || texts.emptyTo}</Text>
-              </div>
+      {(running || starting) && (
+        <div className={"phase-fade-in"} key={"progress"}>
+          <PhaseProgressList
+            phases={phases.map((p, i) => p.key === AssetLockFundingPhase.WaitingChainLock
+              ? { ...p, label: ASSET_LOCK_LOCK_STEP_LABELS[assetLockLockStep(state?.lockKind ?? null, i === currentPhase, lockFallback)] }
+              : p)}
+            current={currentPhase}
+            className={"mt-5"}
+          />
+          {state?.txid && (
+            <div className={"mt-3"}>
+              <HashField hash={state.txid} label={"Core txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
+          )}
+          {running && <ModalActions primary={{ label: 'Continue in background', onClick: onClose }} />}
+        </div>
+      )}
 
-            <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-              Enter your wallet password. The funding waits for the network to lock the L1 transaction — usually a few seconds with InstantSend, or a few minutes if it falls back to a ChainLock. If the app is closed meanwhile, the funding can be resumed.
-            </Text>
-            <div className={"mt-2"}>
-              <Input
-                id={"asset-lock-password"}
-                type={"password"}
-                placeholder={"Wallet password"}
-                value={password}
-                variant={"outlined"}
-                onChange={(e) => { setPreError(null); setPassword(e.target.value) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-                className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={preError ? 'error' : 'primary'}
-                disabled={busy}
-                autoFocus
-              />
+      {isError && state && (
+        <div className={"phase-fade-in"} key={"error"}>
+          {state.txid && (
+            <div className={"mt-3"}>
+              <HashField hash={state.txid} label={"Core txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
             </div>
-            <div className={`overflow-hidden transition-all duration-200 ${preError ? 'max-h-12 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-              <CopyableError message={preError ?? ''} />
-            </div>
-
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={requestClose} variant={"solid"} colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'} size={"sm"} className={"flex-1 rounded-[.9375rem]"} disabled={busy}>
-                Cancel
-              </Button>
-              <Button type={"button"} onClick={handleConfirm} disabled={password.length === 0 || busy || !sourceValid} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem] gap-2"}>
-                {busy && <Spinner size={16} />}
-                {confirmLabel}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {running && state && (
-          <div className={"phase-fade-in"} key={"progress"}>
-            <div className={"mt-5 flex flex-col gap-4 p-[.875rem] rounded-[.9375rem] dash-block"}>
-              {phases.map((p, i) => {
-                const current = phaseIndex(state.phase)
-                const done = i < current
-                const active = i === current
-                const label = p.key === AssetLockFundingPhase.WaitingChainLock ? lockStepLabel(state, active) : p.label
-                return (
-                  <div key={p.key} className={"flex items-center gap-2"}>
-                    {done && <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint [&_circle]:hidden"} />}
-                    {!done && active && <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />}
-                    {!done && !active && <div className={"size-3.5 rounded-full border border-dash-primary-dark-blue/20 dark:border-white/20"} />}
-                    <Text size={14} weight={"medium"} color={"brand"} opacity={active || done ? 100 : 40}>{label}</Text>
-                  </div>
-                )
-              })}
-            </div>
-            {state.txid && (
-              <div className={"mt-3"}>
-                <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
-              </div>
-            )}
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-              You can close this window — the funding keeps running and its progress remains available in the wallet.
-            </Text>
-          </div>
-        )}
-
-        {isError && state && (
-          <div className={"phase-fade-in"} key={"error"}>
-            <div className={"mt-4 p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <CopyableError message={state.error ?? 'Funding failed.'} />
-            </div>
-            {state.txid && (
-              <div className={"mt-3"}>
-                <HashField hash={state.txid} label={"L1 txid"} explorerUrl={network ? transactionUrl(state.txid, network) : null} />
-              </div>
-            )}
-            {state.phase === AssetLockFundingPhase.Resumable && (
+          )}
+          {state.phase === AssetLockFundingPhase.Resumable ? (
+            <>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-2 block"}>
-                The locked Dash is safe — you can return to this flow and resume the funding.
+                Your Dash is safe.
               </Text>
-            )}
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
-                Close
-              </Button>
-            </div>
-          </div>
-        )}
+              <ModalActions
+                secondary={{ label: 'Close', onClick: onClose }}
+                primary={{ label: 'Resume', onClick: requestResume }}
+              />
+            </>
+          ) : (
+            <ModalActions primary={{ label: 'Close', onClick: onClose }} />
+          )}
+        </div>
+      )}
 
-        {isDone && state && (
-          <div className={"phase-fade-in"} key={"done"}>
-            <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
-              <div className={"success-pop"}>
-                <SuccessIcon size={56} />
-              </div>
-              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{texts.doneHeading}</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                {texts.doneNote}
-              </Text>
+      {isDone && state && (
+        <div className={"phase-fade-in"} key={"done"}>
+          <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
+            <div className={"success-pop"}>
+              <SuccessIcon size={56} />
             </div>
-            <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              {state.identityIdentifier ? (
-                <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Identity</Text>
-                  <div className={"flex items-center gap-2 min-w-0"}>
-                    <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.identityIdentifier}</Text>
-                    <CopyButton text={state.identityIdentifier} className={"shrink-0"} />
-                  </div>
-                </div>
-              ) : (
-                <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                  <div className={"flex items-center gap-2 min-w-0"}>
-                    <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{state.toPlatformAddress}</Text>
-                    {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
-                  </div>
-                </div>
-              )}
-              {doneTxid && <HashField hash={doneTxid} label={"L1 transaction hash"} explorerUrl={network ? transactionUrl(doneTxid, network) : null} />}
-              {state.stHash && <HashField hash={state.stHash} label={"L2 state transition hash"} explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null} />}
-            </div>
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button type={"button"} onClick={onClose} variant={"solid"} colorScheme={"lightBlue-mint"} size={"sm"} className={"flex-1 rounded-[.9375rem]"}>
-                Done
-              </Button>
-            </div>
+            <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>{texts.doneHeading}</Text>
           </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
+            {state.identityIdentifier ? (
+              <div className={"flex justify-between items-center gap-4"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>Identity</Text>
+                <div className={"flex items-center gap-2 min-w-0"}>
+                  <Text size={12} weight={"medium"} color={"brand"} className={"font-mono min-w-0 break-all text-right"}>{state.identityIdentifier}</Text>
+                  <CopyButton text={state.identityIdentifier} className={"shrink-0"} />
+                </div>
+              </div>
+            ) : (
+              <div className={"flex justify-between items-center gap-4"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
+                <div className={"flex items-center gap-2 min-w-0"}>
+                  <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{state.toPlatformAddress}</Text>
+                  {state.toPlatformAddress && <CopyButton text={state.toPlatformAddress} className={"shrink-0"} />}
+                </div>
+              </div>
+            )}
+            {doneTxid && <HashField hash={doneTxid} label={"Core transaction hash"} explorerUrl={network ? transactionUrl(doneTxid, network) : null} />}
+            {state.stHash && <HashField hash={state.stHash} label={"Evo state transition hash"} explorerUrl={network ? platformTransactionUrl(state.stHash, network) : null} />}
+          </div>
+          <ModalActions primary={{ label: 'Done', onClick: onClose }} />
+        </div>
+      )}
+    </Modal>
   )
 }

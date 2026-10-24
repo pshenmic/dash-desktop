@@ -2,24 +2,34 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { API } from '@renderer/api'
 import type { LogLevel } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Button, Heading, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import { toast } from '@renderer/components/ui/Toast'
+import { SettingsRow, SwitchControl } from '@renderer/components/pages/connectionSettings/SettingsControls'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useThemePreference, setThemePreference } from '@renderer/hooks/useThemeController'
 import { useZoomPreference, setZoomPreference } from '@renderer/hooks/useZoomController'
 import { useDebugMode, setDebugMode } from '@renderer/hooks/useDebugMode'
-import { ADVANCED_MODE_OPTIONS, CURRENCY_OPTIONS, LOG_LEVEL_OPTIONS, THEME_OPTIONS, ZOOM_OPTIONS } from '@renderer/constants/settingsPage'
+import { CURRENCY_OPTIONS, LOG_LEVEL_OPTIONS, THEME_OPTIONS, ZOOM_OPTIONS } from '@renderer/constants/settingsPage'
+import { SETTINGS_INLINE_INPUT } from '@renderer/constants/settingsControls'
+import { SURFACE_PANEL } from '@renderer/constants/surfaces'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import type { SettingsRowProps } from '@renderer/types/Settings'
 import { transactionsToCsv, CsvTxRow } from '@renderer/utils/csv'
 import { getErrorMessage } from '@renderer/utils/error'
+import { walletDisplayNameById } from '@renderer/utils/walletName'
 import { useWallets, refreshWallets } from '@renderer/hooks/useWallets'
 import { invalidateAllAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
+import { ModalSize } from '@renderer/enums/ModalSize'
+import { ModalActionTone } from '@renderer/enums/ModalActionTone'
+import Modal from '@renderer/components/ui/Modal'
+import ModalActions from '@renderer/components/ui/ModalActions'
 import DeleteWallet from '@renderer/components/modal/DeleteWallet'
 import ExportMnemonic from '@renderer/components/modal/ExportMnemonic'
 import { useNavigate } from 'react-router-dom'
 
-function SettingsRow({
+function SettingsActionRow({
   title,
   description,
   control,
@@ -31,31 +41,19 @@ function SettingsRow({
   onClick,
 }: SettingsRowProps): React.JSX.Element {
   return (
-    <div
-      className={`
-        flex items-center justify-between gap-6
-        py-4
-        border-b border-dash-primary-dark-blue/8 dark:border-white/12
-        last:border-b-0
-      `}
-    >
-      <div className="flex flex-col gap-1">
-        <Text size={16} weight="medium" color="brand">{title}</Text>
-        <Text size={12} weight="normal" color="brand" opacity={50}>{description}</Text>
-      </div>
+    <SettingsRow label={title} description={description}>
       {control ?? (
         <Button
           onClick={onClick}
           disabled={disabled || pending}
           variant={destructive ? 'outline' : 'solid'}
           colorScheme={destructive ? 'red' : 'primary-light'}
-          size="sm"
-          className="min-h-0! py-2! rounded-[.75rem]"
+          size="compact"
         >
           {pending && pendingLabel ? pendingLabel : actionLabel}
         </Button>
       )}
-    </div>
+    </SettingsRow>
   )
 }
 
@@ -80,6 +78,7 @@ export default function Settings(): React.JSX.Element {
   const { currency, setCurrency } = useFiat()
   const debugMode = useDebugMode()
 
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false)
   const [clearPending, setClearPending] = useState(false)
   const clearPendingRef = useRef(false)
   const [exportPending, setExportPending] = useState(false)
@@ -100,6 +99,7 @@ export default function Settings(): React.JSX.Element {
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [walletToDelete, setWalletToDelete] = useState<string | null>(null)
+  const walletToDeleteName = walletDisplayNameById(wallets, walletToDelete)
   const [isMnemonicOpen, setIsMnemonicOpen] = useState(false)
 
   const openDelete = (): void => {
@@ -120,7 +120,7 @@ export default function Settings(): React.JSX.Element {
         if (!cancelled) setLogLevel(preferences.general.logLevel)
       })
       .catch((error) => {
-        if (!cancelled) toast.error(`**Log level failed** Could not load the log level. ${getErrorMessage(error)}`)
+        if (!cancelled) toast.error(`**Log level failed** ${getErrorMessage(error)}`)
       })
       .finally(() => {
         if (!cancelled) setLogLevelLoading(false)
@@ -138,7 +138,7 @@ export default function Settings(): React.JSX.Element {
       await API.setLogLevel(next)
       setLogLevel(next)
     } catch (error) {
-      toast.error(`**Log level failed** Could not save the log level. ${getErrorMessage(error)}`)
+      toast.error(`**Log level failed** ${getErrorMessage(error)}`)
     } finally {
       logLevelPendingRef.current = false
       setLogLevelPending(false)
@@ -153,18 +153,15 @@ export default function Settings(): React.JSX.Element {
       refreshWallets()
     } catch (err) {
       console.error('rename failed', err)
-      toast.error(`**Rename failed** Could not update wallet name. ${getErrorMessage(err)}`)
+      toast.error(`**Rename failed** ${getErrorMessage(err)}`)
     } finally {
       setRenamePending(false)
     }
   }
 
   const handleClear = async (): Promise<void> => {
+    setIsClearConfirmOpen(false)
     if (!network || clearPendingRef.current) return
-    const confirmed = window.confirm(
-      `Clear all sync data for ${network}? This deletes downloaded headers, filters and local transaction history for all wallets on this network. Wallets and recovery phrases are preserved.`,
-    )
-    if (!confirmed) return
     clearPendingRef.current = true
     setClearPending(true)
     try {
@@ -172,7 +169,7 @@ export default function Settings(): React.JSX.Element {
       invalidateAllAsyncCaches()
     } catch (err) {
       console.error('reset sync failed', err)
-      toast.error(`**Clear failed** Could not clear synchronization data. ${getErrorMessage(err)}`)
+      toast.error(`**Clear failed** ${getErrorMessage(err)}`)
     } finally {
       clearPendingRef.current = false
       setClearPending(false)
@@ -195,7 +192,7 @@ export default function Settings(): React.JSX.Element {
         blockHeight: tx.blockHeight,
       }))
       if (rows.length === 0) {
-        toast.error('**No transactions** Nothing to export yet.')
+        toast.error('**No transactions to export**')
         return
       }
       const stamp = new Date().toISOString().slice(0, 10)
@@ -203,7 +200,7 @@ export default function Settings(): React.JSX.Element {
       await API.saveTextFile(`dash-transactions-${network ?? 'wallet'}-${stamp}.csv`, csv)
     } catch (err) {
       console.error('export failed', err)
-      toast.error(`**Export failed** Could not export transactions. ${getErrorMessage(err)}`)
+      toast.error(`**Export failed** ${getErrorMessage(err)}`)
     } finally {
       setExportPending(false)
     }
@@ -211,18 +208,12 @@ export default function Settings(): React.JSX.Element {
 
   return (
     <div className="w-full px-12 pb-12">
-      <div className="shadow-[8px_0_64px_0_rgba(12,28,51,0.08)] dash-card-base rounded-3xl p-8">
-        <div className="mb-6">
-          <Heading as="h1" size="xl" weight="extrabold" color="brand-white">
-            Settings
-          </Heading>
-        </div>
-
+      <PageHeader title={PAGE_HEADERS.settings.title} subtitle={PAGE_HEADERS.settings.subtitle} />
+      <div className={SURFACE_PANEL}>
         <SectionLabel>Wallet</SectionLabel>
-        <div className="flex flex-col">
-          <SettingsRow
+        <div className="flex flex-col gap-[.625rem]">
+          <SettingsActionRow
             title="Wallet name"
-            description="A label to identify this wallet across the app."
             control={
               <div className="flex items-center gap-2">
                 <Input
@@ -230,32 +221,31 @@ export default function Settings(): React.JSX.Element {
                   type="text"
                   placeholder="Wallet name"
                   value={walletName}
-                  variant="outlined"
-                  colorScheme="primary"
+                  variant="filled"
+                  colorScheme="light"
                   onChange={(e) => setWalletName(e.target.value)}
-                  className="h-10 w-56 rounded-[.75rem] bg-transparent!"
+                  className={`w-56 ${SETTINGS_INLINE_INPUT}`}
                 />
                 <Button
                   onClick={handleRename}
                   disabled={walletId === null || renamePending || isUnchanged}
                   variant="solid"
                   colorScheme="primary-light"
-                  size="sm"
-                  className="min-h-0! py-2! rounded-[.75rem]"
+                  size="compact"
                 >
                   {renamePending ? 'Saving…' : 'Save'}
                 </Button>
               </div>
             }
           />
-          <SettingsRow
+          <SettingsActionRow
             title="Recovery phrase"
-            description="Reveal this wallet's secret recovery phrase. Anyone with these words can access your funds."
+            description="View this wallet's recovery phrase."
             actionLabel="Reveal phrase"
             disabled={walletId === null}
             onClick={() => setIsMnemonicOpen(true)}
           />
-          <SettingsRow
+          <SettingsActionRow
             title="Export transactions"
             description="Save this wallet's transaction history as a CSV file."
             actionLabel="Export CSV"
@@ -267,10 +257,9 @@ export default function Settings(): React.JSX.Element {
         </div>
 
         <SectionLabel>Appearance</SectionLabel>
-        <div className="flex flex-col">
-          <SettingsRow
+        <div className="flex flex-col gap-[.625rem]">
+          <SettingsActionRow
             title="Theme"
-            description="Choose light, dark, or follow your system setting."
             control={
               <SegmentedControl
                 options={THEME_OPTIONS}
@@ -279,7 +268,7 @@ export default function Settings(): React.JSX.Element {
               />
             }
           />
-          <SettingsRow
+          <SettingsActionRow
             title="Interface scale"
             description="Scale the whole interface, including fonts."
             control={
@@ -290,9 +279,8 @@ export default function Settings(): React.JSX.Element {
               />
             }
           />
-          <SettingsRow
+          <SettingsActionRow
             title="Display currency"
-            description="Currency used for fiat values across the wallet."
             control={
               <SegmentedControl
                 options={CURRENCY_OPTIONS}
@@ -304,10 +292,9 @@ export default function Settings(): React.JSX.Element {
         </div>
 
         <SectionLabel>Logging</SectionLabel>
-        <div className="flex flex-col">
-          <SettingsRow
+        <div className="flex flex-col gap-[.625rem]">
+          <SettingsActionRow
             title="Log level"
-            description="Choose how much detail is recorded in application logs."
             control={logLevelLoading ? (
               <Text size={12} color="brand" opacity={50}>Loading…</Text>
             ) : logLevel === null ? (
@@ -315,7 +302,7 @@ export default function Settings(): React.JSX.Element {
                 onClick={() => setLogLevelLoadAttempt((attempt) => attempt + 1)}
                 variant="solid"
                 colorScheme="primary-light"
-                size="sm"
+                size="compact"
               >
                 Retry
               </Button>
@@ -334,7 +321,7 @@ export default function Settings(): React.JSX.Element {
               </fieldset>
             )}
           />
-          <SettingsRow
+          <SettingsActionRow
             title="Application logs"
             description="Review diagnostic logs and save a file to share with support."
             actionLabel="View logs"
@@ -343,43 +330,43 @@ export default function Settings(): React.JSX.Element {
         </div>
 
         <SectionLabel>Connection</SectionLabel>
-        <div className="flex flex-col">
-          <SettingsRow
+        <div className="flex flex-col gap-[.625rem]">
+          <SettingsActionRow
             title="Connection settings"
             description="Choose the wallet data source and manage P2P synchronization."
             actionLabel="Open Connection Settings"
             onClick={() => navigate('/connection-settings')}
           />
-          <SettingsRow
+          <SettingsActionRow
             title="Clear sync data"
-            description="Delete downloaded headers, filters, and local transaction history for all wallets on the current network. Wallets are preserved."
+            description="Deletes downloaded chain data and transaction history for this network. Wallets are kept."
             actionLabel="Clear sync data"
             pendingLabel="Clearing…"
             pending={clearPending}
             disabled={network === null}
             destructive
-            onClick={handleClear}
+            onClick={() => setIsClearConfirmOpen(true)}
           />
         </div>
 
         <SectionLabel>Maintenance</SectionLabel>
-        <div className="flex flex-col">
-          <SettingsRow
+        <div className="flex flex-col gap-[.625rem]">
+          <SettingsActionRow
             title="Advanced mode"
             description="Show developer pages like the Shielded debug view."
             control={
-              <SegmentedControl
-                options={ADVANCED_MODE_OPTIONS}
-                value={debugMode ? 'on' : 'off'}
-                onChange={(value) => setDebugMode(value === 'on')}
+              <SwitchControl
+                checked={debugMode}
+                label="Advanced mode"
+                onChange={setDebugMode}
               />
             }
           />
         </div>
 
         <SectionLabel>Danger zone</SectionLabel>
-        <div className="flex flex-col">
-          <SettingsRow
+        <div className="flex flex-col gap-[.625rem]">
+          <SettingsActionRow
             title="Delete wallet"
             description="Permanently remove this wallet from this device. Make sure you have its recovery phrase backed up first."
             actionLabel="Delete wallet"
@@ -394,9 +381,24 @@ export default function Settings(): React.JSX.Element {
         isDeleteOpen={isDeleteOpen}
         setIsDeleteOpen={setIsDeleteOpen}
         walletToDelete={walletToDelete}
+        walletName={walletToDeleteName}
         setWalletToDelete={setWalletToDelete}
         refreshWallets={refreshWallets}
       />
+
+      <Modal
+        open={isClearConfirmOpen}
+        onClose={() => setIsClearConfirmOpen(false)}
+        title={`Clear ${network} sync data?`}
+        description={`Clears transaction history for all wallets on ${network}. Wallets and recovery phrases are kept.`}
+        size={ModalSize.Md}
+      >
+        <ModalActions
+          tone={ModalActionTone.Danger}
+          secondary={{ label: 'Cancel', onClick: () => setIsClearConfirmOpen(false) }}
+          primary={{ label: 'Clear', onClick: () => { void handleClear() } }}
+        />
+      </Modal>
 
       <ExportMnemonic
         isOpen={isMnemonicOpen}

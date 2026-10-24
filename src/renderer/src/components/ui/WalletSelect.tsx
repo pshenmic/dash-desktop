@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react'
-import { cva } from 'class-variance-authority'
 import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
-import { WalletIcon, ChevronIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { WalletIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import DropdownChevron from '@renderer/components/ui/DropdownChevron'
+import { POPOVER, POPOVER_OPTION } from '@renderer/constants/surfaces'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { WalletDropdownOption } from '@renderer/utils/wallets'
 
@@ -22,27 +23,6 @@ function DefaultBadge(): React.JSX.Element {
     </span>
   )
 }
-
-const dropdownStyles = cva(
-  `absolute bottom-0 left-0 right-0 z-50
-   rounded-[1.25rem]
-   overflow-y-auto overflow-x-hidden scrollbar-custom
-   max-h-52
-   bg-white dark:bg-white/4
-   border border-dash-primary-dark-blue/32
-   dark:border-white/32
-   shadow-[0_0_32px_0_rgba(0,0,0,0.12)]
-   dark:backdrop-blur-xl
-   transition-opacity duration-200 ease-out`,
-  {
-    variants: {
-      isOpen: {
-        true: 'opacity-100',
-        false: 'opacity-0 pointer-events-none',
-      },
-    },
-  }
-)
 
 export default function WalletSelect({
   options,
@@ -102,9 +82,7 @@ export default function WalletSelect({
             {selectedOption?.isSelected && <DefaultBadge />}
           </div>
         </div>
-        {!disabled &&
-          <ChevronIcon size={12} color={"currentColor"} className={"dash-text-default"} />
-        }
+        {!disabled && <DropdownChevron open={isOpen} />}
       </div>
     </button>
   )
@@ -115,8 +93,8 @@ export default function WalletSelect({
         ? <Tooltip label={"Testnet wallet"}>{trigger}</Tooltip>
         : trigger}
 
-      <div className={dropdownStyles({ isOpen })}>
-        {sortedOptions.map((option, index) => {
+      <div className={`absolute bottom-[calc(100%+.375rem)] left-0 right-0 z-50 max-h-60 overflow-y-auto ${POPOVER} transition-opacity duration-200 ease-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {sortedOptions.map((option) => {
           const isSelected = option.value === value
           const isTestnet = option.network === 'testnet'
           const row = (
@@ -124,27 +102,18 @@ export default function WalletSelect({
               key={option.value}
               onClick={() => handleSelect(option.value)}
               className={`
-                flex items-center
-                px-6.25 h-14.25
-                cursor-pointer transition-colors
+                flex items-center gap-2 ${POPOVER_OPTION}
                 ${isTestnet
-                  ? 'bg-dash-yellow/25 hover:bg-dash-yellow/40'
-                  : isSelected
-                    ? 'bg-dash-primary-dark-blue/5 dark:bg-white/5'
-                    : 'hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/5'}
-                ${index < sortedOptions.length - 1
-                  ? 'border-b border-dash-primary-dark-blue/32 dark:border-b-white/32'
-                  : ''}
+                  ? 'bg-dash-yellow/25 hover:bg-dash-yellow/40!'
+                  : isSelected ? 'dash-block-accent-5' : ''}
               `}
             >
+              <WalletIcon size={16} color={"currentColor"} className={"dash-text-default"} />
               <div className={"flex items-center gap-2"}>
-                <WalletIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-                <div className={"flex items-center gap-2"}>
-                  <Text size={14} weight={"medium"} color={"brand"}>
-                    {option.label}
-                  </Text>
-                  {option.isSelected && <DefaultBadge />}
-                </div>
+                <Text size={14} weight={"medium"} color={"brand"}>
+                  {option.label}
+                </Text>
+                {option.isSelected && <DefaultBadge />}
               </div>
             </div>
           )

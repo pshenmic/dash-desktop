@@ -6,12 +6,18 @@ import {
   CloseIcon,
   DeleteIcon,
   InfoTooltip,
+  Input,
   Text,
 } from '@renderer/components/dash-ui-kit-enxtended'
 import ContextMenu from '@renderer/components/ui/ContextMenu'
 import DropdownField from '@renderer/components/ui/DropdownField'
+import RetryButton from '@renderer/components/ui/RetryButton'
+import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import Spinner from '@renderer/components/ui/Spinner'
 import {toast} from '@renderer/components/ui/Toast'
+import {SETTINGS_INLINE_INPUT} from '@renderer/constants/settingsControls'
+import {FIELD_COMPACT, SURFACE_SECTION} from '@renderer/constants/surfaces'
+import {SegmentedControlAppearance} from '@renderer/enums/SegmentedControlAppearance'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {usePlatformNodeSettings} from '@renderer/hooks/usePlatformNodeSettings'
 import {
@@ -57,9 +63,9 @@ function AddNodeForm({disabled, onClose, onSubmit}: AddPlatformNodeFormProps): R
         event.preventDefault()
         void submit()
       }}
-      className="flex min-h-[3.625rem] items-center gap-2 border-t border-dash-primary-dark-blue/10 px-4 py-2 dark:border-white/10"
+      className="flex min-h-[3.625rem] items-center gap-2 border-t border-dash-primary-dark-blue/10 px-2.5 py-2 dark:border-white/10"
     >
-      <input
+      <Input
         type="text"
         aria-label="Platform node HTTPS URL"
         placeholder={ADD_PLATFORM_NODE_PLACEHOLDER}
@@ -67,7 +73,9 @@ function AddNodeForm({disabled, onClose, onSubmit}: AddPlatformNodeFormProps): R
         disabled={submitting || disabled}
         autoFocus
         onChange={event => setUrl(event.target.value)}
-        className="h-11 min-w-0 flex-1 rounded-[.75rem] bg-dash-primary-dark-blue/5 px-4 text-sm font-medium text-dash-primary-dark-blue outline-none placeholder:text-dash-primary-dark-blue/35 focus:ring-2 focus:ring-dash-brand/25 dark:bg-white/8 dark:text-white dark:placeholder:text-white/35 dark:focus:ring-dash-mint/25"
+        variant="filled"
+        colorScheme="light"
+        className={`min-w-0 flex-1 ${SETTINGS_INLINE_INPUT}`}
       />
       <button
         type="submit"
@@ -75,7 +83,7 @@ function AddNodeForm({disabled, onClose, onSubmit}: AddPlatformNodeFormProps): R
         disabled={submitting || disabled || url.trim().length === 0}
         className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[.5rem] bg-dash-mint/20 text-dash-mint hover:bg-dash-mint/30 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {submitting ? <Spinner size={12} /> : <CheckmarkIcon size={12} color="currentColor" />}
+        {submitting ? <Spinner size={12} className="text-current" /> : <CheckmarkIcon size={12} color="currentColor" />}
       </button>
       <button
         type="button"
@@ -95,7 +103,7 @@ function NodeRow({row, removable, disabled, onRemove}: PlatformNodeRowProps): Re
     <div
       tabIndex={removable && !disabled ? 0 : undefined}
       aria-label={`${row.url}, ${row.status}${row.error === null ? '' : `: ${row.error}`}`}
-      className={`grid min-h-[3.625rem] ${PLATFORM_NODE_TABLE_GRID_CLASS_NAME} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 py-3 outline-none dark:border-white/10 ${removable && !disabled
+      className={`grid min-h-[3.625rem] ${PLATFORM_NODE_TABLE_GRID_CLASS_NAME} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-2.5 py-3 outline-none dark:border-white/10 ${removable && !disabled
         ? 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'
         : ''}`}
     >
@@ -109,7 +117,7 @@ function NodeRow({row, removable, disabled, onRemove}: PlatformNodeRowProps): Re
             weight="medium"
             className={`inline-flex w-fit rounded-full px-2.5 py-1 ${row.available
               ? 'bg-dash-green-15 text-dash-green!'
-              : 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue/60 dark:bg-white/8 dark:text-white/60'}`}
+              : 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue/50 dark:bg-white/8 dark:text-white/50'}`}
           >
             {row.status}
           </Text>
@@ -226,7 +234,7 @@ export default function PlatformTab(): React.JSX.Element {
           value={explorerConnection}
           onChange={setExplorerConnection}
           ariaLabel="Platform explorer connection"
-          triggerClassName="h-[3.75rem] rounded-[1.25rem] border border-dash-primary-dark-blue/25 px-5 dark:border-white/25"
+          triggerClassName={FIELD_COMPACT}
         />
       </fieldset>
 
@@ -239,25 +247,17 @@ export default function PlatformTab(): React.JSX.Element {
               </Text>
               <InfoTooltip content={CONNECTION_SETTINGS_TOOLTIPS.platformNodes} />
             </div>
-            <div className="flex items-center gap-2" role="group" aria-label="Platform node lists">
-              {PLATFORM_NODE_TABLE_TABS.map(tab => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  aria-pressed={nodeTab === tab.value}
-                  disabled={mutationPending}
-                  onClick={() => {
-                    setNodeTab(tab.value)
-                    setAddNodeOpen(false)
-                  }}
-                  className={`h-8 cursor-pointer rounded-full px-4 text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60 ${nodeTab === tab.value
-                    ? 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue dark:bg-white/8 dark:text-white'
-                    : 'text-dash-primary-dark-blue/35 hover:text-dash-primary-dark-blue dark:text-white/35 dark:hover:text-white'}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              appearance={SegmentedControlAppearance.Pill}
+              ariaLabel="Platform node lists"
+              options={PLATFORM_NODE_TABLE_TABS}
+              value={nodeTab}
+              disabled={mutationPending}
+              onChange={tab => {
+                setNodeTab(tab)
+                setAddNodeOpen(false)
+              }}
+            />
           </div>
           {nodeTab === 'static' && (
             <Button
@@ -266,8 +266,8 @@ export default function PlatformTab(): React.JSX.Element {
               onClick={() => setAddNodeOpen(true)}
               variant="solid"
               colorScheme="lightBlue-mint"
-              size="sm"
-              className="min-h-0! gap-2 rounded-[.75rem] p-2! text-xs!"
+              size="compact"
+              className="gap-2"
             >
               <AddIcon size={12} color="currentColor" />
               Add Node
@@ -278,14 +278,12 @@ export default function PlatformTab(): React.JSX.Element {
         {listError && (
           <div role="alert" className="mb-3 flex items-center justify-between gap-3 px-1">
             <Text size={12} weight="medium" className="text-dash-orange!">{listError}</Text>
-            <button type="button" disabled={mutationPending} onClick={nodeSettings.reload} className="shrink-0 cursor-pointer text-xs font-medium text-dash-brand hover:underline disabled:opacity-50 dark:text-dash-mint">
-              Retry
-            </button>
+            <RetryButton onRetry={nodeSettings.reload} disabled={mutationPending} />
           </div>
         )}
-        <div className="overflow-x-auto rounded-[1.25rem] border border-dash-primary-dark-blue/15 dark:border-white/15">
+        <div className={`overflow-x-auto ${SURFACE_SECTION}`}>
           <div className="min-w-[36rem]">
-            <div className={`grid ${PLATFORM_NODE_TABLE_GRID_CLASS_NAME} items-center gap-3 px-[.9375rem] py-3`}>
+            <div className={`grid ${PLATFORM_NODE_TABLE_GRID_CLASS_NAME} items-center gap-3 px-2.5 pb-3`}>
               {PLATFORM_NODE_COLUMN_LABELS.map((label, index) => (
                 <Text key={label} size={12} weight="normal" color="brand" opacity={50} className={index === 3 ? 'justify-self-end whitespace-nowrap' : ''}>
                   {label}
@@ -310,7 +308,7 @@ export default function PlatformTab(): React.JSX.Element {
               />
             ))}
             {rows.length === 0 && !addNodeOpen && (
-              <div className="flex min-h-[3.625rem] items-center justify-center gap-2 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10" role={network !== null && listLoading ? 'status' : undefined}>
+              <div className="flex min-h-[3.625rem] items-center justify-center gap-2 border-t border-dash-primary-dark-blue/10 px-2.5 dark:border-white/10" role={network !== null && listLoading ? 'status' : undefined}>
                 {network !== null && listLoading && <Spinner size={16} className="text-dash-brand dark:text-dash-mint" />}
                 <Text size={14} weight="medium" color="brand" opacity={40}>{emptyLabel}</Text>
               </div>

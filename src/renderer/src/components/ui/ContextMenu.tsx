@@ -1,6 +1,7 @@
 import {cloneElement, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {CloseIcon, Text} from '@renderer/components/dash-ui-kit-enxtended'
+import {POPOVER, POPOVER_OPTION} from '@renderer/constants/surfaces'
 import type {
   ContextMenuProps,
   ContextMenuTriggerProps,
@@ -76,15 +77,9 @@ export function ContextMenu({
         <div
           ref={menuRef}
           style={{left: position.x, top: position.y}}
-          className={`
-            fixed z-[1000] w-[10.25rem] overflow-hidden rounded-[.9375rem]
-            border border-dash-primary-dark-blue/8 bg-white
-            shadow-[0_16px_40px_rgba(12,28,51,0.2)]
-            dark:border-white/8 dark:bg-[#3364a5]/95 dark:backdrop-blur-[1.5rem]
-            ${className}
-          `}
+          className={`fixed z-[1000] w-[10.25rem] ${POPOVER} ${className}`}
         >
-          <div className="flex items-center justify-between border-b border-dash-primary-dark-blue/8 px-3 py-2 dark:border-white/8">
+          <div className="flex items-center justify-between gap-2 pl-[.625rem] pb-1">
             <Text size={12} weight="medium" color="brand" opacity={50}>
               {title}
             </Text>
@@ -98,7 +93,7 @@ export function ContextMenu({
             </button>
           </div>
           <div role="menu" aria-label={title}>
-            {items.map((item, index) => (
+            {items.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -108,9 +103,7 @@ export function ContextMenu({
                   close()
                 }}
                 className={`
-                  flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left
-                  hover:bg-dash-primary-dark-blue/5 dark:hover:bg-white/8
-                  ${index < items.length - 1 ? 'border-b border-dash-primary-dark-blue/8 dark:border-white/8' : ''}
+                  flex w-full items-center gap-3 text-left ${POPOVER_OPTION}
                   ${item.tone === 'danger' ? 'text-dash-red' : 'dash-text-default'}
                 `}
               >

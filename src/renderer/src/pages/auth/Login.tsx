@@ -1,7 +1,7 @@
 import { DashLogo, useTheme } from 'dash-ui-kit/react'
 import { Text, Button, Input, WalletIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import { Link, useNavigate } from 'react-router-dom'
-import { loginTexts, messages } from '@renderer/constants'
+import { AUTH_CTA_CLASS, loginTexts, messages } from '@renderer/constants'
 import { useLogin } from '@renderer/hooks/useLogin'
 import { toast } from '@renderer/components/ui/Toast'
 import { useEffect, useMemo } from 'react'
@@ -72,7 +72,7 @@ export default function LoginPage(): React.JSX.Element {
         <form onSubmit={handleSubmit} className={"flex flex-col gap-3.75 w-full"}>
           <div className={"grid grid-cols-2 gap-3.75"}>
             <div className={"flex flex-col gap-[.625rem]"}>
-              <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+              <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
                 {form.walletLabel}
               </Text>
               <WalletSelect
@@ -85,7 +85,7 @@ export default function LoginPage(): React.JSX.Element {
 
             <div className={"flex flex-col gap-[.625rem]"}>
               <label htmlFor={"password-input"}>
-                <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+                <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
                   {form.passwordLabel}
                 </Text>
               </label>
@@ -110,7 +110,7 @@ export default function LoginPage(): React.JSX.Element {
             type={"submit"}
             colorScheme={"primary"}
             size={"md"}
-            className={"rounded-[1.25rem] p-4.5"}
+            className={AUTH_CTA_CLASS}
             disabled={!password || !selectedWalletId}
           >
             {form.submitButton}

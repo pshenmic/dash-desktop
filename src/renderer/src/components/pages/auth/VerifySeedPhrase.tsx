@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
 import type { UseCreateWalletState } from '@renderer/types/auth'
 import SeedPhraseWarning from "./SeedPhraseWarning";
-import { BaseTexts, FillInYourSeedPhraseTexts } from "@renderer/constants";
+import { AUTH_CTA_CLASS, BaseTexts, FillInYourSeedPhraseTexts } from "@renderer/constants";
 
 type VerifySeedPhraseData = Pick<
   FillInYourSeedPhraseTexts,
@@ -75,9 +75,9 @@ export default function VerifySeedPhrase({ verifyPhrase, verifyMissingWords, dat
       <div className="flex gap-[.75rem] items-center">
         <Button
           variant={"solid"}
-          colorScheme={"lightBlue-mint"}
-          size={"sm"}
-          className={"flex-1 p-4.5 gap-2"}
+          colorScheme={"primary"}
+          size={"md"}
+          className={`${AUTH_CTA_CLASS} flex-1 gap-2`}
           onClick={handleContinue}
         >
           {data.buttonContinue}

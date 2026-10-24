@@ -1,31 +1,47 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, ChainSmallIcon, InfoCircleIcon, KeyIcon, SettingsIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { DashLogo } from 'dash-ui-kit/react'
+import { Button, InfoCircleIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import AssetLockFundingModal from '@renderer/components/modal/AssetLockFundingModal'
 import ShieldedSpendModal from '@renderer/components/modal/ShieldedSpendModal'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import TransferConfirmModal from '@renderer/components/modal/TransferConfirmModal'
 import AmountField from '@renderer/components/pages/transfer/AmountField'
 import AmountSlider from '@renderer/components/pages/transfer/AmountSlider'
+import CoinControlButton from '@renderer/components/pages/transfer/CoinControlButton'
 import CoinControlModal from '@renderer/components/pages/transfer/CoinControlModal'
-import ProverPill from '@renderer/components/pages/shielded/ProverPill'
 import { SourcePicker } from '@renderer/components/pages/transfer/EndpointPicker'
 import TransferWizard from '@renderer/components/pages/transfer/TransferWizard'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
+import DenominationChips from '@renderer/components/ui/DenominationChips'
 import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import Spinner from '@renderer/components/ui/Spinner'
+import StatusChip from '@renderer/components/ui/StatusChip'
 import { API } from '@renderer/api'
 import type { AssetLockFundingState, ShieldedSpendState } from '@renderer/api/types'
-import { IDENTITY_REGISTRATION_DEFAULT_AMOUNT } from '@renderer/constants'
+import {
+  IDENTITY_REGISTRATION_DEFAULT_AMOUNT,
+  IDENTITY_REGISTRATION_MIN_DUFFS,
+  IN_PROGRESS_FUNDING_LABELS,
+  NEW_IDENTITY_LABEL,
+} from '@renderer/constants'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
+import { SURFACE_PANEL, SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { AssetLockFundingKind } from '@renderer/enums/AssetLockFundingKind'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'
+import { ShieldedSpendKind } from '@renderer/enums/ShieldedSpendKind'
 import { ShieldedSpendPhase } from '@renderer/enums/ShieldedSpendPhase'
+import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 import { SourceKind } from '@renderer/enums/SourceKind'
+import { AUTOMATIC_SOURCE_LABELS } from '@renderer/constants/sendPages'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
+import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useAdresses } from '@renderer/hooks/useAdresses'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
@@ -38,7 +54,8 @@ import { useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShie
 import { refreshBalance, useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { refreshTransactions } from '@renderer/hooks/useWalletTransactions'
 import { amountErrorFor } from '@renderer/utils/amountValidation'
-import { creditsToDuffs, davToDash, dashToDuffs, duffsToCredits, formatCredits } from '@renderer/utils/balance'
+import { formatApproxFiat } from '@renderer/utils/approxFiat'
+import { creditsToDuffs, davToDash, dashToDuffs, duffsToCredits } from '@renderer/utils/balance'
 import {
   automaticCoinControl,
   buildCoinControlInventory,
@@ -60,6 +77,7 @@ import {
   POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
 } from '@renderer/utils/transferMatrix'
+import { sourceEndpoint } from '@renderer/utils/txSummaryEndpoints'
 import type { CoinControlSelection } from '@renderer/types/CoinControl'
 
 export default function IdentityRegistration(): React.JSX.Element {
@@ -275,6 +293,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     && amount.length > 0
     && amountError === null
     && (fromKind === SourceKind.Core || feeCredits !== null)
+  const coreSyncBlocked = fromKind === SourceKind.Core && syncIncomplete
   const amountFiat = rateReady && amountDuffs > 0n ? formatFiat(amountDuffs) : null
   const totalDuffs = fromKind === SourceKind.Core
     ? amountDuffs + (feeDuffs ?? 0n)
@@ -377,13 +396,13 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
 
   const pageHeader = (
-    <div className={"flex items-end justify-between gap-6 px-12 pt-2"}>
-      <div className={"flex flex-col gap-3"}>
-        <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Identity registration</Text>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%] max-w-152.5"}>
-          Register a wallet-owned Dash Platform identity using your Core, Platform or Shielded balance.
-        </Text>
-      </div>
+    <div className={"px-12"}>
+      <PageHeader
+        title={PAGE_HEADERS.identityRegistration.title}
+        subtitle={PAGE_HEADERS.identityRegistration.subtitle}
+        onBack={() => navigate('/identities')}
+        backLabel={PAGE_HEADERS.identityRegistration.back}
+      />
     </div>
   )
 
@@ -402,7 +421,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 rounded-3xl dash-card-base p-8 text-center"}>
+        <div className={`mx-12 text-center ${SURFACE_PANEL}`}>
           <Text size={16} weight={"bold"} color={"brand"}>Select a wallet to register an identity.</Text>
         </div>
       </div>
@@ -413,8 +432,8 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex justify-center"}>
-          <Button type={"button"} size={"sm"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
+        <div className={"mx-12 flex justify-center"}>
+          <Button type={"button"} size={"compact"} onClick={() => { void loadFundingState() }}>Retry funding progress</Button>
         </div>
       </div>
     )
@@ -424,15 +443,15 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+        <div className={`mx-12 flex flex-col gap-5 ${SURFACE_PANEL}`}>
           <div className={"flex items-center gap-3"}>
             <span className={"flex size-10 items-center justify-center rounded-full bg-dash-orange/12 text-dash-orange"}>
               <InfoCircleIcon size={18} color={"currentColor"} />
             </span>
             <div className={"flex flex-col gap-1"}>
-              <Text size={20} weight={"extrabold"} color={"brand"}>Another L1 funding is in progress</Text>
+              <Text size={20} weight={"extrabold"} color={"brand"}>Another funding is in progress</Text>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-                Finish or resume the current {unfinishedFunding.kind} funding before registering an identity.
+                {IN_PROGRESS_FUNDING_LABELS[unfinishedFunding.kind]} — finish it on the Send page first.
               </Text>
             </div>
           </div>
@@ -450,22 +469,20 @@ export default function IdentityRegistration(): React.JSX.Element {
     return (
       <div className={"relative flex flex-col h-full pb-4"}>
         {pageHeader}
-        <div className={"mx-12 mt-8 flex flex-col gap-5 rounded-3xl dash-card-base p-8 shadow-[0_0_32px_0_rgba(12,28,51,0.08)]"}>
+        <div className={`mx-12 flex flex-col gap-5 ${SURFACE_PANEL}`}>
           <div className={"flex items-center gap-3"}>
             <span className={"flex size-10 items-center justify-center rounded-full dash-block-accent-12 dash-text-primary"}>
               <KeyIcon size={18} color={"currentColor"} />
             </span>
-            <div className={"flex flex-col gap-1"}>
-              <Text size={20} weight={"extrabold"} color={"brand"}>Identity registration is already in progress</Text>
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-                {isResumable
-                  ? 'The L1 asset lock is safe and ready to continue.'
-                  : 'The wallet is processing the L1 asset lock and Platform registration.'}
-              </Text>
+            <div className={"flex flex-wrap items-center gap-x-3 gap-y-1"}>
+              <Text size={20} weight={"extrabold"} color={"brand"}>Already in progress</Text>
+              <StatusChip loading={!isResumable}>
+                {isResumable ? 'Ready to resume' : 'Processing'}
+              </StatusChip>
             </div>
           </div>
           {unfinishedFunding.amountDuffs != null && (
-            <div className={"flex items-center justify-between rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
+            <div className={`flex items-center justify-between ${SURFACE_SECTION}`}>
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Amount locked</Text>
               <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(unfinishedFunding.amountDuffs)} Dash</Text>
             </div>
@@ -482,7 +499,7 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           walletId={walletId}
           toPlatformAddress={unfinishedFunding.toPlatformAddress ?? ''}
-          amountDuffs={unfinishedFunding.amountDuffs?.toString() ?? ''}
+          amountDuffs={unfinishedFunding.amountDuffs ?? null}
           resume={true}
           kind={AssetLockFundingKind.Identity}
           onSuccess={handleCoreSuccess}
@@ -490,45 +507,6 @@ export default function IdentityRegistration(): React.JSX.Element {
       </div>
     )
   }
-
-  const overviewStep = (
-    <>
-      <div className={"flex flex-col items-center text-center gap-3"}>
-        <span className={"flex size-14 items-center justify-center rounded-full dash-block-accent-12 dash-text-primary"}>
-          <KeyIcon size={24} color={"currentColor"} />
-        </span>
-        <div className={"flex flex-col items-center gap-2"}>
-          <Text size={20} weight={"extrabold"} color={"brand"} className={"leading-[120%]"}>Create a Platform identity</Text>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Create your wallet-owned identity and choose whether its credits come from Core, a Platform address or your Shielded balance.
-          </Text>
-        </div>
-      </div>
-      <div className={"grid grid-cols-2 gap-3"}>
-        <div className={"flex flex-col gap-[.375rem] rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
-          <div className={"flex items-center gap-2"}>
-            <ChainSmallIcon size={18} color={"currentColor"} className={"dash-text-primary"} />
-            <Text size={14} weight={"extrabold"} color={"brand"}>One secure flow</Text>
-          </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            The wallet selects the correct registration transaction for your chosen source and guides it through confirmation.
-          </Text>
-        </div>
-        <div className={"flex flex-col gap-[.375rem] rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
-          <div className={"flex items-center gap-2"}>
-            <KeyIcon size={18} color={"currentColor"} className={"dash-text-primary"} />
-            <Text size={14} weight={"extrabold"} color={"brand"}>Keys stay local</Text>
-          </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Identity keys are derived and stored by this wallet. Your seed never leaves the device.
-          </Text>
-        </div>
-      </div>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[140%]"}>
-        Core registration starts at 0.1 Dash. Platform and Shielded sources use their network-defined fees and balance limits.
-      </Text>
-    </>
-  )
 
   let sourceBalanceLabel = 'Shielded balance'
   let sourceBalanceValue = (
@@ -567,15 +545,27 @@ export default function IdentityRegistration(): React.JSX.Element {
     fundingFeeValue = <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
   }
 
+  let amountCaption: string | null = null
+  if (fromKind === SourceKind.Core) {
+    amountCaption = `Min ${davToDash(IDENTITY_REGISTRATION_MIN_DUFFS)} Dash`
+  } else if (fromKind === SourceKind.Shielded) {
+    amountCaption = 'Fixed amounts only'
+  }
+
   const amountStep = (
     <>
-      <div className={"flex flex-col gap-1"}>
-        <Text size={20} weight={"extrabold"} color={"brand"}>Choose identity funding</Text>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-          Select where the credits for your new identity should come from.
-        </Text>
-      </div>
       <SourcePicker
+        compact
+        trailingControl={fromKind === SourceKind.Shielded ? (
+          <DenominationChips
+            denominations={POOL_IDENTITY_DENOMINATIONS}
+            selected={amountCredits}
+            onSelect={denomination => setAmount(davToDash(creditsToDuffs(denomination)))}
+            className={"min-h-13 content-center"}
+          />
+        ) : (
+          <CoinControlButton summary={coinControlSummary} onClick={() => setCoinControlOpen(true)} />
+        )}
         kind={fromKind}
         onKindChange={(kind) => {
           setFromKind(kind)
@@ -598,53 +588,20 @@ export default function IdentityRegistration(): React.JSX.Element {
         onIdentityChange={() => {}}
         onRetryIdentities={() => {}}
       />
-      {fromKind !== SourceKind.Shielded && (
-        <button
-          type={"button"}
-          onClick={() => setCoinControlOpen(true)}
-          className={"w-full flex items-center justify-between gap-3 px-4 py-3 rounded-[.875rem] dash-block hover:dash-block-accent-10 transition-colors cursor-pointer"}
-        >
-          <span className={"flex items-center gap-2"}>
-            <SettingsIcon size={14} className={"dash-text-default"} />
-            <Text size={12} weight={"extrabold"} color={"brand"}>Coin control</Text>
-          </span>
-          <Text size={12} weight={"medium"} color={"blue-mint"} className={"text-right"}>{coinControlSummary}</Text>
-        </button>
-      )}
-      {fromKind === SourceKind.Shielded && (
-        <div className={"flex flex-col gap-2"}>
-          <div className={"flex flex-wrap gap-2"}>
-            {POOL_IDENTITY_DENOMINATIONS.map(denomination => (
-              <button
-                key={denomination.toString()}
-                type={"button"}
-                onClick={() => setAmount(davToDash(creditsToDuffs(denomination)))}
-                className={`px-4 py-2 rounded-[.75rem] cursor-pointer transition-opacity hover:opacity-90 ${amountCredits === denomination ? 'dash-bg-inverse' : 'dash-block-3'}`}
-              >
-                <Text size={12} weight={"extrabold"} color={amountCredits === denomination ? "blue-mint" : "brand"}>
-                  {davToDash(creditsToDuffs(denomination))} Dash
-                </Text>
-              </button>
-            ))}
-          </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Shielded identity registration only supports these fixed denominations.
-          </Text>
-        </div>
-      )}
       <AmountField
         value={amount}
         onChange={handleAmountChange}
         onMax={() => {
           if (maxDuffs !== null) setAmount(davToDash(maxDuffs))
         }}
-        unit={<Text size={14} weight={"extrabold"} color={"brand"}>Dash</Text>}
+        unit={<DashLogo size={20} />}
         disabled={fromKind === SourceKind.Shielded}
+        caption={amountCaption && <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{amountCaption}</Text>}
       />
       {fromKind !== SourceKind.Shielded && maxDuffs !== null && (
         <AmountSlider percent={sliderPercent} onPercentChange={handlePercentChange} disabled={maxDuffs === 0n} />
       )}
-      <div className={"flex flex-col gap-2 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
+      <div className={`flex flex-col gap-2 ${SURFACE_SECTION}`}>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{sourceBalanceLabel}</Text>
           {sourceBalanceValue}
@@ -656,7 +613,7 @@ export default function IdentityRegistration(): React.JSX.Element {
         {amountFiat && (
           <div className={"flex items-center justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Funding value</Text>
-            <Text size={12} weight={"medium"} color={"blue-mint"}>~ {amountFiat}</Text>
+            <Text size={12} weight={"medium"} color={"blue-mint"}>{formatApproxFiat(amountFiat)}</Text>
           </div>
         )}
       </div>
@@ -671,16 +628,13 @@ export default function IdentityRegistration(): React.JSX.Element {
         <button type={'button'} onClick={() => { void refreshPlatformAddresses(walletId) }} className={'dash-text-primary text-sm cursor-pointer'}>Retry Platform addresses</button>
       )}
       {feeError && <button type={'button'} onClick={retryFee} className={'dash-text-primary text-sm cursor-pointer'}>Retry fee estimate</button>}
-      {fromKind === SourceKind.Core && syncIncomplete && <P2pSyncAlert />}
+      {coreSyncBlocked && <P2pSyncAlert />}
       {fromKind === SourceKind.Shielded && (
-        <>
-          <ProverPill status={prover} />
-          <ShieldedNotesAlert
-            walletId={walletId}
-            onSync={() => setNotesUnlockOpen(true)}
-            syncing={shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering}
-          />
-        </>
+        <ShieldedNotesAlert
+          walletId={walletId}
+          onSync={() => setNotesUnlockOpen(true)}
+          syncing={shieldedSync.phase === ShieldedSyncPhase.Syncing || shieldedSync.phase === ShieldedSyncPhase.Recovering}
+        />
       )}
     </>
   )
@@ -692,7 +646,7 @@ export default function IdentityRegistration(): React.JSX.Element {
     <Text size={12} weight={"medium"} color={"brand"} opacity={50}>—</Text>
   )
   if (fromKind === SourceKind.Core) {
-    reviewFrom = 'Dash Core (L1)'
+    reviewFrom = AUTOMATIC_SOURCE_LABELS[SourceKind.Core]
     reviewFundingLabel = 'Amount to lock'
     reviewFeeLabel = 'Network fees'
     reviewFeeValue = (
@@ -704,19 +658,19 @@ export default function IdentityRegistration(): React.JSX.Element {
   }
   if (fromKind !== SourceKind.Core && feeCredits !== null) {
     reviewFeeValue = (
-      <Text size={12} weight={"medium"} color={"brand"}>{formatCredits(feeCredits)} credits</Text>
+      <Text size={12} weight={"medium"} color={"brand"}>
+        <CreditsAmount credits={feeCredits} exact showFiat={false} align={"end"} />
+      </Text>
     )
   }
+  const fromEndpoint = sourceEndpoint(fromKind, appliedCoinControl, coinControlSummary)
+  const proverFailed = fromKind === SourceKind.Shielded && prover.prover === ShieldedProverState.Error
+  let submitLabel = 'Register identity'
+  if (fromKind === SourceKind.Shielded && !prover.ready && !proverFailed) submitLabel = 'Preparing…'
 
   const reviewStep = (
     <>
-      <div className={"flex flex-col gap-1"}>
-        <Text size={20} weight={"extrabold"} color={"brand"}>Review registration</Text>
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-          Confirm the selected source and amount, then unlock the wallet to register the identity.
-        </Text>
-      </div>
-      <div className={"flex flex-col gap-3 rounded-[.9375rem] dash-block-3 p-[.875rem]"}>
+      <div className={`flex flex-col gap-3 ${SURFACE_SECTION}`}>
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>From</Text>
           <Text size={12} weight={"medium"} color={"brand"}>{reviewFrom}</Text>
@@ -732,13 +686,17 @@ export default function IdentityRegistration(): React.JSX.Element {
           {fromKind === SourceKind.Core ? (
             <Text size={14} weight={"extrabold"} color={"brand"}>{davToDash(amountDuffs)} Dash</Text>
           ) : (
-            <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits)} credits</Text>
+            <Text size={14} weight={"medium"} color={"brand"}>
+              <CreditsAmount credits={amountCredits} exact showFiat={false} align={"end"} />
+            </Text>
           )}
         </div>
         {fromKind === SourceKind.Core && (
           <div className={"flex items-center justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Identity is credited</Text>
-            <Text size={14} weight={"medium"} color={"brand"}>{formatCredits(amountCredits - (feeCredits ?? 0n))} credits</Text>
+            <Text size={14} weight={"medium"} color={"brand"}>
+              <CreditsAmount credits={amountCredits - (feeCredits ?? 0n)} exact showFiat={false} align={"end"} />
+            </Text>
           </div>
         )}
         <div className={"flex items-center justify-between gap-4"}>
@@ -751,34 +709,38 @@ export default function IdentityRegistration(): React.JSX.Element {
           {fromKind === SourceKind.Core ? (
             <Text size={16} weight={"extrabold"} color={"brand"}>{davToDash(totalDuffs)} Dash</Text>
           ) : (
-            <Text size={16} weight={"extrabold"} color={"brand"}>{formatCredits(amountCredits + (feeCredits ?? 0n))} credits</Text>
+            <Text size={16} weight={"extrabold"} color={"brand"}>
+              <CreditsAmount credits={amountCredits + (feeCredits ?? 0n)} exact showFiat={false} align={"end"} />
+            </Text>
           )}
         </div>
-        <div className={"flex items-center justify-between gap-4"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Creates</Text>
-          <Text size={12} weight={"medium"} color={"brand"} className={"text-right"}>
-            New Platform identity with {fromKind === SourceKind.PlatformAddress ? 4 : 6} keys
-          </Text>
-        </div>
       </div>
-      {fromKind === SourceKind.Core && syncIncomplete && <P2pSyncAlert />}
+      {coreSyncBlocked && <P2pSyncAlert />}
+      {proverFailed && (
+        <Text size={12} weight={"medium"} color={"red"} className={"px-1 break-words"}>
+          Couldn't prepare the private transaction: {prover.error ?? 'unknown error'}
+        </Text>
+      )}
     </>
   )
 
   return (
     <div className={"relative flex flex-col h-full pb-4"}>
+      <div className={coinControlOpen ? 'hidden' : 'contents'}>
       {pageHeader}
-      <TransferWizard
-        key={walletId}
-        steps={[
-          { label: 'Overview', content: overviewStep },
-          { label: 'Funding', content: amountStep, canAdvance: amountReady },
-          { label: 'Review', content: reviewStep },
-        ]}
-        onSubmit={openNewRegistration}
-        submitLabel={"Register identity"}
-        submitDisabled={!amountReady || (fromKind === SourceKind.Core && syncIncomplete) || (fromKind === SourceKind.Shielded && !prover.ready)}
-      />
+      <div className={"flex flex-1 min-h-0 flex-col px-12 pb-8"}>
+        <TransferWizard
+          key={walletId}
+          steps={[
+            { label: 'Funding', content: amountStep, canAdvance: amountReady && !coreSyncBlocked },
+            { label: 'Confirm', content: reviewStep },
+          ]}
+          onSubmit={openNewRegistration}
+          submitLabel={submitLabel}
+          submitDisabled={!amountReady || coreSyncBlocked || (fromKind === SourceKind.Shielded && !prover.ready)}
+        />
+      </div>
+      </div>
       <CoinControlModal
         isOpen={coinControlOpen}
         operation={operation}
@@ -810,7 +772,10 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           walletId={walletId}
           toPlatformAddress={''}
-          amountDuffs={amountDuffs.toString()}
+          amountDuffs={amountDuffs}
+          feeDuffs={feeDuffs}
+          feeCredits={feeCredits}
+          from={fromEndpoint}
           resume={false}
           kind={AssetLockFundingKind.Identity}
           source={coreSpendSource}
@@ -824,12 +789,14 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           title={"Register identity"}
           successTitle={"Identity registered"}
-          rows={[
-            { label: 'From', value: coinControlSummary },
-            { label: 'Identity funding', value: <CreditsAmount credits={amountCredits} showFiat={false} align={"end"} /> },
-            ...(feeCredits !== null ? [{ label: 'Reserved for fee', value: <CreditsAmount credits={feeCredits} showFiat={false} align={"end"} /> }] : []),
-            { label: 'Creates', value: 'New Platform identity with 4 keys' },
-          ]}
+          summary={{
+            unit: 'credits',
+            amount: amountCredits,
+            from: fromEndpoint,
+            to: [{ value: NEW_IDENTITY_LABEL, kind: TxEndpointKind.Label }],
+            fees: [{ label: TX_SUMMARY_LABELS.reservedFee, amount: feeCredits, unit: 'credits' }],
+            total: feeCredits === null ? null : amountCredits + feeCredits,
+          }}
           run={runPlatformRegistration}
           sourceValid={amountReady}
           onSuccess={handlePlatformSuccess}
@@ -841,9 +808,10 @@ export default function IdentityRegistration(): React.JSX.Element {
           onClose={handleModalClose}
           walletId={walletId}
           title={"Register identity from Shield"}
-          toLabel={"Creates"}
-          toValue={"New Platform identity with 6 keys"}
-          amountCredits={amountCredits.toString()}
+          kind={ShieldedSpendKind.IdentityCreate}
+          from={fromEndpoint}
+          toValue={NEW_IDENTITY_LABEL}
+          amountCredits={amountCredits}
           feeCredits={feeCredits}
           proverReady={prover.ready}
           start={startShieldedRegistration}

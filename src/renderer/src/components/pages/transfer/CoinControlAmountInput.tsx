@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended/tooltip'
+import AllocationAmountRow from '@renderer/components/ui/AllocationAmountRow'
 import type { CoinControlAmountInputProps } from '@renderer/types/CoinControl'
-import { creditsToDash, dashToCredits, formatCredits } from '@renderer/utils/balance'
+import { creditsToDash, creditsToDuffs, dashToCredits, formatCredits } from '@renderer/utils/balance'
+import { recipientPercent } from '@renderer/utils/sendRecipients'
 
-export default function CoinControlAmountInput({id, credits, invalid, onChange}: CoinControlAmountInputProps): React.JSX.Element {
+export default function CoinControlAmountInput({id, credits, maxCredits, invalid, onChange}: CoinControlAmountInputProps): React.JSX.Element {
   const [value, setValue] = useState(() => creditsToDash(credits))
+  const percent = recipientPercent(credits, maxCredits, true)
 
   useEffect(() => {
     setValue(current => dashToCredits(current) === credits ? current : creditsToDash(credits))
@@ -18,16 +20,23 @@ export default function CoinControlAmountInput({id, credits, invalid, onChange}:
   }
 
   return (
-    <Tooltip label={`${formatCredits(credits)} credits`}>
-      <input
-        id={id}
-        type={'text'}
-        inputMode={'decimal'}
-        value={value}
-        onChange={event => handleChange(event.target.value)}
-        aria-invalid={invalid}
-        className={`pointer-events-auto col-start-1 row-start-2 min-w-0 w-full rounded-[.625rem] px-3 py-2 dash-input-block dash-text-default outline-none text-[.75rem] font-mono ${invalid ? 'ring-1 ring-dash-red' : ''}`}
-      />
-    </Tooltip>
+    <AllocationAmountRow
+      id={id}
+      value={value}
+      onChange={handleChange}
+      fiatDuffs={creditsToDuffs(credits)}
+      amountTooltip={`${formatCredits(credits)} credits`}
+      invalid={invalid}
+      centered
+      slider={{
+        percent,
+        onPercentChange: next => handleChange(creditsToDash(maxCredits * BigInt(next) / 100n)),
+        disabled: maxCredits <= 0n,
+        label: 'Dash from this input percentage',
+        valueText: `${percent}% of available balance`,
+        onMax: () => handleChange(creditsToDash(maxCredits)),
+        maxDisabled: maxCredits <= 0n,
+      }}
+    />
   )
 }

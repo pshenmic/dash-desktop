@@ -14,6 +14,7 @@ import { useFiat } from "@renderer/hooks/useFiat"
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility"
 import { transactionsPage } from "@renderer/constants"
 import { TRANSACTION_CARD_SIGNS, TRANSACTION_CARD_STATUS_VARIANTS } from '@renderer/constants/transactionsPage'
+import { TRANSACTION_KIND_BADGES } from '@renderer/constants/transactionKindBadges'
 
 const transactionCardStyles = cva(
   `
@@ -57,19 +58,20 @@ export default function TransactionCard({
   const { isBalanceVisible } = useBalanceVisibility()
   const formattedAmount = formatTransactionCardAmount({ amount: display.amount, kind })
   const displayedId = id.toLowerCase()
+  const kindBadge = kind ? TRANSACTION_KIND_BADGES[kind] : undefined
 
   return (
     <div className={transactionCardStyles({ status })} title={status === 'unknown' ? 'Status unavailable' : undefined}>
       <TransactionCardIcons status={status} />
       <div className={"flex-1 min-w-0 flex flex-col gap-[.25rem]"}>
         <div className={"flex min-w-0 flex-wrap items-center gap-[.3125rem]"} title={title}>
-          <Tooltip label={kind === 'platform' ? 'L2 Dash Evo Chain' : kind === 'core' ? 'L1 Dash Core Chain' : undefined}>
+          <Tooltip label={kindBadge?.label}>
             <span className="inline-flex shrink-0" title="">
               <CustomBadge
-                text={kind === 'platform' ? 'evo' : kind ?? ''}
+                text={kindBadge?.text ?? ''}
                 variant={variantAmountSummary}
                 size={"s"}
-                className={`w-12 shrink-0 ${kind === 'platform' ? 'bg-violet-500/15! text-violet-700! dark:bg-violet-400/20! dark:text-violet-300!' : ''}`}
+                className={`w-12 shrink-0 ${kindBadge?.className ?? ''}`}
               />
             </span>
           </Tooltip>

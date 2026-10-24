@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
-import CopyButton from '@renderer/components/ui/CopyButton'
+import { Button, Text, ShieldSmallIcon, InfoTooltip, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import AddressRow from '@renderer/components/ui/AddressRow'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
-import SensitiveValue from '@renderer/components/ui/SensitiveValue'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
 import { API } from '@renderer/api'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
+import { creditsToDuffs } from '@renderer/utils/balance'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
-import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import {
+  addressesPage,
+  addressFormCopy,
+  INVALID_WALLET_PASSWORD_MESSAGE,
+  SHIELDED_BALANCE_UNKNOWN_TOOLTIP,
+} from '@renderer/constants'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 
 export default function ShieldedAddressTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
@@ -46,7 +53,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     return () => { dead = true }
   }, [walletId])
 
-  const withPassword = async (action: (pwd: string) => Promise<void>): Promise<void> => {
+  const withPassword = async (action: (pwd: string) => Promise<void>, failureMessage: string): Promise<void> => {
     if (!walletId || password.length === 0 || busy) return
     setBusy(true)
     setError(null)
@@ -60,7 +67,7 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
       setPassword('')
       setShowPasswordForm(false)
     } catch {
-      setError('Could not derive shielded addresses. Please try again.')
+      setError(failureMessage)
     } finally {
       setBusy(false)
     }
@@ -71,11 +78,11 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     if (!synced && !syncRunning) {
       API.startShieldedSync(walletId!, pwd).catch(() => {})
     }
-  })
+  }, addressFormCopy.loadFailed)
 
   const handleConfirmAdd = (): Promise<void> => withPassword(async (pwd) => {
     setAddresses(await API.addShieldedAddress(walletId!, pwd))
-  })
+  }, addressFormCopy.addFailed)
 
   // Every reveal derives from the seed, so every reveal asks. Nothing holds the
   // password between clicks — L1 and platform addresses need no password at all,
@@ -86,28 +93,10 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     setShowPasswordForm(true)
   }
 
-  const passwordInput = (onSubmit: () => void, id: string): React.JSX.Element => (
-    <>
-      <Input
-        id={id}
-        type={"password"}
-        placeholder={"Wallet password"}
-        value={password}
-        variant={"outlined"}
-        onChange={(e) => {
-          setError(null)
-          setPassword(e.target.value)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onSubmit()
-        }}
-        className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-        colorScheme={error ? 'error' : 'primary'}
-        disabled={busy}
-      />
-      {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
-    </>
-  )
+  const handlePasswordChange = (value: string): void => {
+    setError(null)
+    setPassword(value)
+  }
 
   if (checking) {
     return <ListSkeleton rows={3} rowClassName="h-[2.5rem] rounded-[.875rem]" />
@@ -115,25 +104,33 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
 
   if (addresses === null) {
     return (
-      <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
+      <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
         <div className={"flex items-center gap-2"}>
           <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
           <Text size={14} weight={"extrabold"} color={"brand"}>Shielded addresses</Text>
         </div>
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-          Your shielded addresses are derived from your seed. Enter your wallet password to reveal them. Your seed never leaves this device.
+          {addressFormCopy.shieldedPrompt}
         </Text>
-        {passwordInput(handleReveal, 'shielded-addresses-password')}
+        <PasswordField
+          id={"shielded-addresses-password"}
+          value={password}
+          onChange={handlePasswordChange}
+          onSubmit={handleReveal}
+          error={error}
+          disabled={busy}
+          autoFocus={false}
+        />
         <Button
           type={"button"}
           onClick={handleReveal}
           disabled={!walletId || password.length === 0 || busy}
           variant={"solid"}
           colorScheme={"primary"}
-          size={"sm"}
-          className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+          size={"compact"}
+          className={"self-start"}
         >
-          {busy ? 'Deriving…' : 'Reveal addresses'}
+          {busy ? addressFormCopy.loading : addressFormCopy.showAddresses}
         </Button>
       </div>
     )
@@ -143,48 +140,48 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
     <>
     <div className={"flex flex-col gap-[.625rem]"}>
       <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
-      {addresses.map((address) => (
-        <div key={address} className={"flex w-max min-w-full items-center justify-between gap-4 px-[.9375rem] py-[.625rem] rounded-[.875rem] dash-block"}>
-          <div className={"flex items-center gap-2"}>
-            <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-            <Text size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap"}>
-              {address}
-            </Text>
-            <CopyButton text={address} className={"shrink-0"} />
-          </div>
-          <div className={"flex items-center gap-2 shrink-0"}>
-            {synced ? (
-              <SensitiveValue hidden={!isBalanceVisible} size={"card"} tone={"accent"}>
-                <Text size={14} weight={"medium"} color={"brand"}>
-                  <CreditsAmount credits={balances.get(address) ?? 0n} compact unit={"Credits"} align={"end"} amountClassName={"font-bold"} />
-                </Text>
-              </SensitiveValue>
+      {addresses.map((address) => {
+        const credits = balances.get(address) ?? 0n
+        return (
+          <AddressRow
+            key={address}
+            address={address}
+            leading={<ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />}
+            amount={synced ? (
+              <CreditsAmount credits={credits} compact unit={"Credits"} showFiat={false} align={"end"} amountClassName={"font-bold"} />
             ) : (
-              <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
+              <Tooltip label={SHIELDED_BALANCE_UNKNOWN_TOOLTIP}>
+                <span>
+                  <Text size={12} weight={"medium"} color={"brand"} opacity={40}>—</Text>
+                </span>
+              </Tooltip>
             )}
-          </div>
-        </div>
-      ))}
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>
-        Your Orchard shielded addresses. All of them receive into the same private balance — share any of them; incoming payments reveal nothing about sender, recipient or amount on-chain.
-        {!synced && !syncRunning && ' Sync your notes to see per-address balances.'}
-      </Text>
+            fiatDuffs={synced ? creditsToDuffs(credits) : null}
+            hidden={synced && !isBalanceVisible}
+          />
+        )
+      })}
       {showPasswordForm ? (
-        <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            Enter your wallet password to derive a new shielded address.
-          </Text>
-          {passwordInput(handleConfirmAdd, 'shielded-add-password')}
+        <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
+          <PasswordField
+            id={"shielded-add-password"}
+            value={password}
+            onChange={handlePasswordChange}
+            onSubmit={handleConfirmAdd}
+            error={error}
+            disabled={busy}
+            autoFocus={false}
+          />
           <Button
             type={"button"}
             onClick={handleConfirmAdd}
             disabled={!walletId || password.length === 0 || busy}
             variant={"solid"}
             colorScheme={"primary"}
-            size={"sm"}
-            className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+            size={"compact"}
+            className={"self-start"}
           >
-            {busy ? 'Deriving…' : 'Add address'}
+            {busy ? addressFormCopy.adding : 'Add address'}
           </Button>
         </div>
       ) : (
@@ -200,11 +197,11 @@ export default function ShieldedAddressTab({ walletId }: { walletId: string | un
               disabled={!walletId || busy}
               variant={"solid"}
               colorScheme={"primary"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem]"}
+              size={"compact"}
             >
-              {busy ? 'Deriving…' : 'New address'}
+              {busy ? addressFormCopy.adding : 'New address'}
             </Button>
+            <InfoTooltip content={addressesPage.shieldedSharedBalance} />
             {syncRunning && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 {sync.phase === ShieldedSyncPhase.Recovering

@@ -46,6 +46,7 @@ const styles = cva(
       size: {
         sm: 'dash-block-sm',
         md: 'dash-block-md',
+        compact: '!min-h-0 h-9 px-4 py-0 rounded-[.75rem] text-sm',
       },
     },
     compoundVariants: [
@@ -188,7 +189,7 @@ const styles = cva(
         colorScheme: 'primary',
         theme: 'light',
         state: 'disabled',
-        class: '!bg-dash-brand/15 !text-dash-brand !opacity-100'
+        class: '!bg-dash-brand/15 !text-dash-brand'
       },
       {
         variant: 'solid',
@@ -202,7 +203,7 @@ const styles = cva(
         colorScheme: 'primary',
         theme: 'dark',
         state: 'disabled',
-        class: '!bg-dash-mint/15 !text-dash-mint !opacity-100'
+        class: '!bg-dash-mint/15 !text-dash-mint'
       },
 
       // =====NEW==== END
@@ -368,7 +369,7 @@ const styles = cva(
     defaultVariants: {
       theme: 'light',
       variant: 'solid',
-      colorScheme: 'brand',
+      colorScheme: 'primary',
       state: 'active',
       size: 'md'
     }
@@ -381,7 +382,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** Color scheme for the button */
   colorScheme?: 'brand' | 'mint' | 'gray' | 'red' | 'lightBlue' | 'lightGray' | 'primary' | 'brand-mint' | 'primary-light' | 'lightBlue-mint' | 'danger-light' | 'red-strong'
   /** Size of the button */
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'compact'
 }
 
 /**

@@ -44,6 +44,7 @@ vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({
     typeof as === 'string' ? as : 'span', {title}, children as ReactNode,
   ),
   InfoTooltip: () => null,
+  Input: (props: Record<string, unknown>) => React.createElement('input', props),
   AddIcon: () => null,
   CheckmarkIcon: () => null,
   CloseIcon: () => null,
