@@ -1,10 +1,21 @@
 import {AddressWindowPolicy} from '../types/AddressWindow'
+import {MasternodeKeyRole} from '../types/Masternode'
 
 // BIP-44 coin type and the account level of every derivation path in the app.
 // Defining these more than once forks the key tree on whichever copy is missed.
 export const COIN_TYPE: Record<'mainnet' | 'testnet', number> = {mainnet: 5, testnet: 1}
 export const PLATFORM_ACCOUNT = 0
 export const SHIELDED_ACCOUNT = 0
+
+// DIP-3 provider keys live at m/9'/coinType'/3'/<role>'.
+export const MASTERNODE_FEATURE = 3
+export const MASTERNODE_KEY_ROLE: Record<MasternodeKeyRole, number> = {voting: 1, owner: 2, operator: 3, platformNode: 4}
+// HMAC keys of the dashbls BLS HD and SLIP-10 ed25519 masters.
+export const BLS_HD_SEED_KEY = 'BLS HD seed'
+export const ED25519_SEED_KEY = 'ed25519 seed'
+// SLIP-10 ed25519 is hardened-only, so these keys need the seed; this many are
+// stored when it is at hand.
+export const MASTERNODE_PLATFORM_KEY_BATCH = 10
 
 export const ADDRESS_PREFIX: Record<'mainnet' | 'testnet', {p2pkh: number; p2sh: number}> = {
   mainnet: {p2pkh: 76, p2sh: 16},

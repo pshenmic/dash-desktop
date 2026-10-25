@@ -1,10 +1,12 @@
 import {KeyPairController} from 'dash-platform-sdk/src/keyPair/index.js'
 import {AddressDAO} from '../../database/AddressDAO'
 import {WalletDAO} from '../../database/WalletDAO'
+import {MasternodeKeyDAO} from '../../database/MasternodeKeyDAO'
 import {Network} from '../../types/Network'
 import {COIN_TYPE, PLATFORM_ACCOUNT} from '../../constants/addresses'
 import {decryptMnemonic, encryptMnemonic} from '../../utils'
 import {coreAccountPath} from '../../utils/addressDiscovery'
+import {masternodeKeys} from '../../utils/masternodeKeys'
 import {requireWallet} from '../../utils/requireWallet'
 import {Logger} from '../../utils/logger'
 
@@ -16,14 +18,16 @@ const log = new Logger('credentials')
 export class WalletCredentialsService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
+  private masternodeKeyDAO: MasternodeKeyDAO
   private pbkdf2Iterations: number
   // Derivation only — a DashPlatformSDK would build a gRPC pool and fetch the
   // evonode list to do local maths.
   private keyPair = new KeyPairController()
 
-  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, pbkdf2Iterations: number) {
+  constructor(walletDAO: WalletDAO, addressDAO: AddressDAO, masternodeKeyDAO: MasternodeKeyDAO, pbkdf2Iterations: number) {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
+    this.masternodeKeyDAO = masternodeKeyDAO
     this.pbkdf2Iterations = pbkdf2Iterations
   }
 
@@ -53,9 +57,14 @@ export class WalletCredentialsService {
 
     // Backfill for wallets created before the xpubs were persisted. This is the
     // only routine path that holds the seed, so it is where they can be filled.
-    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null)) {
+    const hasMasternodeKeys = isValid && await this.masternodeKeyDAO.hasKeys(walletId)
+    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null || !hasMasternodeKeys)) {
       const seed = this.keyPair.mnemonicToSeed(decryptedMnemonic)
       const hdKey = this.keyPair.seedToHdKey(seed, wallet.network)
+
+      if (!hasMasternodeKeys) {
+        await this.masternodeKeyDAO.saveKeys(walletId, masternodeKeys(seed, wallet.network))
+      }
 
       if (wallet.platformXpub == null) {
         const platformXpub = await this.keyPair.derivePlatformAccountXpub(seed, wallet.network, PLATFORM_ACCOUNT)

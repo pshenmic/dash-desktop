@@ -19,6 +19,8 @@ export const WALLET_SCOPED_TABLES = [
   'aliases',
   'dashpay_contact_requests',
   'dashpay_contact_addresses',
+  'masternode_keys',
+  'masternode_platform_keys',
 ] as const
 
 // Batched statements stay under both SQLite ceilings: knex builds a multi-row
