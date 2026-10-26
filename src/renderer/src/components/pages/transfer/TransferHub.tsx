@@ -91,6 +91,7 @@ import ShieldConfirmModal from "@renderer/components/modal/ShieldConfirmModal";
 import ShieldedSpendModal from "@renderer/components/modal/ShieldedSpendModal";
 import ShieldedUnlockModal from "@renderer/components/modal/ShieldedUnlockModal";
 import DismissAssetLockFundingModal from "@renderer/components/modal/DismissAssetLockFundingModal";
+import RecoverAssetLockModal from "@renderer/components/modal/RecoverAssetLockModal";
 
 export default function TransferHub(): React.JSX.Element {
   const { status } = useAuth()
@@ -103,7 +104,7 @@ function WalletTransferHub(): React.JSX.Element {
   const walletId = status?.selectedWalletId ?? null
   const network = status?.network ?? null
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [draft, setDraftState] = useState<SendDraft>(() =>
     getOrCreateSendDraft(walletId, searchParams.get('from'), searchParams.get('to')))
   const draftRef = useRef(draft)
@@ -134,6 +135,7 @@ function WalletTransferHub(): React.JSX.Element {
   const [resumableFunding, setResumableFunding] = useState<AssetLockFundingState | null>(null)
   const [resumeOpen, setResumeOpen] = useState(false)
   const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
+  const [recoverOpen, setRecoverOpen] = useState(false)
   const [dismissBusy, setDismissBusy] = useState(false)
   const [dismissError, setDismissError] = useState<string | null>(null)
 
@@ -151,6 +153,17 @@ function WalletTransferHub(): React.JSX.Element {
       })
     return () => { dead = true }
   }, [walletId, wizardKey, fundingRefresh])
+
+  useEffect(() => {
+    const recoveredTxid = searchParams.get('resumeAssetLock')
+    if (!recoveredTxid || resumableFunding?.txid !== recoveredTxid) return
+    setResumeOpen(true)
+    setSearchParams(current => {
+      const next = new URLSearchParams(current)
+      next.delete('resumeAssetLock')
+      return next
+    }, { replace: true })
+  }, [resumableFunding, searchParams, setSearchParams])
 
   const dismissFunding = async (): Promise<void> => {
     if (!walletId || dismissBusy) return
@@ -1049,6 +1062,11 @@ function WalletTransferHub(): React.JSX.Element {
             ))}
           </div>
           {shieldedInvolved && <ProverPill status={prover} />}
+          {!resumableFunding && (
+            <button type="button" onClick={() => setRecoverOpen(true)} className="text-xs font-bold dash-text-default cursor-pointer hover:opacity-70">
+              Recover asset lock
+            </button>
+          )}
         </div>
       </div>
 
@@ -1273,6 +1291,16 @@ function WalletTransferHub(): React.JSX.Element {
         onSuccess={() => {
           setResumableFunding(null)
           resetForm()
+        }}
+      />
+
+      <RecoverAssetLockModal
+        isOpen={recoverOpen}
+        walletId={walletId}
+        onClose={() => setRecoverOpen(false)}
+        onRecovered={state => {
+          setResumableFunding(state)
+          setResumeOpen(true)
         }}
       />
 

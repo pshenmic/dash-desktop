@@ -1,4 +1,5 @@
 import {AddressWindowPolicy} from '../types/AddressWindow'
+import type {FundingKeyUsage} from '../types/AssetLockRecovery'
 
 // BIP-44 coin type and the account level of every derivation path in the app.
 // Defining these more than once forks the key tree on whichever copy is missed.
@@ -65,3 +66,9 @@ export const IDENTITY_SCAN_LIMIT = 100
 // restore to.
 export const TOPUP_KEY_GAP_LIMIT = 5
 export const TOPUP_KEY_SCAN_LIMIT = 200
+
+// DIP-13 identity funding usages, m/9'/coin'/5'/usage'/index.
+export const FUNDING_KEY_USAGE: Record<FundingKeyUsage, number> = {registration: 1, topUp: 2}
+
+// How far asset lock recovery looks down each funding branch for a credit key.
+export const FUNDING_KEY_SCAN_LIMIT: number = 2000

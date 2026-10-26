@@ -87,6 +87,30 @@ export class AssetLockDAO {
     return Number(row?.count ?? 0)
   }
 
+  getFundingByTxid = async (txid: string): Promise<AssetLockFundingRow | null> => {
+    const row = await this.knex('asset_lock_fundings').where({txid}).first()
+    return row ? fromRow(row) : null
+  }
+
+  // A stored proof is kept: the lock it proves is the same outpoint, and an
+  // islock our peers already delivered is not re-requestable.
+  reopenFunding = async (funding: Omit<AssetLockFundingRow, 'id' | 'stHash' | 'error' | 'assetLockProof' | 'createdAt'>): Promise<void> => {
+    await this.knex('asset_lock_fundings')
+      .where({wallet_id: funding.walletId, txid: funding.txid})
+      .update({
+        output_index: funding.outputIndex,
+        credit_derivation_path: funding.creditDerivationPath,
+        amount_duffs: funding.amountDuffs.toString(),
+        to_platform_address: funding.toPlatformAddress,
+        kind: funding.kind,
+        status: funding.status,
+        identity_index: funding.identityIndex,
+        tx_hex: funding.txHex,
+        st_hash: null,
+        error: null,
+      })
+  }
+
   getActiveFunding = async (walletId: string): Promise<AssetLockFundingRow | null> => {
     const row = await this.knex('asset_lock_fundings')
       .where({wallet_id: walletId})

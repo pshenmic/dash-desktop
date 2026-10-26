@@ -25,5 +25,8 @@ export async function identityTopUpFromAssetLock(payload: Payload, ctx: Operatio
   })
   stateTransition.signByPrivateKey(fundingKey, undefined, KeyType.ECDSA_SECP256K1)
 
-  return {stHash: await broadcast(sdk, stateTransition, ctx, {idempotent: true})}
+  return {stHash: await broadcast(sdk, stateTransition, ctx, {
+    idempotent: true,
+    requiredCoreHeight: payload.assetLockProof.type === 'chainLock' ? payload.assetLockProof.coreChainLockedHeight : undefined,
+  })}
 }

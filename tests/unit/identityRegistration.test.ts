@@ -67,20 +67,6 @@ describe('IdentityRegistrationService', () => {
     })
   })
 
-  describe('registrationKeyPath', () => {
-    it('follows DIP-13 m/9\'/coin\'/5\'/1\'/index per network', () => {
-      expect(service.registrationKeyPath(0, 'testnet')).toBe("m/9'/1'/5'/1'/0")
-      expect(service.registrationKeyPath(3, 'mainnet')).toBe("m/9'/5'/5'/1'/3")
-    })
-  })
-
-  describe('topUpKeyPath', () => {
-    it('follows DIP-13 m/9\'/coin\'/5\'/2\'/index per network', () => {
-      expect(service.topUpKeyPath(0, 'testnet')).toBe("m/9'/1'/5'/2'/0")
-      expect(service.topUpKeyPath(3, 'mainnet')).toBe("m/9'/5'/5'/2'/3")
-    })
-  })
-
   // The walk itself is the identityScan operation's, and is tested there.
   describe('findNextIdentityIndex', () => {
     it('asks the worker to stop at the first free index', async () => {

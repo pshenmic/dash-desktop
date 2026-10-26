@@ -5,6 +5,7 @@ import {Network} from '../../types/Network'
 import {COIN_TYPE, PLATFORM_ACCOUNT} from '../../constants/addresses'
 import {decryptMnemonic, encryptMnemonic} from '../../utils'
 import {coreAccountPath} from '../../utils/addressDiscovery'
+import {fundingXpubs} from '../../utils/fundingKeys'
 import {requireWallet} from '../../utils/requireWallet'
 import {Logger} from '../../utils/logger'
 
@@ -53,7 +54,8 @@ export class WalletCredentialsService {
 
     // Backfill for wallets created before the xpubs were persisted. This is the
     // only routine path that holds the seed, so it is where they can be filled.
-    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null)) {
+    const missingFundingXpubs = wallet.registrationFundingXpub == null || wallet.topUpFundingXpub == null
+    if (isValid && (wallet.platformXpub == null || wallet.coreXpub == null || missingFundingXpubs)) {
       const seed = this.keyPair.mnemonicToSeed(decryptedMnemonic)
       const hdKey = this.keyPair.seedToHdKey(seed, wallet.network)
 
@@ -66,6 +68,8 @@ export class WalletCredentialsService {
         const accountNode = await this.keyPair.derivePath(hdKey, coreAccountPath(COIN_TYPE[wallet.network], 0))
         await this.walletDAO.setCoreXpub(walletId, accountNode.publicExtendedKey)
       }
+
+      await fundingXpubs(this.walletDAO, wallet, seed)
     }
 
     return isValid

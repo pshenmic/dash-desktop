@@ -34,5 +34,8 @@ export async function shieldFromAssetLock(payload: Payload, ctx: OperationContex
     ...(payload.surplusAddress != null ? {surplusOutput: payload.surplusAddress} : {}),
   })
 
-  return {stHash: await broadcast(sdk, stateTransition, ctx, {idempotent: true})}
+  return {stHash: await broadcast(sdk, stateTransition, ctx, {
+    idempotent: true,
+    requiredCoreHeight: payload.assetLockProof.type === 'chainLock' ? payload.assetLockProof.coreChainLockedHeight : undefined,
+  })}
 }

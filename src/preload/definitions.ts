@@ -8,6 +8,11 @@ type CoreSpendSource =
   | { kind: 'address'; address: string }
   | { kind: 'outpoints'; outpoints: { txid: string; vout: number }[] }
 
+// Mirrors src/main/src/types/AssetLockRecovery, which the bundles do not share.
+type AssetLockRecoveryDestination =
+  | { kind: 'address' | 'shielded' | 'identityTopUp'; to: string }
+  | { kind: 'identity' }
+
 // Mirrors the CoreRecipient in src/main/src/types/CoreTransaction: one
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
@@ -74,6 +79,8 @@ export const apiDefinitions = (ipcRenderer) => ({
   getAssetLockFundingState: (walletId: string) => ipcRenderer.invoke('getAssetLockFundingState', walletId),
   resumeAssetLockFunding: (walletId: string, password: string) => ipcRenderer.invoke('resumeAssetLockFunding', walletId, password),
   dismissAssetLockFunding: (walletId: string) => ipcRenderer.invoke('dismissAssetLockFunding', walletId),
+  inspectAssetLock: (walletId: string, txid: string) => ipcRenderer.invoke('inspectAssetLock', walletId, txid),
+  recoverAssetLock: (walletId: string, txid: string, password: string, destination: AssetLockRecoveryDestination) => ipcRenderer.invoke('recoverAssetLock', walletId, txid, password, destination),
   shieldToPool: (walletId: string, source: PlatformSpendSource | null, toAddress: string, amountCredits: bigint, password: string) => ipcRenderer.invoke('shieldToPool', walletId, source, toAddress, amountCredits, password),
   // preferencess
   getPreferences: () => ipcRenderer.invoke('getPreferences'),

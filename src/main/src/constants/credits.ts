@@ -1,5 +1,7 @@
 import {KeyType, Purpose, SecurityLevel} from 'dash-platform-sdk/types.js'
 import type {TransitionFeeOperation} from '../../platform/types/messages'
+import type {AssetLockFundingKind} from '../types/AssetLock'
+import type {AssetLockCreditSource} from '../types/AssetLockRecovery'
 
 export const CREDITS_PER_DUFF = 1_000n
 
@@ -44,6 +46,11 @@ export const MAX_FEE_STRATEGY_STEPS = 4
 export const ASSET_LOCK_PAYLOAD_VERSION = 1
 export const ASSET_LOCK_CREDIT_OUTPUT_INDEX = 0
 export const ASSET_LOCK_DISMISSED_ERROR = 'Pending funding dismissed by user'
+export const ASSET_LOCK_RECOVERY_KINDS: Record<AssetLockCreditSource, AssetLockFundingKind[]> = {
+  core: ['address', 'shielded'],
+  registration: ['identity'],
+  topUp: ['identityTopUp'],
+}
 export const ALREADY_IN_CHAIN = 'state transition already in chain'
 export const STALE_INSTANT_LOCK_PROOF = "instant lock proof signature is invalid or wasn't created recently"
 

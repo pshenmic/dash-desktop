@@ -33,6 +33,7 @@ import {
 } from '../../constants/addresses'
 import {coreFeeDuffsFor} from '../../utils/coreFeeRate'
 import {identityPath} from '../../utils/identityKeys'
+import {deriveFundingXpubs} from '../../utils/fundingKeys'
 import {coreAccountPath, coreAddressDeriver} from "../../utils/addressDiscovery";
 import {CoreSpendSource, SelectableUtxo} from '../../types/CoinSelection'
 import {CoreRecipient} from '../../types/CoreTransaction'
@@ -117,6 +118,7 @@ export class WalletService {
 
     const coreAccountNode = await this.keyPair.derivePath(hdKey, coreAccountPath(coinType, accountId))
     await this.walletDAO.setCoreXpub(walletId, coreAccountNode.publicExtendedKey)
+    await this.walletDAO.setFundingXpubs(walletId, await deriveFundingXpubs(seed, network))
 
     const coreXpub = coreAccountNode.publicExtendedKey
     const addresses: Address[] = []
