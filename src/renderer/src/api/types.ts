@@ -218,6 +218,8 @@ export interface FeeParams {
   identityId?: string | null
   // identityCreateKeys only: the keys being created.
   keys?: IdentityKeyRequestDto[] | null
+  // identityDisableKeys only: the ids of the keys being disabled.
+  keyIds?: number[] | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null
 }

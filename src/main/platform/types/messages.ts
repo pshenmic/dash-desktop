@@ -126,6 +126,7 @@ export type TransitionFeeOperation =
   | 'aliasRegister'
   | 'dashPayContactRequest'
   | 'identityCreateKeys'
+  | 'identityDisableKeys'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -135,7 +136,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys' | 'identityDisableKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -167,6 +168,8 @@ export interface FeeParams {
   identityId?: string | null
   // identityCreateKeys only: the keys being created.
   keys?: IdentityKeyRequest[] | null
+  // identityDisableKeys only: the ids of the keys being disabled.
+  keyIds?: number[] | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
   shieldedSource?: ShieldedSpendSource | null

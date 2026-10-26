@@ -52,6 +52,7 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   aliasRegister: 'owl352-testnet',
   dashPayContactRequest: IDENTITY,
   identityCreateKeys: '',
+  identityDisableKeys: '',
 }
 
 const FUNDING_TXID = '11'.repeat(32)
@@ -140,7 +141,7 @@ describe('transitionFee', () => {
 
   it('prices every operation main can send it', async () => {
     for (const operation of ALL) {
-      expect(await feeOf(operation, {recipient: RECIPIENT[operation], keys: [KEY]}), operation).toBeGreaterThan(0n)
+      expect(await feeOf(operation, {recipient: RECIPIENT[operation], keys: [KEY], keyIds: [1]}), operation).toBeGreaterThan(0n)
     }
   })
 
@@ -298,6 +299,12 @@ describe('transitionFee', () => {
     identityKeys.bound = [DASHPAY_KEY_BOUNDS.contractId]
     expect(await feeOf('identityCreateKeys', {keys: [bounded]})).toBe(quote(452n + 493n))
     identityKeys.bound = []
+  })
+
+  it('prices disabling keys at what testnet charged, plus the 5% margin', async () => {
+    for (const [keyIds, credits] of [[[7], 1_761_300n], [[8, 9], 2_026_040n]] as const) {
+      expect(await feeOf('identityDisableKeys', {keyIds: [...keyIds]})).toBe(credits * 105n / 100n)
+    }
   })
 
   it('quotes a contested name its vote fund apart, so no multiplier scales it', async () => {

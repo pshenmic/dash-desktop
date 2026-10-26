@@ -79,6 +79,7 @@ describe('the per-operation fee multipliers', () => {
       aliasRegister: true,
       dashPayContactRequest: true,
       identityCreateKeys: true,
+      identityDisableKeys: true,
     }
     expect([...TRANSITION_FEE_OPERATIONS].sort()).toEqual(Object.keys(priced).sort())
   })

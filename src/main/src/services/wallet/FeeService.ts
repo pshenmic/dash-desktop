@@ -171,6 +171,7 @@ export class FeeService {
       case 'aliasRegister':
       case 'dashPayContactRequest':
       case 'identityCreateKeys':
+      case 'identityDisableKeys':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -367,6 +368,7 @@ export class FeeService {
       case 'aliasRegister':
       case 'dashPayContactRequest':
       case 'identityCreateKeys':
+      case 'identityDisableKeys':
         throw new Error(`${operation} has no transaction to preview before the wallet is unlocked`)
 
       case 'shield': {

@@ -19,6 +19,7 @@ export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, num
   aliasRegister: 1,
   dashPayContactRequest: 1,
   identityCreateKeys: 1,
+  identityDisableKeys: 1,
 }
 
 // FEE_VERSION3's 27,000 storage plus 400 processing credits for every byte a
@@ -45,6 +46,10 @@ export const IDENTITY_KEY_BYTES = 452n
 // identity's first key bound to a contract also opens that contract's subtree.
 export const IDENTITY_KEY_BOUNDS_BYTES = 493n
 export const IDENTITY_CONTRACT_BOUNDS_BYTES = 302n
+// Disabling stores almost nothing, so what testnet charged at protocol 14 is
+// used as is: 1,761,300 credits for one key, 2,026,040 for two.
+export const IDENTITY_DISABLE_KEYS_CREDITS = 1_496_560n
+export const IDENTITY_DISABLE_KEY_CREDITS = 264_740n
 
 export const IDENTITY_TRANSFER_MIN_FEE_CREDITS = 200_000_000n
 

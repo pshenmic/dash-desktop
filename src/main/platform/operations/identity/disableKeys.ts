@@ -2,6 +2,7 @@ import {IdentityUpdateTransitionWASM} from 'dash-platform-sdk/types.js'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
+import {identityDisableKeysFee} from '../fee'
 import {applySignature, signingKey} from './signingKey'
 
 type Payload = PlatformOperations['identityDisableKeys']['payload']
@@ -14,6 +15,9 @@ export async function identityDisableKeys(payload: Payload, ctx: OperationContex
   const {seed, identifier, identityIndex, keyIds} = payload
 
   const identity = await sdk.identities.getIdentityByIdentifier(identifier)
+  if (BigInt(identity.balance) < identityDisableKeysFee(keyIds.length).feeCredits) {
+    throw new OperationError('The identity cannot afford to disable these keys', 'insufficientFunds')
+  }
   for (const keyId of keyIds) {
     const key = identity.getPublicKeys().find(candidate => candidate.keyId === keyId)
     if (key == null) throw new OperationError(`This identity has no key ${keyId}`, 'internal')

@@ -28,6 +28,7 @@ const FEE_OPERATIONS: Record<FeeOperation, TransferOperation> = {
   aliasRegister: TransferOperation.AliasRegister,
   dashPayContactRequest: TransferOperation.DashPayContactRequest,
   identityCreateKeys: TransferOperation.IdentityCreateKeys,
+  identityDisableKeys: TransferOperation.IdentityDisableKeys,
 }
 
 const SPEND_KINDS: Record<PoolSpendOperation, ShieldedSpendKind> = {

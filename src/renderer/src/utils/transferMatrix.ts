@@ -76,6 +76,7 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.AliasRegister]: {title: 'Register username', submitLabel: 'Register', minCredits: null, spendKind: null},
   [TransferOperation.DashPayContactRequest]: {title: 'Send contact request', submitLabel: 'Send', minCredits: null, spendKind: null},
   [TransferOperation.IdentityCreateKeys]: {title: 'Create identity keys', submitLabel: 'Create', minCredits: null, spendKind: null},
+  [TransferOperation.IdentityDisableKeys]: {title: 'Disable identity keys', submitLabel: 'Disable', minCredits: null, spendKind: null},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {

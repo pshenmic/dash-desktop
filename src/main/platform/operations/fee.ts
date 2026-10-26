@@ -48,6 +48,8 @@ import {
   DPNS_PREORDER_BYTES,
   SHIELD_FUNDING_ACTIONS,
   IDENTITY_CONTRACT_BOUNDS_BYTES,
+  IDENTITY_DISABLE_KEY_CREDITS,
+  IDENTITY_DISABLE_KEYS_CREDITS,
   IDENTITY_KEY_BOUNDS_BYTES,
   IDENTITY_KEY_BYTES,
   STORED_BYTE_CREDITS,
@@ -84,6 +86,7 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   if (operation === 'identityCreateKeys') {
     return identityCreateKeysFee(params.keys ?? [], await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
   }
+  if (operation === 'identityDisableKeys') return identityDisableKeysFee(params.keyIds?.length ?? 0)
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
@@ -191,6 +194,11 @@ export function identityCreateKeysFee(keys: IdentityKeyRequest[], existing: Iden
   return {feeCredits: bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
 }
 
+export function identityDisableKeysFee(count: number): Result {
+  const credits = IDENTITY_DISABLE_KEYS_CREDITS + IDENTITY_DISABLE_KEY_CREDITS * BigInt(count)
+  return {feeCredits: credits * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
+}
+
 // Shield's own minimum omits note storage, but consensus checks its claims
 // against the full pool carve, which ShieldedTransfer carries.
 export function shieldPoolFee(version: PlatformVersionWASM): bigint {
@@ -198,7 +206,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'>,
+  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys' | 'identityDisableKeys'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,

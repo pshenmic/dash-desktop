@@ -23,7 +23,7 @@ function run(keyIds: number[]) {
     sdk: {
       keyPair,
       identities: {
-        getIdentityByIdentifier: async () => ({revision: 2n, getPublicKeys: () => keys}),
+        getIdentityByIdentifier: async () => ({balance: 10_000_000n, revision: 2n, getPublicKeys: () => keys}),
         getIdentityPublicKeys: async () => keys,
         getIdentityNonce: async () => 5n,
       },
