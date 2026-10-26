@@ -12,8 +12,8 @@ type CoreSpendSource =
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
 
-// Mirrors IdentityKeyRequest in src/main/src/types/IdentityKeys.
-type IdentityKeyRequest = { purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }
+// Mirrors IdentityKeysUpdate in src/main/src/types/IdentityKeys.
+type IdentityKeysUpdate = { add: Array<{ purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }>; disable: number[] }
 
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
@@ -56,9 +56,8 @@ export const apiDefinitions = (ipcRenderer) => ({
   getBalance: (address: string | string[], network: Network) => ipcRenderer.invoke('getBalance', address, network),
   getWalletBalance: (walletId: string) => ipcRenderer.invoke('getWalletBalance', walletId),
   getIdentities: (walletId: string) => ipcRenderer.invoke('getIdentities', walletId),
-  createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => ipcRenderer.invoke('createIdentityKeys', walletId, identifier, keys, password),
+  updateIdentityKeys: (walletId: string, identifier: string, update: IdentityKeysUpdate, password: string) => ipcRenderer.invoke('updateIdentityKeys', walletId, identifier, update, password),
   getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => ipcRenderer.invoke('getIdentityPrivateKeys', walletId, identifier, password),
-  disableIdentityKeys: (walletId: string, identifier: string, keyIds: number[], password: string) => ipcRenderer.invoke('disableIdentityKeys', walletId, identifier, keyIds, password),
   getAliases: (walletId: string) => ipcRenderer.invoke('getAliases', walletId),
   refreshAliases: (walletId: string) => ipcRenderer.invoke('refreshAliases', walletId),
   registerAlias: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerAlias', walletId, identifier, label, password),

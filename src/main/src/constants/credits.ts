@@ -19,8 +19,7 @@ export const TRANSITION_FEE_OPERATIONS = [
   'identityTopUp',
   'aliasRegister',
   'dashPayContactRequest',
-  'identityCreateKeys',
-  'identityDisableKeys',
+  'identityUpdateKeys',
 ] as const satisfies readonly TransitionFeeOperation[]
 
 export const MIN_FEE_MULTIPLIER = 1

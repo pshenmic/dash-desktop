@@ -170,8 +170,7 @@ export class FeeService {
       case 'identityWithdrawal':
       case 'aliasRegister':
       case 'dashPayContactRequest':
-      case 'identityCreateKeys':
-      case 'identityDisableKeys':
+      case 'identityUpdateKeys':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -367,8 +366,7 @@ export class FeeService {
       // Each is built and signed in one worker call, from keys only the seed derives.
       case 'aliasRegister':
       case 'dashPayContactRequest':
-      case 'identityCreateKeys':
-      case 'identityDisableKeys':
+      case 'identityUpdateKeys':
         throw new Error(`${operation} has no transaction to preview before the wallet is unlocked`)
 
       case 'shield': {

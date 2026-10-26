@@ -18,8 +18,7 @@ export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, num
   identityToIdentity: 70,
   aliasRegister: 1,
   dashPayContactRequest: 1,
-  identityCreateKeys: 1,
-  identityDisableKeys: 1,
+  identityUpdateKeys: 1,
 }
 
 // FEE_VERSION3's 27,000 storage plus 400 processing credits for every byte a

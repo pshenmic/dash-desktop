@@ -1,7 +1,8 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { IdentityService } from '../../services/platform/IdentityService'
+import { IdentityKeysUpdate } from '../../types/IdentityKeys'
 
-export class DisableIdentityKeysHandler {
+export class UpdateIdentityKeysHandler {
   private identities: IdentityService
 
   constructor(identities: IdentityService) {
@@ -12,9 +13,9 @@ export class DisableIdentityKeysHandler {
     _event: IpcMainInvokeEvent,
     walletId: string,
     identifier: string,
-    keyIds: number[],
+    update: IdentityKeysUpdate,
     password: string,
   ): Promise<string> => {
-    return this.identities.disableIdentityKeys(walletId, identifier, keyIds, password)
+    return this.identities.updateIdentityKeys(walletId, identifier, update, password)
   }
 }

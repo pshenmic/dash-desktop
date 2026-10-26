@@ -75,8 +75,7 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.IdentityCreateFromShielded]: {title: 'Create identity from pool', submitLabel: 'Create', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
   [TransferOperation.AliasRegister]: {title: 'Register username', submitLabel: 'Register', minCredits: null, spendKind: null},
   [TransferOperation.DashPayContactRequest]: {title: 'Send contact request', submitLabel: 'Send', minCredits: null, spendKind: null},
-  [TransferOperation.IdentityCreateKeys]: {title: 'Create identity keys', submitLabel: 'Create', minCredits: null, spendKind: null},
-  [TransferOperation.IdentityDisableKeys]: {title: 'Disable identity keys', submitLabel: 'Disable', minCredits: null, spendKind: null},
+  [TransferOperation.IdentityUpdateKeys]: {title: 'Update identity keys', submitLabel: 'Update', minCredits: null, spendKind: null},
 }
 
 export function operationInfo(operation: TransferOperation): OperationInfo {

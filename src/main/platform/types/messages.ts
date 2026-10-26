@@ -2,7 +2,7 @@ import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {DashPayContactRequest} from '../../src/types/DashPay'
-import {IdentityKey, IdentityKeyRequest, IdentityPrivateKey} from '../../src/types/IdentityKeys'
+import {IdentityKey, IdentityKeyRequest, IdentityKeysUpdate, IdentityPrivateKey} from '../../src/types/IdentityKeys'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -125,8 +125,7 @@ export type TransitionFeeOperation =
   | 'shield'
   | 'aliasRegister'
   | 'dashPayContactRequest'
-  | 'identityCreateKeys'
-  | 'identityDisableKeys'
+  | 'identityUpdateKeys'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -136,7 +135,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys' | 'identityDisableKeys'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -166,9 +165,8 @@ export interface FeeParams {
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
-  // identityCreateKeys only: the keys being created.
+  // identityUpdateKeys only: the keys being added, and the ids of those being disabled.
   keys?: IdentityKeyRequest[] | null
-  // identityDisableKeys only: the ids of the keys being disabled.
   keyIds?: number[] | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
@@ -345,12 +343,8 @@ export interface PlatformOperations {
     }
     result: {stHash: string}
   }
-  identityCreateKeys: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; keys: IdentityKeyRequest[]}
-    result: {stHash: string}
-  }
-  identityDisableKeys: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; keyIds: number[]}
+  identityUpdateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number} & IdentityKeysUpdate
     result: {stHash: string}
   }
   identityPrivateKeys: {

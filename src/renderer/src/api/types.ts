@@ -103,14 +103,21 @@ export interface IdentityKeyBoundsDto {
   documentType: string | null
 }
 
-// A key for createIdentityKeys to derive from the mnemonic and register on the
+// A key for updateIdentityKeys to derive from the mnemonic and add to the
 // identity, always ECDSA_SECP256K1. A TRANSFER key must be CRITICAL, ENCRYPTION
 // and DECRYPTION keys MEDIUM; for DashPay those two are bound to its
-// contactRequest document type.
+// contactRequest document type. MASTER is AUTHENTICATION only, see below.
 export interface IdentityKeyRequestDto {
   purpose: 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
-  securityLevel: 'CRITICAL' | 'HIGH' | 'MEDIUM'
+  securityLevel: 'MASTER' | 'CRITICAL' | 'HIGH' | 'MEDIUM'
   contractBounds: IdentityKeyBoundsDto | null
+}
+
+// updateIdentityKeys — one identity update. A MASTER key is only replaced: add
+// one and disable the current one in the same update.
+export interface IdentityKeysUpdateDto {
+  add: IdentityKeyRequestDto[]
+  disable: number[]
 }
 
 // getIdentityPrivateKeys — a key's private half. A key another wallet added is
@@ -216,9 +223,8 @@ export interface FeeParams {
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
-  // identityCreateKeys only: the keys being created.
+  // identityUpdateKeys only: the keys being added, and the ids of those being disabled.
   keys?: IdentityKeyRequestDto[] | null
-  // identityDisableKeys only: the ids of the keys being disabled.
   keyIds?: number[] | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null

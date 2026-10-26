@@ -35,7 +35,7 @@ import {platformVersion} from './platformVersion'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
 import {contractBoundsWASM, sdkContractBounds} from './identity/contractBounds'
-import {IdentityKeyRequest} from '../../src/types/IdentityKeys'
+import {IdentityKeysUpdate} from '../../src/types/IdentityKeys'
 import {DASHPAY_CONTRACT_ID, IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
 import {
   ASSET_LOCK_BASE_COST_CREDITS,
@@ -85,10 +85,10 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   const {operation, params} = payload
   if (operation === 'aliasRegister') return aliasRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
   if (operation === 'dashPayContactRequest') return dashPayContactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
-  if (operation === 'identityCreateKeys') {
-    return identityCreateKeysFee(params.keys ?? [], await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
+  if (operation === 'identityUpdateKeys') {
+    const update = {add: params.keys ?? [], disable: params.keyIds ?? []}
+    return identityUpdateKeysFee(update, await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
   }
-  if (operation === 'identityDisableKeys') return identityDisableKeysFee(params.keyIds?.length ?? 0)
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
@@ -181,25 +181,26 @@ export async function dashPayContactRequestFee(ctx: OperationContext, recipient:
   }
 }
 
-// dpp prices an identity update at its flat floor too, so each key is priced by
-// what adding it stores: more for a key Drive indexes by purpose, and for a
-// contract-bounded one more again when the identity has none bound to that contract.
-export function identityCreateKeysFee(keys: IdentityKeyRequest[], existing: IdentityPublicKeyWASM[]): Result {
+// dpp prices an identity update at its flat floor too, so each added key is
+// priced by what it stores: more for a key Drive indexes by purpose, and for a
+// contract-bounded one more again when the identity has none bound to that
+// contract. An update that only disables keys stores almost nothing and is
+// priced at what testnet charged for one.
+export function identityUpdateKeysFee({add, disable}: IdentityKeysUpdate, existing: IdentityPublicKeyWASM[]): Result {
+  const disabling = IDENTITY_DISABLE_KEY_CREDITS * BigInt(disable.length)
+  if (add.length === 0) {
+    return {feeCredits: (IDENTITY_DISABLE_KEYS_CREDITS + disabling) * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
+  }
   const bound = new Set(existing.flatMap(key => key.contractBounds == null ? [] : [key.contractBounds.identifier.base58()]))
   let bytes = IDENTITY_UPDATE_BYTES
-  for (const {purpose, contractBounds} of keys) {
+  for (const {purpose, contractBounds} of add) {
     bytes += IDENTITY_KEY_BYTES
     if (purpose === 'AUTHENTICATION' || purpose === 'TRANSFER') bytes += IDENTITY_KEY_REFERENCE_BYTES
     if (contractBounds == null) continue
     bytes += IDENTITY_KEY_BOUNDS_BYTES + (bound.has(contractBounds.contractId) ? 0n : IDENTITY_CONTRACT_BOUNDS_BYTES)
     bound.add(contractBounds.contractId)
   }
-  return {feeCredits: bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
-}
-
-export function identityDisableKeysFee(count: number): Result {
-  const credits = IDENTITY_DISABLE_KEYS_CREDITS + IDENTITY_DISABLE_KEY_CREDITS * BigInt(count)
-  return {feeCredits: credits * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
+  return {feeCredits: (bytes * STORED_BYTE_CREDITS + disabling) * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
 }
 
 // Shield's own minimum omits note storage, but consensus checks its claims
@@ -209,7 +210,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys' | 'identityDisableKeys'>,
+  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,

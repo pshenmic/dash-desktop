@@ -159,13 +159,16 @@ describe('listing identities', () => {
     expect(await identities.getAliases(walletId)).toEqual([])
   })
 
-  it('creates nothing for no keys, too many keys, an identity outside the wallet or a wrong password', async () => {
+  it('updates nothing for an empty or oversized update, a key listed twice, an identity outside the wallet or a wrong password', async () => {
     const key: IdentityKeyRequest = {purpose: 'AUTHENTICATION', securityLevel: 'HIGH', contractBounds: null}
-    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [], PASSWORD)).rejects.toThrow('at least one key')
-    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, Array(MAX_KEYS_PER_TRANSITION + 1).fill(key), PASSWORD)).rejects.toThrow('at most')
-    await expect(identities.createIdentityKeys(walletId, 'someone-else', [key], PASSWORD)).rejects.toThrow('Identity not found')
-    await expect(identities.createIdentityKeys(walletId, IDENTIFIER, [key], 'wrong')).rejects.toThrow('Invalid wallet password')
-    expect(request).not.toHaveBeenCalledWith('identityCreateKeys', expect.anything(), expect.anything())
+    const update = (add: IdentityKeyRequest[], disable: number[] = []) => ({add, disable})
+    await expect(identities.updateIdentityKeys(walletId, IDENTIFIER, update([]), PASSWORD)).rejects.toThrow('add or disable')
+    await expect(identities.updateIdentityKeys(walletId, IDENTIFIER, update(Array(MAX_KEYS_PER_TRANSITION + 1).fill(key)), PASSWORD)).rejects.toThrow('at most')
+    await expect(identities.updateIdentityKeys(walletId, IDENTIFIER, update([], Array.from({length: 11}, (_, i) => i)), PASSWORD)).rejects.toThrow('at most')
+    await expect(identities.updateIdentityKeys(walletId, IDENTIFIER, update([], [1, 1]), PASSWORD)).rejects.toThrow('twice')
+    await expect(identities.updateIdentityKeys(walletId, 'someone-else', update([key]), PASSWORD)).rejects.toThrow('Identity not found')
+    await expect(identities.updateIdentityKeys(walletId, IDENTIFIER, update([key]), 'wrong')).rejects.toThrow('Invalid wallet password')
+    expect(request).not.toHaveBeenCalledWith('identityUpdateKeys', expect.anything(), expect.anything())
   })
 
   // Only what is newer than the newest stored request is asked for, and the

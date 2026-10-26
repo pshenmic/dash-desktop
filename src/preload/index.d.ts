@@ -14,8 +14,8 @@ type CoreSpendSource =
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
 
-// Mirrors IdentityKeyRequest in src/main/src/types/IdentityKeys.
-type IdentityKeyRequest = { purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }
+// Mirrors IdentityKeysUpdate in src/main/src/types/IdentityKeys.
+type IdentityKeysUpdate = { add: Array<{ purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }>; disable: number[] }
 
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
@@ -157,9 +157,8 @@ declare global {
       getAliases: (walletId: string) => Promise<unknown>
       refreshAliases: (walletId: string) => Promise<unknown>
       registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
-      createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => Promise<string>
+      updateIdentityKeys: (walletId: string, identifier: string, update: IdentityKeysUpdate, password: string) => Promise<string>
       getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => Promise<unknown>
-      disableIdentityKeys: (walletId: string, identifier: string, keyIds: number[], password: string) => Promise<string>
       searchAliases: (walletId: string, prefix: string) => Promise<unknown>
       getDashPayContacts: (walletId: string) => Promise<unknown>
       sendDashPayContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => Promise<unknown>

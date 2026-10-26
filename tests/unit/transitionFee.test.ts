@@ -51,8 +51,7 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   identityTopUpL1: IDENTITY,
   aliasRegister: 'owl352-testnet',
   dashPayContactRequest: IDENTITY,
-  identityCreateKeys: '',
-  identityDisableKeys: '',
+  identityUpdateKeys: '',
 }
 
 const FUNDING_TXID = '11'.repeat(32)
@@ -304,16 +303,24 @@ describe('transitionFee', () => {
     ]
     for (const [keys, alreadyBound, credits] of charged) {
       identityKeys.bound = alreadyBound ? [DASHPAY_KEY_BOUNDS.contractId] : []
-      const error = Number(await feeOf('identityCreateKeys', {keys})) / Number(credits) - 1
+      const error = Number(await feeOf('identityUpdateKeys', {keys})) / Number(credits) - 1
       expect(error, keys.map(({purpose}) => purpose).join('+')).toBeGreaterThanOrEqual(0)
       expect(error).toBeLessThan(0.07)
     }
     identityKeys.bound = []
   })
 
+  // A MASTER key replaced on testnet, one key added and one disabled: 18,057,020 credits.
+  it('prices an update that adds and disables keys at most 7% over what Drive charged', async () => {
+    const keys: IdentityKeyRequest[] = [{purpose: 'AUTHENTICATION', securityLevel: 'MASTER', contractBounds: null}]
+    const error = Number(await feeOf('identityUpdateKeys', {keys, keyIds: [0]})) / 18_057_020 - 1
+    expect(error).toBeGreaterThanOrEqual(0)
+    expect(error).toBeLessThan(0.07)
+  })
+
   it('prices disabling keys at what testnet charged, plus the 5% margin', async () => {
     for (const [keyIds, credits] of [[[7], 1_761_300n], [[8, 9], 2_026_040n]] as const) {
-      expect(await feeOf('identityDisableKeys', {keyIds: [...keyIds]})).toBe(credits * 105n / 100n)
+      expect(await feeOf('identityUpdateKeys', {keyIds: [...keyIds]})).toBe(credits * 105n / 100n)
     }
   })
 

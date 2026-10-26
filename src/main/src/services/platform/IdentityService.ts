@@ -9,7 +9,7 @@ import {WalletDAO} from '../../database/WalletDAO'
 import {Alias, AliasSearchResult} from '../../types/Alias'
 import {DashPayContact} from '../../types/DashPay'
 import {Identity, IdentityInfo} from '../../types/Identity'
-import {IdentityKeyRequest, IdentityPrivateKey} from '../../types/IdentityKeys'
+import {IdentityKeysUpdate, IdentityPrivateKey} from '../../types/IdentityKeys'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
@@ -236,39 +236,26 @@ export class IdentityService {
     return keys
   }
 
-  async createIdentityKeys(walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string): Promise<string> {
-    const identity = await this.requireIdentity(walletId, identifier)
-    if (keys.length === 0) {
-      throw new Error('Choose at least one key to create')
-    }
-    if (keys.length > MAX_KEYS_PER_TRANSITION) {
-      throw new Error(`Create at most ${MAX_KEYS_PER_TRANSITION} keys at a time`)
-    }
-
-    log.info(`${identifier}: creating ${keys.map(key => `${key.purpose} ${key.securityLevel}`).join(', ')}`)
-    const {stHash} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('identityCreateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, keys}))
-    log.info(`${identifier}: keys created in ${stHash}`)
-    return stHash
-  }
-
   // Disabling is final: Platform has no way to enable a key again.
-  async disableIdentityKeys(walletId: string, identifier: string, keyIds: number[], password: string): Promise<string> {
+  async updateIdentityKeys(walletId: string, identifier: string, {add, disable}: IdentityKeysUpdate, password: string): Promise<string> {
     const identity = await this.requireIdentity(walletId, identifier)
-    if (keyIds.length === 0) {
-      throw new Error('Choose at least one key to disable')
+    if (add.length === 0 && disable.length === 0) {
+      throw new Error('Choose a key to add or disable')
     }
-    if (keyIds.length > MAX_KEYS_TO_DISABLE) {
+    if (add.length > MAX_KEYS_PER_TRANSITION) {
+      throw new Error(`Add at most ${MAX_KEYS_PER_TRANSITION} keys at a time`)
+    }
+    if (disable.length > MAX_KEYS_TO_DISABLE) {
       throw new Error(`Disable at most ${MAX_KEYS_TO_DISABLE} keys at a time`)
     }
-    if (new Set(keyIds).size !== keyIds.length) {
+    if (new Set(disable).size !== disable.length) {
       throw new Error('A key is listed twice')
     }
 
-    log.info(`${identifier}: disabling keys ${keyIds.join(', ')}`)
+    log.info(`${identifier}: adding ${add.map(key => `${key.purpose} ${key.securityLevel}`).join(', ') || 'no keys'}, disabling ${disable.join(', ') || 'none'}`)
     const {stHash} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('identityDisableKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, keyIds}))
-    log.info(`${identifier}: keys disabled in ${stHash}`)
+      this.platform.request('identityUpdateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, add, disable}))
+    log.info(`${identifier}: keys updated in ${stHash}`)
     return stHash
   }
 
