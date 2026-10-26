@@ -1,10 +1,13 @@
 import {describe, expect, it} from 'vitest'
 import {
+  coinControlSortOptions,
   coinControlSourceAddresses,
   dustFilterKeepKeys,
   hideUnselectedDust,
+  sortCoinControlInputs,
   steppedFeePayer,
 } from '../../src/renderer/src/utils/coinControlView'
+import {CoinControlSort} from '../../src/renderer/src/enums/CoinControl'
 import {SourceKind} from '../../src/renderer/src/enums/SourceKind'
 import type {CoinControlFunds} from '../../src/renderer/src/types/CoinControl'
 import type {WalletAddressDto} from '../../src/renderer/src/api/types'
@@ -97,5 +100,53 @@ describe('coinControlSourceAddresses', () => {
   it('returns no addresses for a source without funds', () => {
     expect(coinControlSourceAddresses(SourceKind.Shielded, {...funds, shieldedNotes: []})).toEqual([])
     expect(coinControlSourceAddresses(SourceKind.PlatformAddress, {...funds, platformAddresses: []})).toEqual([])
+  })
+})
+
+describe('sortCoinControlInputs', () => {
+  const coins = [
+    {id: 'a', amount: 5n, confirmations: 10},
+    {id: 'b', amount: 50n, confirmations: 0},
+    {id: 'c', amount: 1n, confirmations: 3},
+  ]
+  const ids = (sort: CoinControlSort, recency?: (coin: typeof coins[number]) => number): string[] =>
+    sortCoinControlInputs(coins, sort, coin => coin.amount, recency).map(coin => coin.id)
+  const byConfirmations = (coin: typeof coins[number]): number => -coin.confirmations
+
+  it('orders by amount in both directions', () => {
+    expect(ids(CoinControlSort.LargestFirst)).toEqual(['b', 'a', 'c'])
+    expect(ids(CoinControlSort.SmallestFirst)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('orders by recency in both directions', () => {
+    expect(ids(CoinControlSort.Newest, byConfirmations)).toEqual(['b', 'c', 'a'])
+    expect(ids(CoinControlSort.Oldest, byConfirmations)).toEqual(['a', 'c', 'b'])
+  })
+
+  it('keeps the given order for a date sort when the items cannot be dated', () => {
+    expect(ids(CoinControlSort.Newest)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('does not mutate the input', () => {
+    ids(CoinControlSort.SmallestFirst)
+    expect(coins.map(coin => coin.id)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('coinControlSortOptions', () => {
+  it('offers only amount sorts for Platform addresses, which carry no date', () => {
+    expect(coinControlSortOptions(SourceKind.PlatformAddress).map(option => option.value))
+      .toEqual([CoinControlSort.LargestFirst, CoinControlSort.SmallestFirst])
+  })
+
+  it('offers amount and date sorts for Core and shielded inputs', () => {
+    for (const kind of [SourceKind.Core, SourceKind.Shielded]) {
+      expect(coinControlSortOptions(kind).map(option => option.value)).toEqual([
+        CoinControlSort.LargestFirst,
+        CoinControlSort.SmallestFirst,
+        CoinControlSort.Newest,
+        CoinControlSort.Oldest,
+      ])
+    }
   })
 })
