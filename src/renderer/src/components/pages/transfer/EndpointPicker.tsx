@@ -48,7 +48,7 @@ function IdentityName({identity}: {identity: IdentityApiDto}): React.JSX.Element
   if (identity.alias) {
     return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{identity.alias}</Text>
   }
-  return <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
+  return <HighlightedIdentifier className={`text-left ${CONTACT_IDENTIFIER_CLASS}`}>{identity.identifier}</HighlightedIdentifier>
 }
 
 function IdentitySelect({identities, loading, error, selected, onSelect, onRetry}: IdentitySelectProps): React.JSX.Element {

@@ -7,7 +7,6 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import ProverPill from '@renderer/components/pages/shielded/ProverPill'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { groupShieldedNotesByAddress } from '@renderer/utils/shieldedBalances'
-import { truncateShieldedAddress } from '@renderer/utils/shieldedAddress'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -165,11 +164,11 @@ export default function ShieldedPage(): React.JSX.Element {
               {spendableGroups.map((group) => (
                 <div key={group.address} className={"flex flex-col gap-1"}>
                   <div className={"flex items-center justify-between gap-3"}>
-                    <div className={"flex items-center gap-2 min-w-0"}>
+                    <div className={"flex min-w-0 flex-1 items-center gap-2"}>
                       <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-                      <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{truncateShieldedAddress(group.address)}</HighlightedIdentifier>
-                      <CopyButton text={group.address} />
-                      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
+                      <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{group.address}</HighlightedIdentifier>
+                      <CopyButton text={group.address} className={"shrink-0"} />
+                      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0 whitespace-nowrap"}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
                     </div>
                     <Text size={14} weight={"bold"} color={"brand"}>
                       <CreditsAmount credits={group.total} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />

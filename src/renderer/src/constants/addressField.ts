@@ -3,7 +3,13 @@ import type { RecipientFieldStyle, RecipientInputAppearance } from '../types/Sen
 import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
 import { FIELD_COMPACT } from './surfaces'
 
-export const ADDRESS_INPUT = 'h-full w-full min-w-0 bg-transparent p-0 font-normal text-ellipsis outline-none dash-text-default placeholder:text-current placeholder:opacity-40'
+export const ADDRESS_INPUT = 'h-full w-full min-w-0 bg-transparent p-0 font-normal outline-none dash-text-default placeholder:text-current placeholder:opacity-40'
+
+export const ADDRESS_INPUT_BEHIND_VALUE = 'absolute inset-0 opacity-0'
+
+export const ADDRESS_VALUE_CLASS = 'pointer-events-none flex min-w-0 flex-1 items-center gap-2 py-2'
+
+export const ADDRESS_INVALID_VALUE_CLASS = 'min-w-0 flex-1 break-all font-normal leading-[1rem] dash-text-default'
 
 export const ADDRESS_INPUT_TEXT_SIZES: Record<DropdownTextSize, string> = {
   12: 'text-xs',
@@ -22,7 +28,7 @@ export const ADDRESS_AVATAR_SIZES: Record<DropdownTextSize, string> = {
 
 export const FIELD_INVALID = 'outline outline-1 outline-dash-red'
 
-export const FIELD_SUBTLE = 'h-[2.8125rem] rounded-[.875rem] border border-transparent dash-block-5 px-3 focus-within:border-dash-brand dark:focus-within:border-dash-mint'
+export const FIELD_SUBTLE = 'min-h-[2.8125rem] rounded-[.875rem] border border-transparent dash-block-5 px-3 focus-within:border-dash-brand dark:focus-within:border-dash-mint'
 
 export const RECIPIENT_FIELD_STYLES: Record<RecipientInputAppearance, RecipientFieldStyle> = {
   default: { field: FIELD_COMPACT, textSize: 14, searchIconSize: 18 },

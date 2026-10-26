@@ -5,3 +5,5 @@ export const RECEIVE_EMPTY_TEXTS = {
 } as const
 
 export const RECEIVE_AMOUNT_INPUT ='w-full rounded-[.875rem] dash-block px-4 py-3.5 text-sm font-medium dash-text-default outline-none placeholder:text-current placeholder:opacity-40 focus-visible:ring-2 focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint'
+
+export const SHIELDED_RECEIVE_CARD_WIDTH = 'w-full max-w-190'

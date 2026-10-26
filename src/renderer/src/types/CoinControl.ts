@@ -82,7 +82,7 @@ export interface CoinControlEmptyProps {
 }
 
 export interface CoinControlAutomaticIllustrationProps {
-  addresses: string[]
+  showAddresses: boolean
   children: ReactNode
 }
 
@@ -98,6 +98,7 @@ export interface CoinControlInputDetailsProps {
   label?: string
   amount: ReactNode
   address: string
+  outpoint?: string
   fiat?: string
   actions?: ReactNode
 }

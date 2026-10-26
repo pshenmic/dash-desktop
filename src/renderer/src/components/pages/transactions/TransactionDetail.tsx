@@ -284,12 +284,12 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
           </div>
           <div className={"flex flex-col gap-3"}>
             {resolvedTransaction.vout.map((output, i) => (
-              <div key={`output-${i}`} className={"flex w-max min-w-full items-center gap-2 justify-between"}>
-                <div className={"flex items-center gap-2"}>
+              <div key={`output-${i}`} className={"flex items-center gap-2 justify-between"}>
+                <div className={"flex items-center gap-2 flex-1 min-w-0"}>
                   {
                     output.address ? (
                       <>
-                        <HighlightedIdentifier className={`whitespace-nowrap ${TRANSACTION_DETAIL_IDENTIFIER_CLASS}`}>{output.address}</HighlightedIdentifier>
+                        <HighlightedIdentifier className={TRANSACTION_DETAIL_IDENTIFIER_CLASS}>{output.address}</HighlightedIdentifier>
                         {ownedAddresses.has(output.address) && <CustomBadge text={'Your wallet'} className={'shrink-0 whitespace-nowrap'} />}
                         <AddressActions address={output.address} network={network} onShowQr={setQrAddress} />
                       </>

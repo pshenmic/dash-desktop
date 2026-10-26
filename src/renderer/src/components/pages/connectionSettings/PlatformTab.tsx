@@ -107,10 +107,15 @@ function NodeRow({row, removable, disabled, onRemove}: PlatformNodeRowProps): Re
         ? 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'
         : ''}`}
     >
-      <div className="flex min-w-0 flex-col items-start gap-1" title={row.proTxHash ?? row.url}>
-        <Text size={14} weight="medium" color="brand" className="w-full cursor-text select-text truncate">
+      <div className="flex min-w-0 flex-col items-start gap-1">
+        <Text size={14} weight="medium" color="brand" className="w-full cursor-text select-text break-all">
           {row.url}
         </Text>
+        {row.proTxHash && (
+          <Text size={10} weight="medium" color="brand" opacity={50} className="w-full cursor-text select-text break-all font-mono">
+            {row.proTxHash}
+          </Text>
+        )}
         <span title={row.error ?? undefined}>
           <Text
             size={12}

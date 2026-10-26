@@ -1,6 +1,5 @@
 export interface HighlightedIdentifierProps {
   children: string
-  ellipsis?: boolean
   className?: string
 }
 

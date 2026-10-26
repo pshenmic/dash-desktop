@@ -161,7 +161,7 @@ export default function RecipientInput({
                   onClick={() => handleSelectAddress(entry.address)}
                   className={"flex min-w-0 flex-1 flex-col gap-0.5 text-left cursor-pointer"}
                 >
-                  <HighlightedIdentifier ellipsis className={CONTACT_IDENTIFIER_CLASS}>
+                  <HighlightedIdentifier className={CONTACT_IDENTIFIER_CLASS}>
                     {entry.address}
                   </HighlightedIdentifier>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>

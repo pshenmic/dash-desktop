@@ -2,14 +2,14 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { COIN_CONTROL_AUTOMATIC_ADDRESS_PLACEMENTS, COIN_CONTROL_AUTOMATIC_CHIP, COIN_CONTROL_AUTOMATIC_RAYS_PATH } from '@renderer/constants/coinControl'
 import type { CoinControlAutomaticIllustrationProps } from '@renderer/types/CoinControl'
 
-export default function CoinControlAutomaticIllustration({addresses, children}: CoinControlAutomaticIllustrationProps): React.JSX.Element {
+export default function CoinControlAutomaticIllustration({showAddresses, children}: CoinControlAutomaticIllustrationProps): React.JSX.Element {
   const addressesRef = useRef<SVGSVGElement>(null)
   const raysRef = useRef<SVGSVGElement>(null)
   const maskId = useId()
   const [maskTransform, setMaskTransform] = useState<string | null>(null)
   const chip = COIN_CONTROL_AUTOMATIC_CHIP
   const iconY = (chip.height - chip.iconSize) / 2
-  const placements = addresses.length > 0 ? COIN_CONTROL_AUTOMATIC_ADDRESS_PLACEMENTS : []
+  const placements = showAddresses ? COIN_CONTROL_AUTOMATIC_ADDRESS_PLACEMENTS : []
 
   useLayoutEffect(() => {
     const addresses = addressesRef.current
@@ -36,7 +36,7 @@ export default function CoinControlAutomaticIllustration({addresses, children}: 
   return (
     <>
       <svg ref={addressesRef} aria-hidden={'true'} viewBox={'0 0 640 200'} className={'absolute inset-x-0 top-4 z-10 w-full dash-text-default pointer-events-none'} fill={'none'}>
-        <g fill={'currentColor'} fontSize={'6'}>
+        <g fill={'currentColor'}>
           {placements.map(({x, y, width, rotation}, index) => {
             const qrX = width - chip.paddingEnd - chip.iconSize
             const copyX = qrX - chip.iconGap - chip.iconSize
@@ -44,9 +44,14 @@ export default function CoinControlAutomaticIllustration({addresses, children}: 
               <g key={index} transform={`rotate(${rotation} ${x} ${y}) translate(${x} ${y})`}>
                 <rect width={width} height={chip.height} rx={chip.radius} fillOpacity={chip.fillOpacity} />
                 <path d={chip.arrowPath} fill={'none'} stroke={'currentColor'} strokeOpacity={chip.glyphOpacity} strokeWidth={chip.strokeWidth} strokeLinecap={'round'} strokeLinejoin={'round'} />
-                <svg x={chip.textX} width={copyX - chip.iconGap - chip.textX} height={chip.height}>
-                  <text y={chip.textY} fillOpacity={chip.textOpacity}>{addresses[index % addresses.length]}</text>
-                </svg>
+                <rect
+                  x={chip.textX}
+                  y={(chip.height - chip.lineHeight) / 2}
+                  width={copyX - chip.iconGap - chip.textX - chip.lineInset}
+                  height={chip.lineHeight}
+                  rx={chip.lineHeight / 2}
+                  fillOpacity={chip.lineOpacity}
+                />
                 <g transform={`translate(${copyX} ${iconY})`}>
                   <rect width={chip.iconSize} height={chip.iconSize} rx={chip.iconRadius} fillOpacity={chip.iconOpacity} />
                   <path d={chip.copyGlyphPath} fill={'none'} stroke={'currentColor'} strokeOpacity={chip.glyphOpacity} strokeWidth={chip.strokeWidth} />

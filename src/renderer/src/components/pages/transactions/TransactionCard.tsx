@@ -81,7 +81,7 @@ export default function TransactionCard({
         </div>
 
         <div
-          className={`flex min-w-0 gap-[.25rem] ${fullIdentifiers ? 'items-start' : 'items-center'}`}
+          className={"flex min-w-0 items-start gap-[.25rem]"}
           title={displayedId}
           aria-label={`${transactionsPage.detail.transactionId}: ${displayedId}`}
         >
@@ -94,7 +94,7 @@ export default function TransactionCard({
             weight={"medium"}
             color={"brand"}
             opacity={50}
-            className={fullIdentifiers ? "min-w-0 whitespace-nowrap font-mono text-[.5625rem]!" : "min-w-0 truncate font-mono"}
+            className={fullIdentifiers ? "min-w-0 whitespace-nowrap font-mono text-[.5625rem]!" : "min-w-0 break-all font-mono"}
           >
             {displayedId}
           </Text>

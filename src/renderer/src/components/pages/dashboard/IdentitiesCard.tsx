@@ -11,10 +11,6 @@ import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { totalIdentityCredits } from '@renderer/utils/platformBalances'
 import DashboardHeading from './DashboardHeading'
 
-function shortIdentifier(identifier: string): string {
-  return identifier.length <= 12 ? identifier : `${identifier.slice(0, 6)}…${identifier.slice(-4)}`
-}
-
 export default function IdentitiesCard(): React.JSX.Element {
   const navigate = useNavigate()
   const { status } = useAuth()
@@ -86,13 +82,13 @@ export default function IdentitiesCard(): React.JSX.Element {
           )}
         </div>
       ) : (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[150%]"}>
+        <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[150%] wrap-anywhere"}>
           <SensitiveValue hidden={!isBalanceVisible} size={"subtext"} label={"Identity summary hidden"}>
             {identities.length} {identities.length === 1 ? labels.one : labels.many}
             {topIdentity !== null && (
               <>
                 {' · '}
-                {labels.top} {topIdentity.alias ?? shortIdentifier(topIdentity.identifier)}{' '}
+                {labels.top} {topIdentity.alias ?? topIdentity.identifier}{' '}
                 (<CreditsAmount credits={topIdentity.balance.amount} compact showFiat={false} unit={labels.credits} />)
               </>
             )}

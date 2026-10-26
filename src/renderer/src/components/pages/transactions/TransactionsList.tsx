@@ -85,10 +85,9 @@ export default function TransactionsList({
                 type={'button'}
                 onClick={() => onFilterChange({ ...filter, [field]: DEFAULT_TX_FILTER[field] })}
                 aria-label={`Remove ${label}`}
-                title={label}
-                className={'flex min-w-0 items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5 cursor-pointer hover:opacity-80'}
+                className={'flex min-w-0 max-w-full items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5 cursor-pointer hover:opacity-80'}
               >
-                <Text size={12} weight={'medium'} color={'brand'} className={'max-w-72 truncate'}>{label}</Text>
+                <Text size={12} weight={'medium'} color={'brand'} className={'min-w-0 break-all text-left'}>{label}</Text>
                 <CloseIcon size={10} className={'shrink-0 dash-text-primary'} />
               </button>
             ))}

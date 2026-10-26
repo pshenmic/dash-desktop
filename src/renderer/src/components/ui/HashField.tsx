@@ -22,12 +22,12 @@ export default function HashField({ hash, label = 'State transition hash', explo
           onClick={copy}
           title={copied ? 'Copied' : 'Click to copy'}
           className={`
-            flex flex-1 min-w-0 h-9 items-center text-left px-3 rounded-[.75rem]
+            flex flex-1 min-w-0 min-h-9 items-center text-left px-3 py-2 rounded-[.75rem]
             dash-block-accent-5 dash-black-border cursor-pointer
             hover:dash-block-accent-10 transition-colors duration-200
           `}
         >
-          <Text size={12} weight={"medium"} color={"brand"} className={"block font-mono text-[0.6875rem]! truncate select-all leading-[140%]"}>
+          <Text size={12} weight={"medium"} color={"brand"} className={"block min-w-0 break-all font-mono text-[0.6875rem]! select-all leading-[140%]"}>
             {hash}
           </Text>
         </button>
