@@ -289,15 +289,25 @@ describe('transitionFee', () => {
     Object.assign(dpnsState, {contractNonce: 1n})
   })
 
-  // Measured on testnet: 34,165,380 then 25,884,540 credits for the two keys
-  // apart, 58,356,740 for both in one update.
-  it('prices a bound key by whether the identity already has one bound to its contract', async () => {
-    const bounded: IdentityKeyRequest = {...KEY, contractBounds: DASHPAY_KEY_BOUNDS}
-    const quote = (bytes: bigint): bigint => bytes * 27_400n * 105n / 100n
-    expect(await feeOf('identityCreateKeys', {keys: [KEY, KEY]})).toBe(quote(2n * 452n))
-    expect(await feeOf('identityCreateKeys', {keys: [bounded, bounded]})).toBe(quote(2n * (452n + 493n) + 302n))
-    identityKeys.bound = [DASHPAY_KEY_BOUNDS.contractId]
-    expect(await feeOf('identityCreateKeys', {keys: [bounded]})).toBe(quote(452n + 493n))
+  // What testnet charged at protocol 14 for each update, by the keys it added and
+  // whether the identity already had a key bound to DashPay.
+  it('prices creating keys at most 7% over what Drive charged', async () => {
+    const key = (purpose: IdentityKeyRequest['purpose'], securityLevel: IdentityKeyRequest['securityLevel'], bounded = false): IdentityKeyRequest =>
+      ({purpose, securityLevel, contractBounds: bounded ? DASHPAY_KEY_BOUNDS : null})
+    const charged: Array<[IdentityKeyRequest[], boolean, bigint]> = [
+      [[key('ENCRYPTION', 'MEDIUM', true)], false, 34_165_380n],
+      [[key('DECRYPTION', 'MEDIUM', true)], true, 25_884_540n],
+      [[key('ENCRYPTION', 'MEDIUM', true), key('DECRYPTION', 'MEDIUM', true)], false, 58_356_740n],
+      [[key('AUTHENTICATION', 'MEDIUM'), key('AUTHENTICATION', 'MEDIUM'), key('AUTHENTICATION', 'MEDIUM')], false, 48_620_080n],
+      [[key('AUTHENTICATION', 'HIGH')], false, 17_515_920n],
+      [[key('TRANSFER', 'CRITICAL')], false, 17_339_640n],
+    ]
+    for (const [keys, alreadyBound, credits] of charged) {
+      identityKeys.bound = alreadyBound ? [DASHPAY_KEY_BOUNDS.contractId] : []
+      const error = Number(await feeOf('identityCreateKeys', {keys})) / Number(credits) - 1
+      expect(error, keys.map(({purpose}) => purpose).join('+')).toBeGreaterThanOrEqual(0)
+      expect(error).toBeLessThan(0.07)
+    }
     identityKeys.bound = []
   })
 

@@ -40,8 +40,13 @@ export const DPNS_IDENTITY_SUBTREE_BYTES = 283n
 
 // The same for a DashPay contactRequest, the larger of two testnet measurements.
 export const DASHPAY_CONTACT_REQUEST_BYTES = 2_860n
-// What adding one identity key stores, measured on testnet at protocol 14.
-export const IDENTITY_KEY_BYTES = 452n
+// What an identity update adds, fitted to six testnet measurements at protocol
+// 14: once per update, then per key its element and public-key-hash entry.
+export const IDENTITY_UPDATE_BYTES = 72n
+export const IDENTITY_KEY_BYTES = 385n
+// On top for an AUTHENTICATION or TRANSFER key: Drive's reference to find it by
+// purpose and security level, which ENCRYPTION and DECRYPTION keys do not get.
+export const IDENTITY_KEY_REFERENCE_BYTES = 185n
 // On top for a contract-bounded key: its reference under the contract. The
 // identity's first key bound to a contract also opens that contract's subtree.
 export const IDENTITY_KEY_BOUNDS_BYTES = 493n

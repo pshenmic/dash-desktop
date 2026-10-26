@@ -52,6 +52,8 @@ import {
   IDENTITY_DISABLE_KEYS_CREDITS,
   IDENTITY_KEY_BOUNDS_BYTES,
   IDENTITY_KEY_BYTES,
+  IDENTITY_KEY_REFERENCE_BYTES,
+  IDENTITY_UPDATE_BYTES,
   STORED_BYTE_CREDITS,
 } from '../../src/constants/fee/platform'
 import {Logger} from '../../src/utils/logger'
@@ -180,13 +182,14 @@ export async function dashPayContactRequestFee(ctx: OperationContext, recipient:
 }
 
 // dpp prices an identity update at its flat floor too, so each key is priced by
-// what adding it stores, which for a contract-bounded key depends on whether the
-// identity already has one bound to that contract.
+// what adding it stores: more for a key Drive indexes by purpose, and for a
+// contract-bounded one more again when the identity has none bound to that contract.
 export function identityCreateKeysFee(keys: IdentityKeyRequest[], existing: IdentityPublicKeyWASM[]): Result {
   const bound = new Set(existing.flatMap(key => key.contractBounds == null ? [] : [key.contractBounds.identifier.base58()]))
-  let bytes = 0n
-  for (const {contractBounds} of keys) {
+  let bytes = IDENTITY_UPDATE_BYTES
+  for (const {purpose, contractBounds} of keys) {
     bytes += IDENTITY_KEY_BYTES
+    if (purpose === 'AUTHENTICATION' || purpose === 'TRANSFER') bytes += IDENTITY_KEY_REFERENCE_BYTES
     if (contractBounds == null) continue
     bytes += IDENTITY_KEY_BOUNDS_BYTES + (bound.has(contractBounds.contractId) ? 0n : IDENTITY_CONTRACT_BOUNDS_BYTES)
     bound.add(contractBounds.contractId)
