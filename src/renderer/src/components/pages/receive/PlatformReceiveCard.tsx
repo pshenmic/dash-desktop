@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import QRCode from 'react-qr-code'
-import { useTheme } from 'dash-ui-kit/react'
 import { Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
@@ -8,17 +6,20 @@ import NoResults from '@renderer/components/ui/NoResults'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import PlatformUnlockTab from '@renderer/components/pages/addresses/PlatformUnlockTab'
 import PlatformAddressSelect from '@renderer/components/pages/transfer/PlatformAddressSelect'
+import ReceiveQr from './ReceiveQr'
+import { useAuth } from '@renderer/contexts/AuthContext'
 import { refreshPlatformAddresses, usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { defaultReceivePlatformAddress, receivePlatformAddresses } from '@renderer/utils/receiveDefaults'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { receiveCardCopy } from '@renderer/constants'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { RECEIVE_EMPTY_TEXTS } from '@renderer/constants/receiveCard'
+import { RECEIVE_INVOICE_ADDRESS_LABELS } from '@renderer/constants/receiveInvoice'
 
 export default function PlatformReceiveCard({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const { platformAddresses, loading, err } = usePlatformAddresses(walletId)
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
-  const { theme } = useTheme()
+  const { status } = useAuth()
 
   if (loading) {
     return <ListSkeleton rows={1} rowClassName="h-[2.5rem] rounded-[.875rem]" />
@@ -45,16 +46,18 @@ export default function PlatformReceiveCard({ walletId }: { walletId: string | u
 
   const selected = receiveAddresses.find(a => a.platformAddress === selectedAddress)
     ?? defaultReceivePlatformAddress(receiveAddresses)!
-  const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
   return (
     <div className={`flex w-min items-center gap-8 ${SURFACE_SECTION}`}>
-      <QRCode
+      <ReceiveQr
         value={selected.platformAddress}
-        size={225}
-        fgColor={qrCodeColor}
-        bgColor={"transparent"}
-        className={"rounded-[.5625rem] shrink-0"}
+        invoice={{
+          addressLabel: RECEIVE_INVOICE_ADDRESS_LABELS.platform,
+          address: selected.platformAddress,
+          amount: null,
+          paymentLink: null,
+          network: status?.network ?? null,
+        }}
       />
 
       <div className={"flex flex-1 flex-col"}>

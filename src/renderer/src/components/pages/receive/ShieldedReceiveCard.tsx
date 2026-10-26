@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import QRCode from 'react-qr-code'
-import { useTheme } from 'dash-ui-kit/react'
 import { Button, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
@@ -9,12 +7,15 @@ import PasswordField from '@renderer/components/ui/PasswordField'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
+import ReceiveQr from './ReceiveQr'
+import { useAuth } from '@renderer/contexts/AuthContext'
 import { defaultReceiveShieldedAddress, receiveShieldedAddresses } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
 import { addressFormCopy, INVALID_WALLET_PASSWORD_MESSAGE, receiveCardCopy } from '@renderer/constants'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { SHIELDED_RECEIVE_CARD_WIDTH } from '@renderer/constants/receiveCard'
+import { RECEIVE_INVOICE_ADDRESS_LABELS } from '@renderer/constants/receiveInvoice'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
@@ -26,7 +27,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   const [error, setError] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
   const [syncOpen, setSyncOpen] = useState(false)
-  const { theme } = useTheme()
+  const { status } = useAuth()
 
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === ShieldedSyncPhase.Done
@@ -133,19 +134,21 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     const selected = selectedAddress != null && receiveAddresses.includes(selectedAddress)
       ? selectedAddress
       : defaultReceiveShieldedAddress(receiveAddresses, balances)!
-    const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
     return (
       <>
         <div className={`flex flex-col gap-4 ${SHIELDED_RECEIVE_CARD_WIDTH}`}>
         <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
         <div className={`flex w-full items-center gap-8 ${SURFACE_SECTION}`}>
-          <QRCode
+          <ReceiveQr
             value={selected}
-            size={225}
-            fgColor={qrCodeColor}
-            bgColor={"transparent"}
-            className={"rounded-[.5625rem] shrink-0"}
+            invoice={{
+              addressLabel: RECEIVE_INVOICE_ADDRESS_LABELS.shielded,
+              address: selected,
+              amount: null,
+              paymentLink: null,
+              network: status?.network ?? null,
+            }}
           />
 
           <div className={"flex min-w-0 flex-1 flex-col"}>

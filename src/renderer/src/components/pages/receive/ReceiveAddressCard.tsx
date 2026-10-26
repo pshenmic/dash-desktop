@@ -1,15 +1,19 @@
 import React, { useState } from "react"
-import QRCode from "react-qr-code"
 import { Text } from "@renderer/components/dash-ui-kit-enxtended"
 import { ReceivePageType } from "@renderer/constants"
 import { RECEIVE_AMOUNT_INPUT, RECEIVE_EMPTY_TEXTS } from "@renderer/constants/receiveCard"
 import { SURFACE_SECTION } from "@renderer/constants/surfaces"
 import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
+import HashField from "@renderer/components/ui/HashField"
 import NoResults from "@renderer/components/ui/NoResults"
 import CoreAddressSelect from "./CoreAddressSelect"
-import { useTheme } from "dash-ui-kit/react"
+import ReceiveQr from "./ReceiveQr"
+import { useAuth } from "@renderer/contexts/AuthContext"
+import { RECEIVE_INVOICE_ADDRESS_LABELS, RECEIVE_INVOICE_COPY } from "@renderer/constants/receiveInvoice"
+import { SEND_AMOUNT_PATTERN } from "@renderer/constants/sendRecipients"
 import { defaultReceiveCoreAddress, receiveCoreAddresses } from "@renderer/utils/receiveDefaults"
+import { corePaymentUri, receiveAmountParam } from "@renderer/utils/receiveInvoice"
 
 type ReceiveAddressCardProps = {
   addresses: WalletAddressDto[]
@@ -24,7 +28,7 @@ export default function ReceiveAddressCard({
 }: ReceiveAddressCardProps): React.JSX.Element {
   const [amount, setAmount] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
-  const { theme } = useTheme()
+  const { status } = useAuth()
 
   const receiveAddresses = receiveCoreAddresses(addresses)
   const selected = defaultReceiveCoreAddress(receiveAddresses, selectedAddress ?? defaultAddress)
@@ -33,18 +37,20 @@ export default function ReceiveAddressCard({
   }
 
   const address = selected.address
-  const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
-
-  const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
+  const amountParam = receiveAmountParam(amount)
+  const paymentUri = corePaymentUri(address, amountParam)
 
   return (
       <div className={`flex w-min max-w-190 items-center gap-8 ${SURFACE_SECTION}`}>
-        <QRCode
-          value={qrValue}
-          size={225}
-          fgColor={qrCodeColor}
-          bgColor={"transparent"}
-          className={"rounded-[.5625rem] shrink-0"}
+        <ReceiveQr
+          value={paymentUri}
+          invoice={{
+            addressLabel: RECEIVE_INVOICE_ADDRESS_LABELS.core,
+            address,
+            amount: amountParam,
+            paymentLink: amountParam == null ? null : paymentUri,
+            network: status?.network ?? null,
+          }}
         />
 
         <div className={"flex flex-col w-full"}>
@@ -71,14 +77,16 @@ export default function ReceiveAddressCard({
               value={amount}
               onChange={(e) => {
                 const val = e.target.value.replace(/[^0-9.]/g, '')
-                const parts = val.split('.')
-                if (parts.length > 2) return
-                setAmount(val)
+                if (SEND_AMOUNT_PATTERN.test(val)) setAmount(val)
               }}
               id={"amount-input"}
               className={RECEIVE_AMOUNT_INPUT}
             />
           </label>
+
+          <div className={"mt-[.75rem]"}>
+            <HashField hash={paymentUri} label={RECEIVE_INVOICE_COPY.paymentLink} />
+          </div>
         </div>
       </div>
   )
