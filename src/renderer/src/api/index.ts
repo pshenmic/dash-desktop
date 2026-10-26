@@ -189,6 +189,12 @@ export class API {
     return this.api.getIdentityPrivateKeys(walletId, identifier, password) as Promise<IdentityPrivateKeyDto[]>
   }
 
+  // Resolves to the identity update's transition hash. Final: a disabled key cannot be enabled again,
+  // and the MASTER key cannot be disabled.
+  static async disableIdentityKeys(walletId: string, identifier: string, keyIds: number[], password: string): Promise<string> {
+    return this.api.disableIdentityKeys(walletId, identifier, keyIds, password)
+  }
+
   static async getDashPayContacts(walletId: string): Promise<DashPayContactDto[]> {
     return this.api.getDashPayContacts(walletId) as Promise<DashPayContactDto[]>
   }

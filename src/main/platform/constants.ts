@@ -101,6 +101,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityCreditTransfer':
     case 'identityWithdrawal':
     case 'identityCreateKeys':
+    case 'identityDisableKeys':
     case 'dashPayContactRequestSend':
     case 'aliasRegister':
       return `${request.network}:identity:${request.payload.identifier}`

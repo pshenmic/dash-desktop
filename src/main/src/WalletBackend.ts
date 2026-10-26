@@ -32,6 +32,7 @@ import { RefreshAliasesHandler } from './api/wallet/refreshAliases'
 import { RegisterAliasHandler } from './api/wallet/registerAlias'
 import { CreateIdentityKeysHandler } from './api/wallet/createIdentityKeys'
 import { GetIdentityPrivateKeysHandler } from './api/wallet/getIdentityPrivateKeys'
+import { DisableIdentityKeysHandler } from './api/wallet/disableIdentityKeys'
 import { SearchAliasesHandler } from './api/wallet/searchAliases'
 import { GetDashPayContactsHandler } from './api/wallet/getDashPayContacts'
 import { SendDashPayContactRequestHandler } from './api/wallet/sendDashPayContactRequest'
@@ -197,6 +198,7 @@ export class WalletBackend {
     registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
     registerHandler('createIdentityKeys', new CreateIdentityKeysHandler(this.identityService).handle)
     registerHandler('getIdentityPrivateKeys', new GetIdentityPrivateKeysHandler(this.identityService).handle)
+    registerHandler('disableIdentityKeys', new DisableIdentityKeysHandler(this.identityService).handle)
     registerHandler('searchAliases', new SearchAliasesHandler(this.identityService).handle)
     registerHandler('getDashPayContacts', new GetDashPayContactsHandler(this.identityService).handle)
     registerHandler('sendDashPayContactRequest', new SendDashPayContactRequestHandler(this.identityService).handle)

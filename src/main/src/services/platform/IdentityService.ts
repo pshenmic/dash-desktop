@@ -1,7 +1,7 @@
 import {HDKey} from '@scure/bip32'
 import convertToHomographSafeChars from 'dash-platform-sdk/src/utils/convertToHomographSafeChars.js'
 import {HD_VERSIONS} from '../../constants/addresses'
-import {MAX_KEYS_PER_TRANSITION} from '../../constants/credits'
+import {MAX_KEYS_PER_TRANSITION, MAX_KEYS_TO_DISABLE} from '../../constants/credits'
 import {AliasDAO} from '../../database/AliasDAO'
 import {DashPayContactRequestDAO} from '../../database/DashPayContactRequestDAO'
 import {IdentityDAO} from '../../database/IdentityDAO'
@@ -249,6 +249,26 @@ export class IdentityService {
     const {stHash} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
       this.platform.request('identityCreateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, keys}))
     log.info(`${identifier}: keys created in ${stHash}`)
+    return stHash
+  }
+
+  // Disabling is final: Platform has no way to enable a key again.
+  async disableIdentityKeys(walletId: string, identifier: string, keyIds: number[], password: string): Promise<string> {
+    const identity = await this.requireIdentity(walletId, identifier)
+    if (keyIds.length === 0) {
+      throw new Error('Choose at least one key to disable')
+    }
+    if (keyIds.length > MAX_KEYS_TO_DISABLE) {
+      throw new Error(`Disable at most ${MAX_KEYS_TO_DISABLE} keys at a time`)
+    }
+    if (new Set(keyIds).size !== keyIds.length) {
+      throw new Error('A key is listed twice')
+    }
+
+    log.info(`${identifier}: disabling keys ${keyIds.join(', ')}`)
+    const {stHash} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('identityDisableKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, keyIds}))
+    log.info(`${identifier}: keys disabled in ${stHash}`)
     return stHash
   }
 

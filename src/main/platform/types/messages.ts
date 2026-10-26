@@ -346,6 +346,10 @@ export interface PlatformOperations {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; keys: IdentityKeyRequest[]}
     result: {stHash: string}
   }
+  identityDisableKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; keyIds: number[]}
+    result: {stHash: string}
+  }
   identityPrivateKeys: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number}
     result: {keys: IdentityPrivateKey[]}
