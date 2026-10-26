@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { FilterIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useFiat } from '@renderer/hooks/useFiat'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import DropdownField from '@renderer/components/ui/DropdownField'
 import QrButton from '@renderer/components/ui/QrButton'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
@@ -15,15 +16,16 @@ import CoinControlAmountInput from './CoinControlAmountInput'
 import CoinControlAutomaticIllustration from './CoinControlAutomaticIllustration'
 import type { PlatformAddressDto } from '@renderer/api/types'
 import { ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
-import { COIN_CONTROL_FIAT_CLASS, COIN_CONTROL_LABELS, FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
+import { COIN_CONTROL_DEFAULT_SORT, COIN_CONTROL_FIAT_CLASS, COIN_CONTROL_LABELS, FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
+import { TOOLBAR_DROPDOWN_CLASS } from '@renderer/constants/listToolbar'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import { PLATFORM_DUST_FILTER_CREDITS, PLATFORM_INPUT_LIMIT } from '@renderer/constants/platform'
 import { SHIELDED_DUST_FILTER_CREDITS, SHIELDED_NOTE_LIMIT } from '@renderer/constants/shielded'
 import { CHIP_ACTION, SURFACE_PANEL, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
-import { CoinControlMode } from '@renderer/enums/CoinControlMode'
+import { CoinControlMode, CoinControlSort } from '@renderer/enums/CoinControl'
 import type {
   CoinControlInputDetailsProps,
   CoinControlCheckRowProps,
@@ -43,9 +45,17 @@ import {
   normalizeCoinControlSelection,
   outpointKey,
 } from '@renderer/utils/coinControl'
-import { coinControlSourceAddresses, dustFilterKeepKeys, hideUnselectedDust, steppedFeePayer } from '@renderer/utils/coinControlView'
+import {
+  coinControlSortOptions,
+  coinControlSourceAddresses,
+  dustFilterKeepKeys,
+  hideUnselectedDust,
+  sortCoinControlInputs,
+  steppedFeePayer,
+} from '@renderer/utils/coinControlView'
 import { creditsToDuffs, davToDash, duffsToCredits } from '@renderer/utils/balance'
 import { formatTimestamp } from '@renderer/utils/date'
+import { enumParam } from '@renderer/utils/searchParams'
 
 export default function CoinControlModal({
   isOpen,
@@ -76,6 +86,7 @@ export default function CoinControlModal({
   const {format: formatFiat, rateReady} = useFiat()
   const [draftSelection, setDraft] = useState<CoinControlSelection>(selection)
   const [filterDust, setFilterDust] = useState(true)
+  const [sort, setSort] = useState(COIN_CONTROL_DEFAULT_SORT)
   const [qrAddress, setQrAddress] = useState<string | null>(null)
   const [touchedKeys, setTouchedKeys] = useState<string[]>([])
 
@@ -83,6 +94,7 @@ export default function CoinControlModal({
     if (!isOpen) return
     setDraft(selection)
     setFilterDust(true)
+    setSort(COIN_CONTROL_DEFAULT_SORT)
     setQrAddress(null)
     setTouchedKeys([])
   }, [isOpen, selection])
@@ -108,23 +120,37 @@ export default function CoinControlModal({
   const selectedPlatformInputs = draft.kind === 'platformInputs' ? draft.inputs : []
   const selectedNoteIndexes = draft.kind === 'shieldedNotes' ? draft.noteIndexes : []
   const dustKeepKeys = dustFilterKeepKeys([draft, expandAddressCoinControlSelection(selection, funds, operation)], touchedKeys)
-  const visibleUtxos = hideUnselectedDust(
-    utxos,
-    filterDust,
-    utxo => utxo.satoshis < CORE_DUST_FILTER_DUFFS,
-    utxo => dustKeepKeys.has(outpointKey(utxo)),
+  const visibleUtxos = sortCoinControlInputs(
+    hideUnselectedDust(
+      utxos,
+      filterDust,
+      utxo => utxo.satoshis < CORE_DUST_FILTER_DUFFS,
+      utxo => dustKeepKeys.has(outpointKey(utxo)),
+    ),
+    sort,
+    utxo => utxo.satoshis,
+    utxo => -utxo.confirmations,
   )
-  const visiblePlatformAddresses = hideUnselectedDust(
-    platformAddresses,
-    filterDust,
-    address => address.balanceCredits < PLATFORM_DUST_FILTER_CREDITS,
-    address => dustKeepKeys.has(address.platformAddress),
+  const visiblePlatformAddresses = sortCoinControlInputs(
+    hideUnselectedDust(
+      platformAddresses,
+      filterDust,
+      address => address.balanceCredits < PLATFORM_DUST_FILTER_CREDITS,
+      address => dustKeepKeys.has(address.platformAddress),
+    ),
+    sort,
+    address => address.balanceCredits,
   )
-  const visibleShieldedNotes = hideUnselectedDust(
-    shieldedNotes,
-    filterDust,
-    note => note.amount < SHIELDED_DUST_FILTER_CREDITS,
-    note => dustKeepKeys.has(String(note.index)),
+  const visibleShieldedNotes = sortCoinControlInputs(
+    hideUnselectedDust(
+      shieldedNotes,
+      filterDust,
+      note => note.amount < SHIELDED_DUST_FILTER_CREDITS,
+      note => dustKeepKeys.has(String(note.index)),
+    ),
+    sort,
+    note => note.amount,
+    note => note.index,
   )
   const {count: selectedCount, duffs: selectedAmountDuffs, credits: selectedAmountCredits} = coinControlSelectionTotals(draft, funds)
   const isCoreSend = operation === TransferOperation.CoreSend
@@ -299,7 +325,18 @@ export default function CoinControlModal({
                   ? `${davToDash(selectedAmountDuffs)} Dash`
                   : <CreditsAmount credits={selectedAmountCredits} exact showFiat={false} />}</span>
               </div>
-              <Checkbox appearance="subtle" checked={filterDust} onChange={setFilterDust} label={<Text size={14} weight={'medium'} color={'brand'} opacity={50}>{COIN_CONTROL_LABELS.filterDust}</Text>} className={'ml-auto flex-row-reverse!'} />
+              <div className={'ml-auto flex items-center gap-4'}>
+                <DropdownField
+                  options={coinControlSortOptions(sourceKind)}
+                  value={sort}
+                  onChange={value => setSort(enumParam(CoinControlSort, value, COIN_CONTROL_DEFAULT_SORT))}
+                  textSize={12}
+                  triggerClassName={TOOLBAR_DROPDOWN_CLASS}
+                  ariaLabel={COIN_CONTROL_LABELS.sort}
+                  renderIcon={() => <FilterIcon size={12} color={'currentColor'} className={'dash-text-primary'} />}
+                />
+                <Checkbox appearance="subtle" checked={filterDust} onChange={setFilterDust} label={<Text size={14} weight={'medium'} color={'brand'} opacity={50}>{COIN_CONTROL_LABELS.filterDust}</Text>} className={'flex-row-reverse!'} />
+              </div>
             </div>
           )}
 

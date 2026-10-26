@@ -19,7 +19,7 @@ vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: '
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
 vi.mock('@renderer/hooks/useFiat', () => ({useFiat: () => ({rateReady: false, format: () => '$0.00'})}))
 vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', HighlightedIdentifier: 'span', ShieldSmallIcon: 'svg', Text: 'span'}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({QrCodeIcon: 'svg', RefreshIcon: 'svg'}))
+vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({FilterIcon: 'svg', QrCodeIcon: 'svg', RefreshIcon: 'svg'}))
 vi.mock('@renderer/components/modal/AddressQrModal', () => ({default: 'dialog'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))
 vi.mock('@renderer/components/ui/CopyButton', () => ({default: 'button'}))
@@ -62,8 +62,8 @@ function platformModalProps(operation = TransferOperation.Shield): CoinControlMo
   return {
     ...modalProps(), operation, selection: {kind: 'automatic'},
     platformAddresses: [
-      {platformAddress: 'platform-a', balanceCredits: 500_000_000n, nonce: 0},
-      {platformAddress: 'platform-b', balanceCredits: 700_000_000n, nonce: 0},
+      {platformAddress: 'platform-a', balanceCredits: 700_000_000n, nonce: 0},
+      {platformAddress: 'platform-b', balanceCredits: 500_000_000n, nonce: 0},
     ],
   }
 }
@@ -101,7 +101,7 @@ describe('Platform coin control', () => {
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith({
       kind: 'platformInputs',
-      inputs: [{address: 'platform-a', credits: 500_000_000n}, {address: 'platform-b', credits: 700_000_000n}],
+      inputs: [{address: 'platform-a', credits: 700_000_000n}, {address: 'platform-b', credits: 500_000_000n}],
       feeAddress: 'platform-a',
     })
   })
@@ -112,7 +112,7 @@ describe('Platform coin control', () => {
       kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 1_000_000n}], feeAddress: 'platform-a',
     }
     const nodes = render(props)
-    expect(nodes.some(node => node.props.credits === 500_000_000n)).toBe(true)
+    expect(nodes.some(node => node.props.credits === 700_000_000n)).toBe(true)
     expect(nodes.some(node => node.props.id === 'coin-control-amount-platform-a')).toBe(false)
     const apply = applyButton(nodes)
     expect(apply.props.disabled).toBe(false)
@@ -127,7 +127,7 @@ describe('Platform coin control', () => {
     ;(applyButton(edited).props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith({
       kind: 'platformInputs',
-      inputs: [{address: 'platform-a', credits: 500_000_000n}, {address: 'platform-b', credits: 700_000_000n}],
+      inputs: [{address: 'platform-a', credits: 700_000_000n}, {address: 'platform-b', credits: 500_000_000n}],
       feeAddress: 'platform-a',
     })
   })
@@ -281,6 +281,23 @@ describe('coin control UTXO refresh', () => {
     expect(updatedRow.type).toBe(initialRow.type)
     expect(updatedRow.props.checked).toBe(true)
     expect(elements(updatedRow).some(node => node.props.label === '11 Sept 2026, 09:20')).toBe(true)
+  })
+
+  it('lists the largest input first and re-sorts by date on request', () => {
+    const props = modalProps()
+    const utxos = [
+      {...props.utxos[0], txid: 'old', satoshis: 300_000n, confirmations: 50},
+      {...props.utxos[0], txid: 'new', satoshis: 200_000n, confirmations: 0},
+      {...props.utxos[0], txid: 'mid', satoshis: 400_000n, confirmations: 5},
+    ]
+    const rowKeys = (nodes: ReturnType<typeof render>): string[] => nodes
+      .map(node => node.key)
+      .filter((key): key is string => typeof key === 'string' && key.endsWith(':0'))
+    expect(rowKeys(render({...props, utxos}))).toEqual(['mid:0', 'old:0', 'new:0'])
+
+    const sort = render({...props, utxos}).find(node => node.props.ariaLabel === 'Sort inputs')!
+    ;(sort.props.onChange as (value: string) => void)('newest')
+    expect(rowKeys(render({...props, utxos}))).toEqual(['new:0', 'mid:0', 'old:0'])
   })
 
   it('shows an unknown timestamp when the source cannot date a coin', () => {

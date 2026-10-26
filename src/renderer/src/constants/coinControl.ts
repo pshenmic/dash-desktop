@@ -1,6 +1,8 @@
+import { CoinControlSort } from '../enums/CoinControl'
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
 import type { CoinControlFixedSourceCopy, CoinControlInputLabel } from '../types/CoinControl'
+import type { SegmentOption } from '../types/SegmentedControl'
 
 export const COIN_CONTROL_INVALID_MESSAGE = 'Selected funds are no longer available. Review your coin control selection before continuing.'
 
@@ -11,7 +13,19 @@ export const COIN_CONTROL_LABELS = {
   filterDust: 'Filter Dust',
   paysFee: 'Pays fee',
   feePayerGroup: 'Fee-paying input',
+  sort: 'Sort inputs',
 }
+
+export const COIN_CONTROL_DEFAULT_SORT = CoinControlSort.LargestFirst
+
+export const COIN_CONTROL_SORT_OPTIONS: SegmentOption<CoinControlSort>[] = [
+  {value: CoinControlSort.LargestFirst, label: 'Largest first'},
+  {value: CoinControlSort.SmallestFirst, label: 'Smallest first'},
+  {value: CoinControlSort.Newest, label: 'Newest first'},
+  {value: CoinControlSort.Oldest, label: 'Oldest first'},
+]
+
+export const COIN_CONTROL_AMOUNT_SORTS: CoinControlSort[] = [CoinControlSort.LargestFirst, CoinControlSort.SmallestFirst]
 
 export const COIN_CONTROL_FIAT_CLASS = 'rounded-md dash-block-accent-12 px-2 py-[.3125rem] text-[.625rem] leading-none font-medium dash-text-primary whitespace-nowrap'
 

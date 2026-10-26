@@ -1,6 +1,9 @@
-import { FEE_PAYER_KEY_STEPS } from '../constants/coinControl'
+import { COIN_CONTROL_AMOUNT_SORTS, COIN_CONTROL_SORT_OPTIONS, FEE_PAYER_KEY_STEPS } from '../constants/coinControl'
+import { CoinControlSort } from '../enums/CoinControl'
 import { SourceKind } from '../enums/SourceKind'
 import type { CoinControlFunds, CoinControlSelection } from '../types/CoinControl'
+import type { SegmentOption } from '../types/SegmentedControl'
+import { compareBigIntsDescending } from './balance'
 
 export function hideUnselectedDust<T>(
   items: T[],
@@ -50,4 +53,29 @@ export function coinControlSourceAddresses(sourceKind: SourceKind | null, funds:
     default:
       return []
   }
+}
+
+export function coinControlSortOptions(sourceKind: SourceKind | null): SegmentOption<CoinControlSort>[] {
+  if (sourceKind !== SourceKind.PlatformAddress) return COIN_CONTROL_SORT_OPTIONS
+  return COIN_CONTROL_SORT_OPTIONS.filter(option => COIN_CONTROL_AMOUNT_SORTS.includes(option.value))
+}
+
+export function sortCoinControlInputs<T>(
+  items: T[],
+  sort: CoinControlSort,
+  amount: (item: T) => bigint,
+  recency?: (item: T) => number,
+): T[] {
+  return [...items].sort((a, b) => {
+    switch (sort) {
+      case CoinControlSort.LargestFirst:
+        return compareBigIntsDescending(amount(a), amount(b))
+      case CoinControlSort.SmallestFirst:
+        return compareBigIntsDescending(amount(b), amount(a))
+      case CoinControlSort.Newest:
+        return recency ? recency(b) - recency(a) : 0
+      case CoinControlSort.Oldest:
+        return recency ? recency(a) - recency(b) : 0
+    }
+  })
 }
