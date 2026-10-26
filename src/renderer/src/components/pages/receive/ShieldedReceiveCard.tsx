@@ -14,6 +14,7 @@ import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
 import { addressFormCopy, INVALID_WALLET_PASSWORD_MESSAGE, receiveCardCopy } from '@renderer/constants'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { SHIELDED_RECEIVE_CARD_WIDTH } from '@renderer/constants/receiveCard'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
@@ -136,7 +137,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
 
     return (
       <>
-        <div className={"flex w-min flex-col gap-4"}>
+        <div className={`flex flex-col gap-4 ${SHIELDED_RECEIVE_CARD_WIDTH}`}>
         <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
         <div className={`flex w-full items-center gap-8 ${SURFACE_SECTION}`}>
           <QRCode
@@ -147,8 +148,8 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
             className={"rounded-[.5625rem] shrink-0"}
           />
 
-          <div className={"flex flex-1 flex-col"}>
-            <div className={"flex flex-col gap-[.5rem]"}>
+          <div className={"flex min-w-0 flex-1 flex-col"}>
+            <div className={"flex min-w-0 flex-col gap-[.5rem]"}>
               <div className={"flex items-center gap-2"}>
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   Shielded Address
@@ -159,7 +160,7 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
                   icon={<ShieldSmallIcon size={12} className={"text-dash-brand dark:text-dash-mint"} />}
                 />
               </div>
-              <div className={"flex items-center gap-[.625rem]"}>
+              <div className={"flex min-w-0 items-center gap-[.625rem]"}>
                 <ShieldedAddressSelect
                   addresses={receiveAddresses}
                   balances={synced ? balances : undefined}

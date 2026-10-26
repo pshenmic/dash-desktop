@@ -325,7 +325,7 @@ export default function CoinControlModal({
             <>
               {mode === CoinControlMode.Automatic && (
                 <div className={'relative flex h-full min-h-64 flex-col items-center justify-center overflow-hidden py-8 text-center'}>
-                  <CoinControlAutomaticIllustration addresses={coinControlSourceAddresses(sourceKind, funds)}>
+                  <CoinControlAutomaticIllustration showAddresses={coinControlSourceAddresses(sourceKind, funds).length > 0}>
                     <div><Text size={16} weight={'extrabold'} color={'brand'}>{COIN_CONTROL_LABELS.automaticTitle}</Text></div>
                     <div className={'mt-1 leading-[140%]'}>
                       <Text size={12} weight={'medium'} color={'brand'} opacity={50}>{COIN_CONTROL_LABELS.automaticDescription}</Text>
@@ -344,10 +344,11 @@ export default function CoinControlModal({
                   {visibleUtxos.map(utxo => {
                     const key = outpointKey(utxo)
                     return (
-                      <CheckRow key={key} label={`Select ${utxo.address}, output ${key}`} title={key} checked={selectedOutpoints.includes(key)} onChange={next => toggleCoreOutpoint(key, next)}>
+                      <CheckRow key={key} label={`Select ${utxo.address}, output ${key}`} checked={selectedOutpoints.includes(key)} onChange={next => toggleCoreOutpoint(key, next)}>
                         <InputDetails
                           label={formatTimestamp(utxo.timestamp)}
                           address={utxo.address}
+                          outpoint={key}
                           actions={<QrButton iconSize={12} onClick={() => setQrAddress(utxo.address)} ariaLabel={`Show QR code for ${utxo.address}`} className={'pointer-events-auto shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint'} />}
                           amount={isCoreSend
                             ? <>{davToDash(utxo.satoshis)}<span className="font-normal"> Dash</span></>
@@ -474,13 +475,16 @@ function Empty({text}: CoinControlEmptyProps): React.JSX.Element {
   return <div className={SURFACE_SECTION}><Text size={12} weight={'medium'} color={'brand'} opacity={50}>{text}</Text></div>
 }
 
-function InputDetails({label, amount, address, fiat, actions}: CoinControlInputDetailsProps): React.JSX.Element {
+function InputDetails({label, amount, address, outpoint, fiat, actions}: CoinControlInputDetailsProps): React.JSX.Element {
   return (
     <div className={'min-w-0 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 text-left'}>
-      <div className={`flex min-w-0 items-center gap-[.3125rem] ${label ? 'row-span-2' : ''}`}>
-        <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{address}</HighlightedIdentifier>
-        <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={address} /></span>
-        {actions}
+      <div className={`flex min-w-0 flex-col gap-0.5 ${label ? 'row-span-2' : ''}`}>
+        <div className={'flex min-w-0 items-center gap-[.3125rem]'}>
+          <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{address}</HighlightedIdentifier>
+          <span title={'Copy address'} className={'pointer-events-auto shrink-0'}><CopyButton text={address} /></span>
+          {actions}
+        </div>
+        {outpoint && <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 break-all font-mono'}>{outpoint}</Text>}
       </div>
       <div className={'pointer-events-auto flex flex-wrap items-center justify-end gap-2'}>
         <Text reset size={14} weight={'bold'} color={'brand'} className={'whitespace-nowrap text-right tabular-nums'}>{amount}</Text>

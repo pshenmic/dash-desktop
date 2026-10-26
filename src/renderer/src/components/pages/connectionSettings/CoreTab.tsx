@@ -224,7 +224,7 @@ function PeerRow({
         size={14}
         weight="medium"
         color="brand"
-        className={`cursor-text select-text truncate ${offlineDynamic ? 'text-dash-orange!' : ''}`}
+        className={`min-w-0 cursor-text select-text break-all ${offlineDynamic ? 'text-dash-orange!' : ''}`}
       >
         {row.peer}
       </Text>

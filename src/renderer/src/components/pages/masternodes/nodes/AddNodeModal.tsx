@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Input, SuccessIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Input, SuccessIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CheckRow from '@renderer/components/ui/CheckRow'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
@@ -19,6 +19,7 @@ import {
   ADD_NODE_COPY,
   ADD_NODE_FACT_ROW_CLASS,
   ADD_NODE_INPUT_CLASS,
+  ADD_NODE_PRO_TX_HASH_CLASS,
   ADD_NODE_SOURCE_OPTIONS,
   COUNT_NOUNS,
 } from '@renderer/constants/masternodeNodes'
@@ -48,14 +49,17 @@ import type { AddNodeModalProps } from '@renderer/types/MasternodeScreens'
 function AddNodeCandidate({ node, checked, alreadyAdded, meta, onChange }: AddNodeCandidateProps): React.JSX.Element {
   const status = MASTERNODE_STATUS_PILLS[node.status]
   return (
-    <CheckRow label={node.label} checked={checked} disabled={alreadyAdded} onChange={onChange} title={node.proTxHash}>
-      <div className={'flex min-w-0 items-center justify-between gap-3'}>
-        <div className={'flex min-w-0 items-center gap-2'}>
-          <Text size={14} weight={'medium'} color={'brand'} className={'truncate'}>{node.label}</Text>
-          <CustomBadge {...MASTERNODE_TYPE_BADGES[node.type]} className={'shrink-0'} />
-          <StatusPill tone={status.tone}>{status.label}</StatusPill>
+    <CheckRow label={node.label} checked={checked} disabled={alreadyAdded} onChange={onChange}>
+      <div className={'flex min-w-0 flex-col gap-1'}>
+        <div className={'flex min-w-0 items-center justify-between gap-3'}>
+          <div className={'flex min-w-0 items-center gap-2'}>
+            <Text size={14} weight={'medium'} color={'brand'} className={'truncate'}>{node.label}</Text>
+            <CustomBadge {...MASTERNODE_TYPE_BADGES[node.type]} className={'shrink-0'} />
+            <StatusPill tone={status.tone}>{status.label}</StatusPill>
+          </div>
+          <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 tabular-nums'}>{meta}</Text>
         </div>
-        <Text size={12} weight={'medium'} color={'brand'} opacity={50} className={'shrink-0 tabular-nums'}>{meta}</Text>
+        <HighlightedIdentifier className={ADD_NODE_PRO_TX_HASH_CLASS}>{node.proTxHash}</HighlightedIdentifier>
       </div>
     </CheckRow>
   )

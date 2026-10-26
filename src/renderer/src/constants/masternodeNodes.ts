@@ -166,3 +166,5 @@ export const REMOVE_NODE_COPY = {
   removed: 'Node removed',
   failed: 'Remove node failed',
 } as const
+
+export const ADD_NODE_PRO_TX_HASH_CLASS = 'min-w-0 text-[.625rem]! opacity-70'

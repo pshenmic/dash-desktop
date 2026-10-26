@@ -193,9 +193,9 @@ describe('Platform coin control', () => {
     expect(moved.map(chip => chip.props.tabIndex)).toEqual([-1, 0])
   })
 
-  it('shows the design copy and only the current source addresses on the Automatic tab', () => {
+  it('shows the design copy and address chips on the Automatic tab', () => {
     const nodes = render(platformModalProps(TransferOperation.AddressFundsTransfer))
-    expect(nodes.find(node => Array.isArray(node.props.addresses))!.props.addresses).toEqual(['platform-a', 'platform-b'])
+    expect(nodes.find(node => typeof node.props.showAddresses === 'boolean')!.props.showAddresses).toBe(true)
     expect(nodes.some(node => node.props.children === 'Let The Wallet Choose')).toBe(true)
     expect(nodes.some(node => node.props.children === 'The wallet will select enough available inputs for the amount and fee')).toBe(true)
     const manual = nodes.find(node => node.type === 'button' && node.props.children === 'Switch to Manual')!
@@ -287,13 +287,13 @@ describe('coin control UTXO refresh', () => {
     expect(render(modalProps()).some(node => node.props.label === 'Unknown')).toBe(true)
   })
 
-  it('moves the full outpoint into the row tooltip and dates the row beside the amount', () => {
+  it('shows the full outpoint under the address and dates the row beside the amount', () => {
     const nodes = render(modalProps())
     const row = nodes.find(node => node.key === 'coin:0')!
-    expect(row.props.title).toBe('coin:0')
+    expect(row.props.title).toBeUndefined()
     const details = elements(row).find(node => node.props.address === 'address')!
+    expect(details.props.outpoint).toBe('coin:0')
     expect(details.props.label).toBe('Unknown')
-    expect(nodes.some(node => node.props.children === 'coin:0')).toBe(false)
   })
 
   it.each([

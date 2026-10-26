@@ -8,3 +8,7 @@ export const ADDRESS_SELECT_MENU = `absolute left-0 top-[calc(100%+.375rem)] z-3
 export const ADDRESS_SELECT_OPTION = `w-full flex items-center gap-2.5 text-left ${POPOVER_OPTION}`
 
 export const ADDRESS_SELECT_IDENTIFIER_CLASS = `whitespace-nowrap font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
+
+export const ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS = `min-w-0 text-left font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
+
+export const ADDRESS_SELECT_SHRINKING = 'min-w-0 max-w-full'

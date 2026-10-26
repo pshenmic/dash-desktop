@@ -2,7 +2,15 @@ import { useRef, useState } from 'react'
 import { Avatar } from 'dash-ui-kit/react'
 import { ChevronIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
-import { ADDRESS_AVATAR_SIZES, ADDRESS_HIGHLIGHT_CLASSES, ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES } from '@renderer/constants/addressField'
+import {
+  ADDRESS_AVATAR_SIZES,
+  ADDRESS_HIGHLIGHT_CLASSES,
+  ADDRESS_INPUT,
+  ADDRESS_INPUT_BEHIND_VALUE,
+  ADDRESS_INPUT_TEXT_SIZES,
+  ADDRESS_INVALID_VALUE_CLASS,
+  ADDRESS_VALUE_CLASS,
+} from '@renderer/constants/addressField'
 import { POPOVER, POPOVER_OPTION } from '@renderer/constants/surfaces'
 import type { DropdownFieldProps } from '@renderer/types/DropdownField'
 
@@ -30,7 +38,7 @@ export default function DropdownField({
   const ref = useRef<HTMLDivElement>(null)
   const selected = options.find((option) => option.value === value)
   const trimmedValue = value.trim()
-  const showHighlight = highlightValue && !focused && trimmedValue !== '' && !inputInvalid
+  const showValue = highlightValue && !focused && trimmedValue !== ''
 
   const changeOpen = (next: boolean): void => {
     setOpen(next)
@@ -55,11 +63,13 @@ export default function DropdownField({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={placeholder}
-            className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[textSize]} ${showHighlight ? 'text-transparent' : ''}`}
+            className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[textSize]} ${showValue ? ADDRESS_INPUT_BEHIND_VALUE : ''}`}
           />
-          {showHighlight && <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex min-w-0 items-center gap-2">
-            {valueAvatar && <Avatar username={trimmedValue} className={ADDRESS_AVATAR_SIZES[textSize]} />}
-            <HighlightedIdentifier ellipsis className={ADDRESS_HIGHLIGHT_CLASSES[textSize]}>{trimmedValue}</HighlightedIdentifier>
+          {showValue && <span aria-hidden="true" className={ADDRESS_VALUE_CLASS}>
+            {valueAvatar && !inputInvalid && <Avatar username={trimmedValue} className={ADDRESS_AVATAR_SIZES[textSize]} />}
+            {inputInvalid
+              ? <span className={`${ADDRESS_INVALID_VALUE_CLASS} ${ADDRESS_INPUT_TEXT_SIZES[textSize]}`}>{trimmedValue}</span>
+              : <HighlightedIdentifier className={ADDRESS_HIGHLIGHT_CLASSES[textSize]}>{trimmedValue}</HighlightedIdentifier>}
           </span>}
         </div>
         {inputSuffix != null && <span className="shrink-0 whitespace-nowrap">{inputSuffix}</span>}
@@ -105,7 +115,7 @@ export default function DropdownField({
               {renderIcon?.(option.value)}
               <div className={`min-w-0 flex flex-col gap-0.5 ${option.metadata ? 'flex-1 basis-56' : ''}`}>
                 <Text size={textSize} weight="medium" color="brand" className="break-all">{option.label}</Text>
-                {option.description && <Text size={12} weight="medium" color="brand" opacity={50}>{option.description}</Text>}
+                {option.description && <Text size={12} weight="medium" color="brand" opacity={50} className="wrap-anywhere">{option.description}</Text>}
               </div>
               {option.metadata && <div className="ml-auto max-w-full flex flex-col gap-0.5 text-right break-all">
                 {option.metadata.map(detail => <Text key={detail} size={12} weight="medium" color="brand" opacity={70}>{detail}</Text>)}

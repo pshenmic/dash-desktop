@@ -3,8 +3,7 @@ import { HighlightedIdentifier, Text, ShieldSmallIcon } from "@renderer/componen
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import DropdownChevron from "@renderer/components/ui/DropdownChevron";
-import { ADDRESS_SELECT_IDENTIFIER_CLASS, ADDRESS_SELECT_MENU, ADDRESS_SELECT_OPTION, ADDRESS_SELECT_TRIGGER } from "@renderer/constants/addressSelect";
-import { truncateShieldedAddress } from "@renderer/utils/shieldedAddress";
+import { ADDRESS_SELECT_MENU, ADDRESS_SELECT_OPTION, ADDRESS_SELECT_SHRINKING, ADDRESS_SELECT_TRIGGER, ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS } from "@renderer/constants/addressSelect";
 
 interface ShieldedAddressSelectProps {
   addresses: string[]
@@ -20,18 +19,17 @@ export default function ShieldedAddressSelect({addresses, balances, selected, on
   useClickOutside(ref, () => setOpen(false))
 
   return (
-    <div className={"relative w-fit self-start"} ref={ref}>
+    <div className={`relative self-start ${ADDRESS_SELECT_SHRINKING}`} ref={ref}>
       <button
         type={"button"}
-        title={selected}
         onClick={() => addresses.length > 0 && setOpen(v => !v)}
-        className={ADDRESS_SELECT_TRIGGER}
+        className={`${ADDRESS_SELECT_TRIGGER} ${ADDRESS_SELECT_SHRINKING}`}
       >
         {selected ? (
-          <div className={"flex items-center gap-2.5"}>
+          <div className={"flex min-w-0 items-center gap-2.5"}>
             <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-            <div className={"flex flex-col items-start"}>
-              <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{truncateShieldedAddress(selected)}</HighlightedIdentifier>
+            <div className={"flex min-w-0 flex-col items-start"}>
+              <HighlightedIdentifier className={ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS}>{selected}</HighlightedIdentifier>
               {balances && (
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   <CreditsAmount credits={balances.get(selected) ?? 0n} />
@@ -46,18 +44,17 @@ export default function ShieldedAddressSelect({addresses, balances, selected, on
       </button>
 
       {open && (
-        <div className={ADDRESS_SELECT_MENU}>
+        <div className={`${ADDRESS_SELECT_MENU} max-w-full`}>
           {addresses.map(address => (
             <button
               key={address}
               type={"button"}
-              title={address}
               onClick={() => { onSelect(address); setOpen(false) }}
               className={`${ADDRESS_SELECT_OPTION} ${address === selected ? 'dash-block-accent-5' : ''}`}
             >
               <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-              <div className={"flex flex-col"}>
-                <HighlightedIdentifier className={ADDRESS_SELECT_IDENTIFIER_CLASS}>{truncateShieldedAddress(address)}</HighlightedIdentifier>
+              <div className={"flex min-w-0 flex-col"}>
+                <HighlightedIdentifier className={ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS}>{address}</HighlightedIdentifier>
                 {balances && (
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                     <CreditsAmount credits={balances.get(address) ?? 0n} />

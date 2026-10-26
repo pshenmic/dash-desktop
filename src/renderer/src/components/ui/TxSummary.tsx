@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { DASH_UNIT } from '@renderer/constants/balance'
-import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { CHIP_ACTION, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_LABELS, TX_SUMMARY_PENDING_VALUE, TX_SUMMARY_ROW_CLASS, TX_SUMMARY_VISIBLE_RECIPIENTS } from '@renderer/constants/txSummary'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { formatApproxFiat } from '@renderer/utils/approxFiat'
@@ -75,7 +76,8 @@ export default function TxSummary({
   className = '',
 }: TxSummaryProps): React.JSX.Element {
   const { format, rateReady } = useFiat()
-  const { visible, hidden } = splitVisibleRecipients(to, TX_SUMMARY_VISIBLE_RECIPIENTS)
+  const [allRecipients, setAllRecipients] = useState(false)
+  const { visible, hidden } = splitVisibleRecipients(to, allRecipients ? to.length : TX_SUMMARY_VISIBLE_RECIPIENTS)
   const fiat = rateReady && total != null ? format(txAmountToDuffs(total, unit)) : null
 
   return (
@@ -102,7 +104,7 @@ export default function TxSummary({
               <TxEndpoint key={`${endpoint.value}-${index}`} endpoint={endpoint} unit={unit} showAmount={to.length > 1} />
             ))}
             {hidden > 0 && (
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{moreRecipientsLabel(hidden)}</Text>
+              <button type={"button"} onClick={() => setAllRecipients(true)} className={CHIP_ACTION}>{moreRecipientsLabel(hidden)}</button>
             )}
           </div>
         </div>

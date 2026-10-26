@@ -87,10 +87,11 @@ describe('TransactionSummary', () => {
     expect(review.props.colorScheme).toBe('lightBlue-mint')
   })
 
-  it('middle-truncates the fee recipient address', () => {
+  it('names the fee recipient by number and keeps its full address', () => {
     harness.states[0] = true
-    const select = render({route: {...props().route, subtractFee: true, feeRecipientId: 'a'}}).find(node => node.type === 'select')!
-    const options = select.props.options as {value: string, label: string}[]
-    expect(options[1].label).toBe('Recipient 1 · tdash1qqqqqq…qqqqqq')
+    const route = props().route
+    const select = render({route: {...route, subtractFee: true, feeRecipientId: 'a'}}).find(node => node.type === 'select')!
+    const options = select.props.options as {value: string, label: string, description?: string}[]
+    expect(options[1]).toEqual({value: 'a', label: 'Recipient 1', description: route.recipients[0].address})
   })
 })

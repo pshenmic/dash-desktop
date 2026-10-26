@@ -10,7 +10,6 @@ import { TX_SUMMARY_CARD_LABELS } from '@renderer/constants/txSummary'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import type { TransactionSummaryProps } from '@renderer/types/TransactionSummary'
 import { davToDash, duffsToCredits } from '@renderer/utils/balance'
-import { truncateShieldedAddress } from '@renderer/utils/shieldedAddress'
 
 export default function TransactionSummary({
   children, operation, isCoreOperation, amountDuffs, maxAmountDuffs, fee, route,
@@ -30,7 +29,8 @@ export default function TransactionSummary({
     {value: '', label: 'Select recipient'},
     ...route.recipients.map((recipient, index) => ({
       value: recipient.id,
-      label: `Recipient ${index + 1} · ${truncateShieldedAddress(recipient.address.trim()) || 'No address'}`,
+      label: `Recipient ${index + 1}`,
+      description: recipient.address.trim() || 'No address',
     })),
   ]
   const receiveLabel = subtractFee ? TX_SUMMARY_CARD_LABELS.recipientsReceiveEstimated : TX_SUMMARY_CARD_LABELS.recipientsReceive
