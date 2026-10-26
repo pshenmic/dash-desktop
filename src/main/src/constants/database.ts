@@ -16,6 +16,7 @@ export const WALLET_SCOPED_TABLES = [
   'platform_addresses',
   'platform_transaction_parts',
   'platform_transactions',
+  'alias_contenders',
   'aliases',
   'dashpay_contact_requests',
   'dashpay_contact_addresses',

@@ -18,15 +18,29 @@ export async function up(knex: Knex): Promise<void> {
     // preorder rather than paying for another.
     table.binary('preorder_salt')
     // Set only while or after a contest runs; null for an uncontested name.
-    table.integer('votes_for')
     table.integer('votes_lock')
     table.integer('votes_abstain')
+    // How a finished contest ended; null while it runs.
+    table.text('vote_outcome').checkIn(['WonByIdentity', 'Locked', 'NoWinner'])
+    table.text('vote_winner')
     // Milliseconds, as Date reports them: when a running vote is due to end,
     // then the block time it actually ended at.
     table.integer('vote_ends_at')
     table.integer('created_at').notNullable()
     table.integer('checked_at')
     table.primary(['wallet_id', 'identifier', 'normalized_label'])
+  })
+
+  // Each contender of a contested name above, with the votes it holds.
+  await knex.schema.createTable('alias_contenders', table => {
+    table.text('wallet_id').notNullable()
+    table.text('identifier').notNullable()
+    table.text('normalized_label').notNullable()
+    table.text('contender_id').notNullable()
+    table.integer('votes').notNullable()
+    table.primary(['wallet_id', 'identifier', 'normalized_label', 'contender_id'])
+    table.foreign(['wallet_id', 'identifier', 'normalized_label'])
+      .references(['wallet_id', 'identifier', 'normalized_label']).inTable('aliases')
   })
 
   // DashPay contactRequest documents sent or received by this wallet's
@@ -80,5 +94,6 @@ export async function down(knex: Knex): Promise<void> {
     table.dropColumn('dashpay_xpub')
   })
   await knex.schema.dropTableIfExists('dashpay_contact_requests')
+  await knex.schema.dropTableIfExists('alias_contenders')
   await knex.schema.dropTableIfExists('aliases')
 }

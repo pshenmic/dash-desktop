@@ -16,10 +16,13 @@ export interface AliasCheck {
   status: Exclude<AliasStatus, 'pending'>
   isContested: boolean
   documentId: string | null
-  votesFor: number | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
+  voteOutcome: AliasVoteOutcome | null
+  voteWinner: string | null
+  // Empty for an uncontested name.
+  contenders: AliasVote['contenders']
 }
 
 export interface Alias extends Omit<AliasCheck, 'status'> {

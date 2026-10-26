@@ -22,7 +22,8 @@ function dashPayContactRequest(id: string, ownerId: string, toUserId: string, cr
 }
 
 const UNCHECKED: AliasCheck = {
-  status: 'missing', isContested: true, documentId: null, votesFor: null, votesLock: null, votesAbstain: null, voteEndsAt: null,
+  status: 'missing', isContested: true, documentId: null, votesLock: null, votesAbstain: null, voteEndsAt: null,
+  voteOutcome: null, voteWinner: null, contenders: [],
 }
 
 describe('listing identities', () => {
@@ -80,11 +81,17 @@ describe('listing identities', () => {
 
     expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'pending'})
 
-    check = {...UNCHECKED, status: 'voting', votesFor: 4, votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000}
-    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
+    const contenders = [{identifier: IDENTIFIER, votes: 4}, {identifier: ALICE, votes: 1}]
+    check = {...UNCHECKED, status: 'voting', votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000, contenders}
+    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'voting', voteEndsAt: 5_400_000, contenders})
 
-    check = {...check, status: 'registered', documentId: 'doc'}
-    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'registered', documentId: 'doc'})
+    // Drive keeps a finished contest's final tally, which replaces the running one.
+    const final = [{identifier: IDENTIFIER, votes: 6}, {identifier: ALICE, votes: 2}]
+    check = {...check, status: 'registered', documentId: 'doc', voteOutcome: 'WonByIdentity', voteWinner: IDENTIFIER, contenders: final}
+    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'voting', contenders})
+    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({
+      status: 'registered', documentId: 'doc', voteOutcome: 'WonByIdentity', voteWinner: IDENTIFIER, contenders: final,
+    })
     expect(request).toHaveBeenCalledWith('aliasStatus', 'testnet', {identifier: IDENTIFIER, label: 'owl'})
   })
 

@@ -74,8 +74,8 @@ export interface AliasSearchResultDto {
   name: string
 }
 
-// getAliases, registerAlias — a DPNS name this wallet registered. Votes and the
-// end date are set only for a contested name; voteEndsAt is in milliseconds.
+// getAliases, refreshAliases, registerAlias — a DPNS name this wallet registered.
+// The vote fields are set only for a contested name; voteEndsAt is in milliseconds.
 export interface AliasDto {
   walletId: string
   identifier: string
@@ -85,10 +85,14 @@ export interface AliasDto {
   status: 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
   documentId: string | null
   preorderSalt: Uint8Array | null
-  votesFor: number | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
+  voteOutcome: 'WonByIdentity' | 'Locked' | 'NoWinner' | null
+  voteWinner: string | null
+  // Every contender and its votes, ours among them when we contend; empty for an
+  // uncontested name. A finished contest keeps its final tally.
+  contenders: Array<{identifier: string; votes: number}>
   createdAt: number
   checkedAt: number | null
 }

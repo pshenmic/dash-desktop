@@ -55,15 +55,16 @@ export async function aliasStatus(payload: Payload, ctx: OperationContext): Prom
   ])
   throwIfAborted(ctx.signal)
   const vote = isContested ? await contest(ctx, normalizedLabel) : null
-  const ours = vote?.contenders.find(contender => contender.identifier === identifier)
 
   return {
     status: aliasStatusOf(identifier, domain?.ownerId.base58() ?? null, vote),
     isContested,
     documentId: domain?.id.base58() ?? null,
-    votesFor: vote != null ? ours?.votes ?? 0 : null,
     votesLock: vote?.lockVotes ?? null,
     votesAbstain: vote?.abstainVotes ?? null,
     voteEndsAt: vote?.endsAt ?? null,
+    voteOutcome: vote?.outcome ?? null,
+    voteWinner: vote?.winner ?? null,
+    contenders: vote?.contenders ?? [],
   }
 }
