@@ -77,28 +77,6 @@ export class IdentityService {
     return identity
   }
 
-  // A pending name stays pending while the chain shows nothing: its domain
-  // document or contest lands a block or two after the broadcast.
-  private async recheckAliases(walletId: string, network: Network, infos: Array<{identifier: string; aliasesList: string[]}>): Promise<void> {
-    const stored = await this.aliasDAO.getAliases(walletId)
-    const unsettled = stored.filter(alias => alias.status === 'pending' || alias.status === 'voting')
-    // A name the chain shows with no row here was registered elsewhere, or before this database.
-    const unknown = infos.flatMap(({identifier, aliasesList}) => aliasesList.map(name => {
-      const [label] = name.split('.')
-      return {walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label), status: 'missing' as const, preorderSalt: null, createdAt: Date.now()}
-    })).filter(alias => !stored.some(known => known.identifier === alias.identifier && known.normalizedLabel === alias.normalizedLabel))
-    await Promise.all([...unsettled, ...unknown].map(async alias => {
-      try {
-        const check = await this.platform.request('aliasStatus', network, {identifier: alias.identifier, label: alias.label})
-        const status = alias.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
-        if (status !== alias.status) log.info(`${alias.label}: ${alias.status} -> ${status}`)
-        await this.aliasDAO.save({...alias, ...check, status, checkedAt: Date.now()})
-      } catch (err) {
-        log.warn(`${alias.label}: alias check failed:`, err)
-      }
-    }))
-  }
-
   // Each identity asks only for what is newer than its newest stored request.
   private async recheckDashPayContactRequests(walletId: string, network: Network, identifiers: string[]): Promise<void> {
     const stored = await this.dashPayContactRequestDAO.getContactRequests(walletId)
@@ -186,12 +164,35 @@ export class IdentityService {
   }
 
   async getAliases(walletId: string): Promise<Alias[]> {
+    return this.aliasDAO.getAliases(walletId)
+  }
+
+  // Every stored name is checked again: even a settled one moves when it is sold
+  // or its lock is lifted.
+  async refreshAliases(walletId: string): Promise<Alias[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const {infos} = await this.platform.request('identityInfos', wallet.network, {
       identifiers: (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier),
       skipDPNS: false,
     })
-    await this.recheckAliases(walletId, wallet.network, infos)
+    const stored = await this.aliasDAO.getAliases(walletId)
+    // A name the chain shows with no row here was registered elsewhere, or before this database.
+    const unknown = infos.flatMap(({identifier, aliasesList}) => aliasesList.map(name => {
+      const [label] = name.split('.')
+      return {walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label), status: 'missing' as const, preorderSalt: null, createdAt: Date.now()}
+    })).filter(alias => !stored.some(known => known.identifier === alias.identifier && known.normalizedLabel === alias.normalizedLabel))
+    await Promise.all([...stored, ...unknown].map(async alias => {
+      try {
+        const check = await this.platform.request('aliasStatus', wallet.network, {identifier: alias.identifier, label: alias.label})
+        // A pending name stays pending while the chain shows nothing: its domain
+        // document or contest lands a block or two after the broadcast.
+        const status = alias.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
+        if (status !== alias.status) log.info(`${alias.label}: ${alias.status} -> ${status}`)
+        await this.aliasDAO.save({...alias, ...check, status, checkedAt: Date.now()})
+      } catch (err) {
+        log.warn(`${alias.label}: alias check failed:`, err)
+      }
+    }))
     return this.aliasDAO.getAliases(walletId)
   }
 

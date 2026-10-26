@@ -159,8 +159,15 @@ export class API {
     return this.api.getIdentities(walletId)
   }
 
+  // The names as last checked; no network request.
   static async getAliases(walletId: string): Promise<AliasDto[]> {
     return this.api.getAliases(walletId) as Promise<AliasDto[]>
+  }
+
+  // Checks every name on the network, its contest included, and finds names
+  // registered elsewhere. One request per name: call it on demand, not on a timer.
+  static async refreshAliases(walletId: string): Promise<AliasDto[]> {
+    return this.api.refreshAliases(walletId) as Promise<AliasDto[]>
   }
 
   // Find users by the start of their name, e.g. to send a contact request.

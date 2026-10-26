@@ -28,6 +28,7 @@ import { GetAllWalletsHandler } from './api/wallet/getAllWallets'
 import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
 import { GetAliasesHandler } from './api/wallet/getAliases'
+import { RefreshAliasesHandler } from './api/wallet/refreshAliases'
 import { RegisterAliasHandler } from './api/wallet/registerAlias'
 import { CreateIdentityKeysHandler } from './api/wallet/createIdentityKeys'
 import { SearchAliasesHandler } from './api/wallet/searchAliases'
@@ -191,6 +192,7 @@ export class WalletBackend {
     registerHandler("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
     registerHandler('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
     registerHandler('getAliases', new GetAliasesHandler(this.identityService).handle)
+    registerHandler('refreshAliases', new RefreshAliasesHandler(this.identityService).handle)
     registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
     registerHandler('createIdentityKeys', new CreateIdentityKeysHandler(this.identityService).handle)
     registerHandler('searchAliases', new SearchAliasesHandler(this.identityService).handle)

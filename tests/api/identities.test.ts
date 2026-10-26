@@ -78,18 +78,28 @@ describe('listing identities', () => {
     let check = UNCHECKED
     request.mockImplementation(async (kind: string) => kind === 'aliasStatus' ? check : {infos: []})
 
-    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'pending'})
+    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'pending'})
 
     check = {...UNCHECKED, status: 'voting', votesFor: 4, votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000}
-    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
+    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'voting', votesFor: 4, voteEndsAt: 5_400_000})
 
     check = {...check, status: 'registered', documentId: 'doc'}
-    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'registered', documentId: 'doc'})
+    expect((await identities.refreshAliases(walletId))[0]).toMatchObject({status: 'registered', documentId: 'doc'})
     expect(request).toHaveBeenCalledWith('aliasStatus', 'testnet', {identifier: IDENTIFIER, label: 'owl'})
+  })
+
+  it('reads names from storage, and checks even settled ones on a refresh, so a sold name or a lifted lock shows', async () => {
+    const settled = {...UNCHECKED, walletId, identifier: IDENTIFIER, preorderSalt: null, createdAt: 1, checkedAt: 1}
+    await aliasDAO.save({...settled, label: 'sold', normalizedLabel: 's01d', status: 'registered'})
+    await aliasDAO.save({...settled, label: 'held', normalizedLabel: 'he1d', status: 'locked', createdAt: 2})
+    request.mockImplementation(async (kind: string, _network: string, payload: {label: string}) => kind === 'aliasStatus'
+      ? {...UNCHECKED, status: payload.label === 'sold' ? 'taken' : 'voting', voteEndsAt: 9}
+      : {infos: []})
 
     request.mockClear()
-    await identities.getAliases(walletId)
-    expect(request).not.toHaveBeenCalledWith('aliasStatus', expect.anything(), expect.anything())
+    expect((await identities.getAliases(walletId)).map(alias => alias.status)).toEqual(['registered', 'locked'])
+    expect(request).not.toHaveBeenCalled()
+    expect((await identities.refreshAliases(walletId)).map(alias => [alias.label, alias.status])).toEqual([['sold', 'taken'], ['held', 'voting']])
   })
 
   // The same mnemonic on a fresh database finds the names it registered before.
@@ -98,12 +108,10 @@ describe('listing identities', () => {
       ? {...UNCHECKED, status: 'registered', isContested: false, documentId: 'doc'}
       : {infos: [{identifier: IDENTIFIER, balance: 0n, aliasesList: ['Owl.dash']}]})
 
-    expect(await identities.getAliases(walletId)).toMatchObject([
+    expect(await identities.refreshAliases(walletId)).toMatchObject([
       {identifier: IDENTIFIER, label: 'Owl', normalizedLabel: '0w1', status: 'registered', documentId: 'doc', preorderSalt: null},
     ])
-    request.mockClear()
-    await identities.getAliases(walletId)
-    expect(request).not.toHaveBeenCalledWith('aliasStatus', expect.anything(), expect.anything())
+    expect(await identities.refreshAliases(walletId)).toHaveLength(1)
   })
 
   it('records a registered name as pending under the identity that sent it', async () => {
