@@ -113,6 +113,14 @@ export interface IdentityKeyRequestDto {
   contractBounds: IdentityKeyBoundsDto | null
 }
 
+// getIdentityPrivateKeys — a key's private half. A key another wallet added is
+// absent: this wallet cannot derive it.
+export interface IdentityPrivateKeyDto {
+  keyId: number
+  wif: string
+  hex: string
+}
+
 // getIdentities — one key on an identity, purpose and levels by name.
 export interface IdentityKeyDto {
   keyId: number

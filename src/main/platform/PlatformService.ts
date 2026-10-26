@@ -29,6 +29,7 @@ import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
 import {identityCreateKeys} from './operations/identity/createKeys'
+import {identityPrivateKeys} from './operations/identity/privateKeys'
 import {checkNullifiers} from './operations/shielded/reads/checkNullifiers'
 import {encryptedNotes} from './operations/shielded/reads/encryptedNotes'
 import {notesCount} from './operations/shielded/reads/notesCount'
@@ -226,6 +227,7 @@ export class PlatformService {
       case 'identityCreditTransfer': return identityCreditTransfer(request.payload, ctx)
       case 'identityWithdrawal': return identityWithdrawal(request.payload, ctx)
       case 'identityCreateKeys': return identityCreateKeys(request.payload, ctx)
+      case 'identityPrivateKeys': return identityPrivateKeys(request.payload, ctx)
       case 'identityExists': return identityExists(request.payload, ctx)
       case 'identityBalance': return identityBalance(request.payload, ctx)
       case 'identityNonce': return identityNonce(request.payload, ctx)

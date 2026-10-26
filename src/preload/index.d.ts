@@ -158,6 +158,7 @@ declare global {
       refreshAliases: (walletId: string) => Promise<unknown>
       registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
       createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => Promise<string>
+      getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => Promise<unknown>
       searchAliases: (walletId: string, prefix: string) => Promise<unknown>
       getDashPayContacts: (walletId: string) => Promise<unknown>
       sendDashPayContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => Promise<unknown>

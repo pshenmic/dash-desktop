@@ -9,7 +9,7 @@ import {WalletDAO} from '../../database/WalletDAO'
 import {Alias, AliasSearchResult} from '../../types/Alias'
 import {DashPayContact} from '../../types/DashPay'
 import {Identity, IdentityInfo} from '../../types/Identity'
-import {IdentityKeyRequest} from '../../types/IdentityKeys'
+import {IdentityKeyRequest, IdentityPrivateKey} from '../../types/IdentityKeys'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
@@ -226,6 +226,14 @@ export class IdentityService {
     }
     log.info(`${label}: sent, pending`)
     return alias
+  }
+
+  async getIdentityPrivateKeys(walletId: string, identifier: string, password: string): Promise<IdentityPrivateKey[]> {
+    const identity = await this.requireIdentity(walletId, identifier)
+    log.info(`${identifier}: revealing its private keys`)
+    const {keys} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('identityPrivateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex}))
+    return keys
   }
 
   async createIdentityKeys(walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string): Promise<string> {

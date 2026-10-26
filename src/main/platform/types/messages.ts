@@ -2,7 +2,7 @@ import {NodeStatus} from 'dash-platform-sdk/types.js'
 import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {DashPayContactRequest} from '../../src/types/DashPay'
-import {IdentityKey, IdentityKeyRequest} from '../../src/types/IdentityKeys'
+import {IdentityKey, IdentityKeyRequest, IdentityPrivateKey} from '../../src/types/IdentityKeys'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -345,6 +345,10 @@ export interface PlatformOperations {
   identityCreateKeys: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; keys: IdentityKeyRequest[]}
     result: {stHash: string}
+  }
+  identityPrivateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number}
+    result: {keys: IdentityPrivateKey[]}
   }
   identityExists: {
     payload: {identifier: string}

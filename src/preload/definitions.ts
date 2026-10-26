@@ -57,6 +57,7 @@ export const apiDefinitions = (ipcRenderer) => ({
   getWalletBalance: (walletId: string) => ipcRenderer.invoke('getWalletBalance', walletId),
   getIdentities: (walletId: string) => ipcRenderer.invoke('getIdentities', walletId),
   createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => ipcRenderer.invoke('createIdentityKeys', walletId, identifier, keys, password),
+  getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => ipcRenderer.invoke('getIdentityPrivateKeys', walletId, identifier, password),
   getAliases: (walletId: string) => ipcRenderer.invoke('getAliases', walletId),
   refreshAliases: (walletId: string) => ipcRenderer.invoke('refreshAliases', walletId),
   registerAlias: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerAlias', walletId, identifier, label, password),

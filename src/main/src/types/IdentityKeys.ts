@@ -29,6 +29,13 @@ export interface IdentityKeyRequest {
   contractBounds: IdentityKeyBounds | null
 }
 
+// A key of an identity that this wallet derives, which only the seed reveals.
+export interface IdentityPrivateKey {
+  keyId: number
+  wif: string
+  hex: string
+}
+
 export interface IdentityKey {
   keyId: number
   purpose: string
