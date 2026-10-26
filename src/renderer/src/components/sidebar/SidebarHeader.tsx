@@ -1,12 +1,23 @@
 import { DashLogo } from "dash-ui-kit/react"
 import Balance from "./Balance";
-import { EyeClosedIcon, EyeOpenIcon, LockIcon } from "../dash-ui-kit-enxtended";
+import { ChevronIcon, EyeClosedIcon, EyeOpenIcon, InfoCircleIcon, LockIcon, Tooltip } from "../dash-ui-kit-enxtended";
 import { useAuth } from "@renderer/contexts/AuthContext";
+import { useBalanceBreakdown } from "@renderer/hooks/useBalanceBreakdown";
 import { useFiat } from "@renderer/hooks/useFiat";
 import { useWalletBalance } from "@renderer/hooks/useWalletBalance";
 import { usePlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useIdentities } from "@renderer/hooks/useIdentities";
-import { totalIdentityCredits, totalPlatformAddressCredits } from "@renderer/utils/platformBalances";
+import { totalIdentityCredits, totalPlatformAddressCredits, totalWalletCredits } from "@renderer/utils/platformBalances";
+import {
+  SIDEBAR_BALANCE_BREAKDOWN,
+  SIDEBAR_BALANCE_BREAKDOWN_CLOSED,
+  SIDEBAR_BALANCE_BREAKDOWN_ID,
+  SIDEBAR_BALANCE_BREAKDOWN_OPEN,
+  SIDEBAR_BALANCE_CHEVRON,
+  SIDEBAR_BALANCE_COPY,
+  SIDEBAR_BALANCE_ROWS,
+  SIDEBAR_BALANCE_TOGGLE,
+} from "@renderer/constants/balance";
 import { useBalanceVisibility } from "@renderer/hooks/useBalanceVisibility";
 import { useShieldedSyncState } from "@renderer/hooks/useShielded";
 import { ShieldedSyncPhase } from "@renderer/enums/ShieldedSyncPhase";
@@ -22,6 +33,9 @@ export default function SidebarHeader(): React.JSX.Element {
   const shieldedCredits = shieldedSync.phase === ShieldedSyncPhase.Done && shieldedSync.balance !== null
     ? shieldedSync.balance
     : undefined
+  const platformCredits = totalPlatformAddressCredits(platformAddresses)
+  const identityCredits = totalIdentityCredits(identities)
+  const { isBreakdownOpen, toggleBreakdown } = useBalanceBreakdown()
 
   return (
     <div className={"flex flex-col gap-8 justify-between w-full"}>
@@ -72,11 +86,42 @@ export default function SidebarHeader(): React.JSX.Element {
           </button>
         </div>
       </div>
-      <div className={"flex flex-col dash-block rounded-[.875rem] dash-black-border divide-y divide-dash-primary-dark-blue/8 dark:divide-white/12"}>
-        <Balance variant="dash" balance={balance.dash.amount} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
-        <Balance variant="credits" credits={totalPlatformAddressCredits(platformAddresses)} isVisible={isBalanceVisible}/>
-        <Balance variant="identities" credits={totalIdentityCredits(identities)} isVisible={isBalanceVisible}/>
-        <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
+      <div className={"flex flex-col dash-block rounded-[.875rem] dash-black-border"}>
+        <button
+          type={"button"}
+          onClick={toggleBreakdown}
+          aria-expanded={isBreakdownOpen}
+          aria-controls={SIDEBAR_BALANCE_BREAKDOWN_ID}
+          className={SIDEBAR_BALANCE_TOGGLE}
+        >
+          <div className={"min-w-0 flex-1"}>
+            <Balance
+              variant="total"
+              credits={totalWalletCredits(balance.dash.amount, [platformCredits, identityCredits, shieldedCredits])}
+              isVisible={isBalanceVisible}
+            />
+          </div>
+          {shieldedCredits === undefined && (
+            <Tooltip label={SIDEBAR_BALANCE_COPY.excludesShielded}>
+              <span className={"flex text-dash-orange"}><InfoCircleIcon size={14} color={"currentColor"} /></span>
+            </Tooltip>
+          )}
+          <ChevronIcon size={12} color={"currentColor"} className={`${SIDEBAR_BALANCE_CHEVRON} ${isBreakdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+        <div
+          id={SIDEBAR_BALANCE_BREAKDOWN_ID}
+          inert={!isBreakdownOpen}
+          className={`${SIDEBAR_BALANCE_BREAKDOWN} ${isBreakdownOpen ? SIDEBAR_BALANCE_BREAKDOWN_OPEN : SIDEBAR_BALANCE_BREAKDOWN_CLOSED}`}
+        >
+          <div className={"min-h-0 overflow-hidden"}>
+            <div className={SIDEBAR_BALANCE_ROWS}>
+              <Balance variant="dash" balance={balance.dash.amount} isVisible={isBalanceVisible} fiat={rateReady ? formatFiat(balance.dash.amount) : undefined}/>
+              <Balance variant="credits" credits={platformCredits} isVisible={isBalanceVisible}/>
+              <Balance variant="identities" credits={identityCredits} isVisible={isBalanceVisible}/>
+              <Balance variant="shielded" credits={shieldedCredits} isVisible={isBalanceVisible}/>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
