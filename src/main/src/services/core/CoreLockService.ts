@@ -3,7 +3,6 @@ import {WalletDAO} from '../../database/WalletDAO'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {AssetLockFunder, BuiltAssetLock} from '../../types/AssetLock'
 import {Network} from '../../types/Network'
-import {Transaction} from '../../types/Transaction'
 import {TxLockStatus} from '../../types/TxLockStatus'
 import {pickCreditChangeAddress, selectTransferInputs} from '../../utils/transferInputs'
 import {ASSET_LOCK_PAYLOAD_BYTES} from '../../constants/chain'
@@ -121,13 +120,6 @@ export class CoreLockService implements AssetLockFunder {
     // The isdlock arrives on our own pool in both modes, but rpc mode keeps no
     // local row for markInstantLocked to have written it to.
     return {...status, instantLocked: this.walletSyncService.hasInstantLock(txid)}
-  }
-
-  // Wallet-scoped, unlike WalletService.getTransactionByHash: a resume reads the
-  // funding's own wallet, which is not necessarily the selected one.
-  async getTransaction(walletId: string, txid: string): Promise<Transaction> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-    return this.providers.forWallet(walletId, wallet.network).getTransactionByHash(txid)
   }
 
   async getUsedAddresses(walletId: string, addresses: string[]): Promise<string[]> {

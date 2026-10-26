@@ -227,8 +227,12 @@
     background: linear-gradient(180deg, var(--color-dash-primary-dark-blue) 0%, var(--color-dash-blue-800) 100%);
   }
 
+  .dash-auth-background {
+    @apply pointer-events-none absolute top-0 left-0 w-full h-[max(9rem,25vh)];
+  }
+
   .dash-bg-image-auth {
-    @apply absolute top-0 left-0 w-full h-full object-cover max-h-[calc(100vh-14rem)] min-h-125;
+    @apply absolute -top-8 left-0 w-full h-[max(31.25rem,calc(100vh-14rem))] object-cover;
   }
 
   @keyframes ripple-expand {

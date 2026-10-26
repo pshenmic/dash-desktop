@@ -2,7 +2,7 @@ name: dash-desktop-wallet
 title: Dash Desktop Wallet
 base: core24
 adopt-info: dash-desktop-wallet
-summary: "Desktop wallet for the Dash crypto network: Core, Platform and Shielded Transactions"
+summary: "Desktop wallet for the Dash crypto network: Web3 and Shielded Transactions"
 description: |
   A cross-platform desktop wallet for Dash, supporting both Dash Core (Layer 1)
   and Dash Platform / Evolution (Layer 2).
@@ -17,6 +17,7 @@ license: MIT
 website: https://github.com/pshenmic/dash-desktop
 source-code: https://github.com/pshenmic/dash-desktop
 issues: https://github.com/pshenmic/dash-desktop/issues
+contact: https://github.com/pshenmic/dash-desktop/issues
 icon: buildResources/icon.png
 grade: stable
 confinement: strict
@@ -24,6 +25,7 @@ compression: lzo
 
 platforms:
   amd64:
+  arm64:
 
 apps:
   dash-desktop-wallet:
@@ -69,5 +71,6 @@ parts:
       yarn electron-builder --linux dir --publish never
 
       mkdir -p "$CRAFT_PART_INSTALL"
-      cp -a dist/linux-unpacked "$CRAFT_PART_INSTALL/dash-desktop"
+      # electron-builder names it linux-unpacked on x64 and linux-<arch>-unpacked elsewhere.
+      cp -a dist/linux*-unpacked "$CRAFT_PART_INSTALL/dash-desktop"
       rm -f "$CRAFT_PART_INSTALL/dash-desktop/chrome-sandbox"

@@ -15,7 +15,7 @@ export const PreferencesSchema = z.object({
 export type PreferencesJSON = z.infer<typeof PreferencesSchema> & { version: number }
 
 export class Preferences {
-  static readonly CURRENT_VERSION = 10
+  static readonly CURRENT_VERSION = 11
 
   // =====================================================
   // ANY CHANGES IN PREFERENCES REQUIRE BUMP VERSION ABOVE

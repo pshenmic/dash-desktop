@@ -42,12 +42,24 @@ export interface PeerSettings extends PeerOverridesJSON {
   mode: PeerMode
 }
 
+export const DapiSchema = z.object({
+  mode: PeerModeSchema.default('dynamic'),
+  mainnet: StringListSchema.default([]),
+  testnet: StringListSchema.default([]),
+}).refine(
+  dapi => dapi.mode !== 'static' || dapi.mainnet.length > 0 || dapi.testnet.length > 0,
+  {message: 'static DAPI mode requires at least one url'},
+)
+
+export type DapiJSON = z.infer<typeof DapiSchema>
+
 export const NetworkPreferencesSchema = z.object({
   // One setting for the whole app — a peer list is per network, but which kind
   // of peer discovery the wallet does is not.
   mode: PeerModeSchema.default('dynamic'),
   mainnet: PeerOverridesSchema,
   testnet: PeerOverridesSchema,
+  dapi: DapiSchema.default(emptyDapi),
 }).refine(
   prefs => prefs.mode !== 'static' || prefs.mainnet.staticPeers.length > 0 || prefs.testnet.staticPeers.length > 0,
   {message: 'static peer mode requires at least one peer'},
@@ -80,11 +92,13 @@ export class NetworkPreferences {
   mode: PeerMode
   mainnet: PeerOverridesJSON
   testnet: PeerOverridesJSON
+  dapi: DapiJSON
 
-  constructor(mode: PeerMode, mainnet: PeerOverridesJSON, testnet: PeerOverridesJSON) {
+  constructor(mode: PeerMode, mainnet: PeerOverridesJSON, testnet: PeerOverridesJSON, dapi: DapiJSON) {
     this.mode = mode
     this.mainnet = mainnet
     this.testnet = testnet
+    this.dapi = dapi
   }
 
   // A network the user pinned no peer for cannot honour static mode; the pool
@@ -98,16 +112,17 @@ export class NetworkPreferences {
       mode: this.mode,
       mainnet: copyOverrides(this.mainnet),
       testnet: copyOverrides(this.testnet),
+      dapi: {mode: this.dapi.mode, mainnet: [...this.dapi.mainnet], testnet: [...this.dapi.testnet]},
     }
   }
 
   static fromObject(value: unknown): NetworkPreferences {
-    const {mode, mainnet, testnet} = NetworkPreferencesSchema.parse(value)
-    return new NetworkPreferences(mode, mainnet, testnet)
+    const {mode, mainnet, testnet, dapi} = NetworkPreferencesSchema.parse(value)
+    return new NetworkPreferences(mode, mainnet, testnet, dapi)
   }
 
   static default(): NetworkPreferences {
-    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides())
+    return new NetworkPreferences('dynamic', emptyOverrides(), emptyOverrides(), emptyDapi())
   }
 }
 
@@ -122,4 +137,8 @@ function copyOverrides(overrides: PeerOverridesJSON): PeerOverridesJSON {
 
 function emptyOverrides(): PeerOverridesJSON {
   return {dnsSeeds: [], staticPeers: [], dynamicPeers: [], bannedPeers: []}
+}
+
+export function emptyDapi(): DapiJSON {
+  return {mode: 'dynamic', mainnet: [], testnet: []}
 }

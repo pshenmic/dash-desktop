@@ -11,7 +11,7 @@ import {logChildOutput} from '../../logTransport'
 import {currentLogLevel} from '../../utils/logger'
 import {WalletDAO} from '../../database/WalletDAO'
 import {CHILD_OUTPUT_TAIL_LIMIT} from '../../constants/app'
-import {REBROADCAST_INTERVAL_MS} from '../../constants/chain'
+import {PENDING_TX_TTL_MS, REBROADCAST_INTERVAL_MS} from '../../constants/chain'
 import {PERSIST_ATTEMPTS, PERSIST_RETRY_MS} from '../../constants/database'
 import {AddressDAO} from '../../database/AddressDAO'
 import {TransactionDAO} from '../../database/TransactionDAO'
@@ -830,7 +830,7 @@ export class WalletSyncService {
   // while it waits for a block. Instant-locked txs are final and skipped.
   private async rebroadcastPending(): Promise<void> {
     if (!this.activeWalletId || !this.child) return
-    const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
+    const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId, Date.now() - PENDING_TX_TTL_MS)
     for (const p of pending) {
       if (p.instantLocked || !p.isLocal) continue
       const hex = Buffer.from(p.raw).toString('hex')
@@ -854,7 +854,7 @@ export class WalletSyncService {
       else txids.add(txid)
     }
     if (this.activeWalletId) {
-      const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId)
+      const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId, Date.now() - PENDING_TX_TTL_MS)
       for (const p of pending) if (!p.instantLocked) txids.add(p.txid)
     }
     this.send({type: 'watchTxs', mode: 'replace', txids: [...txids]})

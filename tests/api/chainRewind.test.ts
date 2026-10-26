@@ -65,16 +65,16 @@ describe('rewindToHeight', () => {
     expect(orphaned?.blockHeight).toBe(0)
   })
 
-  it('puts an orphaned transaction back where the rebroadcast loop will find it', async () => {
+  // Core returns a disconnected block's txs to its own mempool, so re-pushing
+  // one adds nothing; the scan restores its height once it is re-mined.
+  it('leaves an orphaned transaction the scan found out of the rebroadcast loop', async () => {
     const {walletId, address} = await newWallet()
     await transactionDAO.applyBlock(receiveTo(walletId, 100, address, '100000'))
 
-    expect(await transactionDAO.getPendingTxs(walletId)).toEqual([])
-
     await transactionDAO.rewindToHeight(walletId, 99)
 
-    const pending = await transactionDAO.getPendingTxs(walletId)
-    expect(pending.map(p => p.txid)).toEqual(['txid-100'])
+    expect((await transactionDAO.getTransactionByTxid(walletId, 'txid-100'))?.blockHeight).toBe(0)
+    expect(await transactionDAO.getPendingTxs(walletId, 0)).toEqual([])
   })
 
   it('releases a spend the orphaned block recorded, so the coin is spendable again', async () => {

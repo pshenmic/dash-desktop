@@ -80,6 +80,10 @@ import {SetDnsSeedsHandler} from "./api/setDnsSeeds";
 import {GetDnsSeedsHandler} from "./api/getDnsSeeds";
 import {SetDynamicPeersHandler} from "./api/setDynamicPeers";
 import {GetDynamicPeersHandler} from "./api/getDynamicPeers";
+import {SetDapiModeHandler} from "./api/setDapiMode";
+import {SetDapiUrlsHandler} from "./api/setDapiUrls";
+import {GetDapiUrlsHandler} from "./api/getDapiUrls";
+import {GetActiveDapiUrlsHandler} from "./api/getActiveDapiUrls";
 import {SetFiatCurrencyHandler} from "./api/setFiatCurrency";
 import {SetPlatformFeeMultiplierHandler} from "./api/setPlatformFeeMultiplier";
 import {SetCoreFeeMultiplierHandler} from "./api/setCoreFeeMultiplier";
@@ -228,6 +232,10 @@ export class WalletBackend {
     registerHandler('getDnsSeeds', new GetDnsSeedsHandler(this.applicationService).handle)
     registerHandler('setDynamicPeers', new SetDynamicPeersHandler(this.applicationService, this.walletSyncService).handle)
     registerHandler('getDynamicPeers', new GetDynamicPeersHandler(this.applicationService).handle)
+    registerHandler('setDapiMode', new SetDapiModeHandler(this.applicationService, this.platformWorkerService).handle)
+    registerHandler('setDapiUrls', new SetDapiUrlsHandler(this.applicationService, this.platformWorkerService).handle)
+    registerHandler('getDapiUrls', new GetDapiUrlsHandler(this.applicationService).handle)
+    registerHandler('getActiveDapiUrls', new GetActiveDapiUrlsHandler(this.platformWorkerService).handle)
     registerHandler('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
     registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
     registerHandler('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
@@ -286,7 +294,7 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
-    this.platformWorkerService = new PlatformWorkerService()
+    this.platformWorkerService = new PlatformWorkerService(preferences)
     this.platformWorkerService.start()
 
     // Consumers depend on the asset lock primitive, never the other way round:

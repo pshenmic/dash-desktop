@@ -7,16 +7,13 @@ import { toast } from '@renderer/components/ui/Toast'
 import { useEffect, useMemo } from 'react'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { toDropdownOptions } from '@renderer/utils/wallets'
-import bgLight from '@renderer/assets/images/pageAuthorization/bg-light.svg'
-import bgDark from '@renderer/assets/images/pageAuthorization/bg-dark.svg'
-import wave from '@renderer/assets/images/pageAuthorization/wave.png'
+import AuthBackground from '@renderer/components/pages/auth/AuthBackground'
 import WalletSelect from '@renderer/components/ui/WalletSelect'
 
 export default function LoginPage(): React.JSX.Element {
   const { title, description, form, links } = loginTexts
   const { login: { invalidPassword } } = messages
   const { theme } = useTheme()
-  const backgroundImage = theme === 'dark' ? bgDark : bgLight
   const iconColor = theme === 'dark' ? '#ffffff' : ''
   const navigate = useNavigate()
   const { preselectedWalletId, loginSuccess } = useAuth()
@@ -59,18 +56,9 @@ export default function LoginPage(): React.JSX.Element {
   }
   return (
     <div className={"relative flex min-h-screen items-end"}>
-      <img
-        src={backgroundImage}
-        alt={"background gradient"}
-        className={"dash-bg-image-auth"}
-      />
-      <img
-        src={wave}
-        alt={"wave"}
-        className={"dash-bg-image-auth"}
-      />
+      <AuthBackground variant="login" />
 
-      <div className={"relative flex flex-col w-full h-full p-12 pt-[25vh]"}>
+      <div className={"relative flex flex-col w-full h-full p-12 pt-[max(9rem,25vh)]"}>
         <div className={"flex flex-col w-full mb-8"}>
           <DashLogo containerSize={50} />
           <Text as={"h1"} className={"mt-6 leading-[78%] tracking-[-0.03em]"} color={"brand"} size={64} weight={"extrabold"}>
