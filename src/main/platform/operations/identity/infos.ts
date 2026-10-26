@@ -33,7 +33,9 @@ export async function identityInfos(payload: Payload, ctx: OperationContext): Pr
         purpose: key.purpose,
         securityLevel: key.securityLevel,
         keyType: key.keyType,
-        disabled: key.disabledAt != null,
+        data: key.data,
+        readOnly: key.readOnly,
+        disabledAt: key.disabledAt == null ? null : Number(key.disabledAt),
         contractBounds: key.contractBounds == null
           ? null
           : {contractId: key.contractBounds.identifier.base58(), documentType: key.contractBounds.documentTypeName},

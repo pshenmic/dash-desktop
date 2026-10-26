@@ -134,7 +134,11 @@ export interface IdentityKeyDto {
   purpose: string
   securityLevel: string
   keyType: string
-  disabled: boolean
+  // The public key, hex.
+  data: string
+  readOnly: boolean
+  // When it was disabled, in milliseconds; null while it is in use.
+  disabledAt: number | null
   contractBounds: IdentityKeyBoundsDto | null
 }
 
