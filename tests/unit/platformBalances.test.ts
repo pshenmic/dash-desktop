@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { totalIdentityCredits, totalPlatformAddressCredits } from '../../src/renderer/src/utils/platformBalances'
+import { totalIdentityCredits, totalPlatformAddressCredits, totalWalletCredits } from '../../src/renderer/src/utils/platformBalances'
 
 const identity = (amount: bigint) => ({ balance: { amount, usdAmount: '0' } })
 const address = (balanceCredits: bigint) => ({ balanceCredits })
@@ -21,5 +21,15 @@ describe('totalPlatformAddressCredits', () => {
 
   it('is zero without funded addresses', () => {
     expect(totalPlatformAddressCredits([])).toBe(0n)
+  })
+})
+
+describe('totalWalletCredits', () => {
+  it('adds the Core balance in credits to every Platform balance', () => {
+    expect(totalWalletCredits(2n, [5n, 7n, 11n])).toBe(2_023n)
+  })
+
+  it('counts a balance that is not loaded yet as nothing', () => {
+    expect(totalWalletCredits(1n, [5n, undefined])).toBe(1_005n)
   })
 })
