@@ -2812,18 +2812,18 @@ csstype@^3.2.2:
   resolved "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
   integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
-"dash-core-p2p@https://github.com/pshenmic/dash-core-p2p#5583107bd7a48fc27c006a8aca938c3bd616a59b":
+"dash-core-p2p@https://github.com/pshenmic/dash-core-p2p#93d316d63b22de2f7027975a395941554d579627":
   version "0.0.1"
-  resolved "https://github.com/pshenmic/dash-core-p2p#5583107bd7a48fc27c006a8aca938c3bd616a59b"
+  resolved "https://github.com/pshenmic/dash-core-p2p#93d316d63b22de2f7027975a395941554d579627"
   dependencies:
     bloom-filter "^0.1.0"
-    dash-core-sdk "1.1.4"
+    dash-core-sdk "1.1.5-dev.1"
     eventemitter3 "^5.0.1"
 
-dash-core-sdk@1.1.4:
-  version "1.1.4"
-  resolved "https://registry.yarnpkg.com/dash-core-sdk/-/dash-core-sdk-1.1.4.tgz#f0ca3e6336acc3f5dced11e739db8f3e79292ca2"
-  integrity sha512-uFvcDA8oo8dh33ZTxvRGKH8UNLuDLxED3YtSbDTlJh0LTxhZtNPZ4k+MSum/tkO2BWUMC3Gt2SRaq3TUlsqUaQ==
+dash-core-sdk@1.1.5-dev.1:
+  version "1.1.5-dev.1"
+  resolved "https://registry.yarnpkg.com/dash-core-sdk/-/dash-core-sdk-1.1.5-dev.1.tgz#128dbe1a2a0c920970dc2650449cb62c5d1ac79c"
+  integrity sha512-SvZHrEnp8VmFWfJ0c4o8DUpIy239rd3grmKWeJhARd6jTzs4ocqlKdSwwIqrj6uZgPSGbA/UunIpL2B1JC65Eg==
   dependencies:
     "@dashevo/x11-hash-js" "^1.0.2"
     "@noble/curves" "^2.0.1"
