@@ -27,6 +27,7 @@ export interface UseCreateWalletState {
   network: Network
   path: WalletCreationPath | null
   createdWalletId: string | null
+  creating: boolean
   connectionMode: ConnectionType
   backgroundSyncEnabled: boolean
   setPassword: (password: string) => void
