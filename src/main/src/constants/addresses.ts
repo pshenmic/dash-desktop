@@ -59,6 +59,15 @@ export const DASHPAY_ADDRESS_WINDOW: AddressWindowPolicy = {
   maxRounds: 50,
 }
 
+// About an hour of blocks against a 2-minute poll: after a start, a chain whose
+// contact request lands this close below the scan cursor may have come after the
+// previous run's last poll, so it is rescanned from its request.
+export const DASHPAY_RESCAN_MARGIN_BLOCKS = 24
+// Contact-request fetches a sync start tries before scanning without our
+// DashPay chains, and the wait between them.
+export const DASHPAY_START_ATTEMPTS = 3
+export const DASHPAY_START_RETRY_MS = 2_000
+
 // The p2p child tracks the gap of the two BIP-44 chains by index; a DashPay
 // address sits below both frontiers, so it never moves either.
 export const DASHPAY_WATCH_INDEX = -1

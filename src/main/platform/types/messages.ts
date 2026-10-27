@@ -375,15 +375,19 @@ export interface PlatformOperations {
     result: AliasCheck
   }
   // Names whose label starts with prefix, in label order, at most one proved page.
+  // The contests among labels (normalized) the identities are contenders in.
+  aliasContests: {
+    payload: {labels: string[]; identifiers: string[]}
+    result: {contests: Array<{identifier: string; label: string}>}
+  }
   aliasSearch: {
     payload: {prefix: string}
     result: {results: AliasSearchResult[]}
   }
-  // Answers with the check it ran before spending anything. A domain refused
-  // after its preorder landed is answered, not thrown, so its salt reaches main.
+  // Answers with the check it ran before spending anything.
   aliasRegister: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string; preorderSalt: Uint8Array | null}
-    result: AliasCheck & {preorderSalt: Uint8Array | null; error: string | null}
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
+    result: AliasCheck
   }
   dashPayContactRequestSend: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}

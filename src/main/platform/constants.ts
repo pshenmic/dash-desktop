@@ -116,6 +116,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityPrivateKeys':
     case 'aliasStatus':
     case 'aliasSearch':
+    case 'aliasContests':
     case 'dashPayContactRequests':
     case 'dashPayContactKey':
     case 'identityScan':

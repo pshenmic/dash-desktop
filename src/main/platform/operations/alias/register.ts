@@ -1,7 +1,6 @@
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, OperationError} from '../types'
 import {CONTEST_JOIN_WINDOW_MS, DPNS_PARENT_DOMAIN, VOTE_POLL_DURATION_MS} from '../../constants'
-import {consensusMessage} from '../consensusMessage'
 import {aliasRegisterFee} from '../fee'
 import {signingKey} from '../identity/signingKey'
 import {aliasStatus} from './status'
@@ -16,7 +15,7 @@ type Result = PlatformOperations['aliasRegister']['result']
 // refusal it can foresee is made here first.
 export async function aliasRegister(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {sdk, network} = ctx
-  const {seed, identifier, identityIndex, label, preorderSalt} = payload
+  const {seed, identifier, identityIndex, label} = payload
   const name = `${label}.${DPNS_PARENT_DOMAIN}`
 
   const check = await aliasStatus({identifier, label}, ctx)
@@ -39,12 +38,6 @@ export async function aliasRegister(payload: Payload, ctx: OperationContext): Pr
 
   const {privateKey} = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')
   ctx.progress('broadcasting', 0, 0)
-  try {
-    const salt = await sdk.names.registerName(name, identifier, privateKey, preorderSalt ?? undefined)
-    return {...check, preorderSalt: salt, error: null}
-  } catch (err) {
-    const salt = (err as {preorderSalt?: Uint8Array}).preorderSalt
-    if (salt == null) throw err
-    return {...check, preorderSalt: salt, error: consensusMessage(err)}
-  }
+  await sdk.names.registerName(name, identifier, privateKey)
+  return check
 }

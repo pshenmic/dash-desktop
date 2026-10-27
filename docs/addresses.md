@@ -28,8 +28,10 @@ about a key class and takes three collaborators:
   through `probe`)
 - `AddressWindowStore` — what has been materialised, and how to reveal more
 
-DashPay (DIP-15) is the fourth, with two chains per friendship in
-`dashpay_contact_addresses`, both at DIP-15's gap of 10:
+DashPay (DIP-15) is the fourth, with two chains per friendship, both at DIP-15's
+gap of 10. They are not stored: `DashPayCache` holds them in memory, derived
+again from the contact requests `refreshDashPay` fetches, so after a start p2p
+rescans each of our chains from its request's height.
 
 - **`receiving`** is ours, `m/9'/coinType'/15'/0'/<us>/<them>/index`, one per
   request we sent. It derives from `wallet.dashpay_xpub` (both identity-id levels

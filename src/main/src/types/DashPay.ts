@@ -1,3 +1,5 @@
+import {Alias} from './Alias'
+
 // A contactRequest document as Platform stores it.
 export interface DashPayContactRequest {
   id: string
@@ -35,13 +37,22 @@ export interface DashPayContact {
 export type DashPayDirection = 'receiving' | 'external'
 
 export interface DashPayAddress {
-  walletId: string
-  identifier: string
-  contactId: string
   direction: DashPayDirection
   index: number
   address: string
+  derivationPath: string
   isUsed: boolean
+}
+
+// What one wallet's refreshDashPay fetched, held in memory only.
+export interface DashPayWalletCache {
+  // null until the wallet's first refresh in this process.
+  aliases: Alias[] | null
+  requests: DashPayContactRequest[] | null
+  // A contact's DPNS names, oldest first, by identifier.
+  contactNames: Map<string, string[]>
+  // Both chains of each friendship, keyed `${identifier}:${contactId}:${direction}`.
+  chains: Map<string, DashPayAddress[]>
 }
 
 // One payment between us and a contact, from the side of our identity. date in milliseconds.

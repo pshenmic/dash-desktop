@@ -155,7 +155,7 @@ declare global {
       getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
       getAliases: (walletId: string) => Promise<unknown>
-      refreshAliases: (walletId: string) => Promise<unknown>
+      refreshDashPay: (walletId: string) => Promise<void>
       registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
       updateIdentityKeys: (walletId: string, identifier: string, update: IdentityKeysUpdate, password: string) => Promise<string>
       getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => Promise<unknown>

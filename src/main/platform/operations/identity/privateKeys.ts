@@ -10,12 +10,15 @@ type Result = PlatformOperations['identityPrivateKeys']['result']
 export async function identityPrivateKeys({seed, identifier, identityIndex}: Payload, {sdk, network}: OperationContext): Promise<Result> {
   const hdKey = sdk.keyPair.seedToHdKey(seed, network)
   const keys = await sdk.identities.getIdentityPublicKeys(identifier)
+
   return {
     keys: keys.flatMap(key => {
       const child = sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, key.keyId, network)
       if (child.privateKey == null) return []
+
       const privateKey = PrivateKeyWASM.fromBytes(child.privateKey, network)
       if (privateKey.getPublicKeyHash() !== key.getPublicKeyHash()) return []
+
       return [{keyId: key.keyId, wif: privateKey.WIF(), hex: privateKey.hex()}]
     }),
   }

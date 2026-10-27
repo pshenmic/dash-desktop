@@ -10,6 +10,7 @@ import {JsonRequest} from '../types/JsonRequest'
 import {Network} from '../types/Network'
 import {
   PlatformExplorerAddressTransition,
+  PlatformExplorerContestedResource,
   PlatformExplorerPage,
   PlatformExplorerTransfer,
   PlatformExplorerTransition,
@@ -20,6 +21,7 @@ import {
   transferToPlatformTransaction,
 } from '../utils/platformExplorerTransactions'
 import {requestJson} from '../utils/requestJson'
+import {DPNS_DATA_CONTRACT_ID} from 'dash-platform-sdk/src/constants.js'
 
 // Not a WalletProvider and never reaches forWallet(): L2 history has one source,
 // and the index is unproven, so it feeds what is rendered, never what is signed.
@@ -28,13 +30,24 @@ export class PlatformExplorerProvider {
   private transactionDAO: PlatformTransactionDAO
 
   constructor(network: Network, transactionDAO: PlatformTransactionDAO) {
-    this.request = {
-      baseUrl: PLATFORM_EXPLORER_BASE_URLS[network],
-      source: 'Platform explorer',
-      timeoutMs: PLATFORM_EXPLORER_REQUEST_TIMEOUT_MS,
-      retryDelaysMs: PLATFORM_EXPLORER_RETRY_DELAYS_MS,
-    }
+    this.request = explorerRequest(network)
     this.transactionDAO = transactionDAO
+  }
+
+  // DPNS names whose vote has not ended, by normalized label. A contender has
+  // no domain document until it wins, so only an indexer of every transition
+  // can list them; its answer is unproven, and each is checked against the vote.
+  static async runningDpnsContests(network: Network): Promise<string[]> {
+    const labels: string[] = []
+    for (let page = 1; page <= PLATFORM_EXPLORER_MAX_PAGES; page++) {
+      const {resultSet} = await requestJson<PlatformExplorerPage<PlatformExplorerContestedResource>>(explorerRequest(network),
+        `/contestedResources?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc` +
+        `&document_type_name=domain&contract_id=${DPNS_DATA_CONTRACT_ID}&voting_finished=false`)
+      labels.push(...resultSet.map(({resourceValue}) => resourceValue[1]))
+      if (resultSet.length < PLATFORM_EXPLORER_PAGE_LIMIT) break
+    }
+
+    return labels
   }
 
   // One address per walk, like an identity. The endpoint takes a list, but it
@@ -96,5 +109,14 @@ export class PlatformExplorerProvider {
     }
 
     return true
+  }
+}
+
+function explorerRequest(network: Network): JsonRequest {
+  return {
+    baseUrl: PLATFORM_EXPLORER_BASE_URLS[network],
+    source: 'Platform explorer',
+    timeoutMs: PLATFORM_EXPLORER_REQUEST_TIMEOUT_MS,
+    retryDelaysMs: PLATFORM_EXPLORER_RETRY_DELAYS_MS,
   }
 }

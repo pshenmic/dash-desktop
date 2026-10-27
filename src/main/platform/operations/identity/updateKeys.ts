@@ -22,9 +22,11 @@ export async function identityUpdateKeys(payload: Payload, ctx: OperationContext
     keyId: key.keyId, securityLevel: key.securityLevel, disabled: key.disabledAt != null,
   })))
   if (refusal != null) throw new OperationError(refusal, 'internal')
+
   if (BigInt(identity.balance) < identityUpdateKeysFee({add, disable}, existing).feeCredits) {
     throw new OperationError('The identity cannot afford this key update', 'insufficientFunds')
   }
+
   // The key id doubles as the derivation index; signingKey relies on it.
   const firstKeyId = Math.max(...existing.map(key => key.keyId)) + 1
 
@@ -38,13 +40,15 @@ export async function identityUpdateKeys(payload: Payload, ctx: OperationContext
     }
     return {keyId, key, privateKey: PrivateKeyWASM.fromBytes(child.privateKey, network), publicKey: child.publicKey}
   })
-  const inCreation = (signable?: Uint8Array) => added.map(({keyId, key, privateKey, publicKey}) => new IdentityPublicKeyInCreationWASM(
+
+  const inCreation = (signable?: Uint8Array): IdentityPublicKeyInCreationWASM[] => added.map(({keyId, key, privateKey, publicKey}) => new IdentityPublicKeyInCreationWASM(
     keyId, key.purpose, key.securityLevel, 'ECDSA_SECP256K1', false, publicKey, signable == null ? undefined : privateKey.sign(signable), contractBoundsWASM(key.contractBounds)))
 
   ctx.progress('signing', 0, 0)
   const identityNonce = await sdk.identities.getIdentityNonce(identifier) + 1n
   const unsigned = new IdentityUpdateTransitionWASM(identifier, identity.revision + 1n, identityNonce, inCreation(), disable).toStateTransition()
   const transition = IdentityUpdateTransitionWASM.fromStateTransition(unsigned)
+
   // Each new key signs a proof-of-possession over the same signable bytes.
   transition.publicKeyIdsToAdd = inCreation(unsigned.getSignableBytes())
   const st = transition.toStateTransition()

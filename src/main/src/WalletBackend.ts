@@ -9,8 +9,7 @@ import { AddressDAO } from './database/AddressDAO'
 import { PlatformAddressDAO } from './database/PlatformAddressDAO'
 import { PlatformTransactionDAO } from './database/PlatformTransactionDAO'
 import { IdentityDAO } from './database/IdentityDAO'
-import { AliasDAO } from './database/AliasDAO'
-import { DashPayContactRequestDAO } from './database/DashPayContactRequestDAO'
+import { DashPayCache } from './database/DashPayCache'
 import { TransactionDAO } from './database/TransactionDAO'
 import { ContactDAO } from './database/ContactDAO'
 import { WalletService } from './services/wallet/WalletService'
@@ -28,7 +27,7 @@ import { GetAllWalletsHandler } from './api/wallet/getAllWallets'
 import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
 import { GetAliasesHandler } from './api/wallet/getAliases'
-import { RefreshAliasesHandler } from './api/wallet/refreshAliases'
+import { RefreshDashPayHandler } from './api/wallet/refreshDashPay'
 import { RegisterAliasHandler } from './api/wallet/registerAlias'
 import { UpdateIdentityKeysHandler } from './api/wallet/updateIdentityKeys'
 import { GetIdentityPrivateKeysHandler } from './api/wallet/getIdentityPrivateKeys'
@@ -193,7 +192,7 @@ export class WalletBackend {
     registerHandler("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
     registerHandler('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
     registerHandler('getAliases', new GetAliasesHandler(this.identityService).handle)
-    registerHandler('refreshAliases', new RefreshAliasesHandler(this.identityService).handle)
+    registerHandler('refreshDashPay', new RefreshDashPayHandler(this.walletService).handle)
     registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
     registerHandler('updateIdentityKeys', new UpdateIdentityKeysHandler(this.identityService).handle)
     registerHandler('getIdentityPrivateKeys', new GetIdentityPrivateKeysHandler(this.identityService).handle)
@@ -253,7 +252,7 @@ export class WalletBackend {
     registerHandler('getDapiUrls', new GetDapiUrlsHandler(this.applicationService).handle)
     registerHandler('getActiveDapiUrls', new GetActiveDapiUrlsHandler(this.platformWorkerService).handle)
     registerHandler('resetPreferences', new ResetPreferencesHandler(this.applicationService).handle)
-    registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletSyncService).handle)
+    registerHandler('startWalletSync', new StartWalletSyncHandler(this.walletService).handle)
     registerHandler('stopWalletSync', new StopWalletSyncHandler(this.walletSyncService).handle)
     registerHandler('resetWalletSync', new ResetWalletSyncHandler(this.walletSyncService).handle)
     registerHandler('getUtxos', new GetUtxosHandler(this.walletService).handle)
@@ -299,7 +298,8 @@ export class WalletBackend {
     await migrateKnex(knex)
 
     const walletDAO = new WalletDAO(knex)
-    const addressDAO = new AddressDAO(knex)
+    const dashPayCache = new DashPayCache()
+    const addressDAO = new AddressDAO(knex, dashPayCache)
     const identityDAO = new IdentityDAO(knex)
     const transactionDAO = new TransactionDAO(knex)
     const contactDAO = new ContactDAO(knex)
@@ -319,11 +319,10 @@ export class WalletBackend {
     const prevOuts = new CorePrevOutService(walletDAO, transactionDAO)
     const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, this.applicationService, this.walletSyncService, prevOuts)
     const coreTransactionService = new CoreTransactionService()
-    const dashPayContactRequestDAO = new DashPayContactRequestDAO(knex)
-    this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayContactRequestDAO, transactionDAO, this.walletSyncService, providers)
+    this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayCache, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
-    this.identityService = new IdentityService(walletDAO, identityDAO, new AliasDAO(knex), dashPayContactRequestDAO, this.platformWorkerService)
+    this.identityService = new IdentityService(walletDAO, identityDAO, dashPayCache, this.platformWorkerService)
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
     const platformTransactionDAO = new PlatformTransactionDAO(knex)
@@ -343,6 +342,7 @@ export class WalletBackend {
     this.initHandlers()
 
     const discovery = this.coreDiscoveryService
+    const walletService = this.walletService
     const walletSyncService = this.walletSyncService
     const applicationService = this.applicationService
     // A drain outlives the 3s activity debounce that triggers it, and every
@@ -368,7 +368,9 @@ export class WalletBackend {
       } catch (err) {
         locks.error('failed to start lock listener:', err)
       }
-      await discovery.discoverCoreAddresses(selected.walletId)
+      // Each tick polls for new contact requests too, so a new contact's chain
+      // is watched within one interval of its request.
+      await walletService.refreshDashPayChains(selected.walletId)
       resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {

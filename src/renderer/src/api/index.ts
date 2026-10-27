@@ -159,15 +159,13 @@ export class API {
     return this.api.getIdentities(walletId)
   }
 
-  // The names as last checked; no network request.
+  // DashPay and DPNS reads answer from memory
   static async getAliases(walletId: string): Promise<AliasDto[]> {
     return this.api.getAliases(walletId) as Promise<AliasDto[]>
   }
 
-  // Checks every name on the network, its contest included, and finds names
-  // registered elsewhere. One request per name: call it on demand, not on a timer.
-  static async refreshAliases(walletId: string): Promise<AliasDto[]> {
-    return this.api.refreshAliases(walletId) as Promise<AliasDto[]>
+  static async refreshDashPay(walletId: string): Promise<void> {
+    return this.api.refreshDashPay(walletId)
   }
 
   // Find users by the start of their name, e.g. to send a contact request.

@@ -62,6 +62,7 @@ export function identityKeysUpdateError(
     if (key == null) return `This identity has no key ${keyId}`
     if (key.disabled) return `Key ${keyId} is already disabled`
   }
+
   const added = add.filter(key => key.securityLevel === 'MASTER').length
   const disabled = existing.filter(key => key.securityLevel === 'MASTER' && disable.includes(key.keyId)).length
   if (added > 1 || added !== disabled) return 'A MASTER key can only be replaced: add one and disable the current one in the same update'

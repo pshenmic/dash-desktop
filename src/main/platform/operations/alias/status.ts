@@ -11,7 +11,7 @@ import {aliasStatusOf, scheduledVoteEnd} from '../../../src/utils/alias'
 type Payload = PlatformOperations['aliasStatus']['payload']
 type Result = PlatformOperations['aliasStatus']['result']
 
-async function contest({sdk, network}: OperationContext, normalizedLabel: string): Promise<AliasVote | null> {
+export async function contest({sdk, network}: OperationContext, normalizedLabel: string): Promise<AliasVote | null> {
   const contract = await sdk.dataContracts.getDataContractByIdentifier(DPNS_DATA_CONTRACT_ID)
   try {
     const state = await sdk.contestedResources.getContestedResourceVoteState(

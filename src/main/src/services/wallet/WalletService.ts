@@ -26,10 +26,12 @@ import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {mergePlatformTransactions} from '../../utils/platformExplorerTransactions'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
 import {dashPayPayments} from '../../utils/dashPayContacts'
-import {DashPayPayment} from '../../types/DashPay'
+import {DashPayDirection, DashPayPayment} from '../../types/DashPay'
 import {
   COIN_TYPE,
   CORE_ADDRESS_WINDOW,
+  DASHPAY_START_ATTEMPTS,
+  DASHPAY_START_RETRY_MS,
   IDENTITY_LOOKAHEAD,
   IDENTITY_SCAN_LIMIT,
   PLATFORM_ACCOUNT,
@@ -317,16 +319,44 @@ export class WalletService {
     return result
   }
 
+  // Both halves of a DashPay refresh: names and contact requests on L2, then
+  // the address chains those requests hand out on L1.
+  async refreshDashPay(walletId: string): Promise<void> {
+    await this.identities.refreshDashPay(walletId)
+    await this.discovery.rediscoverCoreAddresses(walletId)
+  }
+
+  // New contact requests, then every address chain they hand out. Without a
+  // network the chains wait for the next poll.
+  async refreshDashPayChains(walletId: string, attempts = 1): Promise<void> {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        await this.identities.refreshDashPayRequests(walletId)
+        break
+      } catch (err) {
+        log.warn(`${walletId}: contact requests not fetched, attempt ${attempt} of ${attempts}:`, err)
+        if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, DASHPAY_START_RETRY_MS))
+      }
+    }
+
+    await this.discovery.discoverCoreAddresses(walletId)
+  }
+
+  // Our DashPay chains enter the watch set before the scan reads a block: added
+  // later, they would miss what it passed without them.
+  async startWalletSync(walletId: string): Promise<void> {
+    await this.refreshDashPayChains(walletId, DASHPAY_START_ATTEMPTS)
+    await this.walletSyncService.startSync(walletId)
+  }
+
   // Payments between one of our identities and a contact, from our L1 history.
+  // Payments we sent show once the contact's key is decrypted in this process.
   async getDashPayPayments(walletId: string, identifier: string, contactId: string): Promise<DashPayPayment[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
-    const [core, receiving, external] = await Promise.all([
-      this.coreReadProvider(wallet).then(provider => provider.getWalletTransactions()),
-      this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'receiving'),
-      this.addressDAO.getDashPayAddresses(walletId, identifier, contactId, 'external'),
-    ])
-    const addresses = (rows: Array<{address: string}>) => new Set(rows.map(({address}) => address))
-    return dashPayPayments(core, addresses(receiving), addresses(external))
+    const core = await this.coreReadProvider(wallet).then(provider => provider.getWalletTransactions())
+
+    const addresses = (direction: DashPayDirection): Set<string> => new Set(this.discovery.dashPayChain(walletId, identifier, contactId, direction).map(({address}) => address))
+    return dashPayPayments(core, addresses('receiving'), addresses('external'))
   }
 
   // Guarded like a send rather than like a read: a picker fed a partial set does

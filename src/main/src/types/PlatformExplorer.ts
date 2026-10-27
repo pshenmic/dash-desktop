@@ -56,3 +56,8 @@ export interface PlatformExplorerTransition {
   error: string | null
   data: string | null
 }
+
+// A contested index value and its vote. Contenders are not listed.
+export interface PlatformExplorerContestedResource {
+  resourceValue: string[]
+}

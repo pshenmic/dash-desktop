@@ -5,7 +5,7 @@ import {DUFFS_PER_DASH} from '../constants/chain'
 // Requests come oldest first, so a later one to the same contact replaces an earlier one.
 export function dashPayContacts(requests: DashPayContactRequest[], identifiers: string[]): DashPayContact[] {
   const pairs = new Map<string, Omit<DashPayContact, 'relationship' | 'aliasesList'>>()
-  const pair = (identifier: string, contactId: string) => {
+  const pair = (identifier: string, contactId: string): Omit<DashPayContact, 'relationship' | 'aliasesList'> => {
     const key = `${identifier}:${contactId}`
     if (!pairs.has(key)) pairs.set(key, {identifier, contactId, incomingCreatedAt: null, outgoingCreatedAt: null, paymentChannelBroken: false})
     return pairs.get(key)!

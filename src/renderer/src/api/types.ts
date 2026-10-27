@@ -74,7 +74,7 @@ export interface AliasSearchResultDto {
   name: string
 }
 
-// getAliases, refreshAliases, registerAlias — a DPNS name this wallet registered.
+// getAliases, registerAlias — a DPNS name of one of this wallet's identities.
 // The vote fields are set only for a contested name; voteEndsAt is in milliseconds.
 export interface AliasDto {
   walletId: string
@@ -84,7 +84,6 @@ export interface AliasDto {
   isContested: boolean
   status: 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
   documentId: string | null
-  preorderSalt: Uint8Array | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
