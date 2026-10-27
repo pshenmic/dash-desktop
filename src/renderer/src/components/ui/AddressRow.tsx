@@ -1,4 +1,4 @@
-import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-extended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'

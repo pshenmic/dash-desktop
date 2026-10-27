@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button, Input, Text } from "@renderer/components/dash-ui-kit-extended";
 import { useTheme } from 'dash-ui-kit/react';
 import type { UseCreateWalletState } from '@renderer/types/auth';
 import { CreateWalletTexts, messages } from '@renderer/constants';

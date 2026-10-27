@@ -46,7 +46,7 @@ vi.mock('react', async importOriginal => ({
     return [harness.states[index], (value: T) => { harness.states[index] = value }]
   },
 }))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Text: 'text', SuccessIcon: 'success-icon', CheckIcon: 'check-icon'}))
+vi.mock('@renderer/components/dash-ui-kit-extended', () => ({Text: 'text', SuccessIcon: 'success-icon', CheckIcon: 'check-icon'}))
 vi.mock('@renderer/components/ui/Modal', () => ({default: 'dialog'}))
 vi.mock('@renderer/components/ui/ModalActions', () => ({default: 'modal-actions'}))
 vi.mock('@renderer/components/ui/TxSummary', () => ({default: 'tx-summary'}))

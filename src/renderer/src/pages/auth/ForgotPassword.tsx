@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronIcon, DashLogo, useTheme } from 'dash-ui-kit/react'
-import { Text, Button, Input } from '@renderer/components/dash-ui-kit-enxtended'
-import { ProgressStepBar } from '@renderer/components/dash-ui-kit-enxtended/progressStepBar'
+import { Text, Button, Input } from '@renderer/components/dash-ui-kit-extended'
+import { ProgressStepBar } from '@renderer/components/dash-ui-kit-extended/progressStepBar'
 import { Link } from 'react-router-dom'
 import {
   AUTH_CTA_CLASS,

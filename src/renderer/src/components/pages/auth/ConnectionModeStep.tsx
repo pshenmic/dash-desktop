@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, CheckIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, CheckIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import { SettingsRow, SwitchControl } from '@renderer/components/pages/connectionSettings/SettingsControls'
 import Spinner from '@renderer/components/ui/Spinner'
 import { authTexts, WALLET_CREATE_SLOW_NOTICE_MS } from '@renderer/constants'

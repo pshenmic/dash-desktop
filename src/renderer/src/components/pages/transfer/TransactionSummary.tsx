@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
-import { Button, ChevronIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, ChevronIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import Checkbox from '@renderer/components/ui/Checkbox'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DropdownField from '@renderer/components/ui/DropdownField'

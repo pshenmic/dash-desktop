@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { WalletSyncPhase, WalletSyncStatus } from '@renderer/api/types'
 import { SyncProgressPhaseInfo } from '@renderer/types/connection'
 import {

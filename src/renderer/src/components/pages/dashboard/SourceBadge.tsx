@@ -1,4 +1,4 @@
-import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import { TRANSACTION_KIND_BADGES } from '@renderer/constants/transactionKindBadges'
 import type { SourceBadgeProps } from '@renderer/types/DashboardStats'

@@ -1,4 +1,4 @@
-import { TransferChevronDownIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { TransferChevronDownIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 import { useElementSize } from "@renderer/hooks/useElementSize";
 import { TRANSFER_CARD_GEOMETRY } from "@renderer/constants/transferCards";
 import { transferFromCardPath, transferToBorderPath, transferToCardPath, transferToMaskStyle } from "@renderer/utils/transferCardPath";

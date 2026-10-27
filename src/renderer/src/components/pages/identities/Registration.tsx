@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DashLogo } from 'dash-ui-kit/react'
-import { Button, InfoCircleIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, InfoCircleIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import AssetLockFundingModal from '@renderer/components/modal/AssetLockFundingModal'
 import ShieldedSpendModal from '@renderer/components/modal/ShieldedSpendModal'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'

@@ -1,4 +1,4 @@
-import { CheckIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { CheckIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import Spinner from '@renderer/components/ui/Spinner'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import type { PhaseProgressListProps } from '@renderer/types/PhaseProgressList'

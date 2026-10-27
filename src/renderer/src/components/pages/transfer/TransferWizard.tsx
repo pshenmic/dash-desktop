@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
-import { Button, Text, CheckIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { ProgressStepBar } from "@renderer/components/dash-ui-kit-enxtended/progressStepBar";
+import { Button, Text, CheckIcon } from "@renderer/components/dash-ui-kit-extended";
+import { ProgressStepBar } from "@renderer/components/dash-ui-kit-extended/progressStepBar";
 import { TRANSFER_WIZARD_CTA_CLASS, TRANSFER_WIZARD_LABELS } from "@renderer/constants/transferWizard";
 import type { TransferWizardProps } from "@renderer/types/TransferWizard";
 

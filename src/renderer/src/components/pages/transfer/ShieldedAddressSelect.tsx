@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { HighlightedIdentifier, Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { HighlightedIdentifier, Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-extended";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import DropdownChevron from "@renderer/components/ui/DropdownChevron";

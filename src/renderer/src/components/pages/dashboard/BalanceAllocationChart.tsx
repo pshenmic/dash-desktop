@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Text, WalletIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, WalletIcon } from '@renderer/components/dash-ui-kit-extended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useWalletBalance } from '@renderer/hooks/useWalletBalance'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'

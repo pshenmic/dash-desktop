@@ -1,6 +1,6 @@
 import {cloneElement, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {CloseIcon, Text} from '@renderer/components/dash-ui-kit-enxtended'
+import {CloseIcon, Text} from '@renderer/components/dash-ui-kit-extended'
 import {POPOVER, POPOVER_OPTION} from '@renderer/constants/surfaces'
 import type {
   ContextMenuProps,

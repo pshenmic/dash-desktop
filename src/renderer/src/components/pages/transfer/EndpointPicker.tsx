@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { HighlightedIdentifier, Text, ChevronIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { HighlightedIdentifier, Text, ChevronIcon } from "@renderer/components/dash-ui-kit-extended";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
@@ -14,7 +14,7 @@ import EndpointKindIcon from "./EndpointKindIcon";
 import DropdownField from "@renderer/components/ui/DropdownField";
 import type { DestinationPickerProps, EndpointKindEntry } from "@renderer/types/EndpointPicker";
 import Spinner from "@renderer/components/ui/Spinner";
-import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { RefreshIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 
 interface KindDropdownProps {
   kinds: EndpointKindEntry[]

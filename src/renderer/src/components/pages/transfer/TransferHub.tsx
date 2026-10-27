@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashLogo } from "dash-ui-kit/react";
-import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button, Text } from "@renderer/components/dash-ui-kit-extended";
 import P2pSyncAlert from "@renderer/components/ui/P2pSyncAlert";
 import PasswordField from "@renderer/components/ui/PasswordField";
 import RetryButton from "@renderer/components/ui/RetryButton";

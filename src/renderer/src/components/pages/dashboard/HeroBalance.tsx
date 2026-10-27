@@ -1,4 +1,4 @@
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'

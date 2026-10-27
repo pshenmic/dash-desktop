@@ -1,5 +1,5 @@
-import { Text } from '../dash-ui-kit-enxtended'
-import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
+import { Text } from '../dash-ui-kit-extended'
+import { ExclamationIcon } from '../dash-ui-kit-extended/icons'
 import Modal from '../ui/Modal'
 import ModalActions from '../ui/ModalActions'
 import { ModalSize } from '@renderer/enums/ModalSize'

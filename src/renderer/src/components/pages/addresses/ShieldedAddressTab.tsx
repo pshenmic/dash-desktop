@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Text, ShieldSmallIcon, InfoTooltip, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ShieldSmallIcon, InfoTooltip, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import AddressRow from '@renderer/components/ui/AddressRow'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import PasswordField from '@renderer/components/ui/PasswordField'

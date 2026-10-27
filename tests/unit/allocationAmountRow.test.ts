@@ -5,7 +5,7 @@ import type {AllocationAmountRowProps} from '../../src/renderer/src/types/Alloca
 const fiat = vi.hoisted(() => ({rateReady: true}))
 
 vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg'}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended/tooltip', () => ({Tooltip: 'span'}))
+vi.mock('@renderer/components/dash-ui-kit-extended/tooltip', () => ({Tooltip: 'span'}))
 vi.mock('@renderer/hooks/useFiat', () => ({
   useFiat: () => ({rateReady: fiat.rateReady, currency: 'usd', format: (duffs: bigint) => `$${(Number(duffs) / 1e8 * 30).toFixed(2)}`}),
 }))

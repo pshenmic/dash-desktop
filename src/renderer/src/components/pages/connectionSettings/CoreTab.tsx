@@ -9,7 +9,7 @@ import {
   Input,
   Text,
   TurnOffIcon,
-} from '@renderer/components/dash-ui-kit-enxtended'
+} from '@renderer/components/dash-ui-kit-extended'
 import ContextMenu, {type ContextMenuItem} from '@renderer/components/ui/ContextMenu'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'

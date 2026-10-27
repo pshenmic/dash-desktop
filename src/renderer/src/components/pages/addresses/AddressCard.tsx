@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { WalletAddressDto } from '@renderer/api/types'
 import { davToDashCompact } from '@renderer/utils/balance'
 import { useAuth } from '@renderer/contexts/AuthContext'

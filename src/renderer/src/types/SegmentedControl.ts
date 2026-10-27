@@ -1,4 +1,4 @@
-import type { TextProps } from '../components/dash-ui-kit-enxtended/text'
+import type { TextProps } from '../components/dash-ui-kit-extended/text'
 import type { SegmentedControlAppearance } from '../enums/SegmentedControlAppearance'
 
 export interface SegmentOption<T extends string> {

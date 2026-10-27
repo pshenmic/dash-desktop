@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { ALERT_TONE_STYLES } from '@renderer/constants/alert'
 import type { AlertProps } from '@renderer/types/Alert'
 

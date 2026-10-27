@@ -1,8 +1,8 @@
-import { Text, WalletIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text, WalletIcon } from "@renderer/components/dash-ui-kit-extended";
 import { ChevronIcon, DashLogo } from "dash-ui-kit/react";
 import { authTexts } from "@renderer/constants";
 import { useCreateWallet } from "@renderer/hooks/useCreateWallet";
-import { ProgressStepBar } from "@renderer/components/dash-ui-kit-enxtended/progressStepBar";
+import { ProgressStepBar } from "@renderer/components/dash-ui-kit-extended/progressStepBar";
 import { useRipple } from "@renderer/hooks/useRipple";
 import AuthBackground from '@renderer/components/pages/auth/AuthBackground'
 import CreateWallet from "../../components/pages/auth/CreateWallet";

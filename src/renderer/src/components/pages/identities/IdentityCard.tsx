@@ -1,6 +1,6 @@
 import { Avatar } from "dash-ui-kit/react";
 import { Identity } from "./Page";
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text } from "@renderer/components/dash-ui-kit-extended";
 import AddressRow from "@renderer/components/ui/AddressRow";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import { useAuth } from "@renderer/contexts/AuthContext";

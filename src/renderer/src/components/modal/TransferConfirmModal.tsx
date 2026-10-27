@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-extended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'

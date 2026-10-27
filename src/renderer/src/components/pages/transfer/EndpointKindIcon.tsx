@@ -1,5 +1,5 @@
 import { DashLogo } from "dash-ui-kit/react";
-import { CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-extended";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
 import type { EndpointKindIconProps } from "@renderer/types/EndpointPicker";

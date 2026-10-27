@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { HighlightedIdentifier, Text, CreditsIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { HighlightedIdentifier, Text, CreditsIcon } from "@renderer/components/dash-ui-kit-extended";
 import type { PlatformAddressSelectProps } from "@renderer/types/PlatformAddressSelect";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
 import DropdownChevron from "@renderer/components/ui/DropdownChevron";
 import Spinner from "@renderer/components/ui/Spinner";
-import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { RefreshIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 import { ADDRESS_SELECT_IDENTIFIER_CLASS, ADDRESS_SELECT_MENU, ADDRESS_SELECT_OPTION, ADDRESS_SELECT_TRIGGER } from "@renderer/constants/addressSelect";
 
 export default function PlatformAddressSelect({addresses, selected, onSelect, automaticLabel, loading = false, error = null, onRetry}: PlatformAddressSelectProps): React.JSX.Element {

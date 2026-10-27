@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { HighlightedIdentifier, Text, ShieldSmallIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, ShieldSmallIcon, Button } from '@renderer/components/dash-ui-kit-extended'
 import PageHeader from '@renderer/components/ui/PageHeader'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import ProverPill from '@renderer/components/pages/shielded/ProverPill'

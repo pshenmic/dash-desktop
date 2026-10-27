@@ -1,5 +1,5 @@
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
-import { CoinControlListIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { Text } from "@renderer/components/dash-ui-kit-extended";
+import { CoinControlListIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
 import type { CoinControlButtonProps } from "@renderer/types/CoinControlButton";
 

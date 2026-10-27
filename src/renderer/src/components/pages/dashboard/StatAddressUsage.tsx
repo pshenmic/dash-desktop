@@ -1,5 +1,5 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { AddressesIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
+import { AddressesIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { ANALYTICS_METER } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { STAT_SOURCE_KIND } from '@renderer/constants/dashboardStats'

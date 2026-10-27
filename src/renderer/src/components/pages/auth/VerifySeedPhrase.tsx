@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
+import { Button, Text } from "@renderer/components/dash-ui-kit-extended"
 import type { UseCreateWalletState } from '@renderer/types/auth'
 import SeedPhraseWarning from "./SeedPhraseWarning";
 import { AUTH_CTA_CLASS, BaseTexts, FillInYourSeedPhraseTexts } from "@renderer/constants";

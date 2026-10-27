@@ -1,4 +1,4 @@
-import {InfoTooltip, Text} from '@renderer/components/dash-ui-kit-enxtended'
+import {InfoTooltip, Text} from '@renderer/components/dash-ui-kit-extended'
 import {SURFACE_ROW} from '@renderer/constants/surfaces'
 import type {
   ConnectionSectionTitleProps,

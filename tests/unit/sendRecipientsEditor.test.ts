@@ -5,7 +5,7 @@ import {DestinationKind} from '../../src/renderer/src/enums/DestinationKind'
 import {DESTINATION_PLACEHOLDERS} from '../../src/renderer/src/constants/sendPages'
 import type {SendRecipientsEditorProps} from '../../src/renderer/src/types/SendRecipients'
 
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({PlusIcon: 'svg', Text: 'span'}))
+vi.mock('@renderer/components/dash-ui-kit-extended', () => ({PlusIcon: 'svg', Text: 'span'}))
 vi.mock('@renderer/contexts/AuthContext', () => ({useAuth: () => ({status: {network: 'testnet'}})}))
 vi.mock('@renderer/components/ui/AllocationAmountRow', () => ({default: 'allocation-row'}))
 vi.mock('@renderer/components/ui/CreditsAmount', () => ({default: 'span'}))

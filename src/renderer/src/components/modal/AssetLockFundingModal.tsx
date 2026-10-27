@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-extended'
 import { API } from '@renderer/api'
 import { AssetLockFundingState } from '@renderer/api/types'
 import { AssetLockFundingPhase } from '@renderer/enums/AssetLockFundingPhase'

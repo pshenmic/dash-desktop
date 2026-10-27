@@ -1,4 +1,4 @@
-import { Button, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-extended'
 import Alert from '@renderer/components/ui/Alert'
 import { SHIELDED_NOTES_ALERT_TEXTS } from '@renderer/constants/shieldedNotesAlert'
 import { AlertTone } from '@renderer/enums/AlertTone'

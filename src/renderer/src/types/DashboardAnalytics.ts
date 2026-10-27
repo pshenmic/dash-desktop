@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react'
-import type { IconProps } from '../components/dash-ui-kit-enxtended/icons'
+import type { IconProps } from '../components/dash-ui-kit-extended/icons'
 import type { PlatformTransaction } from '../api/types'
 import type { WalletTxItem } from './WalletTransaction'
 

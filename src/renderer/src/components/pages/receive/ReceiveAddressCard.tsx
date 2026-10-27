@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { Text } from "@renderer/components/dash-ui-kit-enxtended"
+import { Text } from "@renderer/components/dash-ui-kit-extended"
 import { ReceivePageType } from "@renderer/constants"
 import { RECEIVE_AMOUNT_INPUT, RECEIVE_EMPTY_TEXTS } from "@renderer/constants/receiveCard"
 import { SURFACE_SECTION } from "@renderer/constants/surfaces"

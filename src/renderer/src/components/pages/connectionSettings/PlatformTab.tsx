@@ -8,7 +8,7 @@ import {
   InfoTooltip,
   Input,
   Text,
-} from '@renderer/components/dash-ui-kit-enxtended'
+} from '@renderer/components/dash-ui-kit-extended'
 import ContextMenu from '@renderer/components/ui/ContextMenu'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import RetryButton from '@renderer/components/ui/RetryButton'

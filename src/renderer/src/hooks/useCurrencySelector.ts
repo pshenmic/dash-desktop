@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { DollarIcon, EuroIcon, IconProps } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { DollarIcon, EuroIcon, IconProps } from '@renderer/components/dash-ui-kit-extended/icons'
 
 export interface Currency {
   id: string

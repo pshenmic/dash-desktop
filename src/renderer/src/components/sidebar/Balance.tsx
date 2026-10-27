@@ -1,5 +1,5 @@
 import { DashLogo, useTheme } from "dash-ui-kit/react";
-import { CreditsIcon, IdenticonIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxtended";
+import { CreditsIcon, IdenticonIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-extended";
 import CreditsAmount from "../ui/CreditsAmount";
 import DashBigNumber from "../ui/DashBigNumber";
 import SensitiveValue from "../ui/SensitiveValue";

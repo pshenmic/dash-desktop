@@ -1,5 +1,5 @@
 import { DashLogo, useTheme } from 'dash-ui-kit/react'
-import { Text, Button, Input, WalletIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Button, Input, WalletIcon } from '@renderer/components/dash-ui-kit-extended'
 import { Link, useNavigate } from 'react-router-dom'
 import { AUTH_CTA_CLASS, loginTexts, messages } from '@renderer/constants'
 import { useLogin } from '@renderer/hooks/useLogin'

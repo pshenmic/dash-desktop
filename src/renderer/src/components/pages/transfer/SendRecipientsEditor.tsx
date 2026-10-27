@@ -1,4 +1,4 @@
-import { PlusIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { PlusIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { DESTINATION_PLACEHOLDERS, sendPageData } from '@renderer/constants/sendPages'

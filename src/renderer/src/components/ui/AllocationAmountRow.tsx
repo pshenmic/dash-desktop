@@ -1,5 +1,5 @@
 import { DashLogo } from 'dash-ui-kit/react'
-import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended/tooltip'
+import { Tooltip } from '@renderer/components/dash-ui-kit-extended/tooltip'
 import { ALLOCATION_EMPTY_VALUE, ALLOCATION_MAX_CHIP_CLASS, ALLOCATION_MAX_LABEL, ALLOCATION_UNDERLINE } from '@renderer/constants/allocationAmountRow'
 import { useFiat } from '@renderer/hooks/useFiat'
 import type { AllocationAmountRowProps } from '@renderer/types/AllocationAmountRow'

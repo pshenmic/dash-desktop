@@ -1,4 +1,4 @@
-import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button, Text } from "@renderer/components/dash-ui-kit-extended";
 import { SuccessTexts } from "@renderer/constants";
 import { DashLogo, useTheme } from "dash-ui-kit/react";
 import { useNavigate } from "react-router-dom";

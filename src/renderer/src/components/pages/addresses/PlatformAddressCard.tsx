@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { PlatformAddressDto } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { platformAddressUrl } from '@renderer/utils/explorer'

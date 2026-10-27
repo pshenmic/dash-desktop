@@ -15,7 +15,7 @@ vi.mock('react', async importOriginal => ({
     return [harness.states[index], (value: T) => { harness.states[index] = value }]
   },
 }))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ChevronIcon: 'svg', Text: 'span'}))
+vi.mock('@renderer/components/dash-ui-kit-extended', () => ({Button: 'button', ChevronIcon: 'svg', Text: 'span'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))
 vi.mock('@renderer/components/ui/CreditsAmount', () => ({default: 'credits-amount'}))
 vi.mock('@renderer/components/ui/DropdownField', () => ({default: 'select'}))

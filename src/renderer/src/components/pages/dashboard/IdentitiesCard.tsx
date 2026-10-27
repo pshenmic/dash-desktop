@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Text, ArrowIcon, KeyIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ArrowIcon, KeyIcon } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { dashboardPage } from '@renderer/constants'

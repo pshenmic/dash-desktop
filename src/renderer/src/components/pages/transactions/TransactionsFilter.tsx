@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Text, FilterIcon, Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, FilterIcon, Input, SearchIcon } from '@renderer/components/dash-ui-kit-extended'
 import { transactionsPage } from '@renderer/constants'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { changeTxFilterSource, isDefaultTxFilter, transactionTypeOptions } from '@renderer/utils/transactionFilters'

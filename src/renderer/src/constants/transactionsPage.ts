@@ -1,4 +1,4 @@
-import { CheckIcon, ClockArrowIcon, ErrorIcon, InfoCircleIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { CheckIcon, ClockArrowIcon, ErrorIcon, InfoCircleIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import type { TransactionCardItem } from '@renderer/types/WalletTransaction'
 import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
 import { SURFACE_PANEL } from './surfaces'

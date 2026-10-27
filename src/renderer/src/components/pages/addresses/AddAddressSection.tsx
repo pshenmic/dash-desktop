@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text } from '@renderer/components/dash-ui-kit-extended'
 import { API } from '@renderer/api'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshBalance } from '@renderer/hooks/useWalletBalance'

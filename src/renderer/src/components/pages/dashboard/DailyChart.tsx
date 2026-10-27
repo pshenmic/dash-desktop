@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { DASH_UNIT } from '@renderer/constants/balance'
 import { ANALYTICS_CROSSHAIR, ANALYTICS_DOT, ANALYTICS_FOCUS, ANALYTICS_GRID_STROKE, ANALYTICS_PLOT_HEIGHT, ANALYTICS_SERIES, CHART_HEIGHT, CHART_WIDTH } from '@renderer/constants/dashboardAnalytics'

@@ -1,6 +1,6 @@
 import { DashLogo } from "dash-ui-kit/react"
 import Balance from "./Balance";
-import { ChevronIcon, EyeClosedIcon, EyeOpenIcon, InfoCircleIcon, LockIcon, Tooltip } from "../dash-ui-kit-enxtended";
+import { ChevronIcon, EyeClosedIcon, EyeOpenIcon, InfoCircleIcon, LockIcon, Tooltip } from "../dash-ui-kit-extended";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useBalanceBreakdown } from "@renderer/hooks/useBalanceBreakdown";
 import { useFiat } from "@renderer/hooks/useFiat";
