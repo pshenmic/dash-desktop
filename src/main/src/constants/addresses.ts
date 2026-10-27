@@ -59,12 +59,10 @@ export const DASHPAY_ADDRESS_WINDOW: AddressWindowPolicy = {
   maxRounds: 50,
 }
 
-// About an hour of blocks against a 2-minute poll: after a start, a chain whose
-// contact request lands this close below the scan cursor may have come after the
-// previous run's last poll, so it is rescanned from its request.
+// About an hour of blocks against a 2-minute poll: after a start, a request this close
+// below the cursor may have come after the previous run's last poll.
 export const DASHPAY_RESCAN_MARGIN_BLOCKS = 24
-// Contact-request fetches a sync start tries before scanning without our
-// DashPay chains, and the wait between them.
+// Contact-request fetches a sync start tries before scanning without our DashPay chains.
 export const DASHPAY_START_ATTEMPTS = 3
 export const DASHPAY_START_RETRY_MS = 2_000
 

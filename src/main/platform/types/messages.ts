@@ -384,7 +384,7 @@ export interface PlatformOperations {
     payload: {prefix: string}
     result: {results: AliasSearchResult[]}
   }
-  // Answers with the check it ran before spending anything.
+  // registerName returns once the domain is in a block, so this answers with the name's state.
   aliasRegister: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
     result: AliasCheck

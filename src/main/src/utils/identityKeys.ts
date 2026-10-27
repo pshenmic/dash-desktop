@@ -50,9 +50,8 @@ export function matchIdentityKey(
   return null
 }
 
-// Why Drive would refuse this update after charging for it (a nonce bump), or
-// accept it for nothing; null when it can go out. Drive replaces a MASTER key
-// only one for one, within the same update.
+// Why Drive would refuse this update after charging a nonce bump, or accept it for
+// nothing; null when it can go out. A MASTER key is replaced only one for one.
 export function identityKeysUpdateError(
   {add, disable}: IdentityKeysUpdate,
   existing: Array<{keyId: number; securityLevel: string; disabled: boolean}>,

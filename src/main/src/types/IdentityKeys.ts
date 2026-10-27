@@ -16,9 +16,7 @@ export interface IdentityKeyBounds {
   documentType: string | null
 }
 
-// As iOS offers them, plus MASTER to replace the MASTER key. Drive refuses, before
-// charging, any pairing but TRANSFER CRITICAL, ENCRYPTION and DECRYPTION MEDIUM,
-// and AUTHENTICATION at any level.
+// Drive refuses for free any pairing but TRANSFER CRITICAL, ENCRYPTION and DECRYPTION MEDIUM.
 export type CreatableKeyPurpose = 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
 export type CreatableKeySecurityLevel = 'MASTER' | 'CRITICAL' | 'HIGH' | 'MEDIUM'
 

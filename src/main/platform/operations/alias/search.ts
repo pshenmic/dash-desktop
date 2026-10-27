@@ -6,8 +6,7 @@ import {DPNS_PARENT_DOMAIN, PROVED_QUERY_LIMIT} from '../../constants'
 type Payload = PlatformOperations['aliasSearch']['payload']
 type Result = PlatformOperations['aliasSearch']['result']
 
-// The SDK's searchByName validates its argument as a whole name, which refuses
-// the short prefix a user is still typing, so the same query runs here directly.
+// The SDK's searchByName refuses a prefix shorter than a name, so its query runs here.
 // Owners, not records.identity: a transferred name keeps its old record.
 export async function aliasSearch(payload: Payload, {sdk}: OperationContext): Promise<Result> {
   const domains = await sdk.documents.query(DPNS_DATA_CONTRACT_ID, 'domain', [

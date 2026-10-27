@@ -154,9 +154,8 @@ export class CoreDiscoveryService {
     return next.address
   }
 
-  // Both DIP-15 chains of each friendship: ours for every request we sent, and
-  // theirs once their newest request's key is stored. Only ours is watched;
-  // theirs holds what we paid.
+  // Both DIP-15 chains of each friendship: ours for every request we sent, watched;
+  // theirs once their newest request's key is decrypted, holding what we paid.
   private async discoverDashPayAddresses(wallet: Wallet, provider: WalletProvider): Promise<Address[]> {
     const ours = new Set((await this.identityDAO.getIdentitiesByWalletId(wallet.walletId)).map(identity => identity.identifier))
     const requests = this.dashPayCache.wallet(wallet.walletId).requests ?? []
@@ -170,11 +169,8 @@ export class CoreDiscoveryService {
         const derived = await this.dashPayWindow(wallet, provider, identifier, contactId, 'receiving',
           dashPayAddressDeriver(key, wallet.network, identifier, contactId))
         const rows = derived.map(address => ({...this.coreAddressRow(wallet.walletId, false, address), index: DASHPAY_WATCH_INDEX}))
-        // A new chain may already hold payments in blocks the scan has passed,
-        // but none older than the request that handed it out. Chains are derived
-        // again after each start, before the scan: an earlier run watched them up
-        // to the cursor, bar a request its final poll missed, so at most the
-        // margin below the cursor is scanned again.
+        // An earlier run watched a chain up to the cursor, bar a request its last
+        // poll missed: rescan from the request, at most the margin below the cursor.
         const isNewChain = derived.some(address => address.index === 0)
         if (isNewChain) {
           const cursor = await this.transactionDAO.getCursor(wallet.walletId)

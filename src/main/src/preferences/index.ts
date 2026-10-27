@@ -92,9 +92,8 @@ export class Preferences {
     const rawGeneral = (raw.general ?? {}) as Partial<GeneralPreferencesJSON>
 
     const rawMultiplier = rawGeneral.platformFeeMultiplier
-    // Merged over the defaults, so an operation added since keeps its own, and
-    // one no longer priced is dropped: the schema refuses an unknown key, so it
-    // would fail every later save.
+    // Merged over the defaults; an operation no longer priced is dropped, as the
+    // schema refuses an unknown key and every later save would fail.
     const platformFeeMultiplier = typeof rawMultiplier === 'object' && rawMultiplier !== null
       ? {
         ...defaults.general.platformFeeMultiplier,

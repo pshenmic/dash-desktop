@@ -39,9 +39,7 @@ export class PlatformExplorerProvider {
     this.transactionDAO = transactionDAO
   }
 
-  // DPNS names whose vote has not ended, by normalized label. A contender has
-  // no domain document until it wins, so only an indexer of every transition
-  // can list them; its answer is unproven, and each is checked against the vote.
+  // DPNS labels whose vote has not ended. Unproven: each is checked against its vote.
   async runningDpnsContests(): Promise<string[]> {
     const labels: string[] = []
     for (let page = 1; page <= PLATFORM_EXPLORER_MAX_PAGES; page++) {

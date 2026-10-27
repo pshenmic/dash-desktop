@@ -168,7 +168,6 @@ export class API {
     return this.api.refreshDashPay(walletId)
   }
 
-  // Find users by the start of their name, e.g. to send a contact request.
   static async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResultDto[]> {
     return this.api.searchAliases(walletId, prefix) as Promise<AliasSearchResultDto[]>
   }
@@ -177,13 +176,11 @@ export class API {
     return this.api.registerAlias(walletId, identifier, label, password) as Promise<AliasDto>
   }
 
-  // Adds and disables keys in one identity update; resolves to its transition hash. Price it first with
-  // estimateFee('identityUpdateKeys', {identityId, keys: add, keyIds: disable}). Disabling is final.
+  // Price it with estimateFee('identityUpdateKeys', {identityId, keys: add, keyIds: disable}).
   static async updateIdentityKeys(walletId: string, identifier: string, update: IdentityKeysUpdateDto, password: string): Promise<string> {
     return this.api.updateIdentityKeys(walletId, identifier, update, password)
   }
 
-  // The private keys of the identity's keys this wallet derives, joined to getIdentities' keys by keyId.
   static async getIdentityPrivateKeys(walletId: string, identifier: string, password: string): Promise<IdentityPrivateKeyDto[]> {
     return this.api.getIdentityPrivateKeys(walletId, identifier, password) as Promise<IdentityPrivateKeyDto[]>
   }
@@ -196,8 +193,7 @@ export class API {
     return this.api.getDashPayPayments(walletId, identifier, contactId) as Promise<DashPayPaymentDto[]>
   }
 
-  // An L1 send to a contact; its address is worked out in the backend. Quote it
-  // with estimateFee('coreSend') — the fee does not depend on the address.
+  // Quote it with estimateFee('coreSend'): the fee does not depend on the address.
   static async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
     return this.api.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password) as Promise<SendResult>
   }

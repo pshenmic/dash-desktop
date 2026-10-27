@@ -1,4 +1,4 @@
-export type AliasStatus = 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
+export type AliasStatus = 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
 
 // Platform's ContestedDocumentVotePollWinnerInfo variants.
 export type AliasVoteOutcome = 'WonByIdentity' | 'Locked' | 'NoWinner'
@@ -13,7 +13,7 @@ export interface AliasVote {
 }
 
 export interface AliasCheck {
-  status: Exclude<AliasStatus, 'pending'>
+  status: AliasStatus
   isContested: boolean
   documentId: string | null
   votesLock: number | null
@@ -25,14 +25,10 @@ export interface AliasCheck {
   contenders: AliasVote['contenders']
 }
 
-export interface Alias extends Omit<AliasCheck, 'status'> {
-  walletId: string
+export interface Alias extends AliasCheck {
   identifier: string
   label: string
   normalizedLabel: string
-  status: AliasStatus
-  createdAt: number
-  checkedAt: number | null
 }
 
 // A DPNS name and the identity that owns it, from a prefix search.

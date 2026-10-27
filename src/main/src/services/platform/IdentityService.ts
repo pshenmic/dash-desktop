@@ -21,8 +21,7 @@ import {PlatformWorkerService} from './PlatformWorkerService'
 
 const log = new Logger('identities')
 
-// Reads the identities a wallet already owns, registers their DPNS names and
-// holds their DashPay contact requests in memory.
+// The identities a wallet owns, their DPNS names and DashPay contacts, the last two in memory.
 // Creating identities is IdentityRegistrationService — that path funds an asset lock.
 export class IdentityService {
   private walletDAO: WalletDAO
@@ -79,20 +78,16 @@ export class IdentityService {
     return identity
   }
 
-  // A request never changes once written, so only what is newer than each
-  // identity's newest known one is fetched; `>=` keeps one sharing that
-  // millisecond, and the id drops what comes back twice. Known requests keep
-  // the key decrypted from them earlier in this process.
+  // Requests never change, so only those since the newest known are fetched;
+  // known ones keep the key decrypted from them in this process.
   async refreshDashPayRequests(walletId: string): Promise<void> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
     const cache = this.dashPayCache.wallet(walletId)
     const known = cache.requests ?? []
 
-    const pages = await Promise.all(identifiers.map(identifier => this.platform.request('dashPayContactRequests', wallet.network, {
-      identifier,
-      since: Math.max(0, ...known.filter(request => request.ownerId === identifier || request.toUserId === identifier).map(request => request.createdAt)),
-    })))
+    const since = Math.max(0, ...known.map(request => request.createdAt))
+    const pages = await Promise.all(identifiers.map(identifier => this.platform.request('dashPayContactRequests', wallet.network, {identifier, since})))
     const requests = new Map(known.map(request => [request.id, request]))
     for (const request of pages.flatMap(({sent, received}) => [...sent, ...received])) {
       if (!requests.has(request.id)) requests.set(request.id, request)
@@ -127,36 +122,28 @@ export class IdentityService {
     ])
     const names = new Map(infos.map(info => [info.identifier, info.aliasesList]))
 
-    // A name has no domain document while it is pending or contested, so those
-    // known to this process stay listed until the chain settles them.
-    const unsettled = (cache.aliases ?? []).filter(alias => alias.status === 'pending' || alias.status === 'voting')
+    // A contested name has no domain document while its vote runs, so one this
+    // process knows stays listed until the vote settles it.
     const found = [
-      ...unsettled,
+      ...(cache.aliases ?? []).filter(alias => alias.status === 'voting'),
       ...identifiers.flatMap(identifier => (names.get(identifier) ?? []).map(name => ({identifier, label: name.split('.')[0]}))),
       ...contests,
     ]
 
     const candidates = new Map(found.map(({identifier, label}) => [`${identifier}:${convertToHomographSafeChars(label)}`, {identifier, label}]))
     // A name whose check fails keeps what was known of it.
-    const checked = await Promise.all([...candidates.values()].map(async ({identifier, label}): Promise<Alias | undefined> => {
+    const aliases = await Promise.all([...candidates.values()].map(async ({identifier, label}): Promise<Alias | undefined> => {
       const normalizedLabel = convertToHomographSafeChars(label)
-      const earlier = cache.aliases?.find(alias => alias.identifier === identifier && alias.normalizedLabel === normalizedLabel)
       try {
-        const check = await this.platform.request('aliasStatus', wallet.network, {identifier, label})
-        const status = earlier?.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
-        return {...check, walletId, identifier, label, normalizedLabel, status, createdAt: earlier?.createdAt ?? Date.now(), checkedAt: Date.now()}
+        return {...await this.platform.request('aliasStatus', wallet.network, {identifier, label}), identifier, label, normalizedLabel}
       } catch (err) {
         log.warn(`${label}: alias check failed:`, err)
-        return earlier
+        return cache.aliases?.find(alias => alias.identifier === identifier && alias.normalizedLabel === normalizedLabel)
       }
     }))
-    const aliases = checked.filter(alias => alias != null)
 
-    // A name registered while this refresh ran is not among what it checked.
-    const registered = (cache.aliases ?? []).filter(alias => alias.status === 'pending'
-      && !aliases.some(known => known.identifier === alias.identifier && known.normalizedLabel === alias.normalizedLabel))
     cache.contactNames = new Map(contactIds.map(contactId => [contactId, names.get(contactId) ?? []]))
-    cache.aliases = [...aliases, ...registered].sort((a, b) => a.createdAt - b.createdAt)
+    cache.aliases = aliases.filter(alias => alias != null)
     log.info(`${walletId}: refreshed ${aliases.length} name(s), ${requests.length} contact request(s)`)
   }
 
@@ -260,18 +247,14 @@ export class IdentityService {
     const check = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
       this.platform.request('aliasRegister', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, label}))
 
-    const now = Date.now()
-    const alias: Alias = {
-      ...check, walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label), status: 'pending', createdAt: now, checkedAt: now,
-    }
+    const alias: Alias = {...check, identifier, label, normalizedLabel: convertToHomographSafeChars(label)}
 
-    // Listed until a refresh finds its domain or contest on chain. The name is
-    // paid for by now, so a failed refresh must not report it as not registered.
+    // Paid for by now, so a failed refresh must not report it as not registered.
     const cache = this.dashPayCache.wallet(walletId)
     if (cache.aliases == null) await this.refreshDashPay(walletId).catch(err => log.warn(`${label}: names not refreshed:`, err))
     cache.aliases = [...(cache.aliases ?? []).filter(known => known.identifier !== identifier || known.normalizedLabel !== alias.normalizedLabel), alias]
 
-    log.info(`${label}: sent, pending`)
+    log.info(`${label}: ${alias.status}`)
     return alias
   }
 

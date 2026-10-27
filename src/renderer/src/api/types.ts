@@ -46,17 +46,14 @@ export interface PlatformAddressDto {
   nonce: number
 }
 
-// getDashPayContacts, sendDashPayContactRequest — one of our identities and another, by
-// the latest contactRequest each way. Timestamps are milliseconds.
+// getDashPayContacts, sendDashPayContactRequest. Timestamps are milliseconds.
 export interface DashPayContactDto {
   identifier: string
   contactId: string
   relationship: 'incoming' | 'outgoing' | 'established'
-  // The contact's DPNS names, oldest first.
   aliasesList: string[]
   incomingCreatedAt: number | null
   outgoingCreatedAt: number | null
-  // Their request can never be decrypted: hide Pay, they have to send a new one.
   paymentChannelBroken: boolean
 }
 
@@ -74,53 +71,40 @@ export interface AliasSearchResultDto {
   name: string
 }
 
-// getAliases, registerAlias — a DPNS name of one of this wallet's identities.
-// The vote fields are set only for a contested name; voteEndsAt is in milliseconds.
+// getAliases, registerAlias. The vote fields are set only for a contested name.
 export interface AliasDto {
-  walletId: string
   identifier: string
   label: string
   normalizedLabel: string
   isContested: boolean
-  status: 'pending' | 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
+  status: 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
   documentId: string | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
   voteOutcome: 'WonByIdentity' | 'Locked' | 'NoWinner' | null
   voteWinner: string | null
-  // Every contender and its votes, ours among them when we contend; empty for an
-  // uncontested name. A finished contest keeps its final tally.
   contenders: Array<{identifier: string; votes: number}>
-  createdAt: number
-  checkedAt: number | null
 }
 
-// Limits a key to one contract, or to one document type of it.
 export interface IdentityKeyBoundsDto {
   contractId: string
   documentType: string | null
 }
 
-// A key for updateIdentityKeys to derive from the mnemonic and add to the
-// identity, always ECDSA_SECP256K1. A TRANSFER key must be CRITICAL, ENCRYPTION
-// and DECRYPTION keys MEDIUM; for DashPay those two are bound to its
-// contactRequest document type. MASTER is AUTHENTICATION only, see below.
+// TRANSFER must be CRITICAL, ENCRYPTION and DECRYPTION MEDIUM; MASTER only replaces MASTER.
 export interface IdentityKeyRequestDto {
   purpose: 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
   securityLevel: 'MASTER' | 'CRITICAL' | 'HIGH' | 'MEDIUM'
   contractBounds: IdentityKeyBoundsDto | null
 }
 
-// updateIdentityKeys — one identity update. A MASTER key is only replaced: add
-// one and disable the current one in the same update.
 export interface IdentityKeysUpdateDto {
   add: IdentityKeyRequestDto[]
   disable: number[]
 }
 
-// getIdentityPrivateKeys — a key's private half. A key another wallet added is
-// absent: this wallet cannot derive it.
+// getIdentityPrivateKeys: a key another wallet added is absent.
 export interface IdentityPrivateKeyDto {
   keyId: number
   wif: string
@@ -133,10 +117,8 @@ export interface IdentityKeyDto {
   purpose: string
   securityLevel: string
   keyType: string
-  // The public key, hex.
   data: string
   readOnly: boolean
-  // When it was disabled, in milliseconds; null while it is in use.
   disabledAt: number | null
   contractBounds: IdentityKeyBoundsDto | null
 }

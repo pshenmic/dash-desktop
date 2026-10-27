@@ -96,10 +96,8 @@ export async function transitionFee(payload: Payload, ctx: OperationContext): Pr
   }
 }
 
-// dpp prices a document transition at its flat floor, so documents are priced
-// by the bytes they add to GroveDB: each document as dpp serializes it, each
-// index value twice (its node's key and its parent's link), and what the write
-// adds around them, which the caller measures per document type.
+// dpp prices a document transition at its flat floor, so it is priced by the bytes it
+// stores: the document, each index value twice, and the overhead measured per type.
 export function documentsFee(contract: DataContractWASM, writes: Array<{document: DocumentWASM; overheadBytes: bigint}>): bigint {
   const bytes = writes.reduce((total, {document, overheadBytes}) => {
     const {indices = []} = contract.getSchemas()[document.documentTypeName]
@@ -181,11 +179,8 @@ export async function dashPayContactRequestFee(ctx: OperationContext, recipient:
   }
 }
 
-// dpp prices an identity update at its flat floor too, so each added key is
-// priced by what it stores: more for a key Drive indexes by purpose, and for a
-// contract-bounded one more again when the identity has none bound to that
-// contract. An update that only disables keys stores almost nothing and is
-// priced at what testnet charged for one.
+// An identity update too: each added key by what it stores; an update that only
+// disables keys stores almost nothing and is priced at what testnet charged.
 export function identityUpdateKeysFee({add, disable}: IdentityKeysUpdate, existing: IdentityPublicKeyWASM[]): Result {
   const disabling = IDENTITY_DISABLE_KEY_CREDITS * BigInt(disable.length)
   if (add.length === 0) {

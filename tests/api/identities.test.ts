@@ -49,7 +49,7 @@ async function answer(kind: string, _network: string, payload: {identifier: stri
         .filter(contender => payload.identifiers.includes(contender))
         .map(identifier => ({identifier, label}))),
     }
-    case 'aliasRegister': return UNCHECKED
+    case 'aliasRegister': return network.status(payload.label)
     case 'dashPayContactRequestSend': return {stHash: 'hash'}
     case 'dashPayContactKey': return {xpub: network.contactKey}
     default: throw new Error(`unexpected request ${kind}`)
@@ -102,13 +102,11 @@ describe('listing identities', () => {
     expect(await identities.getIdentities(walletId)).toEqual([])
   })
 
-  it('follows a name from pending to its contest to its outcome, one refresh at a time', async () => {
-    await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)
-    await identities.refreshDashPay(walletId)
-    expect((await identities.getAliases(walletId))[0]).toMatchObject({status: 'pending', label: 'owl'})
-
+  // Only this process knows the contest: no domain document lists it until it wins.
+  it('follows a contested name it registered through its vote to its outcome', async () => {
     const contenders = [{identifier: IDENTIFIER, votes: 4}, {identifier: ALICE, votes: 1}]
     network.status = () => ({...UNCHECKED, status: 'voting', votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000, contenders})
+    await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)
     await identities.refreshDashPay(walletId)
     expect(await identities.getAliases(walletId)).toMatchObject([{status: 'voting', voteEndsAt: 5_400_000, contenders}])
 
@@ -151,7 +149,8 @@ describe('listing identities', () => {
   it('reports a registered name as sent even when the refresh after it fails', async () => {
     request.mockImplementation(async (kind: string, ...rest: [string, never]) => kind === 'identityInfos' ? Promise.reject(new Error('DAPI down')) : answer(kind, ...rest))
 
-    expect(await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)).toMatchObject({status: 'pending'})
+    network.status = () => ({...UNCHECKED, status: 'voting'})
+    expect(await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)).toMatchObject({status: 'voting'})
   })
 
   it('keeps what was known of a name whose check fails', async () => {

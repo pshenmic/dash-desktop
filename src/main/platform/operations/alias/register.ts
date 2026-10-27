@@ -39,5 +39,5 @@ export async function aliasRegister(payload: Payload, ctx: OperationContext): Pr
   const {privateKey} = await signingKey(sdk, seed, network, identifier, identityIndex, 'AUTHENTICATION', 'HIGH')
   ctx.progress('broadcasting', 0, 0)
   await sdk.names.registerName(name, identifier, privateKey)
-  return check
+  return aliasStatus({identifier, label}, ctx)
 }
