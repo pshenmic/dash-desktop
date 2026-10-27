@@ -144,7 +144,7 @@ export class IdentityService {
 
     cache.contactNames = new Map(contactIds.map(contactId => [contactId, names.get(contactId) ?? []]))
     cache.usernames = usernames.filter(username => username != null)
-    log.info(`${walletId}: refreshed ${usernames.length} name(s), ${requests.length} contact request(s)`)
+    log.info(`${walletId}: refreshed ${cache.usernames.length} name(s), ${requests.length} contact request(s)`)
   }
 
   async getDashPayContacts(walletId: string): Promise<DashPayContact[]> {

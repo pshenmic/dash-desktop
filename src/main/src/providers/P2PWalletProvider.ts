@@ -42,8 +42,8 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async getWalletBalance(): Promise<bigint> {
-    const grouped = await this.addressDAO.getAddressesByWalletId(this.walletId)
-    return this.transactionDAO.getBalanceForAddresses(this.walletId, [...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => a.address))
+    const {receiving, change, dashPay = []} = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    return this.transactionDAO.getBalanceForAddresses(this.walletId, [...receiving, ...change, ...dashPay].map(a => a.address))
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {

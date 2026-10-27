@@ -106,7 +106,11 @@ export function documentsFee(contract: DataContractWASM, writes: Array<{document
     return total + BigInt(document.bytes(contract).length + keyBytes) + overheadBytes
   }, 0n)
   log.debug(`documents fee: ${writes.map(({document}) => document.documentTypeName).join(' + ')} add ${bytes} bytes`)
-  return bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n
+  return withMargin(bytes * STORED_BYTE_CREDITS)
+}
+
+function withMargin(credits: bigint): bigint {
+  return credits * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n
 }
 
 function indexValueBytes(document: DocumentWASM, field: string): number {
@@ -184,7 +188,7 @@ export async function dashPayContactRequestFee(ctx: OperationContext, recipient:
 export function identityUpdateKeysFee({add, disable}: IdentityKeysUpdate, existing: IdentityPublicKeyWASM[]): Result {
   const disabling = IDENTITY_DISABLE_KEY_CREDITS * BigInt(disable.length)
   if (add.length === 0) {
-    return {feeCredits: (IDENTITY_DISABLE_KEYS_CREDITS + disabling) * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
+    return {feeCredits: withMargin(IDENTITY_DISABLE_KEYS_CREDITS + disabling), metered: true, fixedCredits: 0n}
   }
   const bound = new Set(existing.flatMap(key => key.contractBounds == null ? [] : [key.contractBounds.identifier.base58()]))
   let bytes = IDENTITY_UPDATE_BYTES
@@ -195,7 +199,7 @@ export function identityUpdateKeysFee({add, disable}: IdentityKeysUpdate, existi
     bytes += IDENTITY_KEY_BOUNDS_BYTES + (bound.has(contractBounds.contractId) ? 0n : IDENTITY_CONTRACT_BOUNDS_BYTES)
     bound.add(contractBounds.contractId)
   }
-  return {feeCredits: (bytes * STORED_BYTE_CREDITS + disabling) * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
+  return {feeCredits: withMargin(bytes * STORED_BYTE_CREDITS + disabling), metered: true, fixedCredits: 0n}
 }
 
 // Shield's own minimum omits note storage, but consensus checks its claims
