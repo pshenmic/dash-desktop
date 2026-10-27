@@ -147,8 +147,10 @@ describe('p2p address discovery', () => {
       cache.requests = [...cache.requests ?? [], ...requests.map((request, i) => ({
         id: `request-${from + i}`, ownerId: request.ownerId, toUserId: request.toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0,
         encryptedPublicKey: new Uint8Array(96), createdAt: from + i, coreHeightCreatedAt: request.coreHeightCreatedAt ?? 0,
-        contactXpub: request.contactXpub ?? null, paymentChannelBroken: false,
       }))]
+      requests.forEach((request, i) => {
+        if (request.contactXpub != null) cache.contactKeys.set(`request-${from + i}`, request.contactXpub)
+      })
     }
 
     async function walletWith(...requests: Request[]): Promise<string> {

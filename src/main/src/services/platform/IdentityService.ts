@@ -74,8 +74,7 @@ export class IdentityService {
     return identity
   }
 
-  // Requests never change, so only those since the newest known are fetched;
-  // known ones keep the key decrypted from them in this process.
+  // Requests never change, so only those since the newest known are fetched.
   async refreshDashPayRequests(walletId: string): Promise<void> {
     const wallet = await requireWallet(this.walletDAO, walletId)
     const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
@@ -84,10 +83,8 @@ export class IdentityService {
 
     const since = Math.max(0, ...known.map(request => request.createdAt))
     const pages = await Promise.all(identifiers.map(identifier => this.platform.request('dashPayContactRequests', wallet.network, {identifier, since})))
-    const requests = new Map(known.map(request => [request.id, request]))
-    for (const request of pages.flatMap(({sent, received}) => [...sent, ...received])) {
-      if (!requests.has(request.id)) requests.set(request.id, request)
-    }
+    const fresh = pages.flatMap(({sent, received}) => [...sent, ...received])
+    const requests = new Map([...known, ...fresh].map(request => [request.id, request]))
 
     cache.requests = [...requests.values()].sort((a, b) => a.createdAt - b.createdAt)
   }
@@ -110,7 +107,7 @@ export class IdentityService {
 
     await this.refreshDashPayRequests(walletId)
     const requests = cache.requests ?? []
-    const contactIds = [...new Set(dashPayContacts(requests, identifiers).map(contact => contact.contactId))]
+    const contactIds = [...new Set(dashPayContacts(requests, identifiers, cache.contactKeys).map(contact => contact.contactId))]
 
     const [{infos}, {contests}] = await Promise.all([
       this.platform.request('identityInfos', wallet.network, {identifiers: [...identifiers, ...contactIds], skipDPNS: false}),
@@ -152,7 +149,7 @@ export class IdentityService {
     if (cache.requests == null) await this.refreshDashPay(walletId)
 
     const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
-    return dashPayContacts(cache.requests ?? [], identifiers)
+    return dashPayContacts(cache.requests ?? [], identifiers, cache.contactKeys)
       .map(contact => ({...contact, usernames: cache.contactNames.get(contact.contactId) ?? []}))
   }
 
@@ -199,18 +196,16 @@ export class IdentityService {
     if (identity == null || request == null) {
       throw new Error('This contact has not sent this identity a contact request')
     }
-    if (request.contactXpub != null) return request.contactXpub
+    const known = cache.contactKeys.get(request.id)
+    if (known != null) return known
 
     const broken = 'Payments to this contact are unavailable — ask them to send you a new contact request'
-    if (request.paymentChannelBroken) throw new Error(broken)
+    if (known === null) throw new Error(broken)
 
     const {xpub} = await this.platform.request('dashPayContactKey', network, {seed, identifier, identityIndex: identity.identityIndex, request})
-    if (xpub == null) {
-      request.paymentChannelBroken = true
-      throw new Error(broken)
-    }
+    cache.contactKeys.set(request.id, xpub)
+    if (xpub == null) throw new Error(broken)
 
-    request.contactXpub = xpub
     log.info(`contact request ${contactId} -> ${identifier}: key decrypted`)
     return xpub
   }

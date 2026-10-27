@@ -203,7 +203,7 @@ export interface FeeQuote {
   feeCredits: bigint
   metered: boolean
   // Charged as is on top, never scaled by a fee multiplier: a contest's vote fund.
-  fixedCredits: bigint
+  fixedCredits?: bigint
 }
 
 export type AssetLockProofParams =

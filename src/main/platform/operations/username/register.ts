@@ -31,8 +31,9 @@ export async function usernameRegister(payload: Payload, ctx: OperationContext):
     throw new OperationError(`The contest for ${name} no longer accepts contenders`, 'internal')
   }
   const [cost, balance] = await Promise.all([usernameRegisterFee(ctx, label, identifier), sdk.identities.getIdentityBalance(identifier)])
-  log.info(`${name}: free, contested=${check.isContested}, costs ${cost.feeCredits} + ${cost.fixedCredits} of ${balance} credits`)
-  if (balance < cost.feeCredits + cost.fixedCredits) {
+  const fixedCredits = cost.fixedCredits ?? 0n
+  log.info(`${name}: free, contested=${check.isContested}, costs ${cost.feeCredits} + ${fixedCredits} of ${balance} credits`)
+  if (balance < cost.feeCredits + fixedCredits) {
     throw new OperationError(`The identity cannot afford to register ${name}`, 'insufficientFunds')
   }
 

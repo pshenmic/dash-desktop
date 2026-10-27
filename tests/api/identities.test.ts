@@ -15,7 +15,7 @@ const IDENTIFIER = 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec'
 const ALICE = '4EfA9Jrvv3nnCFdSf7fad59851iiTRZ6Wcu6YVJ4iSeF'
 
 function dashPayContactRequest(id: string, ownerId: string, toUserId: string, createdAt: number): DashPayContactRequest {
-  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 7, encryptedPublicKey: Buffer.alloc(96, 1), createdAt, coreHeightCreatedAt: 0, contactXpub: null, paymentChannelBroken: false}
+  return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 7, encryptedPublicKey: Buffer.alloc(96, 1), createdAt, coreHeightCreatedAt: 0}
 }
 
 const UNCHECKED: UsernameCheck = {
@@ -209,7 +209,7 @@ describe('listing identities', () => {
     await identities.sendDashPayContactRequest(walletId, IDENTIFIER, ALICE, PASSWORD)
     await identities.refreshDashPay(walletId)
 
-    expect(dashPayCache.wallet(walletId).requests?.find(({id}) => id === 'theirs')?.contactXpub).toBe('tpub-alice')
+    expect(dashPayCache.wallet(walletId).contactKeys.get('theirs')).toBe('tpub-alice')
   })
 
   it("decrypts a contact's key once and reads it from memory after that", async () => {

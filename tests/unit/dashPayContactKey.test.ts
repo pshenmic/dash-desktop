@@ -6,7 +6,7 @@ const OURS = 'ours'
 const THEIRS = 'theirs'
 const request = {
   id: 'r', ownerId: THEIRS, toUserId: OURS, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0,
-  encryptedPublicKey: new Uint8Array(96), createdAt: 0, coreHeightCreatedAt: 0, contactXpub: null, paymentChannelBroken: false,
+  encryptedPublicKey: new Uint8Array(96), createdAt: 0, coreHeightCreatedAt: 0,
 }
 
 function run(keys: Record<string, Array<{keyId: number; purpose: string; keyType: string}>>) {
