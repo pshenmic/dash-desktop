@@ -97,6 +97,11 @@ deb:
     - libuuid1
     - libsecret-1-0
     - libasound2
+  # The package was named dash-desktop before the rename; installing this one
+  # removes it instead of leaving both side by side.
+  fpm:
+    - --replaces=dash-desktop
+    - --conflicts=dash-desktop
 #  entitlementsInherit: build/entitlements.mac.plist
 #  extendInfo:
 #    - NSCameraUsageDescription: Application requests access to the device's camera.
