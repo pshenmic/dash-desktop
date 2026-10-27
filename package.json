@@ -1,15 +1,15 @@
 {
-  "name": "dash-desktop",
+  "name": "dash-desktop-wallet",
   "version": "1.0.0-rc.2",
   "description": "Desktop wallet (cross-platform) for Dash network",
   "main": "./out/main/index.js",
-  "desktopName": "dash-desktop.desktop",
+  "desktopName": "dash-desktop-wallet.desktop",
   "engines": {
     "node": ">=22.12.0"
   },
   "author": "pshenmic",
   "license": "MIT",
-  "homepage": "https://github.com/pshenmic/dash-desktop#readme",
+  "homepage": "https://github.com/pshenmic/dash-desktop-wallet#readme",
   "scripts": {
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
@@ -25,10 +25,10 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pshenmic/dash-desktop.git"
+    "url": "git+https://github.com/pshenmic/dash-desktop-wallet.git"
   },
   "bugs": {
-    "url": "https://github.com/pshenmic/dash-desktop/issues"
+    "url": "https://github.com/pshenmic/dash-desktop-wallet/issues"
   },
   "dependencies": {
     "@electron-toolkit/preload": "3.0.2",

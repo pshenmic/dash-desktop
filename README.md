@@ -8,9 +8,9 @@
 
 Non-custodial · Open source · macOS, Windows and Linux
 
-[![Latest release](https://img.shields.io/github/v/release/pshenmic/dash-desktop?label=release&color=008de4)](https://github.com/pshenmic/dash-desktop/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/pshenmic/dash-desktop/total?color=008de4)](https://github.com/pshenmic/dash-desktop/releases)
-[![License: MIT](https://img.shields.io/github/license/pshenmic/dash-desktop?color=008de4)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/pshenmic/dash-desktop-wallet?label=release&color=008de4)](https://github.com/pshenmic/dash-desktop-wallet/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/pshenmic/dash-desktop-wallet/total?color=008de4)](https://github.com/pshenmic/dash-desktop-wallet/releases)
+[![License: MIT](https://img.shields.io/github/license/pshenmic/dash-desktop-wallet?color=008de4)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-008de4)](#download)
 
 [**Download**](#download) · [Features](#features) · [Security](#security--privacy) · [Build from source](#build-from-source)
@@ -23,9 +23,9 @@ Non-custodial · Open source · macOS, Windows and Linux
 
 ---
 
-## Why Dash Desktop
+## Why Dash Desktop Wallet
 
-Dash has two layers: **Dash Core** for fast, final payments and **Dash Platform** for identities, usernames and credits. Until now, using both meant juggling separate tools. Dash Desktop puts them in one app, built on a single recovery phrase, with your keys never leaving your computer.
+Dash has two layers: **Dash Core** for fast, final payments and **Dash Platform** for identities, usernames and credits. Until now, using both meant juggling separate tools. Dash Desktop Wallet puts them in one app, built on a single recovery phrase, with your keys never leaving your computer.
 
 - **Both layers, one seed.** Send DASH, register an identity, top it up and withdraw back to L1 without switching apps.
 - **Private by choice.** Move credits into the shielded pool and transact between shielded addresses.
@@ -88,8 +88,8 @@ Create or import BIP39 wallets · keep several and switch at any time · export 
 
 | Platform | Package | |
 |---|---|---|
-| **macOS** | Universal `.dmg` (Apple silicon + Intel), signed and notarized | [Download](https://github.com/pshenmic/dash-desktop/releases/latest) |
-| **Windows** | `.exe` installer, x64 | [Download](https://github.com/pshenmic/dash-desktop/releases/latest) |
+| **macOS** | Universal `.dmg` (Apple silicon + Intel), signed and notarized | [Download](https://github.com/pshenmic/dash-desktop-wallet/releases/latest) |
+| **Windows** | `.exe` installer, x64 | [Download](https://github.com/pshenmic/dash-desktop-wallet/releases/latest) |
 | **Linux** | APT repository, Snap, `.deb`, AppImage — x64 and arm64 | [See below](#linux) |
 
 > [!NOTE]
@@ -100,10 +100,10 @@ Create or import BIP39 wallets · keep several and switch at any time · export 
 **Debian / Ubuntu — APT repository (recommended).** Signed, and updates with the rest of your system:
 
 ```sh
-curl -fsSL https://pshenmic.github.io/dash-desktop/key.asc \
+curl -fsSL https://pshenmic.github.io/dash-desktop-wallet/key.asc \
   | sudo gpg --dearmor -o /usr/share/keyrings/dash-desktop.gpg
 
-echo "deb [signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop stable main" \
+echo "deb [signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop-wallet stable main" \
   | sudo tee /etc/apt/sources.list.d/dash-desktop.list
 
 sudo apt update && sudo apt install dash-desktop
@@ -127,9 +127,9 @@ sudo rm /etc/apt/sources.list.d/dash-desktop.list /usr/share/keyrings/dash-deskt
 sudo snap install dash-desktop-wallet
 ```
 
-**AppImage / `.deb`** — download from [Releases](https://github.com/pshenmic/dash-desktop/releases/latest).
+**AppImage / `.deb`** — download from [Releases](https://github.com/pshenmic/dash-desktop-wallet/releases/latest).
 
-Pre-releases are published on [GitHub Releases](https://github.com/pshenmic/dash-desktop/releases) only.
+Pre-releases are published on [GitHub Releases](https://github.com/pshenmic/dash-desktop-wallet/releases) only.
 
 ## Security & privacy
 
@@ -159,8 +159,8 @@ Everything is stored locally in `~/.dash-desktop/`:
 Requires **Node.js 22.12+** and **Yarn 1**.
 
 ```sh
-git clone https://github.com/pshenmic/dash-desktop.git
-cd dash-desktop
+git clone https://github.com/pshenmic/dash-desktop-wallet.git
+cd dash-desktop-wallet
 yarn
 
 yarn build:mac     # universal .dmg
@@ -195,7 +195,7 @@ npx electron-vite build
 
 ## Contributing
 
-Bug reports and pull requests are welcome. For larger changes, please [open an issue](https://github.com/pshenmic/dash-desktop/issues) first so we can agree on the direction.
+Bug reports and pull requests are welcome. For larger changes, please [open an issue](https://github.com/pshenmic/dash-desktop-wallet/issues) first so we can agree on the direction.
 
 ## License
 

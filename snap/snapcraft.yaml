@@ -14,10 +14,10 @@ description: |
     between shielded addresses, and unshield or withdraw back out
   - Mainnet and testnet, via Dashscan API or direct P2P (SPV) sync
 license: MIT
-website: https://github.com/pshenmic/dash-desktop
-source-code: https://github.com/pshenmic/dash-desktop
-issues: https://github.com/pshenmic/dash-desktop/issues
-contact: https://github.com/pshenmic/dash-desktop/issues
+website: https://github.com/pshenmic/dash-desktop-wallet
+source-code: https://github.com/pshenmic/dash-desktop-wallet
+issues: https://github.com/pshenmic/dash-desktop-wallet/issues
+contact: https://github.com/pshenmic/dash-desktop-wallet/issues
 icon: buildResources/icon.png
 grade: stable
 confinement: strict
