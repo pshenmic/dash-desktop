@@ -210,9 +210,9 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                     </Text>
                   </SensitiveValue>
                 }
-                subValue={rateReady || !isBalanceVisible ? (
+                subValue={rateReady ? (
                   <SensitiveValue hidden={!isBalanceVisible} size={"subtext"} label={"Fiat amount hidden"}>
-                    {rateReady ? formatApproxFiat(formatFiat(resolvedTransaction.amount)) : null}
+                    {formatApproxFiat(formatFiat(resolvedTransaction.amount))}
                   </SensitiveValue>
                 ) : undefined}
               />

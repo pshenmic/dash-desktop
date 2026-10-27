@@ -83,10 +83,10 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: Si
             </SensitiveValue>
           )}
         </Text>
-        {amountKnown && (rowFiat !== undefined || !isVisible) &&
+        {amountKnown && rowFiat !== undefined &&
           <Text size={10} weight="medium" color="blue-mint" className={"leading-[120%]"}>
             <SensitiveValue hidden={!isVisible} size={"subtext"} tone={"accent"} label={"Fiat balance hidden"}>
-              {formatApproxFiat(rowFiat ?? '', currency)}
+              {formatApproxFiat(rowFiat, currency)}
             </SensitiveValue>
           </Text>
         }

@@ -99,8 +99,8 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
               value={<SensitiveValue hidden={!isBalanceVisible} size={'card'}>
                 <CreditsAmount credits={transaction.netCredits} prefix={transaction.netCredits > 0n ? '+ ' : ''} exact showFiat={false} align={'end'} amountClassName={'font-extrabold'} className={`text-sm ${transaction.netCredits > 0n ? 'dash-text-primary' : 'dash-text-default'}`} />
               </SensitiveValue>}
-              subValue={rateReady || !isBalanceVisible ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
-                {rateReady ? formatApproxFiat(formatFiat(creditsToDuffs(transaction.netCredits))) : null}
+              subValue={rateReady ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
+                {formatApproxFiat(formatFiat(creditsToDuffs(transaction.netCredits)))}
               </SensitiveValue> : undefined}
             />
             <DetailToken
@@ -110,8 +110,8 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
               value={<SensitiveValue hidden={!isBalanceVisible} size={'card'}>
                 <CreditsAmount credits={transaction.gasCredits} exact showFiat={false} align={'end'} amountClassName={'font-extrabold'} className={'text-sm dash-text-default'} />
               </SensitiveValue>}
-              subValue={rateReady || !isBalanceVisible ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
-                {rateReady ? formatApproxFiat(formatFiat(creditsToDuffs(transaction.gasCredits))) : null}
+              subValue={rateReady ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
+                {formatApproxFiat(formatFiat(creditsToDuffs(transaction.gasCredits)))}
               </SensitiveValue> : undefined}
             />
             <DetailToken
