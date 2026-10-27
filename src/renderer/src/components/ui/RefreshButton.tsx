@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
+import { useLocation } from 'react-router-dom'
 import { refreshActiveAsyncCaches, useAsyncRefreshFailures } from '@renderer/hooks/useAsyncWithCache'
+import { refreshDashPay } from '@renderer/hooks/useDashPayRefresh'
+import { useAuth } from '@renderer/contexts/AuthContext'
+import { DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import { toast } from '@renderer/components/ui/Toast'
 import { REFRESH_DATA_LABEL, REFRESH_FAILED_MESSAGE } from '@renderer/constants/connection'
 
@@ -10,6 +14,10 @@ export default function RefreshButton(): React.JSX.Element {
   const { failedCount: noticedFailures } = useAsyncRefreshFailures()
   const unreportedFailures = useRef(0)
   const hoverNotification = useRipple()
+  const { pathname } = useLocation()
+  const { status } = useAuth()
+  const walletId = status?.selectedWalletId ?? null
+  const onDashPay = pathname.startsWith(DASHPAY_ROUTES.root)
 
   useEffect(() => {
     if (refreshing || unreportedFailures.current === 0) return
@@ -21,7 +29,8 @@ export default function RefreshButton(): React.JSX.Element {
     if (refreshing) return
     setRefreshing(true)
     try {
-      unreportedFailures.current = await refreshActiveAsyncCaches()
+      const dashPayFailures = walletId != null && onDashPay ? await refreshDashPay(walletId).then(() => 0, () => 1) : 0
+      unreportedFailures.current = dashPayFailures + await refreshActiveAsyncCaches()
     } finally {
       setRefreshing(false)
     }

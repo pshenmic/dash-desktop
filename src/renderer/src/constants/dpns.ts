@@ -1,7 +1,7 @@
 import type { Network } from '@renderer/api/types'
-import { AliasPresentation, AliasStatus, DpnsLabelIssue } from '@renderer/enums/DashPay'
+import { UsernamePresentation, UsernameStatus, DpnsLabelIssue } from '@renderer/enums/DashPay'
 import { StatusPillTone } from '@renderer/enums/StatusPillTone'
-import type { AliasPresentationSpec } from '@renderer/types/Dpns'
+import type { UsernamePresentationSpec } from '@renderer/types/Dpns'
 
 export const DPNS_PARENT_DOMAIN = 'dash'
 
@@ -34,39 +34,34 @@ export const DPNS_LABEL_MESSAGES: Record<DpnsLabelIssue, string> = {
   [DpnsLabelIssue.EdgeHyphen]: 'Can’t start or end with a hyphen',
 }
 
-export const ALIAS_PRESENTATION: Record<AliasPresentation, AliasPresentationSpec> = {
-  [AliasPresentation.Registered]: { label: 'Registered', tone: StatusPillTone.Success, caption: 'Registered' },
-  [AliasPresentation.Pending]: { label: 'Registering', tone: StatusPillTone.Warning, caption: 'Waiting for the network' },
-  [AliasPresentation.Voting]: { label: 'In vote', tone: StatusPillTone.Accent, caption: 'Vote in progress' },
-  [AliasPresentation.Locked]: { label: 'Locked', tone: StatusPillTone.Danger, caption: 'Blocked by masternode vote' },
-  [AliasPresentation.Taken]: { label: 'Taken', tone: StatusPillTone.Inactive, caption: 'Given to another identity by vote' },
-  [AliasPresentation.Resumable]: { label: 'Incomplete', tone: StatusPillTone.Warning, caption: 'Preorder paid · registration didn’t finish' },
-  [AliasPresentation.Missing]: { label: 'Not registered', tone: StatusPillTone.Inactive, caption: 'The name is open again' },
+export const USERNAME_PRESENTATION: Record<UsernamePresentation, UsernamePresentationSpec> = {
+  [UsernamePresentation.Registered]: { label: 'Registered', tone: StatusPillTone.Success, caption: 'Registered' },
+  [UsernamePresentation.Voting]: { label: 'In vote', tone: StatusPillTone.Accent, caption: 'Vote in progress' },
+  [UsernamePresentation.Locked]: { label: 'Locked', tone: StatusPillTone.Danger, caption: 'Blocked by masternode vote' },
+  [UsernamePresentation.Taken]: { label: 'Taken', tone: StatusPillTone.Inactive, caption: 'Given to another identity by vote' },
+  [UsernamePresentation.Missing]: { label: 'Not registered', tone: StatusPillTone.Inactive, caption: 'The name is open again' },
 }
 
-export const ALIAS_STATUS_PRESENTATION: Record<AliasStatus, AliasPresentation> = {
-  [AliasStatus.Pending]: AliasPresentation.Pending,
-  [AliasStatus.Registered]: AliasPresentation.Registered,
-  [AliasStatus.Voting]: AliasPresentation.Voting,
-  [AliasStatus.Locked]: AliasPresentation.Locked,
-  [AliasStatus.Taken]: AliasPresentation.Taken,
-  [AliasStatus.Missing]: AliasPresentation.Missing,
+export const USERNAME_STATUS_PRESENTATION: Record<UsernameStatus, UsernamePresentation> = {
+  [UsernameStatus.Registered]: UsernamePresentation.Registered,
+  [UsernameStatus.Voting]: UsernamePresentation.Voting,
+  [UsernameStatus.Locked]: UsernamePresentation.Locked,
+  [UsernameStatus.Taken]: UsernamePresentation.Taken,
+  [UsernameStatus.Missing]: UsernamePresentation.Missing,
 }
 
-export const USERNAME_ORDER: AliasPresentation[] = [
-  AliasPresentation.Resumable,
-  AliasPresentation.Voting,
-  AliasPresentation.Pending,
-  AliasPresentation.Registered,
-  AliasPresentation.Taken,
-  AliasPresentation.Locked,
-  AliasPresentation.Missing,
+export const WALLET_USERNAME_CLAIM_STATUSES: UsernameStatus[] = [UsernameStatus.Registered, UsernameStatus.Voting, UsernameStatus.Locked]
+
+export const USERNAME_ORDER: UsernamePresentation[] = [
+  UsernamePresentation.Voting,
+  UsernamePresentation.Registered,
+  UsernamePresentation.Taken,
+  UsernamePresentation.Locked,
+  UsernamePresentation.Missing,
 ]
 
 export const USERNAME_CAPTION_COPY = {
   separator: ' · ',
-  added: 'Added',
-  checked: 'checked',
   endsIn: 'Ends in',
   voteEnded: 'Voting ended',
   forYou: 'for you',

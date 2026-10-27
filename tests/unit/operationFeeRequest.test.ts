@@ -72,14 +72,18 @@ describe('operation fee requests', () => {
     expect(first.key).not.toBe(second.key)
   })
 
-  it('re-quotes identity key creation whenever the key selection changes', () => {
+  it('re-quotes an identity key update whenever the key selection changes', () => {
     const createKeys = (keys: IdentityKeyRequestDto[] | null | undefined) =>
-      operationFeeRequest('wallet', TransferOperation.IdentityCreateKeys, params({destinationValid: true, recipient: '', identityId: 'IdentityA', keys}))!
+      operationFeeRequest('wallet', TransferOperation.IdentityUpdateKeys, params({destinationValid: true, recipient: '', identityId: 'IdentityA', keys}))!
     const selections = [createKeys([ENC_BOUND]), createKeys([ENC_UNBOUND]), createKeys([ENC_BOUND, DEC_BOUND]), createKeys([DEC_BOUND, ENC_BOUND]), createKeys([])]
     expect(new Set(selections.map(request => request.maxKey)).size).toBe(selections.length)
     expect(new Set(selections.map(request => request.key)).size).toBe(selections.length)
     expect(createKeys([ENC_BOUND, DEC_BOUND]).key).toBe(createKeys([{...ENC_BOUND}, {...DEC_BOUND}]).key)
     expect(createKeys(null).key).toBe(createKeys([]).key)
+    const disableKeys = (keyIds: number[] | null) =>
+      operationFeeRequest('wallet', TransferOperation.IdentityUpdateKeys, params({destinationValid: true, recipient: '', identityId: 'IdentityA', keyIds}))!
+    expect(disableKeys([1]).maxKey).not.toBe(disableKeys([2]).maxKey)
+    expect(disableKeys(null).maxKey).toBe(disableKeys([]).maxKey)
     expect(createKeys(undefined).key).toBe(createKeys([]).key)
     expect(createKeys([ENC_BOUND]).feeParams.keys).toEqual([ENC_BOUND])
   })

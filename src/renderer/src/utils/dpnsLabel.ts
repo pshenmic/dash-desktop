@@ -1,4 +1,4 @@
-import type { AliasSearchResultDto } from '@renderer/api/types'
+import type { UsernameSearchResultDto } from '@renderer/api/types'
 import {
   DPNS_CONTESTED_PATTERN,
   DPNS_EDGE_HYPHEN,
@@ -46,7 +46,7 @@ export function validateDpnsLabel(raw: string): DpnsLabelCheck {
   }
 }
 
-export function exactAliasMatch(results: AliasSearchResultDto[], label: string): AliasSearchResultDto | null {
+export function exactUsernameMatch(results: UsernameSearchResultDto[], label: string): UsernameSearchResultDto | null {
   const wanted = normalizeDpnsLabel(stripDpnsInput(label))
   return results.find(result => normalizeDpnsLabel(stripDpnsInput(result.name)) === wanted) ?? null
 }

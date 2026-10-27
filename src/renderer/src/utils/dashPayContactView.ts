@@ -70,8 +70,8 @@ export function contactDetailSubtitle(contact: DashPayContactDto, identityName: 
   return `${CONTACT_DETAIL_COPY.contactOf} ${identityName}${CONTACT_COPY_SEPARATOR}${CONTACT_DETAIL_COPY.since} ${since}`
 }
 
-export function contactOtherNames(aliases: string[], limit: number): string | null {
-  const others = aliases.slice(1)
+export function contactOtherNames(names: string[], limit: number): string | null {
+  const others = names.slice(1)
   if (others.length === 0) return null
   const shown = `${CONTACT_DETAIL_COPY.also} ${others.slice(0, limit).join(', ')}`
   const hidden = others.length - limit

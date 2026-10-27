@@ -16,7 +16,7 @@ import { IDENTITY_KEY_VARIANTS, KEY_VARIANT_GROUPS } from '../../src/renderer/sr
 import type { IdentityKeyDto } from '../../src/renderer/src/api/types'
 
 function key(keyId: number, purpose: string, securityLevel: string, overrides: Partial<IdentityKeyDto> = {}): IdentityKeyDto {
-  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', disabled: false, contractBounds: null, ...overrides }
+  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', data: '', readOnly: false, disabledAt: null, contractBounds: null, ...overrides }
 }
 
 const BASE_KEYS = [

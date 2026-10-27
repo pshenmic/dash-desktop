@@ -1,4 +1,4 @@
-import { CheckIcon, InfoCircleIcon, Text } from '@renderer/components/dash-ui-kit-extended'
+import { CheckIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import { ExclamationIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import Alert from '@renderer/components/ui/Alert'
 import RetryButton from '@renderer/components/ui/RetryButton'
@@ -10,7 +10,7 @@ import { DpnsLabelKind, UsernameAvailability } from '@renderer/enums/DashPay'
 import type { UsernameCheckProps } from '@renderer/types/DashPayUsernames'
 import { fullDpnsName } from '@renderer/utils/dpnsLabel'
 
-function AvailabilityLine({ check, availability, ownerName, onRetry }: Omit<UsernameCheckProps, 'network' | 'resumable'>): React.JSX.Element | null {
+function AvailabilityLine({ check, availability, ownerName, onRetry }: Omit<UsernameCheckProps, 'network'>): React.JSX.Element | null {
   const name = fullDpnsName(check.label)
   switch (availability) {
     case UsernameAvailability.Checking:
@@ -35,6 +35,10 @@ function AvailabilityLine({ check, availability, ownerName, onRetry }: Omit<User
       return <Text size={12} weight={"medium"} color={"red"}>{`${USERNAME_CHECK_COPY.owned} ${name}`}</Text>
     case UsernameAvailability.OwnedByWallet:
       return <Text size={12} weight={"medium"} color={"red"} className={"wrap-anywhere"}>{`${ownerName ?? ''} ${USERNAME_CHECK_COPY.ownedByWallet}`.trim()}</Text>
+    case UsernameAvailability.InContest:
+      return <Text size={12} weight={"medium"} color={"red"}>{`${USERNAME_CHECK_COPY.inContest} ${name}`}</Text>
+    case UsernameAvailability.InWalletContest:
+      return <Text size={12} weight={"medium"} color={"red"} className={"wrap-anywhere"}>{`${ownerName ?? ''} ${USERNAME_CHECK_COPY.inWalletContest}`.trim()}</Text>
     case UsernameAvailability.Error:
       return (
         <span className={"flex items-center gap-2"}>
@@ -47,7 +51,7 @@ function AvailabilityLine({ check, availability, ownerName, onRetry }: Omit<User
   }
 }
 
-export default function UsernameCheck({ check, network, availability, resumable, ownerName, onRetry }: UsernameCheckProps): React.JSX.Element | null {
+export default function UsernameCheck({ check, network, availability, ownerName, onRetry }: UsernameCheckProps): React.JSX.Element | null {
   if (check.label === '') return null
   if (check.issue != null) {
     return <Text size={12} weight={"medium"} color={"red"}>{DPNS_LABEL_MESSAGES[check.issue]}</Text>
@@ -61,23 +65,13 @@ export default function UsernameCheck({ check, network, availability, resumable,
   return (
     <div className={"flex flex-col gap-3"}>
       <div className={"flex flex-col gap-1"}>
-        {!resumable && (
-          <AvailabilityLine check={check} availability={availability} ownerName={ownerName} onRetry={onRetry} />
-        )}
+        <AvailabilityLine check={check} availability={availability} ownerName={ownerName} onRetry={onRetry} />
         {check.normalized !== check.label.toLowerCase() && (
           <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
             {`${USERNAME_CHECK_COPY.savedAs} ${check.normalized} — ${USERNAME_CHECK_COPY.homographHint}`}
           </Text>
         )}
       </div>
-      {resumable && (
-        <Alert
-          tone={AlertTone.Info}
-          icon={<InfoCircleIcon size={16} color={"currentColor"} />}
-          title={USERNAME_CHECK_COPY.resumableTitle}
-          description={USERNAME_CHECK_COPY.resumableDescription}
-        />
-      )}
       {contested && (
         <Alert
           tone={AlertTone.Warning}

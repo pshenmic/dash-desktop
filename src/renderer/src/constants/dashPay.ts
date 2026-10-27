@@ -11,7 +11,7 @@ import { IdentityKeyPurpose, IdentityKeySecurityLevel } from '@renderer/enums/Id
 import { DestinationKind } from '@renderer/enums/DestinationKind'
 import { SourceKind } from '@renderer/enums/SourceKind'
 import type { CustomBadgeProps } from '@renderer/types/CustomBadge'
-import type { AliasSearchPage } from '@renderer/types/Dpns'
+import type { UsernameSearchPage } from '@renderer/types/Dpns'
 import type { SegmentOption } from '@renderer/types/SegmentedControl'
 import { SURFACE_ROW } from './surfaces'
 
@@ -53,15 +53,14 @@ export const DASHPAY_USERNAMES_PAGE_SIZE = 50
 
 export const OVERVIEW_PREVIEW_LIMIT = 3
 
-export const DASHPAY_ALIASES_REFRESH_MS = 60_000
+export const DASHPAY_REFRESH_MS = 15_000
 
-export const DASHPAY_CONTACTS_REFRESH_MS = 60_000
 
-export const ALIAS_SEARCH_DEBOUNCE_MS = 300
+export const USERNAME_SEARCH_DEBOUNCE_MS = 300
 
-export const ALIAS_SEARCH_MIN_CHARS = 1
+export const USERNAME_SEARCH_MIN_CHARS = 1
 
-export const ALIAS_SEARCH_RESULT_CAP = 100
+export const USERNAME_SEARCH_RESULT_CAP = 100
 
 export const DASHPAY_IDENTITY_STORAGE_PREFIX = 'dashpay.identity.'
 
@@ -158,17 +157,17 @@ export const FEE_SHORTFALL_COPY = {
 } as const
 
 export const DASHPAY_CACHE_NAMESPACES = {
-  aliases: 'dashpay-aliases',
-  aliasSearch: 'dashpay-alias-search',
+  usernames: 'dashpay-usernames',
+  usernameSearch: 'dashpay-username-search',
   contacts: 'dashpay-contacts',
   payments: 'dashpay-payments',
 } as const
 
 export const DASHPAY_LOAD_ERRORS = {
-  aliases: 'Failed to load usernames',
-  aliasSearch: 'Couldn’t search usernames',
+  usernames: 'Failed to load usernames',
+  usernameSearch: 'Couldn’t search usernames',
   contacts: 'Failed to load contacts',
   payments: 'Failed to load payments',
 } as const
 
-export const EMPTY_ALIAS_SEARCH: AliasSearchPage = { query: '', results: [] }
+export const EMPTY_USERNAME_SEARCH: UsernameSearchPage = { query: '', results: [] }

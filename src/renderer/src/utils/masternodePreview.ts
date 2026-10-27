@@ -159,8 +159,8 @@ export function buildPreviewNodes(preset: MasternodePreviewPreset, seed: number,
 }
 
 export function previewStem(identities: PreviewIdentity[]): string {
-  const alias = byIdentityIndex(identities)[0]?.aliasesList[0]
-  return alias == null ? PREVIEW_FALLBACK_STEM : stripDpnsInput(alias)
+  const username = byIdentityIndex(identities)[0]?.usernames[0]
+  return username == null ? PREVIEW_FALLBACK_STEM : stripDpnsInput(username)
 }
 
 export function resolvePreviewLabel(template: string, stem: string): string {
@@ -228,7 +228,7 @@ function fixtureContenders(random: PreviewRandom, label: string, count: number, 
 function walletContender(identity: PreviewIdentity, label: string, votes: number, timing: PreviewContestTiming): ContestContenderDto {
   return {
     identifier: identity.identifier,
-    displayName: identity.aliasesList[0] ?? null,
+    displayName: identity.usernames[0] ?? null,
     requestedLabel: label,
     votes,
     requestedAt: timing.startedAt,

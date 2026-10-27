@@ -21,7 +21,7 @@ function contact(contactId: string, relationship: DashPayContactRelationship, op
     identifier: ME,
     contactId,
     relationship,
-    aliasesList: [],
+    usernames: [],
     incomingCreatedAt: relationship === DashPayContactRelationship.Outgoing ? null : 1_000,
     outgoingCreatedAt: relationship === DashPayContactRelationship.Incoming ? null : 1_000,
     paymentChannelBroken: false,
@@ -31,11 +31,11 @@ function contact(contactId: string, relationship: DashPayContactRelationship, op
 
 const { Incoming, Outgoing, Established } = DashPayContactRelationship
 
-const alice = contact('AliceId', Established, { aliasesList: ['alice.dash', 'alice-pay.dash'], incomingCreatedAt: 5_000, outgoingCreatedAt: 9_000 })
-const bob = contact('BobId', Established, { aliasesList: ['Bob.dash'], incomingCreatedAt: 3_000, outgoingCreatedAt: 2_000 })
-const carol = contact('CarolId', Incoming, { aliasesList: ['carol01.dash'], incomingCreatedAt: 7_000 })
-const dave = contact('DaveId', Outgoing, { aliasesList: ['dave42.dash'], outgoingCreatedAt: 8_000 })
-const digits = contact('DigitId', Established, { aliasesList: ['42ndstreet.dash'], incomingCreatedAt: 4_000, outgoingCreatedAt: 4_000 })
+const alice = contact('AliceId', Established, { usernames: ['alice.dash', 'alice-pay.dash'], incomingCreatedAt: 5_000, outgoingCreatedAt: 9_000 })
+const bob = contact('BobId', Established, { usernames: ['Bob.dash'], incomingCreatedAt: 3_000, outgoingCreatedAt: 2_000 })
+const carol = contact('CarolId', Incoming, { usernames: ['carol01.dash'], incomingCreatedAt: 7_000 })
+const dave = contact('DaveId', Outgoing, { usernames: ['dave42.dash'], outgoingCreatedAt: 8_000 })
+const digits = contact('DigitId', Established, { usernames: ['42ndstreet.dash'], incomingCreatedAt: 4_000, outgoingCreatedAt: 4_000 })
 const unnamed = contact('7Hh2aRfK1sdP', Established, { incomingCreatedAt: 6_000, outgoingCreatedAt: 1_000 })
 const all = [alice, bob, carol, dave, digits, unnamed]
 
@@ -78,7 +78,7 @@ describe('contact presentation', () => {
 })
 
 describe('filterContacts', () => {
-  it('matches any alias homograph-insensitively and an identifier substring', () => {
+  it('matches any username homograph-insensitively and an identifier substring', () => {
     expect(filterContacts(all, 'ALICE-PAY').map(entry => entry.contactId)).toEqual(['AliceId'])
     expect(filterContacts(all, 'car0l').map(entry => entry.contactId)).toEqual(['CarolId'])
     expect(filterContacts(all, 'K1sd').map(entry => entry.contactId)).toEqual(['7Hh2aRfK1sdP'])

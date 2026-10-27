@@ -1,5 +1,5 @@
-import type { AliasDto, AliasSearchResultDto } from '@renderer/api/types'
-import type { AliasPresentation, DpnsLabelIssue, DpnsLabelKind } from '@renderer/enums/DashPay'
+import type { UsernameContenderDto, UsernameDto, UsernameSearchResultDto } from '@renderer/api/types'
+import type { UsernamePresentation, DpnsLabelIssue, DpnsLabelKind } from '@renderer/enums/DashPay'
 import type { StatusPillTone } from '@renderer/enums/StatusPillTone'
 
 export interface DpnsLabelCheck {
@@ -13,28 +13,33 @@ export interface UsernameRowModel {
   label: string
   normalizedLabel: string
   fullName: string
-  presentation: AliasPresentation
+  presentation: UsernamePresentation
   isContested: boolean
   isPrimary: boolean
-  alias: AliasDto | null
+  username: UsernameDto | null
 }
 
 export interface UsernameAvailabilityInput {
   normalized: string
   identifier: string
   walletIdentifiers: ReadonlySet<string>
-  results: AliasSearchResultDto[] | null
+  walletUsernames: UsernameDto[]
+  results: UsernameSearchResultDto[] | null
   loading: boolean
   error: string | null
 }
 
-export interface AliasPresentationSpec {
+export interface ContestStanding extends UsernameContenderDto {
+  isOwn: boolean
+}
+
+export interface UsernamePresentationSpec {
   label: string
   tone: StatusPillTone
   caption: string
 }
 
-export interface AliasSearchPage {
+export interface UsernameSearchPage {
   query: string
-  results: AliasSearchResultDto[]
+  results: UsernameSearchResultDto[]
 }

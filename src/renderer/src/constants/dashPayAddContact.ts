@@ -1,6 +1,6 @@
 import { DashPayTab, SearchResultState } from '@renderer/enums/DashPay'
 import type { SearchResultBadge } from '@renderer/types/DashPayAddContact'
-import { ALIAS_SEARCH_RESULT_CAP, DASHPAY_PARAMS, DASHPAY_ROUTES } from './dashPay'
+import { USERNAME_SEARCH_RESULT_CAP, DASHPAY_PARAMS, DASHPAY_ROUTES } from './dashPay'
 import { CHIP_ACTION, SURFACE_ROW } from './surfaces'
 
 export const ADD_CONTACT_COPY = {
@@ -14,7 +14,7 @@ export const ADD_CONTACT_COPY = {
   resultsFor: 'Results for',
   resultsLabel: 'Search results',
   noMatch: 'No usernames start with',
-  capped: `Showing first ${ALIAS_SEARCH_RESULT_CAP} — refine your search`,
+  capped: `Showing first ${USERNAME_SEARCH_RESULT_CAP} — refine your search`,
   noUsername: 'No username',
   open: 'Open',
   accept: 'Accept',

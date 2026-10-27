@@ -25,7 +25,7 @@ import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { useActiveIdentity } from '@renderer/hooks/useActiveIdentity'
-import { useAliasSearch } from '@renderer/hooks/useAliasSearch'
+import { useUsernameSearch } from '@renderer/hooks/useUsernameSearch'
 import { setDashPayContactsCache, useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
@@ -36,9 +36,9 @@ import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { IdentitySelectHandle } from '@renderer/types/IdentitySelect'
 import {
   addContactRows,
-  aliasSearchPrefix,
+  usernameSearchPrefix,
   identifierResultRow,
-  isAliasSearchCapped,
+  isUsernameSearchCapped,
   isSelectableResult,
   resultRowLabel,
 } from '@renderer/utils/dashPayAddContact'
@@ -65,13 +65,13 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
   const [returnTo] = useState(() => (location.state as DashPayNavigationState | null)?.returnTo ?? null)
 
   const identifierQuery = isIdentifierLike(query)
-  const aliasSearch = useAliasSearch(walletId, identifierQuery ? '' : aliasSearchPrefix(query))
+  const usernameSearch = useUsernameSearch(walletId, identifierQuery ? '' : usernameSearchPrefix(query))
   const actingIdentifier = identity?.identifier ?? null
   const walletIdentifiers = useWalletIdentifiers(identities)
   const rows = useMemo(() => {
     const context = { actingIdentifier: actingIdentifier ?? '', contacts, walletIdentifiers }
-    return identifierQuery ? [identifierResultRow(query, context)] : addContactRows(aliasSearch.results, context)
-  }, [actingIdentifier, contacts, walletIdentifiers, identifierQuery, query, aliasSearch.results])
+    return identifierQuery ? [identifierResultRow(query, context)] : addContactRows(usernameSearch.results, context)
+  }, [actingIdentifier, contacts, walletIdentifiers, identifierQuery, query, usernameSearch.results])
   const selected = rows.find(row => row.identifier === selectedId && isSelectableResult(row.state)) ?? null
 
   const quote = useOperationFee(walletId, TransferOperation.DashPayContactRequest, {
@@ -92,10 +92,10 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
 
   const search: AddContactSearchPanel = {
     rows,
-    capped: !identifierQuery && isAliasSearchCapped(aliasSearch.results),
-    loading: contactsLoading || (!identifierQuery && aliasSearch.loading),
-    err: identifierQuery ? null : aliasSearch.err,
-    retry: aliasSearch.retry,
+    capped: !identifierQuery && isUsernameSearchCapped(usernameSearch.results),
+    loading: contactsLoading || (!identifierQuery && usernameSearch.loading),
+    err: identifierQuery ? null : usernameSearch.err,
+    retry: usernameSearch.retry,
   }
 
   const backHref = returnHref(returnTo, ADD_CONTACT_FALLBACK_RETURN, actingIdentifier)

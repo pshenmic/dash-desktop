@@ -9,7 +9,7 @@ import { DASHPAY_USERNAMES_PAGE_SIZE } from '@renderer/constants/dashPay'
 import { USERNAME_LIST_COPY, USERNAME_SKELETON_ROW_CLASS } from '@renderer/constants/dashPayUsernames'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
-import { refreshDashPayAliases, useDashPayAliases } from '@renderer/hooks/useDashPayAliases'
+import { refreshDashPayUsernames, useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
 import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { UsernamesTabProps } from '@renderer/types/DashPayScreens'
@@ -25,14 +25,14 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
   const { status } = useAuth()
   const network = status?.network ?? null
   const debugMode = useDebugMode()
-  const { aliases, loading, err } = useDashPayAliases(walletId)
+  const { usernames: walletUsernames, loading, err } = useDashPayUsernames(walletId)
   const [visibleCount, setVisibleCount] = useState(DASHPAY_USERNAMES_PAGE_SIZE)
   const [detail, setDetail] = useState<UsernameRowModel | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
   const rows = useMemo(
-    () => primaryFirst(mergeIdentityUsernames(identity.aliasesList, aliases, identity.identifier)),
-    [identity.aliasesList, aliases, identity.identifier]
+    () => primaryFirst(mergeIdentityUsernames(identity.usernames, walletUsernames, identity.identifier)),
+    [identity.usernames, walletUsernames, identity.identifier]
   )
 
   const openRegister = (label: string | null): void => {
@@ -63,18 +63,18 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
     ? registerButton
     : <Tooltip label={USERNAME_LIST_COPY.needsKey}><span className={"inline-flex"}>{registerButton}</span></Tooltip>
 
-  const waiting = aliases.length === 0 && (loading || err != null)
+  const waiting = walletUsernames.length === 0 && (loading || err != null)
   const empty = !waiting && rows.length === 0
 
   let body: React.JSX.Element
-  if (loading && aliases.length === 0) {
+  if (loading && walletUsernames.length === 0) {
     body = <ListSkeleton rows={3} rowClassName={USERNAME_SKELETON_ROW_CLASS} />
-  } else if (err != null && aliases.length === 0) {
+  } else if (err != null && walletUsernames.length === 0) {
     body = (
       <NoResults
         tone={NoResultsTone.Error}
         noResults={err}
-        action={<RetryButton onRetry={() => refreshDashPayAliases(walletId)} />}
+        action={<RetryButton onRetry={() => refreshDashPayUsernames(walletId)} />}
       />
     )
   } else if (empty) {

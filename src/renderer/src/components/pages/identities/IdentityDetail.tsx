@@ -72,7 +72,7 @@ export default function IdentityDetail({ walletId, identifier }: IdentityDetailP
   }
 
   const name = identityName(identity)
-  const extraNames = Math.max(0, identity.aliasesList.length - 1)
+  const extraNames = Math.max(0, identity.usernames.length - 1)
   const balance = identity.balance.amount
 
   return (
@@ -130,7 +130,7 @@ export default function IdentityDetail({ walletId, identifier }: IdentityDetailP
             <TransactionDetailToken
               icon={<IdenticonIcon size={12} color={'currentColor'} className={IDENTITY_TOKEN_ICON_CLASS} />}
               label={IDENTITY_DETAIL_COPY.usernames}
-              value={<Text size={14} weight={'extrabold'} color={'brand'} className={'tabular-nums'}>{identity.aliasesList.length}</Text>}
+              value={<Text size={14} weight={'extrabold'} color={'brand'} className={'tabular-nums'}>{identity.usernames.length}</Text>}
             />
             <TransactionDetailToken
               icon={<KeyIcon size={12} color={'currentColor'} className={IDENTITY_TOKEN_ICON_CLASS} />}
@@ -141,7 +141,7 @@ export default function IdentityDetail({ walletId, identifier }: IdentityDetailP
           </div>
         </div>
 
-        <IdentityKeysSection identity={identity} />
+        <IdentityKeysSection walletId={walletId} identity={identity} />
       </div>
     </div>
   )

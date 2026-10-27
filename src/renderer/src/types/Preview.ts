@@ -60,7 +60,7 @@ export interface PreviewWalletState {
   failNextVote: string[]
 }
 
-export type PreviewIdentity = Pick<IdentityApiDto, 'identifier' | 'identityIndex' | 'aliasesList'>
+export type PreviewIdentity = Pick<IdentityApiDto, 'identifier' | 'identityIndex' | 'usernames'>
 
 export interface PreviewWalletInput {
   walletId: string

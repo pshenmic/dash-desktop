@@ -6,6 +6,7 @@ export enum IdentityKeyPurpose {
 }
 
 export enum IdentityKeySecurityLevel {
+  Master = 'MASTER',
   Critical = 'CRITICAL',
   High = 'HIGH',
   Medium = 'MEDIUM',
@@ -20,4 +21,14 @@ export enum IdentityKeyVariant {
   Enc = 'enc',
   Dec = 'dec',
   Transfer = 'transfer',
+}
+
+export enum IdentityKeyAction {
+  Disable = 'disable',
+  ReplaceMaster = 'replace-master',
+}
+
+export enum IdentityKeyDashPayImpact {
+  StopsDashPay = 'stops-dashpay',
+  ContactRequests = 'contact-requests',
 }

@@ -22,6 +22,8 @@ export const USERNAME_INPUT_CLASS = 'bg-transparent outline-none flex-1 min-w-0 
 
 export const USERNAME_DOCUMENT_ID_CLASS = `min-w-0 text-right text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
 
+export const USERNAME_CONTENDER_ID_CLASS = `min-w-0 text-left text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
+
 export const USERNAME_DIVIDER_CLASS = 'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'
 
 export const USERNAME_LIST_COPY = {
@@ -32,7 +34,6 @@ export const USERNAME_LIST_COPY = {
   primaryTooltip: 'Your oldest name is the one others see',
   contested: 'Contested',
   viewContest: 'View contest →',
-  resume: 'Resume',
   registerAgain: 'Register',
   open: 'Open',
   emptyTitle: 'No username yet',
@@ -49,21 +50,27 @@ export const USERNAME_DETAIL_COPY = {
   status: 'Status',
   identity: 'Identity',
   type: 'Type',
-  added: 'Added',
-  checked: 'Checked',
   documentId: 'Document ID',
-  forYou: 'For you',
   lock: 'Lock',
   abstain: 'Abstain',
   ends: 'Ends',
   newContenders: 'New contenders until',
   closed: 'Closed',
   voteEnded: 'Vote ended',
-  votesNote: 'Other contenders’ votes aren’t shown here.',
+  outcome: 'Outcome',
+  winner: 'Winner',
+  contenders: 'Contenders',
+  thisIdentity: 'This identity',
   viewContest: 'View contest',
-  resume: 'Resume',
   register: 'Register',
   close: 'Close',
+} as const
+
+export const USERNAME_VOTE_OUTCOME_COPY = {
+  wonByThisIdentity: 'Won by this identity',
+  wonByOther: 'Won by another identity',
+  locked: 'Locked by masternodes',
+  noWinner: 'No winner',
 } as const
 
 export const REGISTER_USERNAME_STEPS = {
@@ -95,6 +102,8 @@ export const USERNAME_CHECK_COPY = {
   taken: 'is taken',
   owned: 'This identity already owns',
   ownedByWallet: 'in this wallet owns it',
+  inContest: 'This identity is already in the vote for',
+  inWalletContest: 'in this wallet is already in the vote for it',
   error: 'Couldn’t check availability',
   savedAs: 'Saved as',
   homographHint: 'o, i and l count as 0, 1 and 1',
@@ -102,8 +111,6 @@ export const USERNAME_CHECK_COPY = {
   contestedLead: 'Masternodes vote',
   contestedFor: 'for',
   contestedTail: 'before it’s awarded. If someone already requested it, you join their contest.',
-  resumableTitle: 'Preorder already paid',
-  resumableDescription: 'Registering again won’t charge it twice.',
 } as const
 
 export const REGISTER_CONFIRM_COPY = {
@@ -118,11 +125,7 @@ export const REGISTER_SIGN_COPY = {
   confirm: 'Register',
   pending: 'Registering',
   toLabel: 'Username',
-  failedTitle: 'Registration didn’t finish',
-  failedDescription: 'Your preorder is paid and will be reused.',
-  retry: 'Try again',
   noteRegistered: 'Your name is registered.',
-  notePending: 'Registering — usually under a minute.',
   noteContestLead: 'Your request entered a name contest.',
   noteContestEnds: 'Voting ends in',
   identity: 'Identity',
@@ -137,4 +140,6 @@ export const USERNAME_AVAILABILITY_BLOCKING: UsernameAvailability[] = [
   UsernameAvailability.Taken,
   UsernameAvailability.Owned,
   UsernameAvailability.OwnedByWallet,
+  UsernameAvailability.InContest,
+  UsernameAvailability.InWalletContest,
 ]

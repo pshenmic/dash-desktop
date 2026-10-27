@@ -95,8 +95,8 @@ export default function ContactDetail({
   }
 
   const name = contactDisplayName(contact)
-  const username = contact.aliasesList[0] ?? null
-  const otherNames = contactOtherNames(contact.aliasesList, CONTACT_OTHER_NAMES_LIMIT)
+  const username = contact.usernames[0] ?? null
+  const otherNames = contactOtherNames(contact.usernames, CONTACT_OTHER_NAMES_LIMIT)
   const payable = isPayable(contact)
   const incoming = contact.relationship === DashPayContactRelationship.Incoming
   const canAccept = incoming && !contact.paymentChannelBroken && readiness.canSend

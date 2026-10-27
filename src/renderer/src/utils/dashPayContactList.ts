@@ -1,4 +1,4 @@
-import type { AliasSearchResultDto, DashPayContactDto } from '@renderer/api/types'
+import type { UsernameSearchResultDto, DashPayContactDto } from '@renderer/api/types'
 import {
   CONTACT_DIGIT_PATTERN,
   CONTACT_GROUP_LABELS,
@@ -18,7 +18,7 @@ export function contactsForIdentity(contacts: DashPayContactDto[], identifier: s
 }
 
 export function contactDisplayName(contact: DashPayContactDto): string {
-  return contact.aliasesList[0] ?? contact.contactId
+  return contact.usernames[0] ?? contact.contactId
 }
 
 export function contactLastActivity(contact: DashPayContactDto): number {
@@ -32,8 +32,8 @@ export function isPayable(contact: DashPayContactDto): boolean {
 export function contactRowModel(contact: DashPayContactDto, walletIdentifiers: ReadonlySet<string>): ContactRowModel {
   return {
     contact,
-    name: contact.aliasesList[0] ?? null,
-    extraNames: Math.max(0, contact.aliasesList.length - 1),
+    name: contact.usernames[0] ?? null,
+    extraNames: Math.max(0, contact.usernames.length - 1),
     isWalletIdentity: walletIdentifiers.has(contact.contactId),
     payable: isPayable(contact),
     lastActivity: contactLastActivity(contact),
@@ -41,12 +41,12 @@ export function contactRowModel(contact: DashPayContactDto, walletIdentifiers: R
 }
 
 export function filterContacts(contacts: DashPayContactDto[], query: string): DashPayContactDto[] {
-  return contacts.filter(contact => matchesIdentityQuery(contact.contactId, contact.aliasesList, query))
+  return contacts.filter(contact => matchesIdentityQuery(contact.contactId, contact.usernames, query))
 }
 
 function compareContactNames(a: DashPayContactDto, b: DashPayContactDto): number {
-  const nameA = a.aliasesList[0]
-  const nameB = b.aliasesList[0]
+  const nameA = a.usernames[0]
+  const nameB = b.usernames[0]
   if (nameA != null && nameB == null) return -1
   if (nameA == null && nameB != null) return 1
   const byName = nameA != null && nameB != null ? NAME_COLLATOR.compare(nameA, nameB) : 0
@@ -77,7 +77,7 @@ export function countContactSegments(contacts: DashPayContactDto[], query: strin
 }
 
 function letterKey(contact: DashPayContactDto): string {
-  const name = contact.aliasesList[0]
+  const name = contact.usernames[0]
   if (name == null) return CONTACT_GROUP_LABELS.noUsername
   const first = name.charAt(0).toUpperCase()
   return CONTACT_DIGIT_PATTERN.test(first) ? CONTACT_GROUP_LABELS.digits : first
@@ -114,7 +114,7 @@ export function groupContactRows(contacts: DashPayContactDto[], segment: Contact
 }
 
 export function searchResultState(
-  result: Pick<AliasSearchResultDto, 'identifier'>,
+  result: Pick<UsernameSearchResultDto, 'identifier'>,
   actingIdentifier: string,
   contacts: DashPayContactDto[],
   walletIdentifiers: ReadonlySet<string>,

@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   addContactRows,
-  aliasSearchPrefix,
+  usernameSearchPrefix,
   identifierResultRow,
-  isAliasSearchCapped,
+  isUsernameSearchCapped,
   isSelectableResult,
   resultRowLabel,
 } from '../../src/renderer/src/utils/dashPayAddContact'
-import { ALIAS_SEARCH_RESULT_CAP } from '../../src/renderer/src/constants/dashPay'
+import { USERNAME_SEARCH_RESULT_CAP } from '../../src/renderer/src/constants/dashPay'
 import { DashPayContactRelationship, SearchResultState } from '../../src/renderer/src/enums/DashPay'
-import type { AliasSearchResultDto, DashPayContactDto } from '../../src/renderer/src/api/types'
+import type { UsernameSearchResultDto, DashPayContactDto } from '../../src/renderer/src/api/types'
 import type { AddContactRowContext } from '../../src/renderer/src/types/DashPayAddContact'
 
 const ME = 'MyIdentity'
@@ -19,7 +19,7 @@ function contact(contactId: string, relationship: DashPayContactRelationship, id
     identifier,
     contactId,
     relationship,
-    aliasesList: [],
+    usernames: [],
     incomingCreatedAt: null,
     outgoingCreatedAt: null,
     paymentChannelBroken: false,
@@ -37,15 +37,15 @@ const context: AddContactRowContext = {
   walletIdentifiers: new Set([ME, 'OwnSpare']),
 }
 
-function result(identifier: string, name: string): AliasSearchResultDto {
+function result(identifier: string, name: string): UsernameSearchResultDto {
   return { identifier, name }
 }
 
-describe('aliasSearchPrefix', () => {
+describe('usernameSearchPrefix', () => {
   it('strips the handle, the suffix and whitespace, then normalizes homographs', () => {
-    expect(aliasSearchPrefix(' @Alice.dash ')).toBe('a11ce')
-    expect(aliasSearchPrefix('Bob')).toBe('b0b')
-    expect(aliasSearchPrefix('')).toBe('')
+    expect(usernameSearchPrefix(' @Alice.dash ')).toBe('a11ce')
+    expect(usernameSearchPrefix('Bob')).toBe('b0b')
+    expect(usernameSearchPrefix('')).toBe('')
   })
 })
 
@@ -106,12 +106,12 @@ describe('isSelectableResult', () => {
   })
 })
 
-describe('isAliasSearchCapped', () => {
+describe('isUsernameSearchCapped', () => {
   it('flags a page that reached the backend limit', () => {
-    const page = (n: number): AliasSearchResultDto[] => Array.from({ length: n }, (_, i) => result(`Id${i}`, `name${i}.dash`))
-    expect(isAliasSearchCapped(page(ALIAS_SEARCH_RESULT_CAP))).toBe(true)
-    expect(isAliasSearchCapped(page(ALIAS_SEARCH_RESULT_CAP - 1))).toBe(false)
-    expect(isAliasSearchCapped([])).toBe(false)
+    const page = (n: number): UsernameSearchResultDto[] => Array.from({ length: n }, (_, i) => result(`Id${i}`, `name${i}.dash`))
+    expect(isUsernameSearchCapped(page(USERNAME_SEARCH_RESULT_CAP))).toBe(true)
+    expect(isUsernameSearchCapped(page(USERNAME_SEARCH_RESULT_CAP - 1))).toBe(false)
+    expect(isUsernameSearchCapped([])).toBe(false)
   })
 })
 

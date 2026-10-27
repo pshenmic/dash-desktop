@@ -37,7 +37,6 @@ export interface UsernameCheckProps {
   check: DpnsLabelCheck
   network: Network | null
   availability: UsernameAvailability
-  resumable: boolean
   ownerName: string | null
   onRetry: () => void
 }
@@ -59,7 +58,6 @@ export interface RegisterConfirmStepProps {
 export interface RegisterGateInput {
   issue: DpnsLabelIssue | null
   canRegister: boolean
-  resumable: boolean
   availability: UsernameAvailability
   feeCredits: bigint | null
   feeReady: boolean

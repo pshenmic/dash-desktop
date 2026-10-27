@@ -1,6 +1,6 @@
 import { API } from '@renderer/api'
 import type { DashPayContactDto } from '@renderer/api/types'
-import { DASHPAY_CACHE_NAMESPACES, DASHPAY_CONTACTS_REFRESH_MS, DASHPAY_LOAD_ERRORS } from '@renderer/constants/dashPay'
+import { DASHPAY_CACHE_NAMESPACES, DASHPAY_LOAD_ERRORS } from '@renderer/constants/dashPay'
 import { invalidateAsyncCache, prefetchAsyncCache, setAsyncCache, useAsyncWithCache } from './useAsyncWithCache'
 
 export function useDashPayContacts(walletId: string | undefined) {
@@ -9,7 +9,7 @@ export function useDashPayContacts(walletId: string | undefined) {
     walletId,
     () => API.getDashPayContacts(walletId!),
     [],
-    { errorMessage: DASHPAY_LOAD_ERRORS.contacts, refreshIntervalMs: DASHPAY_CONTACTS_REFRESH_MS }
+    { errorMessage: DASHPAY_LOAD_ERRORS.contacts }
   )
   return { contacts: data, loading, err }
 }

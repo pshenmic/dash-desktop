@@ -8,7 +8,7 @@ import {
 } from '../../src/renderer/src/utils/dashPayOverview'
 import { dashPayReadiness, setupSteps } from '../../src/renderer/src/utils/dashPayReadiness'
 import {
-  AliasPresentation,
+  UsernamePresentation,
   DashPayContactRelationship,
   OverviewAction,
   OverviewBand,
@@ -18,19 +18,19 @@ import type { IdentityApiDto } from '../../src/renderer/src/hooks/useIdentities'
 import type { UsernameRowModel } from '../../src/renderer/src/types/Dpns'
 
 function key(keyId: number, purpose: string, securityLevel: string): IdentityKeyDto {
-  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', disabled: false, contractBounds: null }
+  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', data: '', readOnly: false, disabledAt: null, contractBounds: null }
 }
 
 const DASHPAY_KEYS = [key(0, 'AUTHENTICATION', 'MASTER'), key(1, 'AUTHENTICATION', 'HIGH'), key(2, 'ENCRYPTION', 'MEDIUM'), key(3, 'DECRYPTION', 'MEDIUM')]
 const SIGNING_ONLY = [key(0, 'AUTHENTICATION', 'MASTER'), key(1, 'AUTHENTICATION', 'HIGH')]
 const MANY_KEYS = Array.from({ length: 30 }, (_, index) => key(index, 'TRANSFER', 'CRITICAL'))
 
-function identity(identifier: string, aliasesList: string[], keys: IdentityKeyDto[], amount = 1n): IdentityApiDto {
+function identity(identifier: string, usernames: string[], keys: IdentityKeyDto[], amount = 1n): IdentityApiDto {
   return {
     identityIndex: 0,
     identifier,
-    alias: aliasesList[0] ?? null,
-    aliasesList,
+    alias: usernames[0] ?? null,
+    usernames,
     keys,
     balance: { amount, usdAmount: '0.0' },
     derivationPath: '',
@@ -43,15 +43,15 @@ function contact(identifier: string, contactId: string, relationship: DashPayCon
     identifier,
     contactId,
     relationship,
-    aliasesList: [],
+    usernames: [],
     incomingCreatedAt: at,
     outgoingCreatedAt: null,
     paymentChannelBroken: false,
   }
 }
 
-function row(label: string, presentation: AliasPresentation): UsernameRowModel {
-  return { label, normalizedLabel: label, fullName: `${label}.dash`, presentation, isContested: false, isPrimary: false, alias: null }
+function row(label: string, presentation: UsernamePresentation): UsernameRowModel {
+  return { label, normalizedLabel: label, fullName: `${label}.dash`, presentation, isContested: false, isPrimary: false, username: null }
 }
 
 const CONTACTS = [
@@ -126,7 +126,7 @@ describe('completedSetupSteps', () => {
 
 describe('usernameSummary', () => {
   it('counts names and the ones in a vote', () => {
-    const rows = [row('a', AliasPresentation.Registered), row('b', AliasPresentation.Voting), row('c', AliasPresentation.Pending)]
+    const rows = [row('a', UsernamePresentation.Registered), row('b', UsernamePresentation.Voting), row('c', UsernamePresentation.Missing)]
     expect(usernameSummary(rows)).toEqual({ total: 3, inVote: 1 })
     expect(usernameSummary([])).toEqual({ total: 0, inVote: 0 })
   })

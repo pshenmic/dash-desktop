@@ -3,5 +3,4 @@ export enum SignedActionPhase {
   Confirm = 'confirm',
   Sending = 'sending',
   Done = 'done',
-  Failed = 'failed',
 }

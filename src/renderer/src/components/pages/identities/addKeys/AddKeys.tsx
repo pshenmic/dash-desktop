@@ -55,7 +55,7 @@ function AddKeysWizard({
   const check = validateKeySelection(selected)
   const balance = identity.balance.amount
 
-  const fee = useOperationFee(walletId, TransferOperation.IdentityCreateKeys, {
+  const fee = useOperationFee(walletId, TransferOperation.IdentityUpdateKeys, {
     amountCredits: 0n,
     recipient: '',
     identityId: identity.identifier,
@@ -68,7 +68,7 @@ function AddKeysWizard({
   const name = identityLabel(identity)
 
   const run = async (password: string): Promise<KeysAddedResult> => {
-    const stHash = await API.createIdentityKeys(walletId, identity.identifier, requests, password)
+    const stHash = await API.updateIdentityKeys(walletId, identity.identifier, { add: requests, disable: [] }, password)
     void refreshIdentities(walletId)
     return { stHash, count: requests.length }
   }

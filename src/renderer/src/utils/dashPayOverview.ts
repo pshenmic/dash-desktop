@@ -1,6 +1,6 @@
 import type { DashPayContactDto } from '@renderer/api/types'
 import {
-  AliasPresentation,
+  UsernamePresentation,
   ContactSort,
   DashPayContactRelationship,
   OverviewAction,
@@ -35,7 +35,7 @@ export function overviewActions(identity: IdentityApiDto | null, readiness: Dash
   if (identity == null || readiness == null) return [OverviewAction.CreateIdentity]
   const actions: OverviewAction[] = []
   if (readiness.missingKeys.length > 0) actions.push(OverviewAction.EnableDashPay)
-  if (identity.aliasesList.length === 0) actions.push(OverviewAction.RegisterUsername)
+  if (identity.usernames.length === 0) actions.push(OverviewAction.RegisterUsername)
   actions.push(OverviewAction.FindPeople)
   return actions.slice(0, 2)
 }
@@ -45,5 +45,5 @@ export function completedSetupSteps(steps: SetupStepModel[]): number {
 }
 
 export function usernameSummary(rows: UsernameRowModel[]): UsernameSummary {
-  return { total: rows.length, inVote: rows.filter(row => row.presentation === AliasPresentation.Voting).length }
+  return { total: rows.length, inVote: rows.filter(row => row.presentation === UsernamePresentation.Voting).length }
 }

@@ -30,9 +30,9 @@ import { contestVoteSummary, countContestSegments, isEndingSoon } from '../../sr
 const NOW = Date.UTC(2026, 9, 22, 12)
 const WALLET = '338e9f47'
 const IDENTITIES: PreviewIdentity[] = [
-  { identifier: '8eTDk'.padEnd(44, 'b'), identityIndex: 1, aliasesList: ['canuseethat1.dash'] },
-  { identifier: 'B7kcE'.padEnd(44, 'a'), identityIndex: 0, aliasesList: ['owl11.dash', 'owl.dash'] },
-  { identifier: '7cBLv'.padEnd(44, 'c'), identityIndex: 2, aliasesList: [] },
+  { identifier: '8eTDk'.padEnd(44, 'b'), identityIndex: 1, usernames: ['canuseethat1.dash'] },
+  { identifier: 'B7kcE'.padEnd(44, 'a'), identityIndex: 0, usernames: ['owl11.dash', 'owl.dash'] },
+  { identifier: '7cBLv'.padEnd(44, 'c'), identityIndex: 2, usernames: [] },
 ]
 const [SECOND, FIRST] = IDENTITIES
 const TESTNET_WIF = `c${'N'.repeat(50)}`

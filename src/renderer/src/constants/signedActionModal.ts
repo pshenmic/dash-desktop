@@ -1,7 +1,6 @@
 export const SIGNED_ACTION_COPY = {
   cancel: 'Cancel',
   back: 'Back',
-  close: 'Close',
   done: 'Done',
   failed: 'failed',
 } as const

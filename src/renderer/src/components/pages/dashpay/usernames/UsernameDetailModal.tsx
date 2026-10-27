@@ -3,18 +3,20 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import StatusPill from '@renderer/components/ui/StatusPill'
-import { USERNAME_DETAIL_COPY, USERNAME_DOCUMENT_ID_CLASS } from '@renderer/constants/dashPayUsernames'
-import { ALIAS_PRESENTATION } from '@renderer/constants/dpns'
+import { USERNAME_CONTENDER_ID_CLASS, USERNAME_DETAIL_COPY, USERNAME_DOCUMENT_ID_CLASS } from '@renderer/constants/dashPayUsernames'
+import { COUNT_NOUNS } from '@renderer/constants/masternodeNodes'
+import { USERNAME_PRESENTATION } from '@renderer/constants/dpns'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
-import { AliasPresentation } from '@renderer/enums/DashPay'
+import { UsernamePresentation } from '@renderer/enums/DashPay'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import type { ModalAction } from '@renderer/types/Modal'
 import type { UsernameDetailLine, UsernameDetailModalProps } from '@renderer/types/DashPayUsernames'
+import { countLabel } from '@renderer/utils/countLabel'
 import { formatTimestamp } from '@renderer/utils/date'
 import { usernameTitle, usernameTypeLabel } from '@renderer/utils/dashPayUsernames'
 import { identityLabel } from '@renderer/utils/identifierFormat'
-import { formatAgo, formatTimeLeft } from '@renderer/utils/timeLeft'
-import { joinClosesAt, usernameCaption } from '@renderer/utils/usernames'
+import { formatTimeLeft } from '@renderer/utils/timeLeft'
+import { contestStandings, joinClosesAt, usernameCaption, voteOutcomeLabel } from '@renderer/utils/usernames'
 
 function DetailLine({ label, value }: UsernameDetailLine): React.JSX.Element {
   return (
@@ -37,42 +39,43 @@ export default function UsernameDetailModal({
 }: UsernameDetailModalProps): React.JSX.Element | null {
   if (row == null) return null
 
-  const spec = ALIAS_PRESENTATION[row.presentation]
-  const alias = row.alias
-  const voting = row.presentation === AliasPresentation.Voting && alias != null
-  const closesAt = alias != null && network != null ? joinClosesAt(alias, network) : null
+  const spec = USERNAME_PRESENTATION[row.presentation]
+  const username = row.username
+  const voting = row.presentation === UsernamePresentation.Voting && username != null
+  const closesAt = username != null && network != null ? joinClosesAt(username, network) : null
   const title = usernameTitle(row.fullName)
 
   const lines: UsernameDetailLine[] = [
     { label: USERNAME_DETAIL_COPY.identity, value: identityLabel(identity) },
     { label: USERNAME_DETAIL_COPY.type, value: usernameTypeLabel(row.isContested, network) },
   ]
-  if (alias != null) lines.push({ label: USERNAME_DETAIL_COPY.added, value: formatTimestamp(new Date(alias.createdAt)) })
-  if (alias?.checkedAt != null) lines.push({ label: USERNAME_DETAIL_COPY.checked, value: formatAgo(alias.checkedAt, now) })
   if (voting) {
     lines.push(
-      { label: USERNAME_DETAIL_COPY.forYou, value: String(alias.votesFor ?? 0) },
-      { label: USERNAME_DETAIL_COPY.lock, value: String(alias.votesLock ?? 0) },
-      { label: USERNAME_DETAIL_COPY.abstain, value: String(alias.votesAbstain ?? 0) },
+      { label: USERNAME_DETAIL_COPY.lock, value: String(username.votesLock ?? 0) },
+      { label: USERNAME_DETAIL_COPY.abstain, value: String(username.votesAbstain ?? 0) },
     )
-    if (alias.voteEndsAt != null) {
-      lines.push({ label: USERNAME_DETAIL_COPY.ends, value: `${formatTimestamp(new Date(alias.voteEndsAt))} · ${formatTimeLeft(alias.voteEndsAt, now)}` })
+    if (username.voteEndsAt != null) {
+      lines.push({ label: USERNAME_DETAIL_COPY.ends, value: `${formatTimestamp(new Date(username.voteEndsAt))} · ${formatTimeLeft(username.voteEndsAt, now)}` })
     }
     lines.push({
       label: USERNAME_DETAIL_COPY.newContenders,
       value: closesAt == null || closesAt <= now ? USERNAME_DETAIL_COPY.closed : formatTimestamp(new Date(closesAt)),
     })
-  } else if (row.isContested && alias?.voteEndsAt != null) {
-    lines.push({ label: USERNAME_DETAIL_COPY.voteEnded, value: formatTimestamp(new Date(alias.voteEndsAt)) })
+  } else if (row.isContested && username?.voteEndsAt != null) {
+    lines.push({ label: USERNAME_DETAIL_COPY.voteEnded, value: formatTimestamp(new Date(username.voteEndsAt)) })
   }
+  const outcome = username == null ? null : voteOutcomeLabel(username)
+  if (outcome != null) lines.push({ label: USERNAME_DETAIL_COPY.outcome, value: outcome })
+  if (username?.voteWinner != null && username.voteWinner !== username.identifier) {
+    lines.push({ label: USERNAME_DETAIL_COPY.winner, value: username.voteWinner })
+  }
+  const standings = username == null ? [] : contestStandings(username)
 
   const close: ModalAction = { label: USERNAME_DETAIL_COPY.close, onClick: onClose }
   let primary: ModalAction | null = null
   if (voting && onViewContest != null) {
     primary = { label: USERNAME_DETAIL_COPY.viewContest, onClick: () => onViewContest(row) }
-  } else if (row.presentation === AliasPresentation.Resumable) {
-    primary = { label: USERNAME_DETAIL_COPY.resume, onClick: () => onRegister(row) }
-  } else if (row.presentation === AliasPresentation.Missing) {
+  } else if (row.presentation === UsernamePresentation.Missing) {
     primary = { label: USERNAME_DETAIL_COPY.register, onClick: () => onRegister(row) }
   }
 
@@ -93,23 +96,32 @@ export default function UsernameDetailModal({
         )}
         <div className={"flex items-center justify-between gap-4"}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{USERNAME_DETAIL_COPY.status}</Text>
-          <StatusPill tone={spec.tone} loading={row.presentation === AliasPresentation.Pending}>{spec.label}</StatusPill>
+          <StatusPill tone={spec.tone}>{spec.label}</StatusPill>
         </div>
         {lines.map(line => <DetailLine key={line.label} label={line.label} value={line.value} />)}
-        {alias?.documentId != null && (
+        {username?.documentId != null && (
           <div className={"flex items-start justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{USERNAME_DETAIL_COPY.documentId}</Text>
             <span className={"flex min-w-0 items-start gap-2"}>
-              <HighlightedIdentifier className={USERNAME_DOCUMENT_ID_CLASS}>{alias.documentId}</HighlightedIdentifier>
-              <CopyButton text={alias.documentId} className={"shrink-0"} />
+              <HighlightedIdentifier className={USERNAME_DOCUMENT_ID_CLASS}>{username.documentId}</HighlightedIdentifier>
+              <CopyButton text={username.documentId} className={"shrink-0"} />
             </span>
           </div>
         )}
       </div>
-      {voting && (
-        <Text reset as={"p"} size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-3"}>
-          {USERNAME_DETAIL_COPY.votesNote}
-        </Text>
+      {standings.length > 0 && (
+        <div className={`mt-3 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{USERNAME_DETAIL_COPY.contenders}</Text>
+          {standings.map(standing => (
+            <div key={standing.identifier} className={"flex items-start justify-between gap-4"}>
+              <span className={"flex min-w-0 flex-col gap-0.5"}>
+                <HighlightedIdentifier className={USERNAME_CONTENDER_ID_CLASS}>{standing.identifier}</HighlightedIdentifier>
+                {standing.isOwn && <Text size={10} weight={"medium"} color={"blue-mint"}>{USERNAME_DETAIL_COPY.thisIdentity}</Text>}
+              </span>
+              <Text size={12} weight={"bold"} color={"brand"} className={"shrink-0 tabular-nums"}>{countLabel(standing.votes, COUNT_NOUNS.vote)}</Text>
+            </div>
+          ))}
+        </div>
       )}
       <ModalActions primary={primary ?? close} secondary={primary == null ? undefined : close} />
     </Modal>

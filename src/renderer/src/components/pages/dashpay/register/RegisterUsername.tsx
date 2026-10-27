@@ -16,8 +16,8 @@ import Spinner from '@renderer/components/ui/Spinner'
 import StatusPill from '@renderer/components/ui/StatusPill'
 import TxSummary from '@renderer/components/ui/TxSummary'
 import { API } from '@renderer/api'
-import type { AliasDto } from '@renderer/api/types'
-import { DASHPAY_CACHE_NAMESPACES, DASHPAY_PARAMS, DASHPAY_READINESS_BADGES } from '@renderer/constants/dashPay'
+import type { UsernameDto } from '@renderer/api/types'
+import { DASHPAY_PARAMS, DASHPAY_READINESS_BADGES } from '@renderer/constants/dashPay'
 import {
   REGISTER_SIGN_COPY,
   REGISTER_USERNAME_COPY,
@@ -26,21 +26,20 @@ import {
   USERNAME_DIVIDER_CLASS,
   USERNAMES_TAB_HREF,
 } from '@renderer/constants/dashPayUsernames'
-import { ALIAS_PRESENTATION } from '@renderer/constants/dpns'
+import { USERNAME_PRESENTATION } from '@renderer/constants/dpns'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_PENDING_VALUE } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { AlertTone } from '@renderer/enums/AlertTone'
-import { AliasPresentation, DpnsLabelKind, UsernameAvailability } from '@renderer/enums/DashPay'
+import { UsernamePresentation, DpnsLabelKind, UsernameAvailability } from '@renderer/enums/DashPay'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
 import { useActiveIdentity } from '@renderer/hooks/useActiveIdentity'
-import { useAliasSearch } from '@renderer/hooks/useAliasSearch'
-import { setAsyncCache } from '@renderer/hooks/useAsyncWithCache'
+import { useUsernameSearch } from '@renderer/hooks/useUsernameSearch'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
-import { refreshDashPayAliases, useDashPayAliases } from '@renderer/hooks/useDashPayAliases'
+import { refreshDashPayUsernames, useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
 import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
@@ -48,7 +47,7 @@ import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { RegisterUsernameProps } from '@renderer/types/DashPayScreens'
 import type { RegisterFeeSummaryProps } from '@renderer/types/DashPayUsernames'
-import type { SignedActionDoneView, SignedActionFailureView } from '@renderer/types/SignedActionModal'
+import type { SignedActionDoneView } from '@renderer/types/SignedActionModal'
 import { identityAddKeysHref } from '@renderer/utils/identities'
 import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
 import { feeShortfall } from '@renderer/utils/dashPayShortfall'
@@ -58,10 +57,10 @@ import {
   registerCanAdvance,
   registerDoneNote,
 } from '@renderer/utils/dashPayUsernames'
-import { exactAliasMatch, fullDpnsName, validateDpnsLabel } from '@renderer/utils/dpnsLabel'
+import { exactUsernameMatch, fullDpnsName, validateDpnsLabel } from '@renderer/utils/dpnsLabel'
 import { identityLabel } from '@renderer/utils/identifierFormat'
 import { returnHref } from '@renderer/utils/searchParams'
-import { aliasPresentation, findResumableAlias, usernameAvailability } from '@renderer/utils/usernames'
+import { usernamePresentation, usernameAvailability, walletUsernameClaim } from '@renderer/utils/usernames'
 import RegisterConfirmStep from './RegisterConfirmStep'
 import UsernameCheck from './UsernameCheck'
 import UsernameField from './UsernameField'
@@ -111,25 +110,27 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
   const [raw, setRaw] = useState(() => searchParams.get(DASHPAY_PARAMS.label) ?? '')
   const [signOpen, setSignOpen] = useState(false)
   const { identities, identity, readiness, loading, err, retry, select } = useActiveIdentity()
-  const { aliases } = useDashPayAliases(walletId)
+  const { usernames: walletUsernames } = useDashPayUsernames(walletId)
 
   const identifier = identity?.identifier ?? null
   const check = useMemo(() => validateDpnsLabel(raw), [raw])
-  const resumable = identifier != null && check.issue == null && findResumableAlias(aliases, identifier, check.normalized) != null
-  const searchPrefix = identifier != null && check.issue == null && !resumable ? check.normalized : ''
-  const search = useAliasSearch(walletId, searchPrefix)
+  const searchPrefix = identifier != null && check.issue == null ? check.normalized : ''
+  const search = useUsernameSearch(walletId, searchPrefix)
   const walletIdentifiers = useWalletIdentifiers(identities)
   const availability = usernameAvailability({
     normalized: searchPrefix,
     identifier: identifier ?? '',
     walletIdentifiers,
+    walletUsernames,
     results: search.results,
     loading: search.loading,
     error: search.err,
   })
-  const owner = availability === UsernameAvailability.OwnedByWallet ? exactAliasMatch(search.results, searchPrefix) : null
+  const owner = availability === UsernameAvailability.OwnedByWallet || availability === UsernameAvailability.InWalletContest
+    ? walletUsernameClaim(walletUsernames, searchPrefix) ?? exactUsernameMatch(search.results, searchPrefix)
+    : null
 
-  const fee = useOperationFee(walletId, TransferOperation.AliasRegister, {
+  const fee = useOperationFee(walletId, TransferOperation.UsernameRegister, {
     amountCredits: 0n,
     recipient: check.label,
     identityId: identifier,
@@ -181,7 +182,6 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
   const canAdvance = registerCanAdvance({
     issue: check.issue,
     canRegister: readiness.canRegister,
-    resumable,
     availability,
     feeCredits,
     feeReady,
@@ -193,37 +193,26 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
   const keysState: DashPayNavigationState = { returnTo: location.pathname + location.search }
   const invalid = check.label !== '' && (check.issue != null || USERNAME_AVAILABILITY_BLOCKING.includes(availability))
 
-  const classifyFailure = async (): Promise<SignedActionFailureView | null> => {
-    const fresh = await API.getAliases(walletId)
-    setAsyncCache(DASHPAY_CACHE_NAMESPACES.aliases, walletId, fresh)
-    if (findResumableAlias(fresh, identity.identifier, check.normalized) == null) return null
-    return {
-      title: REGISTER_SIGN_COPY.failedTitle,
-      description: REGISTER_SIGN_COPY.failedDescription,
-      retryLabel: REGISTER_SIGN_COPY.retry,
-    }
-  }
-
-  const run = async (password: string): Promise<AliasDto> => {
-    const alias = await API.registerAlias(walletId, identity.identifier, check.label, password)
-    void refreshDashPayAliases(walletId)
+  const run = async (password: string): Promise<UsernameDto> => {
+    const username = await API.registerUsername(walletId, identity.identifier, check.label, password)
+    void refreshDashPayUsernames(walletId)
     void refreshIdentities(walletId)
-    return alias
+    return username
   }
 
-  const renderDone = (alias: AliasDto): SignedActionDoneView => {
-    const presentation = aliasPresentation(alias)
-    const spec = ALIAS_PRESENTATION[presentation]
+  const renderDone = (username: UsernameDto): SignedActionDoneView => {
+    const presentation = usernamePresentation(username)
+    const spec = USERNAME_PRESENTATION[presentation]
     return {
-      headline: fullDpnsName(alias.label),
-      note: registerDoneNote(alias, network, Date.now()),
+      headline: fullDpnsName(username.label),
+      note: registerDoneNote(username, network, Date.now()),
       details: [
         { label: REGISTER_SIGN_COPY.identity, value: identityLabel(identity) },
-        { label: REGISTER_SIGN_COPY.status, value: <StatusPill tone={spec.tone} loading={presentation === AliasPresentation.Pending}>{spec.label}</StatusPill> },
+        { label: REGISTER_SIGN_COPY.status, value: <StatusPill tone={spec.tone}>{spec.label}</StatusPill> },
       ],
-      hash: alias.documentId == null ? undefined : { value: alias.documentId, label: REGISTER_SIGN_COPY.documentId, explorerUrl: null },
-      secondary: presentation === AliasPresentation.Voting && debugMode
-        ? { label: REGISTER_SIGN_COPY.viewContest, onClick: () => navigate(contestHref(alias.normalizedLabel)) }
+      hash: username.documentId == null ? undefined : { value: username.documentId, label: REGISTER_SIGN_COPY.documentId, explorerUrl: null },
+      secondary: presentation === UsernamePresentation.Voting && debugMode
+        ? { label: REGISTER_SIGN_COPY.viewContest, onClick: () => navigate(contestHref(username.normalizedLabel)) }
         : undefined,
     }
   }
@@ -253,7 +242,6 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
           check={check}
           network={network}
           availability={availability}
-          resumable={resumable}
           ownerName={owner?.identifier ?? null}
           onRetry={search.retry}
         />
@@ -298,7 +286,7 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
           submitDisabled={!canAdvance}
         />
       </div>
-      <SignedActionModal<AliasDto>
+      <SignedActionModal<UsernameDto>
         open={signOpen}
         onClose={() => setSignOpen(false)}
         title={REGISTER_SIGN_COPY.title}
@@ -322,7 +310,6 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
         pendingLabel={`${REGISTER_SIGN_COPY.pending} ${fullDpnsName(check.label)}…`}
         run={run}
         renderDone={renderDone}
-        classifyFailure={classifyFailure}
         onDone={exit}
       />
     </div>

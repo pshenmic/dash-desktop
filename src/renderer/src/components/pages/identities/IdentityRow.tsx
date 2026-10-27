@@ -34,7 +34,7 @@ export default function IdentityRow({ identity, onOpen }: IdentityRowProps): Rea
   const { isBalanceVisible } = useBalanceVisibility()
   const { format: formatFiat, rateReady } = useFiat()
   const name = identityName(identity)
-  const extraNames = Math.max(0, identity.aliasesList.length - 1)
+  const extraNames = Math.max(0, identity.usernames.length - 1)
   const keysLabel = identityKeysCountLabel(identity.keys.length)
   const balance = identity.balance.amount
   const explorerUrl = network == null ? null : identityUrl(identity.identifier, network)

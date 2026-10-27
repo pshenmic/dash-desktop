@@ -210,6 +210,15 @@ export function invalidateAsyncCache(namespace: string, key: string): void {
   notify(cacheKey)
 }
 
+export function invalidateAsyncCachePrefix(namespace: string, keyPrefix: string): void {
+  const prefix = `${namespace}:${keyPrefix}`
+  for (const cacheKey of [...cache.keys()]) {
+    if (!cacheKey.startsWith(prefix)) continue
+    cache.delete(cacheKey)
+    notify(cacheKey)
+  }
+}
+
 export function setAsyncCache<T>(namespace: string, key: string, value: T): void {
   const cacheKey = `${namespace}:${key}`
   writes.set(cacheKey, (writes.get(cacheKey) ?? 0) + 1)

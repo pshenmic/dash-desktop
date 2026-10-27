@@ -9,6 +9,10 @@ export function identityAddKeysHref(identifier: string): string {
   return IDENTITIES_ROUTES.addKeys.replace(IDENTITY_ROUTE_PARAM, encodeURIComponent(identifier))
 }
 
+export function isIdentityKeyActive(key: Pick<IdentityKeyDto, 'disabledAt'>): boolean {
+  return key.disabledAt == null
+}
+
 export function activeKeysCount(keys: IdentityKeyDto[]): number {
-  return keys.filter(key => !key.disabled).length
+  return keys.filter(isIdentityKeyActive).length
 }

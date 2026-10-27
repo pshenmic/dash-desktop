@@ -6,8 +6,10 @@ import { DASHPAY_KEY_BOUNDS, DASHPAY_SETUP_COPY } from '../../src/renderer/src/c
 import type { IdentityKeyDto } from '../../src/renderer/src/api/types'
 import type { IdentityApiDto } from '../../src/renderer/src/hooks/useIdentities'
 
+const DISABLED_AT = 1_700_000_000_000
+
 function key(keyId: number, purpose: string, securityLevel: string, overrides: Partial<IdentityKeyDto> = {}): IdentityKeyDto {
-  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', disabled: false, contractBounds: null, ...overrides }
+  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', data: '', readOnly: false, disabledAt: null, contractBounds: null, ...overrides }
 }
 
 const DEFAULT_KEYS = [
@@ -26,12 +28,12 @@ const LEGACY_KEYS = [
   key(3, 'TRANSFER', 'CRITICAL'),
 ]
 
-function identity(keys: IdentityKeyDto[], aliasesList: string[] = ['alice.dash'], amount = 1_000n): IdentityApiDto {
+function identity(keys: IdentityKeyDto[], usernames: string[] = ['alice.dash'], amount = 1_000n): IdentityApiDto {
   return {
     identityIndex: 0,
     identifier: 'B7kcEqgCRhLp2Wq5WZbeT4yUcZR8BWh3X1o3qDtLCpQH',
-    alias: aliasesList[0] ?? null,
-    aliasesList,
+    alias: usernames[0] ?? null,
+    usernames,
     keys,
     balance: { amount, usdAmount: '0.0' },
     derivationPath: "m/9'/1'/0'/0/0",
@@ -60,7 +62,7 @@ describe('dashPayMissingKeys', () => {
   it('accepts unbound encryption keys but not disabled or non-ECDSA ones', () => {
     const unbound = [...LEGACY_KEYS, key(4, 'ENCRYPTION', 'MEDIUM'), key(5, 'DECRYPTION', 'MEDIUM')]
     expect(dashPayMissingKeys(unbound)).toEqual([])
-    const unusable = [...LEGACY_KEYS, key(4, 'ENCRYPTION', 'MEDIUM', { disabled: true }), key(5, 'DECRYPTION', 'MEDIUM', { keyType: 'BLS12_381' })]
+    const unusable = [...LEGACY_KEYS, key(4, 'ENCRYPTION', 'MEDIUM', { disabledAt: DISABLED_AT }), key(5, 'DECRYPTION', 'MEDIUM', { keyType: 'BLS12_381' })]
     expect(dashPayMissingKeys(unusable)).toEqual([ENC, DEC])
   })
 

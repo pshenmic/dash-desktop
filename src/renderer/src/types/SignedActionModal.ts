@@ -35,12 +35,6 @@ export interface SignedActionDoneView {
   secondary?: ModalAction
 }
 
-export interface SignedActionFailureView {
-  title: string
-  description: string
-  retryLabel: string
-}
-
 export interface SignedActionResult<R> {
   value: R
 }
@@ -59,7 +53,6 @@ export interface SignedActionModalProps<R> {
   pendingLabel: string
   run: (password: string) => Promise<R>
   renderDone: (result: R, controls: SignedActionControls) => SignedActionDoneView
-  classifyFailure?: (error: unknown) => Promise<SignedActionFailureView | null>
   onDone?: (result: R) => void
   size?: ModalSize
   previewNote?: boolean

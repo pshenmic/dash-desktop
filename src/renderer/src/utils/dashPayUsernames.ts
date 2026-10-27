@@ -1,4 +1,4 @@
-import type { AliasDto, Network } from '@renderer/api/types'
+import type { UsernameDto, Network } from '@renderer/api/types'
 import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import {
   REGISTER_ALLOWED_AVAILABILITY,
@@ -8,16 +8,16 @@ import {
   USERNAME_TITLE_TAIL,
   USERNAME_TYPE_COPY,
 } from '@renderer/constants/dashPayUsernames'
-import { ALIAS_PRESENTATION, USERNAME_ORDER, VOTE_POLL_DURATION_LABEL } from '@renderer/constants/dpns'
+import { USERNAME_PRESENTATION, USERNAME_ORDER, VOTE_POLL_DURATION_LABEL } from '@renderer/constants/dpns'
 import { MASTERNODE_PARAMS, MASTERNODES_ROUTE } from '@renderer/constants/masternodes'
-import { AliasPresentation } from '@renderer/enums/DashPay'
+import { UsernamePresentation } from '@renderer/enums/DashPay'
 import { MasternodesTab } from '@renderer/enums/Masternodes'
 import type { RegisterGateInput } from '@renderer/types/DashPayUsernames'
 import type { UsernameRowModel } from '@renderer/types/Dpns'
 import { dashPayHref } from './dashPayIdentity'
 import { creditShortfall } from './dashPayShortfall'
 import { withParams } from './searchParams'
-import { aliasPresentation, voteTiming } from './usernames'
+import { usernamePresentation, voteTiming } from './usernames'
 
 export function usernameTitle(fullName: string): string {
   if (fullName.length <= USERNAME_TITLE_HEAD + USERNAME_TITLE_TAIL + USERNAME_TITLE_ELLIPSIS.length) return fullName
@@ -52,21 +52,20 @@ export function balanceAfterFee(balance: bigint, fee: bigint | null): bigint | n
 export function registerCanAdvance(input: RegisterGateInput): boolean {
   return input.issue == null
     && input.canRegister
-    && (input.resumable || REGISTER_ALLOWED_AVAILABILITY.includes(input.availability))
+    && REGISTER_ALLOWED_AVAILABILITY.includes(input.availability)
     && input.feeReady
     && input.feeCredits != null
     && creditShortfall(input.balance, input.feeCredits) == null
 }
 
 export function registerDoneNote(
-  alias: Pick<AliasDto, 'status' | 'preorderSalt' | 'voteEndsAt'>,
+  username: Pick<UsernameDto, 'status' | 'voteEndsAt'>,
   network: Network | null,
   now: number,
 ): string {
-  const presentation = aliasPresentation(alias)
-  if (presentation === AliasPresentation.Registered) return REGISTER_SIGN_COPY.noteRegistered
-  if (presentation === AliasPresentation.Pending) return REGISTER_SIGN_COPY.notePending
-  if (presentation !== AliasPresentation.Voting) return ALIAS_PRESENTATION[presentation].caption
-  if (network != null) return `${REGISTER_SIGN_COPY.noteContestLead} ${REGISTER_SIGN_COPY.noteContestEnds} ${VOTE_POLL_DURATION_LABEL[network]}.`
-  return `${REGISTER_SIGN_COPY.noteContestLead} ${voteTiming(alias.voteEndsAt, now)}.`
+  const presentation = usernamePresentation(username)
+  if (presentation === UsernamePresentation.Registered) return REGISTER_SIGN_COPY.noteRegistered
+  if (presentation !== UsernamePresentation.Voting) return USERNAME_PRESENTATION[presentation].caption
+  if (username.voteEndsAt == null && network != null) return `${REGISTER_SIGN_COPY.noteContestLead} ${REGISTER_SIGN_COPY.noteContestEnds} ${VOTE_POLL_DURATION_LABEL[network]}.`
+  return `${REGISTER_SIGN_COPY.noteContestLead} ${voteTiming(username.voteEndsAt, now)}.`
 }

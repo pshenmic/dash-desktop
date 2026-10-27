@@ -6,7 +6,7 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AliasStatus, DashPayContactRelationship, DashPayPaymentDirection } from '../enums/DashPay'
+import { UsernameStatus, DashPayContactRelationship, DashPayPaymentDirection, UsernameVoteOutcome } from '../enums/DashPay'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -79,14 +79,19 @@ export interface UsernameDto {
   label: string
   normalizedLabel: string
   isContested: boolean
-  status: AliasStatus
+  status: UsernameStatus
   documentId: string | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
-  voteOutcome: 'WonByIdentity' | 'Locked' | 'NoWinner' | null
+  voteOutcome: UsernameVoteOutcome | null
   voteWinner: string | null
-  contenders: Array<{identifier: string; votes: number}>
+  contenders: UsernameContenderDto[]
+}
+
+export interface UsernameContenderDto {
+  identifier: string
+  votes: number
 }
 
 export interface IdentityKeyBoundsDto {

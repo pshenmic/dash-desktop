@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  exactAliasMatch,
+  exactUsernameMatch,
   fullDpnsName,
   isContestedLabel,
   matchesIdentityQuery,
@@ -93,19 +93,19 @@ describe('isContestedLabel', () => {
   })
 })
 
-describe('exactAliasMatch', () => {
+describe('exactUsernameMatch', () => {
   const results = [
     { identifier: 'id-alicex', name: 'alicex.dash' },
     { identifier: 'id-alice', name: 'A1ice.dash' },
   ]
 
   it('finds the result whose label normalizes to the same name', () => {
-    expect(exactAliasMatch(results, 'alice')?.identifier).toBe('id-alice')
-    expect(exactAliasMatch(results, 'ALICE.dash')?.identifier).toBe('id-alice')
+    expect(exactUsernameMatch(results, 'alice')?.identifier).toBe('id-alice')
+    expect(exactUsernameMatch(results, 'ALICE.dash')?.identifier).toBe('id-alice')
   })
 
   it('returns null when only prefixes match', () => {
-    expect(exactAliasMatch(results, 'ali')).toBeNull()
+    expect(exactUsernameMatch(results, 'ali')).toBeNull()
   })
 })
 

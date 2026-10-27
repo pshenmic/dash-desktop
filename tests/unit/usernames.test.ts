@@ -1,79 +1,71 @@
 import { describe, expect, it } from 'vitest'
 import {
-  aliasPresentation,
-  findResumableAlias,
+  usernamePresentation,
+  contestStandings,
   joinClosesAt,
   mergeIdentityUsernames,
   usernameAvailability,
   usernameCaption,
   usernameOrder,
+  voteOutcomeLabel,
   voteTiming,
 } from '../../src/renderer/src/utils/usernames'
 import { normalizeDpnsLabel } from '../../src/renderer/src/utils/dpnsLabel'
-import { AliasPresentation, AliasStatus, UsernameAvailability } from '../../src/renderer/src/enums/DashPay'
-import { ALIAS_PRESENTATION } from '../../src/renderer/src/constants/dpns'
-import type { AliasDto } from '../../src/renderer/src/api/types'
+import { UsernamePresentation, UsernameStatus, UsernameAvailability, UsernameVoteOutcome } from '../../src/renderer/src/enums/DashPay'
+import { USERNAME_PRESENTATION } from '../../src/renderer/src/constants/dpns'
+import type { UsernameDto } from '../../src/renderer/src/api/types'
 import type { UsernameAvailabilityInput } from '../../src/renderer/src/types/Dpns'
 
 const ME = 'MyIdentity'
-const SALT = new Uint8Array(32)
 const NOW = new Date(2026, 9, 22, 12).getTime()
 
-function alias(label: string, status: AliasStatus, overrides: Partial<AliasDto> = {}): AliasDto {
+function username(label: string, status: UsernameStatus, overrides: Partial<UsernameDto> = {}): UsernameDto {
   return {
-    walletId: 'wallet',
     identifier: ME,
     label,
     normalizedLabel: normalizeDpnsLabel(label),
     isContested: false,
     status,
     documentId: null,
-    preorderSalt: null,
-    votesFor: null,
     votesLock: null,
     votesAbstain: null,
     voteEndsAt: null,
-    createdAt: 1_000,
-    checkedAt: null,
+    voteOutcome: null,
+    voteWinner: null,
+    contenders: [],
     ...overrides,
   }
 }
 
-describe('aliasPresentation', () => {
-  it('maps every status and splits missing by its preorder salt', () => {
-    expect(aliasPresentation(alias('a', AliasStatus.Pending))).toBe(AliasPresentation.Pending)
-    expect(aliasPresentation(alias('a', AliasStatus.Registered))).toBe(AliasPresentation.Registered)
-    expect(aliasPresentation(alias('a', AliasStatus.Voting))).toBe(AliasPresentation.Voting)
-    expect(aliasPresentation(alias('a', AliasStatus.Locked))).toBe(AliasPresentation.Locked)
-    expect(aliasPresentation(alias('a', AliasStatus.Taken))).toBe(AliasPresentation.Taken)
-    expect(aliasPresentation(alias('a', AliasStatus.Missing))).toBe(AliasPresentation.Missing)
-    expect(aliasPresentation(alias('a', AliasStatus.Missing, { preorderSalt: SALT }))).toBe(AliasPresentation.Resumable)
+describe('usernamePresentation', () => {
+  it('maps every status', () => {
+    expect(usernamePresentation(username('a', UsernameStatus.Registered))).toBe(UsernamePresentation.Registered)
+    expect(usernamePresentation(username('a', UsernameStatus.Voting))).toBe(UsernamePresentation.Voting)
+    expect(usernamePresentation(username('a', UsernameStatus.Locked))).toBe(UsernamePresentation.Locked)
+    expect(usernamePresentation(username('a', UsernameStatus.Taken))).toBe(UsernamePresentation.Taken)
+    expect(usernamePresentation(username('a', UsernameStatus.Missing))).toBe(UsernamePresentation.Missing)
   })
 })
 
 describe('mergeIdentityUsernames', () => {
-  const aliases = [
-    alias('bbbbbbbasa', AliasStatus.Registered, { createdAt: 100 }),
-    alias('bbbbbbbasa-pay', AliasStatus.Voting, { isContested: true, voteEndsAt: NOW }),
-    alias('bbbbbbbasa2026', AliasStatus.Pending),
-    alias('river2026', AliasStatus.Missing, { preorderSalt: SALT }),
-    alias('kai', AliasStatus.Missing, { isContested: true }),
-    alias('nova', AliasStatus.Taken, { isContested: true }),
-    alias('vault', AliasStatus.Locked, { isContested: true }),
-    alias('other', AliasStatus.Registered, { identifier: 'OtherIdentity' }),
+  const entries = [
+    username('bbbbbbbasa', UsernameStatus.Registered),
+    username('bbbbbbbasa-pay', UsernameStatus.Voting, { isContested: true, voteEndsAt: NOW }),
+    username('kai', UsernameStatus.Missing, { isContested: true }),
+    username('nova', UsernameStatus.Taken, { isContested: true }),
+    username('vault', UsernameStatus.Locked, { isContested: true }),
+    username('other', UsernameStatus.Registered, { identifier: 'OtherIdentity' }),
   ]
-  const rows = mergeIdentityUsernames(['bbbbbbbasa.dash', 'Bbbbbbbasa2.dash'], aliases, ME)
+  const rows = mergeIdentityUsernames(['bbbbbbbasa.dash', 'Bbbbbbbasa2.dash'], entries, ME)
 
   it('keeps this identity’s rows and orders actionable names first', () => {
     expect(rows.map(row => [row.label, row.presentation])).toEqual([
-      ['river2026', AliasPresentation.Resumable],
-      ['bbbbbbbasa-pay', AliasPresentation.Voting],
-      ['bbbbbbbasa2026', AliasPresentation.Pending],
-      ['bbbbbbbasa', AliasPresentation.Registered],
-      ['Bbbbbbbasa2', AliasPresentation.Registered],
-      ['nova', AliasPresentation.Taken],
-      ['vault', AliasPresentation.Locked],
-      ['kai', AliasPresentation.Missing],
+      ['bbbbbbbasa-pay', UsernamePresentation.Voting],
+      ['bbbbbbbasa', UsernamePresentation.Registered],
+      ['Bbbbbbbasa2', UsernamePresentation.Registered],
+      ['nova', UsernamePresentation.Taken],
+      ['vault', UsernamePresentation.Locked],
+      ['kai', UsernamePresentation.Missing],
     ])
   })
 
@@ -82,10 +74,10 @@ describe('mergeIdentityUsernames', () => {
       label: 'Bbbbbbbasa2',
       normalizedLabel: 'bbbbbbbasa2',
       fullName: 'Bbbbbbbasa2.dash',
-      presentation: AliasPresentation.Registered,
+      presentation: UsernamePresentation.Registered,
       isContested: false,
       isPrimary: false,
-      alias: null,
+      username: null,
     })
   })
 
@@ -94,37 +86,20 @@ describe('mergeIdentityUsernames', () => {
   })
 
   it('dedupes an owned name against its row by the normalized label', () => {
-    const merged = mergeIdentityUsernames(['A1ice.dash'], [alias('Alice', AliasStatus.Registered)], ME)
+    const merged = mergeIdentityUsernames(['A1ice.dash'], [username('Alice', UsernameStatus.Registered)], ME)
     expect(merged).toHaveLength(1)
     expect(merged[0]).toMatchObject({ label: 'Alice', isPrimary: true })
   })
 })
 
 describe('usernameOrder', () => {
-  it('sorts registered names newest first', () => {
+  it('sorts names with the same status by name', () => {
     const merged = mergeIdentityUsernames([], [
-      alias('older', AliasStatus.Registered, { createdAt: 1 }),
-      alias('newer', AliasStatus.Registered, { createdAt: 2 }),
+      username('beta', UsernameStatus.Registered),
+      username('alpha', UsernameStatus.Registered),
     ], ME)
-    expect(merged.map(row => row.label)).toEqual(['newer', 'older'])
+    expect(merged.map(row => row.label)).toEqual(['alpha', 'beta'])
     expect(usernameOrder(merged[0], merged[1])).toBeLessThan(0)
-  })
-})
-
-describe('findResumableAlias', () => {
-  const aliases = [
-    alias('river2026', AliasStatus.Missing, { preorderSalt: SALT }),
-    alias('kai', AliasStatus.Missing),
-    alias('nova', AliasStatus.Missing, { preorderSalt: SALT, identifier: 'OtherIdentity' }),
-  ]
-
-  it('finds a paid preorder of this identity by its normalized label', () => {
-    expect(findResumableAlias(aliases, ME, normalizeDpnsLabel('River2026'))?.label).toBe('river2026')
-  })
-
-  it('ignores missing rows without a salt and other identities’ rows', () => {
-    expect(findResumableAlias(aliases, ME, 'ka1')).toBeNull()
-    expect(findResumableAlias(aliases, ME, 'n0va')).toBeNull()
   })
 })
 
@@ -133,6 +108,7 @@ describe('usernameAvailability', () => {
     normalized: 'a11ce',
     identifier: ME,
     walletIdentifiers: new Set([ME]),
+    walletUsernames: [],
     results: [{ identifier: 'OtherIdentity', name: 'A1ice.dash' }],
     loading: false,
     error: null,
@@ -151,6 +127,17 @@ describe('usernameAvailability', () => {
     expect(usernameAvailability({ ...base, walletIdentifiers: new Set([ME, 'OtherIdentity']) })).toBe(UsernameAvailability.OwnedByWallet)
   })
 
+  it('knows the wallet’s own claims on a name before search can see them', () => {
+    const contest = username('alice', UsernameStatus.Voting, { isContested: true })
+    const nameless = { ...base, results: [] }
+    expect(usernameAvailability({ ...nameless, walletUsernames: [contest] })).toBe(UsernameAvailability.InContest)
+    expect(usernameAvailability({ ...nameless, walletUsernames: [{ ...contest, identifier: 'Sibling' }] })).toBe(UsernameAvailability.InWalletContest)
+    expect(usernameAvailability({ ...nameless, walletUsernames: [username('alice', UsernameStatus.Registered)] })).toBe(UsernameAvailability.Owned)
+    expect(usernameAvailability({ ...nameless, walletUsernames: [username('alice', UsernameStatus.Registered, { identifier: 'Sibling' })] })).toBe(UsernameAvailability.OwnedByWallet)
+    expect(usernameAvailability({ ...nameless, walletUsernames: [username('alice', UsernameStatus.Locked)] })).toBe(UsernameAvailability.Taken)
+    expect(usernameAvailability({ ...nameless, walletUsernames: [username('alice', UsernameStatus.Missing)] })).toBe(UsernameAvailability.Available)
+  })
+
   it('is available when only longer names share the prefix', () => {
     expect(usernameAvailability({ ...base, normalized: 'a11' })).toBe(UsernameAvailability.Available)
   })
@@ -165,23 +152,17 @@ describe('joinClosesAt', () => {
 })
 
 describe('usernameCaption', () => {
-  const row = (entry: AliasDto) => mergeIdentityUsernames([], [entry], ME)[0]
+  const row = (entry: UsernameDto) => mergeIdentityUsernames([], [entry], ME)[0]
 
-  it('dates a registered row by when it was added and gives a synthesized one no caption', () => {
-    expect(usernameCaption(row(alias('alice', AliasStatus.Registered, { createdAt: new Date(2026, 9, 3, 12).getTime() })), NOW))
-      .toBe('Added 3 Oct 2026')
+  it('gives a registered row no caption, listed or synthesized', () => {
+    expect(usernameCaption(row(username('alice', UsernameStatus.Registered)), NOW)).toBeNull()
     expect(usernameCaption(mergeIdentityUsernames(['alice.dash'], [], ME)[0], NOW)).toBeNull()
   })
 
-  it('shows when a pending name was last checked', () => {
-    expect(usernameCaption(row(alias('alice', AliasStatus.Pending, { checkedAt: NOW - 60_000 })), NOW))
-      .toBe('Waiting for the network · checked 1m ago')
-  })
-
-  it('shows the countdown and our tally for a name in a vote', () => {
-    const voting = alias('alice', AliasStatus.Voting, {
+  it('shows the countdown and our tally for a name in a vote, not a rival’s', () => {
+    const voting = username('alice', UsernameStatus.Voting, {
       voteEndsAt: NOW + 3 * 86_400_000 + 14 * 3_600_000,
-      votesFor: 12,
+      contenders: [{ identifier: 'Rival', votes: 20 }, { identifier: ME, votes: 12 }],
       votesLock: 3,
       votesAbstain: 1,
     })
@@ -189,16 +170,15 @@ describe('usernameCaption', () => {
   })
 
   it('says the vote ended or is in progress instead of a countdown, counting missing tallies as zero', () => {
-    expect(usernameCaption(row(alias('alice', AliasStatus.Voting, { voteEndsAt: NOW - 3_600_000 })), NOW))
+    expect(usernameCaption(row(username('alice', UsernameStatus.Voting, { voteEndsAt: NOW - 3_600_000 })), NOW))
       .toBe('Voting ended · 0 for you · 0 lock · 0 abstain')
-    expect(usernameCaption(row(alias('alice', AliasStatus.Voting, { votesLock: 2 })), NOW))
+    expect(usernameCaption(row(username('alice', UsernameStatus.Voting, { votesLock: 2 })), NOW))
       .toBe('Vote in progress · 0 for you · 2 lock · 0 abstain')
   })
 
   it('uses the static caption for terminal states', () => {
-    expect(usernameCaption(row(alias('vault', AliasStatus.Locked)), NOW)).toBe(ALIAS_PRESENTATION[AliasPresentation.Locked].caption)
-    expect(usernameCaption(row(alias('river', AliasStatus.Missing, { preorderSalt: SALT })), NOW))
-      .toBe(ALIAS_PRESENTATION[AliasPresentation.Resumable].caption)
+    expect(usernameCaption(row(username('vault', UsernameStatus.Locked)), NOW)).toBe(USERNAME_PRESENTATION[UsernamePresentation.Locked].caption)
+    expect(usernameCaption(row(username('river', UsernameStatus.Missing)), NOW)).toBe(USERNAME_PRESENTATION[UsernamePresentation.Missing].caption)
   })
 })
 
@@ -207,5 +187,34 @@ describe('voteTiming', () => {
     expect(voteTiming(NOW + 2 * 3_600_000, NOW)).toBe('Ends in 2h 00m')
     expect(voteTiming(NOW, NOW)).toBe('Voting ended')
     expect(voteTiming(null, NOW)).toBe('Vote in progress')
+  })
+})
+
+describe('contestStandings', () => {
+  it('ranks contenders by votes and marks this identity', () => {
+    const standings = contestStandings(username('alice', UsernameStatus.Voting, {
+      contenders: [{ identifier: ME, votes: 3 }, { identifier: 'Rival', votes: 7 }, { identifier: 'Late', votes: 0 }],
+    }))
+    expect(standings).toEqual([
+      { identifier: 'Rival', votes: 7, isOwn: false },
+      { identifier: ME, votes: 3, isOwn: true },
+      { identifier: 'Late', votes: 0, isOwn: false },
+    ])
+  })
+
+  it('lists nobody for an uncontested name', () => {
+    expect(contestStandings(username('alice', UsernameStatus.Registered))).toEqual([])
+  })
+})
+
+describe('voteOutcomeLabel', () => {
+  it('names who won, a lock or no winner, and nothing while the vote runs', () => {
+    expect(voteOutcomeLabel(username('a', UsernameStatus.Registered, { voteOutcome: UsernameVoteOutcome.WonByIdentity, voteWinner: ME })))
+      .toBe('Won by this identity')
+    expect(voteOutcomeLabel(username('a', UsernameStatus.Taken, { voteOutcome: UsernameVoteOutcome.WonByIdentity, voteWinner: 'Rival' })))
+      .toBe('Won by another identity')
+    expect(voteOutcomeLabel(username('a', UsernameStatus.Locked, { voteOutcome: UsernameVoteOutcome.Locked }))).toBe('Locked by masternodes')
+    expect(voteOutcomeLabel(username('a', UsernameStatus.Missing, { voteOutcome: UsernameVoteOutcome.NoWinner }))).toBe('No winner')
+    expect(voteOutcomeLabel(username('a', UsernameStatus.Voting))).toBeNull()
   })
 })

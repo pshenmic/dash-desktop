@@ -15,7 +15,7 @@ import {
   OVERVIEW_SKELETON_CLASS,
 } from '@renderer/constants/dashPayOverview'
 import { DashPayReadiness, DashPayTab, ContactSegment, OverviewAction, OverviewBand } from '@renderer/enums/DashPay'
-import { useDashPayAliases } from '@renderer/hooks/useDashPayAliases'
+import { useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
 import { useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
 import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
@@ -47,7 +47,7 @@ export default function OverviewTab({
   const debugMode = useDebugMode()
   const [, setSearchParams] = useSearchParams()
   const { contacts, loading: contactsLoading } = useDashPayContacts(walletId)
-  const { aliases } = useDashPayAliases(walletId)
+  const { usernames: walletUsernames } = useDashPayUsernames(walletId)
   const [enabling, setEnabling] = useState(false)
   const walletIdentifiers = useWalletIdentifiers(identities)
 
@@ -118,7 +118,7 @@ export default function OverviewTab({
 
   const own = identity == null ? [] : contactsForIdentity(contacts, identity.identifier)
   const band = ready && identity != null ? overviewBand(contacts, identity.identifier, OVERVIEW_PREVIEW_LIMIT) : null
-  const usernames = usernameSummary(identity == null ? [] : mergeIdentityUsernames(identity.aliasesList, aliases, identity.identifier))
+  const usernames = usernameSummary(identity == null ? [] : mergeIdentityUsernames(identity.usernames, walletUsernames, identity.identifier))
 
   return (
     <div className={'flex flex-col'}>

@@ -48,7 +48,7 @@ function IdentityName({identity}: IdentityNameProps): React.JSX.Element {
 
 function IdentityHeadline({identity}: IdentityNameProps): React.JSX.Element {
   const name = identityName(identity)
-  const extraNames = name == null ? 0 : Math.max(0, identity.aliasesList.length - 1)
+  const extraNames = name == null ? 0 : Math.max(0, identity.usernames.length - 1)
   return (
     <span className={'flex min-w-0 items-center gap-1.5'}>
       {name == null

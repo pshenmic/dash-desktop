@@ -35,7 +35,7 @@ export default function EnableDashPayModal({ open, onClose, identity }: EnableDa
   const name = identityLabel(identity)
   const balance = identity.balance.amount
 
-  const fee = useOperationFee(walletId, open ? TransferOperation.IdentityCreateKeys : null, {
+  const fee = useOperationFee(walletId, open ? TransferOperation.IdentityUpdateKeys : null, {
     amountCredits: 0n,
     recipient: '',
     identityId: identity.identifier,
@@ -46,7 +46,7 @@ export default function EnableDashPayModal({ open, onClose, identity }: EnableDa
   const shortfall = feeShortfall(fee.err != null, balance, feeCredits)
 
   const run = async (password: string): Promise<KeysAddedResult> => {
-    const stHash = await API.createIdentityKeys(walletId!, identity.identifier, keys, password)
+    const stHash = await API.updateIdentityKeys(walletId!, identity.identifier, { add: keys, disable: [] }, password)
     void refreshIdentities(walletId!)
     return { stHash, count: keys.length }
   }

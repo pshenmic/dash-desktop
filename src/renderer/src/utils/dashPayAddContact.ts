@@ -1,16 +1,16 @@
-import type { AliasSearchResultDto } from '@renderer/api/types'
-import { ALIAS_SEARCH_RESULT_CAP } from '@renderer/constants/dashPay'
+import type { UsernameSearchResultDto } from '@renderer/api/types'
+import { USERNAME_SEARCH_RESULT_CAP } from '@renderer/constants/dashPay'
 import { SELECTABLE_SEARCH_RESULT_STATES } from '@renderer/constants/dashPayAddContact'
 import type { SearchResultState } from '@renderer/enums/DashPay'
 import type { AddContactResultRow, AddContactRowContext } from '@renderer/types/DashPayAddContact'
 import { searchResultState } from './dashPayContactList'
 import { normalizeDpnsLabel, stripDpnsInput } from './dpnsLabel'
 
-export function aliasSearchPrefix(query: string): string {
+export function usernameSearchPrefix(query: string): string {
   return normalizeDpnsLabel(stripDpnsInput(query))
 }
 
-export function addContactRows(results: AliasSearchResultDto[], context: AddContactRowContext): AddContactResultRow[] {
+export function addContactRows(results: UsernameSearchResultDto[], context: AddContactRowContext): AddContactResultRow[] {
   const rows = new Map<string, AddContactResultRow>()
   for (const result of results) {
     const row = rows.get(result.identifier)
@@ -42,8 +42,8 @@ export function isSelectableResult(state: SearchResultState): boolean {
   return SELECTABLE_SEARCH_RESULT_STATES.has(state)
 }
 
-export function isAliasSearchCapped(results: AliasSearchResultDto[]): boolean {
-  return results.length >= ALIAS_SEARCH_RESULT_CAP
+export function isUsernameSearchCapped(results: UsernameSearchResultDto[]): boolean {
+  return results.length >= USERNAME_SEARCH_RESULT_CAP
 }
 
 export function resultRowLabel(row: Pick<AddContactResultRow, 'identifier' | 'name'>): string {

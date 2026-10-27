@@ -4,8 +4,10 @@ import { activeKeysCount, identityAddKeysHref, identityHref } from '../../src/re
 
 const IDENTIFIER = 'B7kcEqgCRhLp2Wq5WZbeT4yUcZR8BWh3X1o3qDtLCpQH'
 
+const DISABLED_AT = 1_700_000_000_000
+
 function key(keyId: number, disabled = false): IdentityKeyDto {
-  return { keyId, purpose: 'AUTHENTICATION', securityLevel: 'HIGH', keyType: 'ECDSA_SECP256K1', disabled, contractBounds: null }
+  return { keyId, purpose: 'AUTHENTICATION', securityLevel: 'HIGH', keyType: 'ECDSA_SECP256K1', data: '', readOnly: false, disabledAt: disabled ? DISABLED_AT : null, contractBounds: null }
 }
 
 describe('identity routes', () => {

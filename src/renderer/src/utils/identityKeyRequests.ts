@@ -7,9 +7,11 @@ import {
   IDENTITY_KEY_PURPOSE_LABELS,
   IDENTITY_KEY_VARIANTS,
   IDENTITY_KEYS_PER_TRANSITION,
+  KEY_COUNT_COPY,
 } from '@renderer/constants/identityKeys'
 import type { IdentityKeyVariant } from '@renderer/enums/IdentityKeys'
 import type { KeyBoundsLabel, KeySelectionCheck } from '@renderer/types/IdentityKeys'
+import { isIdentityKeyActive } from './identities'
 
 function isDashPayBounds(bounds: IdentityKeyBoundsDto | null): boolean {
   return bounds?.contractId === DASHPAY_CONTRACT_ID
@@ -37,7 +39,7 @@ export function variantOfRequest(request: IdentityKeyRequestDto): IdentityKeyVar
 
 export function keysMatchingVariant(existing: IdentityKeyDto[], variant: IdentityKeyVariant): number {
   const definition = IDENTITY_KEY_VARIANTS[variant]
-  return existing.filter(key => !key.disabled
+  return existing.filter(key => isIdentityKeyActive(key)
     && key.purpose.toUpperCase() === definition.purpose
     && key.securityLevel.toUpperCase() === definition.securityLevel
     && isDashPayBounds(key.contractBounds) === definition.dashPayBound).length
@@ -64,6 +66,11 @@ export function keyBoundsLabel(bounds: IdentityKeyBoundsDto | null): KeyBoundsLa
     text: bounds.documentType == null ? owner : `${owner}${IDENTITY_KEY_LABEL_SEPARATOR}${bounds.documentType}`,
     isDashPay,
   }
+}
+
+export function identityKeyLabel(key: Pick<IdentityKeyDto, 'keyId' | 'purpose' | 'securityLevel'>): string {
+  const label = [keyLabel(key.purpose, IDENTITY_KEY_PURPOSE_LABELS), keyLabel(key.securityLevel, IDENTITY_KEY_LEVEL_LABELS)].join(IDENTITY_KEY_LABEL_SEPARATOR)
+  return `${KEY_COUNT_COPY.idPrefix}${key.keyId} ${label}`
 }
 
 export function keyRequestLabel(request: IdentityKeyRequestDto): string {

@@ -1,5 +1,6 @@
-import { IdentityKeyPurpose, IdentityKeySecurityLevel, IdentityKeyVariant } from '@renderer/enums/IdentityKeys'
-import type { IdentityKeyVariantDefinition, KeyVariantGroup } from '@renderer/types/IdentityKeys'
+import type { IdentityKeyRequestDto } from '@renderer/api/types'
+import { IdentityKeyAction, IdentityKeyDashPayImpact, IdentityKeyPurpose, IdentityKeySecurityLevel, IdentityKeyVariant } from '@renderer/enums/IdentityKeys'
+import type { IdentityKeyNotice, IdentityKeyUpdateCopy, IdentityKeyVariantDefinition, KeyVariantGroup } from '@renderer/types/IdentityKeys'
 
 export const IDENTITY_KEY_TYPE_ECDSA = 'ECDSA_SECP256K1'
 
@@ -44,7 +45,7 @@ export const IDENTITY_KEY_TYPE_LABELS: Record<string, string> = {
   EDDSA_25519_HASH160: 'EdDSA 25519 hash160',
 }
 
-export const IDENTITY_KEY_TABLE_GRID = 'grid-cols-[2.5rem_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.5fr)_5rem]'
+export const IDENTITY_KEY_TABLE_GRID = 'grid-cols-[2.5rem_minmax(0,1.1fr)_minmax(0,.8fr)_minmax(0,1fr)_minmax(0,1.5fr)_5rem_5rem]'
 
 export const IDENTITY_KEYS_PER_TRANSITION = 6
 
@@ -69,11 +70,12 @@ export const IDENTITY_KEYS_COPY = {
   disabled: 'Disabled',
   unbound: '—',
   empty: 'No keys on this identity',
+  privateKeys: 'Private keys',
 } as const
 
-export const KEYS_TABLE_HEADERS = ['#', 'Purpose', 'Level', 'Type', 'Bound to', 'Status']
+export const KEYS_TABLE_HEADERS = ['#', 'Purpose', 'Level', 'Type', 'Bound to', 'Status', '']
 
-export const KEYS_TABLE_INNER_CLASS = 'min-w-[40rem]'
+export const KEYS_TABLE_INNER_CLASS = 'min-w-[46rem]'
 
 export const KEY_TABLE_ROW_CLASS = 'grid min-h-12 items-center gap-3 border-t border-dash-primary-dark-blue/10 dark:border-white/10 px-2.5 py-2.5'
 
@@ -110,3 +112,68 @@ export const KEY_VARIANT_GROUPS: KeyVariantGroup[] = [
 ]
 
 export const KEY_VARIANT_ORDER = Object.keys(IDENTITY_KEY_VARIANTS) as IdentityKeyVariant[]
+
+export const MASTER_KEY_REQUEST: IdentityKeyRequestDto = {
+  purpose: IdentityKeyPurpose.Authentication,
+  securityLevel: IdentityKeySecurityLevel.Master,
+  contractBounds: null,
+}
+
+export const IDENTITY_KEY_UPDATE_COPY: Record<IdentityKeyAction, IdentityKeyUpdateCopy> = {
+  [IdentityKeyAction.Disable]: {
+    action: 'Disable',
+    title: 'Disable identity key',
+    submit: 'Disable key',
+    pending: 'Disabling key…',
+    done: 'Key disabled',
+    warningTitle: 'Disabling is permanent',
+    warning: 'Platform can’t enable a disabled key again.',
+  },
+  [IdentityKeyAction.ReplaceMaster]: {
+    action: 'Replace',
+    title: 'Replace master key',
+    submit: 'Replace key',
+    pending: 'Replacing master key…',
+    done: 'Master key replaced',
+    warningTitle: 'The current master key is disabled for good',
+    warning: 'A new master key from this wallet takes its place and signs the identity’s future updates.',
+  },
+}
+
+export const IDENTITY_KEY_UPDATE_LABELS = {
+  changes: 'Changes',
+  disable: 'Disable',
+  add: 'Add',
+  fee: 'Fee',
+} as const
+
+export const DASHPAY_RECIPIENT_KEY_PURPOSES: string[] = [
+  IdentityKeyPurpose.Decryption,
+  IdentityKeyPurpose.Encryption,
+  IdentityKeyPurpose.Authentication,
+  IdentityKeyPurpose.Transfer,
+]
+
+export const IDENTITY_KEY_DASHPAY_IMPACT_COPY: Record<IdentityKeyDashPayImpact, IdentityKeyNotice> = {
+  [IdentityKeyDashPayImpact.StopsDashPay]: {
+    title: 'DashPay will stop working for this identity',
+    description: 'DashPay needs a key like this one. Contacts whose requests were encrypted to it can’t pay you until they send a new request.',
+  },
+  [IdentityKeyDashPayImpact.ContactRequests]: {
+    title: 'Some contacts may no longer pay you',
+    description: 'Contact requests encrypted to this key stop working once it’s disabled. Those contacts need to send you a new request.',
+  },
+}
+
+export const PRIVATE_KEYS_COPY = {
+  title: 'Identity private keys',
+  warningTitle: 'Anyone with these keys controls this identity',
+  warning: 'Never share them or paste them into a website.',
+  reveal: 'Reveal keys',
+  revealing: 'Revealing…',
+  cancel: 'Cancel',
+  close: 'Close',
+  wif: 'WIF',
+  hex: 'Hex',
+  notDerived: 'Added by another wallet — this wallet can’t derive it',
+} as const

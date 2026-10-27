@@ -17,6 +17,7 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
+import { refreshDashPayContacts } from '@renderer/hooks/useDashPayContacts'
 import { refreshDashPayPayments } from '@renderer/hooks/useDashPayPayments'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
@@ -85,10 +86,15 @@ export default function PayContactModal({ open, onClose, contact, identity }: Pa
   })
 
   const run = async (password: string): Promise<SendResult> => {
-    const result = await API.sendDashPayPayment(walletId!, identity.identifier, contact.contactId, amountDuffs, password)
-    void refreshDashPayPayments(walletId!, identity.identifier, contact.contactId)
-    void refreshBalance(walletId!)
-    return result
+    try {
+      const result = await API.sendDashPayPayment(walletId!, identity.identifier, contact.contactId, amountDuffs, password)
+      void refreshDashPayPayments(walletId!, identity.identifier, contact.contactId)
+      void refreshBalance(walletId!)
+      return result
+    } catch (error) {
+      void refreshDashPayContacts(walletId!)
+      throw error
+    }
   }
 
   let feeValue: React.ReactNode = feeDuffs == null ? null : dashText(feeDuffs)
@@ -107,7 +113,7 @@ export default function PayContactModal({ open, onClose, contact, identity }: Pa
       <div className={`flex items-center gap-3 ${SURFACE_ROW}`}>
         <IdentityAvatar identifier={contact.contactId} size={IdentityAvatarSize.Sm} />
         <div className={'flex min-w-0 flex-col gap-0.5'}>
-          {contact.aliasesList[0] != null ? (
+          {contact.usernames[0] != null ? (
             <>
               <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{contactName}</Text>
               <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'min-w-0 break-all'}>{contact.contactId}</Text>

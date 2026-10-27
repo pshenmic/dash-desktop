@@ -4,31 +4,31 @@ import CustomBadge from '@renderer/components/ui/CustomBadge'
 import StatusPill from '@renderer/components/ui/StatusPill'
 import { DASHPAY_CONTACT_ROW_CLASS } from '@renderer/constants/dashPay'
 import { USERNAME_LINK_CLASS, USERNAME_LIST_COPY, USERNAME_MONOGRAM_MUTED_CLASS } from '@renderer/constants/dashPayUsernames'
-import { ALIAS_PRESENTATION, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
+import { USERNAME_PRESENTATION, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
 import { CHIP_ACTION, ICON_CHIP } from '@renderer/constants/surfaces'
-import { AliasPresentation } from '@renderer/enums/DashPay'
+import { UsernamePresentation } from '@renderer/enums/DashPay'
 import type { UsernameRowProps } from '@renderer/types/DashPayUsernames'
 import { usernameCaption } from '@renderer/utils/usernames'
 
 export default function UsernameRow({ row, now, onOpen, onRegister, onViewContest }: UsernameRowProps): React.JSX.Element {
-  const spec = ALIAS_PRESENTATION[row.presentation]
+  const spec = USERNAME_PRESENTATION[row.presentation]
   const caption = usernameCaption(row, now)
-  const registered = row.presentation === AliasPresentation.Registered
+  const registered = row.presentation === UsernamePresentation.Registered
 
   let action: React.JSX.Element | null = null
   if (registered) {
     action = <CopyButton text={row.fullName} />
-  } else if (row.presentation === AliasPresentation.Voting && onViewContest != null) {
+  } else if (row.presentation === UsernamePresentation.Voting && onViewContest != null) {
     action = (
       <button type={"button"} className={USERNAME_LINK_CLASS} onClick={() => onViewContest(row)}>
         <Text size={12} weight={"medium"} color={"blue-mint"} className={"whitespace-nowrap"}>{USERNAME_LIST_COPY.viewContest}</Text>
       </button>
     )
-  } else if (row.presentation === AliasPresentation.Resumable || row.presentation === AliasPresentation.Missing) {
+  } else if (row.presentation === UsernamePresentation.Missing) {
     action = (
       <button type={"button"} className={CHIP_ACTION} onClick={() => onRegister(row)}>
-        {row.presentation === AliasPresentation.Resumable ? USERNAME_LIST_COPY.resume : USERNAME_LIST_COPY.registerAgain}
+        {USERNAME_LIST_COPY.registerAgain}
       </button>
     )
   }
@@ -63,7 +63,7 @@ export default function UsernameRow({ row, now, onOpen, onRegister, onViewContes
         )}
       </div>
       <div className={"relative z-10 flex items-center gap-3"}>
-        <StatusPill tone={spec.tone} loading={row.presentation === AliasPresentation.Pending}>{spec.label}</StatusPill>
+        <StatusPill tone={spec.tone}>{spec.label}</StatusPill>
         {action}
       </div>
     </li>

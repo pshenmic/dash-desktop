@@ -27,7 +27,7 @@ function contact(overrides: Partial<DashPayContactDto> = {}): DashPayContactDto 
     identifier: '7cBLv1111111111111111111111111111111Fh9n',
     contactId: CONTACT_ID,
     relationship: DashPayContactRelationship.Established,
-    aliasesList: ['alice.dash'],
+    usernames: ['alice.dash'],
     incomingCreatedAt: Date.UTC(2026, 9, 12, 9, 0, 0),
     outgoingCreatedAt: Date.UTC(2026, 9, 10, 9, 0, 0),
     paymentChannelBroken: false,
@@ -46,7 +46,7 @@ describe('contact row copy', () => {
 
   it('leads with the full identifier, or No username when unnamed', () => {
     const named = contactRowModel(contact(), new Set())
-    const unnamed = contactRowModel(contact({ aliasesList: [] }), new Set())
+    const unnamed = contactRowModel(contact({ usernames: [] }), new Set())
     expect(contactRowCaption(named, NOW)).toBe(`${CONTACT_ID} · Since 12 Oct 2026`)
     expect(contactRowCaption(unnamed, NOW)).toBe('No username · Since 12 Oct 2026')
   })

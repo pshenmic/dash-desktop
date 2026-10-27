@@ -1,5 +1,5 @@
 import type { IdentityKeyDto, IdentityKeyRequestDto } from '@renderer/api/types'
-import type { IdentityKeyPurpose, IdentityKeySecurityLevel, IdentityKeyVariant } from '@renderer/enums/IdentityKeys'
+import type { IdentityKeyAction, IdentityKeyPurpose, IdentityKeySecurityLevel, IdentityKeyVariant } from '@renderer/enums/IdentityKeys'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
 
 export interface IdentityKeyVariantDefinition {
@@ -24,10 +24,50 @@ export interface KeyBoundsLabel {
 
 export interface KeyTableRowProps {
   identityKey: IdentityKeyDto
+  onAction: (identityKey: IdentityKeyDto, action: IdentityKeyAction) => void
 }
 
 export interface IdentityKeysSectionProps {
+  walletId: string
   identity: IdentityApiDto
+}
+
+export interface IdentityKeyUpdateCopy {
+  action: string
+  title: string
+  submit: string
+  pending: string
+  done: string
+  warningTitle: string
+  warning: string
+}
+
+export interface IdentityKeyNotice {
+  title: string
+  description: string
+}
+
+export interface PendingKeyAction {
+  identityKey: IdentityKeyDto
+  action: IdentityKeyAction
+}
+
+export interface UpdateKeyModalProps {
+  walletId: string
+  identity: IdentityApiDto
+  pending: PendingKeyAction | null
+  onClose: () => void
+}
+
+export interface PrivateKeysModalProps {
+  open: boolean
+  onClose: () => void
+  walletId: string
+  identity: IdentityApiDto
+}
+
+export interface KeyUpdateResult {
+  stHash: string
 }
 
 export interface KeyVariantGroup {

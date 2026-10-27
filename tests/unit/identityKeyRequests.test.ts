@@ -15,8 +15,10 @@ import { DASHPAY_KEY_BOUNDS } from '../../src/renderer/src/constants/dashPay'
 import { IDENTITY_KEY_PURPOSE_LABELS, IDENTITY_KEY_VARIANTS } from '../../src/renderer/src/constants/identityKeys'
 import type { IdentityKeyDto } from '../../src/renderer/src/api/types'
 
+const DISABLED_AT = 1_700_000_000_000
+
 function key(keyId: number, purpose: string, securityLevel: string, overrides: Partial<IdentityKeyDto> = {}): IdentityKeyDto {
-  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', disabled: false, contractBounds: null, ...overrides }
+  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', data: '', readOnly: false, disabledAt: null, contractBounds: null, ...overrides }
 }
 
 const DEFAULT_KEYS = [
@@ -74,7 +76,7 @@ describe('identity key variants', () => {
   })
 
   it('counts the enabled keys an identity already has of a variant', () => {
-    const keys = [...DEFAULT_KEYS, key(6, 'ENCRYPTION', 'MEDIUM'), key(7, 'AUTHENTICATION', 'HIGH', { disabled: true })]
+    const keys = [...DEFAULT_KEYS, key(6, 'ENCRYPTION', 'MEDIUM'), key(7, 'AUTHENTICATION', 'HIGH', { disabledAt: DISABLED_AT })]
     expect(keysMatchingVariant(keys, IdentityKeyVariant.EncDashPay)).toBe(1)
     expect(keysMatchingVariant(keys, IdentityKeyVariant.Enc)).toBe(1)
     expect(keysMatchingVariant(keys, IdentityKeyVariant.AuthHigh)).toBe(1)

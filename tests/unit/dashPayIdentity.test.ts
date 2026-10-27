@@ -5,18 +5,18 @@ import type { DashPayContactDto, IdentityKeyDto } from '../../src/renderer/src/a
 import type { IdentityApiDto } from '../../src/renderer/src/hooks/useIdentities'
 
 function key(keyId: number, purpose: string, securityLevel: string): IdentityKeyDto {
-  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', disabled: false, contractBounds: null }
+  return { keyId, purpose, securityLevel, keyType: 'ECDSA_SECP256K1', data: '', readOnly: false, disabledAt: null, contractBounds: null }
 }
 
 const DASHPAY_KEYS = [key(0, 'AUTHENTICATION', 'MASTER'), key(1, 'AUTHENTICATION', 'HIGH'), key(2, 'ENCRYPTION', 'MEDIUM'), key(3, 'DECRYPTION', 'MEDIUM')]
 const LEGACY_KEYS = [key(0, 'AUTHENTICATION', 'MASTER'), key(1, 'AUTHENTICATION', 'HIGH')]
 
-function identity(identifier: string, identityIndex: number, aliasesList: string[], keys: IdentityKeyDto[]): IdentityApiDto {
+function identity(identifier: string, identityIndex: number, usernames: string[], keys: IdentityKeyDto[]): IdentityApiDto {
   return {
     identityIndex,
     identifier,
-    alias: aliasesList[0] ?? null,
-    aliasesList,
+    alias: usernames[0] ?? null,
+    usernames,
     keys,
     balance: { amount: 1n, usdAmount: '0.0' },
     derivationPath: '',
@@ -83,7 +83,7 @@ describe('incomingCountByIdentity', () => {
       identifier,
       contactId: `${identifier}-${relationship}`,
       relationship,
-      aliasesList: [],
+      usernames: [],
       incomingCreatedAt: null,
       outgoingCreatedAt: null,
       paymentChannelBroken: false,

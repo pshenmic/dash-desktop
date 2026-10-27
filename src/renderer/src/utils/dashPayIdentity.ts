@@ -14,7 +14,7 @@ export function resolveActiveIdentity({ identities, requested, stored }: ActiveI
   const storedIdentity = ordered.find(identity => identity.identifier === stored)
   if (storedIdentity != null) return { identity: storedIdentity, source: ActiveIdentitySource.Stored }
   const fallback = ordered.find(identity => dashPayReadiness(identity).readiness === DashPayReadiness.Ready)
-    ?? ordered.find(identity => identity.aliasesList.length > 0)
+    ?? ordered.find(identity => identity.usernames.length > 0)
     ?? ordered.find(identity => dashPayMissingKeys(identity.keys).length === 0)
     ?? ordered[0]
   if (fallback == null) return { identity: null, source: ActiveIdentitySource.None }
@@ -22,7 +22,7 @@ export function resolveActiveIdentity({ identities, requested, stored }: ActiveI
 }
 
 export function filterIdentities(identities: IdentityApiDto[], query: string): IdentityApiDto[] {
-  return identities.filter(identity => matchesIdentityQuery(identity.identifier, [identity.alias, ...identity.aliasesList], query))
+  return identities.filter(identity => matchesIdentityQuery(identity.identifier, [identity.alias, ...identity.usernames], query))
 }
 
 export function incomingCountByIdentity(contacts: DashPayContactDto[]): Record<string, number> {

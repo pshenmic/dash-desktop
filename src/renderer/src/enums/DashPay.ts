@@ -1,10 +1,15 @@
-export enum AliasStatus {
-  Pending = 'pending',
+export enum UsernameStatus {
   Registered = 'registered',
   Voting = 'voting',
   Locked = 'locked',
   Taken = 'taken',
   Missing = 'missing',
+}
+
+export enum UsernameVoteOutcome {
+  WonByIdentity = 'WonByIdentity',
+  Locked = 'Locked',
+  NoWinner = 'NoWinner',
 }
 
 export enum DashPayContactRelationship {
@@ -62,13 +67,11 @@ export enum ActiveIdentitySource {
   None = 'none',
 }
 
-export enum AliasPresentation {
+export enum UsernamePresentation {
   Registered = 'registered',
-  Pending = 'pending',
   Voting = 'voting',
   Locked = 'locked',
   Taken = 'taken',
-  Resumable = 'resumable',
   Missing = 'missing',
 }
 
@@ -91,6 +94,8 @@ export enum UsernameAvailability {
   Taken = 'taken',
   Owned = 'owned',
   OwnedByWallet = 'owned-by-wallet',
+  InContest = 'in-contest',
+  InWalletContest = 'in-wallet-contest',
   Error = 'error',
 }
 

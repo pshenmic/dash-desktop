@@ -2,12 +2,10 @@ import { useId, useState } from 'react'
 import { Text, SuccessIcon } from '../dash-ui-kit-extended'
 import { ExclamationIcon } from '../dash-ui-kit-extended/icons'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { AlertTone } from '@renderer/enums/AlertTone'
 import { ModalSize } from '@renderer/enums/ModalSize'
 import { SignedActionDoneTone } from '@renderer/enums/SignedActionDoneTone'
 import { SignedActionPhase } from '@renderer/enums/SignedActionPhase'
 import { getErrorMessage } from '@renderer/utils/error'
-import Alert from '@renderer/components/ui/Alert'
 import HashField from '@renderer/components/ui/HashField'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
@@ -16,7 +14,6 @@ import PendingRow from '@renderer/components/ui/PendingRow'
 import { toast } from '@renderer/components/ui/Toast'
 import type {
   SignedActionControls,
-  SignedActionFailureView,
   SignedActionModalProps,
   SignedActionResult,
 } from '@renderer/types/SignedActionModal'
@@ -40,7 +37,6 @@ export default function SignedActionModal<R>({
   pendingLabel,
   run,
   renderDone,
-  classifyFailure,
   onDone,
   size = ModalSize.Lg,
   previewNote = false,
@@ -54,7 +50,6 @@ export default function SignedActionModal<R>({
   const [passwordInvalid, setPasswordInvalid] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [result, setResult] = useState<SignedActionResult<R> | null>(null)
-  const [failure, setFailure] = useState<SignedActionFailureView | null>(null)
   const [seenOpen, setSeenOpen] = useState(false)
 
   if (open !== seenOpen) {
@@ -65,7 +60,6 @@ export default function SignedActionModal<R>({
       setPasswordInvalid(false)
       setVerifying(false)
       setResult(null)
-      setFailure(null)
     }
   }
 
@@ -85,7 +79,6 @@ export default function SignedActionModal<R>({
   const toConfirm = (): void => {
     setPassword('')
     setPasswordInvalid(false)
-    setFailure(null)
     setResult(null)
     setPhase(SignedActionPhase.Confirm)
   }
@@ -129,12 +122,6 @@ export default function SignedActionModal<R>({
       setPhase(SignedActionPhase.Done)
     } catch (e) {
       console.error(`${title} failed`, e)
-      const view = classifyFailure ? await classifyFailure(e).catch(() => null) : null
-      if (view) {
-        setFailure(view)
-        setPhase(SignedActionPhase.Failed)
-        return
-      }
       fail(e)
       setPhase(SignedActionPhase.Confirm)
     }
@@ -185,22 +172,6 @@ export default function SignedActionModal<R>({
     )
   } else if (phase === SignedActionPhase.Sending) {
     body = <PendingRow label={pendingLabel} className={"mt-4"} />
-  } else if (phase === SignedActionPhase.Failed && failure) {
-    body = (
-      <>
-        <Alert
-          tone={AlertTone.Warning}
-          icon={<ExclamationIcon size={16} color={"currentColor"} />}
-          title={failure.title}
-          description={failure.description}
-          className={"mt-4"}
-        />
-        <ModalActions
-          secondary={{ label: SIGNED_ACTION_COPY.close, onClick: onClose }}
-          primary={{ label: failure.retryLabel, onClick: toConfirm }}
-        />
-      </>
-    )
   } else if (phase === SignedActionPhase.Done && result) {
     const view = renderDone(result.value, controls)
     const details = view.details ?? []
@@ -249,7 +220,7 @@ export default function SignedActionModal<R>({
     )
   }
 
-  const settled = phase === SignedActionPhase.Done || phase === SignedActionPhase.Failed
+  const settled = phase === SignedActionPhase.Done
 
   return (
     <Modal

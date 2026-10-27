@@ -63,7 +63,7 @@ function IdentityContent({ identity }: IdentityHeroContentProps): React.JSX.Elem
   const { isBalanceVisible } = useBalanceVisibility()
   const { format: formatFiat, rateReady, currency } = useFiat()
   const name = identityName(identity)
-  const extraNames = Math.max(0, identity.aliasesList.length - 1)
+  const extraNames = Math.max(0, identity.usernames.length - 1)
   const balance = identity.balance.amount
 
   return (

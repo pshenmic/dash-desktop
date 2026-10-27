@@ -5,10 +5,10 @@ export function isIdentifierLike(value: string): boolean {
   return IDENTIFIER_LIKE_PATTERN.test(value.trim())
 }
 
-export function identityName(identity: Pick<IdentityApiDto, 'alias' | 'aliasesList'>): string | null {
-  return identity.aliasesList[0] ?? identity.alias ?? null
+export function identityName(identity: Pick<IdentityApiDto, 'alias' | 'usernames'>): string | null {
+  return identity.usernames[0] ?? identity.alias ?? null
 }
 
-export function identityLabel(identity: Pick<IdentityApiDto, 'identifier' | 'alias' | 'aliasesList'>): string {
+export function identityLabel(identity: Pick<IdentityApiDto, 'identifier' | 'alias' | 'usernames'>): string {
   return identityName(identity) ?? identity.identifier
 }

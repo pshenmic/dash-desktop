@@ -22,7 +22,7 @@ function identity(index: number, names: string[] = []): IdentityApiDto {
     identityIndex: index,
     identifier: `${'B7kcE'}${String(index).padStart(34, 'x')}LCpQH`,
     alias: names[0] ?? null,
-    aliasesList: names,
+    usernames: names,
     keys: [],
     balance: { amount: 250_660_000_000n, usdAmount: '0' },
     derivationPath: `m/9'/1'/5'/0'/${index}'`,
