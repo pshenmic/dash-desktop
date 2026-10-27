@@ -8,7 +8,7 @@ import { CHIP_ACTION, SURFACE_PANEL } from '@renderer/constants/surfaces'
 import type { SendRecipientsEditorProps } from '@renderer/types/SendRecipients'
 import { creditsToDuffs, dashToDuffs, davToDash, duffsToCredits } from '@renderer/utils/balance'
 import { isValidDestinationAddress } from '@renderer/utils/destinationAddress'
-import { capSendAmount, recipientPercent, recipientRemainingDuffs, recipientSliderAmount, recipientTotalDuffs, splitRecipientTotal } from '@renderer/utils/sendRecipients'
+import { capSendAmount, recipientPercent, recipientRemainingDuffs, recipientSliderAmount, recipientTotalDuffs } from '@renderer/utils/sendRecipients'
 import AllocationAmountRow from '@renderer/components/ui/AllocationAmountRow'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DenominationChips from '@renderer/components/ui/DenominationChips'
@@ -36,11 +36,6 @@ export default function SendRecipientsEditor({
           {recipients.length} {recipients.length === 1 ? 'Recipient' : 'Recipients'} - {davToDash(recipientTotalDuffs(recipients))} Dash
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-6">
-          {recipients.length > 1 && (
-            <button type="button" onClick={() => onChange(splitRecipientTotal(recipients))} className="cursor-pointer text-[.625rem] dash-text-primary hover:opacity-70 focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40">
-              Split equally
-            </button>
-          )}
           {headerAction}
           {limit > 1 && (
             <button
