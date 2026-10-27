@@ -99,7 +99,7 @@ jobs:
           # already live would strand every machine that installed it.
           newest=$(head -n1 <<< "$tags")
           if [ -n "$newest" ]; then
-            new=$(dpkg-deb -f "$(ls pool/main/d/dash-desktop/"$newest"/*.deb | head -n1)" Version)
+            new=$(dpkg-deb -f "$(ls pool/main/d/dash-desktop-wallet/"$newest"/*.deb | head -n1)" Version)
             for arch in $archs; do
               for old in $(curl -fsSL "$BASE_URL/dists/stable/main/binary-$arch/Packages" 2>/dev/null | awk '/^Version:/ {print $2}' || true); do
                 if dpkg --compare-versions "$new" lt "$old"; then

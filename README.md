@@ -101,20 +101,20 @@ Create or import BIP39 wallets · keep several and switch at any time · export 
 
 ```sh
 curl -fsSL https://pshenmic.github.io/dash-desktop-wallet/key.asc \
-  | sudo gpg --dearmor -o /usr/share/keyrings/dash-desktop.gpg
+  | sudo gpg --dearmor -o /usr/share/keyrings/dash-desktop-wallet.gpg
 
-echo "deb [signed-by=/usr/share/keyrings/dash-desktop.gpg] https://pshenmic.github.io/dash-desktop-wallet stable main" \
-  | sudo tee /etc/apt/sources.list.d/dash-desktop.list
+echo "deb [signed-by=/usr/share/keyrings/dash-desktop-wallet.gpg] https://pshenmic.github.io/dash-desktop-wallet stable main" \
+  | sudo tee /etc/apt/sources.list.d/dash-desktop-wallet.list
 
-sudo apt update && sudo apt install dash-desktop
+sudo apt update && sudo apt install dash-desktop-wallet
 ```
 
 <details>
 <summary>Remove the repository</summary>
 
 ```sh
-sudo apt remove dash-desktop
-sudo rm /etc/apt/sources.list.d/dash-desktop.list /usr/share/keyrings/dash-desktop.gpg
+sudo apt remove dash-desktop-wallet
+sudo rm /etc/apt/sources.list.d/dash-desktop-wallet.list /usr/share/keyrings/dash-desktop-wallet.gpg
 ```
 
 </details>
@@ -145,7 +145,7 @@ Read the full [Privacy Policy](PRIVACY.md) for exactly which services the app ta
 
 ### Where your data lives
 
-Everything is stored locally in `~/.dash-desktop/`:
+Everything is stored locally in `~/.dash-desktop-wallet/`:
 
 | Path | Contents |
 |---|---|
@@ -177,7 +177,7 @@ The installer is written to `dist/`. To compile and run the app without packagin
 yarn dev
 ```
 
-Starts the app with hot reload. A development run keeps its data in `~/.dash-desktop/dev/`, so it never touches an installed wallet.
+Starts the app with hot reload. A development run keeps its data in `~/.dash-desktop-wallet/dev/`, so it never touches an installed wallet.
 
 Before opening a pull request, run:
 

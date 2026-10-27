@@ -1,10 +1,12 @@
-export const HomeFolderName = '.dash-desktop'
+export const HomeFolderName = '.dash-desktop-wallet'
+export const LegacyHomeFolderName = '.dash-desktop'
 export const DevFolderName = 'dev'
 export const StorageFilename = 'storage.db'
 export const ChainStorageFilename = 'ChainStorage'
 export const LogsFolderName = 'logs'
 export const PreferencesFilename = 'preferences.json'
 export const WindowStateFilename = 'window-state.json'
+export const LegacyUserDataFolderName = 'dash-desktop'
 
 export const WINDOW_WORKAREA_RATIO = 0.85
 export const WINDOW_MAX_DEFAULT_WIDTH = 1600
