@@ -370,7 +370,7 @@ export class WalletBackend {
       }
       // Each tick polls for new contact requests too, so a new contact's chain
       // is watched within one interval of its request.
-      await walletService.refreshDashPayChains(selected.walletId)
+      await walletService.fetchContactRequestsAndDiscover(selected.walletId)
       resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {
