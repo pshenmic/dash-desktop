@@ -1,4 +1,4 @@
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text } from "@renderer/components/dash-ui-kit-extended";
 import type { AmountSliderProps } from '@renderer/types/Amount'
 
 const SLIDER_STOPS = [0, 25, 50, 75, 100]

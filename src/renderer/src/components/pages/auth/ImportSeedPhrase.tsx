@@ -1,6 +1,6 @@
 import SeedPhraseWarning from "./SeedPhraseWarning"
 import { useState } from 'react'
-import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended"
+import { Button, Text } from "@renderer/components/dash-ui-kit-extended"
 import { Switch } from "dash-ui-kit/react"
 import { BaseTexts, ImportSeedPhraseTexts } from "@renderer/constants"
 import type { UseCreateWalletState, WordCount } from '@renderer/types/auth'

@@ -1,14 +1,6 @@
 import type {PlatformTransaction, Transaction, TransactionInput, TransactionOutput} from '@renderer/api/types'
 import type { TxBalanceChangeFilter } from '@renderer/enums/TxBalanceChangeFilter'
 import type { TxTypeFilter } from '@renderer/enums/TxTypeFilter'
-import type { ReactNode } from 'react'
-
-export interface TransactionDetailTokenProps {
-  icon: ReactNode
-  label: string
-  value: ReactNode
-  subValue?: ReactNode
-}
 
 export type WalletTxDto = Transaction
 
@@ -81,6 +73,12 @@ export interface WalletHistoryGroup {
   transactions: WalletHistoryItem[]
 }
 
+export interface WalletHistoryWindow {
+  groups: WalletHistoryGroup[]
+  hasMore: boolean
+  remaining: number
+}
+
 export type HistoryTransactionType = `core:${Exclude<TxTypeFilter, TxTypeFilter.All>}` | `platform:${string}`
 
 export interface WalletHistoryItem extends TransactionCardItem {
@@ -134,6 +132,8 @@ export interface TransactionsListProps {
   filter: TxFilter
   onFilterChange: (filter: TxFilter) => void
   onTransactionClick: (transaction: SelectedTransaction) => void
+  visibleCount: number
+  onShowMore: () => void
   groups: TransactionGroup[]
   platform: PlatformTransaction[]
   platformFailed: boolean

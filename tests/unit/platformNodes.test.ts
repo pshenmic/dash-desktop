@@ -43,7 +43,7 @@ describe('Platform node URLs', () => {
       'https://1.2.3.256:1443', 'https://127.1:1443', 'https://0x7f.0.0.1:1443', 'https://2130706433:1443',
       'https://127.0.0.01:1443',
     ]) {
-      expect(() => appendPlatformNode([], input)).toThrow('Enter an http or https URL with an IP address host')
+      expect(() => appendPlatformNode([], input)).toThrow('Use an http(s) URL with an IP address host.')
     }
   })
 
