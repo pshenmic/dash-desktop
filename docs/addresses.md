@@ -36,7 +36,7 @@ rescans each of our chains from its request's height.
 - **`receiving`** is ours, `m/9'/coinType'/15'/0'/<us>/<them>/index`, one per
   request we sent. It derives from `wallet.dashpay_xpub` (both identity-id levels
   are non-hardened, so no seed), reaches every owned-address reader as
-  `GroupedAddresses.dashPay` (`ownedAddresses()`), and enters the p2p watch set at
+  `GroupedAddresses.dashPay`, and enters the p2p watch set at
   `DASHPAY_WATCH_INDEX` so the child's BIP-44 gap tracking ignores it. rpc mode
   reads it by address: Dashscan's xpub endpoints only walk branches 0/1. Signing
   walks its `0x…` levels through `derivePath256`.

@@ -7,7 +7,6 @@ import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS, P
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {GroupedAddresses} from '../../types/GroupedAddresses'
-import {ownedAddresses} from '../../utils/transferInputs'
 import {LogLevel} from '../../types/Log'
 import {logChildOutput} from '../../logTransport'
 import {currentLogLevel} from '../../utils/logger'
@@ -888,7 +887,7 @@ export class WalletSyncService {
       return
     }
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const ours = new Set(ownedAddresses(grouped).map(a => a.address))
+    const ours = new Set([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => a.address))
     const label = network === 'mainnet' ? 'Mainnet' : 'Testnet'
     const applied: AppliedTx = {
       txid: tx.hash(),

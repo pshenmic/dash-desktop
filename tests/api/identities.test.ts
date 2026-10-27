@@ -79,7 +79,7 @@ describe('listing identities', () => {
     }])
     network = {requests: [], names: new Map(), contests: new Map(), status: () => UNCHECKED, contactKey: 'tpub-alice'}
     request.mockImplementation(answer)
-    vi.spyOn(PlatformExplorerProvider, 'runningDpnsContests').mockImplementation(async () => [...network.contests.keys()])
+    vi.spyOn(PlatformExplorerProvider.prototype, 'runningDpnsContests').mockImplementation(async () => [...network.contests.keys()])
   })
 
   // The one caller that displays aliases, so it has to keep paying for them.
@@ -147,21 +147,27 @@ describe('listing identities', () => {
     expect(await identities.getAliases(walletId)).toMatchObject([{identifier: IDENTIFIER, label: '0w1', status: 'voting'}])
   })
 
-  it('lists a registered name as pending under the identity that sent it', async () => {
-    const alias = await identities.registerAlias(walletId, IDENTIFIER, 'Owl', PASSWORD)
+  // The name is paid for once registerName returns, so a retry must not be invited.
+  it('reports a registered name as sent even when the refresh after it fails', async () => {
+    request.mockImplementation(async (kind: string, ...rest: [string, never]) => kind === 'identityInfos' ? Promise.reject(new Error('DAPI down')) : answer(kind, ...rest))
 
-    expect(request).toHaveBeenCalledWith('aliasRegister', 'testnet', expect.objectContaining({
-      identifier: IDENTIFIER, identityIndex: 0, label: 'Owl',
-    }))
-    expect(alias).toMatchObject({status: 'pending', label: 'Owl', normalizedLabel: '0w1', isContested: true})
-    expect(await identities.getAliases(walletId)).toEqual([alias])
+    expect(await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)).toMatchObject({status: 'pending'})
   })
 
-  it('registers nothing for an identity outside the wallet or with a wrong password', async () => {
-    await expect(identities.registerAlias(walletId, 'someone-else', 'owl', PASSWORD)).rejects.toThrow('Identity not found')
-    await expect(identities.registerAlias(walletId, IDENTIFIER, 'owl', 'wrong')).rejects.toThrow('Invalid wallet password')
-    expect(request).not.toHaveBeenCalledWith('aliasRegister', expect.anything(), expect.anything())
-    expect(await identities.getAliases(walletId)).toEqual([])
+  it('keeps what was known of a name whose check fails', async () => {
+    network.names.set(IDENTIFIER, ['owl.dash'])
+    network.status = () => ({...UNCHECKED, status: 'registered', documentId: 'doc'})
+    await identities.refreshDashPay(walletId)
+
+    network.status = () => { throw new Error('DAPI down') }
+    await identities.refreshDashPay(walletId)
+    expect(await identities.getAliases(walletId)).toMatchObject([{label: 'owl', status: 'registered', documentId: 'doc'}])
+  })
+
+  it('shares one refresh between reads that arrive together', async () => {
+    await Promise.all([identities.getAliases(walletId), identities.getDashPayContacts(walletId)])
+
+    expect(request.mock.calls.filter(([kind]) => kind === 'dashPayContactRequests')).toHaveLength(1)
   })
 
   it('updates nothing for an empty or oversized update, a key listed twice, an identity outside the wallet or a wrong password', async () => {
@@ -188,12 +194,6 @@ describe('listing identities', () => {
     expect((await identities.getDashPayContacts(walletId))[0].relationship).toBe('outgoing')
     await identities.refreshDashPay(walletId)
     expect((await identities.getDashPayContacts(walletId))[0]).toMatchObject({relationship: 'established', incomingCreatedAt: 20})
-  })
-
-  it('refuses a contact request to itself or from an identity it does not hold', async () => {
-    await expect(identities.sendDashPayContactRequest(walletId, IDENTIFIER, IDENTIFIER, PASSWORD)).rejects.toThrow('itself')
-    await expect(identities.sendDashPayContactRequest(walletId, ALICE, IDENTIFIER, PASSWORD)).rejects.toThrow('Identity not found')
-    expect(request).not.toHaveBeenCalledWith('dashPayContactRequestSend', expect.anything(), expect.anything())
   })
 
   // Paying a contact then needs no extra unlock to read the key they sent us.

@@ -30,17 +30,22 @@ export class PlatformExplorerProvider {
   private transactionDAO: PlatformTransactionDAO
 
   constructor(network: Network, transactionDAO: PlatformTransactionDAO) {
-    this.request = explorerRequest(network)
+    this.request = {
+      baseUrl: PLATFORM_EXPLORER_BASE_URLS[network],
+      source: 'Platform explorer',
+      timeoutMs: PLATFORM_EXPLORER_REQUEST_TIMEOUT_MS,
+      retryDelaysMs: PLATFORM_EXPLORER_RETRY_DELAYS_MS,
+    }
     this.transactionDAO = transactionDAO
   }
 
   // DPNS names whose vote has not ended, by normalized label. A contender has
   // no domain document until it wins, so only an indexer of every transition
   // can list them; its answer is unproven, and each is checked against the vote.
-  static async runningDpnsContests(network: Network): Promise<string[]> {
+  async runningDpnsContests(): Promise<string[]> {
     const labels: string[] = []
     for (let page = 1; page <= PLATFORM_EXPLORER_MAX_PAGES; page++) {
-      const {resultSet} = await requestJson<PlatformExplorerPage<PlatformExplorerContestedResource>>(explorerRequest(network),
+      const {resultSet} = await requestJson<PlatformExplorerPage<PlatformExplorerContestedResource>>(this.request,
         `/contestedResources?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc` +
         `&document_type_name=domain&contract_id=${DPNS_DATA_CONTRACT_ID}&voting_finished=false`)
       labels.push(...resultSet.map(({resourceValue}) => resourceValue[1]))
@@ -109,14 +114,5 @@ export class PlatformExplorerProvider {
     }
 
     return true
-  }
-}
-
-function explorerRequest(network: Network): JsonRequest {
-  return {
-    baseUrl: PLATFORM_EXPLORER_BASE_URLS[network],
-    source: 'Platform explorer',
-    timeoutMs: PLATFORM_EXPLORER_REQUEST_TIMEOUT_MS,
-    retryDelaysMs: PLATFORM_EXPLORER_RETRY_DELAYS_MS,
   }
 }
