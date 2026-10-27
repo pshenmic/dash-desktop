@@ -328,7 +328,7 @@ export class WalletService {
 
   // New contact requests, then every address chain they hand out. Without a
   // network the chains wait for the next poll.
-  async refreshDashPayChains(walletId: string, attempts = 1): Promise<void> {
+  async fetchContactRequestsAndDiscover(walletId: string, attempts = 1): Promise<void> {
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         await this.identities.refreshDashPayRequests(walletId)
@@ -345,7 +345,7 @@ export class WalletService {
   // Our DashPay chains enter the watch set before the scan reads a block: added
   // later, they would miss what it passed without them.
   async startWalletSync(walletId: string): Promise<void> {
-    await this.refreshDashPayChains(walletId, DASHPAY_START_ATTEMPTS)
+    await this.fetchContactRequestsAndDiscover(walletId, DASHPAY_START_ATTEMPTS)
     await this.walletSyncService.startSync(walletId)
   }
 
