@@ -374,12 +374,12 @@ export interface PlatformOperations {
     payload: {identifier: string; label: string}
     result: UsernameCheck
   }
-  // Names whose label starts with prefix, in label order, at most one proved page.
-  // The contests among labels (normalized) the identities are contenders in.
+  // The running DPNS contests the identities are contenders in, by normalized label.
   usernameContests: {
-    payload: {labels: string[]; identifiers: string[]}
+    payload: {identifiers: string[]}
     result: {contests: Array<{identifier: string; label: string}>}
   }
+  // Names whose label starts with prefix, in label order, at most one proved page.
   usernameSearch: {
     payload: {prefix: string}
     result: {results: UsernameSearchResult[]}

@@ -80,7 +80,7 @@ export async function harness(): Promise<Harness> {
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
   const platformTransactionDAO = new PlatformTransactionDAO(knex)
-  const identityService = new IdentityService(walletDAO, identityDAO, platformTransactionDAO, dashPayCache, platform)
+  const identityService = new IdentityService(walletDAO, identityDAO, dashPayCache, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.

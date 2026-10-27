@@ -8,7 +8,6 @@ import {DashPayCache} from '../../src/main/src/database/DashPayCache'
 import {IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
 import {MAX_KEYS_PER_TRANSITION} from '../../src/main/src/constants/credits'
 import {WalletService} from '../../src/main/src/services/wallet/WalletService'
-import {PlatformExplorerProvider} from '../../src/main/src/providers/PlatformExplorerProvider'
 import {harness, PASSWORD, VALID_SEEDPHRASE} from './harness'
 
 const IDENTIFIER = 'GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31Ec'
@@ -28,13 +27,13 @@ const UNCHECKED: UsernameCheck = {
 let network: {
   requests: DashPayContactRequest[]
   names: Map<string, string[]>
-  // Running contests by normalized label, as the explorer lists them, with their contenders.
+  // Running contests by normalized label, with their contenders.
   contests: Map<string, string[]>
   status: (label: string) => UsernameCheck
   contactKey: string | null
 }
 
-async function answer(kind: string, _network: string, payload: {identifier: string; identifiers: string[]; label: string; labels: string[]}): Promise<unknown> {
+async function answer(kind: string, _network: string, payload: {identifier: string; identifiers: string[]; label: string}): Promise<unknown> {
   switch (kind) {
     case 'dashPayContactRequests': return {
       sent: network.requests.filter(request => request.ownerId === payload.identifier),
@@ -45,7 +44,7 @@ async function answer(kind: string, _network: string, payload: {identifier: stri
     }
     case 'usernameStatus': return network.status(payload.label)
     case 'usernameContests': return {
-      contests: payload.labels.flatMap(label => (network.contests.get(label) ?? [])
+      contests: [...network.contests].flatMap(([label, contenders]) => contenders
         .filter(contender => payload.identifiers.includes(contender))
         .map(identifier => ({identifier, label}))),
     }
@@ -79,7 +78,6 @@ describe('listing identities', () => {
     }])
     network = {requests: [], names: new Map(), contests: new Map(), status: () => UNCHECKED, contactKey: 'tpub-alice'}
     request.mockImplementation(answer)
-    vi.spyOn(PlatformExplorerProvider.prototype, 'runningDpnsContests').mockImplementation(async () => [...network.contests.keys()])
   })
 
   // The one caller that displays aliases, so it has to keep paying for them.
@@ -136,7 +134,7 @@ describe('listing identities', () => {
     expect(await identities.getUsernames(walletId)).toEqual([])
   })
 
-  // A contender has no domain document until it wins: only the explorer's index lists it.
+  // A contender has no domain document until it wins: only the vote polls list it.
   it('lists a contest this identity joined elsewhere, confirmed by its vote', async () => {
     network.contests.set('0w1', [ALICE, IDENTIFIER])
     network.contests.set('fr0g', [ALICE])
@@ -145,7 +143,7 @@ describe('listing identities', () => {
     expect(await identities.getUsernames(walletId)).toMatchObject([{identifier: IDENTIFIER, label: '0w1', status: 'voting'}])
   })
 
-  // The explorer lists a contest by its normalized label only.
+  // A vote poll names a contest by its normalized label only.
   it('shows a name in a contest under the label its domain carries', async () => {
     network.names.set(IDENTIFIER, ['Owl.dash'])
     network.contests.set('0w1', [IDENTIFIER])

@@ -4,7 +4,6 @@ import {HD_VERSIONS} from '../../constants/addresses'
 import {MAX_KEYS_PER_TRANSITION, MAX_KEYS_TO_DISABLE} from '../../constants/credits'
 import {DashPayCache} from '../../database/DashPayCache'
 import {IdentityDAO} from '../../database/IdentityDAO'
-import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {Username, UsernameSearchResult} from '../../types/Username'
 import {DashPayContact} from '../../types/DashPay'
@@ -16,7 +15,6 @@ import {dashPayAccountPath} from '../../utils/dashPayKeys'
 import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {withUnlockedWallet} from '../../utils/walletSeed'
-import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider'
 import {PlatformWorkerService} from './PlatformWorkerService'
 
 const log = new Logger('identities')
@@ -26,15 +24,13 @@ const log = new Logger('identities')
 export class IdentityService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
-  private platformTransactionDAO: PlatformTransactionDAO
   private dashPayCache: DashPayCache
   private platform: PlatformWorkerService
   private dashPayRefreshes = new Map<string, Promise<void>>()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, platformTransactionDAO: PlatformTransactionDAO, dashPayCache: DashPayCache, platform: PlatformWorkerService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, dashPayCache: DashPayCache, platform: PlatformWorkerService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
-    this.platformTransactionDAO = platformTransactionDAO
     this.dashPayCache = dashPayCache
     this.platform = platform
   }
@@ -118,7 +114,11 @@ export class IdentityService {
 
     const [{infos}, {contests}] = await Promise.all([
       this.platform.request('identityInfos', wallet.network, {identifiers: [...identifiers, ...contactIds], skipDPNS: false}),
-      this.runningContests(wallet.network, identifiers),
+      // Contests joined on another device or before a restart, which have no domain document yet.
+      this.platform.request('usernameContests', wallet.network, {identifiers}).catch((err) => {
+        log.warn('running contests not listed:', err)
+        return {contests: []}
+      }),
     ])
     const names = new Map(infos.map(info => [info.identifier, info.usernames]))
 
@@ -145,18 +145,6 @@ export class IdentityService {
     cache.contactNames = new Map(contactIds.map(contactId => [contactId, names.get(contactId) ?? []]))
     cache.usernames = usernames.filter(username => username != null)
     log.info(`${walletId}: refreshed ${usernames.length} name(s), ${requests.length} contact request(s)`)
-  }
-
-  // Contests found elsewhere, on another device or before a restart. Without the
-  // explorer only those known to this process stay listed.
-  private async runningContests(network: Network, identifiers: string[]): Promise<{contests: Array<{identifier: string; label: string}>}> {
-    try {
-      const labels = await new PlatformExplorerProvider(network, this.platformTransactionDAO).runningDpnsContests()
-      return await this.platform.request('usernameContests', network, {labels, identifiers})
-    } catch (err) {
-      log.warn('running contests not listed:', err)
-      return {contests: []}
-    }
   }
 
   async getDashPayContacts(walletId: string): Promise<DashPayContact[]> {
