@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
-import { ConnectionIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
+import { ConnectionIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
 import { useRipple } from '@renderer/hooks/useRipple'

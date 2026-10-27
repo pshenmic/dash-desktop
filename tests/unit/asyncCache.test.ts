@@ -20,7 +20,9 @@ vi.mock('react', async (importOriginal) => {
 
 import {
   invalidateAllAsyncCaches,
+  invalidateAsyncCache,
   prefetchAsyncCache,
+  refreshActiveAsyncCaches,
   useAsyncRefreshFailures,
   useAsyncWithCache
 } from '@renderer/hooks/useAsyncWithCache'
@@ -34,6 +36,8 @@ async function flushPromises(): Promise<void> {
 beforeEach(() => {
   vi.useFakeTimers()
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubGlobal('requestAnimationFrame', () => 1)
+  vi.stubGlobal('cancelAnimationFrame', () => {})
 })
 
 afterEach(() => {
@@ -41,6 +45,7 @@ afterEach(() => {
   invalidateAllAsyncCaches()
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('invalidateAllAsyncCaches', () => {
@@ -77,6 +82,98 @@ describe('invalidateAllAsyncCaches', () => {
     expect(useAsyncRefreshFailures().failedCount).toBe(1)
     invalidateAllAsyncCaches()
     expect(useAsyncRefreshFailures().failedCount).toBe(0)
+  })
+})
+
+describe('staleTimeMs', () => {
+  const staleTimeMs = 60_000
+
+  function counter(): { fetches: () => number; fetcher: () => Promise<number> } {
+    let fetches = 0
+    return { fetches: () => fetches, fetcher: async () => ++fetches }
+  }
+
+  it('skips the mount fetch while the cached entry is younger than the window', async () => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('fresh', 'wallet', fetcher)
+    vi.advanceTimersByTime(staleTimeMs - 1)
+
+    useAsyncWithCache('fresh', 'wallet', fetcher, 0, { staleTimeMs })
+    await flushPromises()
+
+    expect(fetches()).toBe(1)
+  })
+
+  it('fetches on mount once the cached entry has aged past the window', async () => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('stale', 'wallet', fetcher)
+    vi.advanceTimersByTime(staleTimeMs)
+
+    useAsyncWithCache('stale', 'wallet', fetcher, 0, { staleTimeMs })
+    await flushPromises()
+
+    expect(fetches()).toBe(2)
+  })
+
+  it('revalidates on every mount when the option is absent', async () => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('unset', 'wallet', fetcher)
+
+    useAsyncWithCache('unset', 'wallet', fetcher, 0)
+    await flushPromises()
+
+    expect(fetches()).toBe(2)
+  })
+
+  it.each([
+    ['invalidateAsyncCache', () => invalidateAsyncCache('invalidated', 'wallet')],
+    ['invalidateAllAsyncCaches', invalidateAllAsyncCaches],
+  ])('fetches on mount inside the window after %s', async (_name, invalidate) => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('invalidated', 'wallet', fetcher)
+    invalidate()
+
+    useAsyncWithCache('invalidated', 'wallet', fetcher, 0, { staleTimeMs })
+    await flushPromises()
+
+    expect(fetches()).toBe(2)
+  })
+
+  it('still refetches a fresh entry through refreshActiveAsyncCaches', async () => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('active', 'wallet', fetcher)
+    useAsyncWithCache('active', 'wallet', fetcher, 0, { staleTimeMs })
+
+    await refreshActiveAsyncCaches()
+
+    expect(fetches()).toBe(2)
+  })
+
+  it('keeps polling on the refresh interval while the mount fetch is skipped', async () => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('polled', 'wallet', fetcher)
+
+    useAsyncWithCache('polled', 'wallet', fetcher, 0, { refreshIntervalMs: staleTimeMs, staleTimeMs })
+    await flushPromises()
+    expect(fetches()).toBe(1)
+
+    vi.advanceTimersByTime(staleTimeMs)
+    await flushPromises()
+    expect(fetches()).toBe(2)
+  })
+
+  it('measures freshness from the latest polled result', async () => {
+    const { fetches, fetcher } = counter()
+    await prefetchAsyncCache('repolled', 'wallet', fetcher)
+    useAsyncWithCache('repolled', 'wallet', fetcher, 0, { refreshIntervalMs: staleTimeMs, staleTimeMs })
+    vi.advanceTimersByTime(staleTimeMs)
+    await flushPromises()
+    vi.advanceTimersByTime(staleTimeMs / 2)
+
+    useAsyncWithCache('repolled', 'wallet', fetcher, 0, { refreshIntervalMs: staleTimeMs, staleTimeMs })
+    await flushPromises()
+
+    expect(fetches()).toBe(2)
   })
 })
 

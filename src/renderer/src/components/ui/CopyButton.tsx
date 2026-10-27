@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { CopyIcon2 } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { TooltipBubble } from '@renderer/components/dash-ui-kit-enxtended'
+import { CopyIcon2 } from '@renderer/components/dash-ui-kit-extended/icons'
+import { TooltipBubble } from '@renderer/components/dash-ui-kit-extended'
 
 type CopyButtonProps = {
   text: string

@@ -18,8 +18,8 @@ vi.mock('react-dom', () => ({createPortal: (element: ReactNode) => element}))
 vi.mock('dash-ui-kit/react', () => ({DashLogo: 'svg', useTheme: () => ({theme: 'light'})}))
 vi.mock('@renderer/contexts/ConnectionModeContext', () => ({useConnectionModeContext: () => ({showSyncWarning: true})}))
 vi.mock('@renderer/hooks/useFiat', () => ({useFiat: () => ({rateReady: false, format: () => '$0.00'})}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', ShieldSmallIcon: 'svg', Text: 'span'}))
-vi.mock('@renderer/components/dash-ui-kit-enxtended/icons', () => ({QrCodeIcon: 'svg', RefreshIcon: 'svg'}))
+vi.mock('@renderer/components/dash-ui-kit-extended', () => ({Button: 'button', ArrowIcon: 'svg', CreditsIcon: 'svg', CrossIcon: 'svg', HighlightedIdentifier: 'span', ShieldSmallIcon: 'svg', Text: 'span'}))
+vi.mock('@renderer/components/dash-ui-kit-extended/icons', () => ({FilterIcon: 'svg', QrCodeIcon: 'svg', RefreshIcon: 'svg'}))
 vi.mock('@renderer/components/modal/AddressQrModal', () => ({default: 'dialog'}))
 vi.mock('@renderer/components/ui/Checkbox', () => ({default: 'input'}))
 vi.mock('@renderer/components/ui/CopyButton', () => ({default: 'button'}))
@@ -31,8 +31,12 @@ import Spinner from '../../src/renderer/src/components/ui/Spinner'
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(elements)
-  if (!isValidElement<{children?: ReactNode}>(node)) return []
-  return [node, ...elements(node.props.children)]
+  if (!isValidElement<{children?: ReactNode, below?: ReactNode}>(node)) return []
+  return [node, ...elements(node.props.children), ...elements(node.props.below)]
+}
+
+function applyButton(nodes: ReactElement<Record<string, unknown>>[]): ReactElement<Record<string, unknown>> {
+  return nodes.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
 }
 
 function render(props: CoinControlModalProps): ReactElement<Record<string, unknown>>[] {
@@ -58,8 +62,8 @@ function platformModalProps(operation = TransferOperation.Shield): CoinControlMo
   return {
     ...modalProps(), operation, selection: {kind: 'automatic'},
     platformAddresses: [
-      {platformAddress: 'platform-a', balanceCredits: 5_000_000n, nonce: 0},
-      {platformAddress: 'platform-b', balanceCredits: 7_000_000n, nonce: 0},
+      {platformAddress: 'platform-a', balanceCredits: 700_000_000n, nonce: 0},
+      {platformAddress: 'platform-b', balanceCredits: 500_000_000n, nonce: 0},
     ],
   }
 }
@@ -86,17 +90,18 @@ describe('Platform coin control', () => {
     const selected = render(props)
     expect(selected.find(node => node.key === 'platform-a')!.props.checked).toBe(true)
     expect(selected.find(node => node.key === 'platform-b')!.props.checked).toBe(true)
-    expect(selected.some(node => node.props.type === 'radio')).toBe(false)
+    expect(selected.some(node => node.props.role === 'radio')).toBe(false)
+    expect(selected.some(node => node.props.role === 'radiogroup')).toBe(false)
     expect(selected.some(node => String(node.props.id).startsWith('coin-control-amount-'))).toBe(false)
     expect(selected.some(node => typeof node.props.children === 'string'
       && node.props.children.includes('The wallet selects the amounts and fee-paying address.'))).toBe(true)
 
-    const apply = selected.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
+    const apply = applyButton(selected)
     expect(apply.props.disabled).toBe(false)
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith({
       kind: 'platformInputs',
-      inputs: [{address: 'platform-a', credits: 5_000_000n}, {address: 'platform-b', credits: 7_000_000n}],
+      inputs: [{address: 'platform-a', credits: 700_000_000n}, {address: 'platform-b', credits: 500_000_000n}],
       feeAddress: 'platform-a',
     })
   })
@@ -107,9 +112,9 @@ describe('Platform coin control', () => {
       kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 1_000_000n}], feeAddress: 'platform-a',
     }
     const nodes = render(props)
-    expect(nodes.some(node => node.props.credits === 5_000_000n)).toBe(true)
+    expect(nodes.some(node => node.props.credits === 700_000_000n)).toBe(true)
     expect(nodes.some(node => node.props.id === 'coin-control-amount-platform-a')).toBe(false)
-    const apply = nodes.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
+    const apply = applyButton(nodes)
     expect(apply.props.disabled).toBe(false)
     ;(apply.props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith(props.selection)
@@ -119,11 +124,10 @@ describe('Platform coin control', () => {
     const second = render(props).find(node => node.key === 'platform-b')!
     ;(second.props.onChange as (checked: boolean) => void)(true)
     const edited = render(props)
-    const editedApply = edited.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
-    ;(editedApply.props.onClick as () => void)()
+    ;(applyButton(edited).props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith({
       kind: 'platformInputs',
-      inputs: [{address: 'platform-a', credits: 5_000_000n}, {address: 'platform-b', credits: 7_000_000n}],
+      inputs: [{address: 'platform-a', credits: 700_000_000n}, {address: 'platform-b', credits: 500_000_000n}],
       feeAddress: 'platform-a',
     })
   })
@@ -135,10 +139,76 @@ describe('Platform coin control', () => {
     }
     const nodes = render(props)
     expect(nodes.find(node => node.props.id === 'coin-control-amount-platform-a')!.props.credits).toBe(1_000_000n)
-    expect(nodes.find(node => node.props.type === 'radio')!.props.checked).toBe(true)
-    const apply = nodes.find(node => node.type === 'button' && React.Children.toArray(node.props.children as ReactNode).includes('Apply'))!
-    ;(apply.props.onClick as () => void)()
+    expect(nodes.find(node => node.props.role === 'radio')!.props['aria-checked']).toBe(true)
+    ;(applyButton(nodes).props.onClick as () => void)()
     expect(props.onApply).toHaveBeenCalledWith(props.selection)
+  })
+
+  it('moves the fee payer with single-choice chips instead of native radios', () => {
+    const props = platformModalProps(TransferOperation.AddressFundsTransfer)
+    props.selection = {
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 1_000_000n}, {address: 'platform-b', credits: 2_000_000n}],
+      feeAddress: 'platform-a',
+    }
+    const nodes = render(props)
+    expect(nodes.some(node => node.props.type === 'radio')).toBe(false)
+    expect(nodes.some(node => node.props.role === 'radiogroup')).toBe(true)
+    const chips = nodes.filter(node => node.props.role === 'radio')
+    expect(chips.map(chip => chip.props['aria-checked'])).toEqual([true, false])
+    ;(chips[1].props.onClick as () => void)()
+
+    const moved = render(props)
+    expect(moved.filter(node => node.props.role === 'radio').map(chip => chip.props['aria-checked'])).toEqual([false, true])
+    ;(applyButton(moved).props.onClick as () => void)()
+    expect(props.onApply).toHaveBeenCalledWith({...props.selection, feeAddress: 'platform-b'})
+  })
+
+  it('names each fee chip after its input and moves the fee payer with arrow keys', () => {
+    const focus = vi.fn()
+    const getElementById = vi.fn(() => ({focus}))
+    vi.stubGlobal('document', {body: {}, getElementById})
+    const props = platformModalProps(TransferOperation.AddressFundsTransfer)
+    props.selection = {
+      kind: 'platformInputs',
+      inputs: [{address: 'platform-a', credits: 1_000_000n}, {address: 'platform-b', credits: 2_000_000n}],
+      feeAddress: 'platform-a',
+    }
+    const nodes = render(props)
+    const group = nodes.find(node => node.props.role === 'radiogroup')!
+    expect(elements(group.props.children as ReactNode).some(node => typeof node.props.children === 'string'
+      && node.props.children.startsWith('Up to'))).toBe(false)
+    const chips = nodes.filter(node => node.props.role === 'radio')
+    expect(chips.map(chip => chip.props['aria-label'])).toEqual(['Pays fee: platform-a', 'Pays fee: platform-b'])
+    expect(chips.map(chip => chip.props.tabIndex)).toEqual([0, -1])
+
+    const preventDefault = vi.fn()
+    ;(chips[0].props.onKeyDown as (event: {key: string, preventDefault: () => void}) => void)({key: 'ArrowDown', preventDefault})
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(getElementById).toHaveBeenCalledWith('coin-control-fee-platform-b')
+    expect(focus).toHaveBeenCalledOnce()
+
+    const moved = render(props).filter(node => node.props.role === 'radio')
+    expect(moved.map(chip => chip.props['aria-checked'])).toEqual([false, true])
+    expect(moved.map(chip => chip.props.tabIndex)).toEqual([-1, 0])
+  })
+
+  it('shows the design copy and address chips on the Automatic tab', () => {
+    const nodes = render(platformModalProps(TransferOperation.AddressFundsTransfer))
+    expect(nodes.find(node => typeof node.props.showAddresses === 'boolean')!.props.showAddresses).toBe(true)
+    expect(nodes.some(node => node.props.children === 'Let The Wallet Choose')).toBe(true)
+    expect(nodes.some(node => node.props.children === 'The wallet will select enough available inputs for the amount and fee')).toBe(true)
+    const manual = nodes.find(node => node.type === 'button' && node.props.children === 'Switch to Manual')!
+    expect(manual.props.size).toBe('compact')
+    expect(manual.props.className).toContain('normal-case')
+  })
+
+  it('capitalises the selected unit in the counter', () => {
+    const props = platformModalProps(TransferOperation.AddressFundsTransfer)
+    props.selection = {
+      kind: 'platformInputs', inputs: [{address: 'platform-a', credits: 1_000_000n}], feeAddress: 'platform-a',
+    }
+    expect(render(props).find(node => node.props.className === 'capitalize')!.props.children).toBe('input')
   })
 })
 
@@ -158,36 +228,89 @@ describe('coin control UTXO refresh', () => {
     expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
       && node.props.label.props.children === 'Only selected')).toBe(false)
     expect(nodes.some(node => isValidElement<{children?: ReactNode}>(node.props.label)
-      && node.props.label.props.children === 'Filter dust')).toBe(true)
+      && node.props.label.props.children === 'Filter Dust')).toBe(true)
+  })
+
+  it('filters dust by default without hiding dust that is already selected', () => {
+    const props = modalProps()
+    const coin = {...props.utxos[0], satoshis: 50_000n}
+    const utxos = [coin, {...coin, txid: 'dust'}, {...coin, txid: 'large', satoshis: 200_000n}]
+    const nodes = render({...props, utxos})
+    const filter = nodes.find(node => isValidElement<{children?: ReactNode}>(node.props.label)
+      && node.props.label.props.children === 'Filter Dust')!
+    expect(filter.props.checked).toBe(true)
+    expect(nodes.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
+    expect(nodes.some(node => node.key === 'dust:0')).toBe(false)
+    expect(nodes.some(node => node.key === 'large:0')).toBe(true)
+
+    ;(filter.props.onChange as (checked: boolean) => void)(false)
+    const unfiltered = render({...props, utxos})
+    expect(unfiltered.some(node => node.key === 'dust:0')).toBe(true)
+    expect(unfiltered.find(node => node.key === 'coin:0')!.props.checked).toBe(true)
+  })
+
+  it('keeps a selected dust row visible after it is unchecked with the filter on', () => {
+    const props = modalProps()
+    const utxos = [{...props.utxos[0], satoshis: 50_000n}, {...props.utxos[0], txid: 'dust', satoshis: 50_000n}]
+    const row = render({...props, utxos}).find(node => node.key === 'coin:0')!
+    ;(row.props.onChange as (checked: boolean) => void)(false)
+
+    const unchecked = render({...props, utxos})
+    expect(unchecked.find(node => node.key === 'coin:0')!.props.checked).toBe(false)
+    expect(unchecked.some(node => node.key === 'dust:0')).toBe(false)
+
+    ;(unchecked.find(node => node.key === 'coin:0')!.props.onChange as (checked: boolean) => void)(true)
+    expect(render({...props, utxos}).find(node => node.key === 'coin:0')!.props.checked).toBe(true)
+
+    const filter = (nodes: ReturnType<typeof render>): ReturnType<typeof render>[number] => nodes.find(node => isValidElement<{children?: ReactNode}>(node.props.label)
+      && node.props.label.props.children === 'Filter Dust')!
+    ;(filter(render({...props, utxos})).props.onChange as (checked: boolean) => void)(false)
+    ;(render({...props, utxos}).find(node => node.key === 'dust:0')!.props.onChange as (checked: boolean) => void)(true)
+    ;(filter(render({...props, utxos})).props.onChange as (checked: boolean) => void)(true)
+    ;(render({...props, utxos}).find(node => node.key === 'dust:0')!.props.onChange as (checked: boolean) => void)(false)
+    expect(render({...props, utxos}).find(node => node.key === 'dust:0')!.props.checked).toBe(false)
   })
 
   it('updates the timestamp on an existing selected row when a pending coin confirms', () => {
     const props = modalProps()
     const pending = {...props.utxos[0], height: 0, confirmations: 0, timestamp: new Date(2026, 8, 11, 9, 15)}
     const initialRow = render({...props, utxos: [pending]}).find(node => node.key === 'coin:0')!
-    expect(elements(initialRow).some(node => node.props.children === '11 Sept 2026, 09:15')).toBe(true)
+    expect(elements(initialRow).some(node => node.props.label === '11 Sept 2026, 09:15')).toBe(true)
     const confirmed = {...pending, height: 10, confirmations: 1, timestamp: new Date(2026, 8, 11, 9, 20)}
     const updatedRow = render({...props, utxos: [confirmed]}).find(node => node.key === 'coin:0')!
     expect(updatedRow.type).toBe(initialRow.type)
     expect(updatedRow.props.checked).toBe(true)
-    expect(elements(updatedRow).some(node => node.props.children === '11 Sept 2026, 09:20')).toBe(true)
+    expect(elements(updatedRow).some(node => node.props.label === '11 Sept 2026, 09:20')).toBe(true)
+  })
+
+  it('lists the largest input first and re-sorts by date on request', () => {
+    const props = modalProps()
+    const utxos = [
+      {...props.utxos[0], txid: 'old', satoshis: 300_000n, confirmations: 50},
+      {...props.utxos[0], txid: 'new', satoshis: 200_000n, confirmations: 0},
+      {...props.utxos[0], txid: 'mid', satoshis: 400_000n, confirmations: 5},
+    ]
+    const rowKeys = (nodes: ReturnType<typeof render>): string[] => nodes
+      .map(node => node.key)
+      .filter((key): key is string => typeof key === 'string' && key.endsWith(':0'))
+    expect(rowKeys(render({...props, utxos}))).toEqual(['mid:0', 'old:0', 'new:0'])
+
+    const sort = render({...props, utxos}).find(node => node.props.ariaLabel === 'Sort inputs')!
+    ;(sort.props.onChange as (value: string) => void)('newest')
+    expect(rowKeys(render({...props, utxos}))).toEqual(['new:0', 'mid:0', 'old:0'])
   })
 
   it('shows an unknown timestamp when the source cannot date a coin', () => {
-    expect(render(modalProps()).some(node => node.props.children === 'Unknown')).toBe(true)
+    expect(render(modalProps()).some(node => node.props.label === 'Unknown')).toBe(true)
   })
 
-  it('keeps the smaller timestamp beside the full outpoint', () => {
+  it('shows the full outpoint under the address and dates the row beside the amount', () => {
     const nodes = render(modalProps())
-    const metadata = nodes.find(node => node.type === 'div' && React.Children.toArray(node.props.children as ReactNode)
-      .some(child => isValidElement<{children?: ReactNode}>(child) && child.props.children === 'coin:0'))!
-    const children = React.Children.toArray(metadata.props.children as ReactNode) as ReactElement<Record<string, unknown>>[]
-    expect(children).toHaveLength(2)
-    expect(children[0].props).toMatchObject({size: 10, children: 'coin:0'})
-    expect(children[0].props.className).toContain('break-all')
-    expect(children[1].props).toMatchObject({size: 10, children: 'Unknown'})
-    expect(children[1].props.className).toContain('shrink-0')
-    expect(children[1].props.className).toContain('text-right')
+    const row = nodes.find(node => node.key === 'coin:0')!
+    expect(row.props.title).toBeUndefined()
+    const details = elements(row).find(node => node.props.address === 'address')!
+    expect(details.props.outpoint).toBe('coin:0')
+    expect(details.props.label).toBe('Unknown')
   })
 
   it.each([

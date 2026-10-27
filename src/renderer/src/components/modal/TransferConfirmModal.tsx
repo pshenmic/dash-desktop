@@ -1,44 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Button, CrossIcon, Input, Text, SuccessIcon } from '../dash-ui-kit-enxtended'
-import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
-import { useTheme } from 'dash-ui-kit/react'
+import { Text, SuccessIcon } from '../dash-ui-kit-extended'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { PlatformRecipient, PlatformSendResult } from '@renderer/api/types'
+import { PlatformSendResult } from '@renderer/api/types'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
+import { ModalSize } from '@renderer/enums/ModalSize'
 import { getErrorMessage } from '@renderer/utils/error'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
-import Spinner from '@renderer/components/ui/Spinner'
+import Modal from '@renderer/components/ui/Modal'
+import ModalActions from '@renderer/components/ui/ModalActions'
+import PasswordField from '@renderer/components/ui/PasswordField'
+import PendingRow from '@renderer/components/ui/PendingRow'
 import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import RecipientSummary from '@renderer/components/ui/RecipientSummary'
+import TxSummary from '@renderer/components/ui/TxSummary'
 import type { RecipientSummaryProps } from '@renderer/types/RecipientSummary'
+import type { TransferConfirmModalProps } from '@renderer/types/TransferConfirmModal'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-
-export interface TransferConfirmRow {
-  label: string
-  value: string | React.ReactNode
-  mono?: boolean
-}
-
-interface TransferConfirmModalProps {
-  isOpen: boolean
-  advanced?: boolean
-  onClose: () => void
-  title: string
-  successTitle: string
-  rows: TransferConfirmRow[]
-  recipients?: PlatformRecipient[]
-  feeOutputIndex?: number
-  feeCredits?: bigint | null
-  run: (password: string) => Promise<PlatformSendResult>
-  sourceValid?: boolean
-  onSuccess: () => void
-  successNote?: string
-}
-
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { SEND_BROADCASTING_LABEL, SEND_INPUTS_CHANGED_MESSAGE } from '@renderer/constants/sendConfirmModal'
 
 export default function TransferConfirmModal({
   isOpen,
@@ -46,16 +28,16 @@ export default function TransferConfirmModal({
   onClose,
   title,
   successTitle,
-  rows,
+  summary,
   recipients,
   feeOutputIndex,
   feeCredits,
   run,
   sourceValid = true,
+  presetPassword,
   onSuccess,
   successNote,
-}: TransferConfirmModalProps): React.JSX.Element | null {
-  const { theme } = useTheme()
+}: TransferConfirmModalProps): React.JSX.Element {
   const sourceValidRef = useRef(sourceValid)
   sourceValidRef.current = sourceValid
   const { status } = useAuth()
@@ -66,18 +48,61 @@ export default function TransferConfirmModal({
   const [passwordInvalid, setPasswordInvalid] = useState(false)
   const [result, setResult] = useState<PlatformSendResult | null>(null)
   const [sentRecipients, setSentRecipients] = useState<RecipientSummaryProps | null>(null)
+  const [auto, setAuto] = useState(false)
+  const autoStarted = useRef(false)
+  const [seenOpen, setSeenOpen] = useState(false)
 
-  useEffect(() => {
+  if (isOpen !== seenOpen) {
+    setSeenOpen(isOpen)
     if (isOpen) {
       setPassword('')
-      setPhase(ConfirmModalPhase.Confirm)
+      setPhase(presetPassword ? ConfirmModalPhase.Sending : ConfirmModalPhase.Confirm)
       setPasswordInvalid(false)
       setResult(null)
       setSentRecipients(null)
+      setAuto(Boolean(presetPassword))
+    }
+  }
+
+  const abort = (preset: boolean): void => {
+    if (preset) onClose()
+    else setPhase(ConfirmModalPhase.Confirm)
+  }
+
+  const submit = async (secret: string, preset: boolean): Promise<void> => {
+    if (!sourceValidRef.current) {
+      if (preset) toast.error(SEND_INPUTS_CHANGED_MESSAGE)
+      abort(preset)
+      return
+    }
+    try {
+      setSentRecipients(recipients ? {
+        recipients: recipients.map(recipient => ({ ...recipient })),
+        feeOutputIndex,
+        feeCredits,
+      } : null)
+      const res = await run(secret)
+      setResult(res)
+      setPhase(ConfirmModalPhase.Done)
+      onSuccess()
+    } catch (e) {
+      console.error('Transfer failed', e)
+      toast.error(getErrorMessage(e))
+      abort(preset)
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      autoStarted.current = false
+      return
+    }
+    if (autoStarted.current) return
+    if (presetPassword) {
+      autoStarted.current = true
+      void submit(presetPassword, true)
     }
   }, [isOpen])
-
-  if (!isOpen) return null
 
   const sending = phase === ConfirmModalPhase.Sending
 
@@ -86,30 +111,16 @@ export default function TransferConfirmModal({
     setPhase(ConfirmModalPhase.Sending)
     setPasswordInvalid(false)
     try {
-      const ok = await API.verifyWalletPassword(walletId, password)
-      if (!ok) {
-        setPasswordInvalid(true)
-        setPhase(ConfirmModalPhase.Confirm)
+      if (await API.verifyWalletPassword(walletId, password)) {
+        await submit(password, false)
         return
       }
-      if (!sourceValidRef.current) {
-        setPhase(ConfirmModalPhase.Confirm)
-        return
-      }
-      setSentRecipients(recipients ? {
-        recipients: recipients.map(recipient => ({ ...recipient })),
-        feeOutputIndex,
-        feeCredits,
-      } : null)
-      const res = await run(password)
-      setResult(res)
-      setPhase(ConfirmModalPhase.Done)
-      onSuccess()
+      setPasswordInvalid(true)
     } catch (e) {
       console.error('Transfer failed', e)
       toast.error(getErrorMessage(e))
-      setPhase(ConfirmModalPhase.Confirm)
     }
+    setPhase(ConfirmModalPhase.Confirm)
   }
 
   const requestClose = (): void => {
@@ -117,148 +128,81 @@ export default function TransferConfirmModal({
     onClose()
   }
 
-  return createPortal(
-    <div
-      className={"fixed inset-0 z-99 bg-black/64 flex items-center justify-center overlay-fade-in"}
+  return (
+    <Modal
+      open={isOpen}
+      onClose={requestClose}
+      title={phase === ConfirmModalPhase.Done ? successTitle : title}
+      size={ModalSize.Lg}
+      dismissible={!sending}
     >
-      <div
-        className={"w-full max-w-170 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl bg-white dark:bg-white/12 p-6 dark:backdrop-blur-[2rem] modal-fade-in"}
-      >
-        <div className={"flex items-center justify-between"}>
-          <Text size={24} weight={"extrabold"} color={"brand"}>
-            {phase === ConfirmModalPhase.Done ? successTitle : title}
-          </Text>
-          <button
-            className={"dash-text-default hover:opacity-60 cursor-pointer disabled:opacity-30 disabled:cursor-default"}
-            onClick={requestClose}
-            disabled={sending}
-          >
-            <CrossIcon size={16} color={"currentColor"} className={"dash-text-default"} />
-          </button>
+      {phase !== ConfirmModalPhase.Done ? auto ? (
+        <div className={"phase-fade-in"} key={"pending"}>
+          <PendingRow label={SEND_BROADCASTING_LABEL} className={"mt-4"} />
         </div>
+      ) : (
+        <div className={"phase-fade-in"} key={"confirm"}>
+          <TxSummary {...summary} className={"mt-4"} />
 
-        {phase !== ConfirmModalPhase.Done ? (
-          <div className={"phase-fade-in"} key={"confirm"}>
-            <div className={"mt-4 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              {rows.map(row => (
-                <div key={row.label} className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{row.label}</Text>
-                  <Text size={12} weight={row.mono ? "medium" : "extrabold"} color={"brand"} className="min-w-0 break-all select-all text-right">
-                    {row.value}
-                  </Text>
-                </div>
-              ))}
-              {recipients && <RecipientSummary recipients={recipients} feeOutputIndex={feeOutputIndex} feeCredits={feeCredits} />}
+          <PasswordField
+            id={"transfer-confirm-password"}
+            value={password}
+            onChange={(value) => { setPasswordInvalid(false); setPassword(value) }}
+            onSubmit={handleConfirm}
+            error={passwordInvalid ? INVALID_WALLET_PASSWORD_MESSAGE : null}
+            disabled={sending}
+            className={"mt-5"}
+          />
+
+          <ModalActions
+            secondary={{ label: 'Cancel', onClick: requestClose, disabled: sending }}
+            primary={{
+              label: sending ? 'Sending…' : advanced ? 'Sign & Send' : 'Confirm',
+              onClick: handleConfirm,
+              disabled: password.length === 0 || !sourceValid,
+              loading: sending,
+            }}
+          />
+        </div>
+      ) : (
+        <div className={"phase-fade-in"} key={"done"}>
+          <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
+            <div className={"success-pop"}>
+              <SuccessIcon size={56} />
             </div>
-
-            <Text size={14} weight={"medium"} color={"brand"} opacity={40} className={"mt-4 block"}>
-              Enter your wallet password to sign and broadcast.
+            <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
+              {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
             </Text>
-            <div className={"mt-2"}>
-              <Input
-                id={"transfer-confirm-password"}
-                type={"password"}
-                placeholder={"Wallet password"}
-                value={password}
-                variant={"outlined"}
-                onChange={(e) => { setPasswordInvalid(false); setPassword(e.target.value) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
-                className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={passwordInvalid ? 'error' : 'primary'}
-                disabled={sending}
-                autoFocus
-              />
-            </div>
-            {passwordInvalid && <Text size={12} weight="medium" color="red" className="mt-2 block">{INVALID_WALLET_PASSWORD_MESSAGE}</Text>}
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button
-                type={"button"}
-                onClick={requestClose}
-                variant={"solid"}
-                colorScheme={theme === 'light' ? 'lightBlue-mint' : 'gray'}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem]"}
-                disabled={sending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type={"button"}
-                onClick={handleConfirm}
-                disabled={password.length === 0 || sending || !sourceValid}
-                variant={"solid"}
-                colorScheme={"lightBlue-mint"}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem] gap-2"}
-              >
-                {sending && <Spinner size={16} />}
-                {sending ? 'Sending…' : advanced ? 'Sign & Send' : 'Confirm'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className={"phase-fade-in"} key={"done"}>
-            <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
-              <div className={"success-pop"}>
-                <SuccessIcon size={56} />
-              </div>
-              <Text size={16} weight={"extrabold"} color={"brand"} className={"mt-3"}>
-                {result ? <CreditsAmount credits={result.amountCredits} align={"center"} /> : ''}
-              </Text>
-              {sentRecipients?.feeOutputIndex !== undefined && (
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                  Total debited, including the fee deducted from a recipient.
-                </Text>
-              )}
+            {successNote && (
               <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-1"}>
-                Broadcast to Platform. It will confirm shortly.
+                {successNote}
               </Text>
-              {successNote && (
-                <div className={"mt-3 flex items-start gap-2 w-full p-[.875rem] rounded-[.9375rem] border border-dash-orange/40 bg-dash-orange/8 dark:bg-dash-orange/10 text-left"}>
-                  <ExclamationIcon size={16} className={"text-dash-orange shrink-0"} />
-                  <Text size={12} weight={"medium"} className={"leading-[130%] text-dash-orange!"}>
-                    {successNote}
-                  </Text>
-                </div>
-              )}
-            </div>
-
-            <div className={"mt-5 flex flex-col gap-[.75rem] p-[.875rem] rounded-[.9375rem] dash-block-3"}>
-              <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>
-              </div>
-              {sentRecipients ? <RecipientSummary {...sentRecipients} feeCredits={result?.feeCredits ?? sentRecipients.feeCredits} /> : <div className={"flex justify-between items-center gap-4"}>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
-                <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.toAddress}</Text>
-              </div>}
-              {result?.feeCredits != null && (
-                <div className={"flex justify-between items-center gap-4"}>
-                  <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-                    {sentRecipients?.feeOutputIndex === undefined ? 'Reserved for fee' : `Fee reserve from recipient ${sentRecipients.feeOutputIndex + 1}`}
-                  </Text>
-                  <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
-                </div>
-              )}
-              {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
-            </div>
-
-            <div className={"mt-4.5 flex gap-2"}>
-              <Button
-                type={"button"}
-                onClick={onClose}
-                variant={"solid"}
-                colorScheme={"lightBlue-mint"}
-                size={"sm"}
-                className={"flex-1 rounded-[.9375rem]"}
-              >
-                Done
-              </Button>
-            </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+
+          <div className={`mt-5 flex flex-col gap-[.75rem] ${SURFACE_SECTION}`}>
+            <div className={"flex justify-between items-center gap-4"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>From</Text>
+              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.fromAddress}</Text>
+            </div>
+            {sentRecipients ? <RecipientSummary {...sentRecipients} feeCredits={result?.feeCredits ?? sentRecipients.feeCredits} /> : <div className={"flex justify-between items-center gap-4"}>
+              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>To</Text>
+              <Text size={12} weight={"medium"} color={"brand"} className={"min-w-0 break-all select-all text-right"}>{result?.toAddress}</Text>
+            </div>}
+            {result?.feeCredits != null && (
+              <div className={"flex justify-between items-center gap-4"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                  {sentRecipients?.feeOutputIndex === undefined ? 'Reserved for fee' : `Fee reserve from recipient ${sentRecipients.feeOutputIndex + 1}`}
+                </Text>
+                <Text size={12} weight={"medium"} color={"brand"}><CreditsAmount credits={result.feeCredits} align={"end"} /></Text>
+              </div>
+            )}
+            {result?.stHash && <HashField hash={result.stHash} explorerUrl={network ? platformTransactionUrl(result.stHash, network) : null} />}
+          </div>
+
+          <ModalActions primary={{ label: 'Done', onClick: onClose }} />
+        </div>
+      )}
+    </Modal>
   )
 }

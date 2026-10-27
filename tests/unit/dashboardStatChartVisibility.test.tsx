@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { ThemeProvider } from 'dash-ui-kit/react'
 import StatVolumeChart from '@renderer/components/pages/dashboard/StatVolumeChart'
 import Statistics from '@renderer/components/pages/dashboard/Statistics'
 import { buildStatFlows } from '@renderer/utils/dashboardStatCharts'
 import { buildDashboardAnalytics } from '@renderer/utils/dashboardAnalytics'
+import { ANALYTICS_SERIES } from '@renderer/constants/dashboardAnalytics'
 import type { PlatformTransaction } from '@renderer/api/types'
 
 vi.mock('@renderer/hooks/useBalanceVisibility', () => ({ useBalanceVisibility: () => ({ isBalanceVisible: true }) }))
@@ -36,19 +38,20 @@ describe('statistics chart visibility', () => {
     const ariaLabel = markup.match(/aria-label="([^"]+)"/)?.[1].toLowerCase()
     expect(ariaLabel).toContain(period === 'all' ? 'all time' : `${period} calendar days`)
     if (period !== 30) expect(markup).not.toContain('30 days')
-    expect(markup).toContain('Core total: 0 DASH')
-    expect(markup).toContain('Evo total: 0 DASH')
-    expect(markup).toContain('stroke="var(--stat-brand)"')
-    expect(markup).toContain('stroke="var(--stat-evo)"')
+    expect(markup).toContain('Core total: 0 Dash')
+    expect(markup).toContain('Evo total: 0 Dash')
+    expect(markup).toContain(ANALYTICS_SERIES.core.stroke)
+    expect(markup).toContain(ANALYTICS_SERIES.evo.stroke)
     expect(markup).not.toMatch(/NaN|Infinity/)
   })
 
-  it('labels incomplete Evo history instead of presenting it as a complete zero', () => {
+  it('marks incomplete Evo history once, on the Evo legend', () => {
     const now = new Date()
+    vi.stubGlobal('React', React)
     const days = buildDashboardAnalytics([], [], 7, now).days
-    const markup = renderToStaticMarkup(<StatVolumeChart flows={buildStatFlows([], [], days, now)} direction="sent" period={7} hidden={false} platformFailed />)
-    expect(markup).toContain('Evo partial')
-    expect(markup).toContain('Evo history is incomplete')
+    const markup = renderToStaticMarkup(<ThemeProvider initialTheme="light"><Statistics transactions={[]} platform={[]} platformFailed period={7} days={days} /></ThemeProvider>)
+    expect(markup.match(/Evo history incomplete/g)).toHaveLength(1)
+    expect(markup).not.toMatch(/partial/i)
   })
 })
 
@@ -68,10 +71,10 @@ describe('statistics selected period', () => {
       netCredits: 200_000_000_000n, amountCredits: 200_000_000_000n, sender: [], recipient: [],
     }]
     const days = buildDashboardAnalytics(transactions, platform, period, now).days
-    const markup = renderToStaticMarkup(<Statistics transactions={transactions} platform={platform} platformFailed={false} period={period} days={days} />)
+    const markup = renderToStaticMarkup(<ThemeProvider initialTheme="light"><Statistics transactions={transactions} platform={platform} platformFailed={false} period={period} days={days} /></ThemeProvider>)
     expect(markup).toContain(period === 7 ? '7 days: 1 Core and 0 Evo transactions' : `${period === 'all' ? 'All time' : '30 days'}: 2 Core and 1 Evo transactions`)
-    expect(markup).toContain(`Core total: ${period === 7 ? 1 : 4} DASH`)
-    expect(markup).toContain(`Evo total: ${period === 7 ? 0 : 2} DASH`)
+    expect(markup).toContain(`Core total: ${period === 7 ? 1 : 4} Dash`)
+    expect(markup).toContain(`Evo total: ${period === 7 ? 0 : 2} Dash`)
     expect(markup).toContain('since 1 Sept 2026')
     expect(markup).toContain('>23 days</div>')
   })

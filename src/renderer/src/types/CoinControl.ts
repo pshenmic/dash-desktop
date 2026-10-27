@@ -81,7 +81,10 @@ export interface CoinControlEmptyProps {
   text: string
 }
 
-export type CoinControlAutomaticIllustrationProps = Pick<CoinControlFunds, 'utxos' | 'platformAddresses'>
+export interface CoinControlAutomaticIllustrationProps {
+  showAddresses: boolean
+  children: ReactNode
+}
 
 export interface CoinControlAmountInputProps {
   id: string
@@ -92,10 +95,12 @@ export interface CoinControlAmountInputProps {
 }
 
 export interface CoinControlInputDetailsProps {
-  label: string
+  label?: string
   amount: ReactNode
   address: string
+  outpoint?: string
   fiat?: string
+  actions?: ReactNode
 }
 
 export interface WalletUtxosRequest {
@@ -118,5 +123,7 @@ export interface CoinControlCheckRowProps {
   checked: boolean
   onChange: (checked: boolean) => void
   children: ReactNode
+  below?: ReactNode
+  title?: string
   disabled?: boolean
 }

@@ -18,7 +18,7 @@ export function useSendTransactionPreview(request: SendPreviewRequest | null): S
       .then(preview => {
         if (active) dispatch({
           type: 'loaded', requestId: request.id,
-          data: mapSendTransactionPreview({preview, operation: request.operation, from: request.from}),
+          data: mapSendTransactionPreview({preview, operation: request.operation, from: request.from, fromAddress: request.fromAddress}),
         })
       })
       .catch(error => {

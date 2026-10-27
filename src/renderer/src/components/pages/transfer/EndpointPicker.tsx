@@ -1,49 +1,36 @@
 import { useRef, useState } from "react";
-import { Text, CreditsIcon, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { ChevronIcon, DashLogo } from "dash-ui-kit/react";
+import { HighlightedIdentifier, Text, ChevronIcon } from "@renderer/components/dash-ui-kit-extended";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
-import LayerBadge from "@renderer/components/ui/LayerBadge";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
 import { SourceKind } from "@renderer/enums/SourceKind";
 import { DestinationKind } from "@renderer/enums/DestinationKind";
-import { SEND_ENDPOINT_LABELS } from "@renderer/constants/sendPages";
+import { ADDRESS_INPUT, ADDRESS_INPUT_TEXT_SIZES, CONTACT_IDENTIFIER_CLASS, FIELD_INVALID } from "@renderer/constants/addressField";
+import { FIELD_COMPACT, POPOVER, POPOVER_OPTION } from "@renderer/constants/surfaces";
 import PlatformAddressSelect from "./PlatformAddressSelect";
+import EndpointKindIcon from "./EndpointKindIcon";
 import DropdownField from "@renderer/components/ui/DropdownField";
-import type { DestinationPickerProps } from "@renderer/types/EndpointPicker";
+import type { DestinationPickerProps, EndpointKindEntry } from "@renderer/types/EndpointPicker";
 import Spinner from "@renderer/components/ui/Spinner";
-import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
-
-const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
-const inputBox = "dash-input-block rounded-[.875rem] px-4 py-3.5"
-
-function KindIcon({kind, compact = false}: {kind: string; compact?: boolean}): React.JSX.Element {
-  if (compact && (kind === SourceKind.Core || kind === DestinationKind.CoreAddress || kind === SourceKind.PlatformAddress)) {
-    return <LayerBadge layer={kind === SourceKind.Core || kind === DestinationKind.CoreAddress ? 'L1' : 'L2'} />
-  }
-  if (kind === SourceKind.Core || kind === DestinationKind.CoreAddress) return <DashLogo size={16} />
-  if (kind === SourceKind.Shielded) return <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
-  return <CreditsIcon size={16} />
-}
+import { RefreshIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 
 interface KindDropdownProps {
-  kinds: Array<{kind: string; label: string}>
+  kinds: EndpointKindEntry[]
   selected: string
   onSelect: (kind: string) => void
-  compact?: boolean
 }
 
-function KindDropdown({kinds, selected, onSelect, compact = false}: KindDropdownProps): React.JSX.Element {
+function KindDropdown({kinds, selected, onSelect}: KindDropdownProps): React.JSX.Element {
   return (
     <DropdownField
-      options={kinds.map((kind) => ({ value: kind.kind, label: compact ? SEND_ENDPOINT_LABELS[kind.kind as SourceKind | DestinationKind] ?? kind.label : kind.label }))}
+      options={kinds.map(({kind, label}) => ({value: kind, label}))}
       value={selected}
       onChange={onSelect}
       ariaLabel="Select transfer type"
-      triggerClassName={compact ? 'dash-block h-[3.25rem] rounded-2xl px-3 py-3.5 [&_.truncate]:whitespace-nowrap!' : fieldBox}
-      renderIcon={(kind) => <KindIcon kind={kind} compact={compact} />}
+      triggerClassName={'dash-block h-[3.25rem] rounded-2xl px-3 py-3.5 [&_.truncate]:whitespace-nowrap!'}
+      renderIcon={(kind) => <EndpointKindIcon kind={kind} />}
     />
   )
 }
@@ -57,6 +44,13 @@ interface IdentitySelectProps {
   onRetry: () => void
 }
 
+function IdentityName({identity}: {identity: IdentityApiDto}): React.JSX.Element {
+  if (identity.alias) {
+    return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{identity.alias}</Text>
+  }
+  return <HighlightedIdentifier className={`text-left ${CONTACT_IDENTIFIER_CLASS}`}>{identity.identifier}</HighlightedIdentifier>
+}
+
 function IdentitySelect({identities, loading, error, selected, onSelect, onRetry}: IdentitySelectProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -66,11 +60,9 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
   if (selected) {
     content = (
       <div className={"flex flex-col items-start min-w-0"}>
-        <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all text-left"}>
-          {selected.alias ?? selected.identifier}
-        </Text>
+        <IdentityName identity={selected} />
         <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-          <CreditsAmount credits={BigInt(String(selected.balance.amount))} />
+          <CreditsAmount credits={BigInt(String(selected.balance.amount))} showFiat={false} />
         </Text>
       </div>
     )
@@ -89,7 +81,8 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
     action = (
       <ChevronIcon
         size={12}
-        className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        color="currentColor"
+        className={`shrink-0 dash-text-default transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
       />
     )
   }
@@ -110,28 +103,22 @@ function IdentitySelect({identities, loading, error, selected, onSelect, onRetry
         aria-busy={loading}
         disabled={loading}
         onClick={handleClick}
-        className={`w-full ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
+        className={"w-full h-[3.25rem] dash-block rounded-2xl px-4 flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity"}
       >
         {content}
         {action}
       </button>
 
       {open && !loading && !error && (
-        <div className={"absolute left-0 right-0 top-[calc(100%+.375rem)] z-20 p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
+        <div className={`absolute left-0 right-0 top-[calc(100%+.375rem)] z-30 max-h-60 overflow-y-auto scrollbar-custom ${POPOVER}`}>
           {identities.map(identity => (
             <button
               key={identity.identifier}
               type={"button"}
               onClick={() => { onSelect(identity.identifier); setOpen(false) }}
-              className={`
-                w-full flex flex-col gap-0.5 p-[.625rem] rounded-[.625rem] cursor-pointer text-left
-                hover:dash-block-accent-10 transition-colors duration-150
-                ${identity.identifier === selected?.identifier ? 'dash-block-accent-5' : ''}
-              `}
+              className={`w-full flex flex-col gap-0.5 text-left ${POPOVER_OPTION} ${identity.identifier === selected?.identifier ? 'dash-block-accent-5' : ''}`}
             >
-              <Text size={14} weight={"medium"} color={"brand"} className={"font-mono break-all"}>
-                {identity.alias ?? identity.identifier}
-              </Text>
+              <IdentityName identity={identity} />
               <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                 <CreditsAmount credits={BigInt(String(identity.balance.amount))} />
               </Text>
@@ -186,7 +173,6 @@ export function SourcePicker({
   selectedIdentity,
   onIdentityChange,
   onRetryIdentities,
-  compact = false,
   trailingControl,
 }: SourcePickerProps): React.JSX.Element {
   const sourceControl = <>
@@ -214,21 +200,17 @@ export function SourcePicker({
   </>
 
   return (
-    <div className={compact ? 'flex flex-col gap-2.5' : 'flex flex-col gap-2'}>
-      <Text size={compact ? 14 : 12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
-      {compact ? <div className="flex flex-col sm:flex-row! gap-3">
+    <div className={'flex flex-col gap-2.5'}>
+      <Text size={14} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
+      <div className="flex flex-col sm:flex-row! gap-3">
         <div className="sm:w-[11.75rem]! shrink-0">
-          <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} compact />
+          <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
         </div>
         <div className="min-w-0 flex-1 flex flex-col gap-2">
           {sourceControl}
           {trailingControl}
         </div>
-      </div> : <>
-        <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as SourceKind)} />
-        {sourceControl}
-        {trailingControl}
-      </>}
+      </div>
     </div>
   )
 }
@@ -246,7 +228,6 @@ export function DestinationPicker({
   ownOptionsLoading = false,
   ownOptionsError = null,
   onRetryOwnOptions,
-  compact = false,
   trailingControl,
 }: DestinationPickerProps): React.JSX.Element {
   const recipientLabel = kind === DestinationKind.Identity ? 'Recipient identity ID' : 'Recipient address'
@@ -259,47 +240,46 @@ export function DestinationPicker({
       </button>}
     </span>
   }
+  const fieldClassName = `${FIELD_COMPACT} ${error ? FIELD_INVALID : ''}`
   const valueControl = showValueInput && kind !== DestinationKind.NewIdentity && (
     ownOptions ? <DropdownField
       editable
+      highlightValue
+      valueAvatar={kind === DestinationKind.Identity}
       ariaLabel={recipientLabel}
       value={value}
       onChange={onValueChange}
       options={ownOptions}
       menuHeading={kind === DestinationKind.Identity ? 'Your identities' : 'Your addresses'}
-      placeholder={kind === DestinationKind.Identity ? 'Enter an identity ID or choose one of yours' : 'Enter a recipient address or choose one of yours'}
+      placeholder={placeholder}
       inputInvalid={!!error}
       inputSuffix={recipientOptionsStatus}
-      triggerClassName={`${compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}
-    /> : <div className={`${compact ? 'h-[3.25rem] rounded-2xl border border-dash-primary-dark-blue/15 dark:border-white/20 px-4 py-3.5' : inputBox} ${error ? 'outline outline-1 outline-dash-red' : ''}`}>
+      triggerClassName={fieldClassName}
+    /> : <div className={`flex items-center ${fieldClassName}`}>
       <input
         type={"text"}
         aria-label={recipientLabel}
         aria-invalid={!!error}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.value)}
-        className={"w-full bg-transparent outline-none text-[.875rem] font-mono dash-text-default placeholder:opacity-30"}
+        className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[14]}`}
         placeholder={placeholder}
       />
     </div>
   )
 
   return (
-    <div className={compact ? 'flex flex-col gap-2.5' : 'flex flex-col gap-2'}>
-      <Text size={compact ? 14 : 12} weight={"medium"} color={"brand"} opacity={50}>To</Text>
-      {compact ? <div className="flex flex-col sm:flex-row! gap-3">
+    <div className={'flex flex-col gap-2.5'}>
+      <Text size={14} weight={"medium"} color={"brand"} opacity={50}>To</Text>
+      <div className="flex flex-col sm:flex-row! gap-3">
         <div className="sm:w-[11.75rem]! shrink-0">
-          <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} compact />
+          <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
         </div>
         <div className="min-w-0 flex-1">
           {valueControl}
           {trailingControl}
         </div>
-      </div> : <>
-        <KindDropdown kinds={kinds} selected={kind} onSelect={k => onKindChange(k as DestinationKind)} />
-        {valueControl}
-        {trailingControl}
-      </>}
+      </div>
       {showValueInput && kind !== DestinationKind.NewIdentity && error && <Text size={12} weight={"medium"} color={"red"} className={"px-1"}>{error}</Text>}
       {showValueInput && kind === DestinationKind.NewIdentity && (
         <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"px-1 leading-[130%]"}>

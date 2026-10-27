@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { Text } from '../dash-ui-kit-enxtended'
+import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-extended/icons'
+import { Text } from '../dash-ui-kit-extended'
 import { renderBoldText } from '@renderer/utils/renderBoldText'
 import type { ToastItem, ToastVariant } from '@renderer/types/Toast'
 
@@ -128,7 +128,7 @@ export function ToastContainer(): React.JSX.Element | null {
   if (items.length === 0) return null
 
   return createPortal(
-    <div className={"fixed top-12 right-12 z-9999 flex flex-col gap-2"}>
+    <div className={"fixed top-12 right-12 z-9999 flex flex-col gap-2 pointer-events-auto"} onPointerDown={(e) => e.stopPropagation()}>
       {items.map((item) => (
         <ToastCard key={item.id} item={item} onDismiss={handleDismiss} />
       ))}

@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { NavGroupProps } from "./NavGroup";
-import { ChevronIcon, Text } from "../dash-ui-kit-enxtended";
+import { ChevronIcon, Text } from "../dash-ui-kit-extended";
 import { useRipple } from "@renderer/hooks/useRipple";
 import { useEffect, useRef } from "react";
 

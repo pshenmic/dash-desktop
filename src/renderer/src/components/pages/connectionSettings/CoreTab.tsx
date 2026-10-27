@@ -6,12 +6,17 @@ import {
   CloseIcon,
   DeleteIcon,
   InfoTooltip,
+  Input,
   Text,
   TurnOffIcon,
-} from '@renderer/components/dash-ui-kit-enxtended'
+} from '@renderer/components/dash-ui-kit-extended'
 import ContextMenu, {type ContextMenuItem} from '@renderer/components/ui/ContextMenu'
 import DropdownField from '@renderer/components/ui/DropdownField'
+import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import Spinner from '@renderer/components/ui/Spinner'
+import {SETTINGS_INLINE_INPUT} from '@renderer/constants/settingsControls'
+import {FIELD_COMPACT, SURFACE_SECTION} from '@renderer/constants/surfaces'
+import {SegmentedControlAppearance} from '@renderer/enums/SegmentedControlAppearance'
 import {useAuth} from '@renderer/contexts/AuthContext'
 import {useConnectionModeContext} from '@renderer/contexts/ConnectionModeContext'
 import {
@@ -92,10 +97,10 @@ function AddPeerForm({
         event.preventDefault()
         void submit()
       }}
-      className={`grid min-h-[3.625rem] ${PEER_TABLE_GRID_CLASS_NAMES[tab]} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10`}
+      className={`grid min-h-[3.625rem] ${PEER_TABLE_GRID_CLASS_NAMES[tab]} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-2.5 dark:border-white/10`}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <input
+        <Input
           type="text"
           aria-label="Peer address"
           placeholder={ADD_PEER_PLACEHOLDER}
@@ -103,7 +108,9 @@ function AddPeerForm({
           disabled={submitting}
           autoFocus
           onChange={event => setPeer(event.target.value)}
-          className="h-11 min-w-0 flex-1 rounded-[.75rem] bg-dash-primary-dark-blue/5 px-4 text-sm font-medium text-dash-primary-dark-blue outline-none placeholder:text-dash-primary-dark-blue/35 focus:ring-2 focus:ring-dash-brand/25 dark:bg-white/8 dark:text-white dark:placeholder:text-white/35 dark:focus:ring-dash-mint/25"
+          variant="filled"
+          colorScheme="light"
+          className={`min-w-0 flex-1 ${SETTINGS_INLINE_INPUT}`}
         />
         <button
           type="submit"
@@ -208,8 +215,8 @@ function PeerRow({
       aria-label={rowAriaLabel}
       title={offlineDynamic ? 'Configured dynamic peer is not connected' : undefined}
       className={`
-        grid min-h-[3.625rem] ${PEER_TABLE_GRID_CLASS_NAMES[tab]} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-4 outline-none transition-colors dark:border-white/10
-        ${disabled ? 'cursor-wait opacity-60' : 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'}
+        grid min-h-[3.625rem] ${PEER_TABLE_GRID_CLASS_NAMES[tab]} items-center gap-3 border-t border-dash-primary-dark-blue/10 px-2.5 outline-none transition-colors dark:border-white/10
+        ${disabled ? 'cursor-wait opacity-50' : 'cursor-context-menu hover:bg-dash-primary-dark-blue/4 focus:bg-dash-primary-dark-blue/4 dark:hover:bg-white/5 dark:focus:bg-white/5'}
         ${offlineDynamic ? 'bg-dash-orange/8 dark:bg-dash-orange/10' : ''}
       `}
     >
@@ -217,7 +224,7 @@ function PeerRow({
         size={14}
         weight="medium"
         color="brand"
-        className={`cursor-text select-text truncate ${offlineDynamic ? 'text-dash-orange!' : ''}`}
+        className={`min-w-0 cursor-text select-text break-all ${offlineDynamic ? 'text-dash-orange!' : ''}`}
       >
         {row.peer}
       </Text>
@@ -241,7 +248,7 @@ function PeerRow({
             {staticStatus}
           </Text>
           <div className="truncate" title={staticDetails}>
-            <Text size={12} weight="medium" color="brand" opacity={60}>
+            <Text size={12} weight="medium" color="brand" opacity={50}>
               {staticDetails}
             </Text>
           </div>
@@ -252,7 +259,7 @@ function PeerRow({
           size={12}
           weight="medium"
           color="brand"
-          opacity={60}
+          opacity={50}
           className="inline-flex w-fit rounded-full bg-dash-primary-dark-blue/8 px-2.5 py-1 dark:bg-white/8"
         >
           {BANNED_PEER_STATUS_LABEL}
@@ -355,7 +362,7 @@ export default function CoreTab(): React.JSX.Element {
     if (enabling && peerSettings.staticPeers.length === 0) {
       setPeerTab('static')
       setAddPeerOpen(true)
-      toast.warning(`**Static peer required** ${STATIC_PEER_REQUIRED_MESSAGE}`)
+      toast.warning(STATIC_PEER_REQUIRED_MESSAGE)
       return
     }
 
@@ -460,7 +467,7 @@ export default function CoreTab(): React.JSX.Element {
       </div>
 
       <SectionTitle label="P2P Connection" tooltip={CONNECTION_SETTINGS_TOOLTIPS.p2p} className="mt-6" />
-      <div className="grid max-w-[24rem] gap-4">
+      <div className="grid max-w-[24rem] gap-[.625rem]">
         <SettingsRow label="Enable P2P">
           <SwitchControl
             checked={!syncInactive}
@@ -486,7 +493,7 @@ export default function CoreTab(): React.JSX.Element {
           value={rpcConnection}
           onChange={setRpcConnection}
           ariaLabel="RPC connection"
-          triggerClassName="h-[3.75rem] rounded-[1.25rem] border border-dash-primary-dark-blue/25 px-5 dark:border-white/25"
+          triggerClassName={FIELD_COMPACT}
         />
       </fieldset>
 
@@ -499,24 +506,14 @@ export default function CoreTab(): React.JSX.Element {
               </Text>
               <InfoTooltip content={CONNECTION_SETTINGS_TOOLTIPS.peers} />
             </div>
-            <div className="flex items-center gap-2">
-              {PEER_TABLE_TABS.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  disabled={peerMutationPending}
-                  onClick={() => handlePeerTabChange(tab.value)}
-                  className={`
-                    h-8 cursor-pointer rounded-full px-4 text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60
-                    ${peerTab === tab.value
-                      ? 'bg-dash-primary-dark-blue/8 text-dash-primary-dark-blue dark:bg-white/8 dark:text-white'
-                      : 'text-dash-primary-dark-blue/35 hover:text-dash-primary-dark-blue dark:text-white/35 dark:hover:text-white'}
-                  `}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              appearance={SegmentedControlAppearance.Pill}
+              ariaLabel="Peer lists"
+              options={PEER_TABLE_TABS}
+              value={peerTab}
+              disabled={peerMutationPending}
+              onChange={handlePeerTabChange}
+            />
           </div>
 
           <Button
@@ -528,8 +525,8 @@ export default function CoreTab(): React.JSX.Element {
             }}
             variant="solid"
             colorScheme={peerTab === 'banned' ? 'danger-light' : 'lightBlue-mint'}
-            size="sm"
-            className="min-h-0! gap-2 rounded-[.75rem] p-2! text-xs!"
+            size="compact"
+            className="gap-2"
           >
             <AddIcon size={12} color="currentColor" />
             {PEER_TABLE_ACTION_LABELS[peerTab]}
@@ -544,8 +541,8 @@ export default function CoreTab(): React.JSX.Element {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-[1.25rem] border border-dash-primary-dark-blue/15 dark:border-white/15">
-          <div className={`grid ${PEER_TABLE_GRID_CLASS_NAMES[peerTab]} items-center gap-3 px-[.9375rem] py-3`}>
+        <div className={`overflow-hidden ${SURFACE_SECTION}`}>
+          <div className={`grid ${PEER_TABLE_GRID_CLASS_NAMES[peerTab]} items-center gap-3 px-2.5 pb-3`}>
             {PEER_TABLE_COLUMN_LABELS[peerTab].map((label, index) => (
               <Text
                 key={label}
@@ -579,7 +576,7 @@ export default function CoreTab(): React.JSX.Element {
           ))}
           {peerRows.length === 0 && !addPeerOpen && (
             <div
-              className="flex min-h-[3.625rem] items-center justify-center gap-2 border-t border-dash-primary-dark-blue/10 px-4 dark:border-white/10"
+              className="flex min-h-[3.625rem] items-center justify-center gap-2 border-t border-dash-primary-dark-blue/10 px-2.5 dark:border-white/10"
               role={peerEmptyState.loading ? 'status' : undefined}
             >
               {peerEmptyState.loading && (

@@ -4,18 +4,16 @@ import { DestinationKind } from '../enums/DestinationKind'
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
 
-export const SEND_ENDPOINT_LABELS: Partial<Record<`${SourceKind | DestinationKind}`, string>> = {
-  [SourceKind.Core]: 'Dash Core (L1)',
-  [DestinationKind.CoreAddress]: 'Dash Core (L1)',
-  [SourceKind.PlatformAddress]: 'Address (L2)',
-}
+const ADDRESS_PLACEHOLDER = 'Enter Address…'
+const IDENTITY_PLACEHOLDER = 'Enter identity ID…'
+const SHIELDED_PLACEHOLDER = 'Enter shielded address…'
 
 export const DESTINATION_PLACEHOLDERS: Record<DestinationKind, Record<Network, string>> = {
-  [DestinationKind.CoreAddress]: {mainnet: 'X… (Dash address)', testnet: 'y… (Dash address)'},
-  [DestinationKind.PlatformAddress]: {mainnet: 'dash1…', testnet: 'tdash1…'},
-  [DestinationKind.Identity]: {mainnet: 'Identity identifier', testnet: 'Identity identifier'},
-  [DestinationKind.Shielded]: {mainnet: 'shielded address', testnet: 'shielded address'},
-  [DestinationKind.NewIdentity]: {mainnet: 'shielded address', testnet: 'shielded address'},
+  [DestinationKind.CoreAddress]: {mainnet: ADDRESS_PLACEHOLDER, testnet: ADDRESS_PLACEHOLDER},
+  [DestinationKind.PlatformAddress]: {mainnet: ADDRESS_PLACEHOLDER, testnet: ADDRESS_PLACEHOLDER},
+  [DestinationKind.Identity]: {mainnet: IDENTITY_PLACEHOLDER, testnet: IDENTITY_PLACEHOLDER},
+  [DestinationKind.Shielded]: {mainnet: SHIELDED_PLACEHOLDER, testnet: SHIELDED_PLACEHOLDER},
+  [DestinationKind.NewIdentity]: {mainnet: '', testnet: ''},
 }
 
 export const INVALID_DESTINATION_MESSAGES: Record<DestinationKind, string> = {
@@ -28,16 +26,9 @@ export const INVALID_DESTINATION_MESSAGES: Record<DestinationKind, string> = {
 
 export const UNFINISHED_FUNDING_LABELS: Record<AssetLockFundingKind, string> = {
   [AssetLockFundingKind.Address]: 'Unfinished Platform address funding',
-  [AssetLockFundingKind.Shielded]: 'Unfinished L1 shielding',
+  [AssetLockFundingKind.Shielded]: 'Unfinished Core shielding',
   [AssetLockFundingKind.Identity]: 'Unfinished identity registration',
   [AssetLockFundingKind.IdentityTopUp]: 'Unfinished identity top-up',
-}
-
-export const SHIELDED_DESTINATION_LABELS: Partial<Record<TransferOperation, string>> = {
-  [TransferOperation.ShieldedTransfer]: 'To (shielded)',
-  [TransferOperation.Unshield]: 'To (Platform)',
-  [TransferOperation.IdentityCreateFromShielded]: 'Creates',
-  [TransferOperation.ShieldedWithdrawal]: 'To (Core L1)',
 }
 
 export const OPERATION_FUNDING_KINDS: Partial<Record<TransferOperation, AssetLockFundingKind>> = {
@@ -58,7 +49,6 @@ export interface TransferPageType {
     placeholder: string
     addressBook: string
     addressManagement: string
-    names: string
     noResults: string
   }
   amountSummary: {
@@ -76,6 +66,12 @@ export const TRANSITION_FEE_ERROR = 'Failed to estimate the network fee'
 
 export const AUTOMATIC_PLATFORM_SELECTION = 'Automatic Platform selection'
 
+export const AUTOMATIC_SOURCE_LABELS: Record<Exclude<SourceKind, SourceKind.Identity>, string> = {
+  [SourceKind.Core]: 'Dash Core',
+  [SourceKind.PlatformAddress]: AUTOMATIC_PLATFORM_SELECTION,
+  [SourceKind.Shielded]: 'Your shielded balance',
+}
+
 // What an operation reads as before its fee is known.
 export const NO_OPERATION_FEE: OperationFee = { feeCredits: null, feeDuffs: null, maxDuffs: null, maxPerTx: null, noteLimit: null }
 
@@ -88,10 +84,9 @@ export const sendPageData: TransferPageType = {
   },
   recipient: {
     label: 'Recipient',
-    placeholder: 'Enter address or search name',
+    placeholder: ADDRESS_PLACEHOLDER,
     addressBook: 'Address Book',
     addressManagement: 'Address Management',
-    names: 'Names',
     noResults: 'No addresses found',
   },
   amountSummary: {

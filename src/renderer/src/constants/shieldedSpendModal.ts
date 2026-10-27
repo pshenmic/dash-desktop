@@ -1,0 +1,1 @@
+export const SHIELDED_SPEND_ESTIMATE_PREFIX = '≈ '

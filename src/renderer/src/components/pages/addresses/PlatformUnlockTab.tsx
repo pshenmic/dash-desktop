@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Button, Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text } from '@renderer/components/dash-ui-kit-extended'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import { API } from '@renderer/api'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
-import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { addressFormCopy, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 
 export default function PlatformUnlockTab({ walletId }: { walletId: string | undefined }): React.JSX.Element {
   const [password, setPassword] = useState('')
@@ -22,46 +24,40 @@ export default function PlatformUnlockTab({ walletId }: { walletId: string | und
       setPassword('')
       invalidateAsyncCache('platformAddresses', walletId)
     } catch {
-      setError('Could not derive platform addresses. Please try again.')
+      setError(addressFormCopy.loadFailed)
     } finally {
       setUnlocking(false)
     }
   }
 
   return (
-    <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
+    <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
       <Text size={14} weight={"extrabold"} color={"brand"}>Platform addresses</Text>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-        Platform (L2) addresses are derived from your seed. Enter your wallet password to derive them once — they will stay visible afterwards. Your seed never leaves this device.
+        {addressFormCopy.platformPrompt}
       </Text>
-      <Input
+      <PasswordField
         id={"platform-addresses-password"}
-        type={"password"}
-        placeholder={"Wallet password"}
         value={password}
-        variant={"outlined"}
-        onChange={(e) => {
+        onChange={(value) => {
           setError(null)
-          setPassword(e.target.value)
+          setPassword(value)
         }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleUnlock()
-        }}
-        className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-        colorScheme={error ? 'error' : 'primary'}
+        onSubmit={handleUnlock}
+        error={error}
         disabled={unlocking}
+        autoFocus={false}
       />
-      {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
       <Button
         type={"button"}
         onClick={handleUnlock}
         disabled={!walletId || password.length === 0 || unlocking}
         variant={"solid"}
         colorScheme={"primary"}
-        size={"sm"}
-        className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+        size={"compact"}
+        className={"self-start"}
       >
-        {unlocking ? 'Deriving…' : 'Derive addresses'}
+        {unlocking ? addressFormCopy.loading : addressFormCopy.showAddresses}
       </Button>
     </div>
   )
