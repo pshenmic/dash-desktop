@@ -30,7 +30,8 @@ UI is `dash-ui-kit` + Tailwind v4; extended kit wrappers/icons live in
   and applied by `hooks/useThemeController.ts` (`ThemeController` mounted in
   `main.tsx`); `system` tracks the OS via `matchMedia`. Use
   `useThemePreference`/`setThemePreference`, not dash-ui-kit's `toggleTheme`.
-- **Highlighted IDs and addresses use `HighlightedIdentifier`** from
+- **IDs and addresses use `HighlightedIdentifier`** (one color, no highlighted
+  edges) from
   `components/dash-ui-kit-extended/`, not dash-ui-kit's `Identifier`. The kit
   component passes `useDebounce` a new inline callback on every render, so each
   mounted instance re-renders every ~500 ms forever and a long list (the
