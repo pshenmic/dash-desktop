@@ -145,6 +145,15 @@ describe('listing identities', () => {
     expect(await identities.getUsernames(walletId)).toMatchObject([{identifier: IDENTIFIER, label: '0w1', status: 'voting'}])
   })
 
+  // The explorer lists a contest by its normalized label only.
+  it('shows a name in a contest under the label its domain carries', async () => {
+    network.names.set(IDENTIFIER, ['Owl.dash'])
+    network.contests.set('0w1', [IDENTIFIER])
+    network.status = () => ({...UNCHECKED, status: 'registered', documentId: 'doc'})
+
+    expect((await identities.getUsernames(walletId)).map(username => username.label)).toEqual(['Owl'])
+  })
+
   // The name is paid for once registerName returns, so a retry must not be invited.
   it('reports a registered name as sent even when the refresh after it fails', async () => {
     request.mockImplementation(async (kind: string, ...rest: [string, never]) => kind === 'identityInfos' ? Promise.reject(new Error('DAPI down')) : answer(kind, ...rest))

@@ -123,11 +123,11 @@ export class IdentityService {
     const names = new Map(infos.map(info => [info.identifier, info.usernames]))
 
     // A contested name has no domain document while its vote runs, so one this
-    // process knows stays listed until the vote settles it.
+    // process knows stays listed. Last wins: a contest gives only the normalized label.
     const found = [
+      ...contests,
       ...(cache.usernames ?? []).filter(username => username.status === 'voting'),
       ...identifiers.flatMap(identifier => (names.get(identifier) ?? []).map(name => ({identifier, label: name.split('.')[0]}))),
-      ...contests,
     ]
 
     const candidates = new Map(found.map(({identifier, label}) => [`${identifier}:${convertToHomographSafeChars(label)}`, {identifier, label}]))
