@@ -9,14 +9,11 @@ import {
   USERNAME_TYPE_COPY,
 } from '@renderer/constants/dashPayUsernames'
 import { USERNAME_PRESENTATION, USERNAME_ORDER, VOTE_POLL_DURATION_LABEL } from '@renderer/constants/dpns'
-import { MASTERNODE_PARAMS, MASTERNODES_ROUTE } from '@renderer/constants/masternodes'
 import { UsernamePresentation } from '@renderer/enums/DashPay'
-import { MasternodesTab } from '@renderer/enums/Masternodes'
 import type { RegisterGateInput } from '@renderer/types/DashPayUsernames'
 import type { UsernameRowModel } from '@renderer/types/Dpns'
 import { dashPayHref } from './dashPayIdentity'
 import { creditShortfall } from './dashPayShortfall'
-import { withParams } from './searchParams'
 import { usernamePresentation, voteTiming } from './usernames'
 
 export function usernameTitle(fullName: string): string {
@@ -27,13 +24,6 @@ export function usernameTitle(fullName: string): string {
 export function primaryFirst(rows: UsernameRowModel[]): UsernameRowModel[] {
   return [...rows].sort((a, b) => USERNAME_ORDER.indexOf(a.presentation) - USERNAME_ORDER.indexOf(b.presentation)
     || Number(b.isPrimary) - Number(a.isPrimary))
-}
-
-export function contestHref(normalizedLabel: string): string {
-  return `${MASTERNODES_ROUTE}?${withParams('', {
-    [MASTERNODE_PARAMS.tab]: MasternodesTab.Contests,
-    [MASTERNODE_PARAMS.contest]: normalizedLabel,
-  })}`
 }
 
 export function registerUsernameHref(identifier: string, label: string | null): string {

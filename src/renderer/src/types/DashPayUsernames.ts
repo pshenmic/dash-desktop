@@ -8,7 +8,6 @@ export interface UsernameRowProps {
   now: number
   onOpen: (row: UsernameRowModel) => void
   onRegister: (row: UsernameRowModel) => void
-  onViewContest?: (row: UsernameRowModel) => void
 }
 
 export interface UsernameDetailModalProps {
@@ -19,7 +18,6 @@ export interface UsernameDetailModalProps {
   now: number
   network: Network | null
   onRegister: (row: UsernameRowModel) => void
-  onViewContest?: (row: UsernameRowModel) => void
 }
 
 export interface UsernameDetailLine {

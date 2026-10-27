@@ -1,6 +1,7 @@
 import { DashPayTab, UsernameAvailability } from '@renderer/enums/DashPay'
 import { DASHPAY_PARAMS, DASHPAY_ROUTES } from './dashPay'
 import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
+import type { CountForms } from '../types/CountForms'
 
 export const USERNAMES_TAB_HREF = `${DASHPAY_ROUTES.root}?${DASHPAY_PARAMS.tab}=${DashPayTab.Usernames}`
 
@@ -11,8 +12,6 @@ export const USERNAME_TITLE_TAIL = 10
 export const USERNAME_TITLE_ELLIPSIS = '…'
 
 export const USERNAME_MONOGRAM_MUTED_CLASS = 'flex size-[1.875rem] shrink-0 items-center justify-center rounded-full dash-block-5 opacity-50'
-
-export const USERNAME_LINK_CLASS = 'cursor-pointer rounded-md transition-opacity hover:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dash-brand/40 dark:focus-visible:ring-dash-mint/40'
 
 export const USERNAME_SKELETON_ROW_CLASS = 'h-13 rounded-[.875rem]'
 
@@ -33,7 +32,6 @@ export const USERNAME_LIST_COPY = {
   primary: 'Primary',
   primaryTooltip: 'Your oldest name is the one others see',
   contested: 'Contested',
-  viewContest: 'View contest →',
   registerAgain: 'Register',
   open: 'Open',
   emptyTitle: 'No username yet',
@@ -61,7 +59,6 @@ export const USERNAME_DETAIL_COPY = {
   winner: 'Winner',
   contenders: 'Contenders',
   thisIdentity: 'This identity',
-  viewContest: 'View contest',
   register: 'Register',
   close: 'Close',
 } as const
@@ -131,7 +128,6 @@ export const REGISTER_SIGN_COPY = {
   identity: 'Identity',
   status: 'Status',
   documentId: 'Document ID',
-  viewContest: 'View contest',
 } as const
 
 export const REGISTER_ALLOWED_AVAILABILITY: UsernameAvailability[] = [UsernameAvailability.Available, UsernameAvailability.Error]
@@ -143,3 +139,5 @@ export const USERNAME_AVAILABILITY_BLOCKING: UsernameAvailability[] = [
   UsernameAvailability.InContest,
   UsernameAvailability.InWalletContest,
 ]
+
+export const USERNAME_VOTE_FORMS: CountForms = { one: 'vote', other: 'votes' }

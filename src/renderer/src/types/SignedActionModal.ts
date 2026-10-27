@@ -55,5 +55,4 @@ export interface SignedActionModalProps<R> {
   renderDone: (result: R, controls: SignedActionControls) => SignedActionDoneView
   onDone?: (result: R) => void
   size?: ModalSize
-  previewNote?: boolean
 }

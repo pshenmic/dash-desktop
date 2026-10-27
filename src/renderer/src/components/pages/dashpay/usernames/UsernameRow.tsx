@@ -3,7 +3,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import StatusPill from '@renderer/components/ui/StatusPill'
 import { DASHPAY_CONTACT_ROW_CLASS } from '@renderer/constants/dashPay'
-import { USERNAME_LINK_CLASS, USERNAME_LIST_COPY, USERNAME_MONOGRAM_MUTED_CLASS } from '@renderer/constants/dashPayUsernames'
+import { USERNAME_LIST_COPY, USERNAME_MONOGRAM_MUTED_CLASS } from '@renderer/constants/dashPayUsernames'
 import { USERNAME_PRESENTATION, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
 import { CHIP_ACTION, ICON_CHIP } from '@renderer/constants/surfaces'
@@ -11,7 +11,7 @@ import { UsernamePresentation } from '@renderer/enums/DashPay'
 import type { UsernameRowProps } from '@renderer/types/DashPayUsernames'
 import { usernameCaption } from '@renderer/utils/usernames'
 
-export default function UsernameRow({ row, now, onOpen, onRegister, onViewContest }: UsernameRowProps): React.JSX.Element {
+export default function UsernameRow({ row, now, onOpen, onRegister }: UsernameRowProps): React.JSX.Element {
   const spec = USERNAME_PRESENTATION[row.presentation]
   const caption = usernameCaption(row, now)
   const registered = row.presentation === UsernamePresentation.Registered
@@ -19,12 +19,6 @@ export default function UsernameRow({ row, now, onOpen, onRegister, onViewContes
   let action: React.JSX.Element | null = null
   if (registered) {
     action = <CopyButton text={row.fullName} />
-  } else if (row.presentation === UsernamePresentation.Voting && onViewContest != null) {
-    action = (
-      <button type={"button"} className={USERNAME_LINK_CLASS} onClick={() => onViewContest(row)}>
-        <Text size={12} weight={"medium"} color={"blue-mint"} className={"whitespace-nowrap"}>{USERNAME_LIST_COPY.viewContest}</Text>
-      </button>
-    )
   } else if (row.presentation === UsernamePresentation.Missing) {
     action = (
       <button type={"button"} className={CHIP_ACTION} onClick={() => onRegister(row)}>

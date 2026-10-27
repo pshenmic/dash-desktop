@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@renderer/components/dash-ui-kit-extended'
-import { CheckCirclePartialIcon, ContactsIcon } from '@renderer/components/dash-ui-kit-extended/icons'
+import { ContactsIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import EnableDashPayModal from '@renderer/components/pages/dashpay/keys/EnableDashPayModal'
 import { DASHPAY_PARAMS, DASHPAY_ROUTES, DASHPAY_TOP_UP_HREF, OVERVIEW_PREVIEW_LIMIT } from '@renderer/constants/dashPay'
 import {
   DASHPAY_REGISTER_IDENTITY_HREF,
   OVERVIEW_ACTION_LABELS,
-  OVERVIEW_CONTESTS_HREF,
   OVERVIEW_COPY,
   OVERVIEW_ENTRY_GRID_CLASS,
   OVERVIEW_ORBIT_COUNT,
@@ -17,7 +16,6 @@ import {
 import { DashPayReadiness, DashPayTab, ContactSegment, OverviewAction, OverviewBand } from '@renderer/enums/DashPay'
 import { useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
 import { useDashPayContacts } from '@renderer/hooks/useDashPayContacts'
-import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { OverviewTabProps } from '@renderer/types/DashPayScreens'
@@ -44,7 +42,6 @@ export default function OverviewTab({
 }: OverviewTabProps): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
-  const debugMode = useDebugMode()
   const [, setSearchParams] = useSearchParams()
   const { contacts, loading: contactsLoading } = useDashPayContacts(walletId)
   const { usernames: walletUsernames } = useDashPayUsernames(walletId)
@@ -166,14 +163,6 @@ export default function OverviewTab({
             caption={canSend ? OVERVIEW_COPY.findPeopleCaption : OVERVIEW_COPY.findPeopleDisabled}
             disabled={!canSend}
             onClick={() => openWizard(DASHPAY_ROUTES.addContact)}
-          />
-        )}
-        {debugMode && (
-          <EntryCard
-            icon={<CheckCirclePartialIcon size={14} color={'currentColor'} />}
-            title={OVERVIEW_COPY.nameContests}
-            caption={OVERVIEW_COPY.nameContestsCaption}
-            onClick={() => navigate(OVERVIEW_CONTESTS_HREF)}
           />
         )}
       </div>

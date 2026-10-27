@@ -32,7 +32,7 @@ import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_PENDING_VALUE } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { AlertTone } from '@renderer/enums/AlertTone'
-import { UsernamePresentation, DpnsLabelKind, UsernameAvailability } from '@renderer/enums/DashPay'
+import { DpnsLabelKind, UsernameAvailability } from '@renderer/enums/DashPay'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'
@@ -40,7 +40,6 @@ import { useActiveIdentity } from '@renderer/hooks/useActiveIdentity'
 import { useUsernameSearch } from '@renderer/hooks/useUsernameSearch'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { refreshDashPayUsernames, useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
-import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import { refreshIdentities } from '@renderer/hooks/useIdentities'
 import { useOperationFee } from '@renderer/hooks/useOperationFee'
 import { useWalletIdentifiers } from '@renderer/hooks/useWalletIdentifiers'
@@ -53,7 +52,6 @@ import { dashPayReadiness } from '@renderer/utils/dashPayReadiness'
 import { feeShortfall } from '@renderer/utils/dashPayShortfall'
 import {
   balanceAfterFee,
-  contestHref,
   registerCanAdvance,
   registerDoneNote,
 } from '@renderer/utils/dashPayUsernames'
@@ -105,7 +103,6 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
   const [searchParams] = useSearchParams()
   const { status } = useAuth()
   const network = status?.network ?? null
-  const debugMode = useDebugMode()
   const [returnTo] = useState(() => (location.state as DashPayNavigationState | null)?.returnTo ?? null)
   const [raw, setRaw] = useState(() => searchParams.get(DASHPAY_PARAMS.label) ?? '')
   const [signOpen, setSignOpen] = useState(false)
@@ -211,9 +208,6 @@ export default function RegisterUsername({ walletId }: RegisterUsernameProps): R
         { label: REGISTER_SIGN_COPY.status, value: <StatusPill tone={spec.tone}>{spec.label}</StatusPill> },
       ],
       hash: username.documentId == null ? undefined : { value: username.documentId, label: REGISTER_SIGN_COPY.documentId, explorerUrl: null },
-      secondary: presentation === UsernamePresentation.Voting && debugMode
-        ? { label: REGISTER_SIGN_COPY.viewContest, onClick: () => navigate(contestHref(username.normalizedLabel)) }
-        : undefined,
     }
   }
 

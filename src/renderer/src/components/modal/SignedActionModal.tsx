@@ -19,7 +19,6 @@ import type {
 } from '@renderer/types/SignedActionModal'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-import { PREVIEW_DONE_NOTE } from '@renderer/constants/masternodePreview'
 import { SIGNED_ACTION_COPY, SIGNED_ACTION_PARTIAL_ICON_CLASS } from '@renderer/constants/signedActionModal'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 
@@ -39,7 +38,6 @@ export default function SignedActionModal<R>({
   renderDone,
   onDone,
   size = ModalSize.Lg,
-  previewNote = false,
 }: SignedActionModalProps<R>): React.JSX.Element {
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
@@ -208,12 +206,6 @@ export default function SignedActionModal<R>({
         )}
 
         {view.body}
-
-        {previewNote && (
-          <Text reset as={"p"} size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-4 text-center"}>
-            {PREVIEW_DONE_NOTE}
-          </Text>
-        )}
 
         <ModalActions primary={{ label: SIGNED_ACTION_COPY.done, onClick: finish }} secondary={view.secondary} />
       </>

@@ -1,16 +1,12 @@
 import type { FC } from 'react'
 import { IdenticonIcon, KeyIcon, SignIcon, type IconProps } from '@renderer/components/dash-ui-kit-extended/icons'
 import { DashPaySetupStep, OverviewAction, OverviewBand, SetupStepState } from '../enums/DashPay'
-import { MasternodesTab } from '../enums/Masternodes'
 import { RegistrationReturnTarget } from '../enums/RegistrationReturnTarget'
 import type { CountForms } from '../types/CountForms'
-import { MASTERNODE_PARAMS, MASTERNODES_ROUTE } from './masternodes'
 import { REGISTRATION_RETURN_PARAM } from './registrationReturn'
 import { CHIP_ACTION, ICON_CHIP, SURFACE_SECTION } from './surfaces'
 
 export const DASHPAY_REGISTER_IDENTITY_HREF = `/identities/register?${REGISTRATION_RETURN_PARAM}=${RegistrationReturnTarget.DashPay}`
-
-export const OVERVIEW_CONTESTS_HREF = `${MASTERNODES_ROUTE}?${MASTERNODE_PARAMS.tab}=${MasternodesTab.Contests}`
 
 export const OVERVIEW_ORBIT_COUNT = 2
 
@@ -115,8 +111,6 @@ export const OVERVIEW_COPY = {
   findPeople: 'Find people',
   findPeopleCaption: 'Search by username or ID.',
   findPeopleDisabled: 'Enable DashPay first.',
-  nameContests: 'Name contests',
-  nameContestsCaption: 'Vote with your masternodes.',
   loadFailed: 'Failed to load identities',
   identityUnavailable: '**Identity unavailable** Showing',
   instead: 'instead.',

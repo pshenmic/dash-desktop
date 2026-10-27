@@ -88,16 +88,6 @@ export const PAGE_HEADERS = {
     subtitle: 'Balance, usernames and keys of this identity.',
     back: 'Back to identities',
   },
-  masternodes: {
-    title: 'Masternodes',
-    subtitle: 'Your nodes and their votes on contested usernames.',
-  },
-  nameContest: {
-    back: 'Back to name contests',
-  },
-  masternodeDetail: {
-    back: 'Back to nodes',
-  },
   shielded: {
     title: 'Shielded',
     subtitle: 'Send and hold credits privately.',

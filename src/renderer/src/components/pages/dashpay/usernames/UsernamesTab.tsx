@@ -10,11 +10,10 @@ import { USERNAME_LIST_COPY, USERNAME_SKELETON_ROW_CLASS } from '@renderer/const
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { refreshDashPayUsernames, useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
-import { useDebugMode } from '@renderer/hooks/useDebugMode'
 import type { DashPayNavigationState } from '@renderer/types/DashPay'
 import type { UsernamesTabProps } from '@renderer/types/DashPayScreens'
 import type { UsernameRowModel } from '@renderer/types/Dpns'
-import { contestHref, primaryFirst, registerUsernameHref } from '@renderer/utils/dashPayUsernames'
+import { primaryFirst, registerUsernameHref } from '@renderer/utils/dashPayUsernames'
 import { mergeIdentityUsernames } from '@renderer/utils/usernames'
 import UsernameDetailModal from './UsernameDetailModal'
 import UsernameRow from './UsernameRow'
@@ -24,7 +23,6 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
   const location = useLocation()
   const { status } = useAuth()
   const network = status?.network ?? null
-  const debugMode = useDebugMode()
   const { usernames: walletUsernames, loading, err } = useDashPayUsernames(walletId)
   const [visibleCount, setVisibleCount] = useState(DASHPAY_USERNAMES_PAGE_SIZE)
   const [detail, setDetail] = useState<UsernameRowModel | null>(null)
@@ -44,9 +42,6 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
     setDetailOpen(true)
   }
   const registerRow = (row: UsernameRowModel): void => openRegister(row.label)
-  const viewContest = debugMode
-    ? (row: UsernameRowModel): void => { navigate(contestHref(row.normalizedLabel)) }
-    : undefined
 
   const registerButton = (
     <Button
@@ -97,7 +92,6 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
               now={now}
               onOpen={openRow}
               onRegister={registerRow}
-              onViewContest={viewContest}
             />
           ))}
         </ul>
@@ -128,7 +122,6 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
         now={now}
         network={network}
         onRegister={registerRow}
-        onViewContest={viewContest}
       />
     </div>
   )

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   balanceAfterFee,
-  contestHref,
   primaryFirst,
   registerCanAdvance,
   registerDoneNote,
@@ -63,10 +62,6 @@ describe('primaryFirst', () => {
 })
 
 describe('hrefs', () => {
-  it('links a contest by its normalized label', () => {
-    expect(contestHref('a11ce')).toBe('/masternodes?tab=contests&contest=a11ce')
-  })
-
   it('prefills the register wizard', () => {
     expect(registerUsernameHref('Id1', 'Alice')).toBe('/dashpay/usernames/new?identity=Id1&label=Alice')
     expect(registerUsernameHref('Id1', null)).toBe('/dashpay/usernames/new?identity=Id1')

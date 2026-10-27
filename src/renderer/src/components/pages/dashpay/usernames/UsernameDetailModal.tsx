@@ -3,8 +3,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import StatusPill from '@renderer/components/ui/StatusPill'
-import { USERNAME_CONTENDER_ID_CLASS, USERNAME_DETAIL_COPY, USERNAME_DOCUMENT_ID_CLASS } from '@renderer/constants/dashPayUsernames'
-import { COUNT_NOUNS } from '@renderer/constants/masternodeNodes'
+import { USERNAME_CONTENDER_ID_CLASS, USERNAME_DETAIL_COPY, USERNAME_DOCUMENT_ID_CLASS, USERNAME_VOTE_FORMS } from '@renderer/constants/dashPayUsernames'
 import { USERNAME_PRESENTATION } from '@renderer/constants/dpns'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { UsernamePresentation } from '@renderer/enums/DashPay'
@@ -35,7 +34,6 @@ export default function UsernameDetailModal({
   now,
   network,
   onRegister,
-  onViewContest,
 }: UsernameDetailModalProps): React.JSX.Element | null {
   if (row == null) return null
 
@@ -73,9 +71,7 @@ export default function UsernameDetailModal({
 
   const close: ModalAction = { label: USERNAME_DETAIL_COPY.close, onClick: onClose }
   let primary: ModalAction | null = null
-  if (voting && onViewContest != null) {
-    primary = { label: USERNAME_DETAIL_COPY.viewContest, onClick: () => onViewContest(row) }
-  } else if (row.presentation === UsernamePresentation.Missing) {
+  if (row.presentation === UsernamePresentation.Missing) {
     primary = { label: USERNAME_DETAIL_COPY.register, onClick: () => onRegister(row) }
   }
 
@@ -118,7 +114,7 @@ export default function UsernameDetailModal({
                 <HighlightedIdentifier className={USERNAME_CONTENDER_ID_CLASS}>{standing.identifier}</HighlightedIdentifier>
                 {standing.isOwn && <Text size={10} weight={"medium"} color={"blue-mint"}>{USERNAME_DETAIL_COPY.thisIdentity}</Text>}
               </span>
-              <Text size={12} weight={"bold"} color={"brand"} className={"shrink-0 tabular-nums"}>{countLabel(standing.votes, COUNT_NOUNS.vote)}</Text>
+              <Text size={12} weight={"bold"} color={"brand"} className={"shrink-0 tabular-nums"}>{countLabel(standing.votes, USERNAME_VOTE_FORMS)}</Text>
             </div>
           ))}
         </div>
