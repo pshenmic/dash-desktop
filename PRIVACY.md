@@ -1,9 +1,9 @@
-# Privacy Policy — Dash Desktop
+# Privacy Policy — Dash Desktop Wallet
 
 _Effective date: September 13, 2026_
 
-Dash Desktop ("the app") is an open-source, non-custodial wallet for the Dash
-network, developed by pshenmic ("we", "us"). This policy explains what
+Dash Desktop Wallet ("the app") is an open-source, non-custodial wallet for the
+Dash network, developed by pshenmic ("we", "us"). This policy explains what
 information the app handles and where it goes.
 
 **In short:** we do not collect, sell or share your personal information. The
@@ -93,4 +93,4 @@ update the effective date.
 ## 9. Contact
 
 For questions about this policy, open an issue at
-<https://github.com/pshenmic/dash-desktop/issues>.
+<https://github.com/pshenmic/dash-desktop-wallet/issues>.

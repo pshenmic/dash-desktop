@@ -1,6 +1,6 @@
 # Database and on-disk paths
 
-SQLite via Knex, at `~/.dash-desktop/storage.db`.
+SQLite via Knex, at `~/.dash-desktop-wallet/storage.db`.
 
 ## Wallet-scoped tables
 
@@ -13,8 +13,8 @@ fails when one is missing.
 
 Everything on disk — `storage.db`, `preferences.json`, `logs/`, `ChainStorage/`
 — goes through `dataPath(...segments)` in `utils/dataPath.ts`, which roots an
-unpackaged run at `~/.dash-desktop/dev/` and a packaged one at
-`~/.dash-desktop/`. The switch is `import.meta.env.DEV`, so electron-vite folds
+unpackaged run at `~/.dash-desktop-wallet/dev/` and a packaged one at
+`~/.dash-desktop-wallet/`. The switch is `import.meta.env.DEV`, so electron-vite folds
 it away at build time and the shipped bundle has no dev branch. A hand-written
 `path.join(os.homedir(), ...)` silently opts that file out of the split.
 

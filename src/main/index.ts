@@ -7,8 +7,9 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import { WalletBackend } from './src/WalletBackend'
 import { initLogTransport } from './src/logTransport'
-import { GPU_INFO_TIMEOUT_MS, UNRECOGNIZED_HARDWARE, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
-import { dataPath } from './src/utils/dataPath'
+import { GPU_INFO_TIMEOUT_MS, LegacyUserDataFolderName, UNRECOGNIZED_HARDWARE, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH, WindowStateFilename } from './src/constants/app'
+import { dataPath, homeFolderPath, legacyHomeFolderPath } from './src/utils/dataPath'
+import { migrateFolder } from './src/utils/folderMigration'
 import { computeDefaultWindowSize, restoreWindowState } from './src/utils/windowBounds'
 import { WindowState } from './src/types/WindowState'
 import { GPUInfo } from './src/types/Log'
@@ -21,6 +22,30 @@ const shutdown = new Logger('shutdown')
 const windowState = new Logger('window-state')
 const crash = new Logger('crash')
 
+const runFolderMigration = (legacyPath: string, currentPath: string): string[] | Error => {
+  try {
+    return migrateFolder(legacyPath, currentPath)
+  } catch (err) {
+    return err as Error
+  }
+}
+
+const reportFolderMigration = (label: string, result: string[] | Error): void => {
+  if (result instanceof Error) {
+    log.error(`${label} migration failed:`, result)
+  } else if (result.length > 0) {
+    log.warn(`${label} migration left entries behind:`, result)
+  }
+}
+
+// Both folders carried the pre-rename name. They move before initLogTransport,
+// which creates logs/ under the new home folder; userData, named after
+// package.json `name`, holds the renderer's localStorage.
+const homeFolderMigration = runFolderMigration(legacyHomeFolderPath(), homeFolderPath())
+const userDataMigration = app.isPackaged
+  ? runFolderMigration(join(app.getPath('appData'), LegacyUserDataFolderName), app.getPath('userData'))
+  : []
+
 initLogTransport()
 
 process.on('uncaughtException', err => {
@@ -29,6 +54,9 @@ process.on('uncaughtException', err => {
 process.on('unhandledRejection', reason => {
   crash.error('unhandledRejection:', reason)
 })
+
+reportFolderMigration('home folder', homeFolderMigration)
+reportFolderMigration('userData', userDataMigration)
 
 const backend = new WalletBackend()
 

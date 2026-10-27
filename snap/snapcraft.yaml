@@ -14,10 +14,10 @@ description: |
     between shielded addresses, and unshield or withdraw back out
   - Mainnet and testnet, via Dashscan API or direct P2P (SPV) sync
 license: MIT
-website: https://github.com/pshenmic/dash-desktop
-source-code: https://github.com/pshenmic/dash-desktop
-issues: https://github.com/pshenmic/dash-desktop/issues
-contact: https://github.com/pshenmic/dash-desktop/issues
+website: https://github.com/pshenmic/dash-desktop-wallet
+source-code: https://github.com/pshenmic/dash-desktop-wallet
+issues: https://github.com/pshenmic/dash-desktop-wallet/issues
+contact: https://github.com/pshenmic/dash-desktop-wallet/issues
 icon: buildResources/icon.png
 grade: stable
 confinement: strict
@@ -31,7 +31,7 @@ apps:
   dash-desktop-wallet:
     # The Chromium SUID/namespace sandbox cannot start under strict confinement;
     # the snap's own AppArmor/seccomp profile is the isolation boundary instead.
-    command: dash-desktop/dash-desktop --no-sandbox
+    command: dash-desktop-wallet/dash-desktop-wallet --no-sandbox
     extensions: [gnome]
     plugs:
       - browser-support
@@ -72,5 +72,5 @@ parts:
 
       mkdir -p "$CRAFT_PART_INSTALL"
       # electron-builder names it linux-unpacked on x64 and linux-<arch>-unpacked elsewhere.
-      cp -a dist/linux*-unpacked "$CRAFT_PART_INSTALL/dash-desktop"
-      rm -f "$CRAFT_PART_INSTALL/dash-desktop/chrome-sandbox"
+      cp -a dist/linux*-unpacked "$CRAFT_PART_INSTALL/dash-desktop-wallet"
+      rm -f "$CRAFT_PART_INSTALL/dash-desktop-wallet/chrome-sandbox"

@@ -1,5 +1,5 @@
 appId: org.pshenmic.dashdesktop
-productName: Dash Desktop
+productName: Dash Desktop Wallet
 directories:
   buildResources: buildResources
 afterPack: build/pruneForeignBinaries.cjs
@@ -50,7 +50,7 @@ appx:
   identityName: pshenmic.DashDesktopWallet
   publisher: CN=F3D9682F-67CF-45D7-8991-A7AD551E393A
   publisherDisplayName: pshenmic
-  applicationId: DashDesktop
+  applicationId: DashDesktopWallet
   displayName: Dash Desktop Wallet
   backgroundColor: '#4C7EFF'
 mac:
@@ -75,11 +75,6 @@ linux:
   maintainer: pshenmic.dev
   category: Office;Finance;
   syncDesktopName: true
-  # Matches the snap's launcher name; productName would also rename the macOS
-  # app, the Windows installer and the deb's install folder.
-  desktop:
-    entry:
-      Name: Dash Desktop Wallet
 # The default toolset embeds a runtime that dlopens libfuse.so.2, which Ubuntu
 # 24.04 no longer ships; 1.x embeds the static type2 runtime instead.
 toolsets:
@@ -102,6 +97,11 @@ deb:
     - libuuid1
     - libsecret-1-0
     - libasound2
+  # The package was named dash-desktop before the rename; installing this one
+  # removes it instead of leaving both side by side.
+  fpm:
+    - --replaces=dash-desktop
+    - --conflicts=dash-desktop
 #  entitlementsInherit: build/entitlements.mac.plist
 #  extendInfo:
 #    - NSCameraUsageDescription: Application requests access to the device's camera.

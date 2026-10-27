@@ -11,7 +11,10 @@ vi.mock('fs', () => ({
 }))
 vi.mock('../../src/main/src/utils/dataPath', () => ({
   dataPath: (filename: string) => filename,
+  homeFolderPath: () => '',
+  legacyHomeFolderPath: () => '',
 }))
+vi.mock('../../src/main/src/utils/folderMigration', () => ({ migrateFolder: () => [] }))
 vi.mock('../../src/main/src/logTransport', () => ({ initLogTransport: vi.fn() }))
 vi.mock('../../src/main/src/WalletBackend', () => ({
   WalletBackend: class {

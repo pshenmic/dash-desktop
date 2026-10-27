@@ -78,10 +78,10 @@ jobs:
           echo "tags: ${tags:-<none>}"
 
           archs="amd64 arm64"
-          mkdir -p pool/main/d/dash-desktop
+          mkdir -p pool/main/d/dash-desktop-wallet
           for tag in $tags; do
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' \
-              --dir "pool/main/d/dash-desktop/$tag"
+              --dir "pool/main/d/dash-desktop-wallet/$tag"
           done
 
           # apt-ftparchive -a matches on a *_<arch>.deb filename, which these
@@ -99,7 +99,7 @@ jobs:
           # already live would strand every machine that installed it.
           newest=$(head -n1 <<< "$tags")
           if [ -n "$newest" ]; then
-            new=$(dpkg-deb -f "$(ls pool/main/d/dash-desktop/"$newest"/*.deb | head -n1)" Version)
+            new=$(dpkg-deb -f "$(ls pool/main/d/dash-desktop-wallet/"$newest"/*.deb | head -n1)" Version)
             for arch in $archs; do
               for old in $(curl -fsSL "$BASE_URL/dists/stable/main/binary-$arch/Packages" 2>/dev/null | awk '/^Version:/ {print $2}' || true); do
                 if dpkg --compare-versions "$new" lt "$old"; then
@@ -112,7 +112,7 @@ jobs:
 
           apt-ftparchive \
             -o APT::FTPArchive::Release::Origin=pshenmic \
-            -o APT::FTPArchive::Release::Label="Dash Desktop" \
+            -o APT::FTPArchive::Release::Label="Dash Desktop Wallet" \
             -o APT::FTPArchive::Release::Suite=stable \
             -o APT::FTPArchive::Release::Codename=stable \
             -o APT::FTPArchive::Release::Architectures="$archs" \
