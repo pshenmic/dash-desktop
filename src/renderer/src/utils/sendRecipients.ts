@@ -48,9 +48,9 @@ export function recipientSliderAmount(recipients: SendRecipientDraft[], id: stri
   return davToDash(requested > remaining ? remaining : requested)
 }
 
-export function recipientPercent(amount: bigint, budget: bigint | null): number {
+export function recipientPercent(amount: bigint, budget: bigint | null, round = false): number {
   if (budget == null || budget <= 0n || amount <= 0n) return 0
-  return amount >= budget ? 100 : Number(amount * 100n / budget)
+  return amount >= budget ? 100 : Number((amount * 100n + (round ? budget / 2n : 0n)) / budget)
 }
 
 export function splitRecipientTotal(recipients: SendRecipientDraft[]): SendRecipientDraft[] {

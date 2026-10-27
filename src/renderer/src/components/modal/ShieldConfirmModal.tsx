@@ -6,10 +6,11 @@ import { useAuth } from '@renderer/contexts/AuthContext'
 import { API } from '@renderer/api'
 import { ShieldResult } from '@renderer/api/types'
 import type { ShieldConfirmModalProps } from '@renderer/types/ShieldConfirmModal'
+import { getErrorMessage } from '@renderer/utils/error'
 import { platformTransactionUrl } from '@renderer/utils/explorer'
 import { ConfirmModalPhase } from '@renderer/enums/ConfirmModalPhase'
 import Spinner from '@renderer/components/ui/Spinner'
-import CopyableError from '@renderer/components/ui/CopyableError'
+import { toast } from '@renderer/components/ui/Toast'
 import HashField from '@renderer/components/ui/HashField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
@@ -71,7 +72,8 @@ export default function ShieldConfirmModal({
       setPhase(ConfirmModalPhase.Done)
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Shield failed')
+      console.error('Shield failed', e)
+      toast.error(getErrorMessage(e))
       setPhase(ConfirmModalPhase.Confirm)
     }
   }
@@ -158,17 +160,9 @@ export default function ShieldConfirmModal({
                     autoFocus
                   />
                 </div>
+                {error && <Text size={12} weight="medium" color="red" className="mt-2 block">{error}</Text>}
               </>
             )}
-
-            <div
-              className={`
-                overflow-hidden transition-all duration-200
-                ${error ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'}
-              `}
-            >
-              <CopyableError message={error ?? ''} />
-            </div>
 
             <div className={"mt-4.5 flex gap-2"}>
               <Button

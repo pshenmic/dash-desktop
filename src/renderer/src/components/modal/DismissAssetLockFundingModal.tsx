@@ -3,20 +3,14 @@ import { useTheme } from 'dash-ui-kit/react'
 import { Button, CrossIcon, Text } from '../dash-ui-kit-enxtended'
 import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
 import Spinner from '../ui/Spinner'
+import type { DismissAssetLockFundingModalProps } from '@renderer/types/DismissAssetLockFundingModal'
 
 export default function DismissAssetLockFundingModal({
   isOpen,
   busy,
-  error,
   onClose,
   onConfirm,
-}: {
-  isOpen: boolean
-  busy: boolean
-  error: string | null
-  onClose: () => void
-  onConfirm: () => Promise<void>
-}): React.JSX.Element | null {
+}: DismissAssetLockFundingModalProps): React.JSX.Element | null {
   const { theme } = useTheme()
 
   if (!isOpen) return null
@@ -57,11 +51,6 @@ export default function DismissAssetLockFundingModal({
           </Text>
         </div>
 
-        {error && (
-          <Text size={12} weight={"medium"} color={"red"} className={"mt-3 block"}>
-            {error}
-          </Text>
-        )}
 
         <div className={"mt-4.5 flex gap-2"}>
           <Button
