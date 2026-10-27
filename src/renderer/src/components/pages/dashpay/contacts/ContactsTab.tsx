@@ -1,7 +1,7 @@
 import { Fragment, useDeferredValue, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { DashPayContactDto } from '@renderer/api/types'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import NoResults from '@renderer/components/ui/NoResults'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'

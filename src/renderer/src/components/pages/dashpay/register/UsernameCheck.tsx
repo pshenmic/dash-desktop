@@ -1,5 +1,5 @@
-import { CheckIcon, InfoCircleIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { ExclamationIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { CheckIcon, InfoCircleIcon, Text } from '@renderer/components/dash-ui-kit-extended'
+import { ExclamationIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import Alert from '@renderer/components/ui/Alert'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import Spinner from '@renderer/components/ui/Spinner'

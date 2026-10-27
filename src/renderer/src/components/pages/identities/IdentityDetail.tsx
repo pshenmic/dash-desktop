@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { AddIcon, Button, CreditsIcon, ExternalLinkIcon, HighlightedIdentifier, IdenticonIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { AddIcon, Button, CreditsIcon, ExternalLinkIcon, HighlightedIdentifier, IdenticonIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import TransactionDetailToken from '@renderer/components/pages/transactions/TransactionDetailToken'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'

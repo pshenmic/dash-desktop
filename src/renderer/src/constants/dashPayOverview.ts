@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { IdenticonIcon, KeyIcon, SignIcon, type IconProps } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { IdenticonIcon, KeyIcon, SignIcon, type IconProps } from '@renderer/components/dash-ui-kit-extended/icons'
 import { DashPaySetupStep, OverviewAction, OverviewBand, SetupStepState } from '../enums/DashPay'
 import { MasternodesTab } from '../enums/Masternodes'
 import { RegistrationReturnTarget } from '../enums/RegistrationReturnTarget'

@@ -1,5 +1,5 @@
 import React, { ReactNode, useEffect, useMemo, useState } from 'react'
-import { SunIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { SunIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { toDropdownOptions } from '@renderer/utils/wallets'

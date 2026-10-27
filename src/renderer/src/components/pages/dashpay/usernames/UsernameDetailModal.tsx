@@ -1,4 +1,4 @@
-import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'

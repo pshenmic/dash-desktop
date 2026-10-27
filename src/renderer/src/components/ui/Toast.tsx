@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { Text } from '../dash-ui-kit-enxtended'
+import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-extended/icons'
+import { Text } from '../dash-ui-kit-extended'
 import { renderBoldText } from '@renderer/utils/renderBoldText'
 import type { ToastItem, ToastVariant } from '@renderer/types/Toast'
 

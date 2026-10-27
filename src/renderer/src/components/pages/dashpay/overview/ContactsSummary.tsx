@@ -1,4 +1,4 @@
-import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import {
   ATTENTION_DOT_CLASS,

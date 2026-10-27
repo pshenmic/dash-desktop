@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { HighlightedIdentifier, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { HighlightedIdentifier, Text } from "@renderer/components/dash-ui-kit-extended";
 import { DashLogo } from "dash-ui-kit/react";
 import { WalletAddressDto } from "@renderer/api/types";
 import DropdownChevron from "@renderer/components/ui/DropdownChevron";

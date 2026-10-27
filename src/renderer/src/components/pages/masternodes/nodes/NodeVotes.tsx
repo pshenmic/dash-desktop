@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { ChevronIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
+import { ChevronIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import NoResults from '@renderer/components/ui/NoResults'
 import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'

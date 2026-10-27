@@ -1,4 +1,4 @@
-import { Input, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Input, Text } from '@renderer/components/dash-ui-kit-extended'
 import CopyableError from '@renderer/components/ui/CopyableError'
 import { WALLET_PASSWORD_LABEL, WALLET_PASSWORD_PLACEHOLDER } from '@renderer/constants/password'
 import type { PasswordFieldProps } from '@renderer/types/PasswordField'

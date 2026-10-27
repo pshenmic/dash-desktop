@@ -1,4 +1,4 @@
-import { HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'

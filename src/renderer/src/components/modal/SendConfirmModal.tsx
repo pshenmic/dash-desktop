@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon, CheckIcon } from '../dash-ui-kit-extended'
 import { API } from '@renderer/api'
 import { CoreRecipient, SendResult, TxLockStatus } from '@renderer/api/types'
 import type { SendConfirmModalProps } from '@renderer/types/SendConfirmModal'

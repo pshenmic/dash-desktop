@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button } from '@renderer/components/dash-ui-kit-extended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import AcceptRequestModal from '@renderer/components/pages/dashpay/contacts/AcceptRequestModal'
 import EnableDashPayModal from '@renderer/components/pages/dashpay/keys/EnableDashPayModal'

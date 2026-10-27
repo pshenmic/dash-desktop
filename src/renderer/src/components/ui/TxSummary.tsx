@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ShieldSmallIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { TxEndpointKind } from '@renderer/enums/TxEndpointKind'

@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
-import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
-import { ExclamationIcon } from '../dash-ui-kit-enxtended/icons'
+import { Text, SuccessIcon } from '../dash-ui-kit-extended'
+import { ExclamationIcon } from '../dash-ui-kit-extended/icons'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { AlertTone } from '@renderer/enums/AlertTone'
 import { ModalSize } from '@renderer/enums/ModalSize'

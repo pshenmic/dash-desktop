@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { WALLET_SYNC_PHASE_LABELS } from '@renderer/constants/connection'
 import { WalletSyncPhase } from '@renderer/api/types'
 import type { SyncProgressTooltipProps } from '@renderer/types/connection'

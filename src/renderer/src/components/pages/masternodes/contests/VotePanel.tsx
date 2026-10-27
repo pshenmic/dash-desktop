@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import CheckRow from '@renderer/components/ui/CheckRow'
 import CustomBadge from '@renderer/components/ui/CustomBadge'

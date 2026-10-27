@@ -1,5 +1,5 @@
-import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { ChevronIcon, CopyIcon2, DeleteIcon, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
+import { ChevronIcon, CopyIcon2, DeleteIcon, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import ContextMenu from '@renderer/components/ui/ContextMenu'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import StatusPill from '@renderer/components/ui/StatusPill'

@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { creditsToDuffs, davToDash } from '@renderer/utils/balance'
 import type { DenominationChipsProps } from '@renderer/types/DenominationChips'
 

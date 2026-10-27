@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, CircleProcessIcon, InfoCircleIcon, LockIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, CircleProcessIcon, InfoCircleIcon, LockIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import Alert from '@renderer/components/ui/Alert'
 import CustomBadge from '@renderer/components/ui/CustomBadge'

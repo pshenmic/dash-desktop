@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Identifier, useTheme, TimeDelta, DashLogo } from 'dash-ui-kit/react'
 import { cva } from 'class-variance-authority'
-import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
 import {
   BoxIcon,
   CalendarIconHighlighted,
   CheckIcon,
   DocumentIcon,
-} from '@renderer/components/dash-ui-kit-enxtended/icons'
+} from '@renderer/components/dash-ui-kit-extended/icons'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
@@ -25,7 +25,7 @@ import { formatApproxFiat } from '@renderer/utils/approxFiat'
 import { useFiat } from '@renderer/hooks/useFiat'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
 import { transactionUrl, addressUrl, openExternal } from '@renderer/utils/explorer'
-import { ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { ExternalLinkIcon } from '@renderer/components/dash-ui-kit-extended'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { Network } from '@renderer/api/types'
 import { API } from '@renderer/api'
@@ -210,9 +210,9 @@ export default function TransactionDetail({ transaction, onBack }: TransactionDe
                     </Text>
                   </SensitiveValue>
                 }
-                subValue={rateReady || !isBalanceVisible ? (
+                subValue={rateReady ? (
                   <SensitiveValue hidden={!isBalanceVisible} size={"subtext"} label={"Fiat amount hidden"}>
-                    {rateReady ? formatApproxFiat(formatFiat(resolvedTransaction.amount)) : null}
+                    {formatApproxFiat(formatFiat(resolvedTransaction.amount))}
                   </SensitiveValue>
                 ) : undefined}
               />

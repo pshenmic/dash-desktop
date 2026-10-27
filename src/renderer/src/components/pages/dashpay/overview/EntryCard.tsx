@@ -1,4 +1,4 @@
-import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import { ENTRY_CARD_CLASS } from '@renderer/constants/dashPayOverview'
 import { ICON_CHIP } from '@renderer/constants/surfaces'
 import type { EntryCardProps } from '@renderer/types/DashPayOverview'

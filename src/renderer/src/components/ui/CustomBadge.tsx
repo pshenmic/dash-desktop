@@ -1,4 +1,4 @@
-import Badge from "../dash-ui-kit-enxtended/badge";
+import Badge from "../dash-ui-kit-extended/badge";
 import { CUSTOM_BADGE_VARIANTS } from "@renderer/constants/customBadge";
 import type { CustomBadgeProps } from "@renderer/types/CustomBadge";
 

@@ -1,4 +1,4 @@
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text } from "@renderer/components/dash-ui-kit-extended";
 import { PlatformAddressDto } from "@renderer/api/types";
 import { IdentityApiDto } from "@renderer/hooks/useIdentities";
 import { SOURCE_KINDS } from "@renderer/utils/transferMatrix";
@@ -12,7 +12,7 @@ import DropdownField from "@renderer/components/ui/DropdownField";
 import IdentitySelect from "@renderer/components/ui/IdentitySelect";
 import type { DestinationPickerProps, EndpointKindEntry } from "@renderer/types/EndpointPicker";
 import Spinner from "@renderer/components/ui/Spinner";
-import { RefreshIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { RefreshIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 
 interface KindDropdownProps {
   kinds: EndpointKindEntry[]

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Button, Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import NoResults from '@renderer/components/ui/NoResults'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'

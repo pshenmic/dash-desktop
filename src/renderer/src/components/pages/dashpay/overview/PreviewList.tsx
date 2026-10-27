@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { DashPayContactDto } from '@renderer/api/types'
-import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import AcceptRequestModal from '@renderer/components/pages/dashpay/contacts/AcceptRequestModal'
 import ContactRow from '@renderer/components/pages/dashpay/contacts/ContactRow'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Text, ArrowIcon, ShieldSmallIcon, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ArrowIcon, ShieldSmallIcon, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'

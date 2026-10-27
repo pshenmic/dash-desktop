@@ -53,16 +53,6 @@ export function recipientPercent(amount: bigint, budget: bigint | null, round = 
   return amount >= budget ? 100 : Number((amount * 100n + (round ? budget / 2n : 0n)) / budget)
 }
 
-export function splitRecipientTotal(recipients: SendRecipientDraft[]): SendRecipientDraft[] {
-  if (recipients.length === 0) return recipients
-  const total = recipientTotalDuffs(recipients)
-  const count = BigInt(recipients.length)
-  return recipients.map((recipient, index) => ({
-    ...recipient,
-    amount: davToDash(total / count + (index === recipients.length - 1 ? total % count : 0n)),
-  }))
-}
-
 export function validateSendRecipients(params: SendRecipientValidation): SendRecipientError[] {
   const {recipients, operation, destination, network, fundingAddresses, feeRecipientId, feeCredits} = params
   const platform = destination === DestinationKind.PlatformAddress

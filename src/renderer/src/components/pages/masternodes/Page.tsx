@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { AddIcon, Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { AddIcon, Button, Text } from '@renderer/components/dash-ui-kit-extended'
 import PageHeader from '@renderer/components/ui/PageHeader'
 import PageTabs from '@renderer/components/ui/PageTabs'
 import PreviewBadge from '@renderer/components/ui/PreviewBadge'

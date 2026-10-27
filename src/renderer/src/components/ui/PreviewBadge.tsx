@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import { PREVIEW_BADGE_COPY } from '@renderer/constants/masternodePreview'

@@ -1,4 +1,4 @@
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text } from "@renderer/components/dash-ui-kit-extended";
 import { MAX_CHIP_CLASS } from "@renderer/constants/allocationAmountRow";
 import type { AmountFieldProps } from "@renderer/types/Amount";
 

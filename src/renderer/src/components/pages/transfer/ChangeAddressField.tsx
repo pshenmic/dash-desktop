@@ -1,5 +1,5 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
+import { RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import Spinner from '@renderer/components/ui/Spinner'
 import { FIELD_INVALID } from '@renderer/constants/addressField'

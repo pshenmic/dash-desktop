@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import Spinner from '@renderer/components/ui/Spinner'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import type { PendingRowProps } from '@renderer/types/PendingRow'

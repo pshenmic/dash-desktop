@@ -1,5 +1,5 @@
 import React from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { DASH_UNIT } from '@renderer/constants/balance'

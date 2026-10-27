@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Text } from '../dash-ui-kit-enxtended'
+import { Button, Text } from '../dash-ui-kit-extended'
 import { API } from '@renderer/api'
 import { authTexts, INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
 import { ModalSize } from '@renderer/enums/ModalSize'

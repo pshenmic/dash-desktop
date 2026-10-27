@@ -1,5 +1,5 @@
-import { ArrowIcon, ExternalLinkIcon, HighlightedIdentifier, KeyIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { CopyIcon2 } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { ArrowIcon, ExternalLinkIcon, HighlightedIdentifier, KeyIcon, Text } from '@renderer/components/dash-ui-kit-extended'
+import { CopyIcon2 } from '@renderer/components/dash-ui-kit-extended/icons'
 import ContextMenu from '@renderer/components/ui/ContextMenu'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'

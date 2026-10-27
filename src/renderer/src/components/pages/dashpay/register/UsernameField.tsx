@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { FIELD_INVALID } from '@renderer/constants/addressField'
 import { REGISTER_USERNAME_COPY, USERNAME_FIELD_CLASS, USERNAME_INPUT_CLASS } from '@renderer/constants/dashPayUsernames'
 import { DPNS_LABEL_MAX, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'

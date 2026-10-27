@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Text } from '../dash-ui-kit-enxtended'
+import { Text } from '../dash-ui-kit-extended'
 
 export default function CopyableError({ message }: { message: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false)

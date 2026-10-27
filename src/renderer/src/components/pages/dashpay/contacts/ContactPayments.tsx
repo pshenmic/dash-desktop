@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { DateBlock } from 'dash-ui-kit/react'
-import { Button } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import TransactionCard from '@renderer/components/pages/transactions/TransactionCard'
 import { ContextMenu } from '@renderer/components/ui/ContextMenu'

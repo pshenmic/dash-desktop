@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'
 import { ANALYTICS_GRID, DEFAULT_ANALYTICS_PERIOD } from '@renderer/constants/dashboardAnalytics'

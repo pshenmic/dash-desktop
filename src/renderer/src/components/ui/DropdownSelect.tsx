@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react'
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import {
   WalletIcon,
   PlusIcon
-} from '@renderer/components/dash-ui-kit-enxtended/icons'
+} from '@renderer/components/dash-ui-kit-extended/icons'
 import DropdownChevron from '@renderer/components/ui/DropdownChevron'
 import { POPOVER, POPOVER_OPTION } from '@renderer/constants/surfaces'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'

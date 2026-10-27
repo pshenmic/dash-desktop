@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Identifier, DashLogo, TimeDelta, useTheme } from 'dash-ui-kit/react'
-import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-enxtended'
-import { BoxIcon, CalendarIconHighlighted, DocumentIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { HighlightedIdentifier, Text, ExternalLinkIcon } from '@renderer/components/dash-ui-kit-extended'
+import { BoxIcon, CalendarIconHighlighted, DocumentIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import QrButton from '@renderer/components/ui/QrButton'
@@ -99,8 +99,8 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
               value={<SensitiveValue hidden={!isBalanceVisible} size={'card'}>
                 <CreditsAmount credits={transaction.netCredits} prefix={transaction.netCredits > 0n ? '+ ' : ''} exact showFiat={false} align={'end'} amountClassName={'font-extrabold'} className={`text-sm ${transaction.netCredits > 0n ? 'dash-text-primary' : 'dash-text-default'}`} />
               </SensitiveValue>}
-              subValue={rateReady || !isBalanceVisible ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
-                {rateReady ? formatApproxFiat(formatFiat(creditsToDuffs(transaction.netCredits))) : null}
+              subValue={rateReady ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
+                {formatApproxFiat(formatFiat(creditsToDuffs(transaction.netCredits)))}
               </SensitiveValue> : undefined}
             />
             <DetailToken
@@ -110,8 +110,8 @@ export default function PlatformTransactionDetail({ transaction, onBack }: Platf
               value={<SensitiveValue hidden={!isBalanceVisible} size={'card'}>
                 <CreditsAmount credits={transaction.gasCredits} exact showFiat={false} align={'end'} amountClassName={'font-extrabold'} className={'text-sm dash-text-default'} />
               </SensitiveValue>}
-              subValue={rateReady || !isBalanceVisible ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
-                {rateReady ? formatApproxFiat(formatFiat(creditsToDuffs(transaction.gasCredits))) : null}
+              subValue={rateReady ? <SensitiveValue hidden={!isBalanceVisible} size={'subtext'} label={'Fiat amount hidden'}>
+                {formatApproxFiat(formatFiat(creditsToDuffs(transaction.gasCredits)))}
               </SensitiveValue> : undefined}
             />
             <DetailToken

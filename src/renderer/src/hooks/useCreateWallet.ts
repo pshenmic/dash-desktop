@@ -51,6 +51,7 @@ export function useCreateWallet(): UseCreateWalletState {
   const [createdWalletId, setCreatedWalletId] = useState<string | null>(null)
   const [connectionMode, setConnectionMode] = useState<ConnectionType>('rpc')
   const [backgroundSyncEnabled, setBackgroundSyncEnabled] = useState(true)
+  const [creating, setCreating] = useState(false)
 
   const setPassword = useCallback((newPassword: string) => {
     setPasswordState(newPassword)
@@ -148,12 +149,15 @@ export function useCreateWallet(): UseCreateWalletState {
     }
 
     let walletId: string
+    setCreating(true)
     try {
       walletId = await API.createWallet(seedPhrases[path].join(' '), network, password)
     } catch (err) {
       console.error('createWallet failed:', err)
       toast.error(`${couldNotCreateWallet} ${getErrorMessage(err)}`)
       return
+    } finally {
+      setCreating(false)
     }
 
     API.startShieldedSync(walletId, password).catch(error => toast.error(getErrorMessage(error)))
@@ -192,6 +196,7 @@ export function useCreateWallet(): UseCreateWalletState {
     submitImportSeedPhrase,
     path,
     createdWalletId,
+    creating,
     connectionMode,
     backgroundSyncEnabled,
     setConnectionMode,

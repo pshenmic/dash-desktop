@@ -1,4 +1,4 @@
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
@@ -67,7 +67,7 @@ export default function HeroBalance(): React.JSX.Element {
                   <span className={"text-[2.5rem] font-extrabold leading-[110%] text-dash-orange"}>{UNKNOWN_BALANCE_LABEL}</span>
                 </Tooltip>
               )}
-              {totalReady && (rateReady || !isBalanceVisible) && (
+              {totalReady && rateReady && (
                 <span className={"flex items-center rounded-full px-3.5 py-1.5 bg-dash-brand/10 dark:bg-dash-mint/10"}>
                   <SensitiveValue hidden={!isBalanceVisible} size={"compact"} tone={"accent"} label={"Fiat balance hidden"}>
                     <Text size={14} weight={"medium"} color={"blue-mint"} className={"whitespace-nowrap"}>

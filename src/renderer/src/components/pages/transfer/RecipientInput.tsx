@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { SearchIcon, PlusIcon, DeleteIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
+import { SearchIcon, PlusIcon, DeleteIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import type { RecipientInputProps } from '@renderer/types/SendRecipients'
 import { useAddressBook } from '@renderer/hooks/useAddressBook'
 import { isValidDashAddress } from '@renderer/utils/address'

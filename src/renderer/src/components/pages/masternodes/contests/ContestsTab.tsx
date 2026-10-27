@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo } from 'react'
-import { Button, InfoCircleIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, InfoCircleIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import Alert from '@renderer/components/ui/Alert'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import NoResults from '@renderer/components/ui/NoResults'

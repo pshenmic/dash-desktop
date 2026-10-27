@@ -1,5 +1,5 @@
 import { DashLogo, useTheme } from "dash-ui-kit/react";
-import { CreditsIcon, IdenticonIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-enxtended";
+import { CreditsIcon, IdenticonIcon, ShieldSmallIcon, Text, Tooltip } from "../dash-ui-kit-extended";
 import CreditsAmount from "../ui/CreditsAmount";
 import DashBigNumber from "../ui/DashBigNumber";
 import SensitiveValue from "../ui/SensitiveValue";
@@ -36,9 +36,10 @@ const logoStyles = cva(
 export default function Balance({variant, balance, credits, isVisible, fiat}: SidebarBalanceProps): React.JSX.Element {
   const { theme } = useTheme()
   const { format: formatFiat, rateReady, currency } = useFiat()
-  const amountKnown = variant === 'dash' || credits != null
+  const inDash = variant === 'dash' || variant === 'total'
+  const amountKnown = inDash || credits != null
   const creditsFiat = credits != null && rateReady ? formatFiat(creditsToDuffs(credits)) : undefined
-  const rowFiat = variant === 'dash' ? fiat : creditsFiat
+  const rowFiat = inDash ? fiat : creditsFiat
 
   return (
     <div
@@ -53,7 +54,7 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: Si
       <div
         className={logoStyles({ variant: variant })}
       >
-        {variant === 'dash' || variant === 'total' ?
+        {inDash ?
           <DashLogo width={20} height={20} containerSize={39} color={theme === 'light' ? 'white' : 'var(--color-dash-brand)'}/>
         : variant === 'shielded' ?
           <ShieldSmallIcon size={15} color={"#4C7EFF"}/>
@@ -72,21 +73,21 @@ export default function Balance({variant, balance, credits, isVisible, fiat}: Si
             </Tooltip>
           ) : (
             <SensitiveValue hidden={!isVisible} size={"sidebar"} tone={"accent"}>
-              {variant !== 'dash' && credits != null ? (
+              {!inDash && credits != null ? (
                 <CreditsAmount credits={credits} compact unit={"Credits"} showFiat={false} unitClassName={""} />
               ) : (
                 <>
                   <DashBigNumber>{davToDash(balance ?? 0n)}</DashBigNumber>
-                  {variant === 'dash' ? ` ${DASH_UNIT}` : ' Credits'}
+                  {inDash ? ` ${DASH_UNIT}` : ' Credits'}
                 </>
               )}
             </SensitiveValue>
           )}
         </Text>
-        {amountKnown && (rowFiat !== undefined || !isVisible) &&
+        {amountKnown && rowFiat !== undefined &&
           <Text size={10} weight="medium" color="blue-mint" className={"leading-[120%]"}>
             <SensitiveValue hidden={!isVisible} size={"subtext"} tone={"accent"} label={"Fiat balance hidden"}>
-              {formatApproxFiat(rowFiat ?? '', currency)}
+              {formatApproxFiat(rowFiat, currency)}
             </SensitiveValue>
           </Text>
         }

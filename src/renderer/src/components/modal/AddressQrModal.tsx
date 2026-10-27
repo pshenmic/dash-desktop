@@ -1,6 +1,6 @@
 import QRCode from "react-qr-code"
 import { useTheme } from "dash-ui-kit/react"
-import { Text } from "@renderer/components/dash-ui-kit-enxtended"
+import { Text } from "@renderer/components/dash-ui-kit-extended"
 import { ModalSize } from "@renderer/enums/ModalSize"
 import CopyButton from "@renderer/components/ui/CopyButton"
 import Modal from "@renderer/components/ui/Modal"

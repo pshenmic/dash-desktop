@@ -1,6 +1,6 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
-import { ChevronIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { ChevronIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
+import { RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'

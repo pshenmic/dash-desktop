@@ -1,4 +1,4 @@
-import { Button } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button } from '@renderer/components/dash-ui-kit-extended'
 import Spinner from '@renderer/components/ui/Spinner'
 import { ModalActionTone } from '@renderer/enums/ModalActionTone'
 import { MODAL_ACTION_COLOR_SCHEME } from '@renderer/constants/modal'

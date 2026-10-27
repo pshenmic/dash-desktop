@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { toast } from "../ui/Toast"
 import { API } from "@renderer/api"
-import { Input } from "../dash-ui-kit-enxtended"
+import { Input } from "../dash-ui-kit-extended"
 import { useAuth } from "@renderer/contexts/AuthContext"
 import { getErrorMessage } from "@renderer/utils/error"
 import { ModalSize } from "@renderer/enums/ModalSize"

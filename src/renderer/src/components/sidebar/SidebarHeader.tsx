@@ -1,6 +1,6 @@
 import { DashLogo } from "dash-ui-kit/react"
 import Balance from "./Balance";
-import { ChevronIcon, EyeClosedIcon, EyeOpenIcon, InfoCircleIcon, LockIcon, Tooltip } from "../dash-ui-kit-enxtended";
+import { ChevronIcon, EyeClosedIcon, EyeOpenIcon, InfoCircleIcon, LockIcon, Tooltip } from "../dash-ui-kit-extended";
 import { useAuth } from "@renderer/contexts/AuthContext";
 import { useBalanceBreakdown } from "@renderer/hooks/useBalanceBreakdown";
 import { useFiat } from "@renderer/hooks/useFiat";
@@ -8,6 +8,7 @@ import { useWalletBalance } from "@renderer/hooks/useWalletBalance";
 import { usePlatformAddresses } from "@renderer/hooks/usePlatformAddresses";
 import { useIdentities } from "@renderer/hooks/useIdentities";
 import { totalIdentityCredits, totalPlatformAddressCredits, totalWalletCredits } from "@renderer/utils/platformBalances";
+import { creditsToDuffs } from "@renderer/utils/balance";
 import {
   SIDEBAR_BALANCE_BREAKDOWN,
   SIDEBAR_BALANCE_BREAKDOWN_CLOSED,
@@ -35,6 +36,7 @@ export default function SidebarHeader(): React.JSX.Element {
     : undefined
   const platformCredits = totalPlatformAddressCredits(platformAddresses)
   const identityCredits = totalIdentityCredits(identities)
+  const totalDuffs = creditsToDuffs(totalWalletCredits(balance.dash.amount, [platformCredits, identityCredits, shieldedCredits]))
   const { isBreakdownOpen, toggleBreakdown } = useBalanceBreakdown()
 
   return (
@@ -97,8 +99,9 @@ export default function SidebarHeader(): React.JSX.Element {
           <div className={"min-w-0 flex-1"}>
             <Balance
               variant="total"
-              credits={totalWalletCredits(balance.dash.amount, [platformCredits, identityCredits, shieldedCredits])}
+              balance={totalDuffs}
               isVisible={isBalanceVisible}
+              fiat={rateReady ? formatFiat(totalDuffs) : undefined}
             />
           </div>
           {shieldedCredits === undefined && (

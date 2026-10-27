@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import ReadinessAlert from '@renderer/components/pages/dashpay/keys/ReadinessAlert'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'

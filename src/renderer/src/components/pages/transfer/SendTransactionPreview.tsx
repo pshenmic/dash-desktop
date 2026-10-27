@@ -1,4 +1,4 @@
-import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'

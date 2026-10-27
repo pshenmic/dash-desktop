@@ -1,4 +1,4 @@
-import { ChevronIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { ChevronIcon } from '@renderer/components/dash-ui-kit-extended'
 import type { DropdownChevronProps } from '@renderer/types/DropdownChevron'
 
 export default function DropdownChevron({ open = false, className = '' }: DropdownChevronProps): React.JSX.Element {

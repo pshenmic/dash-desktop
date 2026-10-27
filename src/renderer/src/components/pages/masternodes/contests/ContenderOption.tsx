@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import {
   CONTENDER_OPTION_BASE,
   CONTENDER_OPTION_DISABLED,

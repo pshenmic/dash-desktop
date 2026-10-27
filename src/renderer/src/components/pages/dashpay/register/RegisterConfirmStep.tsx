@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'

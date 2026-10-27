@@ -1,4 +1,4 @@
-import { CheckIcon, ErrorIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { CheckIcon, ErrorIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'
 import { MasternodePreviewAPI } from '@renderer/api/preview/MasternodePreviewAPI'

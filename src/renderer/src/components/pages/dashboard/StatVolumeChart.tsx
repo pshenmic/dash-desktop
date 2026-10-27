@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import type { StatVolumeChartProps } from '@renderer/types/DashboardStats'
 import { DASH_UNIT } from '@renderer/constants/balance'

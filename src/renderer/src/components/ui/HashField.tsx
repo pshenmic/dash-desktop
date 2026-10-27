@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Text, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
-import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
+import { Text, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-extended'
+import { CopyIcon2 } from '../dash-ui-kit-extended/icons'
 import { openExternal } from '@renderer/utils/explorer'
 
 export default function HashField({ hash, label = 'State transition hash', explorerUrl }: { hash: string; label?: string; explorerUrl?: string | null }): React.JSX.Element {

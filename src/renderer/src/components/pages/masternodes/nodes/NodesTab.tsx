@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react'
-import { AddIcon, Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { AddIcon, Button, Text } from '@renderer/components/dash-ui-kit-extended'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import NoResults from '@renderer/components/ui/NoResults'
 import RetryButton from '@renderer/components/ui/RetryButton'

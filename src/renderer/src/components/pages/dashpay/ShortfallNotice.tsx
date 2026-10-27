@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { DASHPAY_TOP_UP_HREF, FEE_SHORTFALL_COPY } from '@renderer/constants/dashPay'
 import { CHIP_ACTION } from '@renderer/constants/surfaces'
 import { ShortfallKind } from '@renderer/enums/DashPay'

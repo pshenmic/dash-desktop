@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
+import { RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { RETRY_LABEL, RETRY_PENDING_LABEL } from '@renderer/constants/retryButton'
 import type { RetryButtonProps } from '@renderer/types/RetryButton'
 

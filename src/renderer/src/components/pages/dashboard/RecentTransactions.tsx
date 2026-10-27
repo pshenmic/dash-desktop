@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Text, ArrowIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, ArrowIcon } from '@renderer/components/dash-ui-kit-extended'
 import TransactionCard from '@renderer/components/pages/transactions/TransactionCard'
 import { dashboardPage } from '@renderer/constants'
 import type { RecentTransactionsProps } from '@renderer/types/WalletTransaction'

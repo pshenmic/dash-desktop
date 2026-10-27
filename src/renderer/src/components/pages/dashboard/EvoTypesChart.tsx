@@ -1,4 +1,4 @@
-import { CreditsIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { CreditsIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import { ANALYTICS_METER, ANALYTICS_PLACEHOLDER } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import type { DashboardAnalytics } from '@renderer/types/DashboardAnalytics'

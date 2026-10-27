@@ -1,4 +1,4 @@
-import { Button, Text } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button, Text } from "@renderer/components/dash-ui-kit-extended";
 import type { UseCreateWalletState, WordCount } from '@renderer/types/auth'
 import { Switch } from "dash-ui-kit/react";
 import SeedPhraseWarning from "./SeedPhraseWarning";

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Button, InfoCircleIcon, KeyIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, InfoCircleIcon, KeyIcon } from '@renderer/components/dash-ui-kit-extended'
 import Alert from '@renderer/components/ui/Alert'
 import { DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import { READINESS_ALERT_COPY } from '@renderer/constants/dashPayKeys'

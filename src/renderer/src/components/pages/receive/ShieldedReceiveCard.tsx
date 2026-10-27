@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-extended'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import ListSkeleton from '@renderer/components/ui/Skeleton'

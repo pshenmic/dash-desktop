@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import { ADD_KEYS_COPY, KEYS_FACT_DIVIDER_CLASS, KEYS_FACT_ROW_CLASS, KEYS_SIGNED_COPY } from '@renderer/constants/identityKeys'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'

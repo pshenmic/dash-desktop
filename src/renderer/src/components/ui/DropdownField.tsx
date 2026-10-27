@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Avatar } from 'dash-ui-kit/react'
-import { ChevronIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ChevronIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
 import { useClickOutside } from '@renderer/hooks/useClickOutside'
 import {
   ADDRESS_AVATAR_SIZES,

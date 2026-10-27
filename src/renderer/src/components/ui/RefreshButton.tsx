@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
 import { refreshActiveAsyncCaches, useAsyncRefreshFailures } from '@renderer/hooks/useAsyncWithCache'
 import { toast } from '@renderer/components/ui/Toast'

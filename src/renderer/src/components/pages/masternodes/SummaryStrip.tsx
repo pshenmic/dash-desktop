@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import {
   COUNT_NOUNS,
   SUMMARY_CELL_CLASS,

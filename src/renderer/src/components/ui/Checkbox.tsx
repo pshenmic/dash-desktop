@@ -1,4 +1,4 @@
-import { CheckIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { CheckIcon } from '@renderer/components/dash-ui-kit-extended'
 import { CHECKBOX_APPEARANCE_STYLES } from '@renderer/constants/checkbox'
 import type { CheckboxProps } from '@renderer/types/Checkbox'
 

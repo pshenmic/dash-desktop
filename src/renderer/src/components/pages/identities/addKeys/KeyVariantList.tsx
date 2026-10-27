@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import CheckRow from '@renderer/components/ui/CheckRow'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import { ADD_KEYS_COPY, KEY_VARIANT_GROUPS, KEY_VARIANT_ROW_CLASS } from '@renderer/constants/identityKeys'

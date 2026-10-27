@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import QRCode from 'react-qr-code'
 import { useTheme } from 'dash-ui-kit/react'
-import { Button } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button } from '@renderer/components/dash-ui-kit-extended'
 import { toast } from '@renderer/components/ui/Toast'
 import { RECEIVE_QR_ACTION, RECEIVE_QR_FRAME, RECEIVE_QR_OVERLAY } from '@renderer/constants/receiveCard'
 import { RECEIVE_INVOICE_FILE_NAME, RECEIVE_INVOICE_MIME, RECEIVE_QR_COPY, RECEIVE_QR_SIZE } from '@renderer/constants/receiveInvoice'

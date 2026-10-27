@@ -1,7 +1,7 @@
 import { navGroups } from "@renderer/constants";
-import { DashboardIcon, SendIcon, SettingsIcon, ShieldSmallIcon, AddressesIcon, TransactionsIcon, ReceiveIcon, SignIcon, ContactsIcon, ServerIcon } from "../dash-ui-kit-enxtended/icons";
+import { DashboardIcon, SendIcon, SettingsIcon, ShieldSmallIcon, AddressesIcon, TransactionsIcon, ReceiveIcon, SignIcon, ContactsIcon, ServerIcon } from "../dash-ui-kit-extended/icons";
 import { cva } from "class-variance-authority";
-import { IconProps } from "../dash-ui-kit-enxtended/icons";
+import { IconProps } from "../dash-ui-kit-extended/icons";
 import SidebarHeader from "./SidebarHeader";
 import SidebarNavGroup from "../ui/NavGroup";
 import { useDebugMode } from "@renderer/hooks/useDebugMode";

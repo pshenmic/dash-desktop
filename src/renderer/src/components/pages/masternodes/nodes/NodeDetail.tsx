@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
 import {
   BoxIcon,
   CalendarIconHighlighted,
@@ -9,7 +9,7 @@ import {
   ServerIcon,
   WalletIcon,
   WebIcon,
-} from '@renderer/components/dash-ui-kit-enxtended/icons'
+} from '@renderer/components/dash-ui-kit-extended/icons'
 import DetailToken from '@renderer/components/pages/transactions/TransactionDetailToken'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'

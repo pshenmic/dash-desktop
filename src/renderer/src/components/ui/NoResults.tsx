@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import type { NoResultsProps } from '@renderer/types/NoResults'
 

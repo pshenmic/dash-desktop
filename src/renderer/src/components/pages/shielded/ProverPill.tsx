@@ -1,4 +1,4 @@
-import { Text, CheckIcon, ErrorIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, CheckIcon, ErrorIcon } from '@renderer/components/dash-ui-kit-extended'
 import Spinner from '@renderer/components/ui/Spinner'
 import { ShieldedStatus } from '@renderer/api/types'
 import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'

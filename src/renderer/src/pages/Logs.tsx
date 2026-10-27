@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate } from 'react-router-dom'
 import { API } from '@renderer/api'
 import { LogFileContent, LogFileInfo } from '@renderer/api/types'
-import { Button, DocumentIcon, InfoTooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, DocumentIcon, InfoTooltip } from '@renderer/components/dash-ui-kit-extended'
 import NoResults from '@renderer/components/ui/NoResults'
 import PageHeader from '@renderer/components/ui/PageHeader'
 import PageTabs from '@renderer/components/ui/PageTabs'

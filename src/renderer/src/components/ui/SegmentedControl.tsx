@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { SEGMENTED_CONTROL_APPEARANCE_STYLES } from '@renderer/constants/segmentedControl'
 import { SegmentedControlAppearance } from '@renderer/enums/SegmentedControlAppearance'
 import type { SegmentedControlProps } from '@renderer/types/SegmentedControl'

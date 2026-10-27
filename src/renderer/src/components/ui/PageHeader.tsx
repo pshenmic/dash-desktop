@@ -1,4 +1,4 @@
-import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { ArrowIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import type { PageHeaderProps } from '@renderer/types/PageHeader'
 import { isEmphasizedCopy } from '@renderer/utils/pageHeader'
 

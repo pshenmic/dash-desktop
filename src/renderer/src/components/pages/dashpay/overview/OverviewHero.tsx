@@ -1,5 +1,5 @@
-import { ExternalLinkIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { IdenticonIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { ExternalLinkIcon, HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
+import { IdenticonIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import CustomBadge from '@renderer/components/ui/CustomBadge'

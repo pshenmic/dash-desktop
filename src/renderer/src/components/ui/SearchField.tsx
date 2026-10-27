@@ -1,4 +1,4 @@
-import { Input, SearchIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Input, SearchIcon } from '@renderer/components/dash-ui-kit-extended'
 import { TOOLBAR_SEARCH_CLASS } from '@renderer/constants/listToolbar'
 import type { SearchFieldProps } from '@renderer/types/SearchField'
 

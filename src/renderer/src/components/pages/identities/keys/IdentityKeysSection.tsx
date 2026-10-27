@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import NoResults from '@renderer/components/ui/NoResults'

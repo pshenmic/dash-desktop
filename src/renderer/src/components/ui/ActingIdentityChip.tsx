@@ -1,4 +1,4 @@
-import { HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import {
   ACTING_IDENTITY_CHIP_CLASS,

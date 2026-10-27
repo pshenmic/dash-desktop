@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { DashLogo } from 'dash-ui-kit/react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import StatusChip from '@renderer/components/ui/StatusChip'
 import { ANALYTICS_PLACEHOLDER, ANALYTICS_PULSE } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'

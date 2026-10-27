@@ -1,5 +1,5 @@
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
-import { CheckIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
+import { CheckIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import StatusPill from '@renderer/components/ui/StatusPill'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'

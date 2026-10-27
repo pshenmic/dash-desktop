@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { HighlightedIdentifier, Input, SuccessIcon, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Input, SuccessIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import CheckRow from '@renderer/components/ui/CheckRow'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import FadingScrollArea from '@renderer/components/ui/FadingScrollArea'

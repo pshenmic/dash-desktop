@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, CheckIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, CheckIcon } from '@renderer/components/dash-ui-kit-extended'
 import Alert from '@renderer/components/ui/Alert'
 import { P2P_READY_PROMPT } from '@renderer/constants/connection'
 import { useAuth } from '@renderer/contexts/AuthContext'

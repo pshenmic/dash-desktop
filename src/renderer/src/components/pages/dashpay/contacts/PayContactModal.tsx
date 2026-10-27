@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { API } from '@renderer/api'
 import type { SendResult } from '@renderer/api/types'
-import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { HighlightedIdentifier, Text } from '@renderer/components/dash-ui-kit-extended'
 import SignedActionModal from '@renderer/components/modal/SignedActionModal'
 import AmountField from '@renderer/components/pages/transfer/AmountField'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'

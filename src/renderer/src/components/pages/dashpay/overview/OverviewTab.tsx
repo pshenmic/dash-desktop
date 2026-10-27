@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button } from '@renderer/components/dash-ui-kit-enxtended'
-import { CheckCirclePartialIcon, ContactsIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Button } from '@renderer/components/dash-ui-kit-extended'
+import { CheckCirclePartialIcon, ContactsIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import EnableDashPayModal from '@renderer/components/pages/dashpay/keys/EnableDashPayModal'
 import { DASHPAY_PARAMS, DASHPAY_ROUTES, DASHPAY_TOP_UP_HREF, OVERVIEW_PREVIEW_LIMIT } from '@renderer/constants/dashPay'
 import {

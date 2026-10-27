@@ -1,4 +1,4 @@
-import { AddIcon, Button, FilterIcon, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { AddIcon, Button, FilterIcon, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import SearchField from '@renderer/components/ui/SearchField'
 import SegmentedControl from '@renderer/components/ui/SegmentedControl'

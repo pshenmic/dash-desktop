@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
-import { CalendarIcon, ExclamationIcon, ReceiveIcon, SendIcon, TokensIcon, TransactionsIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
+import { CalendarIcon, ExclamationIcon, ReceiveIcon, SendIcon, TokensIcon, TransactionsIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { ANALYTICS_GRID } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { STAT_ACTIVITY_SOURCE_KIND, STAT_SOURCE_KIND } from '@renderer/constants/dashboardStats'

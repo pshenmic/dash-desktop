@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { ICON_CHIP, SURFACE_PANEL } from '@renderer/constants/surfaces'
 import type { ChartCardProps } from '@renderer/types/DashboardAnalytics'
 import DashboardHeading from './DashboardHeading'

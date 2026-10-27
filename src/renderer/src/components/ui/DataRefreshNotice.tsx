@@ -1,4 +1,4 @@
-import { ExclamationIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { ExclamationIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import Alert from '@renderer/components/ui/Alert'
 import RetryButton from '@renderer/components/ui/RetryButton'
 import { DATA_REFRESH_STALE_MESSAGE } from '@renderer/constants/connection'

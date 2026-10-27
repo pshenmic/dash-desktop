@@ -1,4 +1,4 @@
-import { ArrowIcon, HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-enxtended'
+import { ArrowIcon, HighlightedIdentifier, Text, Tooltip } from '@renderer/components/dash-ui-kit-extended'
 import { ContextMenu } from '@renderer/components/ui/ContextMenu'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'

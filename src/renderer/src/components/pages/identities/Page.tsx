@@ -10,7 +10,7 @@ import PageTabs from "@renderer/components/ui/PageTabs";
 import { PAGE_HEADERS } from "@renderer/constants/pageHeaders";
 import { SURFACE_PANEL } from "@renderer/constants/surfaces";
 import { IDENTITIES_ROUTES } from "@renderer/constants/identities";
-import { Button } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button } from "@renderer/components/dash-ui-kit-extended";
 import { useNavigate } from "react-router-dom";
 import { identityHref } from "@renderer/utils/identities";
 

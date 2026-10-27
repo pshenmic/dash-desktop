@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Network } from "@renderer/api/types";
-import { Text, WebIcon } from "../dash-ui-kit-enxtended";
+import { Text, WebIcon } from "../dash-ui-kit-extended";
 import DropdownChevron from "./DropdownChevron";
 import { POPOVER, POPOVER_OPTION } from "@renderer/constants/surfaces";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";

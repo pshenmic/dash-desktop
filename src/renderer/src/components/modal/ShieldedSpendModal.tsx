@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Text, SuccessIcon } from '../dash-ui-kit-enxtended'
+import { Text, SuccessIcon } from '../dash-ui-kit-extended'
 import HashField from '@renderer/components/ui/HashField'
 import PasswordField from '@renderer/components/ui/PasswordField'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'

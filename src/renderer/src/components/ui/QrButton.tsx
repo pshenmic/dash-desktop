@@ -1,4 +1,4 @@
-import { QrCodeIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import { QrCodeIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import type { QrButtonProps } from '@renderer/types/QrButton'
 
 export default function QrButton({ onClick, className = '', ariaLabel, iconSize }: QrButtonProps): React.JSX.Element {
