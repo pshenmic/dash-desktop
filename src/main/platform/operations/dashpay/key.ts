@@ -11,9 +11,8 @@ const log = new Logger('platform')
 type Payload = PlatformOperations['dashPayContactKey']['payload']
 type Result = PlatformOperations['dashPayContactKey']['result']
 
-// The key a contact sent us, which we derive our payments to them from. A
-// request is immutable, so a fault in it answers null instead of throwing:
-// only a new request from the contact can mend it.
+// The key a contact sent us to pay them on. A request is immutable, so a fault in
+// it answers null instead of throwing: only a new request from them can mend it.
 export async function dashPayContactKey(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {sdk, network} = ctx
   const {seed, identifier, identityIndex, request} = payload

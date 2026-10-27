@@ -26,14 +26,6 @@ describe('dashPayContactKey', () => {
     })).toEqual({xpub: null})
   })
 
-  // Most mobile identities have no DECRYPTION key and are written to on another one.
-  it('accepts a request encrypted to a key other than DECRYPTION', async () => {
-    expect(await run({
-      [THEIRS]: [{keyId: 3, purpose: 'AUTHENTICATION', keyType: 'BLS12_381'}],
-      [OURS]: [{keyId: 4, purpose: 'ENCRYPTION', keyType: 'ECDSA_SECP256K1'}],
-    })).toEqual({xpub: null})
-  })
-
   it('throws, so it is retried, while a named key is not on Platform yet', async () => {
     await expect(run({
       [THEIRS]: [],

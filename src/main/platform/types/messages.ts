@@ -1,8 +1,8 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
-import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
+import {UsernameCheck, UsernameSearchResult} from '../../src/types/Username'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {DashPayContactRequest} from '../../src/types/DashPay'
-import {IdentityKey, IdentityKeyRequest} from '../../src/types/IdentityKeys'
+import {IdentityKey, IdentityKeyRequest, IdentityKeysUpdate, IdentityPrivateKey} from '../../src/types/IdentityKeys'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -119,13 +119,13 @@ export type IdentityFeeOperation =
   | 'identityToIdentity'
   | 'identityWithdrawal'
 
-// For aliasRegister the recipient is the label being registered, for
+// For usernameRegister the recipient is the label being registered, for
 // dashPayContactRequest the identity asked; identityId is the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
-  | 'aliasRegister'
+  | 'usernameRegister'
   | 'dashPayContactRequest'
-  | 'identityCreateKeys'
+  | 'identityUpdateKeys'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -135,7 +135,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'usernameRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -165,8 +165,9 @@ export interface FeeParams {
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
-  // identityCreateKeys only: the keys being created.
+  // identityUpdateKeys only: the keys being added, and the ids of those being disabled.
   keys?: IdentityKeyRequest[] | null
+  keyIds?: number[] | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
   shieldedSource?: ShieldedSpendSource | null
@@ -342,9 +343,13 @@ export interface PlatformOperations {
     }
     result: {stHash: string}
   }
-  identityCreateKeys: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; keys: IdentityKeyRequest[]}
+  identityUpdateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number} & IdentityKeysUpdate
     result: {stHash: string}
+  }
+  identityPrivateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number}
+    result: {keys: IdentityPrivateKey[]}
   }
   identityExists: {
     payload: {identifier: string}
@@ -363,22 +368,26 @@ export interface PlatformOperations {
     // identity fetch.
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
-    result: {infos: Array<{identifier: string; balance: bigint; aliasesList: string[]; keys: IdentityKey[]}>}
+    result: {infos: Array<{identifier: string; balance: bigint; usernames: string[]; keys: IdentityKey[]}>}
   }
-  aliasStatus: {
+  usernameStatus: {
     payload: {identifier: string; label: string}
-    result: AliasCheck
+    result: UsernameCheck
   }
   // Names whose label starts with prefix, in label order, at most one proved page.
-  aliasSearch: {
-    payload: {prefix: string}
-    result: {results: AliasSearchResult[]}
+  // The contests among labels (normalized) the identities are contenders in.
+  usernameContests: {
+    payload: {labels: string[]; identifiers: string[]}
+    result: {contests: Array<{identifier: string; label: string}>}
   }
-  // Answers with the check it ran before spending anything. A domain refused
-  // after its preorder landed is answered, not thrown, so its salt reaches main.
-  aliasRegister: {
-    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string; preorderSalt: Uint8Array | null}
-    result: AliasCheck & {preorderSalt: Uint8Array | null; error: string | null}
+  usernameSearch: {
+    payload: {prefix: string}
+    result: {results: UsernameSearchResult[]}
+  }
+  // registerName returns once the domain is in a block, so this answers with the name's state.
+  usernameRegister: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
+    result: UsernameCheck
   }
   dashPayContactRequestSend: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}

@@ -16,9 +16,9 @@ export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, num
   identityTopUp: 14,
   identityCreate: 10,
   identityToIdentity: 70,
-  aliasRegister: 1,
+  usernameRegister: 1,
   dashPayContactRequest: 1,
-  identityCreateKeys: 1,
+  identityUpdateKeys: 1,
 }
 
 // FEE_VERSION3's 27,000 storage plus 400 processing credits for every byte a
@@ -39,12 +39,21 @@ export const DPNS_IDENTITY_SUBTREE_BYTES = 283n
 
 // The same for a DashPay contactRequest, the larger of two testnet measurements.
 export const DASHPAY_CONTACT_REQUEST_BYTES = 2_860n
-// What adding one identity key stores, measured on testnet at protocol 14.
-export const IDENTITY_KEY_BYTES = 452n
+// What an identity update adds, fitted to six testnet measurements at protocol
+// 14: once per update, then per key its element and public-key-hash entry.
+export const IDENTITY_UPDATE_BYTES = 72n
+export const IDENTITY_KEY_BYTES = 385n
+// On top for an AUTHENTICATION or TRANSFER key: Drive's reference to find it by
+// purpose and security level, which ENCRYPTION and DECRYPTION keys do not get.
+export const IDENTITY_KEY_REFERENCE_BYTES = 185n
 // On top for a contract-bounded key: its reference under the contract. The
 // identity's first key bound to a contract also opens that contract's subtree.
 export const IDENTITY_KEY_BOUNDS_BYTES = 493n
 export const IDENTITY_CONTRACT_BOUNDS_BYTES = 302n
+// Disabling stores almost nothing, so what testnet charged at protocol 14 is
+// used as is: 1,761,300 credits for one key, 2,026,040 for two.
+export const IDENTITY_DISABLE_KEYS_CREDITS = 1_496_560n
+export const IDENTITY_DISABLE_KEY_CREDITS = 264_740n
 
 export const IDENTITY_TRANSFER_MIN_FEE_CREDITS = 200_000_000n
 

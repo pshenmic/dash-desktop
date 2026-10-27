@@ -50,7 +50,7 @@ describe('identityInfos', () => {
 
     const {infos} = await identityInfos({identifiers: KNOWN, skipDPNS: false}, ctx)
 
-    expect(infos.map(i => i.aliasesList)).toEqual([['alice.dash'], ['alice.dash']])
+    expect(infos.map(i => i.usernames)).toEqual([['alice.dash'], ['alice.dash']])
     expect(calls.names).toEqual(KNOWN)
   })
 
@@ -63,7 +63,7 @@ describe('identityInfos', () => {
 
     const {infos} = await identityInfos({identifiers: ['id-one'], skipDPNS: false}, ctx)
 
-    expect(infos[0]!.aliasesList).toEqual(['owl352-testnet.dash', 'bebra.dash'])
+    expect(infos[0]!.usernames).toEqual(['owl352-testnet.dash', 'bebra.dash'])
   })
 
   // The balance path pays for this search on every identity and never reads it.
@@ -74,7 +74,7 @@ describe('identityInfos', () => {
 
     expect(calls.names).toEqual([])
     expect(calls.identities).toEqual(KNOWN)
-    expect(infos.map(i => i.aliasesList)).toEqual([[], []])
+    expect(infos.map(i => i.usernames)).toEqual([[], []])
   })
 
   it('still reports balances when skipping DPNS', async () => {

@@ -22,7 +22,6 @@ import {JsonRequest, JsonRequestError} from '../types/JsonRequest'
 import {TxLockStatus} from '../types/TxLockStatus'
 import {requestJson} from '../utils/requestJson'
 import {Logger} from '../utils/logger'
-import {ownedAddresses} from '../utils/transferInputs'
 import {AddressUsage} from '../types/AddressDiscovery'
 import {Network} from '../types/Network'
 import {ConnectionStatus} from '../types/ConnectionStatus'
@@ -322,7 +321,7 @@ export class DashscanWalletProvider implements WalletProvider {
 
   private allWalletAddresses(): Promise<string[]> {
     this.ownedAddresses ??= this.addressDAO.getAddressesByWalletId(this.walletId)
-      .then(grouped => ownedAddresses(grouped).map(({address}) => address))
+      .then(grouped => [...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(({address}) => address))
     return this.ownedAddresses
   }
 

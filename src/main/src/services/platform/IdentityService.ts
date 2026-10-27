@@ -1,40 +1,41 @@
 import {HDKey} from '@scure/bip32'
 import convertToHomographSafeChars from 'dash-platform-sdk/src/utils/convertToHomographSafeChars.js'
 import {HD_VERSIONS} from '../../constants/addresses'
-import {MAX_KEYS_PER_TRANSITION} from '../../constants/credits'
-import {AliasDAO} from '../../database/AliasDAO'
-import {DashPayContactRequestDAO} from '../../database/DashPayContactRequestDAO'
+import {MAX_KEYS_PER_TRANSITION, MAX_KEYS_TO_DISABLE} from '../../constants/credits'
+import {DashPayCache} from '../../database/DashPayCache'
 import {IdentityDAO} from '../../database/IdentityDAO'
+import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
-import {Alias, AliasSearchResult} from '../../types/Alias'
+import {Username, UsernameSearchResult} from '../../types/Username'
 import {DashPayContact} from '../../types/DashPay'
 import {Identity, IdentityInfo} from '../../types/Identity'
-import {IdentityKeyRequest} from '../../types/IdentityKeys'
+import {IdentityKeysUpdate, IdentityPrivateKey} from '../../types/IdentityKeys'
 import {Network} from '../../types/Network'
 import {dashPayContacts} from '../../utils/dashPayContacts'
 import {dashPayAccountPath} from '../../utils/dashPayKeys'
 import {Logger} from '../../utils/logger'
 import {requireSelectedWallet, requireWallet} from '../../utils/requireWallet'
 import {withUnlockedWallet} from '../../utils/walletSeed'
+import {PlatformExplorerProvider} from '../../providers/PlatformExplorerProvider'
 import {PlatformWorkerService} from './PlatformWorkerService'
 
 const log = new Logger('identities')
 
-// Reads the identities a wallet already owns, registers their DPNS names and
-// keeps their DashPay contact requests.
+// The identities a wallet owns, their DPNS names and DashPay contacts, the last two in memory.
 // Creating identities is IdentityRegistrationService — that path funds an asset lock.
 export class IdentityService {
   private walletDAO: WalletDAO
   private identityDAO: IdentityDAO
-  private aliasDAO: AliasDAO
-  private dashPayContactRequestDAO: DashPayContactRequestDAO
+  private platformTransactionDAO: PlatformTransactionDAO
+  private dashPayCache: DashPayCache
   private platform: PlatformWorkerService
+  private dashPayRefreshes = new Map<string, Promise<void>>()
 
-  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, aliasDAO: AliasDAO, dashPayContactRequestDAO: DashPayContactRequestDAO, platform: PlatformWorkerService) {
+  constructor(walletDAO: WalletDAO, identityDAO: IdentityDAO, platformTransactionDAO: PlatformTransactionDAO, dashPayCache: DashPayCache, platform: PlatformWorkerService) {
     this.walletDAO = walletDAO
     this.identityDAO = identityDAO
-    this.aliasDAO = aliasDAO
-    this.dashPayContactRequestDAO = dashPayContactRequestDAO
+    this.platformTransactionDAO = platformTransactionDAO
+    this.dashPayCache = dashPayCache
     this.platform = platform
   }
 
@@ -56,8 +57,8 @@ export class IdentityService {
       return [{
         identityIndex: entry.identityIndex,
         identifier: info.identifier,
-        alias: info.aliasesList[0] ?? null,
-        aliasesList: info.aliasesList,
+        alias: info.usernames[0] ?? null,
+        usernames: info.usernames,
         keys: info.keys,
         balance: {
           amount: info.balance,
@@ -77,60 +78,94 @@ export class IdentityService {
     return identity
   }
 
-  // A pending name stays pending while the chain shows nothing: its domain
-  // document or contest lands a block or two after the broadcast.
-  private async recheckAliases(walletId: string, network: Network, infos: Array<{identifier: string; aliasesList: string[]}>): Promise<void> {
-    const stored = await this.aliasDAO.getAliases(walletId)
-    const unsettled = stored.filter(alias => alias.status === 'pending' || alias.status === 'voting')
-    // A name the chain shows with no row here was registered elsewhere, or before this database.
-    const unknown = infos.flatMap(({identifier, aliasesList}) => aliasesList.map(name => {
-      const [label] = name.split('.')
-      return {walletId, identifier, label, normalizedLabel: convertToHomographSafeChars(label), status: 'missing' as const, preorderSalt: null, createdAt: Date.now()}
-    })).filter(alias => !stored.some(known => known.identifier === alias.identifier && known.normalizedLabel === alias.normalizedLabel))
-    await Promise.all([...unsettled, ...unknown].map(async alias => {
-      try {
-        const check = await this.platform.request('aliasStatus', network, {identifier: alias.identifier, label: alias.label})
-        const status = alias.status === 'pending' && check.status === 'missing' ? 'pending' : check.status
-        if (status !== alias.status) log.info(`${alias.label}: ${alias.status} -> ${status}`)
-        await this.aliasDAO.save({...alias, ...check, status, checkedAt: Date.now()})
-      } catch (err) {
-        log.warn(`${alias.label}: alias check failed:`, err)
-      }
-    }))
-  }
-
-  // Each identity asks only for what is newer than its newest stored request.
-  private async recheckDashPayContactRequests(walletId: string, network: Network, identifiers: string[]): Promise<void> {
-    const stored = await this.dashPayContactRequestDAO.getContactRequests(walletId)
-    await Promise.all(identifiers.map(async identifier => {
-      const own = stored.filter(request => request.ownerId === identifier || request.toUserId === identifier)
-      try {
-        const {sent, received} = await this.platform.request('dashPayContactRequests', network, {
-          identifier,
-          since: Math.max(0, ...own.map(request => request.createdAt)),
-        })
-        const fresh = [...sent, ...received].filter(request => !own.some(known => known.id === request.id))
-        for (const request of fresh) log.info(`contact request ${request.ownerId} -> ${request.toUserId} found`)
-        await this.dashPayContactRequestDAO.saveAll(walletId, fresh)
-      } catch (err) {
-        log.warn(`${identifier}: contact request check failed:`, err)
-      }
-    }))
-  }
-
-  // Names are read live: one can be registered or transferred at any time.
-  async getDashPayContacts(walletId: string): Promise<DashPayContact[]> {
+  // Requests never change, so only those since the newest known are fetched;
+  // known ones keep the key decrypted from them in this process.
+  async refreshDashPayRequests(walletId: string): Promise<void> {
     const wallet = await requireWallet(this.walletDAO, walletId)
-    const identities = await this.identityDAO.getIdentitiesByWalletId(walletId)
-    await this.recheckDashPayContactRequests(walletId, wallet.network, identities.map(entry => entry.identifier))
-    const contacts = dashPayContacts(await this.dashPayContactRequestDAO.getContactRequests(walletId), identities.map(entry => entry.identifier))
-    if (contacts.length === 0) return contacts
-    const {infos} = await this.platform.request('identityInfos', wallet.network, {
-      identifiers: [...new Set(contacts.map(contact => contact.contactId))],
-      skipDPNS: false,
-    })
-    const names = new Map(infos.map(info => [info.identifier, info.aliasesList]))
-    return contacts.map(contact => ({...contact, aliasesList: names.get(contact.contactId) ?? []}))
+    const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
+    const cache = this.dashPayCache.wallet(walletId)
+    const known = cache.requests ?? []
+
+    const since = Math.max(0, ...known.map(request => request.createdAt))
+    const pages = await Promise.all(identifiers.map(identifier => this.platform.request('dashPayContactRequests', wallet.network, {identifier, since})))
+    const requests = new Map(known.map(request => [request.id, request]))
+    for (const request of pages.flatMap(({sent, received}) => [...sent, ...received])) {
+      if (!requests.has(request.id)) requests.set(request.id, request)
+    }
+
+    cache.requests = [...requests.values()].sort((a, b) => a.createdAt - b.createdAt)
+  }
+
+  // Every name with its contest, contact request and contact name, from the
+  // network. Callers that arrive while one runs share it.
+  refreshDashPay(walletId: string): Promise<void> {
+    const running = this.dashPayRefreshes.get(walletId)
+    if (running != null) return running
+
+    const refresh = this.fetchDashPay(walletId).finally(() => this.dashPayRefreshes.delete(walletId))
+    this.dashPayRefreshes.set(walletId, refresh)
+    return refresh
+  }
+
+  private async fetchDashPay(walletId: string): Promise<void> {
+    const wallet = await requireWallet(this.walletDAO, walletId)
+    const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
+    const cache = this.dashPayCache.wallet(walletId)
+
+    await this.refreshDashPayRequests(walletId)
+    const requests = cache.requests ?? []
+    const contactIds = [...new Set(dashPayContacts(requests, identifiers).map(contact => contact.contactId))]
+
+    const [{infos}, {contests}] = await Promise.all([
+      this.platform.request('identityInfos', wallet.network, {identifiers: [...identifiers, ...contactIds], skipDPNS: false}),
+      this.runningContests(wallet.network, identifiers),
+    ])
+    const names = new Map(infos.map(info => [info.identifier, info.usernames]))
+
+    // A contested name has no domain document while its vote runs, so one this
+    // process knows stays listed. Last wins: a contest gives only the normalized label.
+    const found = [
+      ...contests,
+      ...(cache.usernames ?? []).filter(username => username.status === 'voting'),
+      ...identifiers.flatMap(identifier => (names.get(identifier) ?? []).map(name => ({identifier, label: name.split('.')[0]}))),
+    ]
+
+    const candidates = new Map(found.map(({identifier, label}) => [`${identifier}:${convertToHomographSafeChars(label)}`, {identifier, label}]))
+    // A name whose check fails keeps what was known of it.
+    const usernames = await Promise.all([...candidates.values()].map(async ({identifier, label}): Promise<Username | undefined> => {
+      const normalizedLabel = convertToHomographSafeChars(label)
+      try {
+        return {...await this.platform.request('usernameStatus', wallet.network, {identifier, label}), identifier, label, normalizedLabel}
+      } catch (err) {
+        log.warn(`${label}: username check failed:`, err)
+        return cache.usernames?.find(username => username.identifier === identifier && username.normalizedLabel === normalizedLabel)
+      }
+    }))
+
+    cache.contactNames = new Map(contactIds.map(contactId => [contactId, names.get(contactId) ?? []]))
+    cache.usernames = usernames.filter(username => username != null)
+    log.info(`${walletId}: refreshed ${usernames.length} name(s), ${requests.length} contact request(s)`)
+  }
+
+  // Contests found elsewhere, on another device or before a restart. Without the
+  // explorer only those known to this process stay listed.
+  private async runningContests(network: Network, identifiers: string[]): Promise<{contests: Array<{identifier: string; label: string}>}> {
+    try {
+      const labels = await new PlatformExplorerProvider(network, this.platformTransactionDAO).runningDpnsContests()
+      return await this.platform.request('usernameContests', network, {labels, identifiers})
+    } catch (err) {
+      log.warn('running contests not listed:', err)
+      return {contests: []}
+    }
+  }
+
+  async getDashPayContacts(walletId: string): Promise<DashPayContact[]> {
+    const cache = this.dashPayCache.wallet(walletId)
+    if (cache.requests == null) await this.refreshDashPay(walletId)
+
+    const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
+    return dashPayContacts(cache.requests ?? [], identifiers)
+      .map(contact => ({...contact, usernames: cache.contactNames.get(contact.contactId) ?? []}))
   }
 
   // Accepting a request is sending one back, so this does both.
@@ -146,15 +181,17 @@ export class IdentityService {
         seed, identifier, identityIndex: identity.identityIndex, recipient,
       })
       log.info(`contact request ${identifier} -> ${recipient}: sent ${stHash}`)
+
       // Our chain for them derives from this key; a wallet older than the column has none yet.
       if (wallet.dashPayXpub == null) {
         const account = HDKey.fromMasterSeed(seed, HD_VERSIONS[wallet.network]).derive(dashPayAccountPath(wallet.network))
         await this.walletDAO.setDashPayXpub(walletId, account.publicExtendedKey)
       }
-      await this.recheckDashPayContactRequests(walletId, wallet.network, [identifier])
-      // Accepting holds the seed anyway, so the key they sent us is stored now.
-      const theirs = (await this.dashPayContactRequestDAO.getContactRequests(walletId))
-        .some(request => request.ownerId === recipient && request.toUserId === identifier)
+      // Sent by now, so a failed refresh must not report the request as not sent.
+      await this.refreshDashPay(walletId).catch(err => log.warn(`contact request ${identifier} -> ${recipient}: not refreshed:`, err))
+
+      // Accepting holds the seed anyway, so the key they sent us is decrypted now.
+      const theirs = this.dashPayCache.wallet(walletId).requests?.some(request => request.ownerId === recipient && request.toUserId === identifier)
       if (theirs) {
         await this.dashPayContactXpub(walletId, wallet.network, seed, identifier, recipient)
           .catch(err => log.warn(`contact request ${recipient} -> ${identifier}: key not decrypted:`, err))
@@ -164,82 +201,93 @@ export class IdentityService {
   }
 
   // The key a contact sent us to pay them on is encrypted to our DECRYPTION key,
-  // so it is decrypted inside an unlock the caller already holds, then kept.
+  // so it is decrypted inside an unlock the caller already holds, then kept in memory.
   async dashPayContactXpub(walletId: string, network: Network, seed: Uint8Array, identifier: string, contactId: string): Promise<string> {
+    const cache = this.dashPayCache.wallet(walletId)
+    if (cache.requests == null) await this.refreshDashPay(walletId)
+
     const identity = await this.identityDAO.getByIdentifier(walletId, identifier)
-    const request = (await this.dashPayContactRequestDAO.getContactRequests(walletId))
-      .findLast(request => request.ownerId === contactId && request.toUserId === identifier)
+    const request = cache.requests?.findLast(request => request.ownerId === contactId && request.toUserId === identifier)
     if (identity == null || request == null) {
       throw new Error('This contact has not sent this identity a contact request')
     }
     if (request.contactXpub != null) return request.contactXpub
+
     const broken = 'Payments to this contact are unavailable — ask them to send you a new contact request'
     if (request.paymentChannelBroken) throw new Error(broken)
+
     const {xpub} = await this.platform.request('dashPayContactKey', network, {seed, identifier, identityIndex: identity.identityIndex, request})
     if (xpub == null) {
-      await this.dashPayContactRequestDAO.setPaymentChannelBroken(walletId, request.id)
+      request.paymentChannelBroken = true
       throw new Error(broken)
     }
-    await this.dashPayContactRequestDAO.setContactXpub(walletId, request.id, xpub)
-    log.info(`contact request ${contactId} -> ${identifier}: key stored`)
+
+    request.contactXpub = xpub
+    log.info(`contact request ${contactId} -> ${identifier}: key decrypted`)
     return xpub
   }
 
-  async getAliases(walletId: string): Promise<Alias[]> {
-    const wallet = await requireWallet(this.walletDAO, walletId)
-    const {infos} = await this.platform.request('identityInfos', wallet.network, {
-      identifiers: (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier),
-      skipDPNS: false,
-    })
-    await this.recheckAliases(walletId, wallet.network, infos)
-    return this.aliasDAO.getAliases(walletId)
+  async getUsernames(walletId: string): Promise<Username[]> {
+    const cache = this.dashPayCache.wallet(walletId)
+    if (cache.usernames == null) await this.refreshDashPay(walletId)
+
+    return cache.usernames ?? []
   }
 
-  async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResult[]> {
+  async searchUsernames(walletId: string, prefix: string): Promise<UsernameSearchResult[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
-    const {results} = await this.platform.request('aliasSearch', wallet.network, {prefix})
+    const {results} = await this.platform.request('usernameSearch', wallet.network, {prefix})
     return results
   }
 
-  async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<Alias> {
+  async registerUsername(walletId: string, identifier: string, label: string, password: string): Promise<Username> {
     const identity = await this.requireIdentity(walletId, identifier)
 
-    // Registering a name again resumes a preorder an earlier attempt paid for.
-    const normalizedLabel = convertToHomographSafeChars(label)
-    const earlier = (await this.aliasDAO.getAliases(walletId))
-      .find(alias => alias.identifier === identifier && alias.normalizedLabel === normalizedLabel)
+    log.info(`${label}: registering for ${identifier}`)
+    const check = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('usernameRegister', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, label}))
 
-    const preorderSalt = earlier?.preorderSalt ?? null
-    log.info(`${label}: registering for ${identifier}${preorderSalt == null ? '' : ', resuming its paid preorder'}`)
-    const {error, ...check} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('aliasRegister', wallet.network, {
-        seed, identifier, identityIndex: identity.identityIndex, label, preorderSalt,
-      }))
-    const now = Date.now()
-    const status = error == null ? 'pending' : 'missing'
-    const alias: Alias = {...check, walletId, identifier, label, normalizedLabel, status, createdAt: now, checkedAt: now}
-    await this.aliasDAO.save(alias)
-    if (error != null) {
-      log.warn(`${label}: domain refused after its preorder, salt kept to resume: ${error}`)
-      throw new Error(error)
-    }
-    log.info(`${label}: sent, pending`)
-    return alias
+    const username: Username = {...check, identifier, label, normalizedLabel: convertToHomographSafeChars(label)}
+
+    // Paid for by now, so a failed refresh must not report it as not registered.
+    const cache = this.dashPayCache.wallet(walletId)
+    if (cache.usernames == null) await this.refreshDashPay(walletId).catch(err => log.warn(`${label}: names not refreshed:`, err))
+    cache.usernames = [...(cache.usernames ?? []).filter(known => known.identifier !== identifier || known.normalizedLabel !== username.normalizedLabel), username]
+
+    log.info(`${label}: ${username.status}`)
+    return username
   }
 
-  async createIdentityKeys(walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string): Promise<string> {
+  async getIdentityPrivateKeys(walletId: string, identifier: string, password: string): Promise<IdentityPrivateKey[]> {
     const identity = await this.requireIdentity(walletId, identifier)
-    if (keys.length === 0) {
-      throw new Error('Choose at least one key to create')
+
+    log.info(`${identifier}: revealing its private keys`)
+    const {keys} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
+      this.platform.request('identityPrivateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex}))
+    return keys
+  }
+
+  // Disabling is final: Platform has no way to enable a key again.
+  async updateIdentityKeys(walletId: string, identifier: string, {add, disable}: IdentityKeysUpdate, password: string): Promise<string> {
+    const identity = await this.requireIdentity(walletId, identifier)
+
+    if (add.length === 0 && disable.length === 0) {
+      throw new Error('Choose a key to add or disable')
     }
-    if (keys.length > MAX_KEYS_PER_TRANSITION) {
-      throw new Error(`Create at most ${MAX_KEYS_PER_TRANSITION} keys at a time`)
+    if (add.length > MAX_KEYS_PER_TRANSITION) {
+      throw new Error(`Add at most ${MAX_KEYS_PER_TRANSITION} keys at a time`)
+    }
+    if (disable.length > MAX_KEYS_TO_DISABLE) {
+      throw new Error(`Disable at most ${MAX_KEYS_TO_DISABLE} keys at a time`)
+    }
+    if (new Set(disable).size !== disable.length) {
+      throw new Error('A key is listed twice')
     }
 
-    log.info(`${identifier}: creating ${keys.map(key => `${key.purpose} ${key.securityLevel}`).join(', ')}`)
+    log.info(`${identifier}: adding ${add.map(key => `${key.purpose} ${key.securityLevel}`).join(', ') || 'no keys'}, disabling ${disable.join(', ') || 'none'}`)
     const {stHash} = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('identityCreateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, keys}))
-    log.info(`${identifier}: keys created in ${stHash}`)
+      this.platform.request('identityUpdateKeys', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, add, disable}))
+    log.info(`${identifier}: keys updated in ${stHash}`)
     return stHash
   }
 

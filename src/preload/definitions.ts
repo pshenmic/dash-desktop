@@ -12,8 +12,8 @@ type CoreSpendSource =
 // transaction can pay many addresses, each its own amount.
 type CoreRecipient = { address: string; amountDuffs: bigint }
 
-// Mirrors IdentityKeyRequest in src/main/src/types/IdentityKeys.
-type IdentityKeyRequest = { purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }
+// Mirrors IdentityKeysUpdate in src/main/src/types/IdentityKeys.
+type IdentityKeysUpdate = { add: Array<{ purpose: string; securityLevel: string; contractBounds: { contractId: string; documentType: string | null } | null }>; disable: number[] }
 
 // Mirrors src/main/src/types/ShieldedNoteSelection: an address narrows the
 // automatic note selection, a picked note list is spent whole.
@@ -56,10 +56,12 @@ export const apiDefinitions = (ipcRenderer) => ({
   getBalance: (address: string | string[], network: Network) => ipcRenderer.invoke('getBalance', address, network),
   getWalletBalance: (walletId: string) => ipcRenderer.invoke('getWalletBalance', walletId),
   getIdentities: (walletId: string) => ipcRenderer.invoke('getIdentities', walletId),
-  createIdentityKeys: (walletId: string, identifier: string, keys: IdentityKeyRequest[], password: string) => ipcRenderer.invoke('createIdentityKeys', walletId, identifier, keys, password),
-  getAliases: (walletId: string) => ipcRenderer.invoke('getAliases', walletId),
-  registerAlias: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerAlias', walletId, identifier, label, password),
-  searchAliases: (walletId: string, prefix: string) => ipcRenderer.invoke('searchAliases', walletId, prefix),
+  updateIdentityKeys: (walletId: string, identifier: string, update: IdentityKeysUpdate, password: string) => ipcRenderer.invoke('updateIdentityKeys', walletId, identifier, update, password),
+  getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => ipcRenderer.invoke('getIdentityPrivateKeys', walletId, identifier, password),
+  getUsernames: (walletId: string) => ipcRenderer.invoke('getUsernames', walletId),
+  refreshDashPay: (walletId: string) => ipcRenderer.invoke('refreshDashPay', walletId),
+  registerUsername: (walletId: string, identifier: string, label: string, password: string) => ipcRenderer.invoke('registerUsername', walletId, identifier, label, password),
+  searchUsernames: (walletId: string, prefix: string) => ipcRenderer.invoke('searchUsernames', walletId, prefix),
   getDashPayContacts: (walletId: string) => ipcRenderer.invoke('getDashPayContacts', walletId),
   sendDashPayContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => ipcRenderer.invoke('sendDashPayContactRequest', walletId, identifier, recipient, password),
   sendDashPayPayment: (walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string) => ipcRenderer.invoke('sendDashPayPayment', walletId, identifier, contactId, amountDuffs, password),

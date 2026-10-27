@@ -1,10 +1,9 @@
 import type {Knex} from 'knex'
 import {Address} from '../types/Address'
-import {DashPayAddress, DashPayDirection} from '../types/DashPay'
+import {DashPayCache} from './DashPayCache'
 import {GroupedAddresses} from "../types/GroupedAddresses";
 import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
-import {dashPayAddressPath} from '../utils/dashPayKeys'
 
 function fromRow({wallet_id, account_id, address, derivation_path, index, is_change, is_used, label}): Address {
   return {
@@ -22,9 +21,11 @@ function fromRow({wallet_id, account_id, address, derivation_path, index, is_cha
 
 export class AddressDAO {
   knex: Knex
+  dashPayCache: DashPayCache
 
-  constructor(knex: Knex) {
+  constructor(knex: Knex, dashPayCache: DashPayCache) {
     this.knex = knex
+    this.dashPayCache = dashPayCache
   }
 
   insertAddresses = async (addresses: Address[]): Promise<void> => {
@@ -48,21 +49,11 @@ export class AddressDAO {
       .select('wallet_id', 'account_id', 'address', 'derivation_path', 'index', 'is_change', 'is_used', 'label')
       .where('wallet_id', walletId)
       .orderBy('index', 'asc')
-    // The path needs the coin type, which only the wallet row carries.
-    const dashPay = (await this.knex('dashpay_contact_addresses')
-      .join('wallet', 'wallet.wallet_id', 'dashpay_contact_addresses.wallet_id')
-      .select('dashpay_contact_addresses.*', 'wallet.network')
-      .where({'dashpay_contact_addresses.wallet_id': walletId, direction: 'receiving'})
-      .orderBy('address_index', 'asc'))
-      .map((row): Address => ({
-        walletId,
-        accountId: 0,
-        address: row.address,
-        derivationPath: dashPayAddressPath(row.network, row.identifier, row.contact_id, row.address_index),
-        index: row.address_index,
-        isChange: false,
-        isUsed: Boolean(row.is_used),
-        label: null,
+    // Our DashPay receiving chains live in memory, derived again on each refresh.
+    const dashPay = [...this.dashPayCache.wallet(walletId).chains.values()].flat()
+      .filter(address => address.direction === 'receiving')
+      .map(({address, derivationPath, index, isUsed}): Address => ({
+        walletId, accountId: 0, address, derivationPath, index, isChange: false, isUsed, label: null,
       }))
 
     return rows.reduce((acc, row) => {
@@ -87,44 +78,6 @@ export class AddressDAO {
         .where('wallet_id', walletId)
         .andWhere('is_change', isChange)
         .whereIn('index', slice)
-        .update({is_used: true})
-    }
-  }
-
-  getDashPayAddresses = async (walletId: string, identifier: string, contactId: string, direction: DashPayDirection): Promise<DashPayAddress[]> => {
-    const rows = await this.knex('dashpay_contact_addresses')
-      .where({wallet_id: walletId, identifier, contact_id: contactId, direction})
-      .orderBy('address_index', 'asc')
-    return rows.map(row => ({
-      walletId, identifier, contactId, direction, index: row.address_index, address: row.address, isUsed: Boolean(row.is_used),
-    }))
-  }
-
-  insertDashPayAddresses = async (addresses: DashPayAddress[]): Promise<void> => {
-    for (const rows of chunk(addresses, INSERT_CHUNK_SIZE)) {
-      await this.knex('dashpay_contact_addresses').insert(rows.map(a => ({
-        wallet_id: a.walletId,
-        identifier: a.identifier,
-        contact_id: a.contactId,
-        direction: a.direction,
-        address_index: a.index,
-        address: a.address,
-        is_used: a.isUsed,
-      })))
-    }
-  }
-
-  deleteDashPayAddresses = async (walletId: string, identifier: string, contactId: string, direction: DashPayDirection): Promise<void> => {
-    await this.knex('dashpay_contact_addresses')
-      .where({wallet_id: walletId, identifier, contact_id: contactId, direction})
-      .delete()
-  }
-
-  markDashPayAddressesUsed = async (walletId: string, identifier: string, contactId: string, direction: DashPayDirection, indexes: number[]): Promise<void> => {
-    for (const slice of chunk(indexes, SELECT_CHUNK_SIZE)) {
-      await this.knex('dashpay_contact_addresses')
-        .where({wallet_id: walletId, identifier, contact_id: contactId, direction})
-        .whereIn('address_index', slice)
         .update({is_used: true})
     }
   }

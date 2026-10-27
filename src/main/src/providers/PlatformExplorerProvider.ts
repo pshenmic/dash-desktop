@@ -10,6 +10,7 @@ import {JsonRequest} from '../types/JsonRequest'
 import {Network} from '../types/Network'
 import {
   PlatformExplorerAddressTransition,
+  PlatformExplorerContestedResource,
   PlatformExplorerPage,
   PlatformExplorerTransfer,
   PlatformExplorerTransition,
@@ -20,6 +21,7 @@ import {
   transferToPlatformTransaction,
 } from '../utils/platformExplorerTransactions'
 import {requestJson} from '../utils/requestJson'
+import {DPNS_DATA_CONTRACT_ID} from 'dash-platform-sdk/src/constants.js'
 
 // Not a WalletProvider and never reaches forWallet(): L2 history has one source,
 // and the index is unproven, so it feeds what is rendered, never what is signed.
@@ -35,6 +37,20 @@ export class PlatformExplorerProvider {
       retryDelaysMs: PLATFORM_EXPLORER_RETRY_DELAYS_MS,
     }
     this.transactionDAO = transactionDAO
+  }
+
+  // DPNS labels whose vote has not ended. Unproven: each is checked against its vote.
+  async runningDpnsContests(): Promise<string[]> {
+    const labels: string[] = []
+    for (let page = 1; page <= PLATFORM_EXPLORER_MAX_PAGES; page++) {
+      const {resultSet} = await requestJson<PlatformExplorerPage<PlatformExplorerContestedResource>>(this.request,
+        `/contestedResources?page=${page}&limit=${PLATFORM_EXPLORER_PAGE_LIMIT}&order=desc` +
+        `&document_type_name=domain&contract_id=${DPNS_DATA_CONTRACT_ID}&voting_finished=false`)
+      labels.push(...resultSet.map(({resourceValue}) => resourceValue[1]))
+      if (resultSet.length < PLATFORM_EXPLORER_PAGE_LIMIT) break
+    }
+
+    return labels
   }
 
   // One address per walk, like an identity. The endpoint takes a list, but it

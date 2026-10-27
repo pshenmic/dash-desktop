@@ -427,10 +427,10 @@ describe('estimateFee', () => {
 
   it('adds a quote\'s fixed credits after the multiplier, so a vote fund is never scaled', async () => {
     const preferences = Preferences.default()
-    preferences.general.platformFeeMultiplier.aliasRegister = 3
+    preferences.general.platformFeeMultiplier.usernameRegister = 3
     const {service: svc, request} = service([], [], preferences)
     request.mockResolvedValueOnce({feeCredits: BASE_FEE, metered: true, fixedCredits: 10_000_000_000n})
-    const quote = await svc.estimateFee(WALLET, 'aliasRegister', params({recipient: 'owl'}))
+    const quote = await svc.estimateFee(WALLET, 'usernameRegister', params({recipient: 'owl'}))
     expect(quote.feeCredits).toBe(BASE_FEE * 3n + 10_000_000_000n)
   })
 

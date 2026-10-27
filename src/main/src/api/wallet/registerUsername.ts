@@ -1,8 +1,8 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { IdentityService } from '../../services/platform/IdentityService'
-import { Alias } from '../../types/Alias'
+import { Username } from '../../types/Username'
 
-export class RegisterAliasHandler {
+export class RegisterUsernameHandler {
   private identities: IdentityService
 
   constructor(identities: IdentityService) {
@@ -15,7 +15,7 @@ export class RegisterAliasHandler {
     identifier: string,
     label: string,
     password: string,
-  ): Promise<Alias> => {
-    return this.identities.registerAlias(walletId, identifier, label, password)
+  ): Promise<Username> => {
+    return this.identities.registerUsername(walletId, identifier, label, password)
   }
 }
