@@ -12,10 +12,10 @@ export interface Identity {
 export interface IdentityInfo {
   identityIndex: number
   identifier: string
-  // The oldest of aliasesList, which is the one shown.
+  // The oldest of usernames, which is the one shown.
   alias: string | null
   // Every DPNS name the identity owns on Platform, oldest first.
-  aliasesList: string[]
+  usernames: string[]
   keys: IdentityKey[]
   balance: AmountWithUsd
   derivationPath: string

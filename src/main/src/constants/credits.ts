@@ -17,7 +17,7 @@ export const TRANSITION_FEE_OPERATIONS = [
   'addressWithdrawal',
   'identityCreate',
   'identityTopUp',
-  'aliasRegister',
+  'usernameRegister',
   'dashPayContactRequest',
   'identityUpdateKeys',
 ] as const satisfies readonly TransitionFeeOperation[]

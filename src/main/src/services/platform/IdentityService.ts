@@ -6,7 +6,7 @@ import {DashPayCache} from '../../database/DashPayCache'
 import {IdentityDAO} from '../../database/IdentityDAO'
 import {PlatformTransactionDAO} from '../../database/PlatformTransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
-import {Alias, AliasSearchResult} from '../../types/Alias'
+import {Username, UsernameSearchResult} from '../../types/Username'
 import {DashPayContact} from '../../types/DashPay'
 import {Identity, IdentityInfo} from '../../types/Identity'
 import {IdentityKeysUpdate, IdentityPrivateKey} from '../../types/IdentityKeys'
@@ -57,8 +57,8 @@ export class IdentityService {
       return [{
         identityIndex: entry.identityIndex,
         identifier: info.identifier,
-        alias: info.aliasesList[0] ?? null,
-        aliasesList: info.aliasesList,
+        alias: info.usernames[0] ?? null,
+        usernames: info.usernames,
         keys: info.keys,
         balance: {
           amount: info.balance,
@@ -120,31 +120,31 @@ export class IdentityService {
       this.platform.request('identityInfos', wallet.network, {identifiers: [...identifiers, ...contactIds], skipDPNS: false}),
       this.runningContests(wallet.network, identifiers),
     ])
-    const names = new Map(infos.map(info => [info.identifier, info.aliasesList]))
+    const names = new Map(infos.map(info => [info.identifier, info.usernames]))
 
     // A contested name has no domain document while its vote runs, so one this
     // process knows stays listed until the vote settles it.
     const found = [
-      ...(cache.aliases ?? []).filter(alias => alias.status === 'voting'),
+      ...(cache.usernames ?? []).filter(username => username.status === 'voting'),
       ...identifiers.flatMap(identifier => (names.get(identifier) ?? []).map(name => ({identifier, label: name.split('.')[0]}))),
       ...contests,
     ]
 
     const candidates = new Map(found.map(({identifier, label}) => [`${identifier}:${convertToHomographSafeChars(label)}`, {identifier, label}]))
     // A name whose check fails keeps what was known of it.
-    const aliases = await Promise.all([...candidates.values()].map(async ({identifier, label}): Promise<Alias | undefined> => {
+    const usernames = await Promise.all([...candidates.values()].map(async ({identifier, label}): Promise<Username | undefined> => {
       const normalizedLabel = convertToHomographSafeChars(label)
       try {
-        return {...await this.platform.request('aliasStatus', wallet.network, {identifier, label}), identifier, label, normalizedLabel}
+        return {...await this.platform.request('usernameStatus', wallet.network, {identifier, label}), identifier, label, normalizedLabel}
       } catch (err) {
-        log.warn(`${label}: alias check failed:`, err)
-        return cache.aliases?.find(alias => alias.identifier === identifier && alias.normalizedLabel === normalizedLabel)
+        log.warn(`${label}: username check failed:`, err)
+        return cache.usernames?.find(username => username.identifier === identifier && username.normalizedLabel === normalizedLabel)
       }
     }))
 
     cache.contactNames = new Map(contactIds.map(contactId => [contactId, names.get(contactId) ?? []]))
-    cache.aliases = aliases.filter(alias => alias != null)
-    log.info(`${walletId}: refreshed ${aliases.length} name(s), ${requests.length} contact request(s)`)
+    cache.usernames = usernames.filter(username => username != null)
+    log.info(`${walletId}: refreshed ${usernames.length} name(s), ${requests.length} contact request(s)`)
   }
 
   // Contests found elsewhere, on another device or before a restart. Without the
@@ -152,7 +152,7 @@ export class IdentityService {
   private async runningContests(network: Network, identifiers: string[]): Promise<{contests: Array<{identifier: string; label: string}>}> {
     try {
       const labels = await new PlatformExplorerProvider(network, this.platformTransactionDAO).runningDpnsContests()
-      return await this.platform.request('aliasContests', network, {labels, identifiers})
+      return await this.platform.request('usernameContests', network, {labels, identifiers})
     } catch (err) {
       log.warn('running contests not listed:', err)
       return {contests: []}
@@ -165,7 +165,7 @@ export class IdentityService {
 
     const identifiers = (await this.identityDAO.getIdentitiesByWalletId(walletId)).map(entry => entry.identifier)
     return dashPayContacts(cache.requests ?? [], identifiers)
-      .map(contact => ({...contact, aliasesList: cache.contactNames.get(contact.contactId) ?? []}))
+      .map(contact => ({...contact, usernames: cache.contactNames.get(contact.contactId) ?? []}))
   }
 
   // Accepting a request is sending one back, so this does both.
@@ -227,35 +227,35 @@ export class IdentityService {
     return xpub
   }
 
-  async getAliases(walletId: string): Promise<Alias[]> {
+  async getUsernames(walletId: string): Promise<Username[]> {
     const cache = this.dashPayCache.wallet(walletId)
-    if (cache.aliases == null) await this.refreshDashPay(walletId)
+    if (cache.usernames == null) await this.refreshDashPay(walletId)
 
-    return cache.aliases ?? []
+    return cache.usernames ?? []
   }
 
-  async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResult[]> {
+  async searchUsernames(walletId: string, prefix: string): Promise<UsernameSearchResult[]> {
     const wallet = await requireWallet(this.walletDAO, walletId)
-    const {results} = await this.platform.request('aliasSearch', wallet.network, {prefix})
+    const {results} = await this.platform.request('usernameSearch', wallet.network, {prefix})
     return results
   }
 
-  async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<Alias> {
+  async registerUsername(walletId: string, identifier: string, label: string, password: string): Promise<Username> {
     const identity = await this.requireIdentity(walletId, identifier)
 
     log.info(`${label}: registering for ${identifier}`)
     const check = await withUnlockedWallet(this.walletDAO, walletId, password, ({wallet, seed}) =>
-      this.platform.request('aliasRegister', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, label}))
+      this.platform.request('usernameRegister', wallet.network, {seed, identifier, identityIndex: identity.identityIndex, label}))
 
-    const alias: Alias = {...check, identifier, label, normalizedLabel: convertToHomographSafeChars(label)}
+    const username: Username = {...check, identifier, label, normalizedLabel: convertToHomographSafeChars(label)}
 
     // Paid for by now, so a failed refresh must not report it as not registered.
     const cache = this.dashPayCache.wallet(walletId)
-    if (cache.aliases == null) await this.refreshDashPay(walletId).catch(err => log.warn(`${label}: names not refreshed:`, err))
-    cache.aliases = [...(cache.aliases ?? []).filter(known => known.identifier !== identifier || known.normalizedLabel !== alias.normalizedLabel), alias]
+    if (cache.usernames == null) await this.refreshDashPay(walletId).catch(err => log.warn(`${label}: names not refreshed:`, err))
+    cache.usernames = [...(cache.usernames ?? []).filter(known => known.identifier !== identifier || known.normalizedLabel !== username.normalizedLabel), username]
 
-    log.info(`${label}: ${alias.status}`)
-    return alias
+    log.info(`${label}: ${username.status}`)
+    return username
   }
 
   async getIdentityPrivateKeys(walletId: string, identifier: string, password: string): Promise<IdentityPrivateKey[]> {

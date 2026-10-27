@@ -49,7 +49,7 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   assetLockShield: '',
   identityRegister: '',
   identityTopUpL1: IDENTITY,
-  aliasRegister: 'owl352-testnet',
+  usernameRegister: 'owl352-testnet',
   dashPayContactRequest: IDENTITY,
   identityUpdateKeys: '',
 }
@@ -270,7 +270,7 @@ describe('transitionFee', () => {
     ]
     for (const [label, contractNonce, named, credits] of charged) {
       Object.assign(dpnsState, {contractNonce: BigInt(contractNonce), named})
-      const quote = await transitionFee({operation: 'aliasRegister', params: params({recipient: label})}, ctx)
+      const quote = await transitionFee({operation: 'usernameRegister', params: params({recipient: label})}, ctx)
       const error = Number(quote.feeCredits * 100n / 105n) / credits - 1
       expect(Math.abs(error), label).toBeLessThan(0.01)
     }
@@ -325,8 +325,8 @@ describe('transitionFee', () => {
   })
 
   it('quotes a contested name its vote fund apart, so no multiplier scales it', async () => {
-    const plain = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl352-e2e-3302'})}, ctx)
-    const contested = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl-check-kfjp'})}, ctx)
+    const plain = await transitionFee({operation: 'usernameRegister', params: params({recipient: 'owl352-e2e-3302'})}, ctx)
+    const contested = await transitionFee({operation: 'usernameRegister', params: params({recipient: 'owl-check-kfjp'})}, ctx)
     expect(plain.fixedCredits).toBe(0n)
     expect(contested.fixedCredits).toBe(10_000_000_000n)
   })

@@ -7,7 +7,7 @@ type Result = PlatformOperations['identityInfos']['result']
 
 // A transfer moves a name's owner but not its records.identity, which the
 // search matches on, so only the names still owned are kept, oldest first.
-async function resolveAliasesList(sdk: OperationContext['sdk'], identifier: string): Promise<string[]> {
+async function resolveUsernames(sdk: OperationContext['sdk'], identifier: string): Promise<string[]> {
   return (await sdk.names.searchByIdentity(identifier).catch(() => []))
     .filter(document => document.ownerId.base58() === identifier)
     .sort((a, b) => Number(a.createdAt) - Number(b.createdAt))
@@ -27,7 +27,7 @@ export async function identityInfos(payload: Payload, ctx: OperationContext): Pr
     return {
       identifier: identity.id.base58(),
       balance: BigInt(identity.balance),
-      aliasesList: payload.skipDPNS ? [] : await resolveAliasesList(sdk, identifier),
+      usernames: payload.skipDPNS ? [] : await resolveUsernames(sdk, identifier),
       keys: identity.getPublicKeys().map(key => ({
         keyId: key.keyId,
         purpose: key.purpose,

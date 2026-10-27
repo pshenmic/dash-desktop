@@ -16,7 +16,7 @@ export const DEFAULT_PLATFORM_FEE_MULTIPLIER: Record<TransitionFeeOperation, num
   identityTopUp: 14,
   identityCreate: 10,
   identityToIdentity: 70,
-  aliasRegister: 1,
+  usernameRegister: 1,
   dashPayContactRequest: 1,
   identityUpdateKeys: 1,
 }

@@ -51,7 +51,7 @@ export interface DashPayContactDto {
   identifier: string
   contactId: string
   relationship: 'incoming' | 'outgoing' | 'established'
-  aliasesList: string[]
+  usernames: string[]
   incomingCreatedAt: number | null
   outgoingCreatedAt: number | null
   paymentChannelBroken: boolean
@@ -65,14 +65,14 @@ export interface DashPayPaymentDto {
   date: number
 }
 
-// searchAliases — a DPNS name and the identity that owns it.
-export interface AliasSearchResultDto {
+// searchUsernames — a DPNS name and the identity that owns it.
+export interface UsernameSearchResultDto {
   identifier: string
   name: string
 }
 
-// getAliases, registerAlias. The vote fields are set only for a contested name.
-export interface AliasDto {
+// getUsernames, registerUsername. The vote fields are set only for a contested name.
+export interface UsernameDto {
   identifier: string
   label: string
   normalizedLabel: string

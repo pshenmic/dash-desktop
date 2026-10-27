@@ -1,4 +1,4 @@
-import {AliasCheck, AliasVote} from '../types/Alias'
+import {UsernameCheck, UsernameVote} from '../types/Username'
 
 // A poll's end date is fixed when its first contender lands, so the earliest
 // contender document dates it.
@@ -8,11 +8,11 @@ export function scheduledVoteEnd(createdAts: number[], durationMs: number): numb
 
 // A contested name has no domain document until its vote awards it, so the
 // contest is consulted only when the document is absent.
-export function aliasStatusOf(
+export function usernameStatusOf(
   identifier: string,
   domainOwner: string | null,
-  vote: AliasVote | null,
-): AliasCheck['status'] {
+  vote: UsernameVote | null,
+): UsernameCheck['status'] {
   if (domainOwner != null) return domainOwner === identifier ? 'registered' : 'taken'
   if (vote == null) return 'missing'
 

@@ -73,7 +73,7 @@ const OPERATION_INFO: Record<TransferOperation, OperationInfo> = {
   [TransferOperation.Unshield]: {title: 'Unshield', submitLabel: 'Unshield', minCredits: 500_000n, spendKind: ShieldedSpendKind.Unshield},
   [TransferOperation.ShieldedWithdrawal]: {title: 'Withdraw to Core', submitLabel: 'Withdraw', minCredits: 500_000n, spendKind: ShieldedSpendKind.Withdrawal},
   [TransferOperation.IdentityCreateFromShielded]: {title: 'Create identity from pool', submitLabel: 'Create', minCredits: 10_000_000_000n, spendKind: ShieldedSpendKind.IdentityCreate},
-  [TransferOperation.AliasRegister]: {title: 'Register username', submitLabel: 'Register', minCredits: null, spendKind: null},
+  [TransferOperation.UsernameRegister]: {title: 'Register username', submitLabel: 'Register', minCredits: null, spendKind: null},
   [TransferOperation.DashPayContactRequest]: {title: 'Send contact request', submitLabel: 'Send', minCredits: null, spendKind: null},
   [TransferOperation.IdentityUpdateKeys]: {title: 'Update identity keys', submitLabel: 'Update', minCredits: null, spendKind: null},
 }

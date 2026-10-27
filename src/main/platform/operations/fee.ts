@@ -83,7 +83,7 @@ export async function spendFeeCurve(payload: CurvePayload, ctx: OperationContext
 // the floor. A shielded fee is exact, so nothing may be added to it.
 export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {operation, params} = payload
-  if (operation === 'aliasRegister') return aliasRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'usernameRegister') return usernameRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
   if (operation === 'dashPayContactRequest') return dashPayContactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
   if (operation === 'identityUpdateKeys') {
     const update = {add: params.keys ?? [], disable: params.keyIds ?? []}
@@ -118,7 +118,7 @@ function indexValueBytes(document: DocumentWASM, field: string): number {
   return value == null ? 0 : 8
 }
 
-export async function aliasRegisterFee(ctx: OperationContext, label: string, identityId: string): Promise<Result> {
+export async function usernameRegisterFee(ctx: OperationContext, label: string, identityId: string): Promise<Result> {
   const {sdk} = ctx
   const contract = await sdk.dataContracts.getDataContractByIdentifier(DPNS_DATA_CONTRACT_ID)
   const contested = sdk.names.testNameContested(`${label}.${DPNS_PARENT_DOMAIN}`)
@@ -205,7 +205,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'>,
+  operation: Exclude<TransitionFeeOperation, 'usernameRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,

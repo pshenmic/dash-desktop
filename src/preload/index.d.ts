@@ -154,12 +154,12 @@ declare global {
       getTransactionByHash: (hash: string, network: Network) => Promise<TransactionDTO>
       getBalance: (address: string | string[], network: Network) => Promise<unknown>
       getIdentities: (walletId: string) => Promise<unknown>
-      getAliases: (walletId: string) => Promise<unknown>
+      getUsernames: (walletId: string) => Promise<unknown>
       refreshDashPay: (walletId: string) => Promise<void>
-      registerAlias: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
+      registerUsername: (walletId: string, identifier: string, label: string, password: string) => Promise<unknown>
       updateIdentityKeys: (walletId: string, identifier: string, update: IdentityKeysUpdate, password: string) => Promise<string>
       getIdentityPrivateKeys: (walletId: string, identifier: string, password: string) => Promise<unknown>
-      searchAliases: (walletId: string, prefix: string) => Promise<unknown>
+      searchUsernames: (walletId: string, prefix: string) => Promise<unknown>
       getDashPayContacts: (walletId: string) => Promise<unknown>
       sendDashPayContactRequest: (walletId: string, identifier: string, recipient: string, password: string) => Promise<unknown>
       sendDashPayPayment: (walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string) => Promise<unknown>

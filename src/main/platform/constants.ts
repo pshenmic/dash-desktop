@@ -102,7 +102,7 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityWithdrawal':
     case 'identityUpdateKeys':
     case 'dashPayContactRequestSend':
-    case 'aliasRegister':
+    case 'usernameRegister':
       return `${request.network}:identity:${request.payload.identifier}`
 
     case 'transitionFee':
@@ -114,9 +114,9 @@ export function laneFor(request: PlatformRequestMessage): string | null {
     case 'identityNonce':
     case 'identityInfos':
     case 'identityPrivateKeys':
-    case 'aliasStatus':
-    case 'aliasSearch':
-    case 'aliasContests':
+    case 'usernameStatus':
+    case 'usernameSearch':
+    case 'usernameContests':
     case 'dashPayContactRequests':
     case 'dashPayContactKey':
     case 'identityScan':

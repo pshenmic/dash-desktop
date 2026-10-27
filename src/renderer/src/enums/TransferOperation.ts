@@ -16,7 +16,7 @@ export enum TransferOperation {
   Unshield = 'unshield',
   ShieldedWithdrawal = 'shieldedWithdrawal',
   IdentityCreateFromShielded = 'identityCreateFromShielded',
-  AliasRegister = 'aliasRegister',
+  UsernameRegister = 'usernameRegister',
   DashPayContactRequest = 'dashPayContactRequest',
   IdentityUpdateKeys = 'identityUpdateKeys',
 }

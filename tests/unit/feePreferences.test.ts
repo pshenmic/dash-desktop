@@ -76,7 +76,7 @@ describe('the per-operation fee multipliers', () => {
       addressWithdrawal: true,
       identityCreate: true,
       identityTopUp: true,
-      aliasRegister: true,
+      usernameRegister: true,
       dashPayContactRequest: true,
       identityUpdateKeys: true,
     }

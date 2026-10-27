@@ -1,4 +1,4 @@
-import {Alias} from './Alias'
+import {Username} from './Username'
 
 // A contactRequest document as Platform stores it.
 export interface DashPayContactRequest {
@@ -25,7 +25,7 @@ export interface DashPayContact {
   contactId: string
   relationship: DashPayContactRelationship
   // The contact's DPNS names, oldest first.
-  aliasesList: string[]
+  usernames: string[]
   // $createdAt of the latest request each way, null while that side has sent none.
   incomingCreatedAt: number | null
   outgoingCreatedAt: number | null
@@ -47,7 +47,7 @@ export interface DashPayAddress {
 // What one wallet's refreshDashPay fetched, held in memory only.
 export interface DashPayWalletCache {
   // null until the wallet's first refresh in this process.
-  aliases: Alias[] | null
+  usernames: Username[] | null
   requests: DashPayContactRequest[] | null
   // A contact's DPNS names, oldest first, by identifier.
   contactNames: Map<string, string[]>

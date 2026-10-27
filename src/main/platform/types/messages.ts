@@ -1,5 +1,5 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
-import {AliasCheck, AliasSearchResult} from '../../src/types/Alias'
+import {UsernameCheck, UsernameSearchResult} from '../../src/types/Username'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
 import {DashPayContactRequest} from '../../src/types/DashPay'
 import {IdentityKey, IdentityKeyRequest, IdentityKeysUpdate, IdentityPrivateKey} from '../../src/types/IdentityKeys'
@@ -119,11 +119,11 @@ export type IdentityFeeOperation =
   | 'identityToIdentity'
   | 'identityWithdrawal'
 
-// For aliasRegister the recipient is the label being registered, for
+// For usernameRegister the recipient is the label being registered, for
 // dashPayContactRequest the identity asked; identityId is the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
-  | 'aliasRegister'
+  | 'usernameRegister'
   | 'dashPayContactRequest'
   | 'identityUpdateKeys'
   | IdentityFeeOperation
@@ -135,7 +135,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'aliasRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'usernameRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -368,26 +368,26 @@ export interface PlatformOperations {
     // identity fetch.
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
-    result: {infos: Array<{identifier: string; balance: bigint; aliasesList: string[]; keys: IdentityKey[]}>}
+    result: {infos: Array<{identifier: string; balance: bigint; usernames: string[]; keys: IdentityKey[]}>}
   }
-  aliasStatus: {
+  usernameStatus: {
     payload: {identifier: string; label: string}
-    result: AliasCheck
+    result: UsernameCheck
   }
   // Names whose label starts with prefix, in label order, at most one proved page.
   // The contests among labels (normalized) the identities are contenders in.
-  aliasContests: {
+  usernameContests: {
     payload: {labels: string[]; identifiers: string[]}
     result: {contests: Array<{identifier: string; label: string}>}
   }
-  aliasSearch: {
+  usernameSearch: {
     payload: {prefix: string}
-    result: {results: AliasSearchResult[]}
+    result: {results: UsernameSearchResult[]}
   }
   // registerName returns once the domain is in a block, so this answers with the name's state.
-  aliasRegister: {
+  usernameRegister: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
-    result: AliasCheck
+    result: UsernameCheck
   }
   dashPayContactRequestSend: {
     payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}

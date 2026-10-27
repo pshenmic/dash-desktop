@@ -1,15 +1,15 @@
 import { IpcMainInvokeEvent } from 'electron/utility'
 import { IdentityService } from '../../services/platform/IdentityService'
-import { Alias } from '../../types/Alias'
+import { Username } from '../../types/Username'
 
-export class GetAliasesHandler {
+export class GetUsernamesHandler {
   private identities: IdentityService
 
   constructor(identities: IdentityService) {
     this.identities = identities
   }
 
-  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<Alias[]> => {
-    return this.identities.getAliases(walletId)
+  handle = async (_event: IpcMainInvokeEvent, walletId: string): Promise<Username[]> => {
+    return this.identities.getUsernames(walletId)
   }
 }

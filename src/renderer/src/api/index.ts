@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AliasDto, AliasSearchResultDto, IdentityKeysUpdateDto, IdentityPrivateKeyDto, DashPayContactDto, DashPayPaymentDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { UsernameDto, UsernameSearchResultDto, IdentityKeysUpdateDto, IdentityPrivateKeyDto, DashPayContactDto, DashPayPaymentDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -160,20 +160,20 @@ export class API {
   }
 
   // DashPay and DPNS reads answer from memory
-  static async getAliases(walletId: string): Promise<AliasDto[]> {
-    return this.api.getAliases(walletId) as Promise<AliasDto[]>
+  static async getUsernames(walletId: string): Promise<UsernameDto[]> {
+    return this.api.getUsernames(walletId) as Promise<UsernameDto[]>
   }
 
   static async refreshDashPay(walletId: string): Promise<void> {
     return this.api.refreshDashPay(walletId)
   }
 
-  static async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResultDto[]> {
-    return this.api.searchAliases(walletId, prefix) as Promise<AliasSearchResultDto[]>
+  static async searchUsernames(walletId: string, prefix: string): Promise<UsernameSearchResultDto[]> {
+    return this.api.searchUsernames(walletId, prefix) as Promise<UsernameSearchResultDto[]>
   }
 
-  static async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<AliasDto> {
-    return this.api.registerAlias(walletId, identifier, label, password) as Promise<AliasDto>
+  static async registerUsername(walletId: string, identifier: string, label: string, password: string): Promise<UsernameDto> {
+    return this.api.registerUsername(walletId, identifier, label, password) as Promise<UsernameDto>
   }
 
   // Price it with estimateFee('identityUpdateKeys', {identityId, keys: add, keyIds: disable}).

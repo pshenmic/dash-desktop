@@ -5,13 +5,13 @@ import {DocumentWASM} from 'pshenmic-dpp'
 import {PlatformOperations} from '../../types/messages'
 import {OperationContext, throwIfAborted} from '../types'
 import {DPNS_CONTESTED_INDEX, DPNS_PARENT_DOMAIN, VOTE_POLL_DURATION_MS, VOTE_STATE_NOT_FOUND} from '../../constants'
-import {AliasVote, AliasVoteOutcome} from '../../../src/types/Alias'
-import {aliasStatusOf, scheduledVoteEnd} from '../../../src/utils/alias'
+import {UsernameVote, UsernameVoteOutcome} from '../../../src/types/Username'
+import {usernameStatusOf, scheduledVoteEnd} from '../../../src/utils/username'
 
-type Payload = PlatformOperations['aliasStatus']['payload']
-type Result = PlatformOperations['aliasStatus']['result']
+type Payload = PlatformOperations['usernameStatus']['payload']
+type Result = PlatformOperations['usernameStatus']['result']
 
-export async function contest({sdk, network}: OperationContext, normalizedLabel: string): Promise<AliasVote | null> {
+export async function contest({sdk, network}: OperationContext, normalizedLabel: string): Promise<UsernameVote | null> {
   const contract = await sdk.dataContracts.getDataContractByIdentifier(DPNS_DATA_CONTRACT_ID)
   try {
     const state = await sdk.contestedResources.getContestedResourceVoteState(
@@ -31,7 +31,7 @@ export async function contest({sdk, network}: OperationContext, normalizedLabel:
       })),
       lockVotes: state.lockVoteTally ?? 0,
       abstainVotes: state.abstainVoteTally ?? 0,
-      outcome: (finished?.type as AliasVoteOutcome | undefined) ?? null,
+      outcome: (finished?.type as UsernameVoteOutcome | undefined) ?? null,
       winner: finished?.wonByIdentityId?.base58() ?? null,
       endsAt: finished != null
         ? Number(finished.finishedAtBlockTimeMs)
@@ -43,7 +43,7 @@ export async function contest({sdk, network}: OperationContext, normalizedLabel:
   }
 }
 
-export async function aliasStatus(payload: Payload, ctx: OperationContext): Promise<Result> {
+export async function usernameStatus(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {sdk} = ctx
   const {identifier, label} = payload
   const normalizedLabel = sdk.names.normalizeLabel(label)
@@ -57,7 +57,7 @@ export async function aliasStatus(payload: Payload, ctx: OperationContext): Prom
   const vote = isContested ? await contest(ctx, normalizedLabel) : null
 
   return {
-    status: aliasStatusOf(identifier, domain?.ownerId.base58() ?? null, vote),
+    status: usernameStatusOf(identifier, domain?.ownerId.base58() ?? null, vote),
     isContested,
     documentId: domain?.id.base58() ?? null,
     votesLock: vote?.lockVotes ?? null,

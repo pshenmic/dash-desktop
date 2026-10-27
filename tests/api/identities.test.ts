@@ -2,7 +2,7 @@ import {describe, it, expect, beforeEach, vi} from 'vitest'
 import {IdentityService} from '../../src/main/src/services/platform/IdentityService'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
 import {CreateWalletHandler} from '../../src/main/src/api/wallet/createWallet'
-import {AliasCheck} from '../../src/main/src/types/Alias'
+import {UsernameCheck} from '../../src/main/src/types/Username'
 import {DashPayContactRequest} from '../../src/main/src/types/DashPay'
 import {DashPayCache} from '../../src/main/src/database/DashPayCache'
 import {IdentityKeyRequest} from '../../src/main/src/types/IdentityKeys'
@@ -19,7 +19,7 @@ function dashPayContactRequest(id: string, ownerId: string, toUserId: string, cr
   return {id, ownerId, toUserId, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 7, encryptedPublicKey: Buffer.alloc(96, 1), createdAt, coreHeightCreatedAt: 0, contactXpub: null, paymentChannelBroken: false}
 }
 
-const UNCHECKED: AliasCheck = {
+const UNCHECKED: UsernameCheck = {
   status: 'missing', isContested: true, documentId: null, votesLock: null, votesAbstain: null, voteEndsAt: null,
   voteOutcome: null, voteWinner: null, contenders: [],
 }
@@ -30,7 +30,7 @@ let network: {
   names: Map<string, string[]>
   // Running contests by normalized label, as the explorer lists them, with their contenders.
   contests: Map<string, string[]>
-  status: (label: string) => AliasCheck
+  status: (label: string) => UsernameCheck
   contactKey: string | null
 }
 
@@ -41,15 +41,15 @@ async function answer(kind: string, _network: string, payload: {identifier: stri
       received: network.requests.filter(request => request.toUserId === payload.identifier),
     }
     case 'identityInfos': return {
-      infos: payload.identifiers.map(identifier => ({identifier, balance: 0n, aliasesList: network.names.get(identifier) ?? [], keys: []})),
+      infos: payload.identifiers.map(identifier => ({identifier, balance: 0n, usernames: network.names.get(identifier) ?? [], keys: []})),
     }
-    case 'aliasStatus': return network.status(payload.label)
-    case 'aliasContests': return {
+    case 'usernameStatus': return network.status(payload.label)
+    case 'usernameContests': return {
       contests: payload.labels.flatMap(label => (network.contests.get(label) ?? [])
         .filter(contender => payload.identifiers.includes(contender))
         .map(identifier => ({identifier, label}))),
     }
-    case 'aliasRegister': return network.status(payload.label)
+    case 'usernameRegister': return network.status(payload.label)
     case 'dashPayContactRequestSend': return {stHash: 'hash'}
     case 'dashPayContactKey': return {xpub: network.contactKey}
     default: throw new Error(`unexpected request ${kind}`)
@@ -84,7 +84,7 @@ describe('listing identities', () => {
 
   // The one caller that displays aliases, so it has to keep paying for them.
   it('asks for aliases', async () => {
-    request.mockResolvedValue({infos: [{identifier: IDENTIFIER, balance: 5n, aliasesList: ['alice.dash', 'bob.dash']}]})
+    request.mockResolvedValue({infos: [{identifier: IDENTIFIER, balance: 5n, usernames: ['alice.dash', 'bob.dash']}]})
 
     const listed = await identities.getIdentities(walletId)
 
@@ -93,7 +93,7 @@ describe('listing identities', () => {
       'testnet',
       expect.objectContaining({skipDPNS: false}),
     )
-    expect(listed[0]).toMatchObject({alias: 'alice.dash', aliasesList: ['alice.dash', 'bob.dash']})
+    expect(listed[0]).toMatchObject({alias: 'alice.dash', usernames: ['alice.dash', 'bob.dash']})
   })
 
   it('skips an identity Platform does not know yet', async () => {
@@ -106,16 +106,16 @@ describe('listing identities', () => {
   it('follows a contested name it registered through its vote to its outcome', async () => {
     const contenders = [{identifier: IDENTIFIER, votes: 4}, {identifier: ALICE, votes: 1}]
     network.status = () => ({...UNCHECKED, status: 'voting', votesLock: 1, votesAbstain: 0, voteEndsAt: 5_400_000, contenders})
-    await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)
+    await identities.registerUsername(walletId, IDENTIFIER, 'owl', PASSWORD)
     await identities.refreshDashPay(walletId)
-    expect(await identities.getAliases(walletId)).toMatchObject([{status: 'voting', voteEndsAt: 5_400_000, contenders}])
+    expect(await identities.getUsernames(walletId)).toMatchObject([{status: 'voting', voteEndsAt: 5_400_000, contenders}])
 
     // Drive keeps a finished contest's final tally; the name now has its domain.
     const final = [{identifier: IDENTIFIER, votes: 6}, {identifier: ALICE, votes: 2}]
     network.names.set(IDENTIFIER, ['owl.dash'])
     network.status = () => ({...UNCHECKED, status: 'registered', documentId: 'doc', voteOutcome: 'WonByIdentity', voteWinner: IDENTIFIER, contenders: final})
     await identities.refreshDashPay(walletId)
-    expect(await identities.getAliases(walletId)).toMatchObject([
+    expect(await identities.getUsernames(walletId)).toMatchObject([
       {status: 'registered', documentId: 'doc', voteOutcome: 'WonByIdentity', voteWinner: IDENTIFIER, contenders: final},
     ])
   })
@@ -124,16 +124,16 @@ describe('listing identities', () => {
   it('reads names from memory until a refresh, which finds names registered elsewhere and drops one sold away', async () => {
     network.names.set(IDENTIFIER, ['Owl.dash'])
     network.status = () => ({...UNCHECKED, status: 'registered', isContested: false, documentId: 'doc'})
-    expect(await identities.getAliases(walletId)).toMatchObject([
+    expect(await identities.getUsernames(walletId)).toMatchObject([
       {identifier: IDENTIFIER, label: 'Owl', normalizedLabel: '0w1', status: 'registered', documentId: 'doc'},
     ])
 
     network.names.set(IDENTIFIER, [])
     request.mockClear()
-    expect(await identities.getAliases(walletId)).toHaveLength(1)
+    expect(await identities.getUsernames(walletId)).toHaveLength(1)
     expect(request).not.toHaveBeenCalled()
     await identities.refreshDashPay(walletId)
-    expect(await identities.getAliases(walletId)).toEqual([])
+    expect(await identities.getUsernames(walletId)).toEqual([])
   })
 
   // A contender has no domain document until it wins: only the explorer's index lists it.
@@ -142,7 +142,7 @@ describe('listing identities', () => {
     network.contests.set('fr0g', [ALICE])
     network.status = () => ({...UNCHECKED, status: 'voting', voteEndsAt: 9})
 
-    expect(await identities.getAliases(walletId)).toMatchObject([{identifier: IDENTIFIER, label: '0w1', status: 'voting'}])
+    expect(await identities.getUsernames(walletId)).toMatchObject([{identifier: IDENTIFIER, label: '0w1', status: 'voting'}])
   })
 
   // The name is paid for once registerName returns, so a retry must not be invited.
@@ -150,7 +150,7 @@ describe('listing identities', () => {
     request.mockImplementation(async (kind: string, ...rest: [string, never]) => kind === 'identityInfos' ? Promise.reject(new Error('DAPI down')) : answer(kind, ...rest))
 
     network.status = () => ({...UNCHECKED, status: 'voting'})
-    expect(await identities.registerAlias(walletId, IDENTIFIER, 'owl', PASSWORD)).toMatchObject({status: 'voting'})
+    expect(await identities.registerUsername(walletId, IDENTIFIER, 'owl', PASSWORD)).toMatchObject({status: 'voting'})
   })
 
   it('keeps what was known of a name whose check fails', async () => {
@@ -160,11 +160,11 @@ describe('listing identities', () => {
 
     network.status = () => { throw new Error('DAPI down') }
     await identities.refreshDashPay(walletId)
-    expect(await identities.getAliases(walletId)).toMatchObject([{label: 'owl', status: 'registered', documentId: 'doc'}])
+    expect(await identities.getUsernames(walletId)).toMatchObject([{label: 'owl', status: 'registered', documentId: 'doc'}])
   })
 
   it('shares one refresh between reads that arrive together', async () => {
-    await Promise.all([identities.getAliases(walletId), identities.getDashPayContacts(walletId)])
+    await Promise.all([identities.getUsernames(walletId), identities.getDashPayContacts(walletId)])
 
     expect(request.mock.calls.filter(([kind]) => kind === 'dashPayContactRequests')).toHaveLength(1)
   })
@@ -185,7 +185,7 @@ describe('listing identities', () => {
     network.requests = [dashPayContactRequest('sent', IDENTIFIER, ALICE, 10)]
     network.names.set(ALICE, ['alice.dash'])
     expect(await identities.getDashPayContacts(walletId)).toEqual([
-      {identifier: IDENTIFIER, contactId: ALICE, relationship: 'outgoing', aliasesList: ['alice.dash'], incomingCreatedAt: null, outgoingCreatedAt: 10, paymentChannelBroken: false},
+      {identifier: IDENTIFIER, contactId: ALICE, relationship: 'outgoing', usernames: ['alice.dash'], incomingCreatedAt: null, outgoingCreatedAt: 10, paymentChannelBroken: false},
     ])
     expect(request).toHaveBeenCalledWith('dashPayContactRequests', 'testnet', {identifier: IDENTIFIER, since: 0})
 

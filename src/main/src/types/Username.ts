@@ -1,38 +1,38 @@
-export type AliasStatus = 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
+export type UsernameStatus = 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
 
 // Platform's ContestedDocumentVotePollWinnerInfo variants.
-export type AliasVoteOutcome = 'WonByIdentity' | 'Locked' | 'NoWinner'
+export type UsernameVoteOutcome = 'WonByIdentity' | 'Locked' | 'NoWinner'
 
-export interface AliasVote {
+export interface UsernameVote {
   contenders: Array<{identifier: string; votes: number}>
   lockVotes: number
   abstainVotes: number
-  outcome: AliasVoteOutcome | null
+  outcome: UsernameVoteOutcome | null
   winner: string | null
   endsAt: number | null
 }
 
-export interface AliasCheck {
-  status: AliasStatus
+export interface UsernameCheck {
+  status: UsernameStatus
   isContested: boolean
   documentId: string | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
-  voteOutcome: AliasVoteOutcome | null
+  voteOutcome: UsernameVoteOutcome | null
   voteWinner: string | null
   // Empty for an uncontested name.
-  contenders: AliasVote['contenders']
+  contenders: UsernameVote['contenders']
 }
 
-export interface Alias extends AliasCheck {
+export interface Username extends UsernameCheck {
   identifier: string
   label: string
   normalizedLabel: string
 }
 
 // A DPNS name and the identity that owns it, from a prefix search.
-export interface AliasSearchResult {
+export interface UsernameSearchResult {
   identifier: string
   name: string
 }

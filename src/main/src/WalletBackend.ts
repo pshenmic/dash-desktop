@@ -26,12 +26,12 @@ import { GetStatusHandler } from './api/getStatus'
 import { GetAllWalletsHandler } from './api/wallet/getAllWallets'
 import { GetTransactionsHandler } from './api/wallet/getTransactions'
 import { GetIdentitiesHandler } from './api/wallet/getIdentities'
-import { GetAliasesHandler } from './api/wallet/getAliases'
+import { GetUsernamesHandler } from './api/wallet/getUsernames'
 import { RefreshDashPayHandler } from './api/wallet/refreshDashPay'
-import { RegisterAliasHandler } from './api/wallet/registerAlias'
+import { RegisterUsernameHandler } from './api/wallet/registerUsername'
 import { UpdateIdentityKeysHandler } from './api/wallet/updateIdentityKeys'
 import { GetIdentityPrivateKeysHandler } from './api/wallet/getIdentityPrivateKeys'
-import { SearchAliasesHandler } from './api/wallet/searchAliases'
+import { SearchUsernamesHandler } from './api/wallet/searchUsernames'
 import { GetDashPayContactsHandler } from './api/wallet/getDashPayContacts'
 import { SendDashPayContactRequestHandler } from './api/wallet/sendDashPayContactRequest'
 import { SendDashPayPaymentHandler } from './api/wallet/sendDashPayPayment'
@@ -191,12 +191,12 @@ export class WalletBackend {
     registerHandler('getBalance', new GetBalance(this.walletService).handle)
     registerHandler("getTransactionByHash", new GetTransactionByHashHandler(this.walletService).handle)
     registerHandler('getIdentities', new GetIdentitiesHandler(this.identityService).handle)
-    registerHandler('getAliases', new GetAliasesHandler(this.identityService).handle)
+    registerHandler('getUsernames', new GetUsernamesHandler(this.identityService).handle)
     registerHandler('refreshDashPay', new RefreshDashPayHandler(this.walletService).handle)
-    registerHandler('registerAlias', new RegisterAliasHandler(this.identityService).handle)
+    registerHandler('registerUsername', new RegisterUsernameHandler(this.identityService).handle)
     registerHandler('updateIdentityKeys', new UpdateIdentityKeysHandler(this.identityService).handle)
     registerHandler('getIdentityPrivateKeys', new GetIdentityPrivateKeysHandler(this.identityService).handle)
-    registerHandler('searchAliases', new SearchAliasesHandler(this.identityService).handle)
+    registerHandler('searchUsernames', new SearchUsernamesHandler(this.identityService).handle)
     registerHandler('getDashPayContacts', new GetDashPayContactsHandler(this.identityService).handle)
     registerHandler('sendDashPayContactRequest', new SendDashPayContactRequestHandler(this.identityService).handle)
     registerHandler('sendDashPayPayment', new SendDashPayPaymentHandler(this.walletService).handle)
