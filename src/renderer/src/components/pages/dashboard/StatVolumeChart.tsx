@@ -3,7 +3,7 @@ import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import type { StatVolumeChartProps } from '@renderer/types/DashboardStats'
 import { DASH_UNIT } from '@renderer/constants/balance'
-import { ANALYTICS_BASELINE_STROKE, ANALYTICS_CROSSHAIR, ANALYTICS_FOCUS, ANALYTICS_PLACEHOLDER, ANALYTICS_SERIES } from '@renderer/constants/dashboardAnalytics'
+import { ANALYTICS_CROSSHAIR, ANALYTICS_FOCUS, ANALYTICS_PLACEHOLDER, ANALYTICS_SERIES } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import { STAT_CHART_HEIGHT, STAT_CHART_WIDTH, STAT_FLOW_LABELS, STAT_PLOT_HEIGHT } from '@renderer/constants/dashboardStats'
 import { POPOVER } from '@renderer/constants/surfaces'
@@ -39,7 +39,7 @@ export default function StatVolumeChart({ flows, direction, hidden, period }: St
               : Math.max(0, Math.min(days.length - 1, (index ?? days.length - 1) + (event.key === 'ArrowLeft' ? -1 : 1))))
           }}>
           <svg className="block size-full overflow-visible" viewBox={`0 -2 ${STAT_CHART_WIDTH} ${STAT_CHART_HEIGHT + 4}`} preserveAspectRatio="none" aria-hidden="true">
-            <path d={`M 0 ${STAT_CHART_HEIGHT} H ${STAT_CHART_WIDTH}`} className={ANALYTICS_BASELINE_STROKE} vectorEffect="non-scaling-stroke" />
+            <path d={`M 0 ${STAT_CHART_HEIGHT} H ${STAT_CHART_WIDTH}`} className="stroke-dash-primary-dark-blue/10 dark:stroke-white/15" vectorEffect="non-scaling-stroke" />
             {[...series].reverse().map(item => (
               <path key={item.source} d={item.path} fill="none" className={ANALYTICS_SERIES[item.source].stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             ))}

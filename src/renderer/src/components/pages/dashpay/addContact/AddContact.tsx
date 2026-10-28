@@ -16,7 +16,6 @@ import { DASHPAY_PARAMS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import {
   ADD_CONTACT_COPY,
   ADD_CONTACT_FALLBACK_RETURN,
-  ADD_CONTACT_IDENTITY_SKELETON_CLASS,
   ADD_CONTACT_IDENTITY_SKELETON_ROWS,
 } from '@renderer/constants/dashPayAddContact'
 import { DASHPAY_BACK_LABEL, PAGE_HEADERS } from '@renderer/constants/pageHeaders'
@@ -118,7 +117,7 @@ export default function AddContact({ walletId }: AddContactProps): React.JSX.Ele
   if (identity == null || readiness == null) {
     let body: React.JSX.Element
     if (loading) {
-      body = <ListSkeleton rows={ADD_CONTACT_IDENTITY_SKELETON_ROWS} rowClassName={ADD_CONTACT_IDENTITY_SKELETON_CLASS} />
+      body = <ListSkeleton rows={ADD_CONTACT_IDENTITY_SKELETON_ROWS} rowClassName={"h-[3.25rem] rounded-2xl"} />
     } else if (err != null) {
       body = <NoResults tone={NoResultsTone.Error} noResults={err} action={<RetryButton onRetry={retry} />} />
     } else {

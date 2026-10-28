@@ -8,14 +8,8 @@ import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { ADDRESS_ROW_EXPLORER_LABEL, ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
 import {
   OVERVIEW_COPY,
-  OVERVIEW_EXPLORER_BUTTON_CLASS,
-  OVERVIEW_FIAT_PILL_CLASS,
-  OVERVIEW_HERO_ACTIONS_CLASS,
   OVERVIEW_HERO_ART,
-  OVERVIEW_HERO_CLASS,
-  OVERVIEW_HERO_CONTENT_CLASS,
 } from '@renderer/constants/dashPayOverview'
-import { HERO_GLOW, HERO_GRID_BACKDROP_DARK, HERO_GRID_BACKDROP_LIGHT } from '@renderer/constants/heroBackdrop'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
@@ -88,7 +82,7 @@ function IdentityContent({ identity }: IdentityHeroContentProps): React.JSX.Elem
             onClick={() => openExternal(identityUrl(identity.identifier, network))}
             title={ADDRESS_ROW_EXPLORER_LABEL}
             aria-label={ADDRESS_ROW_EXPLORER_LABEL}
-            className={OVERVIEW_EXPLORER_BUTTON_CLASS}
+            className={'size-5 shrink-0 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer'}
           >
             <ExternalLinkIcon size={10} color={'currentColor'} className={'dash-text-default opacity-50'} />
           </button>
@@ -103,7 +97,7 @@ function IdentityContent({ identity }: IdentityHeroContentProps): React.JSX.Elem
             </SensitiveValue>
           </Text>
           {rateReady && isBalanceVisible && balance > 0n && (
-            <span className={OVERVIEW_FIAT_PILL_CLASS}>
+            <span className={'flex items-center rounded-full px-3 py-1 bg-dash-brand/10 dark:bg-dash-mint/10'}>
               <Text reset size={12} weight={'medium'} color={'blue-mint'} className={'whitespace-nowrap'}>
                 {formatApproxFiat(formatFiat(creditsToDuffs(balance)), currency)}
               </Text>
@@ -133,12 +127,12 @@ function OnboardingContent({ body }: OnboardingHeroContentProps): React.JSX.Elem
 
 export default function OverviewHero({ identity, ready, orbit, body, actions }: OverviewHeroProps): React.JSX.Element {
   return (
-    <section className={OVERVIEW_HERO_CLASS}>
-      <div className={HERO_GRID_BACKDROP_LIGHT} />
-      <div className={HERO_GRID_BACKDROP_DARK} />
-      <div className={HERO_GLOW} />
+    <section className={'relative overflow-hidden flex min-h-[14rem] flex-col gap-3 rounded-[.9375rem] dash-block-3 p-6'}>
+      <div className={'absolute inset-0 pointer-events-none dark:hidden bg-[linear-gradient(to_right,rgba(12,28,51,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(12,28,51,0.03)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]'} />
+      <div className={'absolute inset-0 pointer-events-none hidden dark:block bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]'} />
+      <div className={'absolute -top-24 -right-16 size-64 rounded-full bg-dash-brand/10 dark:bg-dash-mint/8 blur-3xl pointer-events-none'} />
       <HeroArt identity={identity} orbit={orbit} />
-      <div className={OVERVIEW_HERO_CONTENT_CLASS}>
+      <div className={'relative flex min-w-0 flex-col gap-3 lg:pr-40'}>
         {ready && identity != null ? (
           <>
             <Text reset size={10} weight={'extrabold'} color={'blue-mint'} className={'uppercase tracking-[.12em]'}>
@@ -148,7 +142,7 @@ export default function OverviewHero({ identity, ready, orbit, body, actions }: 
           </>
         ) : <OnboardingContent body={body} />}
       </div>
-      <div className={OVERVIEW_HERO_ACTIONS_CLASS}>{actions}</div>
+      <div className={'relative mt-auto flex flex-wrap gap-2'}>{actions}</div>
     </section>
   )
 }

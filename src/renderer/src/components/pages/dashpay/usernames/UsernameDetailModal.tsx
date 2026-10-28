@@ -3,7 +3,8 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import Modal from '@renderer/components/ui/Modal'
 import ModalActions from '@renderer/components/ui/ModalActions'
 import StatusPill from '@renderer/components/ui/StatusPill'
-import { USERNAME_CONTENDER_ID_CLASS, USERNAME_DETAIL_COPY, USERNAME_DOCUMENT_ID_CLASS, USERNAME_VOTE_FORMS } from '@renderer/constants/dashPayUsernames'
+import { USERNAME_DETAIL_COPY, USERNAME_VOTE_FORMS } from '@renderer/constants/dashPayUsernames'
+import { HIGHLIGHTED_IDENTIFIER_CLASS } from '@renderer/constants/identifier'
 import { USERNAME_PRESENTATION } from '@renderer/constants/dpns'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { UsernamePresentation } from '@renderer/enums/DashPay'
@@ -99,7 +100,7 @@ export default function UsernameDetailModal({
           <div className={"flex items-start justify-between gap-4"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0"}>{USERNAME_DETAIL_COPY.documentId}</Text>
             <span className={"flex min-w-0 items-start gap-2"}>
-              <HighlightedIdentifier className={USERNAME_DOCUMENT_ID_CLASS}>{username.documentId}</HighlightedIdentifier>
+              <HighlightedIdentifier className={`min-w-0 text-right text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`}>{username.documentId}</HighlightedIdentifier>
               <CopyButton text={username.documentId} className={"shrink-0"} />
             </span>
           </div>
@@ -111,7 +112,7 @@ export default function UsernameDetailModal({
           {standings.map(standing => (
             <div key={standing.identifier} className={"flex items-start justify-between gap-4"}>
               <span className={"flex min-w-0 flex-col gap-0.5"}>
-                <HighlightedIdentifier className={USERNAME_CONTENDER_ID_CLASS}>{standing.identifier}</HighlightedIdentifier>
+                <HighlightedIdentifier className={`min-w-0 text-left text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`}>{standing.identifier}</HighlightedIdentifier>
                 {standing.isOwn && <Text size={10} weight={"medium"} color={"blue-mint"}>{USERNAME_DETAIL_COPY.thisIdentity}</Text>}
               </span>
               <Text size={12} weight={"bold"} color={"brand"} className={"shrink-0 tabular-nums"}>{countLabel(standing.votes, USERNAME_VOTE_FORMS)}</Text>

@@ -8,7 +8,6 @@ import {
   DASHPAY_REGISTER_IDENTITY_HREF,
   OVERVIEW_ACTION_LABELS,
   OVERVIEW_COPY,
-  OVERVIEW_ENTRY_GRID_CLASS,
   OVERVIEW_ORBIT_COUNT,
   OVERVIEW_ROW_CLASS,
   OVERVIEW_SKELETON_CLASS,
@@ -155,7 +154,7 @@ export default function OverviewTab({
           onOpenContact={openContact}
         />
       )}
-      <div className={OVERVIEW_ENTRY_GRID_CLASS}>
+      <div className={'mt-4 grid grid-cols-1 gap-4 lg:grid-cols-none lg:grid-flow-col lg:auto-cols-fr'}>
         {identity != null && (
           <EntryCard
             icon={<ContactsIcon size={14} color={'currentColor'} />}

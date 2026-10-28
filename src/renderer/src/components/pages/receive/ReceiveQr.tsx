@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code'
 import { useTheme } from 'dash-ui-kit/react'
 import { Button } from '@renderer/components/dash-ui-kit-extended'
 import { toast } from '@renderer/components/ui/Toast'
-import { RECEIVE_QR_ACTION, RECEIVE_QR_FRAME, RECEIVE_QR_OVERLAY } from '@renderer/constants/receiveCard'
+import { RECEIVE_QR_ACTION } from '@renderer/constants/receiveCard'
 import { RECEIVE_INVOICE_FILE_NAME, RECEIVE_INVOICE_MIME, RECEIVE_QR_COPY, RECEIVE_QR_SIZE } from '@renderer/constants/receiveInvoice'
 import type { ReceiveQrProps } from '@renderer/types/ReceiveInvoice'
 import { drawReceiveInvoice, receiveInvoicePng, receiveInvoiceQr } from '@renderer/utils/receiveInvoiceImage'
@@ -30,7 +30,7 @@ export default function ReceiveQr({value, invoice}: ReceiveQrProps): React.JSX.E
   }
 
   return (
-    <div ref={container} className={RECEIVE_QR_FRAME}>
+    <div ref={container} className={'group relative shrink-0 rounded-[.5625rem]'}>
       <QRCode
         value={value}
         size={RECEIVE_QR_SIZE}
@@ -38,7 +38,7 @@ export default function ReceiveQr({value, invoice}: ReceiveQrProps): React.JSX.E
         bgColor={'transparent'}
         className={'rounded-[.5625rem]'}
       />
-      <div className={RECEIVE_QR_OVERLAY}>
+      <div className={'absolute -inset-2 flex flex-col items-center justify-center gap-2 rounded-[.875rem] bg-white/85 backdrop-blur-[3px] opacity-0 transition-opacity duration-200 group-hover:opacity-100 has-[:focus-visible]:opacity-100 dark:bg-dash-primary-dark-blue/85'}>
         <Button type={'button'} onClick={copyImage} variant={'solid'} colorScheme={'primary'} size={'compact'} className={RECEIVE_QR_ACTION}>
           {RECEIVE_QR_COPY.copyImage}
         </Button>

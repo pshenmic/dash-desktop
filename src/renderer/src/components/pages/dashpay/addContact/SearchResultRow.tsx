@@ -5,16 +5,10 @@ import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'
 import {
   ADD_CONTACT_CHIP_CLASS,
   ADD_CONTACT_COPY,
-  ADD_CONTACT_RADIO_CHECKED_CLASS,
-  ADD_CONTACT_RADIO_CLASS,
-  ADD_CONTACT_RADIO_PLACEHOLDER_CLASS,
-  ADD_CONTACT_ROW_CHECKED_CLASS,
-  ADD_CONTACT_ROW_CLASS,
-  ADD_CONTACT_ROW_DIMMED_CLASS,
-  ADD_CONTACT_ROW_SELECTABLE_CLASS,
   DIMMED_SEARCH_RESULT_STATES,
   SEARCH_RESULT_BADGES,
 } from '@renderer/constants/dashPayAddContact'
+import { SURFACE_ROW } from '@renderer/constants/surfaces'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
 import { SearchResultState } from '@renderer/enums/DashPay'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
@@ -34,13 +28,13 @@ export default function SearchResultRow({
   const badge = SEARCH_RESULT_BADGES[row.state]
   const label = resultRowLabel(row)
   const stateClass = [
-    selectable ? ADD_CONTACT_ROW_SELECTABLE_CLASS : '',
-    checked ? ADD_CONTACT_ROW_CHECKED_CLASS : '',
-    DIMMED_SEARCH_RESULT_STATES.has(row.state) ? ADD_CONTACT_ROW_DIMMED_CLASS : '',
+    selectable ? 'hover:border-dash-brand/50 dark:hover:border-dash-mint/50' : '',
+    checked ? 'border-dash-brand! dark:border-dash-mint! bg-dash-brand/6! dark:bg-dash-mint/6!' : '',
+    DIMMED_SEARCH_RESULT_STATES.has(row.state) ? 'opacity-40' : '',
   ].join(' ')
 
   return (
-    <div className={`${ADD_CONTACT_ROW_CLASS} ${stateClass}`}>
+    <div className={`relative grid grid-cols-[1rem_2rem_minmax(0,1fr)_auto] items-center gap-3 min-h-13 border border-transparent ${SURFACE_ROW} transition-colors ${stateClass}`}>
       {selectable && (
         <button
           type={"button"}
@@ -54,7 +48,7 @@ export default function SearchResultRow({
         />
       )}
       <span className={"pointer-events-none flex justify-center"}>
-        <span className={selectable ? `${ADD_CONTACT_RADIO_CLASS} ${checked ? ADD_CONTACT_RADIO_CHECKED_CLASS : ''}` : ADD_CONTACT_RADIO_PLACEHOLDER_CLASS} />
+        <span className={selectable ? `size-4 shrink-0 rounded-full border-2 border-dash-primary-dark-blue/30 dark:border-white/30 ${checked ? 'border-[5px]! border-dash-brand! dark:border-dash-mint!' : ''}` : 'block h-0.5 w-2.5 rounded-full bg-dash-primary-dark-blue/30 dark:bg-white/30'} />
       </span>
       <span className={"pointer-events-none flex"}>
         <IdentityAvatar identifier={row.identifier} size={IdentityAvatarSize.Sm} />

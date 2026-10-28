@@ -1,7 +1,7 @@
 import { Text } from '@renderer/components/dash-ui-kit-extended'
 import CheckRow from '@renderer/components/ui/CheckRow'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
-import { ADD_KEYS_COPY, KEY_VARIANT_GROUPS, KEY_VARIANT_ROW_CLASS } from '@renderer/constants/identityKeys'
+import { ADD_KEYS_COPY, KEY_VARIANT_GROUPS } from '@renderer/constants/identityKeys'
 import { LIST_GROUP_LABEL_CLASS } from '@renderer/constants/listToolbar'
 import type { KeyVariantListProps } from '@renderer/types/IdentityKeys'
 import { keysOnIdentityLabel, keyVariantTitle } from '@renderer/utils/identityKeySetup'
@@ -24,7 +24,7 @@ export default function KeyVariantList({ existing, selected, recommended, check,
                 disabled={!checked && check.atLimit}
                 onChange={value => onToggle(definition.variant, value)}
               >
-                <div className={KEY_VARIANT_ROW_CLASS}>
+                <div className={"grid grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto] items-center gap-3"}>
                   <Text size={14} weight={"medium"} color={"brand"} className={"truncate"}>{keyVariantTitle(definition)}</Text>
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"truncate"}>{definition.caption}</Text>
                   <div className={"flex items-center justify-end gap-2"}>

@@ -1,5 +1,4 @@
 import { Input, SearchIcon } from '@renderer/components/dash-ui-kit-extended'
-import { TOOLBAR_SEARCH_CLASS } from '@renderer/constants/listToolbar'
 import type { SearchFieldProps } from '@renderer/types/SearchField'
 
 export default function SearchField({
@@ -9,7 +8,7 @@ export default function SearchField({
   ariaLabel,
   autoFocus = false,
   className = '',
-  inputClassName = TOOLBAR_SEARCH_CLASS,
+  inputClassName = 'h-9 py-0! rounded-[.625rem]! dash-block',
   onKeyDown,
   ref,
 }: SearchFieldProps): React.JSX.Element {

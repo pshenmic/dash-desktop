@@ -1,13 +1,13 @@
 import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { FIELD_INVALID } from '@renderer/constants/addressField'
-import { REGISTER_USERNAME_COPY, USERNAME_FIELD_CLASS, USERNAME_INPUT_CLASS } from '@renderer/constants/dashPayUsernames'
+import { REGISTER_USERNAME_COPY } from '@renderer/constants/dashPayUsernames'
 import { DPNS_LABEL_MAX, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
 import type { UsernameFieldProps } from '@renderer/types/DashPayUsernames'
 import { stripDpnsInput } from '@renderer/utils/dpnsLabel'
 
 export default function UsernameField({ value, onChange, invalid }: UsernameFieldProps): React.JSX.Element {
   return (
-    <div className={`${USERNAME_FIELD_CLASS} ${invalid ? FIELD_INVALID : ''}`}>
+    <div className={`flex items-center gap-2 dash-block rounded-2xl px-5 py-3.5 border border-transparent focus-within:border-dash-brand dark:focus-within:border-dash-mint ${invalid ? FIELD_INVALID : ''}`}>
       <input
         type={"text"}
         value={value}
@@ -24,7 +24,7 @@ export default function UsernameField({ value, onChange, invalid }: UsernameFiel
         spellCheck={false}
         autoComplete={"off"}
         autoFocus
-        className={USERNAME_INPUT_CLASS}
+        className={"bg-transparent outline-none flex-1 min-w-0 text-2xl font-medium text-dash-primary-dark-blue dark:text-white placeholder:text-dash-primary-dark-blue/25 dark:placeholder:text-white/25"}
       />
       <Text size={24} weight={"medium"} color={"brand"} opacity={40} className={"shrink-0 select-none"}>{DPNS_NAME_SUFFIX}</Text>
     </div>

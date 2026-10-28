@@ -5,13 +5,11 @@ import StatusPill from '@renderer/components/ui/StatusPill'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import {
   OVERVIEW_COPY,
-  SETUP_ACTION_CLASS,
-  SETUP_CHECKLIST_CLASS,
   SETUP_ICON_CLASS,
-  SETUP_ROW_CLASS,
   SETUP_STEP_ICONS,
   SETUP_STEP_TITLES,
 } from '@renderer/constants/dashPayOverview'
+import { CHIP_ACTION, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { DashPaySetupStep, OverviewAction, SetupStepState } from '@renderer/enums/DashPay'
 import { StatusPillTone } from '@renderer/enums/StatusPillTone'
 import type { SetupStepModel } from '@renderer/types/DashPay'
@@ -23,7 +21,7 @@ function ChipButton({ label, disabled = false, tooltip, onClick }: SetupStepActi
   return (
     <Tooltip label={tooltip}>
       <span className={'inline-flex shrink-0'}>
-        <button type={'button'} disabled={disabled} onClick={onClick} className={SETUP_ACTION_CLASS}>{label}</button>
+        <button type={'button'} disabled={disabled} onClick={onClick} className={`${CHIP_ACTION} whitespace-nowrap font-medium disabled:opacity-50 disabled:cursor-not-allowed`}>{label}</button>
       </span>
     </Tooltip>
   )
@@ -72,7 +70,7 @@ export default function SetupChecklist({
   }
 
   return (
-    <section className={SETUP_CHECKLIST_CLASS} aria-label={OVERVIEW_COPY.yourSetup}>
+    <section className={`flex flex-col ${SURFACE_SECTION}`} aria-label={OVERVIEW_COPY.yourSetup}>
       <header className={'flex min-h-[1.875rem] items-center justify-between gap-3'}>
         <DashboardHeading as={'h3'}>{OVERVIEW_COPY.yourSetup}</DashboardHeading>
         <CustomBadge variant={'muted'} text={`${completedSetupSteps(steps)} ${OVERVIEW_COPY.of} ${steps.length}`} />
@@ -82,7 +80,7 @@ export default function SetupChecklist({
           const Icon = SETUP_STEP_ICONS[step.step]
           const pending = identity == null && step.step !== DashPaySetupStep.Identity
           return (
-            <li key={step.step} className={`${SETUP_ROW_CLASS} ${pending ? 'opacity-50' : ''}`}>
+            <li key={step.step} className={`flex items-center gap-3 py-2.5 border-t border-dash-primary-dark-blue/8 dark:border-white/8 first:border-t-0 ${pending ? 'opacity-50' : ''}`}>
               <span className={SETUP_ICON_CLASS[step.state]}>
                 {step.state === SetupStepState.Done
                   ? <CheckIcon size={14} color={'currentColor'} className={'[&_circle]:hidden'} />

@@ -7,13 +7,8 @@ import CustomBadge from '@renderer/components/ui/CustomBadge'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import { ADDRESS_ROW_FIAT_CLASS, ADDRESS_ROW_ICON_BUTTON_CLASS, ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
-import {
-  IDENTITY_ROW_ACTIONS_CLASS,
-  IDENTITY_ROW_CLASS,
-  IDENTITY_ROW_CONTENT_CLASS,
-  IDENTITY_ROW_COPY,
-  IDENTITY_ROW_TRAILING_CLASS,
-} from '@renderer/constants/identities'
+import { IDENTITY_ROW_COPY } from '@renderer/constants/identities'
+import { SURFACE_ROW } from '@renderer/constants/surfaces'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
@@ -50,7 +45,7 @@ export default function IdentityRow({ identity, onOpen }: IdentityRowProps): Rea
   const identifierLine = (
     <span className={'flex min-w-0 items-center gap-[.3125rem]'}>
       <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
-      <span className={IDENTITY_ROW_ACTIONS_CLASS}>
+      <span className={'pointer-events-auto relative z-10 flex shrink-0 items-center gap-[.3125rem]'}>
         <CopyButton text={identity.identifier} className={'shrink-0'} />
         {explorerUrl != null && (
           <button
@@ -70,7 +65,7 @@ export default function IdentityRow({ identity, onOpen }: IdentityRowProps): Rea
 
   return (
     <ContextMenu title={IDENTITY_ROW_COPY.menuTitle} items={items}>
-      <li className={IDENTITY_ROW_CLASS}>
+      <li className={`relative grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 min-h-13 ${SURFACE_ROW} transition-colors hover:dash-block-accent-5`}>
         <button
           type={'button'}
           onClick={() => onOpen(identity.identifier)}
@@ -80,7 +75,7 @@ export default function IdentityRow({ identity, onOpen }: IdentityRowProps): Rea
         <span className={'pointer-events-none flex'}>
           <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Sm} />
         </span>
-        <div className={IDENTITY_ROW_CONTENT_CLASS}>
+        <div className={'pointer-events-none flex min-w-0 flex-col gap-1'}>
           {name != null ? (
             <>
               <div className={'flex min-w-0 items-center gap-1.5'}>
@@ -99,7 +94,7 @@ export default function IdentityRow({ identity, onOpen }: IdentityRowProps): Rea
             </>
           )}
         </div>
-        <div className={IDENTITY_ROW_TRAILING_CLASS}>
+        <div className={'pointer-events-none relative z-10 flex items-center gap-3'}>
           <SensitiveValue hidden={!isBalanceVisible} size={'card'}>
             <Text size={14} weight={'medium'} color={'brand'}>
               <CreditsAmount credits={balance} compact showFiat={false} align={'end'} amountClassName={'font-bold'} />

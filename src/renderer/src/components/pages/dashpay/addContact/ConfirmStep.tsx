@@ -3,7 +3,7 @@ import ShortfallNotice from '@renderer/components/pages/dashpay/ShortfallNotice'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
 import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import { ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
-import { ADD_CONTACT_COPY, ADD_CONTACT_FACT_ROW_CLASS, ADD_CONTACT_FACT_VALUE_CLASS } from '@renderer/constants/dashPayAddContact'
+import { ADD_CONTACT_COPY, ADD_CONTACT_FACT_ROW_CLASS } from '@renderer/constants/dashPayAddContact'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_PENDING_VALUE } from '@renderer/constants/txSummary'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
@@ -20,7 +20,7 @@ function Credits({ credits }: AddContactCreditsProps): React.JSX.Element {
 
 function Party({ identifier, name }: AddContactPartyProps): React.JSX.Element {
   return (
-    <span className={ADD_CONTACT_FACT_VALUE_CLASS}>
+    <span className={"flex min-w-0 items-center gap-2"}>
       <IdentityAvatar identifier={identifier} size={IdentityAvatarSize.Xs} />
       <span className={"flex min-w-0 flex-col items-end gap-0.5"}>
         {name != null && <Text reset size={14} weight={"medium"} color={"brand"} className={"max-w-full truncate"}>{name}</Text>}

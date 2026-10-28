@@ -7,9 +7,7 @@ import { DASHPAY_CONTACT_ROW_CLASS } from '@renderer/constants/dashPay'
 import {
   CONTACT_MENU_COPY,
   CONTACT_ROW_ACTION_CLASS,
-  CONTACT_ROW_CONTENT_CLASS,
   CONTACT_ROW_COPY,
-  CONTACT_ROW_TRAILING_CLASS,
   CONTACTS_TAB_COPY,
 } from '@renderer/constants/dashPayContacts'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
@@ -75,7 +73,7 @@ export default function ContactRow({ model, now, canSend, onOpen, onAccept, onPa
         <span className={'pointer-events-none flex'}>
           <IdentityAvatar identifier={contact.contactId} size={IdentityAvatarSize.Sm} />
         </span>
-        <div className={CONTACT_ROW_CONTENT_CLASS}>
+        <div className={'pointer-events-none flex min-w-0 flex-col gap-0.5'}>
           <div className={'flex min-w-0 items-center gap-1.5'}>
             {name != null ? (
               <Text reset size={14} weight={'medium'} color={'brand'} className={'min-w-0 truncate'}>{name}</Text>
@@ -89,7 +87,7 @@ export default function ContactRow({ model, now, canSend, onOpen, onAccept, onPa
             {contactRowCaption(model, now)}
           </Text>
         </div>
-        <div className={CONTACT_ROW_TRAILING_CLASS}>
+        <div className={'pointer-events-none relative z-10 flex items-center gap-2'}>
           {action}
           <ArrowIcon size={9} color={'currentColor'} className={'rotate-180 opacity-40 dash-text-default'} />
         </div>

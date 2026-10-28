@@ -8,7 +8,6 @@ import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import { DASHPAY_LOAD_ERRORS, DASHPAY_ROUTES } from '@renderer/constants/dashPay'
 import {
-  CONTACT_LIST_CLASS,
   CONTACT_LIST_SKELETON_ROWS,
   CONTACT_ROW_SKELETON_CLASS,
   CONTACT_SEARCH_SKELETON_ROWS,
@@ -112,7 +111,7 @@ export default function ContactsTab({
     body = <NoResults noResults={CONTACT_SEGMENT_EMPTY[segment]} />
   } else {
     body = (
-      <div className={CONTACT_LIST_CLASS}>
+      <div className={'flex flex-col gap-[.625rem]'}>
         {view.groups.map(group => (
           <Fragment key={group.key}>
             {group.label != null && (

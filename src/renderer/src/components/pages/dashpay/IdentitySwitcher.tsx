@@ -4,7 +4,7 @@ import { Text } from '@renderer/components/dash-ui-kit-extended'
 import { AddIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import IdentitySelect from '@renderer/components/ui/IdentitySelect'
 import { DASHPAY_READINESS_BADGES, READINESS_TONE_CLASS } from '@renderer/constants/dashPay'
-import { DASHPAY_REGISTER_IDENTITY_HREF, REQUEST_COUNT_FORMS, SWITCHER_COPY, SWITCHER_FOOTER_CLASS } from '@renderer/constants/dashPayOverview'
+import { DASHPAY_REGISTER_IDENTITY_HREF, REQUEST_COUNT_FORMS, SWITCHER_COPY } from '@renderer/constants/dashPayOverview'
 import { POPOVER_OPTION } from '@renderer/constants/surfaces'
 import { IdentitySelectAppearance } from '@renderer/enums/IdentitySelectAppearance'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
@@ -49,7 +49,7 @@ export default function IdentitySwitcher({
     <button
       type={'button'}
       onClick={() => navigate(DASHPAY_REGISTER_IDENTITY_HREF)}
-      className={`${SWITCHER_FOOTER_CLASS} ${POPOVER_OPTION}`}
+      className={`flex w-full items-center gap-2 ${POPOVER_OPTION}`}
     >
       <AddIcon size={12} color={'currentColor'} className={'shrink-0 dash-text-primary'} />
       <Text reset size={12} weight={'medium'} color={'blue-mint'}>{SWITCHER_COPY.registerIdentity}</Text>

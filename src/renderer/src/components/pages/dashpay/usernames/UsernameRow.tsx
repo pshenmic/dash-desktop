@@ -3,7 +3,7 @@ import CopyButton from '@renderer/components/ui/CopyButton'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import StatusPill from '@renderer/components/ui/StatusPill'
 import { DASHPAY_CONTACT_ROW_CLASS } from '@renderer/constants/dashPay'
-import { USERNAME_LIST_COPY, USERNAME_MONOGRAM_MUTED_CLASS } from '@renderer/constants/dashPayUsernames'
+import { USERNAME_LIST_COPY } from '@renderer/constants/dashPayUsernames'
 import { USERNAME_PRESENTATION, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
 import { ROW_OPEN_OVERLAY_CLASS } from '@renderer/constants/listToolbar'
 import { CHIP_ACTION, ICON_CHIP } from '@renderer/constants/surfaces'
@@ -35,7 +35,7 @@ export default function UsernameRow({ row, now, onOpen, onRegister }: UsernameRo
         aria-label={`${USERNAME_LIST_COPY.open} ${row.fullName}`}
         onClick={() => onOpen(row)}
       />
-      <span aria-hidden={"true"} className={registered ? ICON_CHIP : USERNAME_MONOGRAM_MUTED_CLASS}>
+      <span aria-hidden={"true"} className={registered ? ICON_CHIP : 'flex size-[1.875rem] shrink-0 items-center justify-center rounded-full dash-block-5 opacity-50'}>
         <Text reset size={12} weight={"bold"} className={"uppercase text-inherit!"}>{row.label.charAt(0)}</Text>
       </span>
       <div className={"flex min-w-0 flex-col gap-0.5"}>

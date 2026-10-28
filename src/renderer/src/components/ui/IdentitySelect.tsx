@@ -14,13 +14,8 @@ import { CONTACT_IDENTIFIER_CLASS } from '@renderer/constants/addressField'
 import {
   IDENTITY_SELECT_COMPACT_IDENTIFIER_CLASS,
   IDENTITY_SELECT_COPY,
-  IDENTITY_SELECT_DIVIDER_CLASS,
-  IDENTITY_SELECT_FRAME_CLASS,
   IDENTITY_SELECT_HEADER_BASE,
-  IDENTITY_SELECT_HEADER_IDENTIFIER_WIDTH,
-  IDENTITY_SELECT_HEADER_SKELETON,
   IDENTITY_SELECT_HEADER_WIDTH,
-  IDENTITY_SELECT_META_CLASS,
   IDENTITY_SELECT_NAVIGATION_KEYS,
   IDENTITY_SELECT_SEARCH_MIN,
   IDENTITY_SELECT_STYLES,
@@ -62,7 +57,7 @@ function IdentityHeadline({identity}: IdentityNameProps): React.JSX.Element {
 function IdentityMeta({identity, meta, warnEmpty = false}: IdentityMetaProps): React.JSX.Element {
   const { isBalanceVisible } = useBalanceVisibility()
   return (
-    <span className={IDENTITY_SELECT_META_CLASS}>
+    <span className={'block min-w-0 truncate text-[0.625rem] font-medium leading-[130%] text-dash-primary-dark-blue/50 dark:text-white/50'}>
       <span className={warnEmpty && identity.balance.amount === 0n ? 'text-dash-orange' : ''}>
         <SensitiveValue hidden={!isBalanceVisible} size={'subtext'}>
           <CreditsAmount credits={identity.balance.amount} compact showFiat={false} />
@@ -213,7 +208,7 @@ export function IdentitySelectPopover({
   }
 
   return (
-    <div onKeyDown={handlePopoverKey} className={`${styles.popover} ${IDENTITY_SELECT_FRAME_CLASS} ${POPOVER}`}>
+    <div onKeyDown={handlePopoverKey} className={`${styles.popover} flex flex-col gap-1 ${POPOVER}`}>
       {header && (
         <Text reset size={10} weight={'medium'} color={'brand'} opacity={40} className={'block uppercase tracking-[.08em] px-[.625rem] py-1'}>
           {`${IDENTITY_SELECT_COPY.actAs} · ${identities.length}`}
@@ -249,7 +244,7 @@ export function IdentitySelectPopover({
       )}
       {footer != null && (
         <>
-          <div className={IDENTITY_SELECT_DIVIDER_CLASS} />
+          <div className={'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'} />
           <div onClick={() => onDismiss(false)}>{footer}</div>
         </>
       )}
@@ -305,7 +300,7 @@ export default function IdentitySelect({
   }
 
   if (header && loading) {
-    return <div role={'status'} aria-label={IDENTITY_SELECT_COPY.loading} className={IDENTITY_SELECT_HEADER_SKELETON} />
+    return <div role={'status'} aria-label={IDENTITY_SELECT_COPY.loading} className={`h-12 ${IDENTITY_SELECT_HEADER_WIDTH} rounded-[.9375rem] animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8`} />
   }
 
   const headerContent = (identity: IdentityApiDto): React.JSX.Element => (
@@ -319,7 +314,7 @@ export default function IdentitySelect({
   )
 
   const headerWidth = (identity: IdentityApiDto | undefined): string =>
-    identity != null && identityName(identity) == null ? IDENTITY_SELECT_HEADER_IDENTIFIER_WIDTH : IDENTITY_SELECT_HEADER_WIDTH
+    identity != null && identityName(identity) == null ? 'w-max min-w-[17.5rem]' : IDENTITY_SELECT_HEADER_WIDTH
 
   if (isStatic) {
     const shown = selected ?? identities[0]

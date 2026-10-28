@@ -23,7 +23,6 @@ import {
   CONTACT_PAYMENT_SKELETON_CLASS,
   CONTACT_PAYMENTS_SKELETON_ROWS,
   CONTACT_TOKEN_ICON_CLASS,
-  EXPLORER_ICON_BUTTON_CLASS,
 } from '@renderer/constants/dashPayContacts'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
 import { CHIP_ACTION } from '@renderer/constants/surfaces'
@@ -170,7 +169,7 @@ export default function ContactDetail({
                     onClick={() => openExternal(identityUrl(contact.contactId, network))}
                     title={CONTACT_DETAIL_COPY.openInExplorer}
                     aria-label={CONTACT_DETAIL_COPY.openInExplorer}
-                    className={EXPLORER_ICON_BUTTON_CLASS}
+                    className={'size-5 shrink-0 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer'}
                   >
                     <ExternalLinkIcon size={10} color={'currentColor'} className={'dash-text-default opacity-50'} />
                   </button>

@@ -125,8 +125,6 @@ export const CONTACT_OTHER_NAMES_LIMIT = 3
 
 export const CONTACT_DETAIL_ROOT_CLASS = 'flex flex-col px-12 pb-12'
 
-export const CONTACT_LIST_CLASS = 'flex flex-col gap-[.625rem]'
-
 export const CONTACT_ROW_SKELETON_CLASS = 'h-13 rounded-[.875rem]'
 
 export const CONTACT_LIST_SKELETON_ROWS = 6
@@ -138,11 +136,5 @@ export const CONTACT_PAYMENTS_SKELETON_ROWS = 3
 export const CONTACT_PAYMENT_SKELETON_CLASS = 'h-[4.25rem] rounded-[.875rem]'
 
 export const CONTACT_ROW_ACTION_CLASS = `${CHIP_ACTION} pointer-events-auto font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40`
-
-export const CONTACT_ROW_TRAILING_CLASS = 'pointer-events-none relative z-10 flex items-center gap-2'
-
-export const CONTACT_ROW_CONTENT_CLASS = 'pointer-events-none flex min-w-0 flex-col gap-0.5'
-
-export const EXPLORER_ICON_BUTTON_CLASS = 'size-5 shrink-0 rounded-[.3125rem] flex items-center justify-center dash-block-5 hover:opacity-80 transition-opacity duration-200 cursor-pointer'
 
 export const CONTACT_TOKEN_ICON_CLASS = 'dash-text-primary'

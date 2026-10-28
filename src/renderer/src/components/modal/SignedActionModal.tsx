@@ -19,7 +19,7 @@ import type {
 } from '@renderer/types/SignedActionModal'
 import { API } from '@renderer/api'
 import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
-import { SIGNED_ACTION_COPY, SIGNED_ACTION_PARTIAL_ICON_CLASS } from '@renderer/constants/signedActionModal'
+import { SIGNED_ACTION_COPY } from '@renderer/constants/signedActionModal'
 import { SURFACE_SECTION } from '@renderer/constants/surfaces'
 
 export default function SignedActionModal<R>({
@@ -177,7 +177,7 @@ export default function SignedActionModal<R>({
       <>
         <div className={"flex flex-col items-center text-center mt-5 mb-1"}>
           {view.tone === SignedActionDoneTone.Partial ? (
-            <div className={SIGNED_ACTION_PARTIAL_ICON_CLASS}>
+            <div className={"flex size-14 items-center justify-center rounded-full bg-dash-orange/10 text-dash-orange"}>
               <ExclamationIcon size={24} color={"currentColor"} />
             </div>
           ) : (

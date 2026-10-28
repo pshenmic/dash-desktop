@@ -3,7 +3,6 @@ import IdentityAvatar from '@renderer/components/ui/IdentityAvatar'
 import {
   ACTING_IDENTITY_CHIP_CLASS,
   ACTING_IDENTITY_CHIP_COPY,
-  ACTING_IDENTITY_CHIP_NAMED_WIDTH,
   IDENTITY_SELECT_COMPACT_IDENTIFIER_CLASS,
 } from '@renderer/constants/identitySelect'
 import { IdentityAvatarSize } from '@renderer/enums/IdentityAvatarSize'
@@ -17,7 +16,7 @@ export default function ActingIdentityChip({ identity }: ActingIdentityChipProps
       <div
         role={'img'}
         aria-label={`${ACTING_IDENTITY_CHIP_COPY.actingAs} ${identityLabel(identity)}`}
-        className={name == null ? ACTING_IDENTITY_CHIP_CLASS : `${ACTING_IDENTITY_CHIP_CLASS} ${ACTING_IDENTITY_CHIP_NAMED_WIDTH}`}
+        className={name == null ? ACTING_IDENTITY_CHIP_CLASS : `${ACTING_IDENTITY_CHIP_CLASS} max-w-48`}
       >
         <IdentityAvatar identifier={identity.identifier} size={IdentityAvatarSize.Xs} />
         {name == null

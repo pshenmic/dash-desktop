@@ -11,15 +11,10 @@ import ListSkeleton from '@renderer/components/ui/Skeleton'
 import { DASHPAY_READINESS_BADGES } from '@renderer/constants/dashPay'
 import {
   ADD_CONTACT_COPY,
-  ADD_CONTACT_LIST_CLASS,
-  ADD_CONTACT_LIST_HEIGHT_CLASS,
-  ADD_CONTACT_LIST_HEIGHT_WITH_ALERT_CLASS,
   ADD_CONTACT_PANEL_NOTE_CLASS,
-  ADD_CONTACT_SKELETON_ROW_CLASS,
   ADD_CONTACT_SKELETON_ROWS,
 } from '@renderer/constants/dashPayAddContact'
 import { IDENTITY_SELECT_NAVIGATION_KEYS } from '@renderer/constants/identitySelect'
-import { SEARCH_FIELD_LARGE_CLASS } from '@renderer/constants/listToolbar'
 import { DashPayReadiness } from '@renderer/enums/DashPay'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import type { IdentityApiDto } from '@renderer/hooks/useIdentities'
@@ -66,7 +61,7 @@ export default function FindStep({
     groupRef.current?.querySelector<HTMLButtonElement>(`[data-identifier="${next.identifier}"]`)?.focus()
   }
 
-  const listHeight = readiness.readiness === DashPayReadiness.Ready ? ADD_CONTACT_LIST_HEIGHT_CLASS : ADD_CONTACT_LIST_HEIGHT_WITH_ALERT_CLASS
+  const listHeight = readiness.readiness === DashPayReadiness.Ready ? 'max-h-[calc(100dvh-42rem)] min-h-48' : 'max-h-[calc(100dvh-47.5rem)] min-h-28'
 
   let panel: React.JSX.Element
   if (query.trim() === '') {
@@ -78,7 +73,7 @@ export default function FindStep({
   } else if (search.err != null) {
     panel = <NoResults tone={NoResultsTone.Error} noResults={search.err} action={<RetryButton onRetry={search.retry} />} />
   } else if (search.loading) {
-    panel = <ListSkeleton rows={ADD_CONTACT_SKELETON_ROWS} rowClassName={ADD_CONTACT_SKELETON_ROW_CLASS} />
+    panel = <ListSkeleton rows={ADD_CONTACT_SKELETON_ROWS} rowClassName={"h-13 rounded-[.875rem]"} />
   } else if (search.rows.length === 0) {
     panel = <NoResults noResults={`${ADD_CONTACT_COPY.noMatch} "${query.trim()}"`} />
   } else {
@@ -87,7 +82,7 @@ export default function FindStep({
         <Text reset size={10} weight={"medium"} color={"brand"} opacity={50} className={`${ADD_CONTACT_PANEL_NOTE_CLASS} wrap-anywhere`}>
           {`${ADD_CONTACT_COPY.resultsFor} "${query.trim()}" · ${search.rows.length}`}
         </Text>
-        <FadingScrollArea className={`${ADD_CONTACT_LIST_CLASS} ${listHeight}`}>
+        <FadingScrollArea className={`overflow-y-auto scrollbar-hide flex flex-col gap-[.625rem] ${listHeight}`}>
           <div
             ref={groupRef}
             role={"radiogroup"}
@@ -142,7 +137,7 @@ export default function FindStep({
         onChange={onQueryChange}
         placeholder={ADD_CONTACT_COPY.searchPlaceholder}
         ariaLabel={ADD_CONTACT_COPY.searchLabel}
-        inputClassName={SEARCH_FIELD_LARGE_CLASS}
+        inputClassName={"h-[3.25rem] py-0! rounded-2xl! dash-block"}
       />
       {panel}
     </>

@@ -6,7 +6,7 @@ import RetryButton from '@renderer/components/ui/RetryButton'
 import ShowMoreButton from '@renderer/components/ui/ShowMoreButton'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import { DASHPAY_USERNAMES_PAGE_SIZE } from '@renderer/constants/dashPay'
-import { USERNAME_LIST_COPY, USERNAME_SKELETON_ROW_CLASS } from '@renderer/constants/dashPayUsernames'
+import { USERNAME_LIST_COPY } from '@renderer/constants/dashPayUsernames'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { NoResultsTone } from '@renderer/enums/NoResultsTone'
 import { refreshDashPayUsernames, useDashPayUsernames } from '@renderer/hooks/useDashPayUsernames'
@@ -63,7 +63,7 @@ export default function UsernamesTab({ walletId, identity, readiness, now }: Use
 
   let body: React.JSX.Element
   if (loading && walletUsernames.length === 0) {
-    body = <ListSkeleton rows={3} rowClassName={USERNAME_SKELETON_ROW_CLASS} />
+    body = <ListSkeleton rows={3} rowClassName={"h-13 rounded-[.875rem]"} />
   } else if (err != null && walletUsernames.length === 0) {
     body = (
       <NoResults

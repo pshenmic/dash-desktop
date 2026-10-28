@@ -8,7 +8,6 @@ import {
   IDENTITY_KEY_TYPE_LABELS,
   IDENTITY_KEY_UPDATE_COPY,
   IDENTITY_KEYS_COPY,
-  KEY_TABLE_ROW_CLASS,
 } from '@renderer/constants/identityKeys'
 import { CHIP_ACTION } from '@renderer/constants/surfaces'
 import { StatusPillTone } from '@renderer/enums/StatusPillTone'
@@ -29,7 +28,7 @@ export default function KeyTableRow({ identityKey, onAction }: KeyTableRowProps)
   }
 
   return (
-    <div className={`${KEY_TABLE_ROW_CLASS} ${IDENTITY_KEY_TABLE_GRID} ${active ? '' : 'opacity-50'}`}>
+    <div className={`grid min-h-12 items-center gap-3 border-t border-dash-primary-dark-blue/10 dark:border-white/10 px-2.5 py-2.5 ${IDENTITY_KEY_TABLE_GRID} ${active ? '' : 'opacity-50'}`}>
       <Text size={14} weight={"medium"} color={"brand"} className={"tabular-nums"}>{identityKey.keyId}</Text>
       <Text size={14} weight={"medium"} color={"brand"} className={"truncate"}>{keyLabel(identityKey.purpose, IDENTITY_KEY_PURPOSE_LABELS)}</Text>
       <Text size={14} weight={"medium"} color={"brand"} className={"truncate"}>{keyLabel(identityKey.securityLevel, IDENTITY_KEY_LEVEL_LABELS)}</Text>

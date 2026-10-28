@@ -1,6 +1,5 @@
 import { DashPayTab, UsernameAvailability } from '@renderer/enums/DashPay'
 import { DASHPAY_PARAMS, DASHPAY_ROUTES } from './dashPay'
-import { HIGHLIGHTED_IDENTIFIER_CLASS } from './identifier'
 import type { CountForms } from '../types/CountForms'
 
 export const USERNAMES_TAB_HREF = `${DASHPAY_ROUTES.root}?${DASHPAY_PARAMS.tab}=${DashPayTab.Usernames}`
@@ -10,18 +9,6 @@ export const USERNAME_TITLE_HEAD = 18
 export const USERNAME_TITLE_TAIL = 10
 
 export const USERNAME_TITLE_ELLIPSIS = '…'
-
-export const USERNAME_MONOGRAM_MUTED_CLASS = 'flex size-[1.875rem] shrink-0 items-center justify-center rounded-full dash-block-5 opacity-50'
-
-export const USERNAME_SKELETON_ROW_CLASS = 'h-13 rounded-[.875rem]'
-
-export const USERNAME_FIELD_CLASS = 'flex items-center gap-2 dash-block rounded-2xl px-5 py-3.5 border border-transparent focus-within:border-dash-brand dark:focus-within:border-dash-mint'
-
-export const USERNAME_INPUT_CLASS = 'bg-transparent outline-none flex-1 min-w-0 text-2xl font-medium text-dash-primary-dark-blue dark:text-white placeholder:text-dash-primary-dark-blue/25 dark:placeholder:text-white/25'
-
-export const USERNAME_DOCUMENT_ID_CLASS = `min-w-0 text-right text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
-
-export const USERNAME_CONTENDER_ID_CLASS = `min-w-0 text-left text-xs! font-medium! ${HIGHLIGHTED_IDENTIFIER_CLASS}`
 
 export const USERNAME_DIVIDER_CLASS = 'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'
 

@@ -11,11 +11,7 @@ export const IDENTITY_SELECT_HEADER_BASE = 'relative h-12 flex items-center gap-
 
 export const IDENTITY_SELECT_HEADER_WIDTH = 'w-[17.5rem]'
 
-export const IDENTITY_SELECT_HEADER_IDENTIFIER_WIDTH = 'w-max min-w-[17.5rem]'
-
 export const IDENTITY_SELECT_COMPACT_IDENTIFIER_CLASS = `${CONTACT_IDENTIFIER_CLASS} text-xs!`
-
-export const IDENTITY_SELECT_HEADER_SKELETON = `h-12 ${IDENTITY_SELECT_HEADER_WIDTH} rounded-[.9375rem] animate-pulse bg-dash-primary-dark-blue/8 dark:bg-white/8`
 
 export const IDENTITY_SELECT_STYLES: Record<IdentitySelectAppearance, IdentitySelectStyles> = {
   [IdentitySelectAppearance.Field]: {
@@ -31,12 +27,6 @@ export const IDENTITY_SELECT_STYLES: Record<IdentitySelectAppearance, IdentitySe
     option: 'w-full grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 text-left',
   },
 }
-
-export const IDENTITY_SELECT_FRAME_CLASS = 'flex flex-col gap-1'
-
-export const IDENTITY_SELECT_META_CLASS = 'block min-w-0 truncate text-[0.625rem] font-medium leading-[130%] text-dash-primary-dark-blue/50 dark:text-white/50'
-
-export const IDENTITY_SELECT_DIVIDER_CLASS = 'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'
 
 export const IDENTITY_SELECT_COPY = {
   identities: 'Identities',
@@ -54,8 +44,6 @@ export const IDENTITY_SELECT_COPY = {
 } as const
 
 export const ACTING_IDENTITY_CHIP_CLASS = 'h-8 flex items-center gap-2 rounded-[.75rem] dash-block dash-black-border pl-1 pr-2.5'
-
-export const ACTING_IDENTITY_CHIP_NAMED_WIDTH = 'max-w-48'
 
 export const ACTING_IDENTITY_CHIP_COPY = {
   tooltip: 'Go back to switch identity',

@@ -17,7 +17,7 @@ import CoinControlAmountInput from './CoinControlAmountInput'
 import CoinControlAutomaticIllustration from './CoinControlAutomaticIllustration'
 import type { PlatformAddressDto } from '@renderer/api/types'
 import { ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
-import { COIN_CONTROL_DEFAULT_SORT, COIN_CONTROL_FIAT_CLASS, COIN_CONTROL_LABELS, FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
+import { COIN_CONTROL_DEFAULT_SORT, COIN_CONTROL_LABELS, FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { TOOLBAR_DROPDOWN_CLASS } from '@renderer/constants/listToolbar'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
@@ -525,7 +525,7 @@ function InputDetails({label, amount, address, outpoint, fiat, actions}: CoinCon
       </div>
       <div className={'pointer-events-auto flex flex-wrap items-center justify-end gap-2'}>
         <Text reset size={14} weight={'bold'} color={'brand'} className={'whitespace-nowrap text-right tabular-nums'}>{amount}</Text>
-        {fiat && <span className={COIN_CONTROL_FIAT_CLASS}>{formatApproxFiat(fiat)}</span>}
+        {fiat && <span className={'rounded-md dash-block-accent-12 px-2 py-[.3125rem] text-[.625rem] leading-none font-medium dash-text-primary whitespace-nowrap'}>{formatApproxFiat(fiat)}</span>}
       </div>
       {label && <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'col-start-2 whitespace-nowrap text-right tabular-nums leading-[120%]'}>{label}</Text>}
     </div>

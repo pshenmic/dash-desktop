@@ -75,12 +75,6 @@ export const IDENTITY_KEYS_COPY = {
 
 export const KEYS_TABLE_HEADERS = ['#', 'Purpose', 'Level', 'Type', 'Bound to', 'Status', '']
 
-export const KEYS_TABLE_INNER_CLASS = 'min-w-[46rem]'
-
-export const KEY_TABLE_ROW_CLASS = 'grid min-h-12 items-center gap-3 border-t border-dash-primary-dark-blue/10 dark:border-white/10 px-2.5 py-2.5'
-
-export const KEY_VARIANT_ROW_CLASS = 'grid grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto] items-center gap-3'
-
 export const KEYS_FACT_ROW_CLASS = 'flex items-center justify-between gap-4'
 
 export const KEYS_FACT_DIVIDER_CLASS = 'h-px bg-dash-primary-dark-blue/8 dark:bg-white/8'

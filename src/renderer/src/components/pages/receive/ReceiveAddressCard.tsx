@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Text } from "@renderer/components/dash-ui-kit-extended"
 import { ReceivePageType } from "@renderer/constants"
-import { RECEIVE_AMOUNT_INPUT, RECEIVE_EMPTY_TEXTS } from "@renderer/constants/receiveCard"
+import { RECEIVE_EMPTY_TEXTS } from "@renderer/constants/receiveCard"
 import { SURFACE_SECTION } from "@renderer/constants/surfaces"
 import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
@@ -80,7 +80,7 @@ export default function ReceiveAddressCard({
                 if (SEND_AMOUNT_PATTERN.test(val)) setAmount(val)
               }}
               id={"amount-input"}
-              className={RECEIVE_AMOUNT_INPUT}
+              className={"w-full rounded-[.875rem] dash-block px-4 py-3.5 text-sm font-medium dash-text-default outline-none placeholder:text-current placeholder:opacity-40 focus-visible:ring-2 focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint"}
             />
           </label>
 

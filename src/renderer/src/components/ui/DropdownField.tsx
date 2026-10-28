@@ -6,10 +6,7 @@ import {
   ADDRESS_AVATAR_SIZES,
   ADDRESS_HIGHLIGHT_CLASSES,
   ADDRESS_INPUT,
-  ADDRESS_INPUT_BEHIND_VALUE,
   ADDRESS_INPUT_TEXT_SIZES,
-  ADDRESS_INVALID_VALUE_CLASS,
-  ADDRESS_VALUE_CLASS,
 } from '@renderer/constants/addressField'
 import { POPOVER, POPOVER_OPTION } from '@renderer/constants/surfaces'
 import type { DropdownFieldProps } from '@renderer/types/DropdownField'
@@ -63,12 +60,12 @@ export default function DropdownField({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={placeholder}
-            className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[textSize]} ${showValue ? ADDRESS_INPUT_BEHIND_VALUE : ''}`}
+            className={`${ADDRESS_INPUT} ${ADDRESS_INPUT_TEXT_SIZES[textSize]} ${showValue ? 'absolute inset-0 opacity-0' : ''}`}
           />
-          {showValue && <span aria-hidden="true" className={ADDRESS_VALUE_CLASS}>
+          {showValue && <span aria-hidden="true" className="pointer-events-none flex min-w-0 flex-1 items-center gap-2 py-2">
             {valueAvatar && !inputInvalid && <Avatar username={trimmedValue} className={ADDRESS_AVATAR_SIZES[textSize]} />}
             {inputInvalid
-              ? <span className={`${ADDRESS_INVALID_VALUE_CLASS} ${ADDRESS_INPUT_TEXT_SIZES[textSize]}`}>{trimmedValue}</span>
+              ? <span className={`min-w-0 flex-1 break-all font-normal leading-[1rem] dash-text-default ${ADDRESS_INPUT_TEXT_SIZES[textSize]}`}>{trimmedValue}</span>
               : <HighlightedIdentifier className={ADDRESS_HIGHLIGHT_CLASSES[textSize]}>{trimmedValue}</HighlightedIdentifier>}
           </span>}
         </div>

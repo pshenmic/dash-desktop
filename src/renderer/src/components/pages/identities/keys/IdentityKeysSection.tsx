@@ -3,9 +3,8 @@ import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashboardHeading from '@renderer/components/pages/dashboard/DashboardHeading'
 import CustomBadge from '@renderer/components/ui/CustomBadge'
 import NoResults from '@renderer/components/ui/NoResults'
-import { IDENTITY_KEY_TABLE_GRID, IDENTITY_KEYS_COPY, KEYS_TABLE_HEADERS, KEYS_TABLE_INNER_CLASS } from '@renderer/constants/identityKeys'
-import { SECTION_TABLE_HEADER, SECTION_TABLE_WRAPPER } from '@renderer/constants/sectionTable'
-import { CHIP_ACTION, SURFACE_PANEL } from '@renderer/constants/surfaces'
+import { IDENTITY_KEY_TABLE_GRID, IDENTITY_KEYS_COPY, KEYS_TABLE_HEADERS } from '@renderer/constants/identityKeys'
+import { CHIP_ACTION, SURFACE_PANEL, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import type { IdentityKeysSectionProps, PendingKeyAction } from '@renderer/types/IdentityKeys'
 import { sortedIdentityKeys } from '@renderer/utils/identityKeySetup'
 import KeyTableRow from './KeyTableRow'
@@ -31,9 +30,9 @@ export default function IdentityKeysSection({ walletId, identity }: IdentityKeys
       {keys.length === 0 ? (
         <NoResults noResults={IDENTITY_KEYS_COPY.empty} />
       ) : (
-        <div className={SECTION_TABLE_WRAPPER}>
-          <div className={KEYS_TABLE_INNER_CLASS}>
-            <div className={`${SECTION_TABLE_HEADER} ${IDENTITY_KEY_TABLE_GRID}`}>
+        <div className={`overflow-x-auto ${SURFACE_SECTION}`}>
+          <div className={'min-w-[46rem]'}>
+            <div className={`grid items-center gap-3 px-2.5 pb-3 ${IDENTITY_KEY_TABLE_GRID}`}>
               {KEYS_TABLE_HEADERS.map(header => (
                 <Text key={header} size={12} weight={'normal'} color={'brand'} opacity={50}>{header}</Text>
               ))}

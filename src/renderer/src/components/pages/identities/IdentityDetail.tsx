@@ -15,7 +15,6 @@ import {
   IDENTITIES_ROUTES,
   IDENTITY_DETAIL_COPY,
   IDENTITY_DETAIL_ROOT_CLASS,
-  IDENTITY_DETAIL_SKELETON_CLASS,
   IDENTITY_DETAIL_SKELETON_ROWS,
   IDENTITY_TOKEN_ICON_CLASS,
 } from '@renderer/constants/identities'
@@ -52,7 +51,7 @@ export default function IdentityDetail({ walletId, identifier }: IdentityDetailP
   if (identity == null) {
     let body: React.JSX.Element
     if (loading) {
-      body = <ListSkeleton rows={IDENTITY_DETAIL_SKELETON_ROWS} rowClassName={IDENTITY_DETAIL_SKELETON_CLASS} />
+      body = <ListSkeleton rows={IDENTITY_DETAIL_SKELETON_ROWS} rowClassName={'h-12 rounded-[.875rem]'} />
     } else if (err != null) {
       body = <NoResults tone={NoResultsTone.Error} noResults={IDENTITY_DETAIL_COPY.loadFailed} action={<RetryButton onRetry={() => refreshIdentities(walletId)} />} />
     } else {
