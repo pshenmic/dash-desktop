@@ -9,8 +9,8 @@ export const DAPI_STATUS_TIMEOUT_MS = 5000
 
 // Evonodes probed at once, and how many answers are enough to build the SDK on.
 // Some evonodes serve a certificate fetch rejects, so a list cannot be used unprobed.
-export const DAPI_PROBE_BATCH = 12
-export const DAPI_POOL_READY = 5
+export const DAPI_PROBE_BATCH = 24
+export const DAPI_POOL_READY = 15
 
 // A list none of whose evonodes answered is probed again after this long, rather
 // than waiting out the hour until p2p fetches the next one.
@@ -25,6 +25,9 @@ export const ERROR_CODES: readonly string[] =
 
 // Trailing base64 blob of a serialized consensus error.
 export const CONSENSUS_DATA = /data:\s*([A-Za-z0-9+/=]+)\s*$/
+
+// What dash-platform-sdk's gRPC pool throws once it has banned every node.
+export const ALL_NODES_BANNED = /DAPI nodes are temporarily banned/
 
 // DAPI rejects a miss and an outage alike; this is what the miss says.
 export const IDENTITY_NOT_FOUND = /not found/i

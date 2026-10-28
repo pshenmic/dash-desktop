@@ -141,24 +141,34 @@ export class PlatformWorkerService {
   }
 
   // Holds a request until the worker can build an SDK for the network: none can
-  // before its first evonode list has been probed.
+  // before its first evonode list has been probed, or it falls back to seeds.
   private untilPinned(network: Network): Promise<void> | null {
     const {dapi} = this.preferences.network
     if (this.pinnedNetworks.has(network) || (dapi.mode === 'static' && dapi[network].length > 0)) return null
     this.ensureChild()
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
       const waiters = this.pinWaiters.get(network) ?? new Set<() => void>()
       this.pinWaiters.set(network, waiters)
       const wake = (): void => {
         clearTimeout(timer)
         resolve()
       }
-      const timer = setTimeout(() => {
-        waiters.delete(wake)
-        reject(new Error(`no reachable evonode for ${network} after ${DAPI_URLS_WAIT_MS / 1000}s`))
-      }, DAPI_URLS_WAIT_MS)
+      const timer = setTimeout(() => this.useSeedNodes(network), DAPI_URLS_WAIT_MS)
       waiters.add(wake)
     })
+  }
+
+  private useSeedNodes(network: Network): void {
+    log.warn(`${network}: no evonode pinned after ${DAPI_URLS_WAIT_MS / 1000}s, falling back to the SDK's seed nodes`)
+    setCoreDapiUrls(network, null)
+    this.send({type: 'useSeedNodes', network})
+    this.wakePinWaiters(network)
+  }
+
+  private wakePinWaiters(network: Network): void {
+    this.pinnedNetworks.add(network)
+    for (const wake of this.pinWaiters.get(network) ?? []) wake()
+    this.pinWaiters.delete(network)
   }
 
   // Held so a worker forked later, or restarted, starts from them too.
@@ -253,9 +263,7 @@ export class PlatformWorkerService {
       this.progressHandlers.get(event.requestId)?.onNotesSpent?.(event.indexes)
     } else if (event.type === 'pinnedDapiUrls') {
       setCoreDapiUrls(event.network, event.dapiUrls)
-      this.pinnedNetworks.add(event.network)
-      for (const wake of this.pinWaiters.get(event.network) ?? []) wake()
-      this.pinWaiters.delete(event.network)
+      this.wakePinWaiters(event.network)
     } else if (event.type === 'error') {
       log.error('utility process error:', event.message)
     }

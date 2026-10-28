@@ -480,11 +480,18 @@ export interface Dapi {
 }
 
 // The valid evonodes of the latest verified masternode list. In dynamic mode the
-// SDK is pinned to the ones that answer a probe; the SDK's own seeds are never used.
+// SDK is pinned to the ones that answer a probe.
 export interface PlatformSetEvonodeDapiUrls {
   type: 'setEvonodeDapiUrls'
   network: Network
   dapiUrls: string[]
+}
+
+// Sent when no evonode list was pinned in time: until one is, the SDK
+// discovers evonodes from its own seed nodes.
+export interface PlatformUseSeedNodes {
+  type: 'useSeedNodes'
+  network: Network
 }
 
 // Public keys of every active quorum by `llmqType:quorumHash`, proven by p2p
@@ -501,6 +508,7 @@ export type PlatformCommand =
   | PlatformSetLogLevel
   | PlatformSetDapi
   | PlatformSetEvonodeDapiUrls
+  | PlatformUseSeedNodes
   | PlatformSetQuorumKeys
 
 export type PlatformResponse =

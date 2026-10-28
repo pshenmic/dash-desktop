@@ -52,7 +52,7 @@ import {
   PlatformWorkerStatus,
   ProverState,
 } from './types/messages'
-import {ERROR_CODES} from './constants'
+import {ALL_NODES_BANNED, ERROR_CODES} from './constants'
 import {InFlight} from './types/service'
 
 const log = new Logger('platform')
@@ -189,6 +189,7 @@ export class PlatformService {
       if (request.kind !== 'warmup') {
         this.setNetworkStatus(request.network, 'error', err instanceof Error ? err.message : String(err))
       }
+      if (err instanceof Error && ALL_NODES_BANNED.test(err.message)) this.registry.refillBannedPool(request.network)
       throw err
     }
   }
