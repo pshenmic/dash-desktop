@@ -1,5 +1,4 @@
 import { Text } from '@renderer/components/dash-ui-kit-extended'
-import { FIELD_INVALID } from '@renderer/constants/addressField'
 import { REGISTER_USERNAME_COPY } from '@renderer/constants/dashPayUsernames'
 import { DPNS_LABEL_MAX, DPNS_NAME_SUFFIX } from '@renderer/constants/dpns'
 import type { UsernameFieldProps } from '@renderer/types/DashPayUsernames'
@@ -7,7 +6,7 @@ import { stripDpnsInput } from '@renderer/utils/dpnsLabel'
 
 export default function UsernameField({ value, onChange, invalid }: UsernameFieldProps): React.JSX.Element {
   return (
-    <div className={`flex items-center gap-2 dash-block rounded-2xl px-5 py-3.5 border border-transparent focus-within:border-dash-brand dark:focus-within:border-dash-mint ${invalid ? FIELD_INVALID : ''}`}>
+    <div className={`flex items-center gap-2 dash-block rounded-2xl px-5 py-3.5 border ${invalid ? 'border-dash-red' : 'border-transparent focus-within:border-dash-brand dark:focus-within:border-dash-mint'}`}>
       <input
         type={"text"}
         value={value}
