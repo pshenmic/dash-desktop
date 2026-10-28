@@ -60,7 +60,7 @@ function service(
 } {
   const request = vi.fn(async (kind: string) => (kind === 'addressInfos'
     ? {infos: candidates.map(c => ({address: c.platformAddress, balance: c.balanceCredits, nonce: c.nonce}))}
-    : {feeCredits: BASE_FEE, metered: true, fixedCredits: 0n}))
+    : {feeCredits: BASE_FEE, metered: true}))
   const estimateSpendFee = vi.fn(async () => ({feeCredits: 7n, feeDuffs: null, maxDuffs: null, maxPerTx: 90n, noteLimit: 6}))
   const walletDAO = {
     getWalletById: vi.fn().mockResolvedValue({walletId: WALLET, network: 'testnet', platformXpub: 'xpub-test'}),

@@ -313,6 +313,9 @@ export class WalletBackend {
     this.platformWorkerService = new PlatformWorkerService(preferences)
     this.platformWorkerService.start()
 
+    const platformWorkerService = this.platformWorkerService
+    this.walletSyncService.onEvonodeDapiUrls = (network, dapiUrls) => platformWorkerService.setEvonodeDapiUrls(network, dapiUrls)
+
     // Consumers depend on the asset lock primitive, never the other way round:
     // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,
     // and each consumer settles that proof into its own transition.
@@ -322,10 +325,10 @@ export class WalletBackend {
     this.coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayCache, transactionDAO, this.walletSyncService, providers)
     this.coreLockService = new CoreLockService(walletDAO, addressDAO, this.walletSyncService, coreTransactionService, providers, preferences)
     this.walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, calibratedIterations)
-    const platformTransactionDAO = new PlatformTransactionDAO(knex)
-    this.identityService = new IdentityService(walletDAO, identityDAO, platformTransactionDAO, dashPayCache, this.platformWorkerService)
+    this.identityService = new IdentityService(walletDAO, identityDAO, dashPayCache, this.platformWorkerService)
     const platformAddressDAO = new PlatformAddressDAO(knex)
     const shieldedNoteDAO = new ShieldedNoteDAO(knex)
+    const platformTransactionDAO = new PlatformTransactionDAO(knex)
     const shieldedPoolDAO = new ShieldedPoolDAO(knex)
     this.platformHistoryService = new PlatformHistoryService(walletDAO, identityDAO, platformAddressDAO, platformTransactionDAO, shieldedNoteDAO, shieldedPoolDAO)
     this.walletService = new WalletService(walletDAO, addressDAO, identityDAO, platformTransactionDAO, this.identityService, this.platformHistoryService, this.walletSyncService, this.platformWorkerService, providers, this.coreDiscoveryService, coreTransactionService, preferences, calibratedIterations)
@@ -370,7 +373,7 @@ export class WalletBackend {
       }
       // Each tick polls for new contact requests too, so a new contact's chain
       // is watched within one interval of its request.
-      await walletService.refreshDashPayChains(selected.walletId)
+      await walletService.fetchContactRequestsAndDiscover(selected.walletId)
       resolvePrevOuts(selected.walletId)
     }
     this.walletSyncService.onWalletActivity = (walletId) => {

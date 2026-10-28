@@ -143,6 +143,11 @@ export class WalletService {
       log.error('core address discovery after wallet creation failed:', e)
     }
 
+    // The scan waits on the masternode list the lock pool fetches, which a first
+    // launch only starts here.
+    await this.walletSyncService.startLockListen(network, walletId)
+      .catch(err => locks.error('failed to start lock listener:', err))
+
     // The wallet and addresses are already persisted, so a scan that cannot
     // reach the worker must not abandon them — a retry would create a second
     // wallet for the same seed.
@@ -328,7 +333,7 @@ export class WalletService {
 
   // New contact requests, then every address chain they hand out. Without a
   // network the chains wait for the next poll.
-  async refreshDashPayChains(walletId: string, attempts = 1): Promise<void> {
+  async fetchContactRequestsAndDiscover(walletId: string, attempts = 1): Promise<void> {
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         await this.identities.refreshDashPayRequests(walletId)
@@ -345,7 +350,7 @@ export class WalletService {
   // Our DashPay chains enter the watch set before the scan reads a block: added
   // later, they would miss what it passed without them.
   async startWalletSync(walletId: string): Promise<void> {
-    await this.refreshDashPayChains(walletId, DASHPAY_START_ATTEMPTS)
+    await this.fetchContactRequestsAndDiscover(walletId, DASHPAY_START_ATTEMPTS)
     await this.walletSyncService.startSync(walletId)
   }
 

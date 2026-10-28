@@ -203,7 +203,7 @@ export interface FeeQuote {
   feeCredits: bigint
   metered: boolean
   // Charged as is on top, never scaled by a fee multiplier: a contest's vote fund.
-  fixedCredits: bigint
+  fixedCredits?: bigint
 }
 
 export type AssetLockProofParams =
@@ -374,12 +374,12 @@ export interface PlatformOperations {
     payload: {identifier: string; label: string}
     result: UsernameCheck
   }
-  // Names whose label starts with prefix, in label order, at most one proved page.
-  // The contests among labels (normalized) the identities are contenders in.
+  // The running DPNS contests the identities are contenders in, by normalized label.
   usernameContests: {
-    payload: {labels: string[]; identifiers: string[]}
+    payload: {identifiers: string[]}
     result: {contests: Array<{identifier: string; label: string}>}
   }
+  // Names whose label starts with prefix, in label order, at most one proved page.
   usernameSearch: {
     payload: {prefix: string}
     result: {results: UsernameSearchResult[]}
@@ -479,7 +479,20 @@ export interface Dapi {
   testnet: string[]
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetDapi
+// The valid evonodes of the latest verified masternode list. In dynamic mode the
+// SDK is pinned to the ones that answer a probe; the SDK's own seeds are never used.
+export interface PlatformSetEvonodeDapiUrls {
+  type: 'setEvonodeDapiUrls'
+  network: Network
+  dapiUrls: string[]
+}
+
+export type PlatformCommand =
+  | PlatformRequestMessage
+  | PlatformCancel
+  | PlatformSetLogLevel
+  | PlatformSetDapi
+  | PlatformSetEvonodeDapiUrls
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}
@@ -493,6 +506,7 @@ export type PlatformEvent =
   | {type: 'progress'; requestId: string; phase: PlatformPhase; fetched: number; total: number}
   | {type: 'notesSpent'; requestId: string; indexes: number[]}
   | {type: 'status'; status: PlatformWorkerStatus}
+  | {type: 'pinnedDapiUrls'; network: Network; dapiUrls: string[]}
   | {type: 'error'; message: string}
 
 export interface PlatformNetworkStatus {

@@ -79,8 +79,7 @@ export async function harness(): Promise<Harness> {
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers, preferences)
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
-  const platformTransactionDAO = new PlatformTransactionDAO(knex)
-  const identityService = new IdentityService(walletDAO, identityDAO, platformTransactionDAO, dashPayCache, platform)
+  const identityService = new IdentityService(walletDAO, identityDAO, dashPayCache, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.
@@ -90,7 +89,7 @@ export async function harness(): Promise<Harness> {
   } as unknown as PlatformHistoryService
 
   const walletService = new WalletService(
-    walletDAO, addressDAO, identityDAO, platformTransactionDAO, identityService, platformHistoryService, walletSyncService, platform,
+    walletDAO, addressDAO, identityDAO, new PlatformTransactionDAO(knex), identityService, platformHistoryService, walletSyncService, platform,
     providers, coreDiscoveryService, coreTransactionService, preferences, TEST_PBKDF2_ITERATIONS,
   )
 

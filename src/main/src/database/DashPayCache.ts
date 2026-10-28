@@ -8,7 +8,7 @@ export class DashPayCache {
   wallet = (walletId: string): DashPayWalletCache => {
     let entry = this.wallets.get(walletId)
     if (entry == null) {
-      entry = {usernames: null, requests: null, contactNames: new Map(), chains: new Map()}
+      entry = {usernames: null, requests: null, contactKeys: new Map(), contactNames: new Map(), chains: new Map()}
       this.wallets.set(walletId, entry)
     }
 

@@ -41,8 +41,9 @@ export async function identityUpdateKeys(payload: Payload, ctx: OperationContext
     return {keyId, key, privateKey: PrivateKeyWASM.fromBytes(child.privateKey, network), publicKey: child.publicKey}
   })
 
-  const inCreation = (signable?: Uint8Array): IdentityPublicKeyInCreationWASM[] => added.map(({keyId, key, privateKey, publicKey}) => new IdentityPublicKeyInCreationWASM(
-    keyId, key.purpose, key.securityLevel, 'ECDSA_SECP256K1', false, publicKey, signable == null ? undefined : privateKey.sign(signable), contractBoundsWASM(key.contractBounds)))
+  const inCreation = (signable?: Uint8Array): IdentityPublicKeyInCreationWASM[] => added.map(({keyId, key, privateKey, publicKey}) =>
+    new IdentityPublicKeyInCreationWASM(keyId, key.purpose, key.securityLevel, 'ECDSA_SECP256K1', false, publicKey,
+      signable == null ? undefined : privateKey.sign(signable), contractBoundsWASM(key.contractBounds)))
 
   ctx.progress('signing', 0, 0)
   const identityNonce = await sdk.identities.getIdentityNonce(identifier) + 1n

@@ -3,7 +3,11 @@ import {Transaction} from '../types/Transaction'
 import {DUFFS_PER_DASH} from '../constants/chain'
 
 // Requests come oldest first, so a later one to the same contact replaces an earlier one.
-export function dashPayContacts(requests: DashPayContactRequest[], identifiers: string[]): DashPayContact[] {
+export function dashPayContacts(
+  requests: DashPayContactRequest[],
+  identifiers: string[],
+  contactKeys: Map<string, string | null>,
+): Array<Omit<DashPayContact, 'usernames'>> {
   const pairs = new Map<string, Omit<DashPayContact, 'relationship' | 'usernames'>>()
   const pair = (identifier: string, contactId: string): Omit<DashPayContact, 'relationship' | 'usernames'> => {
     const key = `${identifier}:${contactId}`
@@ -13,10 +17,10 @@ export function dashPayContacts(requests: DashPayContactRequest[], identifiers: 
   for (const request of requests) {
     if (identifiers.includes(request.ownerId)) pair(request.ownerId, request.toUserId).outgoingCreatedAt = request.createdAt
     if (identifiers.includes(request.toUserId)) {
-      Object.assign(pair(request.toUserId, request.ownerId), {incomingCreatedAt: request.createdAt, paymentChannelBroken: request.paymentChannelBroken})
+      Object.assign(pair(request.toUserId, request.ownerId), {incomingCreatedAt: request.createdAt, paymentChannelBroken: contactKeys.get(request.id) === null})
     }
   }
-  return [...pairs.values()].map(contact => ({...contact, relationship: relationship(contact), usernames: []}))
+  return [...pairs.values()].map(contact => ({...contact, relationship: relationship(contact)}))
 }
 
 function relationship({incomingCreatedAt, outgoingCreatedAt}: Pick<DashPayContact, 'incomingCreatedAt' | 'outgoingCreatedAt'>): DashPayContactRelationship {

@@ -440,7 +440,7 @@ export class FeeService {
       params: {...params, inputCount, coreFeePerByte: coreFeePerByte(coreFeeMultiplier)},
     })
     if (!quote.metered) return quote.feeCredits
-    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation]) + quote.fixedCredits
+    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation]) + (quote.fixedCredits ?? 0n)
     if (operation !== 'identityToIdentity') return feeCredits
     return feeCredits > IDENTITY_TRANSFER_MIN_FEE_CREDITS ? feeCredits : IDENTITY_TRANSFER_MIN_FEE_CREDITS
   }

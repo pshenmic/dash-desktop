@@ -9,11 +9,10 @@ import {WalletProvider} from '../../providers/WalletProvider'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Address} from '../../types/Address'
 import {AddressUsage} from '../../types/AddressDiscovery'
-import {DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
+import {AddressDeriver, DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
 import {CORE_ADDRESS_WINDOW, DASHPAY_ADDRESS_WINDOW, DASHPAY_RESCAN_MARGIN_BLOCKS, DASHPAY_WATCH_INDEX, DISCOVERY_INTERVAL_MS, HD_VERSIONS} from '../../constants/addresses'
 import {coreAddressDeriver} from '../../utils/addressDiscovery'
 import {dashPayAddressDeriver, deriveDashPayContactKey} from '../../utils/dashPayKeys'
-import {AddressDeriver} from '../../types/AddressWindow'
 import {DashPayAddress, DashPayDirection} from '../../types/DashPay'
 import {Wallet} from '../../types/Wallet'
 import {runAddressWindow} from '../../utils/addressWindow'
@@ -158,7 +157,8 @@ export class CoreDiscoveryService {
   // theirs once their newest request's key is decrypted, holding what we paid.
   private async discoverDashPayAddresses(wallet: Wallet, provider: WalletProvider): Promise<Address[]> {
     const ours = new Set((await this.identityDAO.getIdentitiesByWalletId(wallet.walletId)).map(identity => identity.identifier))
-    const requests = this.dashPayCache.wallet(wallet.walletId).requests ?? []
+    const cache = this.dashPayCache.wallet(wallet.walletId)
+    const requests = cache.requests ?? []
 
     const added: Address[] = []
     if (wallet.dashPayXpub != null) {
@@ -183,7 +183,8 @@ export class CoreDiscoveryService {
     }
     const received = new Map(requests.filter(request => ours.has(request.toUserId))
       .map(request => [`${request.toUserId}:${request.ownerId}`, request]))
-    for (const {toUserId: identifier, ownerId: contactId, contactXpub} of received.values()) {
+    for (const {id, toUserId: identifier, ownerId: contactId} of received.values()) {
+      const contactXpub = cache.contactKeys.get(id)
       if (contactXpub == null) continue
       const deriver = dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub), wallet.network, contactId, identifier)
       await this.dropRekeyedChain(wallet.walletId, identifier, contactId, deriver)

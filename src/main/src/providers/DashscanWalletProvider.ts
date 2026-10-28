@@ -321,7 +321,7 @@ export class DashscanWalletProvider implements WalletProvider {
 
   private allWalletAddresses(): Promise<string[]> {
     this.ownedAddresses ??= this.addressDAO.getAddressesByWalletId(this.walletId)
-      .then(grouped => [...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(({address}) => address))
+      .then(grouped => [...grouped.change, ...grouped.receiving, ...grouped.dashPay ?? []].map(({address}) => address))
     return this.ownedAddresses
   }
 

@@ -11,10 +11,6 @@ export interface DashPayContactRequest {
   encryptedPublicKey: Uint8Array
   createdAt: number
   coreHeightCreatedAt: number
-  // Ours only, on a request sent to us: encryptedPublicKey decrypted, or the
-  // finding that it never can be.
-  contactXpub: string | null
-  paymentChannelBroken: boolean
 }
 
 export type DashPayContactRelationship = 'incoming' | 'outgoing' | 'established'
@@ -49,6 +45,8 @@ export interface DashPayWalletCache {
   // null until the wallet's first refresh in this process.
   usernames: Username[] | null
   requests: DashPayContactRequest[] | null
+  // A request sent to us by id: its encryptedPublicKey decrypted, or null when it never can be.
+  contactKeys: Map<string, string | null>
   // A contact's DPNS names, oldest first, by identifier.
   contactNames: Map<string, string[]>
   // Both chains of each friendship, keyed `${identifier}:${contactId}:${direction}`.
