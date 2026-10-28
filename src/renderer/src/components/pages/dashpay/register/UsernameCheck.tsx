@@ -1,4 +1,4 @@
-import { CheckIcon, Text } from '@renderer/components/dash-ui-kit-extended'
+import { CheckIcon, InfoTooltip, Text } from '@renderer/components/dash-ui-kit-extended'
 import { ExclamationIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import Alert from '@renderer/components/ui/Alert'
 import RetryButton from '@renderer/components/ui/RetryButton'
@@ -67,9 +67,17 @@ export default function UsernameCheck({ check, network, availability, ownerName,
       <div className={"flex flex-col gap-1"}>
         <AvailabilityLine check={check} availability={availability} ownerName={ownerName} onRetry={onRetry} />
         {check.normalized !== check.label.toLowerCase() && (
-          <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
-            {`${USERNAME_CHECK_COPY.savedAs} ${check.normalized} — ${USERNAME_CHECK_COPY.homographHint}`}
-          </Text>
+          <span className={"flex items-center gap-1"}>
+            <Text size={10} weight={"medium"} color={"brand"} opacity={50}>
+              {`${check.normalized} ${USERNAME_CHECK_COPY.lookalikeTail}`}
+            </Text>
+            <InfoTooltip
+              content={USERNAME_CHECK_COPY.lookalikeExplainer}
+              ariaLabel={USERNAME_CHECK_COPY.lookalikeAria}
+              side={"top"}
+              className={"size-4! [&_svg]:size-3.5"}
+            />
+          </span>
         )}
       </div>
       {contested && (
