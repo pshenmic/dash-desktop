@@ -105,6 +105,8 @@ describe('PlatformWorkerService correlation', () => {
     const {utilityProcess} = await import('electron')
     vi.mocked(utilityProcess.fork).mockReturnValue(child as never)
     service = new PlatformWorkerService(Preferences.default())
+    service.start()
+    listeners.get('message')?.({type: 'pinnedDapiUrls', network: 'testnet', dapiUrls: []} as never)
   })
 
   afterEach(() => {
@@ -139,6 +141,17 @@ describe('PlatformWorkerService correlation', () => {
     ])
     listeners.get('exit')?.(1 as never)
     await failures
+  })
+
+  // Only a running worker can pin evonodes, so a request held for one must not
+  // wait on a worker that no longer exists.
+  it('forks a new worker for a request made after the old one exited', async () => {
+    listeners.get('exit')?.(1 as never)
+    const {utilityProcess} = await import('electron')
+    const forks = vi.mocked(utilityProcess.fork).mock.calls.length
+
+    service.request('identityBalance', 'testnet', {identifier: 'id-1'}).catch(() => undefined)
+    expect(vi.mocked(utilityProcess.fork).mock.calls.length).toBe(forks + 1)
   })
 
   it('forwards progress to the request that asked for it', async () => {
