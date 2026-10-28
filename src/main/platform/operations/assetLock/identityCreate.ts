@@ -4,6 +4,7 @@ import {OperationContext, OperationError} from '../types'
 import {broadcast} from '../broadcast'
 import {assetLockProofParams} from '../assetLockProof'
 import {IDENTITY_KEY_DEFINITIONS} from '../../../src/constants/credits'
+import {sdkContractBounds} from '../identity/contractBounds'
 
 type Payload = PlatformOperations['identityCreateFromAssetLock']['payload']
 type Result = PlatformOperations['identityCreateFromAssetLock']['result']
@@ -24,7 +25,7 @@ export async function identityCreateFromAssetLock(payload: Payload, ctx: Operati
   })
 
   const assetLockProof = assetLockProofParams(payload.assetLockProof, txid, outputIndex)
-  const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}, i) => ({
+  const publicKeys = IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType, contractBounds}, i) => ({
     id,
     purpose,
     securityLevel,
@@ -32,6 +33,7 @@ export async function identityCreateFromAssetLock(payload: Payload, ctx: Operati
     readOnly: false,
     data: Uint8Array.from(identityKeys[i].getPublicKey().bytes()),
     signature: undefined as Uint8Array | undefined,
+    contractBounds: sdkContractBounds(contractBounds),
   }))
 
   ctx.progress('signing', 0, 0)

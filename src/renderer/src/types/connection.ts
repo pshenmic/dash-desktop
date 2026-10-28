@@ -105,7 +105,6 @@ export interface ConnectionModeDetails {
   title: string
   highlight: string
   description: string
-  timing: string
 }
 
 export type PlatformNodeMutation = 'set-mode' | 'save-nodes'

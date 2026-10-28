@@ -1,20 +1,27 @@
-import React, { useState } from 'react'
-import { RefreshIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
+import React, { useEffect, useRef, useState } from 'react'
+import { RefreshIcon } from '@renderer/components/dash-ui-kit-extended/icons'
 import { useRipple } from '@renderer/hooks/useRipple'
-import { refreshActiveAsyncCaches } from '@renderer/hooks/useAsyncWithCache'
+import { refreshActiveAsyncCaches, useAsyncRefreshFailures } from '@renderer/hooks/useAsyncWithCache'
 import { toast } from '@renderer/components/ui/Toast'
 import { REFRESH_DATA_LABEL, REFRESH_FAILED_MESSAGE } from '@renderer/constants/connection'
 
 export default function RefreshButton(): React.JSX.Element {
   const [refreshing, setRefreshing] = useState(false)
+  const { failedCount: noticedFailures } = useAsyncRefreshFailures()
+  const unreportedFailures = useRef(0)
   const hoverNotification = useRipple()
+
+  useEffect(() => {
+    if (refreshing || unreportedFailures.current === 0) return
+    if (noticedFailures === 0) toast.warning(REFRESH_FAILED_MESSAGE)
+    unreportedFailures.current = 0
+  }, [refreshing, noticedFailures])
 
   const handleClick = async (): Promise<void> => {
     if (refreshing) return
     setRefreshing(true)
     try {
-      const failedCount = await refreshActiveAsyncCaches()
-      if (failedCount > 0) toast.error(REFRESH_FAILED_MESSAGE)
+      unreportedFailures.current = await refreshActiveAsyncCaches()
     } finally {
       setRefreshing(false)
     }

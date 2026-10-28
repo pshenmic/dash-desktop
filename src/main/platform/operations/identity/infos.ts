@@ -5,10 +5,13 @@ import {lookupIdentity} from '../identityLookup'
 type Payload = PlatformOperations['identityInfos']['payload']
 type Result = PlatformOperations['identityInfos']['result']
 
-async function resolveAlias(sdk: OperationContext['sdk'], identifier: string): Promise<string | null> {
-  const [document] = await sdk.names.searchByIdentity(identifier).catch(() => [])
-  const {label, parentDomainName} = document?.properties ?? {}
-  return label != null && parentDomainName != null ? `${label}.${parentDomainName}` : null
+// A transfer moves a name's owner but not its records.identity, which the
+// search matches on, so only the names still owned are kept, oldest first.
+async function resolveUsernames(sdk: OperationContext['sdk'], identifier: string): Promise<string[]> {
+  return (await sdk.names.searchByIdentity(identifier).catch(() => []))
+    .filter(document => document.ownerId.base58() === identifier)
+    .sort((a, b) => Number(a.createdAt) - Number(b.createdAt))
+    .map(document => `${document.properties.label}.${document.properties.parentDomainName}`)
 }
 
 // An identifier this wallet recorded before its transition landed is not on
@@ -24,7 +27,19 @@ export async function identityInfos(payload: Payload, ctx: OperationContext): Pr
     return {
       identifier: identity.id.base58(),
       balance: BigInt(identity.balance),
-      alias: payload.skipDPNS ? null : await resolveAlias(sdk, identifier),
+      usernames: payload.skipDPNS ? [] : await resolveUsernames(sdk, identifier),
+      keys: identity.getPublicKeys().map(key => ({
+        keyId: key.keyId,
+        purpose: key.purpose,
+        securityLevel: key.securityLevel,
+        keyType: key.keyType,
+        data: key.data,
+        readOnly: key.readOnly,
+        disabledAt: key.disabledAt == null ? null : Number(key.disabledAt),
+        contractBounds: key.contractBounds == null
+          ? null
+          : {contractId: key.contractBounds.identifier.base58(), documentType: key.contractBounds.documentTypeName},
+      })),
     }
   }))
 

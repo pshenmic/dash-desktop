@@ -1,11 +1,10 @@
 import type { WalletAddressDto } from '../api/types'
 import type { CoreSendChangeParams } from '../types/ChangeAddress'
 import { TransferOperation } from '../enums/TransferOperation'
+import { receiveCoreAddresses } from './receiveDefaults'
 
 export function suggestedChangeAddress(change: WalletAddressDto[]): string | null {
-  return change.find(address => !address.isUsed)?.address
-    ?? change.at(-1)?.address
-    ?? null
+  return receiveCoreAddresses(change)[0]?.address ?? null
 }
 
 export function selectedChangeAddress(change: WalletAddressDto[], selected?: string): string | null {

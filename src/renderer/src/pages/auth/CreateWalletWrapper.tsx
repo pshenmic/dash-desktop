@@ -1,8 +1,8 @@
-import { Text, WalletIcon } from "@renderer/components/dash-ui-kit-enxtended";
+import { Text, WalletIcon } from "@renderer/components/dash-ui-kit-extended";
 import { ChevronIcon, DashLogo } from "dash-ui-kit/react";
 import { authTexts } from "@renderer/constants";
 import { useCreateWallet } from "@renderer/hooks/useCreateWallet";
-import { ProgressStepBar } from "@renderer/components/dash-ui-kit-enxtended/progressStepBar";
+import { ProgressStepBar } from "@renderer/components/dash-ui-kit-extended/progressStepBar";
 import { useRipple } from "@renderer/hooks/useRipple";
 import AuthBackground from '@renderer/components/pages/auth/AuthBackground'
 import CreateWallet from "../../components/pages/auth/CreateWallet";
@@ -57,7 +57,8 @@ export default function CreateWalletWrapper(): React.JSX.Element {
     setConnectionMode,
     setBackgroundSyncEnabled,
     path,
-    createdWalletId
+    createdWalletId,
+    creating
   } = useCreateWallet()
   const hoverAnimation = useRipple()
   const { isAuthenticated } = useAuth()
@@ -123,6 +124,7 @@ export default function CreateWalletWrapper(): React.JSX.Element {
         <button
           type="button"
           aria-label="Back"
+          disabled={creating}
           onMouseEnter={hoverAnimation.onMouseEnter}
           onMouseMove={hoverAnimation.onMouseMove}
           onMouseLeave={hoverAnimation.onMouseLeave}
@@ -141,6 +143,9 @@ export default function CreateWalletWrapper(): React.JSX.Element {
             bg-dash-brand/80
             dark:bg-white/12
             backdrop-blur-[.5rem]
+            transition-opacity
+            disabled:cursor-not-allowed
+            disabled:opacity-40
           `}
           onClick={handleBack}
         >

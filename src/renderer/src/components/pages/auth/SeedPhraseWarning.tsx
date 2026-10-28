@@ -1,5 +1,5 @@
-import { Text } from "@renderer/components/dash-ui-kit-enxtended";
-import { ExclamationIcon } from "@renderer/components/dash-ui-kit-enxtended/icons";
+import { Text } from "@renderer/components/dash-ui-kit-extended";
+import { ExclamationIcon } from "@renderer/components/dash-ui-kit-extended/icons";
 
 export default function SeedPhraseWarning({ title, description }: { title: string, description: string }): React.JSX.Element {
   return (

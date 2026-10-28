@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { API } from '@renderer/api'
 import { Contact, Network } from '@renderer/api/types'
 import { useAuth } from '@renderer/contexts/AuthContext'
+import { toast } from '@renderer/components/ui/Toast'
+import { getErrorMessage } from '@renderer/utils/error'
 
 export interface UseAddressBook {
   contacts: Contact[]
@@ -27,7 +29,10 @@ export function useAddressBook(): UseAddressBook {
     setLoading(true)
     API.getContacts(network)
       .then((list) => setContacts(list ?? []))
-      .catch((e) => console.error('getContacts failed', e))
+      .catch((error) => {
+        console.error('getContacts failed', error)
+        toast.error(`**Could not load contacts** ${getErrorMessage(error)}`)
+      })
       .finally(() => setLoading(false))
   }, [network])
 

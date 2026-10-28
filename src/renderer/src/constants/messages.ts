@@ -27,7 +27,7 @@ export const INVALID_WALLET_PASSWORD_MESSAGE = 'Invalid wallet password'
 export const messages: Messages = {
   createWallet: {
     invalidPhrase: "**Invalid phrase** Word count does not match your recovery phrase.",
-    phraseDoesNotMatch: "**Recovery phrase does not match** Check the words you entered and try again.",
+    phraseDoesNotMatch: "**Words don't match**",
     couldNotCreateWallet: "**Could not create wallet**",
 
     passwordValidation: {
@@ -45,7 +45,7 @@ export const messages: Messages = {
     invalidPassword: "**Invalid password** please try again.",
   },
   forgotPassword: {
-    seedMismatch: "**Recovery phrase does not match** This phrase does not belong to the selected wallet.",
+    seedMismatch: "**Wrong recovery phrase for this wallet**",
     resetFailed: "**Could not reset password** Please try again.",
   }
 }

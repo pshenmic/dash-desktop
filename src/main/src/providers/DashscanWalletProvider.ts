@@ -105,6 +105,15 @@ export class DashscanWalletProvider implements WalletProvider {
       if (pagination.nextCursor == null || pagination.nextCursor === cursor) break
       cursor = pagination.nextCursor
     }
+    const used = (await this.addressInfo(await this.dashPayAddresses())).filter(info => info.txCount > 0)
+    for (const {address} of used) {
+      for (let page = 1; page <= XPUB_MAX_PAGES; page++) {
+        const {resultSet} = await requestJson<DashscanPage<DashscanTransaction>>(
+          this.request, `/address/${address}/transactions?page=${page}&limit=${XPUB_PAGE_LIMIT}&order=desc`)
+        collected.push(...resultSet)
+        if (resultSet.length < XPUB_PAGE_LIMIT) break
+      }
+    }
 
     const [owned, firstSeen] = await Promise.all([
       this.allWalletAddresses(),
@@ -148,7 +157,7 @@ export class DashscanWalletProvider implements WalletProvider {
       gap_limit: CORE_ADDRESS_WINDOW.gapLimit,
     })
 
-    return BigInt(balance)
+    return BigInt(balance) + await this.getBalance(await this.dashPayAddresses())
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {
@@ -187,6 +196,9 @@ export class DashscanWalletProvider implements WalletProvider {
       collected.push(...resultSet)
       if (resultSet.length < XPUB_PAGE_LIMIT || collected.length >= pagination.total) break
     }
+    const dashPayUtxos = await Promise.all(this.chunkAddresses(await this.dashPayAddresses()).map(chunk =>
+      requestJson<DashscanUTXO[]>(this.request, `/addresses/utxo?addresses=${chunk.join(',')}`)))
+    collected.push(...dashPayUtxos.flat())
 
     // Dashscan keeps listing an outpoint as unspent until it indexes the
     // transaction that spent it, so a second send within that window would
@@ -309,7 +321,13 @@ export class DashscanWalletProvider implements WalletProvider {
 
   private allWalletAddresses(): Promise<string[]> {
     this.ownedAddresses ??= this.addressDAO.getAddressesByWalletId(this.walletId)
-      .then(grouped => [...grouped.change, ...grouped.receiving].map(({address}) => address))
+      .then(grouped => [...grouped.change, ...grouped.receiving, ...grouped.dashPay ?? []].map(({address}) => address))
     return this.ownedAddresses
+  }
+
+  // Our DashPay chains sit outside the BIP-44 branches the xpub endpoints walk.
+  private async dashPayAddresses(): Promise<string[]> {
+    const {dashPay = []} = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    return dashPay.map(({address}) => address)
   }
 }

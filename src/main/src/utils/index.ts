@@ -23,7 +23,8 @@ import * as migration0018 from '../../migrations/0018_shielded_address_rows'
 import * as migration0019 from '../../migrations/0019_shielded_note_nullifier'
 import * as migration0020 from '../../migrations/0020_platform_transactions'
 import * as migration0021 from '../../migrations/0021_platform_transaction_parts'
-import * as migration0022 from '../../migrations/0022_evonodes'
+import * as migration0022 from '../../migrations/0022_dashpay_xpub'
+import * as migration0023 from '../../migrations/0023_evonodes'
 
 const migrations = [
   { name: '0000_init.ts', migration: migration0000 },
@@ -48,7 +49,8 @@ const migrations = [
   { name: '0019_shielded_note_nullifier.ts', migration: migration0019 },
   { name: '0020_platform_transactions.ts', migration: migration0020 },
   { name: '0021_platform_transaction_parts.ts', migration: migration0021 },
-  { name: '0022_evonodes.ts', migration: migration0022 },
+  { name: '0022_dashpay_xpub.ts', migration: migration0022 },
+  { name: '0023_evonodes.ts', migration: migration0023 },
 ]
 
 const inlineMigrationSource = {

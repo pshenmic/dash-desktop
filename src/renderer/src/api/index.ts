@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { UsernameDto, UsernameSearchResultDto, IdentityKeysUpdateDto, IdentityPrivateKeyDto, DashPayContactDto, DashPayPaymentDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -157,6 +157,49 @@ export class API {
 
   static async getIdentities(walletId: string) {
     return this.api.getIdentities(walletId)
+  }
+
+  // DashPay and DPNS reads answer from memory
+  static async getUsernames(walletId: string): Promise<UsernameDto[]> {
+    return this.api.getUsernames(walletId) as Promise<UsernameDto[]>
+  }
+
+  static async refreshDashPay(walletId: string): Promise<void> {
+    return this.api.refreshDashPay(walletId)
+  }
+
+  static async searchUsernames(walletId: string, prefix: string): Promise<UsernameSearchResultDto[]> {
+    return this.api.searchUsernames(walletId, prefix) as Promise<UsernameSearchResultDto[]>
+  }
+
+  static async registerUsername(walletId: string, identifier: string, label: string, password: string): Promise<UsernameDto> {
+    return this.api.registerUsername(walletId, identifier, label, password) as Promise<UsernameDto>
+  }
+
+  // Price it with estimateFee('identityUpdateKeys', {identityId, keys: add, keyIds: disable}).
+  static async updateIdentityKeys(walletId: string, identifier: string, update: IdentityKeysUpdateDto, password: string): Promise<string> {
+    return this.api.updateIdentityKeys(walletId, identifier, update, password)
+  }
+
+  static async getIdentityPrivateKeys(walletId: string, identifier: string, password: string): Promise<IdentityPrivateKeyDto[]> {
+    return this.api.getIdentityPrivateKeys(walletId, identifier, password) as Promise<IdentityPrivateKeyDto[]>
+  }
+
+  static async getDashPayContacts(walletId: string): Promise<DashPayContactDto[]> {
+    return this.api.getDashPayContacts(walletId) as Promise<DashPayContactDto[]>
+  }
+
+  static async getDashPayPayments(walletId: string, identifier: string, contactId: string): Promise<DashPayPaymentDto[]> {
+    return this.api.getDashPayPayments(walletId, identifier, contactId) as Promise<DashPayPaymentDto[]>
+  }
+
+  // Quote it with estimateFee('coreSend'): the fee does not depend on the address.
+  static async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
+    return this.api.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password) as Promise<SendResult>
+  }
+
+  static async sendDashPayContactRequest(walletId: string, identifier: string, recipient: string, password: string): Promise<DashPayContactDto[]> {
+    return this.api.sendDashPayContactRequest(walletId, identifier, recipient, password) as Promise<DashPayContactDto[]>
   }
 
   static async getPlatformAddresses(walletId: string): Promise<PlatformAddressDto[]> {

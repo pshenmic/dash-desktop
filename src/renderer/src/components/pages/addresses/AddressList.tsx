@@ -1,18 +1,22 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Tabs } from 'dash-ui-kit/react'
+import PageTabs from '@renderer/components/ui/PageTabs'
 import { addressesPage } from '@renderer/constants'
+import { SURFACE_PANEL } from '@renderer/constants/surfaces'
 import AddressCard from './AddressCard'
 import PlatformAddressCard from './PlatformAddressCard'
 import ShieldedAddressTab from './ShieldedAddressTab'
 import PlatformUnlockTab from './PlatformUnlockTab'
 import AddAddressSection from './AddAddressSection'
 import SyncGateNotice from '@renderer/components/ui/SyncGateNotice'
-import { useAdresses } from '@renderer/hooks/useAdresses'
-import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
+import { refreshAddresses, useAdresses } from '@renderer/hooks/useAdresses'
+import { refreshPlatformAddresses, usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
 import NoResults from '@renderer/components/ui/NoResults'
+import RetryButton from '@renderer/components/ui/RetryButton'
+import { NoResultsTone } from '@renderer/enums/NoResultsTone'
+import type { RetryButtonProps } from '@renderer/types/RetryButton'
 import { WalletAddressDto } from '@renderer/api/types'
 
 function TabContent<T>({
@@ -22,6 +26,7 @@ function TabContent<T>({
   errorMessage,
   emptyMessage,
   renderItem,
+  onRetry,
 }: {
   items: T[]
   loading: boolean
@@ -29,13 +34,20 @@ function TabContent<T>({
   errorMessage: string
   emptyMessage: string
   renderItem: (item: T) => React.JSX.Element
+  onRetry?: RetryButtonProps['onRetry']
 }): React.JSX.Element {
   if (loading) {
     return <ListSkeleton rows={6} rowClassName="h-[2.5rem] rounded-[.875rem]" />
   }
 
   if (err) {
-    return <NoResults noResults={errorMessage} />
+    return (
+      <NoResults
+        tone={NoResultsTone.Error}
+        noResults={errorMessage}
+        action={onRetry && <RetryButton onRetry={onRetry} />}
+      />
+    )
   }
 
   if (items.length === 0) {
@@ -61,12 +73,15 @@ export default function AddressList({ coreGated = false }: { coreGated?: boolean
   )
   const { tabs } = addressesPage
   const { status } = useAuth()
-  const { receiving, change, loading, err } = useAdresses(status?.selectedWalletId ?? undefined)
+  const walletId = status?.selectedWalletId ?? undefined
+  const { receiving, change, loading, err } = useAdresses(walletId)
   const {
     platformAddresses,
     loading: platformLoading,
     err: platformErr,
-  } = usePlatformAddresses(status?.selectedWalletId ?? undefined)
+  } = usePlatformAddresses(walletId)
+  const retryAddresses = walletId === undefined ? undefined : () => refreshAddresses(walletId)
+  const retryPlatformAddresses = walletId === undefined ? undefined : () => refreshPlatformAddresses(walletId)
 
   const renderAddress = (item: WalletAddressDto): React.JSX.Element => <AddressCard key={item.address} {...item} />
 
@@ -83,8 +98,9 @@ export default function AddressList({ coreGated = false }: { coreGated?: boolean
             errorMessage={"Failed to load addresses"}
             emptyMessage={"No addresses found"}
             renderItem={renderAddress}
+            onRetry={retryAddresses}
           />
-          <AddAddressSection walletId={status?.selectedWalletId ?? undefined} kind={"receiving"} />
+          <AddAddressSection walletId={walletId} kind={"receiving"} />
         </div>
       ),
     },
@@ -100,8 +116,9 @@ export default function AddressList({ coreGated = false }: { coreGated?: boolean
             errorMessage={"Failed to load addresses"}
             emptyMessage={"No addresses found"}
             renderItem={renderAddress}
+            onRetry={retryAddresses}
           />
-          <AddAddressSection walletId={status?.selectedWalletId ?? undefined} kind={"change"} />
+          <AddAddressSection walletId={walletId} kind={"change"} />
         </div>
       ),
     },
@@ -109,7 +126,7 @@ export default function AddressList({ coreGated = false }: { coreGated?: boolean
       value: 'platform',
       label: tabs.platform,
       content: !platformLoading && !platformErr && platformAddresses.length === 0 ? (
-        <PlatformUnlockTab walletId={status?.selectedWalletId ?? undefined} />
+        <PlatformUnlockTab walletId={walletId} />
       ) : (
         <div className={"flex flex-col gap-[.625rem]"}>
           <TabContent
@@ -119,9 +136,10 @@ export default function AddressList({ coreGated = false }: { coreGated?: boolean
             errorMessage={"Failed to load platform addresses"}
             emptyMessage={"No platform addresses found"}
             renderItem={(item) => <PlatformAddressCard key={item.platformAddress} {...item} />}
+            onRetry={retryPlatformAddresses}
           />
           {!platformLoading && !platformErr && (
-            <AddAddressSection walletId={status?.selectedWalletId ?? undefined} kind={"platform"} />
+            <AddAddressSection walletId={walletId} kind={"platform"} />
           )}
         </div>
       ),
@@ -129,32 +147,17 @@ export default function AddressList({ coreGated = false }: { coreGated?: boolean
     {
       value: 'shielded',
       label: tabs.shielded,
-      content: <ShieldedAddressTab walletId={status?.selectedWalletId ?? undefined} />,
+      content: <ShieldedAddressTab walletId={walletId} />,
     },
   ]
 
   return (
     <div className={"px-12 pb-8"}>
-      <div className={`
-        relative
-        flex
-        p-[.9375rem]
-        rounded-3xl
-        dash-card-base
-        shadow-[0_0_32px_0_rgba(12,28,51,0.08)]
-      `}>
-        <Tabs
+      <div className={`relative flex ${SURFACE_PANEL}`}>
+        <PageTabs
           items={tabItems}
           value={activeTab}
           onValueChange={setActiveTab}
-          size={"xl"}
-          triggerClassName={
-            'data-[state=active]:text-dash-primary-dark-blue ' +
-            'data-[state=inactive]:text-dash-primary-dark-blue/35 ' +
-            'dark:data-[state=active]:text-white ' +
-            'dark:data-[state=inactive]:text-white/35 ' +
-            'font-medium tracking-[-0.03em]'
-          }
         />
       </div>
     </div>

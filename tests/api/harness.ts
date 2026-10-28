@@ -9,6 +9,7 @@ import {ShieldedService} from '../../src/main/src/services/platform/ShieldedServ
 import {WalletDAO} from '../../src/main/src/database/WalletDAO'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
 import {IdentityDAO} from '../../src/main/src/database/IdentityDAO'
+import {DashPayCache} from '../../src/main/src/database/DashPayCache'
 import {PlatformTransactionDAO} from '../../src/main/src/database/PlatformTransactionDAO'
 import {TransactionDAO} from '../../src/main/src/database/TransactionDAO'
 import {CoreDiscoveryService} from '../../src/main/src/services/core/CoreDiscoveryService'
@@ -41,6 +42,7 @@ export interface Harness {
   coreLockService: CoreLockService
   walletCredentialsService: WalletCredentialsService
   identityService: IdentityService
+  dashPayCache: DashPayCache
   applicationService: ApplicationService
   createWalletHandler: CreateWalletHandler
   request: ReturnType<typeof vi.fn>
@@ -54,7 +56,8 @@ export async function harness(): Promise<Harness> {
   await migrateKnex(knex)
 
   const walletDAO = new WalletDAO(knex)
-  const addressDAO = new AddressDAO(knex)
+  const dashPayCache = new DashPayCache()
+  const addressDAO = new AddressDAO(knex, dashPayCache)
   const identityDAO = new IdentityDAO(knex)
   const transactionDAO = new TransactionDAO(knex)
 
@@ -72,11 +75,11 @@ export async function harness(): Promise<Harness> {
   const prevOutService = new CorePrevOutService(walletDAO, transactionDAO)
   const providers = new WalletProviderFactory(walletDAO, addressDAO, transactionDAO, applicationService, walletSyncService, prevOutService)
   const coreTransactionService = new CoreTransactionService()
-  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, transactionDAO, walletSyncService, providers)
+  const coreDiscoveryService = new CoreDiscoveryService(walletDAO, addressDAO, identityDAO, dashPayCache, transactionDAO, walletSyncService, providers)
   const coreLockService = new CoreLockService(walletDAO, addressDAO, walletSyncService, coreTransactionService, providers, preferences)
 
   const walletCredentialsService = new WalletCredentialsService(walletDAO, addressDAO, TEST_PBKDF2_ITERATIONS)
-  const identityService = new IdentityService(walletDAO, identityDAO, platform)
+  const identityService = new IdentityService(walletDAO, identityDAO, dashPayCache, platform)
 
   // Stubbed rather than built: the real one reads the platform explorer, and
   // nothing in a test may reach the network.
@@ -103,6 +106,7 @@ export async function harness(): Promise<Harness> {
     coreLockService,
     walletCredentialsService,
     identityService,
+    dashPayCache,
     applicationService,
     createWalletHandler: new CreateWalletHandler(walletService, shieldedService),
     request,

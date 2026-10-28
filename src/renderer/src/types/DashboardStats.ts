@@ -1,24 +1,18 @@
-import type { FC, ReactNode } from 'react'
-import type { IconProps } from '../components/dash-ui-kit-enxtended/icons'
+import type { ReactNode } from 'react'
 import type { StatsTx } from '../utils/dashboardStats'
 import type { PlatformTransaction } from '../api/types'
 import type { ActivityDay, AnalyticsPeriod } from './DashboardAnalytics'
+import type { TransactionKind } from './TransactionKindBadge'
 
-export type StatTone = 'brand' | 'green' | 'orange'
+export interface SourceBadgeProps {
+  kind: TransactionKind
+}
 
-export interface StatCardProps {
-  icon: FC<IconProps>
-  iconSize?: number
-  label: string
+export interface MetricRowProps {
+  lead: ReactNode
   value: ReactNode
-  sub?: ReactNode
-  hidden?: boolean
-  tone?: StatTone
-  body?: ReactNode
-  children?: ReactNode
-  footer?: ReactNode
-  compact?: boolean
-  className?: string
+  aside?: ReactNode
+  asideClassName?: string
 }
 
 export interface StatisticsProps {
@@ -34,7 +28,6 @@ export interface StatVolumeChartProps {
   direction: 'received' | 'sent'
   hidden: boolean
   period: AnalyticsPeriod
-  platformFailed?: boolean
 }
 
 export interface StatFlowSource {
@@ -49,7 +42,6 @@ export interface StatFlowAmountsProps {
   flows: StatFlowSource[]
   metric: 'received' | 'sent' | 'largestReceived'
   hidden: boolean
-  platformFailed: boolean
   showFiat?: boolean
 }
 

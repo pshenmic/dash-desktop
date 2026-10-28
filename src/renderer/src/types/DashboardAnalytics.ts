@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react'
+import type { FC, ReactNode } from 'react'
+import type { IconProps } from '../components/dash-ui-kit-extended/icons'
 import type { PlatformTransaction } from '../api/types'
 import type { WalletTxItem } from './WalletTransaction'
 
 export type AnalyticsPeriod = 7 | 30 | 90 | 'all'
+export type AnalyticsSeries = 'core' | 'evo' | 'identities' | 'shielded'
 export type AnalyticsCoreTransaction = Pick<WalletTxItem, 'id' | 'date' | 'status' | 'direction' | 'amount'>
 
 export interface ActivityDay {
@@ -39,7 +41,8 @@ export interface DashboardAnalyticsProps {
 
 export interface ChartCardProps {
   title: string
-  description: string
+  icon: FC<IconProps>
+  description?: string
   children: ReactNode
   className?: string
 }
@@ -58,6 +61,7 @@ export interface CoreBalanceChartProps {
   core: AnalyticsCoreTransaction[]
   days: ActivityDay[]
   hidden: boolean
+  className?: string
 }
 
 export interface ChartScale {
@@ -68,13 +72,24 @@ export interface ChartScale {
 
 export interface BalanceSegment {
   label: string
-  color: string
+  series: AnalyticsSeries
   credits: bigint
   share: number
-  offset: number
 }
 
 export interface BalanceAllocation {
   total: bigint
   segments: BalanceSegment[]
+}
+
+export interface SplitBarSegment {
+  key: string
+  share: number
+  series: AnalyticsSeries
+}
+
+export interface SplitBarProps {
+  segments: SplitBarSegment[]
+  active?: string | null
+  onActive?: (key: string | null) => void
 }

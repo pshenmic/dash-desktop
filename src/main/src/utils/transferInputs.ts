@@ -60,7 +60,7 @@ export function selectableTransferUtxos(
   utxos: UTXO[],
   source?: CoreSpendSource,
 ): SelectableUtxo[] {
-  const owned = new Set([...grouped.receiving, ...grouped.change].map(a => a.address))
+  const owned = new Set([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => a.address))
   const picked = pickedOutpointKeys(source)
 
   return utxos
@@ -86,9 +86,7 @@ export function selectTransferInputs(
   source?: CoreSpendSource,
   changeTo?: string,
 ): TransferInputSelection {
-  const pathByAddress = new Map(
-    [...grouped.receiving, ...grouped.change].map(a => [a.address, a.derivationPath]),
-  )
+  const pathByAddress = new Map([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => [a.address, a.derivationPath]))
 
   const selectable = selectableTransferUtxos(grouped, utxos, source)
 

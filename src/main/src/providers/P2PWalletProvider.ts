@@ -42,8 +42,8 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async getWalletBalance(): Promise<bigint> {
-    const {receiving, change} = await this.addressDAO.getAddressesByWalletId(this.walletId)
-    return this.transactionDAO.getBalanceForAddresses(this.walletId, [...receiving, ...change].map(a => a.address))
+    const {receiving, change, dashPay = []} = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    return this.transactionDAO.getBalanceForAddresses(this.walletId, [...receiving, ...change, ...dashPay].map(a => a.address))
   }
 
   async getBalance(address: string | string[]): Promise<bigint> {
@@ -65,8 +65,8 @@ export class P2PWalletProvider implements WalletProvider {
   }
 
   async getWalletUtxos(): Promise<UTXO[]> {
-    const {receiving, change} = await this.addressDAO.getAddressesByWalletId(this.walletId)
-    const addresses = [...receiving, ...change].map(a => a.address)
+    const {receiving, change, dashPay = []} = await this.addressDAO.getAddressesByWalletId(this.walletId)
+    const addresses = [...receiving, ...change, ...dashPay].map(a => a.address)
     const utxos = await this.transactionDAO.getUtxosByAddresses(this.walletId, addresses)
     const {tipHeight} = this.walletSyncService.getStatus()
     return utxos.map(u => ({

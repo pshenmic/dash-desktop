@@ -1,75 +1,84 @@
-import React, { useId, useState } from 'react'
+import React, { useState } from 'react'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
+import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import type { StatVolumeChartProps } from '@renderer/types/DashboardStats'
-import { STAT_CHART_HEIGHT, STAT_CHART_WIDTH, STAT_FLOW_COLORS, STAT_FLOW_LABELS } from '@renderer/constants/dashboardStats'
+import { DASH_UNIT } from '@renderer/constants/balance'
+import { ANALYTICS_BASELINE_STROKE, ANALYTICS_CROSSHAIR, ANALYTICS_FOCUS, ANALYTICS_PLACEHOLDER, ANALYTICS_SERIES } from '@renderer/constants/dashboardAnalytics'
+import { dashboardPage } from '@renderer/constants/dashboardPage'
+import { STAT_CHART_HEIGHT, STAT_CHART_WIDTH, STAT_FLOW_LABELS, STAT_PLOT_HEIGHT } from '@renderer/constants/dashboardStats'
+import { POPOVER } from '@renderer/constants/surfaces'
+import { analyticsPeriodLabel } from '@renderer/utils/analyticsPeriod'
 import { buildStatChartSeries } from '@renderer/utils/dashboardStatCharts'
 import { chartDate } from '@renderer/utils/dashboardAnalytics'
 import { creditsToDash } from '@renderer/utils/balance'
 
-export default function StatVolumeChart({ flows, direction, hidden, period, platformFailed = false }: StatVolumeChartProps): React.JSX.Element {
+export default function StatVolumeChart({ flows, direction, hidden, period }: StatVolumeChartProps): React.JSX.Element {
   const [active, setActive] = useState<number | null>(null)
-  const gradientId = useId()
   const days = flows[0]?.days ?? []
   const series = buildStatChartSeries(flows, direction)
   const selected = active === null ? undefined : days[active]
   const cumulative = direction === 'received'
-  const periodLabel = period === 'all' ? 'All time' : `${period} days`
-
-  if (hidden) return <div className="grid h-[51px] place-items-center text-[11px] text-(--stat-muted)">Amounts hidden</div>
+  const periodLabel = analyticsPeriodLabel(period)
+  const mode = cumulative ? dashboardPage.stats.cumulative : dashboardPage.stats.daily
 
   return (
-    <div className="flex flex-col gap-[5px]">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-[3px] text-[10px] text-(--stat-muted)">
-        <span>{periodLabel}</span>
-        {platformFailed && <span className="font-semibold text-(--stat-evo)">Evo partial</span>}
-      </div>
-      <div className="relative h-8 rounded-[3px] text-(--stat-accent) focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-(--stat-accent)" tabIndex={0} role="group"
-        aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same DASH scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} DASH`).join('. ')}. ${platformFailed ? 'Evo history is incomplete. ' : ''}Hover or use left and right arrows to explore amounts.`}
-        onPointerLeave={() => setActive(null)} onFocus={() => setActive(days.length - 1)} onBlur={() => setActive(null)}
-        onKeyDown={event => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
-          event.preventDefault()
-          setActive(index => event.key === 'Home' ? 0 : event.key === 'End' ? days.length - 1
-            : Math.max(0, Math.min(days.length - 1, (index ?? days.length - 1) + (event.key === 'ArrowLeft' ? -1 : 1))))
-        }}>
-        <svg className="block size-full overflow-visible" viewBox={`0 -2 ${STAT_CHART_WIDTH} ${STAT_CHART_HEIGHT + 4}`} preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            {series.map(item => (
-              <linearGradient key={item.source} id={`${gradientId}-${item.source}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={STAT_FLOW_COLORS[item.source]} stopOpacity="0.2" />
-                <stop offset="100%" stopColor={STAT_FLOW_COLORS[item.source]} stopOpacity="0.01" />
-              </linearGradient>
+    <div className="mt-auto flex flex-col gap-1.5">
+      <Text size={10} weight="medium" color="brand" opacity={50}>{`${periodLabel} · ${mode}`}</Text>
+      {hidden ? (
+        <div className={`${STAT_PLOT_HEIGHT} ${ANALYTICS_PLACEHOLDER} py-0`}>
+          <Text size={12} weight="medium" color="brand" opacity={50}>{dashboardPage.analytics.amountsHidden}</Text>
+        </div>
+      ) : (
+        <div className={`relative ${STAT_PLOT_HEIGHT} rounded-lg ${ANALYTICS_FOCUS}`} tabIndex={0} role="group"
+          aria-label={`${cumulative ? 'Cumulative received' : 'Daily sent'} for Core and Evo over ${period === 'all' ? 'all time' : `the last ${period} calendar days`}, on the same ${DASH_UNIT} scale. ${series.map(item => `${STAT_FLOW_LABELS[item.source]} total: ${creditsToDash(item.total)} ${DASH_UNIT}`).join('. ')}. Hover or use left and right arrows to explore amounts.`}
+          onPointerLeave={() => setActive(null)} onFocus={() => setActive(days.length - 1)} onBlur={() => setActive(null)}
+          onKeyDown={event => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
+            event.preventDefault()
+            setActive(index => event.key === 'Home' ? 0 : event.key === 'End' ? days.length - 1
+              : Math.max(0, Math.min(days.length - 1, (index ?? days.length - 1) + (event.key === 'ArrowLeft' ? -1 : 1))))
+          }}>
+          <svg className="block size-full overflow-visible" viewBox={`0 -2 ${STAT_CHART_WIDTH} ${STAT_CHART_HEIGHT + 4}`} preserveAspectRatio="none" aria-hidden="true">
+            <path d={`M 0 ${STAT_CHART_HEIGHT} H ${STAT_CHART_WIDTH}`} className={ANALYTICS_BASELINE_STROKE} vectorEffect="non-scaling-stroke" />
+            {[...series].reverse().map(item => (
+              <path key={item.source} d={item.path} fill="none" className={ANALYTICS_SERIES[item.source].stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             ))}
-          </defs>
-          <path d={`M 0 ${STAT_CHART_HEIGHT} H ${STAT_CHART_WIDTH}`} className="stroke-(--stat-track) stroke-1" />
-          {series.map(item => (
-            <g key={item.source}>
-              {cumulative && <path d={`${item.path} V ${STAT_CHART_HEIGHT} H 0 Z`} fill={`url(#${gradientId}-${item.source})`} />}
-              <path d={item.path} fill="none" stroke={STAT_FLOW_COLORS[item.source]} strokeWidth={1.8}
-                strokeDasharray={item.source === 'evo' ? '4 2' : undefined} vectorEffect="non-scaling-stroke" />
-            </g>
-          ))}
-          {days.map((day, index) => (
-            <g key={day.date.getTime()} onPointerEnter={() => setActive(index)}>
-              {active === index && <rect x={index / days.length * STAT_CHART_WIDTH} y={0}
-                width={STAT_CHART_WIDTH / days.length} height={STAT_CHART_HEIGHT} fill="currentColor" opacity={0.15} />}
-              <rect x={index / days.length * STAT_CHART_WIDTH} y={-2}
-                width={STAT_CHART_WIDTH / days.length} height={STAT_CHART_HEIGHT + 4} fill="transparent" />
-            </g>
-          ))}
-        </svg>
-        {selected && <div className="pointer-events-none absolute right-0 bottom-[calc(100%+6px)] z-2 min-w-[175px] max-w-60 rounded-[10px] bg-white px-[11px] py-[9px] text-[10px] text-dash-primary-dark-blue shadow-[0_4px_20px_#0003] dark:border dark:border-white/15 dark:bg-[#152d50] dark:text-white" role="status">
-          <span className="mb-[5px] block opacity-65">{chartDate(selected.date)} · {cumulative ? 'cumulative' : 'daily'} · DASH</span>
-          {series.map(item => <div key={item.source} className="mt-[3px] flex justify-between gap-3">
-            <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
-            <strong className="font-semibold tabular-nums wrap-anywhere">{creditsToDash(item.readings[active!])}</strong>
-          </div>)}
-          <span className="mt-[9px] mb-[5px] block border-t border-current pt-[7px] opacity-65">{periodLabel} totals · {days[0] && chartDate(days[0].date)} – {days.at(-1) && chartDate(days.at(-1)!.date)}</span>
-          {series.map(item => <div key={`total-${item.source}`} className="mt-[3px] flex justify-between gap-3">
-            <span style={{ color: STAT_FLOW_COLORS[item.source] }}>{STAT_FLOW_LABELS[item.source]}</span>
-            <strong className="font-semibold tabular-nums wrap-anywhere">{creditsToDash(item.total)}</strong>
-          </div>)}
-        </div>}
-      </div>
+            {days.map((day, index) => (
+              <rect key={day.date.getTime()} x={index / days.length * STAT_CHART_WIDTH} y={-2}
+                width={STAT_CHART_WIDTH / days.length} height={STAT_CHART_HEIGHT + 4} fill="transparent" onPointerEnter={() => setActive(index)} />
+            ))}
+          </svg>
+          {selected && active !== null && (
+            <>
+              <div className={`pointer-events-none absolute inset-y-0 ${ANALYTICS_CROSSHAIR}`} style={{ left: `${(active + 0.5) / days.length * 100}%` }} />
+              <div className={`${POPOVER} pointer-events-none absolute right-0 bottom-[calc(100%+.375rem)] z-2 flex min-w-44 max-w-60 flex-col gap-1 px-3 py-2.5`} role="status">
+                <Text size={10} weight="medium" color="brand" opacity={50}>{`${chartDate(selected.date)} · ${mode} · ${DASH_UNIT}`}</Text>
+                {series.map(item => (
+                  <div key={item.source} className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-0.5 w-3 rounded-full ${ANALYTICS_SERIES[item.source].fill}`} aria-hidden="true" />
+                      <Text size={10} weight="medium" color="brand">{STAT_FLOW_LABELS[item.source]}</Text>
+                    </span>
+                    <Text size={12} weight="bold" color="brand" className="tabular-nums"><DashBigNumber>{creditsToDash(item.readings[active])}</DashBigNumber></Text>
+                  </div>
+                ))}
+                <div className="mt-1 flex flex-col gap-1 border-t border-dash-primary-dark-blue/10 pt-1.5 dark:border-white/12">
+                  <Text size={10} weight="medium" color="brand" opacity={50}>{`${periodLabel} totals · ${chartDate(days[0].date)} – ${chartDate(days.at(-1)!.date)}`}</Text>
+                  {series.map(item => (
+                    <div key={item.source} className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`h-0.5 w-3 rounded-full ${ANALYTICS_SERIES[item.source].fill}`} aria-hidden="true" />
+                        <Text size={10} weight="medium" color="brand">{STAT_FLOW_LABELS[item.source]}</Text>
+                      </span>
+                      <Text size={12} weight="bold" color="brand" className="tabular-nums"><DashBigNumber>{creditsToDash(item.total)}</DashBigNumber></Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

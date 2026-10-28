@@ -1,13 +1,20 @@
+import {base58} from '@scure/base'
+import {HDKey} from '@scure/bip32'
 import {AddressDAO} from '../../database/AddressDAO'
+import {DashPayCache} from '../../database/DashPayCache'
+import {IdentityDAO} from '../../database/IdentityDAO'
 import {TransactionDAO} from '../../database/TransactionDAO'
 import {WalletDAO} from '../../database/WalletDAO'
 import {WalletProvider} from '../../providers/WalletProvider'
 import {WalletProviderFactory} from '../../providers/WalletProviderFactory'
 import {Address} from '../../types/Address'
 import {AddressUsage} from '../../types/AddressDiscovery'
-import {DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
-import {CORE_ADDRESS_WINDOW, DISCOVERY_INTERVAL_MS} from '../../constants/addresses'
+import {AddressDeriver, DerivedAddress, UsageOracle, AddressWindowStore} from '../../types/AddressWindow'
+import {CORE_ADDRESS_WINDOW, DASHPAY_ADDRESS_WINDOW, DASHPAY_RESCAN_MARGIN_BLOCKS, DASHPAY_WATCH_INDEX, DISCOVERY_INTERVAL_MS, HD_VERSIONS} from '../../constants/addresses'
 import {coreAddressDeriver} from '../../utils/addressDiscovery'
+import {dashPayAddressDeriver, deriveDashPayContactKey} from '../../utils/dashPayKeys'
+import {DashPayAddress, DashPayDirection} from '../../types/DashPay'
+import {Wallet} from '../../types/Wallet'
 import {runAddressWindow} from '../../utils/addressWindow'
 import {WalletSyncService} from './WalletSyncService'
 import {Logger} from '../../utils/logger'
@@ -17,6 +24,8 @@ const log = new Logger('discovery')
 export class CoreDiscoveryService {
   private walletDAO: WalletDAO
   private addressDAO: AddressDAO
+  private identityDAO: IdentityDAO
+  private dashPayCache: DashPayCache
   private transactionDAO: TransactionDAO
   private walletSyncService: WalletSyncService
   private providers: WalletProviderFactory
@@ -29,12 +38,16 @@ export class CoreDiscoveryService {
   constructor(
     walletDAO: WalletDAO,
     addressDAO: AddressDAO,
+    identityDAO: IdentityDAO,
+    dashPayCache: DashPayCache,
     transactionDAO: TransactionDAO,
     walletSyncService: WalletSyncService,
     providers: WalletProviderFactory,
   ) {
     this.walletDAO = walletDAO
     this.addressDAO = addressDAO
+    this.identityDAO = identityDAO
+    this.dashPayCache = dashPayCache
     this.transactionDAO = transactionDAO
     this.walletSyncService = walletSyncService
     this.providers = providers
@@ -99,6 +112,8 @@ export class CoreDiscoveryService {
       )
     }
 
+    added.push(...await this.discoverDashPayAddresses(wallet, provider))
+
     if (added.length > 0) {
       await this.walletSyncService.addWatchAddresses(walletId, added)
     } else if (this.walletSyncService.isSyncedFor(walletId) && !this.scanCompleteLatched.has(walletId)) {
@@ -118,6 +133,106 @@ export class CoreDiscoveryService {
     }
 
     if (usage != null) this.lastXpubScanAt.set(walletId, Date.now())
+  }
+
+  // The next address of a contact's chain, marked used before any transaction
+  // is built so it is never handed out twice, as key-wallet's pool does.
+  async nextDashPayPayAddress(wallet: Wallet, identifier: string, contactId: string, contactXpub: string): Promise<string> {
+    const deriver = dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub), wallet.network, contactId, identifier)
+    await this.dropRekeyedChain(wallet.walletId, identifier, contactId, deriver)
+
+    const unused = (): DashPayAddress | undefined => this.dashPayChain(wallet.walletId, identifier, contactId, 'external').find(address => !address.isUsed)
+    let next = unused()
+    if (next == null) {
+      await this.dashPayWindow(wallet, this.providers.forWallet(wallet.walletId, wallet.network), identifier, contactId, 'external', deriver)
+      next = unused()
+    }
+    if (next == null) throw new Error('No unused address to pay this contact on')
+
+    next.isUsed = true
+    return next.address
+  }
+
+  // Both DIP-15 chains of each friendship: ours for every request we sent, watched;
+  // theirs once their newest request's key is decrypted, holding what we paid.
+  private async discoverDashPayAddresses(wallet: Wallet, provider: WalletProvider): Promise<Address[]> {
+    const ours = new Set((await this.identityDAO.getIdentitiesByWalletId(wallet.walletId)).map(identity => identity.identifier))
+    const cache = this.dashPayCache.wallet(wallet.walletId)
+    const requests = cache.requests ?? []
+
+    const added: Address[] = []
+    if (wallet.dashPayXpub != null) {
+      const account = HDKey.fromExtendedKey(wallet.dashPayXpub, HD_VERSIONS[wallet.network])
+      const sent = new Map(requests.filter(request => ours.has(request.ownerId)).map(request => [`${request.ownerId}:${request.toUserId}`, request]))
+      for (const {ownerId: identifier, toUserId: contactId, coreHeightCreatedAt} of sent.values()) {
+        const key = deriveDashPayContactKey(account, base58.decode(identifier), base58.decode(contactId))
+        const derived = await this.dashPayWindow(wallet, provider, identifier, contactId, 'receiving',
+          dashPayAddressDeriver(key, wallet.network, identifier, contactId))
+        const rows = derived.map(address => ({...this.coreAddressRow(wallet.walletId, false, address), index: DASHPAY_WATCH_INDEX}))
+        // An earlier run watched a chain up to the cursor, bar a request its last
+        // poll missed: rescan from the request, at most the margin below the cursor.
+        const isNewChain = derived.some(address => address.index === 0)
+        if (isNewChain) {
+          const cursor = await this.transactionDAO.getCursor(wallet.walletId)
+          const fromHeight = cursor == null ? coreHeightCreatedAt : Math.max(coreHeightCreatedAt, cursor - DASHPAY_RESCAN_MARGIN_BLOCKS)
+          await this.walletSyncService.addWatchAddresses(wallet.walletId, rows, {fromHeight})
+        } else {
+          added.push(...rows)
+        }
+      }
+    }
+    const received = new Map(requests.filter(request => ours.has(request.toUserId))
+      .map(request => [`${request.toUserId}:${request.ownerId}`, request]))
+    for (const {id, toUserId: identifier, ownerId: contactId} of received.values()) {
+      const contactXpub = cache.contactKeys.get(id)
+      if (contactXpub == null) continue
+      const deriver = dashPayAddressDeriver(HDKey.fromExtendedKey(contactXpub), wallet.network, contactId, identifier)
+      await this.dropRekeyedChain(wallet.walletId, identifier, contactId, deriver)
+      await this.dashPayWindow(wallet, provider, identifier, contactId, 'external', deriver)
+    }
+    return added
+  }
+
+  // A contact who re-keys sends a new request; their stored chain then pays a
+  // key they may no longer watch, so it is derived again from the new one.
+  private async dropRekeyedChain(walletId: string, identifier: string, contactId: string, deriver: AddressDeriver): Promise<void> {
+    const chain = this.dashPayChain(walletId, identifier, contactId, 'external')
+    if (chain.length === 0 || chain[0].address === deriver.derive(0).address) return
+
+    log.info(`dashpay external ${identifier} <-> ${contactId}: the contact re-keyed, rebuilding their chain`)
+    chain.length = 0
+  }
+
+  // One chain of a friendship as this process derived it; empty until then.
+  dashPayChain(walletId: string, identifier: string, contactId: string, direction: DashPayDirection): DashPayAddress[] {
+    const {chains} = this.dashPayCache.wallet(walletId)
+    const key = `${identifier}:${contactId}:${direction}`
+    if (!chains.has(key)) chains.set(key, [])
+
+    return chains.get(key)!
+  }
+
+  private async dashPayWindow(
+    wallet: Wallet,
+    provider: WalletProvider,
+    identifier: string,
+    contactId: string,
+    direction: DashPayDirection,
+    deriver: AddressDeriver,
+  ): Promise<DerivedAddress[]> {
+    const chain = this.dashPayChain(wallet.walletId, identifier, contactId, direction)
+    const revealed = await runAddressWindow(deriver, this.coreOracle(provider, Promise.resolve(null), false), {
+      known: async () => chain.map(({index, isUsed}) => ({index, isUsed})),
+      reveal: async addresses => {
+        chain.push(...addresses.map(({index, address, derivationPath}) => ({direction, index, address, derivationPath, isUsed: false})))
+      },
+      markUsed: async indexes => {
+        for (const address of chain) if (indexes.includes(address.index)) address.isUsed = true
+      },
+    }, DASHPAY_ADDRESS_WINDOW)
+
+    if (revealed.length > 0) log.info(`dashpay ${direction} ${identifier} <-> ${contactId}: derived ${revealed.length} address(es)`)
+    return revealed
   }
 
   private coreOracle(
