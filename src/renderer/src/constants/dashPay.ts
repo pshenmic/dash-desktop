@@ -53,7 +53,7 @@ export const DASHPAY_USERNAMES_PAGE_SIZE = 50
 
 export const OVERVIEW_PREVIEW_LIMIT = 3
 
-export const DASHPAY_REFRESH_MS = 15_000
+export const DASHPAY_REFRESH_MS = 30_000
 
 
 export const USERNAME_SEARCH_DEBOUNCE_MS = 300

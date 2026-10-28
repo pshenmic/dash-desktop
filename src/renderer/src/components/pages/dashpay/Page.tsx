@@ -55,9 +55,7 @@ export default function DashPayPage({ walletId }: DashPayPageProps): React.JSX.E
   const saveListScroll = useDetailScrollRestore(contactId != null && identity != null ? contactId : null)
 
   useEffect(() => {
-    const refresh = (): void => { refreshDashPay(walletId).catch(() => {}) }
-    refresh()
-    const timer = setInterval(refresh, DASHPAY_REFRESH_MS)
+    const timer = setInterval(() => { refreshDashPay(walletId).catch(() => {}) }, DASHPAY_REFRESH_MS)
     return () => clearInterval(timer)
   }, [walletId])
 
