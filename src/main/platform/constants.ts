@@ -16,6 +16,10 @@ export const DAPI_POOL_READY = 5
 // than waiting out the hour until p2p fetches the next one.
 export const DAPI_REPROBE_MS = 30_000
 
+// Platform commits an empty block every 3 minutes, so a node whose last block is
+// older than this has a stalled chain.
+export const DAPI_MAX_BLOCK_AGE_MS = 10 * 60_000
+
 export const ERROR_CODES: readonly string[] =
   ['cancelled', 'alreadyInChain', 'insufficientFunds', 'network', 'internal']
 

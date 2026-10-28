@@ -1,10 +1,9 @@
 import {createClient} from 'dash-platform-sdk'
 import status from 'dash-platform-sdk/src/node/status.js'
 import {Network} from '../../src/types/Network'
-import {DAPI_POOL_READY, DAPI_PROBE_BATCH, DAPI_STATUS_TIMEOUT_MS} from '../constants'
+import {DAPI_MAX_BLOCK_AGE_MS, DAPI_POOL_READY, DAPI_PROBE_BATCH, DAPI_STATUS_TIMEOUT_MS} from '../constants'
 import {DapiUrlStatus} from '../types/messages'
 import {Logger} from '../../src/utils/logger'
-import {dapiNodeIssue} from '../../src/utils/dapiNodeIssue'
 
 const log = new Logger('platform')
 
@@ -47,13 +46,19 @@ export async function probeDapiUrl(dapiUrl: string, network: Network): Promise<D
   const started = performance.now()
   try {
     const nodeStatus = await status({network, getClient: () => createClient(dapiUrl, abortController)})
+    // The SDK health-checks only nodes it discovers, never a url list it is handed.
+    // time.local is in seconds, time.block in milliseconds.
+    const blockAgeMs = Number(nodeStatus.time?.local) * 1000 - Number(nodeStatus.time?.block)
+    const issue = nodeStatus.chain == null || nodeStatus.chain.catchingUp
+      ? 'still syncing'
+      : blockAgeMs <= DAPI_MAX_BLOCK_AGE_MS ? null : 'chain stalled: no recent block'
     return {
       dapiUrl,
       proTxHash: nodeStatus.node?.proTxHash ?? null,
       pingMs: Math.round(performance.now() - started),
       driveVersion: nodeStatus.version?.software?.drive ?? null,
       blockHeight: nodeStatus.chain != null ? BigInt(nodeStatus.chain.latestBlockHeight) : null,
-      error: dapiNodeIssue(nodeStatus),
+      error: issue,
     }
   } catch (err) {
     const error = abortController.signal.aborted

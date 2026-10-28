@@ -362,15 +362,15 @@ export class WalletBackend {
     }
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
+      if (selected == null) return
       // Locks are needed in both connection modes, and this is the only place
       // that starts listening for them. Re-run on the periodic tick so a lost
       // utility process is picked back up.
       try {
-        await walletSyncService.startLockListen(selected?.network ?? 'mainnet', selected?.walletId)
+        await walletSyncService.startLockListen(selected.network, selected.walletId)
       } catch (err) {
         locks.error('failed to start lock listener:', err)
       }
-      if (selected == null) return
       // Each tick polls for new contact requests too, so a new contact's chain
       // is watched within one interval of its request.
       await walletService.fetchContactRequestsAndDiscover(selected.walletId)
