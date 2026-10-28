@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-enxtended/icons'
-import { Text } from '../dash-ui-kit-enxtended'
+import { ErrorIcon, ExclamationIcon, SuccessIcon } from '@renderer/components/dash-ui-kit-extended/icons'
+import { Text } from '../dash-ui-kit-extended'
 import { renderBoldText } from '@renderer/utils/renderBoldText'
 import type { ToastItem, ToastVariant } from '@renderer/types/Toast'
 
@@ -106,9 +106,10 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
         : <ErrorIcon size={27} className="shrink-0 rounded-full" />}
       <div className={"flex-1 min-w-0"}>
         <Text
+          reset
           size={12}
           weight="medium"
-          className={`leading-[120%] whitespace-pre-wrap ${success ? 'text-dash-green!' : warning ? 'text-dash-orange!' : 'text-white!'}`}
+          className={`block leading-[120%] whitespace-pre-wrap wrap-anywhere ${success ? 'text-dash-green!' : warning ? 'text-dash-orange!' : 'text-white!'}`}
         >
           {renderBoldText(item.text)}
         </Text>
@@ -127,7 +128,7 @@ export function ToastContainer(): React.JSX.Element | null {
   if (items.length === 0) return null
 
   return createPortal(
-    <div className={"fixed top-12 right-12 z-9999 flex flex-col gap-2"}>
+    <div className={"fixed top-12 right-12 z-9999 flex flex-col gap-2 pointer-events-auto"} onPointerDown={(e) => e.stopPropagation()}>
       {items.map((item) => (
         <ToastCard key={item.id} item={item} onDismiss={handleDismiss} />
       ))}

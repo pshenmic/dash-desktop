@@ -8,4 +8,5 @@ export interface Wallet {
   selected: boolean
   platformXpub: string | null
   coreXpub: string | null
+  dashPayXpub: string | null
 }

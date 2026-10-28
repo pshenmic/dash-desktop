@@ -1,45 +1,22 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@renderer/contexts/AuthContext'
-import { Text, ShieldSmallIcon, CheckIcon, ErrorIcon, Button } from '@renderer/components/dash-ui-kit-enxtended'
-import Spinner from '@renderer/components/ui/Spinner'
+import { HighlightedIdentifier, Text, ShieldSmallIcon, Button } from '@renderer/components/dash-ui-kit-extended'
+import PageHeader from '@renderer/components/ui/PageHeader'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import ProverPill from '@renderer/components/pages/shielded/ProverPill'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import { groupShieldedNotesByAddress } from '@renderer/utils/shieldedBalances'
-import { truncateShieldedAddress } from '@renderer/utils/shieldedAddress'
 import { useShieldedPoolInfo, useShieldedStatus, useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { usePlatformAddresses } from '@renderer/hooks/usePlatformAddresses'
 import CreditsAmount from '@renderer/components/ui/CreditsAmount'
-import { ShieldedStatus, ShieldedSyncState } from '@renderer/api/types'
+import { ShieldedSyncState } from '@renderer/api/types'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
-import { ShieldedProverState } from '@renderer/enums/ShieldedProverState'
-
-function ProverBadge({ status }: { status: ShieldedStatus }): React.JSX.Element {
-  if (status.prover === ShieldedProverState.Ready) {
-    return (
-      <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-accent-5"}>
-        <CheckIcon size={14} className={"text-dash-brand dark:text-dash-mint"} />
-        <Text size={12} weight={"medium"} color={"blue-mint"}>Ready</Text>
-      </div>
-    )
-  }
-
-  if (status.prover === ShieldedProverState.Error) {
-    return (
-      <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block-3"}>
-        <ErrorIcon size={14} />
-        <Text size={12} weight={"medium"} color={"red"}>Preparation failed</Text>
-      </div>
-    )
-  }
-
-  return (
-    <div className={"flex items-center gap-2 px-3 py-1.5 rounded-[.625rem] dash-block"}>
-      <Spinner size={14} className={"text-dash-brand dark:text-dash-mint"} />
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Preparing private transactions…</Text>
-    </div>
-  )
-}
+import { shieldedPage } from '@renderer/constants/shieldedPage'
+import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
+import { SURFACE_PANEL, SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { PROGRESS_FILL, PROGRESS_TRACK } from '@renderer/constants/progressBar'
+import { ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
 
 function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => void }): React.JSX.Element {
   const running = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
@@ -48,7 +25,7 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
     : sync.total > 0 ? Math.min(100, Math.round((sync.fetched / sync.total) * 100)) : 0
 
   return (
-    <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
+    <div className={`flex flex-col gap-3 ${SURFACE_SECTION}`}>
       <div className={"flex items-center justify-between gap-4"}>
         <Text size={14} weight={"extrabold"} color={"brand"}>Note sync</Text>
         <Button
@@ -57,22 +34,21 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
           disabled={running}
           variant={"solid"}
           colorScheme={"primary"}
-          size={"sm"}
-          className={"min-h-0! py-2! rounded-[.75rem]"}
+          size={"compact"}
         >
-          {running ? 'Checking…' : 'Check my notes'}
+          {running ? shieldedPage.syncing : shieldedPage.sync}
         </Button>
       </div>
 
       {running && (
         <div className={"flex flex-col gap-2"}>
-          <div className={"h-2 w-full rounded-full dash-block overflow-hidden"}>
+          <div className={PROGRESS_TRACK}>
             <div
-              className={"h-full rounded-full dash-bg-inverse transition-[width] duration-300"}
+              className={PROGRESS_FILL}
               style={{ width: `${pct}%` }}
             />
           </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
             {sync.phase === ShieldedSyncPhase.Recovering
               ? 'Recovering your notes…'
               : `Syncing notes ${sync.fetched.toLocaleString('en-US')} / ${sync.total.toLocaleString('en-US')}`}
@@ -84,7 +60,7 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
         const unspent = sync.notes.filter((n) => !n.spent).length
         const spentCount = sync.notes.length - unspent
         return (
-          <Text size={12} weight={"medium"} color={"brand"} opacity={70}>
+          <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
             Synced · {unspent.toLocaleString('en-US')} spendable note{unspent === 1 ? '' : 's'}{spentCount > 0 ? ` · ${spentCount.toLocaleString('en-US')} spent` : ''}
           </Text>
         )
@@ -92,12 +68,6 @@ function SyncCard({ sync, onSync }: { sync: ShieldedSyncState; onSync: () => voi
 
       {!running && sync.phase === ShieldedSyncPhase.Error && (
         <Text size={12} weight={"medium"} color={"red"}>{sync.error ?? 'Sync failed.'}</Text>
-      )}
-
-      {!running && sync.phase === ShieldedSyncPhase.Idle && (
-        <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-          Unlock with your password to scan the shielded pool for notes addressed to you.
-        </Text>
       )}
     </div>
   )
@@ -124,26 +94,21 @@ export default function ShieldedPage(): React.JSX.Element {
   const spendableGroups = useMemo(() => groupShieldedNotesByAddress(sync.notes), [sync.notes])
 
   const shieldedReady = sync.phase === ShieldedSyncPhase.Done && sync.balance !== null
+  const syncRunning = sync.phase === ShieldedSyncPhase.Syncing || sync.phase === ShieldedSyncPhase.Recovering
 
   const notesCount = poolInfo.notesCount !== null ? poolInfo.notesCount.toLocaleString('en-US') : null
 
   return (
-    <div className={"flex flex-col gap-8 px-12 pb-10"}>
-      <div className={"flex items-end justify-between gap-6"}>
-        <div className={"flex flex-col gap-3"}>
-          <div className={"flex items-center gap-3"}>
-            <ShieldSmallIcon size={28} className={"text-dash-brand dark:text-dash-mint"} />
-            <Text size={40} weight={"medium"} color={"brand"} className={"leading-[125%] tracking-[-0.03em]"}>Shielded</Text>
-          </div>
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[120%] max-w-152.5"}>
-            Private Orchard transactions. Move funds between your transparent and shielded balance, where the link between sender and recipient stays hidden.
-          </Text>
-        </div>
-        <ProverBadge status={prover} />
-      </div>
+    <div className={"flex flex-col px-12 pb-10"}>
+      <PageHeader
+        title={PAGE_HEADERS.shielded.title}
+        subtitle={PAGE_HEADERS.shielded.subtitle}
+        icon={<ShieldSmallIcon size={24} className={"text-dash-brand dark:text-dash-mint"} />}
+        actions={<ProverPill status={prover} />}
+      />
 
-      <div className={"flex flex-col gap-4 w-full"}>
-        <div className={"flex flex-col gap-4 p-5 rounded-[.9375rem] dash-block-3"}>
+      <div className={`flex w-full flex-col gap-[.625rem] ${SURFACE_PANEL}`}>
+        <div className={`flex flex-col gap-4 ${SURFACE_SECTION}`}>
           <div className={"flex items-center justify-between"}>
             <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Transparent</Text>
             <Text size={20} weight={"bold"} color={"brand"}>
@@ -161,25 +126,25 @@ export default function ShieldedPage(): React.JSX.Element {
                 <CreditsAmount credits={sync.balance ?? 0n} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
               </Text>
             ) : (
-              <div className={"flex items-baseline gap-1.5"}>
+              <button
+                type={"button"}
+                onClick={() => setUnlockOpen(true)}
+                disabled={syncRunning}
+                className={"flex items-baseline gap-1.5 cursor-pointer hover:opacity-80 transition-opacity duration-200 disabled:cursor-default disabled:opacity-50"}
+              >
                 <Text size={20} weight={"bold"} color={"blue-mint"}>—</Text>
-                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>credits</Text>
-              </div>
+                <Text size={12} weight={"bold"} color={"blue-mint"}>{shieldedPage.syncNotes}</Text>
+              </button>
             )}
           </div>
-          <div className={"flex items-center justify-between gap-3"}>
-            {!shieldedReady ? (
-              <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-                Sync your notes to reveal your shielded balance.
-              </Text>
-            ) : <span />}
+          <div className={"flex items-center justify-end gap-3"}>
             <Button
               type={"button"}
               onClick={() => navigate('/send?from=platformAddress&to=shielded')}
               variant={"solid"}
               colorScheme={"lightBlue-mint"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem] shrink-0"}
+              size={"compact"}
+              className={"shrink-0"}
             >
               Shield funds
             </Button>
@@ -188,22 +153,22 @@ export default function ShieldedPage(): React.JSX.Element {
 
         <SyncCard sync={sync} onSync={() => setUnlockOpen(true)} />
 
-        <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
+        {(sync.phase === ShieldedSyncPhase.Done || spendableGroups.length > 0) && <div className={`flex flex-col gap-3 ${SURFACE_SECTION}`}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Incoming notes</Text>
           {spendableGroups.length === 0 ? (
-            <Text size={12} weight={"medium"} color={"brand"} opacity={40}>
-              {sync.phase === ShieldedSyncPhase.Done ? 'No spendable shielded notes for this wallet yet.' : 'Sync to list your received private notes.'}
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+              {shieldedPage.noNotes}
             </Text>
           ) : (
             <div className={"flex flex-col gap-4"}>
               {spendableGroups.map((group) => (
                 <div key={group.address} className={"flex flex-col gap-1"}>
                   <div className={"flex items-center justify-between gap-3"}>
-                    <div className={"flex items-center gap-2 min-w-0"}>
+                    <div className={"flex min-w-0 flex-1 items-center gap-2"}>
                       <ShieldSmallIcon size={14} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-                      <Text size={12} weight={"medium"} color={"brand"} className={"font-mono"}>{truncateShieldedAddress(group.address)}</Text>
-                      <CopyButton text={group.address} />
-                      <Text size={12} weight={"medium"} color={"brand"} opacity={40}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
+                      <HighlightedIdentifier className={ADDRESS_ROW_IDENTIFIER_CLASS}>{group.address}</HighlightedIdentifier>
+                      <CopyButton text={group.address} className={"shrink-0"} />
+                      <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"shrink-0 whitespace-nowrap"}>· {group.notes.length} note{group.notes.length === 1 ? '' : 's'}</Text>
                     </div>
                     <Text size={14} weight={"bold"} color={"brand"}>
                       <CreditsAmount credits={group.total} align={"end"} unitClassName={"text-[.75rem] font-medium text-dash-primary-dark-blue/50 dark:text-white/50"} />
@@ -223,19 +188,19 @@ export default function ShieldedPage(): React.JSX.Element {
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block"}>
+        <div className={`flex flex-col gap-3 ${SURFACE_SECTION}`}>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50}>Shielded pool ({network ?? 'unknown'})</Text>
           <div className={"flex items-center justify-between"}>
-            <Text size={14} weight={"medium"} color={"brand"} opacity={70}>Total in pool</Text>
+            <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Total in pool</Text>
             <Text size={14} weight={"bold"} color={"brand"}>
               {poolInfo.poolState !== null ? <CreditsAmount credits={BigInt(poolInfo.poolState)} compact align={"end"} /> : '—'}
             </Text>
           </div>
           <div className={"h-px bg-dash-primary-dark-blue/8 dark:bg-white/10"} />
           <div className={"flex items-center justify-between"}>
-            <Text size={14} weight={"medium"} color={"brand"} opacity={70}>Notes in tree</Text>
+            <Text size={14} weight={"medium"} color={"brand"} opacity={50}>Notes in tree</Text>
             <Text size={14} weight={"bold"} color={"brand"}>{notesCount !== null ? notesCount : '—'}</Text>
           </div>
         </div>

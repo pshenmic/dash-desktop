@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Button, Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text } from '@renderer/components/dash-ui-kit-extended'
 import { API } from '@renderer/api'
 import { invalidateAsyncCache } from '@renderer/hooks/useAsyncWithCache'
 import { refreshBalance } from '@renderer/hooks/useWalletBalance'
+import { addressFormCopy } from '@renderer/constants'
 
 export default function AddAddressSection({ walletId, kind }: { walletId: string | undefined, kind: 'receiving' | 'change' | 'platform' }): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +25,7 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
       }
       refreshBalance(walletId)
     } catch {
-      setError(`Could not derive a new ${kind === 'platform' ? 'platform ' : ''}address. Please try again.`)
+      setError(addressFormCopy.addFailed)
     } finally {
       setBusy(false)
     }
@@ -42,7 +43,7 @@ export default function AddAddressSection({ walletId, kind }: { walletId: string
         size={"sm"}
         className={"min-h-0! py-2! rounded-[.75rem]"}
       >
-        {busy ? 'Deriving…' : 'New address'}
+        {busy ? addressFormCopy.adding : 'New address'}
       </Button>
     </div>
   )

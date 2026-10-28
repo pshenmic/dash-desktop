@@ -1,12 +1,19 @@
 import React, { useState } from "react"
-import QRCode from "react-qr-code"
-import { Text, Input } from "@renderer/components/dash-ui-kit-enxtended"
+import { Text } from "@renderer/components/dash-ui-kit-extended"
 import { ReceivePageType } from "@renderer/constants"
+import { RECEIVE_AMOUNT_INPUT, RECEIVE_EMPTY_TEXTS } from "@renderer/constants/receiveCard"
+import { SURFACE_SECTION } from "@renderer/constants/surfaces"
 import { WalletAddressDto } from "@renderer/api/types"
 import CopyButton from "@renderer/components/ui/CopyButton"
+import HashField from "@renderer/components/ui/HashField"
+import NoResults from "@renderer/components/ui/NoResults"
 import CoreAddressSelect from "./CoreAddressSelect"
-import { useTheme } from "dash-ui-kit/react"
+import ReceiveQr from "./ReceiveQr"
+import { useAuth } from "@renderer/contexts/AuthContext"
+import { RECEIVE_INVOICE_ADDRESS_LABELS, RECEIVE_INVOICE_COPY } from "@renderer/constants/receiveInvoice"
+import { SEND_AMOUNT_PATTERN } from "@renderer/constants/sendRecipients"
 import { defaultReceiveCoreAddress, receiveCoreAddresses } from "@renderer/utils/receiveDefaults"
+import { corePaymentUri, receiveAmountParam } from "@renderer/utils/receiveInvoice"
 
 type ReceiveAddressCardProps = {
   addresses: WalletAddressDto[]
@@ -21,32 +28,34 @@ export default function ReceiveAddressCard({
 }: ReceiveAddressCardProps): React.JSX.Element {
   const [amount, setAmount] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
-  const { theme } = useTheme()
+  const { status } = useAuth()
 
   const receiveAddresses = receiveCoreAddresses(addresses)
   const selected = defaultReceiveCoreAddress(receiveAddresses, selectedAddress ?? defaultAddress)
   if (!selected) {
-    return <Text size={12} weight={"medium"} color={"brand"} opacity={50}>No unused Core addresses available.</Text>
+    return <NoResults noResults={RECEIVE_EMPTY_TEXTS.noCoreAddresses} />
   }
 
   const address = selected.address
-  const qrValue = `dash:${address}${amount ? `?amount=${amount}` : ""}`
-
-  const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
+  const amountParam = receiveAmountParam(amount)
+  const paymentUri = corePaymentUri(address, amountParam)
 
   return (
-      <div className={"flex w-min items-center gap-8 rounded-4xl dash-block p-6 max-w-190"}>
-        <QRCode
-          value={qrValue}
-          size={225}
-          fgColor={qrCodeColor}
-          bgColor={"transparent"}
-          className={"rounded-[.5625rem] shrink-0"}
+      <div className={`flex w-min max-w-190 items-center gap-8 ${SURFACE_SECTION}`}>
+        <ReceiveQr
+          value={paymentUri}
+          invoice={{
+            addressLabel: RECEIVE_INVOICE_ADDRESS_LABELS.core,
+            address,
+            amount: amountParam,
+            paymentLink: amountParam == null ? null : paymentUri,
+            network: status?.network ?? null,
+          }}
         />
 
         <div className={"flex flex-col w-full"}>
           <div className={"flex flex-col gap-[.5rem]"}>
-            <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
               {data.addressText}
             </Text>
             <div className={"flex items-center gap-[.625rem]"}>
@@ -60,29 +69,24 @@ export default function ReceiveAddressCard({
           </div>
 
           <label htmlFor={"amount-input"} className={"flex flex-col gap-[.5rem] mt-[.75rem]"}>
-            <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
+            <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
               {data.amount}
             </Text>
-            <Input
+            <input
               placeholder={data.placeholder}
               value={amount}
               onChange={(e) => {
                 const val = e.target.value.replace(/[^0-9.]/g, '')
-                const parts = val.split('.')
-                if (parts.length > 2) return
-                setAmount(val)
+                if (SEND_AMOUNT_PATTERN.test(val)) setAmount(val)
               }}
               id={"amount-input"}
-              variant={"outlined"}
-              className={'h-full !rounded-[.75rem] !bg-transparent !px-6.25'}
-              colorScheme={'primary'}
-              size={'md'}
+              className={RECEIVE_AMOUNT_INPUT}
             />
           </label>
 
-          <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
-            {data.description}
-          </Text>
+          <div className={"mt-[.75rem]"}>
+            <HashField hash={paymentUri} label={RECEIVE_INVOICE_COPY.paymentLink} />
+          </div>
         </div>
       </div>
   )

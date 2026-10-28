@@ -3,17 +3,23 @@ import type { WalletAddressDto } from '../../src/renderer/src/api/types'
 import { coreSendChangeTo, hasUnallocatedCoreFunds, selectedChangeAddress, suggestedChangeAddress } from '../../src/renderer/src/utils/changeAddress'
 import { TransferOperation } from '../../src/renderer/src/enums/TransferOperation'
 
-function address(value: string, isUsed = false): WalletAddressDto {
-  return {walletId: 'wallet', accountId: 0, address: value, derivationPath: '', index: 0, isChange: 1, isUsed, balance: 0n, txCount: 0, label: null, usdBalance: null}
+function address(value: string, isUsed = false, details: Partial<WalletAddressDto> = {}): WalletAddressDto {
+  return {walletId: 'wallet', accountId: 0, address: value, derivationPath: '', index: 0, isChange: 1, isUsed, balance: 0n, txCount: 0, label: null, usdBalance: null, ...details}
 }
 
 describe('change address draft', () => {
-  it('suggests the first unused change address even with no balance', () => {
-    expect(suggestedChangeAddress([address('used', true), address('unused'), address('next')])).toBe('unused')
+  it('suggests the first change address with no usage, balance, or transactions', () => {
+    expect(suggestedChangeAddress([
+      address('used', true),
+      address('funded', false, {balance: 1n}),
+      address('previously-used', false, {txCount: 1}),
+      address('unused'),
+      address('next'),
+    ])).toBe('unused')
   })
 
-  it('falls back to the last used change address or leaves an empty change list without a suggestion', () => {
-    expect(suggestedChangeAddress([address('first', true), address('last', true)])).toBe('last')
+  it('leaves no suggestion when every change address is used or the list is empty', () => {
+    expect(suggestedChangeAddress([address('first', true), address('last', true)])).toBeNull()
     expect(suggestedChangeAddress([])).toBeNull()
   })
 

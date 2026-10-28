@@ -44,8 +44,7 @@ export const PLATFORM_NODE_EMPTY_LABELS = {
   static: 'No static Platform nodes.',
 } as const
 
-export const PLATFORM_NODE_INVALID_URL_MESSAGE =
-  'Enter an http or https URL with an IP address host, for example https://1.2.3.4:1443.'
+export const PLATFORM_NODE_INVALID_URL_MESSAGE = 'Use an http(s) URL with an IP address host.'
 
 export const PLATFORM_NODE_URL_PROTOCOLS = ['http:', 'https:'] as const
 

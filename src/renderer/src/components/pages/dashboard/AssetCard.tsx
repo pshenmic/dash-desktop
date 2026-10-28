@@ -1,4 +1,4 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text } from '@renderer/components/dash-ui-kit-extended'
 import SensitiveValue from '@renderer/components/ui/SensitiveValue'
 import DashboardHeading from './DashboardHeading'
 

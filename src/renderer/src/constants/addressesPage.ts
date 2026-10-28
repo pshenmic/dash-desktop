@@ -1,6 +1,4 @@
 export interface AddressesPage {
-  title: string
-  description: string
   filter: string
   tabs: {
     receiving: string
@@ -10,11 +8,11 @@ export interface AddressesPage {
     coinJoin: string
   }
   labelPrefix: string
+  usedBadge: string
+  shieldedSharedBalance: string
 }
 
 export const addressesPage: AddressesPage = {
-  title: 'Addresses',
-  description: 'This is a list of all your **Dash**  addresses. You can use these address to send or receive funds to your wallet. It is **highly suggested to not reuse the same address** for full privacy. You can also create a new address.',
   filter: 'Filter',
   tabs: {
     receiving: 'Receiving',
@@ -24,4 +22,16 @@ export const addressesPage: AddressesPage = {
     coinJoin: 'CoinJoin',
   },
   labelPrefix: 'Label',
+  usedBadge: 'Used',
+  shieldedSharedBalance: 'All shielded addresses share one private balance.',
+}
+
+export const addressFormCopy = {
+  platformPrompt: 'Enter your wallet password to show Platform addresses.',
+  shieldedPrompt: 'Enter your wallet password to show your shielded addresses.',
+  showAddresses: 'Show addresses',
+  loading: 'Loading…',
+  adding: 'Adding…',
+  loadFailed: "Couldn't load addresses. Try again.",
+  addFailed: "Couldn't add the address. Try again.",
 }

@@ -5,7 +5,6 @@ import {Network} from '../../../src/types/Network'
 import {matchIdentityKey} from '../../../src/utils/identityKeys'
 import {OperationError} from '../types'
 import {DerivedKeyHash} from '../../../src/types/IdentityKeys'
-import {IDENTITY_KEY_LOOKAHEAD} from '../../constants'
 
 
 // Needs both the derived private keys and the live key list from the chain, so
@@ -17,13 +16,18 @@ export async function signingKey(
   network: Network,
   identifier: string,
   identityIndex: number,
+  purpose = 'TRANSFER',
+  securityLevel?: string,
+  keyId?: number,
 ): Promise<{privateKey: PrivateKeyWASM; publicKey: IdentityPublicKeyWASM}> {
-  const identityKeys = await sdk.identities.getIdentityPublicKeys(identifier)
+  const identityKeys = (await sdk.identities.getIdentityPublicKeys(identifier))
+    .filter(key => key.disabledAt == null && (keyId == null || key.keyId === keyId))
   const hdKey = sdk.keyPair.seedToHdKey(seed, network)
 
   const derived: Array<{keyIndex: number; privateKey: PrivateKeyWASM}> = []
   const hashes: DerivedKeyHash[] = []
-  for (let keyIndex = 0; keyIndex < IDENTITY_KEY_LOOKAHEAD; keyIndex++) {
+  // Every key this wallet registers is derived at its own key id.
+  for (const {keyId: keyIndex} of identityKeys) {
     const child = sdk.keyPair.deriveIdentityPrivateKey(hdKey, identityIndex, keyIndex, network)
     if (!child.privateKey) continue
     const privateKey = PrivateKeyWASM.fromBytes(child.privateKey as Uint8Array, network)
@@ -32,13 +36,17 @@ export async function signingKey(
   }
 
   const match = matchIdentityKey(
-    identityKeys.map(key => ({keyId: key.keyId, purpose: key.purpose, publicKeyHashHex: key.getPublicKeyHash()})),
+    identityKeys.map(key => ({
+      keyId: key.keyId, purpose: key.purpose, securityLevel: key.securityLevel, publicKeyHashHex: key.getPublicKeyHash(),
+    })),
     hashes,
+    purpose,
+    securityLevel,
   )
   const privateKey = match != null ? derived.find(entry => entry.keyIndex === match.keyIndex)?.privateKey : undefined
   const publicKey = match != null ? identityKeys.find(key => key.keyId === match.keyId) : undefined
   if (privateKey == null || publicKey == null) {
-    throw new OperationError('This identity has no transfer key this wallet can sign with', 'internal')
+    throw new OperationError(`This identity has no ${purpose.toLowerCase()} key this wallet can sign with`, 'internal')
   }
 
   return {privateKey, publicKey}

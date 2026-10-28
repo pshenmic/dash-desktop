@@ -1,5 +1,5 @@
 import type { PlatformTransaction } from '../api/types'
-import { BALANCE_SEGMENTS, CHART_HEIGHT, CHART_WIDTH, EVO_TYPE_LIMIT } from '../constants/dashboardAnalytics'
+import { ALLOCATION_AMOUNT_FLOOR, BALANCE_SEGMENTS, CHART_HEIGHT, CHART_WIDTH, EVO_TYPE_LIMIT } from '../constants/dashboardAnalytics'
 import { DUFFS_PER_DASH } from '../constants/balance'
 import type { ActivityDay, AnalyticsCoreTransaction, AnalyticsPeriod, BalanceAllocation, ChartScale, CoreBalanceDay, DashboardAnalytics, EvoTypeCount } from '../types/DashboardAnalytics'
 import { creditsToDuffs, davToDashCompact, duffsToCredits } from './balance'
@@ -143,22 +143,26 @@ export function summarizeEvoTypes(types: EvoTypeCount[]): EvoTypeCount[] {
   return top
 }
 
-export function buildBalanceAllocation(coreDuffs: bigint, platformCredits: bigint, shieldedCredits: bigint): BalanceAllocation {
-  const amounts = [duffsToCredits(coreDuffs), platformCredits, shieldedCredits]
+export function buildBalanceAllocation(coreDuffs: bigint, platformCredits: bigint, identityCredits: bigint, shieldedCredits: bigint): BalanceAllocation {
+  const amounts = [duffsToCredits(coreDuffs), platformCredits, identityCredits, shieldedCredits]
   const total = amounts.reduce((sum, value) => sum + value, 0n)
   let accumulated = 0n
   const segments = BALANCE_SEGMENTS.map((segment, index) => {
     const credits = amounts[index]
     const offset = chartRatio(accumulated, total) * 100
     accumulated += credits
-    return { ...segment, credits, offset, share: chartRatio(accumulated, total) * 100 - offset }
+    return { ...segment, credits, share: chartRatio(accumulated, total) * 100 - offset }
   })
   return { total, segments }
 }
 
 export function formatAllocationAmount(credits: bigint): string {
   const duffs = creditsToDuffs(credits)
-  return credits > 0n && duffs === 0n ? '<0.001' : davToDashCompact(duffs)
+  return credits > 0n && duffs === 0n ? ALLOCATION_AMOUNT_FLOOR : davToDashCompact(duffs)
+}
+
+export function formatShare(share: number): string {
+  return share === 0 ? '0' : share < 0.1 ? '<0.1' : share.toFixed(1)
 }
 
 export function chartDate(date: Date, full = false): string {

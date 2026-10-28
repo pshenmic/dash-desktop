@@ -3,6 +3,7 @@ import {
   resolveOperation,
   unsupportedReason,
   operationInfo,
+  requiresShieldedProver,
   isLikelyIdentityId,
   isPoolIdentityDenomination,
   POOL_IDENTITY_DENOMINATIONS,
@@ -118,6 +119,30 @@ describe('operationInfo', () => {
       const info = operationInfo(operation)
       expect(info).toBeDefined()
       expect(SPEND_KINDS).toContain(info.spendKind)
+    }
+  })
+})
+
+describe('requiresShieldedProver', () => {
+  const PROVER_OPERATIONS: TransferOperation[] = [
+    TransferOperation.Shield,
+    TransferOperation.ShieldedTransfer,
+    TransferOperation.Unshield,
+    TransferOperation.ShieldedWithdrawal,
+    TransferOperation.IdentityCreateFromShielded,
+  ]
+
+  it('needs the prover for a shield and every pool spend', () => {
+    for (const operation of PROVER_OPERATIONS) {
+      expect(requiresShieldedProver(operation)).toBe(true)
+    }
+  })
+
+  it('does not need the prover for any other operation', () => {
+    for (const operation of Object.values(TransferOperation)) {
+      if (!PROVER_OPERATIONS.includes(operation)) {
+        expect(requiresShieldedProver(operation)).toBe(false)
+      }
     }
   })
 })

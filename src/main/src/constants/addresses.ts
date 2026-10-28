@@ -51,6 +51,25 @@ export const SHIELDED_ADDRESS_WINDOW: AddressWindowPolicy = {
   maxRounds: 50,
 }
 
+// DashPay (DIP-15), two chains per contact: DIP-15's own gap, which key-wallet
+// uses for both. Only one payer ever uses a chain, so a short gap covers it.
+export const DASHPAY_ADDRESS_WINDOW: AddressWindowPolicy = {
+  gapLimit: 10,
+  batch: 10,
+  maxRounds: 50,
+}
+
+// About an hour of blocks against a 2-minute poll: after a start, a request this close
+// below the cursor may have come after the previous run's last poll.
+export const DASHPAY_RESCAN_MARGIN_BLOCKS = 24
+// Contact-request fetches a sync start tries before scanning without our DashPay chains.
+export const DASHPAY_START_ATTEMPTS = 3
+export const DASHPAY_START_RETRY_MS = 2_000
+
+// The p2p child tracks the gap of the two BIP-44 chains by index; a DashPay
+// address sits below both frontiers, so it never moves either.
+export const DASHPAY_WATCH_INDEX = -1
+
 // How often the backend re-runs address discovery for the selected wallet.
 // Shielded is absent by design: its deriver needs the seed, so it only walks
 // inside an already-unlocked operation.

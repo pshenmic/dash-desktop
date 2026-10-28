@@ -1,7 +1,9 @@
-export default function Spinner({ size = 16, className = '' }: { size?: number; className?: string }): React.JSX.Element {
+import type { SpinnerProps } from '@renderer/types/Spinner'
+
+export default function Spinner({ size = 16, className = '' }: SpinnerProps): React.JSX.Element {
   return (
     <svg
-      className={`animate-spin ${className}`}
+      className={`animate-spin dash-text-primary ${className}`}
       style={{ width: size, height: size }}
       xmlns={"http://www.w3.org/2000/svg"}
       fill={"none"}

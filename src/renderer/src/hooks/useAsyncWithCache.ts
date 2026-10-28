@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 const cache = new Map<string, unknown>()
+const cachedAt = new Map<string, number>()
 const inflight = new Map<string, Promise<unknown>>()
 const fetchers = new Map<string, () => Promise<unknown>>()
 const listeners = new Map<string, Set<() => void>>()
@@ -59,6 +60,7 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
     .then((result) => {
       if (generation === cacheGeneration) {
         cache.set(cacheKey, result)
+        cachedAt.set(cacheKey, Date.now())
         setRefreshFailure(cacheKey, false)
         notify(cacheKey)
       }
@@ -105,6 +107,7 @@ function retainRefreshTimer(cacheKey: string, intervalMs: number, fetcher: () =>
 export interface UseAsyncWithCacheOptions {
   errorMessage?: string
   refreshIntervalMs?: number
+  staleTimeMs?: number
 }
 
 export function useAsyncWithCache<T>(
@@ -168,21 +171,27 @@ export function useAsyncWithCache<T>(
       setLoading(true)
     }
 
+    const staleTimeMs = options?.staleTimeMs
+    const fresh = cached !== undefined && staleTimeMs !== undefined
+      && Date.now() - (cachedAt.get(cacheKey) ?? 0) < staleTimeMs
+
     const generation = cacheGeneration
-    runFetch(cacheKey, fetcherRef.current)
-      .then((result) => {
-        if (dead || generation !== cacheGeneration) return
-        setData(result)
-      })
-      .catch((e) => {
-        console.error(`[${namespace}] fetch failed:`, e)
-        if (!dead) {
-          setErr(options?.errorMessage ?? (e instanceof Error ? e.message : 'Failed'))
-        }
-      })
-      .finally(() => {
-        if (!dead) setLoading(false)
-      })
+    if (!fresh) {
+      runFetch(cacheKey, fetcherRef.current)
+        .then((result) => {
+          if (dead || generation !== cacheGeneration) return
+          setData(result)
+        })
+        .catch((e) => {
+          console.error(`[${namespace}] fetch failed:`, e)
+          if (!dead) {
+            setErr(options?.errorMessage ?? (e instanceof Error ? e.message : 'Failed'))
+          }
+        })
+        .finally(() => {
+          if (!dead) setLoading(false)
+        })
+    }
 
     return () => {
       dead = true

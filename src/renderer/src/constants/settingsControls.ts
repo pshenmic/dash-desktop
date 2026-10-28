@@ -1,0 +1,1 @@
+export const SETTINGS_INLINE_INPUT = 'h-10 rounded-[.75rem] px-4 py-0 font-medium ring-1 ring-inset ring-dash-primary-dark-blue/12 dark:ring-white/12 placeholder:text-dash-primary-dark-blue/35 dark:placeholder:text-white/35 focus:dash-block-accent-5 focus-visible:ring-1! focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint'
