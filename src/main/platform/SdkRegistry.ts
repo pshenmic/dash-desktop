@@ -3,7 +3,7 @@ import {ShieldedBuilderWASM} from 'pshenmic-dpp'
 import {Network} from '../src/types/Network'
 import {Logger} from '../src/utils/logger'
 
-import {DAPI_REPROBE_MS, NETWORKS} from './constants'
+import {DAPI_POOL_READY, DAPI_REPROBE_MS, NETWORKS} from './constants'
 import {reachableDapiUrls} from './operations/dapi'
 import {P2PQuorumKeyProvider} from './P2PQuorumKeyProvider'
 import {Dapi, PlatformEvent} from './types/messages'
@@ -24,6 +24,7 @@ export class SdkRegistry implements SdkSource {
   private readonly pinnedDapiUrls = new Map<Network, string[] | null>()
   // The list each network was last asked to probe, so only the latest is retried.
   private readonly latestDapiUrls = new Map<Network, string[]>()
+  private readonly refills = new Set<Network>()
   private readonly quorumKeyProviders = new Map(NETWORKS.map(network => [network, new P2PQuorumKeyProvider(network)]))
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
@@ -68,15 +69,9 @@ export class SdkRegistry implements SdkSource {
 
   setEvonodeDapiUrls(network: Network, dapiUrls: string[]): void {
     this.latestDapiUrls.set(network, dapiUrls)
-    log.info(`${network}: probing ${dapiUrls.length} evonode(s)`)
-    const started = Date.now()
-    reachableDapiUrls(dapiUrls, network)
+    this.probe(network, dapiUrls)
       .then(reachable => {
         if (reachable.length === 0) throw new Error(`none of ${dapiUrls.length} evonode(s) answered`)
-        log.info(`${network}: pinned to ${reachable.length} of ${dapiUrls.length} evonode(s) in ${Date.now() - started}ms: ${reachable.join(', ')}`)
-        this.pinnedDapiUrls.set(network, reachable)
-        this.sdks.delete(network)
-        this.emit({type: 'pinnedDapiUrls', network, dapiUrls: reachable})
       })
       .catch(err => {
         if (this.latestDapiUrls.get(network) !== dapiUrls) return
@@ -85,6 +80,35 @@ export class SdkRegistry implements SdkSource {
           if (this.latestDapiUrls.get(network) === dapiUrls) this.setEvonodeDapiUrls(network, dapiUrls)
         }, DAPI_REPROBE_MS).unref?.()
       })
+  }
+
+  // The SDK lifts a ban only after a request succeeds, which none can once every
+  // node is banned; a fresh probe builds a pool without them.
+  refillBannedPool(network: Network): void {
+    if ((this.dapi.mode === 'static' && this.dapi[network].length > 0) || this.refills.has(network)) return
+    const dapiUrls = this.latestDapiUrls.get(network)
+    log.warn(`${network}: every evonode is banned, refilling the pool`)
+    if (dapiUrls == null) {
+      this.sdks.delete(network)
+      return
+    }
+    this.refills.add(network)
+    void this.probe(network, dapiUrls).finally(() => this.refills.delete(network))
+  }
+
+  // Pins the first DAPI_POOL_READY to answer, then every one that did.
+  private async probe(network: Network, dapiUrls: string[]): Promise<string[]> {
+    log.info(`${network}: probing ${dapiUrls.length} evonode(s)`)
+    const started = Date.now()
+    const pin = (reachable: string[]): void => {
+      log.info(`${network}: pinned to ${reachable.length} of ${dapiUrls.length} evonode(s) in ${Date.now() - started}ms: ${reachable.join(', ')}`)
+      this.pinnedDapiUrls.set(network, reachable)
+      this.sdks.delete(network)
+      this.emit({type: 'pinnedDapiUrls', network, dapiUrls: reachable})
+    }
+    const reachable = await reachableDapiUrls(dapiUrls, network, pin)
+    if (reachable.length > 0 && reachable.length !== DAPI_POOL_READY) pin(reachable)
+    return reachable
   }
 
   activeDapiUrls(network: Network): string[] {

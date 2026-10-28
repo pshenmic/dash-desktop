@@ -7,7 +7,9 @@ import {Logger} from '../../src/utils/logger'
 
 const log = new Logger('platform')
 
-export async function reachableDapiUrls(candidates: string[], network: Network): Promise<string[]> {
+// Every candidate that answers; `onReady` gets the first DAPI_POOL_READY so the
+// SDK does not wait out the slowest probes.
+export async function reachableDapiUrls(candidates: string[], network: Network, onReady: (reachable: string[]) => void): Promise<string[]> {
   const shuffled = [...candidates]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -15,23 +17,17 @@ export async function reachableDapiUrls(candidates: string[], network: Network):
     shuffled[i] = shuffled[j]!
     shuffled[j] = swap
   }
+  const found: string[] = []
   for (let start = 0; start < shuffled.length; start += DAPI_PROBE_BATCH) {
-    const batch = shuffled.slice(start, start + DAPI_PROBE_BATCH)
-    const reachable = await new Promise<string[]>(resolve => {
-      const found: string[] = []
-      let pending = batch.length
-      for (const dapiUrl of batch) {
-        void probeDapiUrl(dapiUrl, network).then(({error, pingMs}) => {
-          log.debug(`probe ${dapiUrl}: ${error ?? `${pingMs}ms`}`)
-          pending--
-          if (error == null) found.push(dapiUrl)
-          if (found.length >= DAPI_POOL_READY || pending === 0) resolve(found.slice(0, DAPI_POOL_READY))
-        })
-      }
-    })
-    if (reachable.length > 0) return reachable
+    await Promise.all(shuffled.slice(start, start + DAPI_PROBE_BATCH).map(async dapiUrl => {
+      const {error, pingMs} = await probeDapiUrl(dapiUrl, network)
+      log.debug(`probe ${dapiUrl}: ${error ?? `${pingMs}ms`}`)
+      if (error != null) return
+      found.push(dapiUrl)
+      if (found.length === DAPI_POOL_READY) onReady([...found])
+    }))
   }
-  return []
+  return found
 }
 
 export function probeActiveDapiUrls(dapiUrls: string[], network: Network): Promise<DapiUrlStatus[]> {
