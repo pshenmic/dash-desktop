@@ -64,10 +64,10 @@ describe('quorum keys proven by p2p', () => {
   })
 
   it('hands every SDK the registry builds for a network the same provider', () => {
-    const registry = new SdkRegistry()
+    const registry = new SdkRegistry(() => undefined)
     registry.get('testnet')
     registry.setQuorumKeys('testnet', new Map([[`6:${HASH}`, KEY]]))
-    registry.setPinnedDapiUrls('testnet', ['https://127.0.0.1:443'])
+    registry.setDapi({mode: 'dynamic', mainnet: [], testnet: []})
     registry.get('testnet')
 
     expect(captured.options).toHaveLength(2)

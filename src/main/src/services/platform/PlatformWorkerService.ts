@@ -10,7 +10,6 @@ import {Network} from '../../types/Network'
 import {LogLevel} from '../../types/Log'
 import {Preferences} from '../../preferences'
 import {setCoreDapi, setCoreDapiUrls} from '../../utils/coreSDK'
-import {DapiPinGate} from '../../utils/dapiPinGate'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -53,10 +52,11 @@ export class PlatformWorkerService {
   private status: PlatformWorkerStatus = emptyPlatformStatus()
   private transitionBroadcast: (() => void) | null = null
   private readonly preferences: Preferences
-  private readonly pinGate = new DapiPinGate()
-  private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
   // The latest list per network, replayed to a worker forked after a crash.
   private readonly evonodeDapiUrls = new Map<Network, string[]>()
+  private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
+  private readonly pinnedNetworks = new Set<Network>()
+  private readonly pinWaiters = new Map<Network, Set<() => void>>()
 
   constructor(preferences: Preferences) {
     this.preferences = preferences
@@ -135,25 +135,37 @@ export class PlatformWorkerService {
     this.child?.postMessage({type: 'setLogLevel', level})
   }
 
-  // Held so a worker forked later, or restarted, starts from them too.
-  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
-    if (keys.size > 0) this.quorumKeys.set(network, keys)
-    else this.quorumKeys.delete(network)
-    this.child?.postMessage({type: 'setQuorumKeys', network, keys})
-  }
-
   reloadDapi(): void {
     setCoreDapi(this.preferences.network.dapi)
     this.child?.postMessage({type: 'setDapi', dapi: this.preferences.network.dapi})
   }
 
-  // Static urls are used as given, unprobed.
+  // Holds a request until the worker can build an SDK for the network: none can
+  // before its first evonode list has been probed.
   private untilPinned(network: Network): Promise<void> | null {
     const {dapi} = this.preferences.network
-    if (dapi.mode === 'static' && dapi[network].length > 0) return null
-    // The pin comes from the worker, so it must be running to send one.
+    if (this.pinnedNetworks.has(network) || (dapi.mode === 'static' && dapi[network].length > 0)) return null
     this.ensureChild()
-    return this.pinGate.wait(network, DAPI_URLS_WAIT_MS)
+    return new Promise((resolve, reject) => {
+      const waiters = this.pinWaiters.get(network) ?? new Set<() => void>()
+      this.pinWaiters.set(network, waiters)
+      const wake = (): void => {
+        clearTimeout(timer)
+        resolve()
+      }
+      const timer = setTimeout(() => {
+        waiters.delete(wake)
+        reject(new Error(`no reachable evonode for ${network} after ${DAPI_URLS_WAIT_MS / 1000}s`))
+      }, DAPI_URLS_WAIT_MS)
+      waiters.add(wake)
+    })
+  }
+
+  // Held so a worker forked later, or restarted, starts from them too.
+  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    if (keys.size > 0) this.quorumKeys.set(network, keys)
+    else this.quorumKeys.delete(network)
+    this.child?.postMessage({type: 'setQuorumKeys', network, keys})
   }
 
   setEvonodeDapiUrls(network: Network, dapiUrls: string[]): void {
@@ -194,7 +206,7 @@ export class PlatformWorkerService {
       log.info(`utility process exited code=${code}`)
       if (tail) log.error(`last output before exit:\n${tail}`)
       this.child = null
-      this.pinGate.reset()
+      this.pinnedNetworks.clear()
       // Every pending request must be settled here or its caller hangs forever.
       const detail = tail ? `\n--- platform output (tail) ---\n${tail}` : ''
       for (const [requestId, record] of [...this.pending]) {
@@ -241,7 +253,9 @@ export class PlatformWorkerService {
       this.progressHandlers.get(event.requestId)?.onNotesSpent?.(event.indexes)
     } else if (event.type === 'pinnedDapiUrls') {
       setCoreDapiUrls(event.network, event.dapiUrls)
-      this.pinGate.pin(event.network)
+      this.pinnedNetworks.add(event.network)
+      for (const wake of this.pinWaiters.get(event.network) ?? []) wake()
+      this.pinWaiters.delete(event.network)
     } else if (event.type === 'error') {
       log.error('utility process error:', event.message)
     }

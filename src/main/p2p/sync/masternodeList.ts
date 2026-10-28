@@ -4,7 +4,6 @@ import {wireToDisplayHex} from '../utils/byteOrder'
 import {committedQuorums, evonodeDapiUrls, quorumKey} from '../utils/masternodeList'
 import {hashHeaderRaw} from '../utils/pow'
 import type {MasternodeListOptions, QuorumSet} from '../types/masternodeList'
-import {shuffled} from '../../src/utils/shuffle'
 import {Logger} from '../../src/utils/logger'
 
 const log = new Logger('p2p')
@@ -32,8 +31,7 @@ export class MasternodeList {
     if (!pool || now - this.verifiedAt < MNLIST_REFRESH_MS || now - this.askedAt < MNLIST_REPLY_TIMEOUT_MS) return
     this.askedAt = now
     log.info(`asking ${peer.host}:${peer.port} for the masternode list at ${blockHash}`)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    peer.sendMessage((pool.messages as any).GetMnListDiff({blockHash}))
+    peer.sendMessage(pool.messages.GetMnListDiff({blockHash}))
   }
 
   // Core opens every connection with a getheaders whose locator starts at its tip.
@@ -67,9 +65,11 @@ export class MasternodeList {
   followTip(blockHash: string): void {
     const pool = this.opts.pool()
     if (!pool) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const request = (pool.messages as any).GetMnListDiff({baseBlockHash: this.quorums?.blockHash, blockHash})
-    for (const peer of shuffled(pool.readyPeers).slice(0, PLATFORM_QUORUM_PEERS)) peer.sendMessage(request)
+    const request = pool.messages.GetMnListDiff({baseBlockHash: this.quorums?.blockHash, blockHash})
+    const peers = [...pool.readyPeers]
+    for (let i = 0; i < PLATFORM_QUORUM_PEERS && peers.length > 0; i++) {
+      peers.splice(Math.floor(Math.random() * peers.length), 1)[0]!.sendMessage(request)
+    }
   }
 
   // Core refuses, and scores, a diff based on a block off its active chain.
@@ -87,7 +87,7 @@ export class MasternodeList {
   // for the coinbase, and the coinbase for the commitments.
   private async applyQuorums(peer: Peer, diff: MnListDiff): Promise<void> {
     const store = this.opts.chain()
-    const height = (diff.cbTx.extraPayload as {height?: number} | undefined)?.height
+    const height = diff.coinbaseHeight
     if (store == null || height == null) return
     const header = await store.getHeaderByHeight(height)
     const current = this.quorums
