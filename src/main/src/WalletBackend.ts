@@ -102,7 +102,6 @@ import {PlatformWorkerService} from './services/platform/PlatformWorkerService'
 import {ShieldedNoteDAO} from './database/ShieldedNoteDAO'
 import {ShieldedPoolDAO} from './database/ShieldedPoolDAO'
 import {ShieldedAddressDAO} from './database/ShieldedAddressDAO'
-import {EvonodeDAO} from './database/EvonodeDAO'
 import {GetShieldedStatusHandler} from './api/shielded/getShieldedStatus'
 import {GetShieldedPoolInfoHandler} from './api/shielded/getShieldedPoolInfo'
 import {GetShieldedNotesInfoHandler} from './api/shielded/getShieldedNotesInfo'
@@ -311,14 +310,11 @@ export class WalletBackend {
     this.contactService = new ContactService(contactDAO)
     this.logService = new LogService(dataPath(LogsFolderName))
     const shieldedAddressDAO = new ShieldedAddressDAO(knex)
-    this.platformWorkerService = new PlatformWorkerService(preferences, new EvonodeDAO(knex))
+    this.platformWorkerService = new PlatformWorkerService(preferences)
     this.platformWorkerService.start()
 
     const platformWorkerService = this.platformWorkerService
-    this.walletSyncService.onEvonodeDapiUrls = (network, dapiUrls) => {
-      platformWorkerService.setEvonodeDapiUrls(network, dapiUrls).catch(err =>
-        platformLog.error(`saving ${network} evonodes failed:`, err))
-    }
+    this.walletSyncService.onEvonodeDapiUrls = (network, dapiUrls) => platformWorkerService.setEvonodeDapiUrls(network, dapiUrls)
 
     // Consumers depend on the asset lock primitive, never the other way round:
     // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,
@@ -366,15 +362,15 @@ export class WalletBackend {
     }
     const discoverSelected = async (): Promise<void> => {
       const selected = await walletDAO.getSelectedWallet()
-      if (selected == null) return
       // Locks are needed in both connection modes, and this is the only place
       // that starts listening for them. Re-run on the periodic tick so a lost
       // utility process is picked back up.
       try {
-        await walletSyncService.startLockListen(selected.network, selected.walletId)
+        await walletSyncService.startLockListen(selected?.network ?? 'mainnet', selected?.walletId)
       } catch (err) {
         locks.error('failed to start lock listener:', err)
       }
+      if (selected == null) return
       // Each tick polls for new contact requests too, so a new contact's chain
       // is watched within one interval of its request.
       await walletService.fetchContactRequestsAndDiscover(selected.walletId)

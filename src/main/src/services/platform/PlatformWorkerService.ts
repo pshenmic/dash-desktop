@@ -10,7 +10,6 @@ import {Network} from '../../types/Network'
 import {LogLevel} from '../../types/Log'
 import {Preferences} from '../../preferences'
 import {setCoreDapi, setCoreDapiUrls} from '../../utils/coreSDK'
-import {EvonodeDAO} from '../../database/EvonodeDAO'
 import {
   emptyPlatformStatus,
   PlatformCommand,
@@ -53,13 +52,13 @@ export class PlatformWorkerService {
   private status: PlatformWorkerStatus = emptyPlatformStatus()
   private transitionBroadcast: (() => void) | null = null
   private readonly preferences: Preferences
-  private readonly evonodeDAO: EvonodeDAO
+  // The latest list per network, replayed to a worker forked after a crash.
+  private readonly evonodeDapiUrls = new Map<Network, string[]>()
   private readonly pinnedNetworks = new Set<Network>()
   private readonly pinWaiters = new Map<Network, Set<() => void>>()
 
-  constructor(preferences: Preferences, evonodeDAO: EvonodeDAO) {
+  constructor(preferences: Preferences) {
     this.preferences = preferences
-    this.evonodeDAO = evonodeDAO
   }
 
   // Forks the worker so the prover starts warming before anything is
@@ -161,10 +160,9 @@ export class PlatformWorkerService {
     })
   }
 
-  // Saved before it is forwarded, so a worker forked later starts from it too.
-  setEvonodeDapiUrls = async (network: Network, dapiUrls: string[]): Promise<void> => {
-    await this.evonodeDAO.replaceDapiUrls(network, dapiUrls)
-    log.info(`${network}: pinning gRPC from the p2p masternode list (${dapiUrls.length} evonode(s), saved to db)`)
+  setEvonodeDapiUrls(network: Network, dapiUrls: string[]): void {
+    this.evonodeDapiUrls.set(network, dapiUrls)
+    log.info(`${network}: pinning gRPC from the p2p masternode list (${dapiUrls.length} evonode(s))`)
     this.child?.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
   }
 
@@ -222,18 +220,7 @@ export class PlatformWorkerService {
 
     child.postMessage({type: 'setLogLevel', level: currentLogLevel()})
     child.postMessage({type: 'setDapi', dapi: this.preferences.network.dapi})
-    this.evonodeDAO.getDapiUrls()
-      .then(byNetwork => {
-        if (this.child !== child) return
-        for (const [network, dapiUrls] of byNetwork) {
-          log.info(`${network}: pinning gRPC from db (${dapiUrls.length} saved evonode(s))`)
-          // Unprobed, but real evonodes rather than the core SDK's own seeds until
-          // the worker's probed set replaces them.
-          setCoreDapiUrls(network, dapiUrls)
-          child.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
-        }
-      })
-      .catch(err => log.error('reading saved evonodes failed:', err))
+    for (const [network, dapiUrls] of this.evonodeDapiUrls) child.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
 
     this.child = child
     return child
