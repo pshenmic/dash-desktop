@@ -13,6 +13,7 @@ const log = new Logger('p2p')
 export class MasternodeList {
   private verifiedAt = 0
   private askedAt = 0
+  private retry: ReturnType<typeof setTimeout> | null = null
   private quorums: QuorumSet | null = null
 
   constructor(private readonly opts: MasternodeListOptions) {}
@@ -21,17 +22,34 @@ export class MasternodeList {
   resetPool(): void {
     this.verifiedAt = 0
     this.askedAt = 0
+    if (this.retry) clearTimeout(this.retry)
+    this.retry = null
   }
 
   // A peer is asked for a block it announced itself, so it always holds it; a reply
   // is checked against its own coinbase, so the first verified one wins.
   onBlockAnnounced(peer: Peer, blockHash: string): void {
-    const pool = this.opts.pool()
     const now = Date.now()
-    if (!pool || now - this.verifiedAt < MNLIST_REFRESH_MS || now - this.askedAt < MNLIST_REPLY_TIMEOUT_MS) return
-    this.askedAt = now
+    if (now - this.verifiedAt < MNLIST_REFRESH_MS || now - this.askedAt < MNLIST_REPLY_TIMEOUT_MS) return
+    this.ask(peer, blockHash)
+  }
+
+  // Many peers never answer getmnlistd, and waiting for the next announcement
+  // leaves platform requests without evonodes for minutes.
+  private ask(peer: Peer, blockHash: string): void {
+    const pool = this.opts.pool()
+    if (!pool) return
+    this.askedAt = Date.now()
     log.info(`asking ${peer.host}:${peer.port} for the masternode list at ${blockHash}`)
     peer.sendMessage(pool.messages.GetMnListDiff({blockHash}))
+
+    if (this.retry) clearTimeout(this.retry)
+    this.retry = setTimeout(() => {
+      this.retry = null
+      const others = [...this.opts.pool()?.readyPeers ?? []].filter(ready => ready !== peer)
+      if (Date.now() - this.verifiedAt < MNLIST_REFRESH_MS || others.length === 0) return
+      this.ask(others[Math.floor(Math.random() * others.length)]!, blockHash)
+    }, MNLIST_REPLY_TIMEOUT_MS)
   }
 
   // Core opens every connection with a getheaders whose locator starts at its tip.

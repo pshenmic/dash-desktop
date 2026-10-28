@@ -56,6 +56,10 @@ process.parentPort.on('message', ({data}) => {
     registry.setEvonodeDapiUrls(data.network, data.dapiUrls)
     return
   }
+  if (data.type === 'useSeedNodes') {
+    registry.useSeedNodes(data.network)
+    return
+  }
   if (data.type === 'setQuorumKeys') {
     registry.setQuorumKeys(data.network, data.keys)
     return

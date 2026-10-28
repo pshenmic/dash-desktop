@@ -374,8 +374,9 @@ export const BROADCAST_POLICY = {
 export const MNLIST_REFRESH_MS = 60 * 60_000
 
 // A full list is several MB, so one peer is asked at a time and another only
-// once this passes without a verified answer.
-export const MNLIST_REPLY_TIMEOUT_MS = 30_000
+// once this passes without a verified answer. Answering peers take about a
+// second; this must stay well under the platform worker's DAPI_URLS_WAIT_MS.
+export const MNLIST_REPLY_TIMEOUT_MS = 5_000
 
 // Lock peers asked for each quorum update; most never answer getmnlistd.
-export const PLATFORM_QUORUM_PEERS = 3
+export const PLATFORM_QUORUM_PEERS = 6
