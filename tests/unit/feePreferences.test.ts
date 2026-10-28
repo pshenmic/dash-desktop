@@ -76,6 +76,9 @@ describe('the per-operation fee multipliers', () => {
       addressWithdrawal: true,
       identityCreate: true,
       identityTopUp: true,
+      usernameRegister: true,
+      dashPayContactRequest: true,
+      identityUpdateKeys: true,
     }
     expect([...TRANSITION_FEE_OPERATIONS].sort()).toEqual(Object.keys(priced).sort())
   })
@@ -112,6 +115,11 @@ describe('the per-operation fee multipliers', () => {
 
   // The field was one number before it was one per operation, and migrate reads
   // it without the schema, so a stale file must not reach a lookup.
+  it('drops an operation a file still prices that the app no longer has', () => {
+    const migrated = Preferences.fromObject({general: {platformFeeMultiplier: {identityCreateKeys: 4, shield: 3}}})
+    expect(migrated.general.platformFeeMultiplier).toEqual({...DEFAULT_PLATFORM_FEE_MULTIPLIER, shield: 3})
+  })
+
   it('reads a file still carrying the old single number as carrying none', () => {
     const migrated = Preferences.fromObject({general: {platformFeeMultiplier: 10}})
     expect(migrated.general.platformFeeMultiplier).toEqual(DEFAULT_PLATFORM_FEE_MULTIPLIER)

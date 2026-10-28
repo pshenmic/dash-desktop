@@ -1,5 +1,6 @@
 import type {Knex} from 'knex'
 import {Address} from '../types/Address'
+import {DashPayCache} from './DashPayCache'
 import {GroupedAddresses} from "../types/GroupedAddresses";
 import {INSERT_CHUNK_SIZE, SELECT_CHUNK_SIZE} from '../constants/database'
 import {chunk} from '../utils/chunk'
@@ -20,9 +21,11 @@ function fromRow({wallet_id, account_id, address, derivation_path, index, is_cha
 
 export class AddressDAO {
   knex: Knex
+  dashPayCache: DashPayCache
 
-  constructor(knex: Knex) {
+  constructor(knex: Knex, dashPayCache: DashPayCache) {
     this.knex = knex
+    this.dashPayCache = dashPayCache
   }
 
   insertAddresses = async (addresses: Address[]): Promise<void> => {
@@ -46,6 +49,12 @@ export class AddressDAO {
       .select('wallet_id', 'account_id', 'address', 'derivation_path', 'index', 'is_change', 'is_used', 'label')
       .where('wallet_id', walletId)
       .orderBy('index', 'asc')
+    // Our DashPay receiving chains live in memory, derived again on each refresh.
+    const dashPay = [...this.dashPayCache.wallet(walletId).chains.values()].flat()
+      .filter(address => address.direction === 'receiving')
+      .map(({address, derivationPath, index, isUsed}): Address => ({
+        walletId, accountId: 0, address, derivationPath, index, isChange: false, isUsed, label: null,
+      }))
 
     return rows.reduce((acc, row) => {
       const address = fromRow(row)
@@ -60,7 +69,7 @@ export class AddressDAO {
           receiving: [...acc.receiving, address],
         }
       }
-    }, {receiving: [], change: []})
+    }, {receiving: [], change: [], dashPay})
   }
 
   markAddressesUsed = async (walletId: string, isChange: boolean, indexes: number[]): Promise<void> => {

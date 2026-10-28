@@ -1,17 +1,17 @@
 import {IpcMainInvokeEvent} from 'electron/utility'
-import {WalletSyncService} from '../../services/core/WalletSyncService'
+import {WalletService} from '../../services/wallet/WalletService'
 
 export class StartWalletSyncHandler {
-  private walletSyncService: WalletSyncService
+  private walletService: WalletService
 
-  constructor(walletSyncService: WalletSyncService) {
-    this.walletSyncService = walletSyncService
+  constructor(walletService: WalletService) {
+    this.walletService = walletService
   }
 
   handle = async (_event: IpcMainInvokeEvent, walletId: unknown): Promise<void> => {
     if (typeof walletId !== 'string' || walletId === '') {
       throw new Error('startWalletSync: walletId is required')
     }
-    return this.walletSyncService.startSync(walletId)
+    return this.walletService.startWalletSync(walletId)
   }
 }

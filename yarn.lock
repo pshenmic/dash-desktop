@@ -2812,18 +2812,18 @@ csstype@^3.2.2:
   resolved "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
   integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
-"dash-core-p2p@https://github.com/pshenmic/dash-core-p2p#5583107bd7a48fc27c006a8aca938c3bd616a59b":
+"dash-core-p2p@https://github.com/pshenmic/dash-core-p2p#93d316d63b22de2f7027975a395941554d579627":
   version "0.0.1"
-  resolved "https://github.com/pshenmic/dash-core-p2p#5583107bd7a48fc27c006a8aca938c3bd616a59b"
+  resolved "https://github.com/pshenmic/dash-core-p2p#93d316d63b22de2f7027975a395941554d579627"
   dependencies:
     bloom-filter "^0.1.0"
-    dash-core-sdk "1.1.4"
+    dash-core-sdk "1.1.5-dev.1"
     eventemitter3 "^5.0.1"
 
-dash-core-sdk@1.1.4:
-  version "1.1.4"
-  resolved "https://registry.yarnpkg.com/dash-core-sdk/-/dash-core-sdk-1.1.4.tgz#f0ca3e6336acc3f5dced11e739db8f3e79292ca2"
-  integrity sha512-uFvcDA8oo8dh33ZTxvRGKH8UNLuDLxED3YtSbDTlJh0LTxhZtNPZ4k+MSum/tkO2BWUMC3Gt2SRaq3TUlsqUaQ==
+dash-core-sdk@1.1.5-dev.1:
+  version "1.1.5-dev.1"
+  resolved "https://registry.yarnpkg.com/dash-core-sdk/-/dash-core-sdk-1.1.5-dev.1.tgz#128dbe1a2a0c920970dc2650449cb62c5d1ac79c"
+  integrity sha512-SvZHrEnp8VmFWfJ0c4o8DUpIy239rd3grmKWeJhARd6jTzs4ocqlKdSwwIqrj6uZgPSGbA/UunIpL2B1JC65Eg==
   dependencies:
     "@dashevo/x11-hash-js" "^1.0.2"
     "@noble/curves" "^2.0.1"
@@ -2841,10 +2841,10 @@ dash-core-sdk@1.1.4:
     typescript "^5.9.2"
     ws "^8.18.3"
 
-dash-platform-sdk@1.5.2:
-  version "1.5.2"
-  resolved "https://registry.yarnpkg.com/dash-platform-sdk/-/dash-platform-sdk-1.5.2.tgz#024ce9da7de05c7d2728d6e9970a46b76c161fa7"
-  integrity sha512-BQI+G+Xyo4YQWCtIf7xmW0aXkVq42qVThcVnuU0wScIOddr1CGud06dr219iE1Tu2DSopdA6mlWv9s9c8e94yg==
+dash-platform-sdk@1.6.0-dev.4:
+  version "1.6.0-dev.4"
+  resolved "https://registry.yarnpkg.com/dash-platform-sdk/-/dash-platform-sdk-1.6.0-dev.4.tgz#a41be59632a687e3dab551972c877325ebf2386d"
+  integrity sha512-+kBzYAs9ZWnsVwwXnIe5WY5SKb4PkDcMMx10YkpEGCk//+If5zsy1OuXXXsUAucSSA5DBHL4HA4u78HTY4tpKg==
   dependencies:
     "@bufbuild/protobuf" "^2.6.0"
     "@protobuf-ts/grpcweb-transport" "^2.11.1"
@@ -2852,8 +2852,7 @@ dash-platform-sdk@1.5.2:
     "@scure/bip32" "^2.0.0"
     "@scure/bip39" "^2.0.0"
     "@scure/btc-signer" "^2.0.1"
-    cbor2 "^2.3.0"
-    pshenmic-dpp "2.0.0-dev.29"
+    pshenmic-dpp "2.0.1-dev.5"
 
 dash-ui-kit@1.0.94:
   version "1.0.94"
@@ -3523,7 +3522,7 @@ fdir@^6.5.0:
   resolved "https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz"
   integrity sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==
 
-fflate@^0.8.2:
+fflate@^0.8.2, fflate@^0.8.3:
   version "0.8.3"
   resolved "https://registry.yarnpkg.com/fflate/-/fflate-0.8.3.tgz#bc27d8eb30343d4d512abb03480202ce65d825fc"
   integrity sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==
@@ -5018,15 +5017,15 @@ protoc@^32.1.0:
   resolved "https://registry.npmjs.org/protoc/-/protoc-32.1.0.tgz"
   integrity sha512-yICJJCGHJLM9ao5W2V4CGp1d7xuBsdHzgVDw6L8mdDtoIcqzN3arNPOm9Jx4Ufp5vfhQfJGkNUDo6mm/SLPdXw==
 
-pshenmic-dpp@2.0.0-dev.29:
-  version "2.0.0-dev.29"
-  resolved "https://registry.yarnpkg.com/pshenmic-dpp/-/pshenmic-dpp-2.0.0-dev.29.tgz#e67d6fd53a3f9ffb7f4cff9a776993dfc8b6e338"
-  integrity sha512-vdlXHy7lvwvbB69UWqCx3YS7ROb+U2md2V9qO/0nEgZCO3eh6cOiQfrYYCb1g+mJWxAj4v3Mp+awzAi+r8ZDaQ==
+pshenmic-dpp@2.0.1-dev.5:
+  version "2.0.1-dev.5"
+  resolved "https://registry.yarnpkg.com/pshenmic-dpp/-/pshenmic-dpp-2.0.1-dev.5.tgz#364600263e40190d6108709c570e0ac1cf634d79"
+  integrity sha512-oJVLKM1Cgz9cKuSLBAvmLVZcVZNba7225zx7F8ApD/6Vhh5RuO3anNweNxlkWFwmw02q+zGi0q0t09gs+sBK9g==
   dependencies:
     "@emnapi/core" "1.9.0"
     "@emnapi/runtime" "1.9.0"
     "@tybys/wasm-util" "^0.10.1"
-    fflate "^0.8.2"
+    fflate "^0.8.3"
 
 pump@^3.0.0:
   version "3.0.3"

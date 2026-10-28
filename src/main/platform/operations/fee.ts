@@ -1,6 +1,11 @@
+import {DPNS_DATA_CONTRACT_ID} from 'dash-platform-sdk/src/constants.js'
 import {
   AddressCreditWithdrawalTransitionWASM,
   AddressFundsTransferTransitionWASM,
+  DataContractWASM,
+  DocumentWASM,
+  IdentifierWASM,
+  IdentityPublicKeyWASM,
   PlatformAddressWASM,
   PlatformVersionWASM,
   ShieldFromAssetLockTransitionWASM,
@@ -16,9 +21,10 @@ import {
 } from 'dash-platform-sdk/types.js'
 import {coreAddressToScript} from '../../src/utils/coreScript'
 import {
+  CONTEST_FUND_CREDITS,
+  DPNS_PARENT_DOMAIN,
   FEE_QUOTE_PUBLIC_KEY,
   FUNDING_REMAINDER_STAND_IN,
-  KEY_SPECS,
   PLATFORM_ADDRESS_BYTES,
 } from '../constants'
 import type {ChainAssetLockProofParams} from 'dash-core-sdk/src/utils.js'
@@ -28,8 +34,31 @@ import {buildAssetLockProof} from './assetLockProof'
 import {platformVersion} from './platformVersion'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
-import {IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
-import {ASSET_LOCK_BASE_COST_CREDITS, SHIELD_FUNDING_ACTIONS} from '../../src/constants/fee/platform'
+import {contractBoundsWASM, sdkContractBounds} from './identity/contractBounds'
+import {IdentityKeysUpdate} from '../../src/types/IdentityKeys'
+import {DASHPAY_CONTRACT_ID, IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
+import {
+  ASSET_LOCK_BASE_COST_CREDITS,
+  CONTRACT_NONCE_BYTES,
+  DASHPAY_CONTACT_REQUEST_BYTES,
+  DOCUMENT_FEE_MARGIN_PERCENT,
+  DPNS_CONTESTED_DOMAIN_BYTES,
+  DPNS_DOMAIN_BYTES,
+  DPNS_IDENTITY_SUBTREE_BYTES,
+  DPNS_PREORDER_BYTES,
+  SHIELD_FUNDING_ACTIONS,
+  IDENTITY_CONTRACT_BOUNDS_BYTES,
+  IDENTITY_DISABLE_KEY_CREDITS,
+  IDENTITY_DISABLE_KEYS_CREDITS,
+  IDENTITY_KEY_BOUNDS_BYTES,
+  IDENTITY_KEY_BYTES,
+  IDENTITY_KEY_REFERENCE_BYTES,
+  IDENTITY_UPDATE_BYTES,
+  STORED_BYTE_CREDITS,
+} from '../../src/constants/fee/platform'
+import {Logger} from '../../src/utils/logger'
+
+const log = new Logger('platform')
 
 type Payload = PlatformOperations['transitionFee']['payload']
 type Result = PlatformOperations['transitionFee']['result']
@@ -54,10 +83,121 @@ export async function spendFeeCurve(payload: CurvePayload, ctx: OperationContext
 // the floor. A shielded fee is exact, so nothing may be added to it.
 export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {operation, params} = payload
+  if (operation === 'usernameRegister') return usernameRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'dashPayContactRequest') return dashPayContactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'identityUpdateKeys') {
+    const update = {add: params.keys ?? [], disable: params.keyIds ?? []}
+    return identityUpdateKeysFee(update, await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
+  }
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
   }
+}
+
+// dpp prices a document transition at its flat floor, so it is priced by the bytes it
+// stores: the document, each index value twice, and the overhead measured per type.
+export function documentsFee(contract: DataContractWASM, writes: Array<{document: DocumentWASM; overheadBytes: bigint}>): bigint {
+  const bytes = writes.reduce((total, {document, overheadBytes}) => {
+    const {indices = []} = contract.getSchemas()[document.documentTypeName]
+    const keyBytes = indices.flatMap((index: {properties: object[]}) => index.properties.map(property => Object.keys(property)[0]))
+      .reduce((sum: number, field: string) => sum + 2 * indexValueBytes(document, field), 0)
+    return total + BigInt(document.bytes(contract).length + keyBytes) + overheadBytes
+  }, 0n)
+  log.debug(`documents fee: ${writes.map(({document}) => document.documentTypeName).join(' + ')} add ${bytes} bytes`)
+  return withMargin(bytes * STORED_BYTE_CREDITS)
+}
+
+function withMargin(credits: bigint): bigint {
+  return credits * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n
+}
+
+function indexValueBytes(document: DocumentWASM, field: string): number {
+  if (field === '$id' || field === '$ownerId') return 32
+  if (field.startsWith('$')) return 8
+  const value = field.split('.').reduce((node, key) => node?.[key], document.properties)
+  if (typeof value === 'string') return new TextEncoder().encode(value).length
+  if (value instanceof Uint8Array) return value.length
+  return value == null ? 0 : 8
+}
+
+export async function usernameRegisterFee(ctx: OperationContext, label: string, identityId: string): Promise<Result> {
+  const {sdk} = ctx
+  const contract = await sdk.dataContracts.getDataContractByIdentifier(DPNS_DATA_CONTRACT_ID)
+  const contested = sdk.names.testNameContested(`${label}.${DPNS_PARENT_DOMAIN}`)
+  const [contractNonce, [named]] = await Promise.all([
+    sdk.identities.getIdentityContractNonce(identityId, DPNS_DATA_CONTRACT_ID),
+    sdk.documents.query(DPNS_DATA_CONTRACT_ID, 'domain', [['records.identity', '==', identityId]], [['records.identity', 'asc']], 1),
+  ])
+
+  const preorder = sdk.documents.create(DPNS_DATA_CONTRACT_ID, 'preorder', {saltedDomainHash: new Uint8Array(32)}, identityId, 1n)
+  const domain = sdk.documents.create(DPNS_DATA_CONTRACT_ID, 'domain', {
+    label,
+    normalizedLabel: sdk.names.normalizeLabel(label),
+    parentDomainName: DPNS_PARENT_DOMAIN,
+    normalizedParentDomainName: DPNS_PARENT_DOMAIN,
+    preorderSalt: new Uint8Array(32),
+    records: {identity: new IdentifierWASM(identityId).bytes()},
+    subdomainRules: {allowSubdomains: false},
+  }, identityId, 2n)
+  // DPNS requires them on a domain; their width never varies.
+  domain.createdAt = domain.updatedAt = domain.transferredAt = Date.now()
+
+  return {
+    feeCredits: documentsFee(contract, [
+      {document: preorder, overheadBytes: DPNS_PREORDER_BYTES + (contractNonce === 0n ? CONTRACT_NONCE_BYTES : 0n)},
+      {document: domain, overheadBytes: contested
+        ? DPNS_CONTESTED_DOMAIN_BYTES
+        : DPNS_DOMAIN_BYTES + (named == null ? DPNS_IDENTITY_SUBTREE_BYTES : 0n)},
+    ]),
+    metered: true,
+    fixedCredits: contested ? CONTEST_FUND_CREDITS : 0n,
+  }
+}
+
+export async function dashPayContactRequestFee(ctx: OperationContext, recipient: string, identityId: string): Promise<Result> {
+  const {sdk} = ctx
+  const [contract, contractNonce] = await Promise.all([
+    sdk.dataContracts.getDataContractByIdentifier(DASHPAY_CONTRACT_ID),
+    sdk.identities.getIdentityContractNonce(identityId, DASHPAY_CONTRACT_ID),
+  ])
+
+  const request = sdk.documents.create(DASHPAY_CONTRACT_ID, 'contactRequest', {
+    toUserId: new IdentifierWASM(recipient).bytes(),
+    encryptedPublicKey: new Uint8Array(96),
+    senderKeyIndex: 0,
+    recipientKeyIndex: 0,
+    accountReference: 0,
+  }, identityId, 1n)
+  // DashPay requires them on a request; their width never varies.
+  request.createdAt = Date.now()
+  request.createdAtCoreBlockHeight = 0
+
+  return {
+    feeCredits: documentsFee(contract, [
+      {document: request, overheadBytes: DASHPAY_CONTACT_REQUEST_BYTES + (contractNonce === 0n ? CONTRACT_NONCE_BYTES : 0n)},
+    ]),
+    metered: true,
+  }
+}
+
+// An identity update too: each added key by what it stores; an update that only
+// disables keys stores almost nothing and is priced at what testnet charged.
+export function identityUpdateKeysFee({add, disable}: IdentityKeysUpdate, existing: IdentityPublicKeyWASM[]): Result {
+  const disabling = IDENTITY_DISABLE_KEY_CREDITS * BigInt(disable.length)
+  if (add.length === 0) {
+    return {feeCredits: withMargin(IDENTITY_DISABLE_KEYS_CREDITS + disabling), metered: true}
+  }
+  const bound = new Set(existing.flatMap(key => key.contractBounds == null ? [] : [key.contractBounds.identifier.base58()]))
+  let bytes = IDENTITY_UPDATE_BYTES
+  for (const {purpose, contractBounds} of add) {
+    bytes += IDENTITY_KEY_BYTES
+    if (purpose === 'AUTHENTICATION' || purpose === 'TRANSFER') bytes += IDENTITY_KEY_REFERENCE_BYTES
+    if (contractBounds == null) continue
+    bytes += IDENTITY_KEY_BOUNDS_BYTES + (bound.has(contractBounds.contractId) ? 0n : IDENTITY_CONTRACT_BOUNDS_BYTES)
+    bound.add(contractBounds.contractId)
+  }
+  return {feeCredits: withMargin(bytes * STORED_BYTE_CREDITS + disabling), metered: true}
 }
 
 // Shield's own minimum omits note storage, but consensus checks its claims
@@ -67,7 +207,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: TransitionFeeOperation,
+  operation: Exclude<TransitionFeeOperation, 'usernameRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,
@@ -137,9 +277,8 @@ function builtTransition(
     // The inputs carry their own nonces, so neither of these reads the network.
     case 'identityCreate':
       return sdk.platformAddresses.createStateTransition('identityCreateFromAddresses', {
-        publicKeys: KEY_SPECS.map((spec, keyId) =>
-          new IdentityPublicKeyInCreationWASM(
-            keyId, spec.purpose, spec.securityLevel, 'ECDSA_SECP256K1', false, FEE_QUOTE_PUBLIC_KEY)),
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType, contractBounds}) =>
+          new IdentityPublicKeyInCreationWASM(id, purpose, securityLevel, keyType, false, FEE_QUOTE_PUBLIC_KEY, undefined, contractBoundsWASM(contractBounds))),
         inputs: quoteInputs(params.inputCount),
         feeStrategy: DEDUCT_FROM_FIRST,
         inputWitness: [],
@@ -170,8 +309,8 @@ function builtTransition(
       })
     case 'identityRegister':
       return sdk.identities.createStateTransition('create', {
-        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType}) => ({
-          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY,
+        publicKeys: IDENTITY_KEY_DEFINITIONS.map(({id, purpose, securityLevel, keyType, contractBounds}) => ({
+          id, purpose, securityLevel, keyType, readOnly: false, data: FEE_QUOTE_PUBLIC_KEY, contractBounds: sdkContractBounds(contractBounds),
         })),
         assetLockProof: proof,
       })
