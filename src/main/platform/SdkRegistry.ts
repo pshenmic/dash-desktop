@@ -16,11 +16,12 @@ const log = new Logger('platform')
 // replaces every controller, leaving anything in flight holding swapped-out
 // objects. A replaced SDK keeps serving whatever already holds it.
 //
-// Before the first evonode list is probed the SDK is built on no urls at all:
-// given none, it would run a discovery of its own against dead seed nodes.
+// Before the first evonode list is probed the SDK is built on no urls at all,
+// unless main gave up waiting for it and fell back to the SDK's own seeds.
 export class SdkRegistry implements SdkSource {
   private readonly sdks = new Map<Network, DashPlatformSDK>()
-  private readonly pinnedDapiUrls = new Map<Network, string[]>()
+  // null: the SDK discovers evonodes from its own seed nodes.
+  private readonly pinnedDapiUrls = new Map<Network, string[] | null>()
   // The list each network was last asked to probe, so only the latest is retried.
   private readonly latestDapiUrls = new Map<Network, string[]>()
   private readonly quorumKeyProviders = new Map(NETWORKS.map(network => [network, new P2PQuorumKeyProvider(network)]))
@@ -43,10 +44,11 @@ export class SdkRegistry implements SdkSource {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
     const own = this.dapi[network]
-    const dapiUrls = this.dapi.mode === 'static' && own.length > 0 ? own : this.pinnedDapiUrls.get(network)
+    const pinned = this.pinnedDapiUrls.get(network)
+    const dapiUrls = this.dapi.mode === 'static' && own.length > 0 ? own : pinned === null ? null : pinned ?? []
     const sdk = new DashPlatformSDK({
       network,
-      grpc: {dapiUrl: [...dapiUrls ?? []]},
+      grpc: {dapiUrl: dapiUrls == null ? undefined : [...dapiUrls]},
       quorumKeyProvider: this.quorumKeyProviders.get(network),
     })
     // init assigns the builder before its first await; the warmed builder's
@@ -54,6 +56,14 @@ export class SdkRegistry implements SdkSource {
     if (this.builder != null) void sdk.shielded.init(this.builder)
     this.sdks.set(network, sdk)
     return sdk
+  }
+
+  // A list probed later still replaces the seeds.
+  useSeedNodes(network: Network): void {
+    if (this.pinnedDapiUrls.has(network)) return
+    log.warn(`${network}: no evonode from the p2p masternode list yet, discovering from the SDK's seed nodes`)
+    this.pinnedDapiUrls.set(network, null)
+    this.sdks.delete(network)
   }
 
   setEvonodeDapiUrls(network: Network, dapiUrls: string[]): void {

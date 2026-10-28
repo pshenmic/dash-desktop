@@ -9,8 +9,8 @@ export const DAPI_STATUS_TIMEOUT_MS = 5000
 
 // Evonodes probed at once, and how many answers are enough to build the SDK on.
 // Some evonodes serve a certificate fetch rejects, so a list cannot be used unprobed.
-export const DAPI_PROBE_BATCH = 12
-export const DAPI_POOL_READY = 5
+export const DAPI_PROBE_BATCH = 24
+export const DAPI_POOL_READY = 15
 
 // A list none of whose evonodes answered is probed again after this long, rather
 // than waiting out the hour until p2p fetches the next one.
