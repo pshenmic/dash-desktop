@@ -20,4 +20,5 @@ export interface SyncServiceEvents {
   txInstantLocked: (txid: string, islockHex: string) => void
   chainLocked: (network: Network, height: number) => void
   evonodeDapiUrls: (network: Network, dapiUrls: string[]) => void
+  platformQuorums: (network: Network, keys: Map<string, Uint8Array>) => void
 }

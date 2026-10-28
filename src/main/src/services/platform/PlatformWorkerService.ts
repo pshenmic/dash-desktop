@@ -54,6 +54,7 @@ export class PlatformWorkerService {
   private readonly preferences: Preferences
   // The latest list per network, replayed to a worker forked after a crash.
   private readonly evonodeDapiUrls = new Map<Network, string[]>()
+  private readonly quorumKeys = new Map<Network, Map<string, Uint8Array>>()
   private readonly pinnedNetworks = new Set<Network>()
   private readonly pinWaiters = new Map<Network, Set<() => void>>()
 
@@ -160,6 +161,13 @@ export class PlatformWorkerService {
     })
   }
 
+  // Held so a worker forked later, or restarted, starts from them too.
+  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    if (keys.size > 0) this.quorumKeys.set(network, keys)
+    else this.quorumKeys.delete(network)
+    this.child?.postMessage({type: 'setQuorumKeys', network, keys})
+  }
+
   setEvonodeDapiUrls(network: Network, dapiUrls: string[]): void {
     this.evonodeDapiUrls.set(network, dapiUrls)
     log.info(`${network}: pinning gRPC from the p2p masternode list (${dapiUrls.length} evonode(s))`)
@@ -220,6 +228,7 @@ export class PlatformWorkerService {
 
     child.postMessage({type: 'setLogLevel', level: currentLogLevel()})
     child.postMessage({type: 'setDapi', dapi: this.preferences.network.dapi})
+    for (const [network, keys] of this.quorumKeys) child.postMessage({type: 'setQuorumKeys', network, keys})
     for (const [network, dapiUrls] of this.evonodeDapiUrls) child.postMessage({type: 'setEvonodeDapiUrls', network, dapiUrls})
 
     this.child = child

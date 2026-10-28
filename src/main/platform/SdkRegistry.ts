@@ -5,6 +5,7 @@ import {Logger} from '../src/utils/logger'
 
 import {DAPI_REPROBE_MS, NETWORKS} from './constants'
 import {reachableDapiUrls} from './operations/dapi'
+import {P2PQuorumKeyProvider} from './P2PQuorumKeyProvider'
 import {Dapi, PlatformEvent} from './types/messages'
 import {SdkSource} from './types/sdk'
 
@@ -22,6 +23,7 @@ export class SdkRegistry implements SdkSource {
   private readonly pinnedDapiUrls = new Map<Network, string[]>()
   // The list each network was last asked to probe, so only the latest is retried.
   private readonly latestDapiUrls = new Map<Network, string[]>()
+  private readonly quorumKeyProviders = new Map(NETWORKS.map(network => [network, new P2PQuorumKeyProvider(network)]))
   private builder: ShieldedBuilderWASM | null = null
   private warming: Promise<void> | null = null
   private dapi: Dapi = {mode: 'dynamic', mainnet: [], testnet: []}
@@ -33,12 +35,20 @@ export class SdkRegistry implements SdkSource {
     this.sdks.clear()
   }
 
+  setQuorumKeys(network: Network, keys: Map<string, Uint8Array>): void {
+    this.quorumKeyProviders.get(network)?.setKeys(keys)
+  }
+
   get(network: Network): DashPlatformSDK {
     const existing = this.sdks.get(network)
     if (existing != null) return existing
     const own = this.dapi[network]
     const dapiUrls = this.dapi.mode === 'static' && own.length > 0 ? own : this.pinnedDapiUrls.get(network)
-    const sdk = new DashPlatformSDK({network, grpc: {dapiUrl: [...dapiUrls ?? []]}})
+    const sdk = new DashPlatformSDK({
+      network,
+      grpc: {dapiUrl: [...dapiUrls ?? []]},
+      quorumKeyProvider: this.quorumKeyProviders.get(network),
+    })
     // init assigns the builder before its first await; the warmed builder's
     // own init is memoised.
     if (this.builder != null) void sdk.shielded.init(this.builder)

@@ -109,6 +109,7 @@ const noopEvents = {
   txInstantLocked: () => undefined,
   chainLocked: () => undefined,
   evonodeDapiUrls: () => undefined,
+  platformQuorums: () => undefined,
 }
 
 const start = (service: SyncService, peerOverrides: PeerOverrides): Promise<void> => service.start({
@@ -236,6 +237,24 @@ describe('static peers run one pool', () => {
     await service.listen({type: 'listen', network: 'testnet', peerOverrides: {...PINNED}})
 
     expect(captured.pools).toHaveLength(1)
+  })
+
+  // Default settings give both networks one overrides key.
+  it('stops the sync layer when the pool moves to another network', async () => {
+    await start(service, DYNAMIC)
+    await service.listen({type: 'listen', network: 'mainnet', peerOverrides: DYNAMIC})
+
+    expect(captured.pools[1]!.stopped).toBe(true)
+    expect(service.getStatus()).toMatchObject({phase: 'stopped', walletId: null})
+  })
+
+  it('reports the sync layer stopped when new peer settings rebuild the pool', async () => {
+    await start(service, PINNED)
+    await service.listen({type: 'listen', network: 'testnet', peerOverrides: DYNAMIC})
+
+    expect(service.getStatus()).toMatchObject({phase: 'stopped', walletId: null})
+    await start(service, DYNAMIC)
+    expect(captured.headerPools).toHaveLength(2)
   })
 
   // Dynamic mode dials these on top of DNS and gossip; the pinned list is not
