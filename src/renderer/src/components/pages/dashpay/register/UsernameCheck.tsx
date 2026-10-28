@@ -74,7 +74,7 @@ export default function UsernameCheck({ check, network, availability, ownerName,
             <InfoTooltip
               content={USERNAME_CHECK_COPY.lookalikeExplainer}
               ariaLabel={USERNAME_CHECK_COPY.lookalikeAria}
-              side={"top"}
+              side={"bottom"}
               className={"size-4! [&_svg]:size-3.5"}
             />
           </span>
