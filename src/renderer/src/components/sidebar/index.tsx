@@ -1,5 +1,5 @@
 import { navGroups } from "@renderer/constants";
-import { DashboardIcon, SendIcon, SettingsIcon, ShieldSmallIcon, AddressesIcon, TransactionsIcon, ReceiveIcon, SignIcon } from "../dash-ui-kit-extended/icons";
+import { DashboardIcon, SendIcon, SettingsIcon, ShieldSmallIcon, AddressesIcon, TransactionsIcon, ReceiveIcon, SignIcon, ContactsIcon } from "../dash-ui-kit-extended/icons";
 import { cva } from "class-variance-authority";
 import { IconProps } from "../dash-ui-kit-extended/icons";
 import SidebarHeader from "./SidebarHeader";
@@ -14,6 +14,7 @@ const iconMap: Record<string, React.FC<IconProps>> = {
   'shielded': ShieldSmallIcon,
   'addresses': AddressesIcon,
   'identities': SignIcon,
+  'dashpay': ContactsIcon,
   'settings': SettingsIcon
 }
 

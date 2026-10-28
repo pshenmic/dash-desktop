@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DashLogo } from 'dash-ui-kit/react'
 import { Button, InfoCircleIcon, KeyIcon, Text } from '@renderer/components/dash-ui-kit-extended'
 import AssetLockFundingModal from '@renderer/components/modal/AssetLockFundingModal'
@@ -28,6 +28,7 @@ import {
   NEW_IDENTITY_LABEL,
 } from '@renderer/constants'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
+import { REGISTRATION_RETURN_PARAM, REGISTRATION_RETURN_TARGETS } from '@renderer/constants/registrationReturn'
 import { SURFACE_PANEL, SURFACE_SECTION } from '@renderer/constants/surfaces'
 import { TX_SUMMARY_LABELS } from '@renderer/constants/txSummary'
 import { useAuth } from '@renderer/contexts/AuthContext'
@@ -77,11 +78,14 @@ import {
   POOL_IDENTITY_DENOMINATIONS,
   SOURCE_KINDS,
 } from '@renderer/utils/transferMatrix'
+import { registrationReturnTarget } from '@renderer/utils/registrationReturn'
 import { sourceEndpoint } from '@renderer/utils/txSummaryEndpoints'
 import type { CoinControlSelection } from '@renderer/types/CoinControl'
 
 export default function IdentityRegistration(): React.JSX.Element {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTarget = REGISTRATION_RETURN_TARGETS[registrationReturnTarget(searchParams.get(REGISTRATION_RETURN_PARAM))]
   const { status } = useAuth()
   const walletId = status?.selectedWalletId ?? null
   const { syncIncomplete } = useConnectionModeContext()
@@ -363,7 +367,7 @@ export default function IdentityRegistration(): React.JSX.Element {
   const handleModalClose = (): void => {
     setModalOpen(false)
     if (successful.current) {
-      navigate('/identities')
+      navigate(returnTarget.path)
       return
     }
     void loadFundingState()
@@ -400,8 +404,8 @@ export default function IdentityRegistration(): React.JSX.Element {
       <PageHeader
         title={PAGE_HEADERS.identityRegistration.title}
         subtitle={PAGE_HEADERS.identityRegistration.subtitle}
-        onBack={() => navigate('/identities')}
-        backLabel={PAGE_HEADERS.identityRegistration.back}
+        onBack={() => navigate(returnTarget.path)}
+        backLabel={returnTarget.backLabel}
       />
     </div>
   )
@@ -456,7 +460,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             </div>
           </div>
           <div className={"flex gap-2"}>
-            <Button type={"button"} variant={"outline"} colorScheme={"primary-light"} className={"flex-1"} onClick={() => navigate('/identities')}>Back to identities</Button>
+            <Button type={"button"} variant={"outline"} colorScheme={"primary-light"} className={"flex-1"} onClick={() => navigate(returnTarget.path)}>{returnTarget.backLabel}</Button>
             <Button type={"button"} className={"flex-1"} onClick={() => navigate('/send')}>Open Send</Button>
           </div>
         </div>
@@ -488,7 +492,7 @@ export default function IdentityRegistration(): React.JSX.Element {
             </div>
           )}
           <div className={"flex gap-2"}>
-            <Button type={"button"} variant={"outline"} colorScheme={"primary-light"} className={"flex-1"} onClick={() => navigate('/identities')}>Back to identities</Button>
+            <Button type={"button"} variant={"outline"} colorScheme={"primary-light"} className={"flex-1"} onClick={() => navigate(returnTarget.path)}>{returnTarget.backLabel}</Button>
             <Button type={"button"} className={"flex-1"} onClick={openExistingRegistration}>
               {isResumable ? 'Resume registration' : 'View progress'}
             </Button>

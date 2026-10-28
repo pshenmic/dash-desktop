@@ -27,8 +27,6 @@ export const COIN_CONTROL_SORT_OPTIONS: SegmentOption<CoinControlSort>[] = [
 
 export const COIN_CONTROL_AMOUNT_SORTS: CoinControlSort[] = [CoinControlSort.LargestFirst, CoinControlSort.SmallestFirst]
 
-export const COIN_CONTROL_FIAT_CLASS = 'rounded-md dash-block-accent-12 px-2 py-[.3125rem] text-[.625rem] leading-none font-medium dash-text-primary whitespace-nowrap'
-
 export const FEE_PAYER_KEY_STEPS: Partial<Record<string, number>> = {
   ArrowRight: 1,
   ArrowDown: 1,

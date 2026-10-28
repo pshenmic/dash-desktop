@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { Text } from '@renderer/components/dash-ui-kit-extended'
 import DashBigNumber from '@renderer/components/ui/DashBigNumber'
 import { DASH_UNIT } from '@renderer/constants/balance'
-import { ANALYTICS_CROSSHAIR, ANALYTICS_DOT, ANALYTICS_FOCUS, ANALYTICS_GRID_STROKE, ANALYTICS_PLOT_HEIGHT, ANALYTICS_SERIES, CHART_HEIGHT, CHART_WIDTH } from '@renderer/constants/dashboardAnalytics'
+import { ANALYTICS_CROSSHAIR, ANALYTICS_DOT, ANALYTICS_FOCUS, ANALYTICS_PLOT_HEIGHT, ANALYTICS_SERIES, CHART_HEIGHT, CHART_WIDTH } from '@renderer/constants/dashboardAnalytics'
 import { dashboardPage } from '@renderer/constants/dashboardPage'
 import type { DailyChartProps } from '@renderer/types/DashboardAnalytics'
 import { balanceChartScale, balanceLinePath, chartDate, chartRatio } from '@renderer/utils/dashboardAnalytics'
@@ -66,7 +66,7 @@ export default function DailyChart({ days }: DailyChartProps): React.JSX.Element
         >
           <svg className="block size-full overflow-visible" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
             {scale.ticks.map((tick, index) => (
-              <line key={String(tick)} x1={0} x2={CHART_WIDTH} y1={index * CHART_HEIGHT / (scale.ticks.length - 1)} y2={index * CHART_HEIGHT / (scale.ticks.length - 1)} className={ANALYTICS_GRID_STROKE} vectorEffect="non-scaling-stroke" />
+              <line key={String(tick)} x1={0} x2={CHART_WIDTH} y1={index * CHART_HEIGHT / (scale.ticks.length - 1)} y2={index * CHART_HEIGHT / (scale.ticks.length - 1)} className="stroke-dash-primary-dark-blue/8 dark:stroke-white/10" vectorEffect="non-scaling-stroke" />
             ))}
             <path d={area} className={ANALYTICS_SERIES.core.area} />
             <path d={line} fill="none" className={ANALYTICS_SERIES.core.stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />

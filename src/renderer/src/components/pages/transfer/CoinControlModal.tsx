@@ -5,6 +5,7 @@ import { FilterIcon, RefreshIcon } from '@renderer/components/dash-ui-kit-extend
 import AddressQrModal from '@renderer/components/modal/AddressQrModal'
 import { useFiat } from '@renderer/hooks/useFiat'
 import Checkbox from '@renderer/components/ui/Checkbox'
+import CheckRow from '@renderer/components/ui/CheckRow'
 import CopyButton from '@renderer/components/ui/CopyButton'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import QrButton from '@renderer/components/ui/QrButton'
@@ -16,7 +17,7 @@ import CoinControlAmountInput from './CoinControlAmountInput'
 import CoinControlAutomaticIllustration from './CoinControlAutomaticIllustration'
 import type { PlatformAddressDto } from '@renderer/api/types'
 import { ADDRESS_ROW_IDENTIFIER_CLASS } from '@renderer/constants/addressRow'
-import { COIN_CONTROL_DEFAULT_SORT, COIN_CONTROL_FIAT_CLASS, COIN_CONTROL_LABELS, FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
+import { COIN_CONTROL_DEFAULT_SORT, COIN_CONTROL_LABELS, FIXED_IDENTITY_SOURCE_COPY, FIXED_SOURCE_COPY } from '@renderer/constants/coinControl'
 import { CORE_DUST_FILTER_DUFFS } from '@renderer/constants/core'
 import { TOOLBAR_DROPDOWN_CLASS } from '@renderer/constants/listToolbar'
 import { PAGE_HEADERS } from '@renderer/constants/pageHeaders'
@@ -28,7 +29,6 @@ import { TransferOperation } from '@renderer/enums/TransferOperation'
 import { CoinControlMode, CoinControlSort } from '@renderer/enums/CoinControl'
 import type {
   CoinControlInputDetailsProps,
-  CoinControlCheckRowProps,
   CoinControlEmptyProps,
   CoinControlModalProps,
   CoinControlSelection,
@@ -525,24 +525,9 @@ function InputDetails({label, amount, address, outpoint, fiat, actions}: CoinCon
       </div>
       <div className={'pointer-events-auto flex flex-wrap items-center justify-end gap-2'}>
         <Text reset size={14} weight={'bold'} color={'brand'} className={'whitespace-nowrap text-right tabular-nums'}>{amount}</Text>
-        {fiat && <span className={COIN_CONTROL_FIAT_CLASS}>{formatApproxFiat(fiat)}</span>}
+        {fiat && <span className={'rounded-md dash-block-accent-12 px-2 py-[.3125rem] text-[.625rem] leading-none font-medium dash-text-primary whitespace-nowrap'}>{formatApproxFiat(fiat)}</span>}
       </div>
       {label && <Text reset size={10} weight={'medium'} color={'brand'} opacity={50} className={'col-start-2 whitespace-nowrap text-right tabular-nums leading-[120%]'}>{label}</Text>}
-    </div>
-  )
-}
-
-function CheckRow({label, checked, onChange, children, below, title, disabled = false}: CoinControlCheckRowProps): React.JSX.Element {
-  let surface = 'dash-block hover:dash-block-accent-5'
-  if (checked) surface = 'dash-block-accent-5'
-  else if (disabled) surface = 'dash-block opacity-40'
-  return (
-    <div title={title} className={`relative min-w-0 rounded-[.875rem] transition-colors ${surface}`}>
-      <div className={'relative flex min-h-12 items-center px-[.9375rem] py-[.625rem]'}>
-        <Checkbox appearance="subtle" className={`absolute inset-0 px-[.9375rem] ${disabled ? 'cursor-not-allowed!' : ''}`} checked={checked} disabled={disabled} onChange={onChange} label={<span className={'sr-only'}>{label}</span>} />
-        <div className={'relative pointer-events-none min-w-0 flex-1 ml-8'}>{children}</div>
-      </div>
-      {below && <div className={'px-[.9375rem] pt-1.5 pb-3.5'}>{below}</div>}
     </div>
   )
 }

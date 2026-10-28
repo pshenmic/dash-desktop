@@ -31,8 +31,6 @@ export const ANALYTICS_METER = {
   evo: { track: 'h-1 w-full overflow-hidden rounded-full bg-violet-500/15 dark:bg-violet-400/20', fill: 'h-full rounded-full bg-violet-700 dark:bg-violet-300' },
 }
 
-export const ANALYTICS_GRID_STROKE = 'stroke-dash-primary-dark-blue/8 dark:stroke-white/10'
-export const ANALYTICS_BASELINE_STROKE = 'stroke-dash-primary-dark-blue/10 dark:stroke-white/15'
 export const ANALYTICS_CROSSHAIR = 'w-px bg-dash-primary-dark-blue/20 dark:bg-white/25'
 export const ANALYTICS_DOT = 'size-2 rounded-full ring-2 ring-white dark:ring-dash-light-gray'
 export const ANALYTICS_FOCUS = 'outline-none focus-visible:ring-2 focus-visible:ring-dash-brand dark:focus-visible:ring-dash-mint'

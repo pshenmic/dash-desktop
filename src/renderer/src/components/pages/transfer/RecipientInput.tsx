@@ -7,7 +7,7 @@ import { isValidDashAddress } from '@renderer/utils/address'
 import { matchingContacts } from '@renderer/utils/matchingContacts'
 import { toast } from '@renderer/components/ui/Toast'
 import { getErrorMessage } from '@renderer/utils/error'
-import { CONTACT_IDENTIFIER_CLASS, CONTACT_NAME_INPUT, FIELD_INVALID, RECIPIENT_FIELD_STYLES } from '@renderer/constants/addressField'
+import { CONTACT_IDENTIFIER_CLASS, FIELD_INVALID, RECIPIENT_FIELD_STYLES } from '@renderer/constants/addressField'
 import { CHIP_ACTION, POPOVER_OPTION } from '@renderer/constants/surfaces'
 import DropdownField from '@renderer/components/ui/DropdownField'
 import Spinner from '@renderer/components/ui/Spinner'
@@ -139,7 +139,7 @@ export default function RecipientInput({
                 onKeyDown={e => { if (e.key === 'Enter') void handleSaveContact() }}
                 placeholder={"Contact name"}
                 autoFocus
-                className={CONTACT_NAME_INPUT}
+                className={"h-9 min-w-0 flex-1 rounded-[.75rem] border border-transparent dash-block-5 px-3 text-sm font-normal outline-none dash-text-default placeholder:text-current placeholder:opacity-40 focus:border-dash-brand dark:focus:border-dash-mint"}
               />
               <Button type={"button"} onClick={handleSaveContact} disabled={newLabel.trim().length === 0} colorScheme={"primary"} size={"compact"}>
                 Save

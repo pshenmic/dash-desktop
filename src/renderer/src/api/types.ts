@@ -6,6 +6,7 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { TransferOperation } from '../enums/TransferOperation'
+import { UsernameStatus, DashPayContactRelationship, DashPayPaymentDirection, UsernameVoteOutcome } from '../enums/DashPay'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -50,7 +51,8 @@ export interface PlatformAddressDto {
 export interface DashPayContactDto {
   identifier: string
   contactId: string
-  relationship: 'incoming' | 'outgoing' | 'established'
+  relationship: DashPayContactRelationship
+  // The contact's DPNS names, oldest first.
   usernames: string[]
   incomingCreatedAt: number | null
   outgoingCreatedAt: number | null
@@ -61,7 +63,7 @@ export interface DashPayContactDto {
 export interface DashPayPaymentDto {
   txid: string
   amountDuffs: bigint
-  direction: 'sent' | 'received'
+  direction: DashPayPaymentDirection
   date: number
 }
 
@@ -77,14 +79,19 @@ export interface UsernameDto {
   label: string
   normalizedLabel: string
   isContested: boolean
-  status: 'registered' | 'voting' | 'locked' | 'taken' | 'missing'
+  status: UsernameStatus
   documentId: string | null
   votesLock: number | null
   votesAbstain: number | null
   voteEndsAt: number | null
-  voteOutcome: 'WonByIdentity' | 'Locked' | 'NoWinner' | null
+  voteOutcome: UsernameVoteOutcome | null
   voteWinner: string | null
-  contenders: Array<{identifier: string; votes: number}>
+  contenders: UsernameContenderDto[]
+}
+
+export interface UsernameContenderDto {
+  identifier: string
+  votes: number
 }
 
 export interface IdentityKeyBoundsDto {

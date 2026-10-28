@@ -7,7 +7,7 @@ export default function NoResults({ noResults, title, description, action, tone 
 
   return (
     <div role={isError ? 'alert' : undefined} className={"flex flex-col items-center justify-center gap-2 py-12 text-center"}>
-      <Text size={14} color={isError ? 'red' : 'default'} opacity={isError ? 100 : 50}>
+      <Text size={14} color={isError ? 'red' : 'default'} opacity={isError ? 100 : 50} className={"wrap-anywhere"}>
         {title ?? noResults}
       </Text>
       {description && (
