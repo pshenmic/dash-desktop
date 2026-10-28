@@ -23,6 +23,7 @@ const hangingRegistry = (): SdkSource => ({
   }) as never,
   warmup: async () => undefined,
   activeDapiUrls: () => [],
+  refillBannedPool: () => undefined,
 })
 
 const balanceRequest = (requestId: string): PlatformRequestMessage => ({
@@ -74,6 +75,27 @@ describe('PlatformService dispatch', () => {
     const settled = events.filter(e => e.type === 'response')
     expect(settled).toHaveLength(1)
     expect(settled[0]).toMatchObject({ok: false, error: {code: 'internal'}})
+  })
+
+  it('refills the pool of the network whose every node is banned, and only then', async () => {
+    const refillBannedPool = vi.fn()
+    const failingWith = (message: string): SdkSource => ({
+      ...hangingRegistry(),
+      get: () => ({
+        identities: {getIdentityBalance: async () => { throw new Error(message) }},
+        shielded: {},
+      }) as never,
+      refillBannedPool,
+    })
+
+    new PlatformService(failingWith('Connect Timeout Error'), () => undefined).handle(balanceRequest('a'))
+    await flush()
+    expect(refillBannedPool).not.toHaveBeenCalled()
+
+    new PlatformService(failingWith('All 15 DAPI nodes are temporarily banned, no available nodes to send the request to'), () => undefined)
+      .handle(balanceRequest('b'))
+    await flush()
+    expect(refillBannedPool).toHaveBeenCalledWith('testnet')
   })
 })
 
