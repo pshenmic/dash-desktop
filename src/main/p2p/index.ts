@@ -59,6 +59,8 @@ const sync = new SyncService({
     process.parentPort.postMessage({type: 'chainLocked', network, height}),
   evonodeDapiUrls: (network, dapiUrls) =>
     process.parentPort.postMessage({type: 'evonodeDapiUrls', network, dapiUrls}),
+  platformQuorums: (network, keys) =>
+    process.parentPort.postMessage({type: 'platformQuorums', network, keys}),
 })
 
 process.parentPort.on('message', ({data}) => {

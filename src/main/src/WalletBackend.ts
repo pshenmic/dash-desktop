@@ -315,6 +315,7 @@ export class WalletBackend {
 
     const platformWorkerService = this.platformWorkerService
     this.walletSyncService.onEvonodeDapiUrls = (network, dapiUrls) => platformWorkerService.setEvonodeDapiUrls(network, dapiUrls)
+    this.walletSyncService.onPlatformQuorums = (network, keys) => platformWorkerService.setQuorumKeys(network, keys)
 
     // Consumers depend on the asset lock primitive, never the other way round:
     // CoreLockService funds the L1 lock, AssetLockService turns it into a proof,
