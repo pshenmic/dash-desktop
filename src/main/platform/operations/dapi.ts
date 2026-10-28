@@ -4,6 +4,7 @@ import {Network} from '../../src/types/Network'
 import {DAPI_POOL_READY, DAPI_PROBE_BATCH, DAPI_STATUS_TIMEOUT_MS} from '../constants'
 import {DapiUrlStatus} from '../types/messages'
 import {Logger} from '../../src/utils/logger'
+import {dapiNodeIssue} from '../../src/utils/dapiNodeIssue'
 
 const log = new Logger('platform')
 
@@ -52,7 +53,7 @@ export async function probeDapiUrl(dapiUrl: string, network: Network): Promise<D
       pingMs: Math.round(performance.now() - started),
       driveVersion: nodeStatus.version?.software?.drive ?? null,
       blockHeight: nodeStatus.chain != null ? BigInt(nodeStatus.chain.latestBlockHeight) : null,
-      error: null,
+      error: dapiNodeIssue(nodeStatus),
     }
   } catch (err) {
     const error = abortController.signal.aborted
