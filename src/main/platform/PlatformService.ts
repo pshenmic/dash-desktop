@@ -19,9 +19,18 @@ import {identityCreditTransfer} from './operations/identity/creditTransfer'
 import {identityCreditsToAddresses} from './operations/identity/creditsToAddresses'
 import {identityExists} from './operations/identity/exists'
 import {identityInfos} from './operations/identity/infos'
+import {usernameStatus} from './operations/username/status'
+import {usernameRegister} from './operations/username/register'
+import {usernameSearch} from './operations/username/search'
+import {usernameContests} from './operations/username/contests'
+import {dashPayContactRequestSend} from './operations/dashpay/send'
+import {dashPayContactRequests} from './operations/dashpay/requests'
+import {dashPayContactKey} from './operations/dashpay/key'
 import {identityScan} from './operations/identity/scan'
 import {identityNonce} from './operations/identity/nonce'
 import {identityWithdrawal} from './operations/identity/withdrawal'
+import {identityUpdateKeys} from './operations/identity/updateKeys'
+import {identityPrivateKeys} from './operations/identity/privateKeys'
 import {checkNullifiers} from './operations/shielded/reads/checkNullifiers'
 import {encryptedNotes} from './operations/shielded/reads/encryptedNotes'
 import {notesCount} from './operations/shielded/reads/notesCount'
@@ -43,7 +52,7 @@ import {
   PlatformWorkerStatus,
   ProverState,
 } from './types/messages'
-import {ERROR_CODES} from './constants'
+import {ALL_NODES_BANNED, ERROR_CODES} from './constants'
 import {InFlight} from './types/service'
 
 const log = new Logger('platform')
@@ -180,6 +189,7 @@ export class PlatformService {
       if (request.kind !== 'warmup') {
         this.setNetworkStatus(request.network, 'error', err instanceof Error ? err.message : String(err))
       }
+      if (err instanceof Error && ALL_NODES_BANNED.test(err.message)) this.registry.refillBannedPool(request.network)
       throw err
     }
   }
@@ -218,10 +228,19 @@ export class PlatformService {
       case 'identityCreditsToAddresses': return identityCreditsToAddresses(request.payload, ctx)
       case 'identityCreditTransfer': return identityCreditTransfer(request.payload, ctx)
       case 'identityWithdrawal': return identityWithdrawal(request.payload, ctx)
+      case 'identityUpdateKeys': return identityUpdateKeys(request.payload, ctx)
+      case 'identityPrivateKeys': return identityPrivateKeys(request.payload, ctx)
       case 'identityExists': return identityExists(request.payload, ctx)
       case 'identityBalance': return identityBalance(request.payload, ctx)
       case 'identityNonce': return identityNonce(request.payload, ctx)
       case 'identityInfos': return identityInfos(request.payload, ctx)
+      case 'usernameStatus': return usernameStatus(request.payload, ctx)
+      case 'usernameRegister': return usernameRegister(request.payload, ctx)
+      case 'usernameSearch': return usernameSearch(request.payload, ctx)
+      case 'usernameContests': return usernameContests(request.payload, ctx)
+      case 'dashPayContactRequestSend': return dashPayContactRequestSend(request.payload, ctx)
+      case 'dashPayContactRequests': return dashPayContactRequests(request.payload, ctx)
+      case 'dashPayContactKey': return dashPayContactKey(request.payload, ctx)
       case 'identityScan': return identityScan(request.payload, ctx)
       case 'nodeStatus': return nodeStatus(ctx)
       case 'activeDapiUrls': return probeActiveDapiUrls(this.registry.activeDapiUrls(network), network)

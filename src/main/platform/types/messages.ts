@@ -1,5 +1,8 @@
 import {NodeStatus} from 'dash-platform-sdk/types.js'
+import {UsernameCheck, UsernameSearchResult} from '../../src/types/Username'
 import {CoreSpendSource} from '../../src/types/CoinSelection'
+import {DashPayContactRequest} from '../../src/types/DashPay'
+import {IdentityKey, IdentityKeyRequest, IdentityKeysUpdate, IdentityPrivateKey} from '../../src/types/IdentityKeys'
 import {LogLevel} from '../../src/types/Log'
 import {Network} from '../../src/types/Network'
 import {FeeStrategyStep, PlatformSpendSource} from '../../src/types/PlatformTransfer'
@@ -116,8 +119,13 @@ export type IdentityFeeOperation =
   | 'identityToIdentity'
   | 'identityWithdrawal'
 
+// For usernameRegister the recipient is the label being registered, for
+// dashPayContactRequest the identity asked; identityId is the identity paying.
 export type TransitionFeeOperation =
   | 'shield'
+  | 'usernameRegister'
+  | 'dashPayContactRequest'
+  | 'identityUpdateKeys'
   | IdentityFeeOperation
   | AssetLockFeeOperation
   | SelectionFeeOperation
@@ -127,7 +135,7 @@ export type TransitionFeeOperation =
 // estimated, only built.
 export type BuiltTransitionOperation = Exclude<
   TransitionFeeOperation,
-  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield'
+  'addressFundsTransfer' | 'addressWithdrawal' | 'shield' | 'assetLockShield' | 'usernameRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'
 >
 
 // Funded by platform addresses, so the fee scales with the inputs the selection
@@ -157,6 +165,9 @@ export interface FeeParams {
   // out which fields it does not use says nothing about the fee.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
+  // identityUpdateKeys only: the keys being added, and the ids of those being disabled.
+  keys?: IdentityKeyRequest[] | null
+  keyIds?: number[] | null
   // Pool spends only: narrows the spend to one shielded address's notes, or
   // names the notes themselves.
   shieldedSource?: ShieldedSpendSource | null
@@ -191,6 +202,8 @@ export interface FeeQuoteParams extends FeeParams {
 export interface FeeQuote {
   feeCredits: bigint
   metered: boolean
+  // Charged as is on top, never scaled by a fee multiplier: a contest's vote fund.
+  fixedCredits?: bigint
 }
 
 export type AssetLockProofParams =
@@ -330,6 +343,14 @@ export interface PlatformOperations {
     }
     result: {stHash: string}
   }
+  identityUpdateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number} & IdentityKeysUpdate
+    result: {stHash: string}
+  }
+  identityPrivateKeys: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number}
+    result: {keys: IdentityPrivateKey[]}
+  }
   identityExists: {
     payload: {identifier: string}
     result: {exists: boolean}
@@ -343,11 +364,44 @@ export interface PlatformOperations {
     result: {nonce: bigint}
   }
   identityInfos: {
-    // An alias costs a DPNS document search per identity, on top of the
+    // A username costs a DPNS document search per identity, on top of the
     // identity fetch.
     payload: {identifiers: string[]; skipDPNS: boolean}
     // Identifiers Platform does not know are omitted, not reported as zero.
-    result: {infos: Array<{identifier: string; balance: bigint; alias: string | null}>}
+    result: {infos: Array<{identifier: string; balance: bigint; usernames: string[]; keys: IdentityKey[]}>}
+  }
+  usernameStatus: {
+    payload: {identifier: string; label: string}
+    result: UsernameCheck
+  }
+  // The running DPNS contests the identities are contenders in, by normalized label.
+  usernameContests: {
+    payload: {identifiers: string[]}
+    result: {contests: Array<{identifier: string; label: string}>}
+  }
+  // Names whose label starts with prefix, in label order, at most one proved page.
+  usernameSearch: {
+    payload: {prefix: string}
+    result: {results: UsernameSearchResult[]}
+  }
+  // registerName returns once the domain is in a block, so this answers with the name's state.
+  usernameRegister: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; label: string}
+    result: UsernameCheck
+  }
+  dashPayContactRequestSend: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; recipient: string}
+    result: {stHash: string}
+  }
+  // null when the request can never be decrypted.
+  dashPayContactKey: {
+    payload: {seed: Uint8Array; identifier: string; identityIndex: number; request: DashPayContactRequest}
+    result: {xpub: string | null}
+  }
+  // Oldest first, every request created at or after `since`.
+  dashPayContactRequests: {
+    payload: {identifier: string; since: number}
+    result: {sent: DashPayContactRequest[]; received: DashPayContactRequest[]}
   }
   identityScan: {
     payload: {seed: Uint8Array; startIndex: number; gapLimit: number; scanLimit: number}
@@ -425,7 +479,37 @@ export interface Dapi {
   testnet: string[]
 }
 
-export type PlatformCommand = PlatformRequestMessage | PlatformCancel | PlatformSetLogLevel | PlatformSetDapi
+// The valid evonodes of the latest verified masternode list. In dynamic mode the
+// SDK is pinned to the ones that answer a probe.
+export interface PlatformSetEvonodeDapiUrls {
+  type: 'setEvonodeDapiUrls'
+  network: Network
+  dapiUrls: string[]
+}
+
+// Sent when no evonode list was pinned in time: until one is, the SDK
+// discovers evonodes from its own seed nodes.
+export interface PlatformUseSeedNodes {
+  type: 'useSeedNodes'
+  network: Network
+}
+
+// Public keys of every active quorum by `llmqType:quorumHash`, proven by p2p
+// against its header chain. Empty until that chain syncs, and after it closes.
+export interface PlatformSetQuorumKeys {
+  type: 'setQuorumKeys'
+  network: Network
+  keys: Map<string, Uint8Array>
+}
+
+export type PlatformCommand =
+  | PlatformRequestMessage
+  | PlatformCancel
+  | PlatformSetLogLevel
+  | PlatformSetDapi
+  | PlatformSetEvonodeDapiUrls
+  | PlatformUseSeedNodes
+  | PlatformSetQuorumKeys
 
 export type PlatformResponse =
   | {type: 'response'; requestId: string; ok: true; result: unknown}
@@ -439,6 +523,7 @@ export type PlatformEvent =
   | {type: 'progress'; requestId: string; phase: PlatformPhase; fetched: number; total: number}
   | {type: 'notesSpent'; requestId: string; indexes: number[]}
   | {type: 'status'; status: PlatformWorkerStatus}
+  | {type: 'pinnedDapiUrls'; network: Network; dapiUrls: string[]}
   | {type: 'error'; message: string}
 
 export interface PlatformNetworkStatus {

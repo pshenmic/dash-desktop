@@ -24,6 +24,7 @@ import {bulkPeerShare, peerOverridesKey} from '../net/peerOverrides'
 import {dialProbe} from '../net/peerProbe'
 import {HeaderSyncWorker} from './workers/HeaderSyncWorker'
 import {CFilterSyncWorker} from './workers/CFilterSyncWorker'
+import {MasternodeList} from './masternodeList'
 import type {ChainLock, HeaderSyncWorkerStatus} from '../types/headerSync'
 import type {CFilterSyncWorkerStatus} from '../types/cfilterSync'
 import {P2PAddWatchAddressesMessage, P2PBroadcastMessage, P2PListenMessage, P2PReseedUtxosMessage, P2PStartMessage, P2PWatchTxsMessage} from '../types/messages'
@@ -89,6 +90,7 @@ export class SyncService {
   private mempoolFetchQueue: Array<{peer: Peer; txid: string; hash: Uint8Array}> = []
   private mempoolStats = {announced: 0, fetched: 0, matched: 0}
   private mempoolReportTimer: ReturnType<typeof setInterval> | null = null
+  private readonly masternodeList: MasternodeList
 
   private status: WalletSyncStatus = {
     phase: 'idle',
@@ -111,7 +113,9 @@ export class SyncService {
 
   private phaseStart: {phase: WalletSyncStatus['phase']; startedAt: number; startHeight: number} | null = null
 
-  constructor(private readonly events: SyncServiceEvents) {}
+  constructor(private readonly events: SyncServiceEvents) {
+    this.masternodeList = new MasternodeList({pool: () => this.lockPool, chain: () => this.chainStore, events})
+  }
 
   getStatus = (): WalletSyncStatus => this.status
 
@@ -164,11 +168,12 @@ export class SyncService {
   // session rather than restarting it.
   listen = (cmd: P2PListenMessage): Promise<void> =>
     this.runExclusive(async () => {
-      // Changed peer settings rebuild the pool, and in static mode that is the
-      // pool the workers hold; main's own `stop` normally gets here first.
-      if (this.syncPool && this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides)) {
-        log.info('peer settings changed under a running session — stopping the sync layer')
-        await this.teardownBulk()
+      // Static-mode workers hold the pool being rebuilt, and a session on the old network
+      // would check the new one's chainlocks against its headers; main's `stop` usually lands first.
+      if (this.syncPool && (this.chainStore?.network !== cmd.network
+        || this.lockOverridesKey !== peerOverridesKey(cmd.peerOverrides))) {
+        log.info(`listen on ${cmd.network} with a different pool under a running session — stopping the sync layer`)
+        await this.stopInner()
       }
       this.startLockCore(cmd.network, cmd.peerOverrides)
       this.setLockAddresses(cmd.walletId ?? null, cmd.watchAddresses ?? [])
@@ -221,6 +226,7 @@ export class SyncService {
     this.lockOverridesKey = overridesKey
     this.watchedTxids = new Set()
     this.chainLock = null
+    this.masternodeList.resetPool()
 
     const pinned = overrides?.mode === 'static' ? overrides.staticPeers : []
     this.pinnedOnly = pinned.length > 0
@@ -254,6 +260,8 @@ export class SyncService {
     this.lockPool.on('peerisdlock', this.onIsdlock)
     this.lockPool.on('peertx', this.onTx)
     this.lockPool.on('peerclsig', this.onClsig)
+    this.lockPool.on('peergetheaders', this.masternodeList.onPeerTip)
+    this.lockPool.on('peermnlistdiff', this.masternodeList.onDiff)
     this.lockPool.on('peeraddr', this.feedBulkPool)
     // Nothing else emits status while the bulk layer is down, so lock-pool
     // churn is a lazy-mode wallet's only signal.
@@ -399,6 +407,7 @@ export class SyncService {
     this.headerSyncWorker.on('status', (s: HeaderSyncWorkerStatus) => this.onHeaderStatus(s))
     this.headerSyncWorker.on('chainExtended', (headers: PersistedHeader[]) => {
       this.cfilterSyncWorker?.onChainExtended(headers)
+      if (this.status.phase !== 'syncing-headers') this.masternodeList.followTip(headers.at(-1)!.hash)
     })
     this.headerSyncWorker.on('chainRewound', (height: number) => {
       this.cfilterSyncWorker?.onChainRewound(height)
@@ -408,6 +417,7 @@ export class SyncService {
         this.activeCFilterCursor = Math.min(this.activeCFilterCursor, height)
       }
       if (this.activeWalletId) this.events.chainRewound(this.activeWalletId, height)
+      this.masternodeList.rewound(height)
     })
     this.headerSyncWorker.on('error', err =>
       this.handleWorkerError('HeaderSyncWorker', err.message)
@@ -548,6 +558,8 @@ export class SyncService {
         if (this.mempoolSeen.size >= MEMPOOL_SEEN_LIMIT) this.mempoolSeen.clear()
         this.mempoolSeen.add(txid)
         this.mempoolFetchQueue.push({peer, txid, hash: item.hash})
+      } else if (item.type === Inventory.TYPE.BLOCK) {
+        this.masternodeList.onBlockAnnounced(peer, wireToDisplayHex(item.hash))
       } else if (item.type === Inventory.TYPE.CLSIG) {
         if (wantChainlocks) wanted.push({type: item.type, hash: item.hash})
       } else if (item.type === Inventory.TYPE.ISDLOCK) {
@@ -695,6 +707,7 @@ export class SyncService {
       this.bulkPool = null
     }
     this.syncPool = null
+    this.masternodeList.closeChain()
     if (this.chainStore) {
       await this.chainStore.close().catch(() => { /* ignore */ })
       this.chainStore = null
@@ -772,6 +785,7 @@ export class SyncService {
       this.startCFilterWorker(s.tipHeight, s.tipHash).catch(err =>
         this.handleWorkerError('CFilterSyncWorker', err instanceof Error ? err.message : String(err))
       )
+      this.masternodeList.followTip(s.tipHash)
     }
   }
 

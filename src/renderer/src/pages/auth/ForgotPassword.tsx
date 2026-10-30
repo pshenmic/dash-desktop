@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronIcon, DashLogo, useTheme } from 'dash-ui-kit/react'
-import { Text, Button, Input } from '@renderer/components/dash-ui-kit-enxtended'
+import { Text, Button, Input } from '@renderer/components/dash-ui-kit-extended'
+import { ProgressStepBar } from '@renderer/components/dash-ui-kit-extended/progressStepBar'
 import { Link } from 'react-router-dom'
 import {
+  AUTH_CTA_CLASS,
+  FORGOT_PASSWORD_PROGRESS,
   authTexts,
   forgotPasswordTexts,
   messages,
@@ -121,7 +124,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
         {step === ForgotPasswordStep.Seed && (
           <div className={"flex flex-col gap-6 w-full"}>
             <div className={"flex flex-col gap-[.625rem] max-w-100"}>
-              <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+              <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
                 {form.walletLabel}
               </Text>
               <WalletSelect
@@ -146,7 +149,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
             <div className={"grid grid-cols-2 gap-3.75"}>
               <div className={"flex flex-col gap-[.625rem]"}>
                 <label htmlFor={"new-password-input"}>
-                  <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+                  <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
                     {form.newPasswordLabel}
                   </Text>
                 </label>
@@ -164,7 +167,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
               </div>
               <div className={"flex flex-col gap-[.625rem]"}>
                 <label htmlFor={"confirm-new-password-input"}>
-                  <Text as={"label"} size={16} weight={"medium"} color={"brand"} opacity={50}>
+                  <Text size={16} weight={"medium"} color={"brand"} opacity={50}>
                     {form.confirmPasswordLabel}
                   </Text>
                 </label>
@@ -185,12 +188,21 @@ export default function ForgotPasswordPage(): React.JSX.Element {
               type={"submit"}
               colorScheme={"primary"}
               size={"md"}
-              className={"rounded-[1.25rem] p-4.5"}
+              className={AUTH_CTA_CLASS}
               disabled={!password.trim() || !confirmPassword.trim() || busy}
             >
               {form.resetButton}
             </Button>
           </form>
+        )}
+
+        {step !== ForgotPasswordStep.Success && (
+          <ProgressStepBar
+            currentStep={FORGOT_PASSWORD_PROGRESS.stepNumbers[step]}
+            totalSteps={FORGOT_PASSWORD_PROGRESS.totalSteps}
+            className={"mt-[.75rem]"}
+            color={"blue-mint"}
+          />
         )}
 
         {step === ForgotPasswordStep.Success && (
@@ -199,7 +211,7 @@ export default function ForgotPasswordPage(): React.JSX.Element {
               type={"button"}
               colorScheme={"primary"}
               size={"md"}
-              className={"rounded-[1.25rem] p-4.5 w-full"}
+              className={`${AUTH_CTA_CLASS} w-full`}
             >
               {form.backToLogin}
             </Button>

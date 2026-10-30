@@ -7,4 +7,5 @@ export interface SdkSource {
   get: (network: Network) => DashPlatformSDK
   warmup: () => Promise<void>
   activeDapiUrls: (network: Network) => string[]
+  refillBannedPool: (network: Network) => void
 }

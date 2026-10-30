@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import QRCode from 'react-qr-code'
-import { useTheme } from 'dash-ui-kit/react'
-import { Button, Input, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-enxtended'
+import { Button, Text, ShieldSmallIcon } from '@renderer/components/dash-ui-kit-extended'
 import CopyButton from '@renderer/components/ui/CopyButton'
+import CustomBadge from '@renderer/components/ui/CustomBadge'
 import ListSkeleton from '@renderer/components/ui/Skeleton'
+import PasswordField from '@renderer/components/ui/PasswordField'
 import ShieldedAddressSelect from '@renderer/components/pages/transfer/ShieldedAddressSelect'
 import ShieldedUnlockModal from '@renderer/components/modal/ShieldedUnlockModal'
 import ShieldedNotesAlert from '@renderer/components/ui/ShieldedNotesAlert'
+import ReceiveQr from './ReceiveQr'
+import { useAuth } from '@renderer/contexts/AuthContext'
 import { defaultReceiveShieldedAddress, receiveShieldedAddresses } from '@renderer/utils/receiveDefaults'
 import { shieldedBalancesByAddress } from '@renderer/utils/shieldedBalances'
 import { API } from '@renderer/api'
-import { INVALID_WALLET_PASSWORD_MESSAGE } from '@renderer/constants'
+import { addressFormCopy, INVALID_WALLET_PASSWORD_MESSAGE, receiveCardCopy } from '@renderer/constants'
+import { SURFACE_SECTION } from '@renderer/constants/surfaces'
+import { RECEIVE_INVOICE_ADDRESS_LABELS } from '@renderer/constants/receiveInvoice'
 import { useShieldedSyncState } from '@renderer/hooks/useShielded'
 import { ShieldedSyncPhase } from '@renderer/enums/ShieldedSyncPhase'
 
@@ -21,9 +25,8 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [syncOpen, setSyncOpen] = useState(false)
-  const { theme } = useTheme()
+  const { status } = useAuth()
 
   const sync = useShieldedSyncState(walletId)
   const synced = sync.phase === ShieldedSyncPhase.Done
@@ -35,7 +38,6 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     setSelectedAddress(null)
     setPassword('')
     setError(null)
-    setShowNewAddressForm(false)
     if (!walletId) {
       setChecking(false)
       return
@@ -63,12 +65,16 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
       setAddresses(nextAddresses)
       setSelectedAddress(defaultReceiveShieldedAddress(nextAddresses, balances) ?? null)
       setPassword('')
-      setShowNewAddressForm(false)
     } catch {
-      setError('Could not derive a new shielded address. Please try again.')
+      setError(addressFormCopy.addFailed)
     } finally {
       setRevealing(false)
     }
+  }
+
+  const handlePasswordChange = (value: string): void => {
+    setError(null)
+    setPassword(value)
   }
 
   if (checking) {
@@ -92,59 +98,34 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     const receiveAddresses = receiveShieldedAddresses(addresses, balances)
     if (receiveAddresses.length === 0) {
       return (
-        <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
+        <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
           <div className={"flex items-center gap-2"}>
             <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
             <Text size={14} weight={"extrabold"} color={"brand"}>New shielded address</Text>
           </div>
           <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-            All of your shielded addresses currently hold funds. Generate a new address to receive another private payment.
+            {receiveCardCopy.allShieldedFunded}
           </Text>
-          {showNewAddressForm ? (
-            <>
-              <Input
-                id={"shielded-new-address-password"}
-                type={"password"}
-                placeholder={"Wallet password"}
-                value={password}
-                variant={"outlined"}
-                onChange={(e) => {
-                  setError(null)
-                  setPassword(e.target.value)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddAddress()
-                }}
-                className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-                colorScheme={error ? 'error' : 'primary'}
-                disabled={revealing}
-                autoFocus
-              />
-              {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
-              <Button
-                type={"button"}
-                onClick={handleAddAddress}
-                disabled={password.length === 0 || revealing}
-                variant={"solid"}
-                colorScheme={"primary"}
-                size={"sm"}
-                className={"min-h-0! py-2! rounded-[.75rem] self-start"}
-              >
-                {revealing ? 'Deriving…' : 'Generate address'}
-              </Button>
-            </>
-          ) : (
-            <Button
-              type={"button"}
-              onClick={() => setShowNewAddressForm(true)}
-              variant={"solid"}
-              colorScheme={"primary"}
-              size={"sm"}
-              className={"min-h-0! py-2! rounded-[.75rem] self-start"}
-            >
-              Generate new address
-            </Button>
-          )}
+          <PasswordField
+            id={"shielded-new-address-password"}
+            value={password}
+            onChange={handlePasswordChange}
+            onSubmit={handleAddAddress}
+            error={error}
+            disabled={revealing}
+            autoFocus={false}
+          />
+          <Button
+            type={"button"}
+            onClick={handleAddAddress}
+            disabled={password.length === 0 || revealing}
+            variant={"solid"}
+            colorScheme={"primary"}
+            size={"compact"}
+            className={"self-start"}
+          >
+            {revealing ? receiveCardCopy.generating : 'Generate address'}
+          </Button>
         </div>
       )
     }
@@ -152,27 +133,36 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
     const selected = selectedAddress != null && receiveAddresses.includes(selectedAddress)
       ? selectedAddress
       : defaultReceiveShieldedAddress(receiveAddresses, balances)!
-    const qrCodeColor = theme === 'dark' ? 'white' : 'var(--color-dash-brand)'
 
     return (
       <>
-        <div className={"flex w-min flex-col gap-4"}>
+        <div className={"flex flex-col gap-4 w-full max-w-190"}>
         <ShieldedNotesAlert walletId={walletId} onSync={() => setSyncOpen(true)} syncing={syncRunning} />
-        <div className={"flex w-full items-center gap-8 rounded-4xl dash-block p-6"}>
-          <QRCode
+        <div className={`flex w-full items-center gap-8 ${SURFACE_SECTION}`}>
+          <ReceiveQr
             value={selected}
-            size={225}
-            fgColor={qrCodeColor}
-            bgColor={"transparent"}
-            className={"rounded-[.5625rem] shrink-0"}
+            invoice={{
+              addressLabel: RECEIVE_INVOICE_ADDRESS_LABELS.shielded,
+              address: selected,
+              amount: null,
+              paymentLink: null,
+              network: status?.network ?? null,
+            }}
           />
 
-          <div className={"flex flex-1 flex-col"}>
-            <div className={"flex flex-col gap-[.5rem]"}>
-              <Text size={12} weight={"normal"} color={"brand"} opacity={50}>
-                Shielded Address
-              </Text>
-              <div className={"flex items-center gap-[.625rem]"}>
+          <div className={"flex min-w-0 flex-1 flex-col"}>
+            <div className={"flex min-w-0 flex-col gap-[.5rem]"}>
+              <div className={"flex items-center gap-2"}>
+                <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
+                  Shielded Address
+                </Text>
+                <CustomBadge
+                  variant={"accent"}
+                  text={receiveCardCopy.privateChip}
+                  icon={<ShieldSmallIcon size={12} className={"text-dash-brand dark:text-dash-mint"} />}
+                />
+              </div>
+              <div className={"flex min-w-0 items-center gap-[.625rem]"}>
                 <ShieldedAddressSelect
                   addresses={receiveAddresses}
                   balances={synced ? balances : undefined}
@@ -182,10 +172,6 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
                 <CopyButton text={selected} />
               </div>
             </div>
-
-            <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"mt-8"}>
-              Share this address to receive private funds — incoming payments reveal nothing about sender, recipient or amount on-chain. It is safe to reuse.
-            </Text>
           </div>
         </div>
         </div>
@@ -212,49 +198,40 @@ export default function ShieldedReceiveCard({ walletId }: { walletId: string | u
       setAddresses(await API.getShieldedAddresses(walletId, password))
       setPassword('')
     } catch {
-      setError('Could not derive the shielded address. Please try again.')
+      setError(receiveCardCopy.loadFailed)
     } finally {
       setRevealing(false)
     }
   }
 
   return (
-    <div className={"flex flex-col gap-3 p-5 rounded-[.9375rem] dash-block max-w-115"}>
+    <div className={`flex max-w-115 flex-col gap-3 ${SURFACE_SECTION}`}>
       <div className={"flex items-center gap-2"}>
         <ShieldSmallIcon size={16} className={"text-dash-brand dark:text-dash-mint"} />
         <Text size={14} weight={"extrabold"} color={"brand"}>Shielded address</Text>
       </div>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50} className={"leading-[130%]"}>
-        Your shielded address is derived from your seed. Enter your wallet password to reveal it. Your seed never leaves this device.
+        {receiveCardCopy.shieldedUnlockPrompt}
       </Text>
-      <Input
+      <PasswordField
         id={"shielded-receive-password"}
-        type={"password"}
-        placeholder={"Wallet password"}
         value={password}
-        variant={"outlined"}
-        onChange={(e) => {
-          setError(null)
-          setPassword(e.target.value)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleReveal()
-        }}
-        className={"h-14.25 rounded-[1.25rem] bg-transparent!"}
-        colorScheme={error ? 'error' : 'primary'}
+        onChange={handlePasswordChange}
+        onSubmit={handleReveal}
+        error={error}
         disabled={revealing}
+        autoFocus={false}
       />
-      {error && <Text size={12} weight={"medium"} color={"red"}>{error}</Text>}
       <Button
         type={"button"}
         onClick={handleReveal}
         disabled={!walletId || password.length === 0 || revealing}
         variant={"solid"}
         colorScheme={"primary"}
-        size={"sm"}
-        className={"min-h-0! py-2! rounded-[.75rem] self-start"}
+        size={"compact"}
+        className={"self-start"}
       >
-        {revealing ? 'Deriving…' : 'Reveal address'}
+        {revealing ? addressFormCopy.loading : receiveCardCopy.showAddress}
       </Button>
     </div>
   )

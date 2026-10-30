@@ -1,4 +1,4 @@
-import { Text } from '../dash-ui-kit-enxtended'
+import { Text } from '../dash-ui-kit-extended'
 import type { RecipientSummaryProps } from '@renderer/types/RecipientSummary'
 
 export default function RecipientSummary({

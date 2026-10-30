@@ -211,6 +211,20 @@ export interface P2PChainLockedMessage {
   height: number
 }
 
+export interface P2PEvonodeDapiUrlsMessage {
+  type: 'evonodeDapiUrls'
+  network: Network
+  dapiUrls: string[]
+}
+
+// Public keys of every active quorum by `llmqType:quorumHash`, proven against our
+// header chain at its tip; empty once that chain closes.
+export interface P2PPlatformQuorumsMessage {
+  type: 'platformQuorums'
+  network: Network
+  keys: Map<string, Uint8Array>
+}
+
 // A mempool tx paying one of our addresses, seen on the lock pool before any
 // block carries it. Recorded unconfirmed; its isdlock is what makes it final.
 export interface P2PIncomingTxMessage {
@@ -239,5 +253,7 @@ export type P2PEvent =
   | P2PPeerProbeMessage
   | P2PTxInstantLockedMessage
   | P2PChainLockedMessage
+  | P2PEvonodeDapiUrlsMessage
+  | P2PPlatformQuorumsMessage
   | P2PChainRewoundMessage
   | P2PIncomingTxMessage

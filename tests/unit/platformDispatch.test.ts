@@ -23,6 +23,7 @@ const hangingRegistry = (): SdkSource => ({
   }) as never,
   warmup: async () => undefined,
   activeDapiUrls: () => [],
+  refillBannedPool: () => undefined,
 })
 
 const balanceRequest = (requestId: string): PlatformRequestMessage => ({
@@ -75,6 +76,27 @@ describe('PlatformService dispatch', () => {
     expect(settled).toHaveLength(1)
     expect(settled[0]).toMatchObject({ok: false, error: {code: 'internal'}})
   })
+
+  it('refills the pool of the network whose every node is banned, and only then', async () => {
+    const refillBannedPool = vi.fn()
+    const failingWith = (message: string): SdkSource => ({
+      ...hangingRegistry(),
+      get: () => ({
+        identities: {getIdentityBalance: async () => { throw new Error(message) }},
+        shielded: {},
+      }) as never,
+      refillBannedPool,
+    })
+
+    new PlatformService(failingWith('Connect Timeout Error'), () => undefined).handle(balanceRequest('a'))
+    await flush()
+    expect(refillBannedPool).not.toHaveBeenCalled()
+
+    new PlatformService(failingWith('All 15 DAPI nodes are temporarily banned, no available nodes to send the request to'), () => undefined)
+      .handle(balanceRequest('b'))
+    await flush()
+    expect(refillBannedPool).toHaveBeenCalledWith('testnet')
+  })
 })
 
 describe('PlatformWorkerService correlation', () => {
@@ -105,6 +127,8 @@ describe('PlatformWorkerService correlation', () => {
     const {utilityProcess} = await import('electron')
     vi.mocked(utilityProcess.fork).mockReturnValue(child as never)
     service = new PlatformWorkerService(Preferences.default())
+    service.start()
+    listeners.get('message')?.({type: 'pinnedDapiUrls', network: 'testnet', dapiUrls: []} as never)
   })
 
   afterEach(() => {
@@ -139,6 +163,17 @@ describe('PlatformWorkerService correlation', () => {
     ])
     listeners.get('exit')?.(1 as never)
     await failures
+  })
+
+  // Only a running worker can pin evonodes, so a request held for one must not
+  // wait on a worker that no longer exists.
+  it('forks a new worker for a request made after the old one exited', async () => {
+    listeners.get('exit')?.(1 as never)
+    const {utilityProcess} = await import('electron')
+    const forks = vi.mocked(utilityProcess.fork).mock.calls.length
+
+    service.request('identityBalance', 'testnet', {identifier: 'id-1'}).catch(() => undefined)
+    expect(vi.mocked(utilityProcess.fork).mock.calls.length).toBe(forks + 1)
   })
 
   it('forwards progress to the request that asked for it', async () => {

@@ -36,7 +36,7 @@ vi.mock('@renderer/contexts/AuthContext', () => ({useAuth: () => ({status: {netw
 vi.mock('@renderer/components/ui/Toast', () => ({
   toast: {success: harness.success, warning: harness.warning, error: harness.error},
 }))
-vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({
+vi.mock('@renderer/components/dash-ui-kit-extended', () => ({
   Button: ({children, disabled, onClick}: Record<string, unknown>) => React.createElement('button', {
     type: 'button', disabled, onClick,
   }, children as ReactNode),
@@ -44,6 +44,7 @@ vi.mock('@renderer/components/dash-ui-kit-enxtended', () => ({
     typeof as === 'string' ? as : 'span', {title}, children as ReactNode,
   ),
   InfoTooltip: () => null,
+  Input: (props: Record<string, unknown>) => React.createElement('input', props),
   AddIcon: () => null,
   CheckmarkIcon: () => null,
   CloseIcon: () => null,

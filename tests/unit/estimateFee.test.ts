@@ -425,6 +425,15 @@ describe('estimateFee', () => {
     expect(withdrawal.feeCredits).toBe(BASE_FEE * 3n)
   })
 
+  it('adds a quote\'s fixed credits after the multiplier, so a vote fund is never scaled', async () => {
+    const preferences = Preferences.default()
+    preferences.general.platformFeeMultiplier.usernameRegister = 3
+    const {service: svc, request} = service([], [], preferences)
+    request.mockResolvedValueOnce({feeCredits: BASE_FEE, metered: true, fixedCredits: 10_000_000_000n})
+    const quote = await svc.estimateFee(WALLET, 'usernameRegister', params({recipient: 'owl'}))
+    expect(quote.feeCredits).toBe(BASE_FEE * 3n + 10_000_000_000n)
+  })
+
   // The dpp minimum for a credit transfer sits far below the estimate consensus
   // checks the balance against, so the quote never goes under the iOS reserve.
   it('never quotes an identity credit transfer under the iOS reserve', async () => {

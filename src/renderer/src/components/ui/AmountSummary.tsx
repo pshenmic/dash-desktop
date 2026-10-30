@@ -1,4 +1,4 @@
-import { Text } from "../dash-ui-kit-enxtended";
+import { Text } from "../dash-ui-kit-extended";
 import CustomBadge from "./CustomBadge";
 
 export default function AmountSummary(

@@ -39,7 +39,7 @@ export function ownRecipientOptions(kind: DestinationKind, inventory: OwnRecipie
       options = inventory.identities.map(identity => ({
         value: identity.identifier,
         label: identity.identifier,
-        description: identity.alias ?? undefined,
+        description: identity.usernames[0],
         metadata: [`${creditsToDash(identity.balance.amount)} Dash`],
       }))
       break

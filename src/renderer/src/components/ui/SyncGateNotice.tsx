@@ -1,19 +1,7 @@
-import { Text } from '@renderer/components/dash-ui-kit-enxtended'
-import { useConnectionModeContext } from '@renderer/contexts/ConnectionModeContext'
+import P2pSyncAlert from '@renderer/components/ui/P2pSyncAlert'
+import { P2P_SYNC_ALERT_TEXTS } from '@renderer/constants/connection'
+import type { SyncGateNoticeProps } from '@renderer/types/P2pSyncAlert'
 
-export default function SyncGateNotice({ className = '' }: { className?: string }): React.JSX.Element | null {
-  const { showSyncWarning } = useConnectionModeContext()
-  if (!showSyncWarning) return null
-
-  return (
-    <div className={`flex flex-col gap-[.375rem] p-[.875rem] rounded-[.9375rem] dash-block-3 ${className}`}>
-      <Text size={14} weight={"extrabold"} color={"brand"}>
-        Waiting for P2P sync
-      </Text>
-      <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
-        This action is unavailable while the wallet is syncing over P2P. Wait until synchronization
-        completes, or switch the connection mode to Dashscan API (RPC).
-      </Text>
-    </div>
-  )
+export default function SyncGateNotice({ className = '' }: SyncGateNoticeProps): React.JSX.Element | null {
+  return <P2pSyncAlert description={P2P_SYNC_ALERT_TEXTS.gatedDescription} className={className} />
 }

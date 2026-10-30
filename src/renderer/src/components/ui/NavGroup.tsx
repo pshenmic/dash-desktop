@@ -1,6 +1,6 @@
 import { NavItem } from "@renderer/constants";
-import { IconProps } from "../dash-ui-kit-enxtended/icons";
-import { Text } from "../dash-ui-kit-enxtended";
+import { IconProps } from "../dash-ui-kit-extended/icons";
+import { Text } from "../dash-ui-kit-extended";
 import NavLinkItem from "./NavLinkItem";
 
 export interface NavGroupProps {

@@ -1,11 +1,12 @@
 import {utilityProcess, UtilityProcess} from 'electron'
 import path from 'path'
 import fs from 'fs'
-import {CORE_ADDRESS_WINDOW} from '../../constants/addresses'
+import {CORE_ADDRESS_WINDOW, DASHPAY_WATCH_INDEX} from '../../constants/addresses'
 import {ChainStorageFilename} from '../../constants/app'
 import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS, PEER_PROBE_REPLY_TIMEOUT_MS} from '../../constants/chain'
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
+import {GroupedAddresses} from '../../types/GroupedAddresses'
 import {LogLevel} from '../../types/Log'
 import {logChildOutput} from '../../logTransport'
 import {currentLogLevel} from '../../utils/logger'
@@ -86,9 +87,13 @@ export class WalletSyncService {
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
+  onEvonodeDapiUrls: ((network: Network, dapiUrls: string[]) => void) | null = null
+  onPlatformQuorums: ((network: Network, keys: Map<string, Uint8Array>) => void) | null = null
   // Wallets whose scan is held waiting for addresses. The worker resumes at the
   // held height, so the addresses answering it must not also rewind the cursor.
   private gapHeld = new Set<string>()
+  // Wallet ids are random, never reused, so a deleted one can stay here.
+  private deletedWalletIds = new Set<string>()
   // txid -> serialized isdlock (hex), feeding InstantAssetLockProof
   // construction for shield / asset-lock funding.
   private instantLocks = new Map<string, string>()
@@ -206,6 +211,12 @@ export class WalletSyncService {
   }
 
   private handleP2PEvent(data: P2PEvent): void {
+    const walletId = 'walletId' in data ? data.walletId
+      : data.type === 'blockApplied' ? data.block.walletId
+      : data.type === 'gapExhausted' ? data.gap.walletId
+      : null
+    if (walletId != null && this.deletedWalletIds.has(walletId)) return
+
     if (data.type === 'status') {
       const previous = this.status
       const syncedWalletId = data.status.phase === 'synced' && previous.phase !== 'synced'
@@ -285,6 +296,10 @@ export class WalletSyncService {
         log.error('markChainlockedUpTo failed:', err)
       )
       this.recordChainLock(data.network, data.height)
+    } else if (data.type === 'evonodeDapiUrls') {
+      this.onEvonodeDapiUrls?.(data.network, data.dapiUrls)
+    } else if (data.type === 'platformQuorums') {
+      this.onPlatformQuorums?.(data.network, data.keys)
     } else if (data.type === 'error') {
       log.error('utility process error:', data.message)
     }
@@ -345,8 +360,7 @@ export class WalletSyncService {
     }
 
     // Only this wallet's addresses go into the watch set.
-    const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const watchAddresses = [...grouped.receiving, ...grouped.change].map(toWatchAddress)
+    const watchAddresses = watchAddressesOf(await this.addressDAO.getAddressesByWalletId(walletId))
 
     this.gapHeld.delete(walletId)
     this.activeWalletId = walletId
@@ -355,7 +369,6 @@ export class WalletSyncService {
     // re-covers it — the previous session's failures stop applying here.
     this.cursorGate.clear(walletId)
     if (!this.cursorGate.hasFailures()) this.persistenceError = null
-    this.startRebroadcastLoop()
     const [seedUtxos, unconfirmedInputOutpoints, cfilterCursor] = await Promise.all([
       this.transactionDAO.getUtxos(walletId),
       this.transactionDAO.getUnconfirmedInputOutpoints(walletId),
@@ -395,12 +408,21 @@ export class WalletSyncService {
   }
 
   stopSync = (): void => {
-    this.stopRebroadcastLoop()
     this.activeNetwork = null
     if (!this.child) return
     log.info(`stop requested (wallet=${this.activeWalletId ?? 'none'})`)
     this.send({ type: 'stop' })
     this.activeWalletId = null
+  }
+
+  // Events and queued writes still in flight for the wallet would recreate its rows.
+  forgetWallet = async (walletId: string): Promise<void> => {
+    this.deletedWalletIds.add(walletId)
+    if (this.activeWalletId === walletId) this.stopSync()
+    if (this.lockListenWalletId === walletId && this.lockListenNetwork && this.child) {
+      await this.sendLockListen(this.lockListenNetwork)
+    }
+    await this.persistQueue
   }
 
   // Rewinding the cursor to genesis re-matches history against the new
@@ -414,7 +436,7 @@ export class WalletSyncService {
   addWatchAddresses = async (
     walletId: string,
     addresses: Address[],
-    opts: {forwardOnly?: boolean} = {},
+    opts: {forwardOnly?: boolean; fromHeight?: number} = {},
   ): Promise<void> => {
     if (addresses.length === 0) return
     const wallet = await this.walletDAO.getWalletById(walletId)
@@ -425,8 +447,10 @@ export class WalletSyncService {
     // resume from there, so there is nothing behind it left to re-match.
     const answersHold = this.gapHeld.delete(walletId)
     const scannedOnce = await this.transactionDAO.getInitialScanComplete(walletId)
-    const skipRewind = answersHold || opts.forwardOnly === true || scannedOnce
-    const rewindToHeight = skipRewind ? undefined : GENESIS[network].height
+    // fromHeight is a floor no history of these addresses can predate, so it
+    // rewinds even a wallet whose first full scan is done.
+    const skipRewind = answersHold || opts.forwardOnly === true || (scannedOnce && opts.fromHeight == null)
+    const rewindToHeight = skipRewind ? undefined : Math.max(GENESIS[network].height, opts.fromHeight ?? 0)
 
     discovery.info(
       `watching ${addresses.length} new address(es): ` +
@@ -439,7 +463,14 @@ export class WalletSyncService {
       // Through the persist queue: applied directly, a cursorAdvanced enqueued
       // before this rewind would run after it, and advanceCursor's MAX would
       // swallow the reset.
-      await this.enqueuePersist(() => this.transactionDAO.resetCursor(walletId, rewindToHeight))
+      await this.enqueuePersist(async () => {
+        // A floor above the cursor would skip blocks: a scan still below it reaches these addresses anyway.
+        if (opts.fromHeight != null) {
+          const cursor = await this.transactionDAO.getCursor(walletId)
+          if (cursor != null && cursor <= rewindToHeight) return
+        }
+        await this.transactionDAO.resetCursor(walletId, rewindToHeight)
+      })
     }
     if (!this.child) return
     this.send({type: 'addWatchAddresses', walletId, addresses: addresses.map(toWatchAddress), rewindToHeight})
@@ -511,8 +542,7 @@ export class WalletSyncService {
     }
   }
 
-  // The worker's set only shrinks when we reinstall it, and the periodic
-  // refresh belongs to the rebroadcast loop, which rpc mode never starts.
+  // The worker's set only shrinks when we reinstall it.
   private disarmLockWatch(txid: string): void {
     if (!this.armedLockTxids.delete(txid)) return
     this.refreshWatchedTxids().catch(err =>
@@ -568,12 +598,13 @@ export class WalletSyncService {
   }
 
   private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
+    // Left set, a peer-settings rebuild would restart the old network's sync.
+    if (this.activeNetwork != null && this.activeNetwork !== network) this.stopSync()
     this.lockListenNetwork = network
     this.lockListenWalletId = walletId
     // Without addresses the pool still watches locks and broadcasts; it just
     // cannot tell whether a mempool tx pays us.
-    const grouped = walletId ? await this.addressDAO.getAddressesByWalletId(walletId) : null
-    const watchAddresses = grouped ? [...grouped.receiving, ...grouped.change].map(toWatchAddress) : undefined
+    const watchAddresses = walletId ? watchAddressesOf(await this.addressDAO.getAddressesByWalletId(walletId)) : undefined
     locks.info(
       `listen on ${network} (wallet=${walletId ?? 'none'}, ${watchAddresses?.length ?? 0} address(es), ` +
       `mode=${this.preferences.network.mode})`,
@@ -588,6 +619,7 @@ export class WalletSyncService {
       peerOverrides,
     })
     this.startLockWatchSweep()
+    this.startRebroadcastLoop()
   }
 
   private startLockWatchSweep(): void {
@@ -829,8 +861,8 @@ export class WalletSyncService {
   // Guards against poor propagation and mempool eviction silently dropping a tx
   // while it waits for a block. Instant-locked txs are final and skipped.
   private async rebroadcastPending(): Promise<void> {
-    if (!this.activeWalletId || !this.child) return
-    const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId, Date.now() - PENDING_TX_TTL_MS)
+    if (!this.lockListenWalletId || !this.child) return
+    const pending = await this.transactionDAO.getPendingTxs(this.lockListenWalletId, Date.now() - PENDING_TX_TTL_MS)
     for (const p of pending) {
       if (p.instantLocked || !p.isLocal) continue
       const hex = Buffer.from(p.raw).toString('hex')
@@ -853,8 +885,8 @@ export class WalletSyncService {
       if (armedAt < cutoff) this.armedLockTxids.delete(txid)
       else txids.add(txid)
     }
-    if (this.activeWalletId) {
-      const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId, Date.now() - PENDING_TX_TTL_MS)
+    if (this.lockListenWalletId) {
+      const pending = await this.transactionDAO.getPendingTxs(this.lockListenWalletId, Date.now() - PENDING_TX_TTL_MS)
       for (const p of pending) if (!p.instantLocked) txids.add(p.txid)
     }
     this.send({type: 'watchTxs', mode: 'replace', txids: [...txids]})
@@ -879,7 +911,7 @@ export class WalletSyncService {
       return
     }
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const ours = new Set([...grouped.receiving, ...grouped.change].map(a => a.address))
+    const ours = new Set([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => a.address))
     const label = network === 'mainnet' ? 'Mainnet' : 'Testnet'
     const applied: AppliedTx = {
       txid: tx.hash(),
@@ -966,6 +998,13 @@ export class WalletSyncService {
 
 function toWatchAddress(a: Address): WatchAddress {
   return {address: a.address, index: a.index, isChange: a.isChange, isUsed: a.isUsed}
+}
+
+function watchAddressesOf(grouped: GroupedAddresses): WatchAddress[] {
+  return [
+    ...[...grouped.receiving, ...grouped.change].map(toWatchAddress),
+    ...(grouped.dashPay ?? []).map(a => ({...toWatchAddress(a), index: DASHPAY_WATCH_INDEX})),
+  ]
 }
 
 function txidFromHex(txHex: string): string | undefined {

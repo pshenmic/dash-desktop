@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
-import { Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-enxtended";
-import { ChevronIcon } from "dash-ui-kit/react";
+import { HighlightedIdentifier, Text, ShieldSmallIcon } from "@renderer/components/dash-ui-kit-extended";
 import { useClickOutside } from "@renderer/hooks/useClickOutside";
 import CreditsAmount from "@renderer/components/ui/CreditsAmount";
-
-const fieldBox = "dash-block rounded-[.875rem] px-4 py-3.5"
+import DropdownChevron from "@renderer/components/ui/DropdownChevron";
+import { ADDRESS_SELECT_MENU, ADDRESS_SELECT_OPTION, ADDRESS_SELECT_SHRINKING, ADDRESS_SELECT_TRIGGER, ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS } from "@renderer/constants/addressSelect";
 
 interface ShieldedAddressSelectProps {
   addresses: string[]
@@ -20,17 +19,17 @@ export default function ShieldedAddressSelect({addresses, balances, selected, on
   useClickOutside(ref, () => setOpen(false))
 
   return (
-    <div className={"relative w-fit self-start"} ref={ref}>
+    <div className={`relative self-start ${ADDRESS_SELECT_SHRINKING}`} ref={ref}>
       <button
         type={"button"}
         onClick={() => addresses.length > 0 && setOpen(v => !v)}
-        className={`w-max ${fieldBox} flex items-center justify-between gap-3 cursor-pointer hover:opacity-90 transition-opacity`}
+        className={`${ADDRESS_SELECT_TRIGGER} ${ADDRESS_SELECT_SHRINKING}`}
       >
         {selected ? (
-          <div className={"flex items-center gap-2.5"}>
+          <div className={"flex min-w-0 items-center gap-2.5"}>
             <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-            <div className={"flex flex-col items-start"}>
-              <Text size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap text-left"}>{selected}</Text>
+            <div className={"flex min-w-0 flex-col items-start"}>
+              <HighlightedIdentifier className={ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS}>{selected}</HighlightedIdentifier>
               {balances && (
                 <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                   <CreditsAmount credits={balances.get(selected) ?? 0n} />
@@ -41,25 +40,21 @@ export default function ShieldedAddressSelect({addresses, balances, selected, on
         ) : (
           <Text size={14} weight={"medium"} color={"brand"} opacity={50}>No shielded addresses</Text>
         )}
-        <ChevronIcon size={12} className={`shrink-0 text-dash-brand dark:text-dash-mint transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <DropdownChevron open={open} />
       </button>
 
       {open && (
-        <div className={"absolute left-0 top-[calc(100%+.375rem)] z-20 w-max min-w-full p-[.375rem] rounded-[.875rem] bg-white dark:bg-white/12 dark:backdrop-blur-[2rem] shadow-[0_0_35px_0_rgba(0,0,0,0.15)] max-h-72 overflow-y-auto scrollbar-hide"}>
+        <div className={`${ADDRESS_SELECT_MENU} max-w-full`}>
           {addresses.map(address => (
             <button
               key={address}
               type={"button"}
               onClick={() => { onSelect(address); setOpen(false) }}
-              className={`
-                w-full flex items-center gap-2.5 p-[.625rem] rounded-[.625rem] cursor-pointer text-left
-                hover:dash-block-accent-10 transition-colors duration-150
-                ${address === selected ? 'dash-block-accent-5' : ''}
-              `}
+              className={`${ADDRESS_SELECT_OPTION} ${address === selected ? 'dash-block-accent-5' : ''}`}
             >
               <ShieldSmallIcon size={16} className={"shrink-0 text-dash-brand dark:text-dash-mint"} />
-              <div className={"flex flex-col"}>
-                <Text size={12} weight={"medium"} color={"brand"} className={"font-mono whitespace-nowrap text-left"}>{address}</Text>
+              <div className={"flex min-w-0 flex-col"}>
+                <HighlightedIdentifier className={ADDRESS_SELECT_WRAPPING_IDENTIFIER_CLASS}>{address}</HighlightedIdentifier>
                 {balances && (
                   <Text size={12} weight={"medium"} color={"brand"} opacity={50}>
                     <CreditsAmount credits={balances.get(address) ?? 0n} />

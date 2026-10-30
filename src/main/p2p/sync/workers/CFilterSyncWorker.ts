@@ -312,7 +312,8 @@ export class CFilterSyncWorker extends Worker {
     if (added === 0) return
 
     if (rewindToHeight != null) {
-      const target = Math.max(this.birthdayHeight, rewindToHeight)
+      // Only ever down: a cursor still below the target reaches these addresses anyway.
+      const target = Math.min(this.cfilter.cursor, Math.max(this.birthdayHeight, rewindToHeight))
       log.info(`addWatchAddresses +${added} (total ${this.watchSet.size}); rewinding cursor to h=${target}`)
       this.clearInflightBatches()
       this.matchedBlocks.clear()

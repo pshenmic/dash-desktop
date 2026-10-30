@@ -6,6 +6,7 @@ import { AssetLockFundingPhase } from '../enums/AssetLockFundingPhase'
 import { AssetLockFundingKind } from '../enums/AssetLockFundingKind'
 import { LockKind } from '../enums/LockKind'
 import { TransferOperation } from '../enums/TransferOperation'
+import { UsernameStatus, DashPayContactRelationship, DashPayPaymentDirection, UsernameVoteOutcome } from '../enums/DashPay'
 
 export { ShieldedSpendPhase, ShieldedProverState, WalletSyncPhase, AssetLockFundingPhase, AssetLockFundingKind, LockKind }
 
@@ -44,6 +45,89 @@ export interface PlatformAddressDto {
   platformAddress: string
   balanceCredits: bigint
   nonce: number
+}
+
+// getDashPayContacts, sendDashPayContactRequest. Timestamps are milliseconds.
+export interface DashPayContactDto {
+  identifier: string
+  contactId: string
+  relationship: DashPayContactRelationship
+  // The contact's DPNS names, oldest first.
+  usernames: string[]
+  incomingCreatedAt: number | null
+  outgoingCreatedAt: number | null
+  paymentChannelBroken: boolean
+}
+
+// getDashPayPayments — one payment between us and a contact, newest first; date in milliseconds.
+export interface DashPayPaymentDto {
+  txid: string
+  amountDuffs: bigint
+  direction: DashPayPaymentDirection
+  date: number
+}
+
+// searchUsernames — a DPNS name and the identity that owns it.
+export interface UsernameSearchResultDto {
+  identifier: string
+  name: string
+}
+
+// getUsernames, registerUsername. The vote fields are set only for a contested name.
+export interface UsernameDto {
+  identifier: string
+  label: string
+  normalizedLabel: string
+  isContested: boolean
+  status: UsernameStatus
+  documentId: string | null
+  votesLock: number | null
+  votesAbstain: number | null
+  voteEndsAt: number | null
+  voteOutcome: UsernameVoteOutcome | null
+  voteWinner: string | null
+  contenders: UsernameContenderDto[]
+}
+
+export interface UsernameContenderDto {
+  identifier: string
+  votes: number
+}
+
+export interface IdentityKeyBoundsDto {
+  contractId: string
+  documentType: string | null
+}
+
+// TRANSFER must be CRITICAL, ENCRYPTION and DECRYPTION MEDIUM; MASTER only replaces MASTER.
+export interface IdentityKeyRequestDto {
+  purpose: 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
+  securityLevel: 'MASTER' | 'CRITICAL' | 'HIGH' | 'MEDIUM'
+  contractBounds: IdentityKeyBoundsDto | null
+}
+
+export interface IdentityKeysUpdateDto {
+  add: IdentityKeyRequestDto[]
+  disable: number[]
+}
+
+// getIdentityPrivateKeys: a key another wallet added is absent.
+export interface IdentityPrivateKeyDto {
+  keyId: number
+  wif: string
+  hex: string
+}
+
+// getIdentities — one key on an identity, purpose and levels by name.
+export interface IdentityKeyDto {
+  keyId: number
+  purpose: string
+  securityLevel: string
+  keyType: string
+  data: string
+  readOnly: boolean
+  disabledAt: number | null
+  contractBounds: IdentityKeyBoundsDto | null
 }
 
 // estimateFee — the one fee endpoint. What gets priced for each operation is
@@ -131,6 +215,9 @@ export interface FeeParams {
   // Optional because most operations read none of them.
   platformSource?: PlatformSpendSource | null
   identityId?: string | null
+  // identityUpdateKeys only: the keys being added, and the ids of those being disabled.
+  keys?: IdentityKeyRequestDto[] | null
+  keyIds?: number[] | null
   // Narrows a pool spend to one shielded address's notes, or names the notes.
   shieldedSource?: ShieldedSpendSource | null
 }
