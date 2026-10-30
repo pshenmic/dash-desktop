@@ -6,7 +6,6 @@ import {DestinationKind} from '../../src/renderer/src/enums/DestinationKind'
 import {TransferOperation} from '../../src/renderer/src/enums/TransferOperation'
 import type {SendRecipientDraft} from '../../src/renderer/src/types/SendDraft'
 import type {SendRecipientValidation} from '../../src/renderer/src/types/SendRecipients'
-import {dashToDuffs} from '../../src/renderer/src/utils/balance'
 import {
   capRecipientAmounts,
   capSendAmount,
@@ -15,8 +14,6 @@ import {
   recipientPercent,
   recipientRemainingDuffs,
   recipientSliderAmount,
-  recipientTotalDuffs,
-  splitRecipientTotal,
   validateSendRecipients,
   withOutputFee,
 } from '../../src/renderer/src/utils/sendRecipients'
@@ -80,26 +77,6 @@ describe('recipient allocation', () => {
     expect(recipientAllocationBudget(0n, 100n, true)).toBe(0n)
     expect(recipientAllocationBudget(50n, 100n, true)).toBe(50n)
     expect(recipientAllocationBudget(50n, 0n, true)).toBe(0n)
-  })
-
-  it('splits a total above the safe Number range without losing a duff', () => {
-    const recipients = [recipient('a', '90071992.54740993'), recipient('b', '0'), recipient('c', '0')]
-    const split = splitRecipientTotal(recipients)
-
-    expect(recipientTotalDuffs(split)).toBe(9007199254740993n)
-    expect(split.map(entry => dashToDuffs(entry.amount))).toEqual([
-      3002399751580331n, 3002399751580331n, 3002399751580331n,
-    ])
-    expect(recipients[0].amount).toBe('90071992.54740993')
-    expect(split.map(entry => entry.id)).toEqual(['a', 'b', 'c'])
-  })
-
-  it('preserves an indivisible total and existing recipient addresses', () => {
-    const recipients = [recipient('a', '0.00000005'), recipient('b', '0', platformAddress(0xb0, 2))]
-    const split = splitRecipientTotal(recipients)
-    expect(split.map(entry => entry.amount)).toEqual(['0.00000002', '0.00000003'])
-    expect(split.map(entry => entry.address)).toEqual(recipients.map(entry => entry.address))
-    expect(splitRecipientTotal([])).toEqual([])
   })
 
   it('limits a slider to remaining budget without redistributing other rows', () => {

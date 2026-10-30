@@ -65,6 +65,7 @@ const setup = (): {
     get: (network: Network) => sdks[network] as unknown as ReturnType<SdkSource['get']>,
     warmup,
     activeDapiUrls: () => [],
+    refillBannedPool: () => undefined,
   }
   const service = new PlatformService(registry, event => events.push(event))
   return {service, sdks, events, warmup}

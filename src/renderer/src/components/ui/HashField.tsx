@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Text, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-enxtended'
-import { CopyIcon2 } from '../dash-ui-kit-enxtended/icons'
+import { Text, CheckIcon, ExternalLinkIcon } from '../dash-ui-kit-extended'
+import { CopyIcon2 } from '../dash-ui-kit-extended/icons'
+import { HASH_FIELD_VALUE_CLASS } from '@renderer/constants/hashField'
 import { openExternal } from '@renderer/utils/explorer'
 
-export default function HashField({ hash, label = 'State transition hash', explorerUrl }: { hash: string; label?: string; explorerUrl?: string | null }): React.JSX.Element {
+export default function HashField({ hash, label = 'State transition hash', explorerUrl, copyOnClick = true }: { hash: string; label?: string; explorerUrl?: string | null; copyOnClick?: boolean }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
 
   const copy = (): void => {
@@ -17,20 +18,24 @@ export default function HashField({ hash, label = 'State transition hash', explo
     <div className={"flex flex-col gap-[.375rem]"}>
       <Text size={12} weight={"medium"} color={"brand"} opacity={50}>{label}</Text>
       <div className={"flex items-center gap-2"}>
-        <button
-          type={"button"}
-          onClick={copy}
-          title={copied ? 'Copied' : 'Click to copy'}
-          className={`
-            flex flex-1 min-w-0 h-9 items-center text-left px-3 rounded-[.75rem]
-            dash-block-accent-5 dash-black-border cursor-pointer
-            hover:dash-block-accent-10 transition-colors duration-200
-          `}
-        >
-          <Text size={12} weight={"medium"} color={"brand"} className={"block font-mono text-[0.6875rem]! truncate select-all leading-[140%]"}>
-            {hash}
-          </Text>
-        </button>
+        {copyOnClick ? (
+          <button
+            type={"button"}
+            onClick={copy}
+            title={copied ? 'Copied' : 'Click to copy'}
+            className={`${HASH_FIELD_VALUE_CLASS} cursor-pointer hover:dash-block-accent-10 transition-colors duration-200`}
+          >
+            <Text size={12} weight={"medium"} color={"brand"} className={"block min-w-0 break-all font-mono text-[0.6875rem]! select-all leading-[140%]"}>
+              {hash}
+            </Text>
+          </button>
+        ) : (
+          <div className={HASH_FIELD_VALUE_CLASS}>
+            <Text size={12} weight={"medium"} color={"brand"} className={"block min-w-0 break-all font-mono text-[0.6875rem]! select-all leading-[140%]"}>
+              {hash}
+            </Text>
+          </div>
+        )}
         <button
           type={"button"}
           onClick={copy}

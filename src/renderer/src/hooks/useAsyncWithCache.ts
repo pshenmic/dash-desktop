@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 const cache = new Map<string, unknown>()
+const cachedAt = new Map<string, number>()
+const writes = new Map<string, number>()
 const inflight = new Map<string, Promise<unknown>>()
 const fetchers = new Map<string, () => Promise<unknown>>()
 const listeners = new Map<string, Set<() => void>>()
@@ -55,13 +57,15 @@ function runFetch<T>(cacheKey: string, fetcher: () => Promise<T>): Promise<T> {
   if (existing !== undefined) return existing as Promise<T>
 
   const generation = cacheGeneration
+  const write = writes.get(cacheKey)
   const p = fetcher()
     .then((result) => {
-      if (generation === cacheGeneration) {
-        cache.set(cacheKey, result)
-        setRefreshFailure(cacheKey, false)
-        notify(cacheKey)
-      }
+      if (generation !== cacheGeneration) return result
+      setRefreshFailure(cacheKey, false)
+      if (writes.get(cacheKey) !== write) return (cache.get(cacheKey) as T | undefined) ?? result
+      cache.set(cacheKey, result)
+      cachedAt.set(cacheKey, Date.now())
+      notify(cacheKey)
       return result
     })
     .catch((error) => {
@@ -105,6 +109,7 @@ function retainRefreshTimer(cacheKey: string, intervalMs: number, fetcher: () =>
 export interface UseAsyncWithCacheOptions {
   errorMessage?: string
   refreshIntervalMs?: number
+  staleTimeMs?: number
 }
 
 export function useAsyncWithCache<T>(
@@ -168,21 +173,27 @@ export function useAsyncWithCache<T>(
       setLoading(true)
     }
 
+    const staleTimeMs = options?.staleTimeMs
+    const fresh = cached !== undefined && staleTimeMs !== undefined
+      && Date.now() - (cachedAt.get(cacheKey) ?? 0) < staleTimeMs
+
     const generation = cacheGeneration
-    runFetch(cacheKey, fetcherRef.current)
-      .then((result) => {
-        if (dead || generation !== cacheGeneration) return
-        setData(result)
-      })
-      .catch((e) => {
-        console.error(`[${namespace}] fetch failed:`, e)
-        if (!dead) {
-          setErr(options?.errorMessage ?? (e instanceof Error ? e.message : 'Failed'))
-        }
-      })
-      .finally(() => {
-        if (!dead) setLoading(false)
-      })
+    if (!fresh) {
+      runFetch(cacheKey, fetcherRef.current)
+        .then((result) => {
+          if (dead || generation !== cacheGeneration) return
+          setData(result)
+        })
+        .catch((e) => {
+          console.error(`[${namespace}] fetch failed:`, e)
+          if (!dead) {
+            setErr(options?.errorMessage ?? (e instanceof Error ? e.message : 'Failed'))
+          }
+        })
+        .finally(() => {
+          if (!dead) setLoading(false)
+        })
+    }
 
     return () => {
       dead = true
@@ -196,6 +207,23 @@ export function useAsyncWithCache<T>(
 export function invalidateAsyncCache(namespace: string, key: string): void {
   const cacheKey = `${namespace}:${key}`
   cache.delete(cacheKey)
+  notify(cacheKey)
+}
+
+export function invalidateAsyncCachePrefix(namespace: string, keyPrefix: string): void {
+  const prefix = `${namespace}:${keyPrefix}`
+  for (const cacheKey of [...cache.keys()]) {
+    if (!cacheKey.startsWith(prefix)) continue
+    cache.delete(cacheKey)
+    notify(cacheKey)
+  }
+}
+
+export function setAsyncCache<T>(namespace: string, key: string, value: T): void {
+  const cacheKey = `${namespace}:${key}`
+  writes.set(cacheKey, (writes.get(cacheKey) ?? 0) + 1)
+  cache.set(cacheKey, value)
+  cachedAt.set(cacheKey, Date.now())
   notify(cacheKey)
 }
 

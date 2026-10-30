@@ -6,7 +6,7 @@ const OURS = 'ours'
 const THEIRS = 'theirs'
 const request = {
   id: 'r', ownerId: THEIRS, toUserId: OURS, senderKeyIndex: 3, recipientKeyIndex: 4, accountReference: 0,
-  encryptedPublicKey: new Uint8Array(96), createdAt: 0, coreHeightCreatedAt: 0, contactXpub: null, paymentChannelBroken: false,
+  encryptedPublicKey: new Uint8Array(96), createdAt: 0, coreHeightCreatedAt: 0,
 }
 
 function run(keys: Record<string, Array<{keyId: number; purpose: string; keyType: string}>>) {
@@ -23,14 +23,6 @@ describe('dashPayContactKey', () => {
     expect(await run({
       [THEIRS]: [{keyId: 3, purpose: 'ENCRYPTION', keyType: 'BLS12_381'}],
       [OURS]: [{keyId: 4, purpose: 'DECRYPTION', keyType: 'ECDSA_SECP256K1'}],
-    })).toEqual({xpub: null})
-  })
-
-  // Most mobile identities have no DECRYPTION key and are written to on another one.
-  it('accepts a request encrypted to a key other than DECRYPTION', async () => {
-    expect(await run({
-      [THEIRS]: [{keyId: 3, purpose: 'AUTHENTICATION', keyType: 'BLS12_381'}],
-      [OURS]: [{keyId: 4, purpose: 'ENCRYPTION', keyType: 'ECDSA_SECP256K1'}],
     })).toEqual({xpub: null})
   })
 

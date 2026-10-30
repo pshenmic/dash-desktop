@@ -1,4 +1,3 @@
-import {Address} from '../types/Address'
 import {GroupedAddresses} from '../types/GroupedAddresses'
 import {CoreFeeForInputs, CoreSpendSource, SelectableUtxo} from '../types/CoinSelection'
 import {CoreRecipient, TransferInput, TransferInputSelection} from '../types/CoreTransaction'
@@ -12,11 +11,6 @@ const pickedOutpointKeys = (source?: CoreSpendSource): Set<string> | null =>
   source?.kind === 'outpoints'
     ? new Set(source.outpoints.map(outpoint => outpointKey(outpoint.txid, outpoint.vout)))
     : null
-
-// Every address the wallet holds keys for: both BIP-44 chains and its DashPay receiving chains.
-export function ownedAddresses(grouped: GroupedAddresses): Address[] {
-  return [...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []]
-}
 
 // Every output a send carries, and the amount it has to fund. An output under
 // the dust threshold is one no peer relays, so it is refused rather than sent.
@@ -66,7 +60,7 @@ export function selectableTransferUtxos(
   utxos: UTXO[],
   source?: CoreSpendSource,
 ): SelectableUtxo[] {
-  const owned = new Set(ownedAddresses(grouped).map(a => a.address))
+  const owned = new Set([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => a.address))
   const picked = pickedOutpointKeys(source)
 
   return utxos
@@ -92,7 +86,7 @@ export function selectTransferInputs(
   source?: CoreSpendSource,
   changeTo?: string,
 ): TransferInputSelection {
-  const pathByAddress = new Map(ownedAddresses(grouped).map(a => [a.address, a.derivationPath]))
+  const pathByAddress = new Map([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => [a.address, a.derivationPath]))
 
   const selectable = selectableTransferUtxos(grouped, utxos, source)
 

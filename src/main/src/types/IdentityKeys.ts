@@ -16,10 +16,9 @@ export interface IdentityKeyBounds {
   documentType: string | null
 }
 
-// As iOS offers them. Drive refuses, before charging, any pairing but TRANSFER
-// CRITICAL, ENCRYPTION and DECRYPTION MEDIUM, and AUTHENTICATION at any level.
+// Drive refuses for free any pairing but TRANSFER CRITICAL, ENCRYPTION and DECRYPTION MEDIUM.
 export type CreatableKeyPurpose = 'AUTHENTICATION' | 'ENCRYPTION' | 'DECRYPTION' | 'TRANSFER'
-export type CreatableKeySecurityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM'
+export type CreatableKeySecurityLevel = 'MASTER' | 'CRITICAL' | 'HIGH' | 'MEDIUM'
 
 // A key to derive from the mnemonic and register on an identity. Always
 // ECDSA_SECP256K1, the only type this wallet derives.
@@ -29,11 +28,28 @@ export interface IdentityKeyRequest {
   contractBounds: IdentityKeyBounds | null
 }
 
+// One identity update: keys to derive and add, and ids of keys to disable.
+export interface IdentityKeysUpdate {
+  add: IdentityKeyRequest[]
+  disable: number[]
+}
+
+// A key of an identity that this wallet derives, which only the seed reveals.
+export interface IdentityPrivateKey {
+  keyId: number
+  wif: string
+  hex: string
+}
+
 export interface IdentityKey {
   keyId: number
   purpose: string
   securityLevel: string
   keyType: string
-  disabled: boolean
+  // The public key, hex.
+  data: string
+  readOnly: boolean
+  // When it was disabled, in milliseconds; null while it is in use.
+  disabledAt: number | null
   contractBounds: IdentityKeyBounds | null
 }

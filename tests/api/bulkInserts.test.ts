@@ -2,6 +2,7 @@ import {describe, it, expect, beforeEach, afterEach} from 'vitest'
 import type {Knex} from 'knex'
 import type {AppliedTx} from '../../src/main/p2p/types/walletSync'
 import {AddressDAO} from '../../src/main/src/database/AddressDAO'
+import {DashPayCache} from '../../src/main/src/database/DashPayCache'
 import {PlatformAddressDAO} from '../../src/main/src/database/PlatformAddressDAO'
 import {ShieldedAddressDAO} from '../../src/main/src/database/ShieldedAddressDAO'
 import {ShieldedNoteDAO} from '../../src/main/src/database/ShieldedNoteDAO'
@@ -47,7 +48,7 @@ const paidTx = {
 
 describe('bulk inserts past the compound-select limit', () => {
   it('reveals core addresses', async () => {
-    await new AddressDAO(knex).insertAddresses(indexes.map(index => ({
+    await new AddressDAO(knex, new DashPayCache()).insertAddresses(indexes.map(index => ({
       walletId: WALLET,
       accountId: 0,
       address: `core-${index}`,
@@ -58,7 +59,7 @@ describe('bulk inserts past the compound-select limit', () => {
       label: null,
     })))
 
-    const {change} = await new AddressDAO(knex).getAddressesByWalletId(WALLET)
+    const {change} = await new AddressDAO(knex, new DashPayCache()).getAddressesByWalletId(WALLET)
     expect(change).toHaveLength(OVER_LIMIT)
   })
 
@@ -150,7 +151,7 @@ describe('address batches past the bind-variable limit', () => {
   })
 
   it('marks core addresses used', async () => {
-    const dao = new AddressDAO(knex)
+    const dao = new AddressDAO(knex, new DashPayCache())
     await dao.insertAddresses(indexes.map(index => ({
       walletId: WALLET,
       accountId: 0,

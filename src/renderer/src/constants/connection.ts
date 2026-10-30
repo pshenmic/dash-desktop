@@ -20,22 +20,30 @@ export const WALLET_CONNECTION_MODE_DETAILS: Record<ConnectionType, ConnectionMo
   p2p: {
     title: 'P2P Network',
     highlight: 'More private',
-    description: 'Connect directly to the Dash network without sending wallet queries through a third-party service.',
-    timing: 'Requires an initial synchronization before your wallet data is ready.',
+    description: 'Connects straight to the Dash network. Needs a first sync.',
   },
   rpc: {
     title: 'Dashscan RPC',
     highlight: 'Ready immediately',
-    description: 'Use Dashscan to access your wallet immediately while your requests are handled by a third-party service.',
-    timing: 'Faster to start, but less private than a direct P2P connection.',
+    description: 'Your wallet queries go through Dashscan.',
   },
 }
 
 export const P2P_READY_PROMPT = {
   title: 'Your private P2P connection is ready',
-  description: 'Synchronization is complete. Switch from Dashscan RPC to P2P to use your locally synchronized wallet data.',
   confirm: 'Switch to P2P',
   dismiss: 'Not now',
+} as const
+
+export const P2P_SYNC_ALERT_TEXTS = {
+  waitingTitle: 'Waiting for P2P sync',
+  pausedTitle: 'P2P sync is paused',
+  coreFundsDescription: 'Core funds unlock after sync.',
+  gatedDescription: 'Available after sync.',
+  resume: 'Resume sync',
+  resuming: 'Resuming…',
+  useRpc: 'Use RPC',
+  resumeFailed: '**Could not resume sync**',
 } as const
 
 export const CONNECTION_LABELS: Record<ConnectionType, string> = {
@@ -99,7 +107,11 @@ export const WALLET_SYNC_PHASE_LABELS: Record<WalletSyncPhase, string> = {
 
 export const REFRESH_DATA_LABEL = 'Refresh data'
 
-export const REFRESH_FAILED_MESSAGE = '**Refresh incomplete** Some data could not be refreshed.'
+export const REFRESH_FAILED_MESSAGE = '**Refresh incomplete**'
+
+export const DATA_REFRESH_STALE_MESSAGE = 'Some data may be out of date.'
+
+export const SYNC_ERROR_LABEL = 'Sync error'
 
 export const RPC_CONNECTION_NAME = 'dashscan.io'
 
@@ -117,9 +129,6 @@ export const CONNECTION_SETTINGS_TABS: ConnectionSettingsTabDefinition[] = [
   {value: 'core', label: 'Core'},
   {value: 'platform', label: 'Platform'},
 ]
-
-export const CONNECTION_SETTINGS_DESCRIPTION =
-  'Manage your Core and Platform connections. Core can synchronize P2P data in the background while you use RPC. For Platform, choose automatic node selection or manage your static nodes.'
 
 export const CORE_CONNECTION_MODE_LABELS: Record<ConnectionType, string> = {
   p2p: 'P2P',
@@ -188,16 +197,14 @@ export const PEER_EMPTY_STATE_DISPLAY = {
   empty: {label: PEER_TABLE_EMPTY_LABEL, loading: false},
 } as const
 
-export const STATIC_PEER_REQUIRED_MESSAGE =
-  'Add a static peer for this network before enabling static peer mode.'
+export const STATIC_PEER_REQUIRED_MESSAGE = '**Add a static peer first**'
 
 export const STATIC_PEER_ADDED_MESSAGE = 'Static peer added.'
 
 export const STATIC_PEER_ALREADY_ADDED_MESSAGE =
   'This peer is already in the static peers list.'
 
-export const STATIC_PEER_READY_MESSAGE =
-  'Static peer added. Turn on Use Static Peers to enable static peer mode.'
+export const STATIC_PEER_READY_MESSAGE = 'Static peer saved. Static peers are off.'
 
 export const DYNAMIC_PEER_ADDED_MESSAGE = 'Peer added to the dynamic peers list.'
 
@@ -239,20 +246,14 @@ export const DEFAULT_PEER_PORTS: Record<Network, number> = {
 }
 
 export const CONNECTION_SETTINGS_TOOLTIPS = {
-  general:
-    'Choose whether the wallet displays Core data from Dashscan RPC or locally synchronized P2P data.',
-  p2p:
-    'P2P synchronization downloads wallet data in the background. It can keep running in parallel while RPC remains the wallet display source.',
-  rpc:
-    'RPC supplies the wallet data shown in the app when RPC mode is selected. Background P2P synchronization can remain enabled at the same time.',
-  peers:
-    'View connected peers and manage per-network dynamic, banned, and static peer lists. Static peer mode applies to the whole app, while each network keeps its own peer list.',
+  general: 'Show Core data from Dashscan or from your own P2P sync.',
+  p2p: 'Syncs wallet data directly from the Dash network. Works alongside RPC.',
+  rpc: 'Loads wallet data from Dashscan.',
+  peers: 'Peer lists are saved per network.',
   dapi:
     'DAPI is used to query decentralized Platform data, including balances and documents.',
-  platformNodes:
-    'Auto discovers Platform nodes automatically. Static uses the saved list for this network, falling back to automatic discovery if it is empty. The mode applies to the whole app; saved lists are separate for each network. New nodes must respond before they can be saved.',
-  platformExplorer:
-    'Platform Explorer supplies Platform queries that are not available through DAPI, such as Platform transaction lookups.',
+  platformNodes: "Auto finds nodes for you. Static uses your saved list (Auto if it's empty).",
+  platformExplorer: 'Used for Platform transaction history.',
 } as const
 
 export const SYNC_PROGRESS_COMPLETE_HOLD_MS = 500

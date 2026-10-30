@@ -35,7 +35,7 @@ import {platformVersion} from './platformVersion'
 import {DEDUCT_FROM_FIRST} from './address/signInputs'
 import {minimumFee} from './shielded/spend/fee'
 import {contractBoundsWASM, sdkContractBounds} from './identity/contractBounds'
-import {IdentityKeyRequest} from '../../src/types/IdentityKeys'
+import {IdentityKeysUpdate} from '../../src/types/IdentityKeys'
 import {DASHPAY_CONTRACT_ID, IDENTITY_KEY_DEFINITIONS, MAX_BUNDLE_ACTIONS, MIN_BUNDLE_ACTIONS} from '../../src/constants/credits'
 import {
   ASSET_LOCK_BASE_COST_CREDITS,
@@ -48,8 +48,12 @@ import {
   DPNS_PREORDER_BYTES,
   SHIELD_FUNDING_ACTIONS,
   IDENTITY_CONTRACT_BOUNDS_BYTES,
+  IDENTITY_DISABLE_KEY_CREDITS,
+  IDENTITY_DISABLE_KEYS_CREDITS,
   IDENTITY_KEY_BOUNDS_BYTES,
   IDENTITY_KEY_BYTES,
+  IDENTITY_KEY_REFERENCE_BYTES,
+  IDENTITY_UPDATE_BYTES,
   STORED_BYTE_CREDITS,
 } from '../../src/constants/fee/platform'
 import {Logger} from '../../src/utils/logger'
@@ -79,22 +83,20 @@ export async function spendFeeCurve(payload: CurvePayload, ctx: OperationContext
 // the floor. A shielded fee is exact, so nothing may be added to it.
 export async function transitionFee(payload: Payload, ctx: OperationContext): Promise<Result> {
   const {operation, params} = payload
-  if (operation === 'aliasRegister') return aliasRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
+  if (operation === 'usernameRegister') return usernameRegisterFee(ctx, paid(params)[0], params.identityId ?? '')
   if (operation === 'dashPayContactRequest') return dashPayContactRequestFee(ctx, paid(params)[0], params.identityId ?? '')
-  if (operation === 'identityCreateKeys') {
-    return identityCreateKeysFee(params.keys ?? [], await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
+  if (operation === 'identityUpdateKeys') {
+    const update = {add: params.keys ?? [], disable: params.keyIds ?? []}
+    return identityUpdateKeysFee(update, await ctx.sdk.identities.getIdentityPublicKeys(params.identityId ?? ''))
   }
   return {
     feeCredits: protocolFee(operation, params, ctx, await platformVersion(ctx)),
     metered: operation !== 'shield' && operation !== 'assetLockShield',
-    fixedCredits: 0n,
   }
 }
 
-// dpp prices a document transition at its flat floor, so documents are priced
-// by the bytes they add to GroveDB: each document as dpp serializes it, each
-// index value twice (its node's key and its parent's link), and what the write
-// adds around them, which the caller measures per document type.
+// dpp prices a document transition at its flat floor, so it is priced by the bytes it
+// stores: the document, each index value twice, and the overhead measured per type.
 export function documentsFee(contract: DataContractWASM, writes: Array<{document: DocumentWASM; overheadBytes: bigint}>): bigint {
   const bytes = writes.reduce((total, {document, overheadBytes}) => {
     const {indices = []} = contract.getSchemas()[document.documentTypeName]
@@ -103,7 +105,11 @@ export function documentsFee(contract: DataContractWASM, writes: Array<{document
     return total + BigInt(document.bytes(contract).length + keyBytes) + overheadBytes
   }, 0n)
   log.debug(`documents fee: ${writes.map(({document}) => document.documentTypeName).join(' + ')} add ${bytes} bytes`)
-  return bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n
+  return withMargin(bytes * STORED_BYTE_CREDITS)
+}
+
+function withMargin(credits: bigint): bigint {
+  return credits * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n
 }
 
 function indexValueBytes(document: DocumentWASM, field: string): number {
@@ -115,7 +121,7 @@ function indexValueBytes(document: DocumentWASM, field: string): number {
   return value == null ? 0 : 8
 }
 
-export async function aliasRegisterFee(ctx: OperationContext, label: string, identityId: string): Promise<Result> {
+export async function usernameRegisterFee(ctx: OperationContext, label: string, identityId: string): Promise<Result> {
   const {sdk} = ctx
   const contract = await sdk.dataContracts.getDataContractByIdentifier(DPNS_DATA_CONTRACT_ID)
   const contested = sdk.names.testNameContested(`${label}.${DPNS_PARENT_DOMAIN}`)
@@ -172,23 +178,26 @@ export async function dashPayContactRequestFee(ctx: OperationContext, recipient:
       {document: request, overheadBytes: DASHPAY_CONTACT_REQUEST_BYTES + (contractNonce === 0n ? CONTRACT_NONCE_BYTES : 0n)},
     ]),
     metered: true,
-    fixedCredits: 0n,
   }
 }
 
-// dpp prices an identity update at its flat floor too, so each key is priced by
-// what adding it stores, which for a contract-bounded key depends on whether the
-// identity already has one bound to that contract.
-export function identityCreateKeysFee(keys: IdentityKeyRequest[], existing: IdentityPublicKeyWASM[]): Result {
+// An identity update too: each added key by what it stores; an update that only
+// disables keys stores almost nothing and is priced at what testnet charged.
+export function identityUpdateKeysFee({add, disable}: IdentityKeysUpdate, existing: IdentityPublicKeyWASM[]): Result {
+  const disabling = IDENTITY_DISABLE_KEY_CREDITS * BigInt(disable.length)
+  if (add.length === 0) {
+    return {feeCredits: withMargin(IDENTITY_DISABLE_KEYS_CREDITS + disabling), metered: true}
+  }
   const bound = new Set(existing.flatMap(key => key.contractBounds == null ? [] : [key.contractBounds.identifier.base58()]))
-  let bytes = 0n
-  for (const {contractBounds} of keys) {
+  let bytes = IDENTITY_UPDATE_BYTES
+  for (const {purpose, contractBounds} of add) {
     bytes += IDENTITY_KEY_BYTES
+    if (purpose === 'AUTHENTICATION' || purpose === 'TRANSFER') bytes += IDENTITY_KEY_REFERENCE_BYTES
     if (contractBounds == null) continue
     bytes += IDENTITY_KEY_BOUNDS_BYTES + (bound.has(contractBounds.contractId) ? 0n : IDENTITY_CONTRACT_BOUNDS_BYTES)
     bound.add(contractBounds.contractId)
   }
-  return {feeCredits: bytes * STORED_BYTE_CREDITS * (100n + DOCUMENT_FEE_MARGIN_PERCENT) / 100n, metered: true, fixedCredits: 0n}
+  return {feeCredits: withMargin(bytes * STORED_BYTE_CREDITS + disabling), metered: true}
 }
 
 // Shield's own minimum omits note storage, but consensus checks its claims
@@ -198,7 +207,7 @@ export function shieldPoolFee(version: PlatformVersionWASM): bigint {
 }
 
 function protocolFee(
-  operation: Exclude<TransitionFeeOperation, 'aliasRegister' | 'dashPayContactRequest' | 'identityCreateKeys'>,
+  operation: Exclude<TransitionFeeOperation, 'usernameRegister' | 'dashPayContactRequest' | 'identityUpdateKeys'>,
   params: FeeQuoteParams,
   ctx: OperationContext,
   version: PlatformVersionWASM,

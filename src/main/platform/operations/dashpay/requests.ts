@@ -11,14 +11,15 @@ type Result = PlatformOperations['dashPayContactRequests']['result']
 export async function dashPayContactRequests({identifier, since}: Payload, {sdk}: OperationContext): Promise<Result> {
   // `>=` keeps a request sharing the boundary millisecond; the caller drops what it already has.
   const all = async (field: string): Promise<DashPayContactRequest[]> => {
-    const requests: DashPayContactRequest[] = []
-    for (let from = since; ;) {
-      const page = (await sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest',
+    const requests = new Map<string, DashPayContactRequest>()
+    let page: DashPayContactRequest[] = []
+    do {
+      const from = page.at(-1)?.createdAt ?? since
+      page = (await sdk.documents.query(DASHPAY_CONTRACT_ID, 'contactRequest',
         [[field, '==', identifier], ['$createdAt', '>=', from]], [['$createdAt', 'asc']], PROVED_QUERY_LIMIT)).map(dashPayContactRequest)
-      requests.push(...page.filter(request => !requests.some(known => known.id === request.id)))
-      if (page.length < PROVED_QUERY_LIMIT) return requests
-      from = page[page.length - 1].createdAt
-    }
+      for (const request of page) if (!requests.has(request.id)) requests.set(request.id, request)
+    } while (page.length === PROVED_QUERY_LIMIT)
+    return [...requests.values()]
   }
   const [sent, received] = await Promise.all([all('$ownerId'), all('toUserId')])
   return {sent, received}
@@ -36,7 +37,5 @@ function dashPayContactRequest(document: DocumentWASM): DashPayContactRequest {
     encryptedPublicKey: Uint8Array.from(encryptedPublicKey),
     createdAt: Number(document.createdAt),
     coreHeightCreatedAt: document.createdAtCoreBlockHeight ?? 0,
-    contactXpub: null,
-    paymentChannelBroken: false,
   }
 }

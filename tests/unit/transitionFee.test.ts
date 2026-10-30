@@ -49,9 +49,9 @@ const RECIPIENT: Record<TransitionFeeOperation, string> = {
   assetLockShield: '',
   identityRegister: '',
   identityTopUpL1: IDENTITY,
-  aliasRegister: 'owl352-testnet',
+  usernameRegister: 'owl352-testnet',
   dashPayContactRequest: IDENTITY,
-  identityCreateKeys: '',
+  identityUpdateKeys: '',
 }
 
 const FUNDING_TXID = '11'.repeat(32)
@@ -140,7 +140,7 @@ describe('transitionFee', () => {
 
   it('prices every operation main can send it', async () => {
     for (const operation of ALL) {
-      expect(await feeOf(operation, {recipient: RECIPIENT[operation], keys: [KEY]}), operation).toBeGreaterThan(0n)
+      expect(await feeOf(operation, {recipient: RECIPIENT[operation], keys: [KEY], keyIds: [1]}), operation).toBeGreaterThan(0n)
     }
   })
 
@@ -270,7 +270,7 @@ describe('transitionFee', () => {
     ]
     for (const [label, contractNonce, named, credits] of charged) {
       Object.assign(dpnsState, {contractNonce: BigInt(contractNonce), named})
-      const quote = await transitionFee({operation: 'aliasRegister', params: params({recipient: label})}, ctx)
+      const quote = await transitionFee({operation: 'usernameRegister', params: params({recipient: label})}, ctx)
       const error = Number(quote.feeCredits * 100n / 105n) / credits - 1
       expect(Math.abs(error), label).toBeLessThan(0.01)
     }
@@ -288,21 +288,45 @@ describe('transitionFee', () => {
     Object.assign(dpnsState, {contractNonce: 1n})
   })
 
-  // Measured on testnet: 34,165,380 then 25,884,540 credits for the two keys
-  // apart, 58,356,740 for both in one update.
-  it('prices a bound key by whether the identity already has one bound to its contract', async () => {
-    const bounded: IdentityKeyRequest = {...KEY, contractBounds: DASHPAY_KEY_BOUNDS}
-    const quote = (bytes: bigint): bigint => bytes * 27_400n * 105n / 100n
-    expect(await feeOf('identityCreateKeys', {keys: [KEY, KEY]})).toBe(quote(2n * 452n))
-    expect(await feeOf('identityCreateKeys', {keys: [bounded, bounded]})).toBe(quote(2n * (452n + 493n) + 302n))
-    identityKeys.bound = [DASHPAY_KEY_BOUNDS.contractId]
-    expect(await feeOf('identityCreateKeys', {keys: [bounded]})).toBe(quote(452n + 493n))
+  // What testnet charged at protocol 14 for each update, by the keys it added and
+  // whether the identity already had a key bound to DashPay.
+  it('prices creating keys at most 7% over what Drive charged', async () => {
+    const key = (purpose: IdentityKeyRequest['purpose'], securityLevel: IdentityKeyRequest['securityLevel'], bounded = false): IdentityKeyRequest =>
+      ({purpose, securityLevel, contractBounds: bounded ? DASHPAY_KEY_BOUNDS : null})
+    const charged: Array<[IdentityKeyRequest[], boolean, bigint]> = [
+      [[key('ENCRYPTION', 'MEDIUM', true)], false, 34_165_380n],
+      [[key('DECRYPTION', 'MEDIUM', true)], true, 25_884_540n],
+      [[key('ENCRYPTION', 'MEDIUM', true), key('DECRYPTION', 'MEDIUM', true)], false, 58_356_740n],
+      [[key('AUTHENTICATION', 'MEDIUM'), key('AUTHENTICATION', 'MEDIUM'), key('AUTHENTICATION', 'MEDIUM')], false, 48_620_080n],
+      [[key('AUTHENTICATION', 'HIGH')], false, 17_515_920n],
+      [[key('TRANSFER', 'CRITICAL')], false, 17_339_640n],
+    ]
+    for (const [keys, alreadyBound, credits] of charged) {
+      identityKeys.bound = alreadyBound ? [DASHPAY_KEY_BOUNDS.contractId] : []
+      const error = Number(await feeOf('identityUpdateKeys', {keys})) / Number(credits) - 1
+      expect(error, keys.map(({purpose}) => purpose).join('+')).toBeGreaterThanOrEqual(0)
+      expect(error).toBeLessThan(0.07)
+    }
     identityKeys.bound = []
   })
 
+  // A MASTER key replaced on testnet, one key added and one disabled: 18,057,020 credits.
+  it('prices an update that adds and disables keys at most 7% over what Drive charged', async () => {
+    const keys: IdentityKeyRequest[] = [{purpose: 'AUTHENTICATION', securityLevel: 'MASTER', contractBounds: null}]
+    const error = Number(await feeOf('identityUpdateKeys', {keys, keyIds: [0]})) / 18_057_020 - 1
+    expect(error).toBeGreaterThanOrEqual(0)
+    expect(error).toBeLessThan(0.07)
+  })
+
+  it('prices disabling keys at what testnet charged, plus the 5% margin', async () => {
+    for (const [keyIds, credits] of [[[7], 1_761_300n], [[8, 9], 2_026_040n]] as const) {
+      expect(await feeOf('identityUpdateKeys', {keyIds: [...keyIds]})).toBe(credits * 105n / 100n)
+    }
+  })
+
   it('quotes a contested name its vote fund apart, so no multiplier scales it', async () => {
-    const plain = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl352-e2e-3302'})}, ctx)
-    const contested = await transitionFee({operation: 'aliasRegister', params: params({recipient: 'owl-check-kfjp'})}, ctx)
+    const plain = await transitionFee({operation: 'usernameRegister', params: params({recipient: 'owl352-e2e-3302'})}, ctx)
+    const contested = await transitionFee({operation: 'usernameRegister', params: params({recipient: 'owl-check-kfjp'})}, ctx)
     expect(plain.fixedCredits).toBe(0n)
     expect(contested.fixedCredits).toBe(10_000_000_000n)
   })

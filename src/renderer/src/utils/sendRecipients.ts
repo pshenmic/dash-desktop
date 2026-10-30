@@ -48,19 +48,9 @@ export function recipientSliderAmount(recipients: SendRecipientDraft[], id: stri
   return davToDash(requested > remaining ? remaining : requested)
 }
 
-export function recipientPercent(amount: bigint, budget: bigint | null): number {
+export function recipientPercent(amount: bigint, budget: bigint | null, round = false): number {
   if (budget == null || budget <= 0n || amount <= 0n) return 0
-  return amount >= budget ? 100 : Number(amount * 100n / budget)
-}
-
-export function splitRecipientTotal(recipients: SendRecipientDraft[]): SendRecipientDraft[] {
-  if (recipients.length === 0) return recipients
-  const total = recipientTotalDuffs(recipients)
-  const count = BigInt(recipients.length)
-  return recipients.map((recipient, index) => ({
-    ...recipient,
-    amount: davToDash(total / count + (index === recipients.length - 1 ? total % count : 0n)),
-  }))
+  return amount >= budget ? 100 : Number((amount * 100n + (round ? budget / 2n : 0n)) / budget)
 }
 
 export function validateSendRecipients(params: SendRecipientValidation): SendRecipientError[] {

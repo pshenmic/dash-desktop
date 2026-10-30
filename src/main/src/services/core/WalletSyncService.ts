@@ -7,7 +7,6 @@ import {LOCK_WATCH_SWEEP_INTERVAL_MS, LOCK_WATCH_TTL_MS, PEER_INFO_TIMEOUT_MS, P
 import {dataPath} from '../../utils/dataPath'
 import {Address} from '../../types/Address'
 import {GroupedAddresses} from '../../types/GroupedAddresses'
-import {ownedAddresses} from '../../utils/transferInputs'
 import {LogLevel} from '../../types/Log'
 import {logChildOutput} from '../../logTransport'
 import {currentLogLevel} from '../../utils/logger'
@@ -88,9 +87,13 @@ export class WalletSyncService {
   onWalletActivity: ((walletId: string) => void) | null = null
   private activityDebounce: ReturnType<typeof setTimeout> | null = null
   onGapExhausted: ((gap: GapExhausted) => void) | null = null
+  onEvonodeDapiUrls: ((network: Network, dapiUrls: string[]) => void) | null = null
+  onPlatformQuorums: ((network: Network, keys: Map<string, Uint8Array>) => void) | null = null
   // Wallets whose scan is held waiting for addresses. The worker resumes at the
   // held height, so the addresses answering it must not also rewind the cursor.
   private gapHeld = new Set<string>()
+  // Wallet ids are random, never reused, so a deleted one can stay here.
+  private deletedWalletIds = new Set<string>()
   // txid -> serialized isdlock (hex), feeding InstantAssetLockProof
   // construction for shield / asset-lock funding.
   private instantLocks = new Map<string, string>()
@@ -208,6 +211,12 @@ export class WalletSyncService {
   }
 
   private handleP2PEvent(data: P2PEvent): void {
+    const walletId = 'walletId' in data ? data.walletId
+      : data.type === 'blockApplied' ? data.block.walletId
+      : data.type === 'gapExhausted' ? data.gap.walletId
+      : null
+    if (walletId != null && this.deletedWalletIds.has(walletId)) return
+
     if (data.type === 'status') {
       const previous = this.status
       const syncedWalletId = data.status.phase === 'synced' && previous.phase !== 'synced'
@@ -287,6 +296,10 @@ export class WalletSyncService {
         log.error('markChainlockedUpTo failed:', err)
       )
       this.recordChainLock(data.network, data.height)
+    } else if (data.type === 'evonodeDapiUrls') {
+      this.onEvonodeDapiUrls?.(data.network, data.dapiUrls)
+    } else if (data.type === 'platformQuorums') {
+      this.onPlatformQuorums?.(data.network, data.keys)
     } else if (data.type === 'error') {
       log.error('utility process error:', data.message)
     }
@@ -356,7 +369,6 @@ export class WalletSyncService {
     // re-covers it — the previous session's failures stop applying here.
     this.cursorGate.clear(walletId)
     if (!this.cursorGate.hasFailures()) this.persistenceError = null
-    this.startRebroadcastLoop()
     const [seedUtxos, unconfirmedInputOutpoints, cfilterCursor] = await Promise.all([
       this.transactionDAO.getUtxos(walletId),
       this.transactionDAO.getUnconfirmedInputOutpoints(walletId),
@@ -396,12 +408,21 @@ export class WalletSyncService {
   }
 
   stopSync = (): void => {
-    this.stopRebroadcastLoop()
     this.activeNetwork = null
     if (!this.child) return
     log.info(`stop requested (wallet=${this.activeWalletId ?? 'none'})`)
     this.send({ type: 'stop' })
     this.activeWalletId = null
+  }
+
+  // Events and queued writes still in flight for the wallet would recreate its rows.
+  forgetWallet = async (walletId: string): Promise<void> => {
+    this.deletedWalletIds.add(walletId)
+    if (this.activeWalletId === walletId) this.stopSync()
+    if (this.lockListenWalletId === walletId && this.lockListenNetwork && this.child) {
+      await this.sendLockListen(this.lockListenNetwork)
+    }
+    await this.persistQueue
   }
 
   // Rewinding the cursor to genesis re-matches history against the new
@@ -521,8 +542,7 @@ export class WalletSyncService {
     }
   }
 
-  // The worker's set only shrinks when we reinstall it, and the periodic
-  // refresh belongs to the rebroadcast loop, which rpc mode never starts.
+  // The worker's set only shrinks when we reinstall it.
   private disarmLockWatch(txid: string): void {
     if (!this.armedLockTxids.delete(txid)) return
     this.refreshWatchedTxids().catch(err =>
@@ -578,6 +598,8 @@ export class WalletSyncService {
   }
 
   private sendLockListen = async (network: 'mainnet' | 'testnet', walletId?: string): Promise<void> => {
+    // Left set, a peer-settings rebuild would restart the old network's sync.
+    if (this.activeNetwork != null && this.activeNetwork !== network) this.stopSync()
     this.lockListenNetwork = network
     this.lockListenWalletId = walletId
     // Without addresses the pool still watches locks and broadcasts; it just
@@ -597,6 +619,7 @@ export class WalletSyncService {
       peerOverrides,
     })
     this.startLockWatchSweep()
+    this.startRebroadcastLoop()
   }
 
   private startLockWatchSweep(): void {
@@ -838,8 +861,8 @@ export class WalletSyncService {
   // Guards against poor propagation and mempool eviction silently dropping a tx
   // while it waits for a block. Instant-locked txs are final and skipped.
   private async rebroadcastPending(): Promise<void> {
-    if (!this.activeWalletId || !this.child) return
-    const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId, Date.now() - PENDING_TX_TTL_MS)
+    if (!this.lockListenWalletId || !this.child) return
+    const pending = await this.transactionDAO.getPendingTxs(this.lockListenWalletId, Date.now() - PENDING_TX_TTL_MS)
     for (const p of pending) {
       if (p.instantLocked || !p.isLocal) continue
       const hex = Buffer.from(p.raw).toString('hex')
@@ -862,8 +885,8 @@ export class WalletSyncService {
       if (armedAt < cutoff) this.armedLockTxids.delete(txid)
       else txids.add(txid)
     }
-    if (this.activeWalletId) {
-      const pending = await this.transactionDAO.getPendingTxs(this.activeWalletId, Date.now() - PENDING_TX_TTL_MS)
+    if (this.lockListenWalletId) {
+      const pending = await this.transactionDAO.getPendingTxs(this.lockListenWalletId, Date.now() - PENDING_TX_TTL_MS)
       for (const p of pending) if (!p.instantLocked) txids.add(p.txid)
     }
     this.send({type: 'watchTxs', mode: 'replace', txids: [...txids]})
@@ -888,7 +911,7 @@ export class WalletSyncService {
       return
     }
     const grouped = await this.addressDAO.getAddressesByWalletId(walletId)
-    const ours = new Set(ownedAddresses(grouped).map(a => a.address))
+    const ours = new Set([...grouped.receiving, ...grouped.change, ...grouped.dashPay ?? []].map(a => a.address))
     const label = network === 'mainnet' ? 'Mainnet' : 'Testnet'
     const applied: AppliedTx = {
       txid: tx.hash(),

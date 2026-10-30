@@ -1,4 +1,4 @@
-import { Button } from "@renderer/components/dash-ui-kit-enxtended";
+import { Button } from "@renderer/components/dash-ui-kit-extended";
 
 type WelcomeProps = {
   onCreateWallet: () => void

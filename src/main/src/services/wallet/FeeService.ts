@@ -168,9 +168,9 @@ export class FeeService {
       case 'identityToAddress':
       case 'identityToIdentity':
       case 'identityWithdrawal':
-      case 'aliasRegister':
+      case 'usernameRegister':
       case 'dashPayContactRequest':
-      case 'identityCreateKeys':
+      case 'identityUpdateKeys':
         requireAutomaticSelection(params.coreSource)
         requireAutomaticInputs(params.platformSource)
         return this.credits(params.identityId == null
@@ -364,9 +364,9 @@ export class FeeService {
       }
 
       // Each is built and signed in one worker call, from keys only the seed derives.
-      case 'aliasRegister':
+      case 'usernameRegister':
       case 'dashPayContactRequest':
-      case 'identityCreateKeys':
+      case 'identityUpdateKeys':
         throw new Error(`${operation} has no transaction to preview before the wallet is unlocked`)
 
       case 'shield': {
@@ -440,7 +440,7 @@ export class FeeService {
       params: {...params, inputCount, coreFeePerByte: coreFeePerByte(coreFeeMultiplier)},
     })
     if (!quote.metered) return quote.feeCredits
-    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation]) + quote.fixedCredits
+    const feeCredits = quote.feeCredits * BigInt(platformFeeMultiplier[operation]) + (quote.fixedCredits ?? 0n)
     if (operation !== 'identityToIdentity') return feeCredits
     return feeCredits > IDENTITY_TRANSFER_MIN_FEE_CREDITS ? feeCredits : IDENTITY_TRANSFER_MIN_FEE_CREDITS
   }

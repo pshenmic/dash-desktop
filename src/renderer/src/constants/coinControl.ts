@@ -1,8 +1,69 @@
+import { CoinControlSort } from '../enums/CoinControl'
 import { SourceKind } from '../enums/SourceKind'
 import { TransferOperation } from '../enums/TransferOperation'
 import type { CoinControlFixedSourceCopy, CoinControlInputLabel } from '../types/CoinControl'
+import type { SegmentOption } from '../types/SegmentedControl'
 
 export const COIN_CONTROL_INVALID_MESSAGE = 'Selected funds are no longer available. Review your coin control selection before continuing.'
+
+export const COIN_CONTROL_LABELS = {
+  automaticTitle: 'Let The Wallet Choose',
+  automaticDescription: 'The wallet will select enough available inputs for the amount and fee',
+  switchToManual: 'Switch to Manual',
+  filterDust: 'Filter Dust',
+  paysFee: 'Pays fee',
+  feePayerGroup: 'Fee-paying input',
+  sort: 'Sort inputs',
+}
+
+export const COIN_CONTROL_DEFAULT_SORT = CoinControlSort.LargestFirst
+
+export const COIN_CONTROL_SORT_OPTIONS: SegmentOption<CoinControlSort>[] = [
+  {value: CoinControlSort.LargestFirst, label: 'Largest first'},
+  {value: CoinControlSort.SmallestFirst, label: 'Smallest first'},
+  {value: CoinControlSort.Newest, label: 'Newest first'},
+  {value: CoinControlSort.Oldest, label: 'Oldest first'},
+]
+
+export const COIN_CONTROL_AMOUNT_SORTS: CoinControlSort[] = [CoinControlSort.LargestFirst, CoinControlSort.SmallestFirst]
+
+export const FEE_PAYER_KEY_STEPS: Partial<Record<string, number>> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+}
+
+export const COIN_CONTROL_AUTOMATIC_RAYS_PATH = 'M280 110L-1200 -1000M320 90V-1000M360 110L1840 -1000M270 140H-1200M370 140H1840'
+
+export const COIN_CONTROL_AUTOMATIC_ADDRESS_PLACEMENTS = [
+  {x: -72, y: 22, width: 172, rotation: 6},
+  {x: 4, y: 74, width: 172, rotation: -5},
+  {x: 138, y: 6, width: 172, rotation: -4},
+  {x: 368, y: 24, width: 172, rotation: 9},
+  {x: 516, y: 2, width: 172, rotation: -3},
+  {x: 564, y: 82, width: 172, rotation: -9},
+] as const
+
+export const COIN_CONTROL_AUTOMATIC_CHIP = {
+  height: 20,
+  radius: 8,
+  fillOpacity: 0.06,
+  arrowPath: 'M7.5 12.5L11.5 8.5M8.5 8.5H11.5V11.5',
+  textX: 15,
+  lineHeight: 4,
+  lineInset: 4,
+  lineOpacity: 0.25,
+  iconSize: 8,
+  iconRadius: 2,
+  iconGap: 3,
+  iconOpacity: 0.1,
+  paddingEnd: 6,
+  copyGlyphPath: 'M2 3H5V6H2ZM3 3V2H6V5H5',
+  qrGlyphPath: 'M2 2H3.5V3.5H2ZM4.5 2H6V3.5H4.5ZM2 4.5H3.5V6H2ZM4.5 4.5H6V6H4.5Z',
+  glyphOpacity: 0.5,
+  strokeWidth: 0.5,
+} as const
 
 export const FIXED_SOURCE_COPY: Partial<Record<TransferOperation, CoinControlFixedSourceCopy>> = {
   [TransferOperation.Shield]: {

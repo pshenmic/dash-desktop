@@ -4,7 +4,7 @@ import type { TransferOperation } from '../enums/TransferOperation'
 import type { SendRecipientDraft } from './SendDraft'
 import type { TransferPageType } from '../constants'
 import type { ReactNode } from 'react'
-import type { DropdownFieldOption } from './DropdownField'
+import type { DropdownFieldOption, DropdownTextSize } from './DropdownField'
 import type { PlatformAddressDto, ShieldedNoteInfo, WalletAddressDto } from '../api/types'
 import type { IdentityApiDto } from '../hooks/useIdentities'
 
@@ -17,13 +17,28 @@ export interface OwnRecipientInventory {
   identities: IdentityApiDto[]
 }
 
+export type RecipientInputAppearance = 'default' | 'subtle'
+
+export interface RecipientFieldStyle {
+  field: string
+  textSize: DropdownTextSize
+  searchIconSize: number
+}
+
 export interface RecipientInputProps {
   value: string
   onChange: (value: string) => void
   data: TransferPageType['recipient']
   compact?: boolean
+  appearance?: RecipientInputAppearance
   ariaLabel?: string
+  validate?: (value: string) => boolean
+  invalid?: boolean
+  valueAvatar?: boolean
   ownOptions?: DropdownFieldOption[]
+  ownOptionsLoading?: boolean
+  ownOptionsError?: string | null
+  onRetryOwnOptions?: () => void
 }
 
 export interface SendRecipientError {
@@ -44,6 +59,7 @@ export interface SendRecipientValidation {
 export interface SendRecipientsEditorProps {
   headerAction?: ReactNode
   beforeRecipients?: ReactNode
+  footer?: ReactNode
   recipients: SendRecipientDraft[]
   errors: SendRecipientError[]
   limit: number
@@ -52,5 +68,6 @@ export interface SendRecipientsEditorProps {
   feeRecipientId: string | null
   feeCredits: bigint | null
   budgetIsEstimate: boolean
+  amountDenominations?: readonly bigint[]
   onChange: (recipients: SendRecipientDraft[]) => void
 }

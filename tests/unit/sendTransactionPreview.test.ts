@@ -150,11 +150,11 @@ describe('backend preview display mapping', () => {
     expect(data.amountCredits).toBe(10000000n)
     expect(data.totalDebitCredits).toBe(10502000n)
     expect(data.fees).toEqual([
-      {label: 'L1 network fee', amount: 500n, unit: 'duffs'},
+      {label: 'Core network fee', amount: 500n, unit: 'duffs'},
       {label: 'Platform network fee', amount: 1001n, unit: 'credits'},
     ])
     expect(data.outputGroups.map(group => group.rows.map(row => row.role))).toEqual([['credit', 'change'], ['recipient']])
-    expect(data.unsignedLabel).toBe('Unsigned L1 asset lock')
+    expect(data.unsignedLabel).toBe('Unsigned Core asset lock')
   })
 
   it('uses Platform debits including feeInput and preserves already reduced recipients', () => {
@@ -167,6 +167,13 @@ describe('backend preview display mapping', () => {
     expect(data.totalDebitCredits).toBe(100000n)
     expect(data.outputGroups[0].rows.map(row => row.amount)).toEqual([10000n, 88000n])
     expect(data.inputs[0].role).toBe('feeInput')
+  })
+
+  it('carries the source address separately from the From label', () => {
+    const withAddress = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: 'tdash1source', fromAddress: 'tdash1source', preview: preview()})
+    const labelOnly = mapSendTransactionPreview({operation: TransferOperation.AddressFundsTransfer, from: '2 Platform inputs', preview: preview()})
+    expect(withAddress).toMatchObject({from: 'tdash1source', fromAddress: 'tdash1source'})
+    expect(labelOnly).toMatchObject({from: '2 Platform inputs', fromAddress: null})
   })
 
   it('keeps exact credit amounts and unnamed shielded change without inventing unsigned bytes', () => {

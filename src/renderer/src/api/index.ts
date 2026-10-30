@@ -1,6 +1,6 @@
 import { WalletTxDto } from '@renderer/types/WalletTransaction'
 import { TransferOperation } from '../enums/TransferOperation'
-import { AliasDto, AliasSearchResultDto, IdentityKeyRequestDto, DashPayContactDto, DashPayPaymentDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
+import { UsernameDto, UsernameSearchResultDto, IdentityKeysUpdateDto, IdentityPrivateKeyDto, DashPayContactDto, DashPayPaymentDto, AssetLockFundingKind, AssetLockFundingState, ConnectionType, Contact, DapiUrlStatus, ExchangeRatesResult, IdentityCreateResult, LogFileContent, LogFileInfo, LogLevel, Network, PeerInfo, PeerMode, PlatformAddressDto, PlatformSendResult, PreferencesJSON, SendResult, ShieldResult, ShieldedNotesInfo, ShieldedPoolInfo, ShieldedSpendState, ShieldedStatus, ShieldedSyncState, FeeParams, OperationFee, PreviewParams, TransactionPreview, TxLockStatus, WalletHistory, CoreRecipient, CoreSpendSource, PlatformSpendSource, PlatformRecipient, ShieldedRecipient, ShieldedSpendSource, SelectableUtxo} from './types'
 
 export class API {
   private static get api() {
@@ -159,22 +159,30 @@ export class API {
     return this.api.getIdentities(walletId)
   }
 
-  static async getAliases(walletId: string): Promise<AliasDto[]> {
-    return this.api.getAliases(walletId) as Promise<AliasDto[]>
+  // DashPay and DPNS reads answer from memory
+  static async getUsernames(walletId: string): Promise<UsernameDto[]> {
+    return this.api.getUsernames(walletId) as Promise<UsernameDto[]>
   }
 
-  // Find users by the start of their name, e.g. to send a contact request.
-  static async searchAliases(walletId: string, prefix: string): Promise<AliasSearchResultDto[]> {
-    return this.api.searchAliases(walletId, prefix) as Promise<AliasSearchResultDto[]>
+  static async refreshDashPay(walletId: string): Promise<void> {
+    return this.api.refreshDashPay(walletId)
   }
 
-  static async registerAlias(walletId: string, identifier: string, label: string, password: string): Promise<AliasDto> {
-    return this.api.registerAlias(walletId, identifier, label, password) as Promise<AliasDto>
+  static async searchUsernames(walletId: string, prefix: string): Promise<UsernameSearchResultDto[]> {
+    return this.api.searchUsernames(walletId, prefix) as Promise<UsernameSearchResultDto[]>
   }
 
-  // Resolves to the identity update's transition hash. Price it first with estimateFee('identityCreateKeys', {keys}).
-  static async createIdentityKeys(walletId: string, identifier: string, keys: IdentityKeyRequestDto[], password: string): Promise<string> {
-    return this.api.createIdentityKeys(walletId, identifier, keys, password)
+  static async registerUsername(walletId: string, identifier: string, label: string, password: string): Promise<UsernameDto> {
+    return this.api.registerUsername(walletId, identifier, label, password) as Promise<UsernameDto>
+  }
+
+  // Price it with estimateFee('identityUpdateKeys', {identityId, keys: add, keyIds: disable}).
+  static async updateIdentityKeys(walletId: string, identifier: string, update: IdentityKeysUpdateDto, password: string): Promise<string> {
+    return this.api.updateIdentityKeys(walletId, identifier, update, password)
+  }
+
+  static async getIdentityPrivateKeys(walletId: string, identifier: string, password: string): Promise<IdentityPrivateKeyDto[]> {
+    return this.api.getIdentityPrivateKeys(walletId, identifier, password) as Promise<IdentityPrivateKeyDto[]>
   }
 
   static async getDashPayContacts(walletId: string): Promise<DashPayContactDto[]> {
@@ -185,8 +193,7 @@ export class API {
     return this.api.getDashPayPayments(walletId, identifier, contactId) as Promise<DashPayPaymentDto[]>
   }
 
-  // An L1 send to a contact; its address is worked out in the backend. Quote it
-  // with estimateFee('coreSend') — the fee does not depend on the address.
+  // Quote it with estimateFee('coreSend'): the fee does not depend on the address.
   static async sendDashPayPayment(walletId: string, identifier: string, contactId: string, amountDuffs: bigint, password: string): Promise<SendResult> {
     return this.api.sendDashPayPayment(walletId, identifier, contactId, amountDuffs, password) as Promise<SendResult>
   }
