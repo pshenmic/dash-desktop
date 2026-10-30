@@ -15,7 +15,6 @@ function identity(identifier: string, identityIndex: number, usernames: string[]
   return {
     identityIndex,
     identifier,
-    alias: usernames[0] ?? null,
     usernames,
     keys,
     balance: { amount: 1n, usdAmount: '0.0' },

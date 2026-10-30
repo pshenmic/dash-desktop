@@ -35,8 +35,9 @@ import { identityLabel, identityName } from '@renderer/utils/identifierFormat'
 import { nextListIndex } from '@renderer/utils/listNavigation'
 
 function IdentityName({identity}: IdentityNameProps): React.JSX.Element {
-  if (identity.alias) {
-    return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{identity.alias}</Text>
+  const name = identityName(identity)
+  if (name != null) {
+    return <Text size={14} weight={"medium"} color={"brand"} className={"break-all text-left"}>{name}</Text>
   }
   return <HighlightedIdentifier className={CONTACT_IDENTIFIER_CLASS}>{identity.identifier}</HighlightedIdentifier>
 }

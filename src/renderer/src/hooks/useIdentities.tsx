@@ -6,7 +6,6 @@ import { invalidateAsyncCache, prefetchAsyncCache, useAsyncWithCache } from './u
 export type IdentityApiDto = {
   identityIndex: number
   identifier: string
-  alias: string | null
   usernames: string[]
   keys: IdentityKeyDto[]
   balance: {

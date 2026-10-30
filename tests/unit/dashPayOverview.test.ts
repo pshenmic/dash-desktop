@@ -29,7 +29,6 @@ function identity(identifier: string, usernames: string[], keys: IdentityKeyDto[
   return {
     identityIndex: 0,
     identifier,
-    alias: usernames[0] ?? null,
     usernames,
     keys,
     balance: { amount, usdAmount: '0.0' },

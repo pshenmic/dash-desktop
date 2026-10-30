@@ -32,7 +32,6 @@ function identity(keys: IdentityKeyDto[], usernames: string[] = ['alice.dash'], 
   return {
     identityIndex: 0,
     identifier: 'B7kcEqgCRhLp2Wq5WZbeT4yUcZR8BWh3X1o3qDtLCpQH',
-    alias: usernames[0] ?? null,
     usernames,
     keys,
     balance: { amount, usdAmount: '0.0' },

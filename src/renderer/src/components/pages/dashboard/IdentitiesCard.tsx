@@ -8,6 +8,7 @@ import { SURFACE_PANEL } from '@renderer/constants/surfaces'
 import { useAuth } from '@renderer/contexts/AuthContext'
 import { useIdentities } from '@renderer/hooks/useIdentities'
 import { useBalanceVisibility } from '@renderer/hooks/useBalanceVisibility'
+import { identityLabel } from '@renderer/utils/identifierFormat'
 import { totalIdentityCredits } from '@renderer/utils/platformBalances'
 import DashboardHeading from './DashboardHeading'
 
@@ -88,7 +89,7 @@ export default function IdentitiesCard(): React.JSX.Element {
             {topIdentity !== null && (
               <>
                 {' · '}
-                {labels.top} {topIdentity.alias ?? topIdentity.identifier}{' '}
+                {labels.top} {identityLabel(topIdentity)}{' '}
                 (<CreditsAmount credits={topIdentity.balance.amount} compact showFiat={false} unit={labels.credits} />)
               </>
             )}

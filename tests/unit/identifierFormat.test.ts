@@ -18,17 +18,15 @@ describe('isIdentifierLike', () => {
 })
 
 describe('identityName', () => {
-  it('prefers the oldest owned name, then the alias, and is null without either', () => {
-    expect(identityName({ alias: 'old.dash', usernames: ['bbbbbbbasa.dash', 'b2.dash'] })).toBe('bbbbbbbasa.dash')
-    expect(identityName({ alias: 'old.dash', usernames: [] })).toBe('old.dash')
-    expect(identityName({ alias: null, usernames: [] })).toBeNull()
+  it('is the oldest owned name, and null without one', () => {
+    expect(identityName({ usernames: ['bbbbbbbasa.dash', 'b2.dash'] })).toBe('bbbbbbbasa.dash')
+    expect(identityName({ usernames: [] })).toBeNull()
   })
 })
 
 describe('identityLabel', () => {
-  it('prefers the oldest owned name, then the alias, then the full identifier', () => {
-    expect(identityLabel({ identifier: IDENTIFIER, alias: 'old.dash', usernames: ['bbbbbbbasa.dash', 'b2.dash'] })).toBe('bbbbbbbasa.dash')
-    expect(identityLabel({ identifier: IDENTIFIER, alias: 'old.dash', usernames: [] })).toBe('old.dash')
-    expect(identityLabel({ identifier: IDENTIFIER, alias: null, usernames: [] })).toBe(IDENTIFIER)
+  it('prefers the oldest owned name, then the full identifier', () => {
+    expect(identityLabel({ identifier: IDENTIFIER, usernames: ['bbbbbbbasa.dash', 'b2.dash'] })).toBe('bbbbbbbasa.dash')
+    expect(identityLabel({ identifier: IDENTIFIER, usernames: [] })).toBe(IDENTIFIER)
   })
 })

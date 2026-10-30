@@ -61,7 +61,6 @@ function generateContacts(): DashPayContactDto[] {
 const identity: IdentityApiDto = {
   identityIndex: 0,
   identifier: ACTING,
-  alias: 'owl11.dash',
   usernames: ['owl11.dash'],
   keys: [],
   balance: { amount: 250_660_000_000n, usdAmount: '0' },

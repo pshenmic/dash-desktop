@@ -22,7 +22,7 @@ export function resolveActiveIdentity({ identities, requested, stored }: ActiveI
 }
 
 export function filterIdentities(identities: IdentityApiDto[], query: string): IdentityApiDto[] {
-  return identities.filter(identity => matchesIdentityQuery(identity.identifier, [identity.alias, ...identity.usernames], query))
+  return identities.filter(identity => matchesIdentityQuery(identity.identifier, identity.usernames, query))
 }
 
 export function incomingCountByIdentity(contacts: DashPayContactDto[]): Record<string, number> {

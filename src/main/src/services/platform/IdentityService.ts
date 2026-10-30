@@ -53,7 +53,6 @@ export class IdentityService {
       return [{
         identityIndex: entry.identityIndex,
         identifier: info.identifier,
-        alias: info.usernames[0] ?? null,
         usernames: info.usernames,
         keys: info.keys,
         balance: {
