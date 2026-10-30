@@ -45,7 +45,7 @@ function context(
 }
 
 describe('identityInfos', () => {
-  it('resolves aliases when asked for them', async () => {
+  it('resolves usernames when asked for them', async () => {
     const {ctx, calls} = context()
 
     const {infos} = await identityInfos({identifiers: KNOWN, skipDPNS: false}, ctx)

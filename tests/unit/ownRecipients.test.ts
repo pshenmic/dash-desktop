@@ -22,7 +22,7 @@ function inventory(): OwnRecipientInventory {
     ],
     shieldedAddresses: ['shielded-saved'],
     shieldedNotes: [],
-    identities: [{identityIndex: 0, identifier: 'identity-empty', alias: 'Personal', usernames: ['Personal'], keys: [], balance: {amount: 0n, usdAmount: '0'}, derivationPath: '', assetLockTxid: null}],
+    identities: [{identityIndex: 0, identifier: 'identity-empty', usernames: ['Personal'], keys: [], balance: {amount: 0n, usdAmount: '0'}, derivationPath: '', assetLockTxid: null}],
   }
 }
 
@@ -40,7 +40,7 @@ describe('own recipient options', () => {
     ])
   })
 
-  it('keeps identity aliases and balances without inventing a transaction count or nonce', () => {
+  it('keeps identity usernames and balances without inventing a transaction count or nonce', () => {
     const recipients = inventory()
     recipients.identities[0].balance.amount = 100_000_000_001n
     expect(ownRecipientOptions(DestinationKind.Identity, recipients)).toEqual([

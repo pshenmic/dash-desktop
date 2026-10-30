@@ -83,9 +83,9 @@ describe('wallet balance', () => {
     expect(ensureXpubAddressWindow).not.toHaveBeenCalled()
   })
 
-  // An alias costs a DPNS document search per identity, and the total never
+  // A username costs a DPNS document search per identity, and the total never
   // reads one.
-  it('does not pay for aliases it never reads', async () => {
+  it('does not pay for usernames it never reads', async () => {
     vi.spyOn(providers, 'forWallet').mockReturnValue(providerStub(0n))
     request.mockResolvedValue({infos: []})
 

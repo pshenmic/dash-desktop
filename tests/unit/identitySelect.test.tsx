@@ -21,7 +21,6 @@ function identity(index: number, names: string[] = []): IdentityApiDto {
   return {
     identityIndex: index,
     identifier: `${'B7kcE'}${String(index).padStart(34, 'x')}LCpQH`,
-    alias: names[0] ?? null,
     usernames: names,
     keys: [],
     balance: { amount: 250_660_000_000n, usdAmount: '0' },

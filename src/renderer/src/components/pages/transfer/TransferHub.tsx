@@ -1244,7 +1244,7 @@ function WalletTransferHub(): React.JSX.Element {
         platformAddressesError={platformAddressesError}
         onRetryPlatformAddresses={() => { if (walletId) void refreshPlatformAddresses(walletId) }}
         shieldedNotes={spendableNotes}
-        identityLabel={selectedIdentity?.alias ?? null}
+        identityLabel={selectedIdentity?.usernames[0] ?? null}
         identityId={selectedIdentity?.identifier ?? null}
         platformAddress={undefined}
         onRetryUtxos={retryUtxos}
